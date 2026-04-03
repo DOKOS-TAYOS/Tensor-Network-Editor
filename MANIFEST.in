@@ -1,0 +1,5 @@
+include LICENSE
+include README.md
+recursive-include src/tensor_network_editor/app/static *.css *.html *.js
+include src/tensor_network_editor/py.typed
+recursive-exclude tests *

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tensor Network Editor</title>
+    <link rel="stylesheet" href="/app.css?v=__ASSET_VERSION__" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="toolbar">
+        <div class="toolbar-group">
+          <button id="new-design-button" type="button">New</button>
+          <button id="add-tensor-button" type="button">Add Tensor</button>
+          <button id="connect-button" type="button">Connect</button>
+          <button id="delete-button" type="button">Delete</button>
+        </div>
+        <div class="toolbar-group">
+          <button id="save-button" type="button">Save</button>
+          <button id="load-button" type="button">Load</button>
+          <input id="load-input" type="file" accept="application/json" hidden />
+        </div>
+        <div class="toolbar-group toolbar-group-right">
+          <label class="engine-picker" for="engine-select">
+            Engine
+            <select id="engine-select"></select>
+          </label>
+          <button id="validate-button" type="button">Validate</button>
+          <button id="generate-button" type="button">Generate</button>
+          <button id="done-button" type="button" class="primary">Done</button>
+          <button id="cancel-button" type="button">Cancel</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="canvas-panel">
+          <div class="panel-heading">
+            <div>
+              <h1>Tensor Network Editor</h1>
+              <p id="status-message">Loading editor...</p>
+            </div>
+          </div>
+          <div id="canvas"></div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel-card selection-card">
+            <h2>Selection</h2>
+            <div id="properties-panel" class="properties-panel"></div>
+          </section>
+
+          <section class="panel-card code-card">
+            <div class="code-header">
+              <h2>Generated Code</h2>
+              <button id="copy-code-button" type="button">Copy</button>
+            </div>
+            <textarea id="generated-code" spellcheck="false" readonly></textarea>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/vendor/cytoscape.min.js?v=__ASSET_VERSION__"></script>
+    <script src="/app.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>

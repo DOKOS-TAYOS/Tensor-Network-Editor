@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          if ($env:RUNNER_OS -eq "Windows") {
+            "VENV_PYTHON=.venv\Scripts\python.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Upgrade pip
+        run: |
+          & $env:VENV_PYTHON -m pip install --upgrade pip
+
+      - name: Install project with development dependencies
+        run: |
+          & $env:VENV_PYTHON -m pip install -e ".[dev]"
+
+      - name: Run Ruff
+        run: |
+          & $env:VENV_PYTHON -m ruff check .
+
+      - name: Run MyPy
+        run: |
+          & $env:VENV_PYTHON -m mypy
+
+      - name: Run tests
+        run: |
+          & $env:VENV_PYTHON -m pytest
+
+      - name: Build distribution artifacts
+        run: |
+          & $env:VENV_PYTHON -m build
+
+      - name: Validate distribution metadata
+        run: |
+          & $env:VENV_PYTHON -m twine check dist/*
+
+      - name: Smoke test built wheel
+        run: |
+          & $env:VENV_PYTHON -m pip uninstall -y tensor-network-editor
+          $wheel = (Get-ChildItem "dist/*.whl" | Select-Object -First 1).FullName
+          if (-not $wheel) {
+            throw "No wheel was produced in dist/."
+          }
+          & $env:VENV_PYTHON -m pip install $wheel
+          & $env:VENV_PYTHON -c "import tensor_network_editor; print(tensor_network_editor.__file__)"
+          & $env:VENV_PYTHON -m tensor_network_editor --help
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ runner.os }}-py${{ matrix.python-version }}
+          path: dist/
