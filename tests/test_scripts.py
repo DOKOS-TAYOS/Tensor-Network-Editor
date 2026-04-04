@@ -9,6 +9,20 @@ from uuid import uuid4
 
 
 class CleanScriptTests(unittest.TestCase):
+    def test_clean_sh_exists_and_targets_standard_artifacts(self) -> None:
+        source_script = Path.cwd() / "scripts" / "clean.sh"
+        self.assertTrue(source_script.is_file(), "scripts/clean.sh should exist.")
+
+        script_text = source_script.read_text(encoding="utf-8")
+
+        self.assertIn("remove_dir \".pytest_cache\"", script_text)
+        self.assertIn("remove_dir \"build\"", script_text)
+        self.assertIn("remove_dir \"dist\"", script_text)
+        self.assertIn("remove_glob_dirs_warn \"./pytest-cache-files-*\"", script_text)
+        self.assertIn("remove_named_dirs \"./src\" \"__pycache__\"", script_text)
+        self.assertIn("remove_named_dirs \"./tests\" \"__pycache__\"", script_text)
+        self.assertNotIn(".venv", script_text)
+
     @unittest.skipUnless(os.name == "nt", "clean.bat is a Windows-only helper")
     def test_clean_bat_removes_generated_artifacts_and_preserves_venv(self) -> None:
         source_script = Path.cwd() / "scripts" / "clean.bat"

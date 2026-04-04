@@ -116,7 +116,13 @@ To remove local caches and generated build artifacts on Windows without touching
 .\scripts\clean.bat
 ```
 
-On Linux, use the same commands after activating `.venv/bin/activate`.
+On Linux, use:
+
+```bash
+./scripts/clean.sh
+```
+
+Bundled third-party notices for redistributed frontend assets are tracked in `THIRD_PARTY_LICENSES`.
 
 ## Save Format
 
