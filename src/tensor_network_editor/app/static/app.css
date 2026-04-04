@@ -88,18 +88,22 @@ select {
 
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid rgba(44, 52, 72, 0.95);
   backdrop-filter: blur(10px);
   background: rgba(17, 20, 29, 0.92);
+  overflow-x: auto;
 }
 
 .toolbar-group {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .toolbar-group-right {
@@ -138,8 +142,32 @@ select {
   overflow: hidden;
 }
 
+.canvas-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
 .panel-heading {
   padding: 1.25rem 1.25rem 0.25rem;
+}
+
+.canvas-titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.title-main {
+  min-width: 0;
+}
+
+.title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .panel-heading h1,
@@ -156,6 +184,7 @@ select {
 
 #canvas {
   flex: 1;
+  height: 100%;
   min-height: 0;
   border-top: 1px solid rgba(44, 52, 72, 0.72);
   background:
@@ -163,6 +192,60 @@ select {
     linear-gradient(90deg, rgba(80, 95, 126, 0.18) 1px, transparent 1px),
     linear-gradient(180deg, rgba(19, 23, 33, 0.96), rgba(14, 17, 25, 0.98));
   background-size: 28px 28px, 28px 28px, auto;
+}
+
+.canvas-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.selection-box {
+  position: absolute;
+  border: 1px solid rgba(139, 194, 255, 0.9);
+  background: rgba(97, 168, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(139, 194, 255, 0.12);
+  border-radius: 8px;
+}
+
+.minimap-shell {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  width: 220px;
+  padding: 0.6rem 0.6rem 0.75rem;
+  border-radius: 18px;
+  border: 1px solid rgba(76, 92, 120, 0.92);
+  background: rgba(14, 18, 27, 0.92);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.minimap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#minimap {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  background:
+    linear-gradient(180deg, rgba(17, 23, 34, 0.98), rgba(11, 16, 24, 0.98));
+  cursor: grab;
+}
+
+#minimap.is-dragging {
+  cursor: grabbing;
 }
 
 .sidebar {
@@ -222,6 +305,13 @@ select {
   align-items: center;
 }
 
+.button-row button[disabled],
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .is-hidden {
   display: none;
 }
@@ -262,21 +352,75 @@ select {
   border: 1px solid rgba(44, 52, 72, 0.95);
 }
 
+.properties-summary {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.properties-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.properties-chip-wrap .properties-chip {
+  min-width: 110px;
+}
+
 .code-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
+.code-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-output-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: 1rem;
+}
+
+.icon-button {
+  width: 2.4rem;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-button svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.code-copy-floating {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1;
+  background: rgba(16, 23, 32, 0.94);
+  backdrop-filter: blur(4px);
+}
+
 #generated-code {
   width: 100%;
   flex: 1;
   min-height: 0;
-  margin-top: 1rem;
+  height: 100%;
   resize: none;
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.92rem;
   line-height: 1.45;
+  padding-top: 3.4rem;
 }
 
 .status-error {
@@ -293,6 +437,95 @@ select {
   font-size: 0.92rem;
 }
 
+.help-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.help-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 10, 16, 0.76);
+  backdrop-filter: blur(6px);
+}
+
+.help-dialog {
+  position: relative;
+  width: min(840px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: 1rem auto;
+  padding: 1.25rem;
+  border-radius: 24px;
+  border: 1px solid rgba(66, 78, 103, 0.95);
+  background: rgba(18, 24, 36, 0.98);
+  box-shadow: var(--shadow);
+  overflow: auto;
+}
+
+.help-dialog-header {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.help-dialog-header h2,
+.help-section h3,
+.help-shortcuts h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.help-sections {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.help-section {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  background: rgba(13, 18, 27, 0.84);
+}
+
+.help-section ul {
+  margin: 0.7rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--muted);
+}
+
+.help-shortcuts {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  background: rgba(13, 18, 27, 0.84);
+}
+
+.help-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
+.help-shortcut-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(44, 52, 72, 0.95);
+}
+
+.help-shortcut-grid span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 1100px) {
   body {
     overflow: auto;
@@ -302,6 +535,10 @@ select {
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
   }
 
   .workspace {
@@ -315,5 +552,26 @@ select {
 
   #canvas {
     min-height: 420px;
+  }
+
+  .canvas-titlebar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .title-actions {
+    justify-content: flex-start;
+  }
+
+  .minimap-shell {
+    width: 180px;
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .help-dialog {
+    width: calc(100vw - 1rem);
+    margin: 0.5rem auto;
+    max-height: calc(100dvh - 1rem);
   }
 }

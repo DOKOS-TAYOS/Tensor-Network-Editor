@@ -11,13 +11,11 @@
       <header class="toolbar">
         <div class="toolbar-group">
           <button id="new-design-button" type="button">New</button>
-          <button id="add-tensor-button" type="button">Add Tensor</button>
-          <button id="connect-button" type="button">Connect</button>
-          <button id="delete-button" type="button">Delete</button>
-        </div>
-        <div class="toolbar-group">
           <button id="save-button" type="button">Save</button>
           <button id="load-button" type="button">Load</button>
+          <button id="delete-button" type="button">Delete</button>
+          <button id="export-png-button" type="button">Export PNG</button>
+          <button id="export-svg-button" type="button">Export SVG</button>
           <input id="load-input" type="file" accept="application/json" hidden />
         </div>
         <div class="toolbar-group toolbar-group-right">
@@ -25,8 +23,6 @@
             Engine
             <select id="engine-select"></select>
           </label>
-          <button id="validate-button" type="button">Validate</button>
-          <button id="generate-button" type="button">Generate</button>
           <button id="done-button" type="button" class="primary">Done</button>
           <button id="cancel-button" type="button">Cancel</button>
         </div>
@@ -34,13 +30,30 @@
 
       <main class="workspace">
         <section class="canvas-panel">
-          <div class="panel-heading">
-            <div>
+          <div class="panel-heading canvas-titlebar">
+            <div class="title-main">
               <h1>Tensor Network Editor</h1>
-              <p id="status-message">Loading editor...</p>
+            </div>
+            <div class="title-actions">
+              <button id="help-button" type="button">Help</button>
+              <button id="add-tensor-button" type="button">Add Tensor</button>
+              <button id="connect-button" type="button">Connect</button>
+              <button id="undo-button" type="button">Undo</button>
+              <button id="redo-button" type="button">Redo</button>
             </div>
           </div>
-          <div id="canvas"></div>
+          <div id="canvas-shell" class="canvas-shell">
+            <div id="canvas"></div>
+            <div class="canvas-overlay">
+              <div id="canvas-selection-box" class="selection-box is-hidden"></div>
+              <section class="minimap-shell" aria-label="Minimap">
+                <div class="minimap-header">
+                  <span>Minimap</span>
+                </div>
+                <canvas id="minimap" width="220" height="150"></canvas>
+              </section>
+            </div>
+          </div>
         </section>
 
         <aside class="sidebar">
@@ -52,12 +65,95 @@
           <section class="panel-card code-card">
             <div class="code-header">
               <h2>Generated Code</h2>
-              <button id="copy-code-button" type="button">Copy</button>
+              <div class="code-header-actions">
+                <button id="generate-button" type="button">Generate</button>
+              </div>
             </div>
-            <textarea id="generated-code" spellcheck="false" readonly></textarea>
+            <div class="code-output-shell">
+              <button
+                id="copy-code-button"
+                type="button"
+                class="icon-button code-copy-floating"
+                aria-label="Copy generated code"
+                title="Copy generated code"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path
+                    d="M3.75 2.5A1.75 1.75 0 0 1 5.5.75h5A1.75 1.75 0 0 1 12.25 2.5v.75h.25A1.75 1.75 0 0 1 14.25 5v7.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 12.5v-.25H4A1.75 1.75 0 0 1 2.25 10.5Zm1.5 8h5.25A1.75 1.75 0 0 0 12.25 8.75V4.5h.25a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5Zm1-.75h4.5a.5.5 0 0 0 .5-.5v-6.75a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0-.5.5v7.25a.5.5 0 0 0 .5.5Z"
+                  />
+                </svg>
+              </button>
+              <textarea id="generated-code" spellcheck="false" readonly></textarea>
+            </div>
           </section>
         </aside>
       </main>
+    </div>
+
+    <div id="help-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div id="help-backdrop" class="help-backdrop"></div>
+      <section class="help-dialog">
+        <div class="help-dialog-header">
+          <div>
+            <h2 id="help-title">How to use the editor</h2>
+            <p class="help-note">A quick guide for navigation, selection, connect mode, exports, and shortcuts.</p>
+          </div>
+          <button id="help-close-button" type="button" aria-label="Close help">Close</button>
+        </div>
+
+        <div class="help-sections">
+          <section class="help-section">
+            <h3>Navigation</h3>
+            <ul>
+              <li>Use the mouse wheel or trackpad to zoom.</li>
+              <li>Drag empty canvas space to move the view.</li>
+              <li>Use the minimap to recenter or drag the visible area.</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>Selection</h3>
+            <ul>
+              <li>Left click selects one tensor, index, or connection.</li>
+              <li>Drag with <strong>right click</strong> to select many elements at once.</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>Batch actions</h3>
+            <ul>
+              <li>Drag one selected tensor to move all selected tensors together.</li>
+              <li>Use the multi-selection panel to recolor or delete everything selected.</li>
+              <li>If only tensors are selected, you can add one default index to each tensor.</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>Connect and export</h3>
+            <ul>
+              <li>Activate <strong>Connect</strong> and click two open indices with the same dimension.</li>
+              <li>Export <strong>PNG</strong> for a clean image or <strong>SVG</strong> for a vector version.</li>
+              <li>Undo and redo affect the design, not the current zoom or viewport.</li>
+            </ul>
+          </section>
+        </div>
+
+        <section class="help-shortcuts">
+          <h3>Shortcuts</h3>
+          <div class="help-shortcut-grid">
+            <div><strong>Ctrl/Cmd+Z</strong><span>Undo</span></div>
+            <div><strong>Ctrl+Y</strong><span>Redo</span></div>
+            <div><strong>Ctrl+Shift+Z</strong><span>Redo (alternative)</span></div>
+            <div><strong>Delete / Backspace</strong><span>Delete selection</span></div>
+            <div><strong>N</strong><span>Add tensor</span></div>
+            <div><strong>C</strong><span>Toggle connect mode</span></div>
+            <div><strong>Ctrl/Cmd+A</strong><span>Select all tensors</span></div>
+            <div><strong>?</strong><span>Open help</span></div>
+            <div><strong>Escape</strong><span>Clear selection or close help</span></div>
+            <div><strong>Right drag</strong><span>Box select many elements</span></div>
+          </div>
+        </section>
+      </section>
     </div>
 
     <script src="/vendor/cytoscape.min.js?v=__ASSET_VERSION__"></script>
