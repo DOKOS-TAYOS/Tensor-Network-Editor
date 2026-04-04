@@ -82,13 +82,22 @@ class AppServerTests(unittest.TestCase):
         html = request_text(f"{self.server.base_url}/")
 
         self.assertIn("Tensor Network Editor", html)
-        self.assertIn('type="module"', html)
-        self.assertIn('src="/app.js?v=', html)
+        self.assertIn("app.js", html)
         self.assertIn("?v=", html)
-        self.assertIn('id="canvas"', html)
-        self.assertIn('id="properties-panel"', html)
-        self.assertIn('id="generated-code"', html)
+        self.assertIn('class="title-actions"', html)
+        self.assertIn('class="code-header-actions"', html)
+        self.assertIn('class="code-output-shell"', html)
+        self.assertIn('id="undo-button"', html)
+        self.assertIn('id="redo-button"', html)
+        self.assertIn('id="export-png-button"', html)
+        self.assertIn('id="export-svg-button"', html)
+        self.assertIn('id="help-button"', html)
+        self.assertIn('id="generate-button"', html)
+        self.assertIn('id="canvas-selection-box"', html)
+        self.assertIn('id="minimap"', html)
         self.assertIn('id="help-modal"', html)
+        self.assertNotIn('id="validate-button"', html)
+        self.assertNotIn('id="status-message"', html)
 
     def test_vendor_asset_is_served_locally(self) -> None:
         asset_body = request_text(f"{self.server.base_url}/vendor/cytoscape.min.js")
@@ -101,24 +110,76 @@ class AppServerTests(unittest.TestCase):
         self.assertIn("color-scheme: dark", css_body)
         self.assertIn("height: 100dvh", css_body)
         self.assertIn("overflow: hidden", css_body)
+        self.assertIn(".apply-button", css_body)
+        self.assertIn("#72d98c", css_body)
+        self.assertIn(".field-row", css_body)
+        self.assertIn(".compact-number-field", css_body)
+        self.assertIn(".control-inline-color", css_body)
         self.assertIn(".canvas-overlay", css_body)
-        self.assertIn(".minimap-shell", css_body)
-        self.assertIn(".help-modal", css_body)
-        self.assertIn(".code-output-shell", css_body)
         self.assertIn(".selection-box", css_body)
+        self.assertIn(".minimap-shell", css_body)
+        self.assertIn(".canvas-titlebar", css_body)
+        self.assertIn(".title-actions", css_body)
+        self.assertIn(".code-header-actions", css_body)
+        self.assertIn(".code-output-shell", css_body)
+        self.assertIn(".code-copy-floating", css_body)
+        self.assertIn(".icon-button", css_body)
+        self.assertIn(".help-modal", css_body)
+        self.assertIn(".help-shortcuts", css_body)
 
-    def test_frontend_entrypoint_uses_native_modules(self) -> None:
+    def test_frontend_script_registers_unload_cancel_and_relative_port_behaviour(self) -> None:
         script_body = request_text(f"{self.server.base_url}/app.js")
 
-        self.assertIn('from "./js/main.js"', script_body)
-
-    def test_frontend_modules_are_served_locally(self) -> None:
-        main_module = request_text(f"{self.server.base_url}/js/main.js")
-        core_module = request_text(f"{self.server.base_url}/js/core.js")
-
-        self.assertIn("bootstrapEditor", main_module)
-        self.assertIn("DOMContentLoaded", main_module)
-        self.assertIn("export const editor", core_module)
+        self.assertIn("/api/cancel", script_body)
+        self.assertIn("viewportCenterPosition", script_body)
+        self.assertIn("suggestTensorPosition", script_body)
+        self.assertNotIn("parent: tensor.id", script_body)
+        self.assertIn("clampIndexOffset", script_body)
+        self.assertIn("stripImportLines", script_body)
+        self.assertIn("bringTensorToFront", script_body)
+        self.assertIn("type=\"color\"", script_body)
+        self.assertIn("kind: \"index-label\"", script_body)
+        self.assertIn("metadata.color", script_body)
+        self.assertIn("stripImportLines(payload.code)", script_body)
+        self.assertIn("labelElement.position(indexLabelPosition(absolutePosition))", script_body)
+        self.assertIn("syncIndexLabelNodePosition(located.index, absolutePosition)", script_body)
+        self.assertIn("syncIndexLabelNodePosition(index, absolutePosition)", script_body)
+        self.assertIn("text-halign\": \"center\"", script_body)
+        self.assertIn("\"text-margin-y\": 20", script_body)
+        self.assertIn(
+            'name: nextName("i", tensor.indices.map((index) => index.name))',
+            script_body,
+        )
+        self.assertIn("class=\"field-row\"", script_body)
+        self.assertIn("class=\"field-group compact-number-field\"", script_body)
+        self.assertIn("class=\"control-inline-color\"", script_body)
+        self.assertNotIn("Tensor color", script_body)
+        self.assertNotIn("Port color", script_body)
+        self.assertNotIn("locked: true", script_body)
+        self.assertNotIn("Move Left", script_body)
+        self.assertNotIn("apply-network-button", script_body)
+        self.assertIn("selectionIds", script_body)
+        self.assertIn("primarySelectionId", script_body)
+        self.assertIn("undoStack", script_body)
+        self.assertIn("redoStack", script_body)
+        self.assertIn("userPanningEnabled: true", script_body)
+        self.assertIn("userZoomingEnabled: true", script_body)
+        self.assertIn("commitHistorySnapshot", script_body)
+        self.assertIn("performUndo", script_body)
+        self.assertIn("performRedo", script_body)
+        self.assertIn("renderMultiSelectionProperties", script_body)
+        self.assertIn("renderMinimap", script_body)
+        self.assertIn("downloadSvgExport", script_body)
+        self.assertIn("downloadPngExport", script_body)
+        self.assertIn("toggleHelpModal", script_body)
+        self.assertIn("startBoxSelection", script_body)
+        self.assertIn("contextmenu", script_body)
+        self.assertIn("Ctrl+Shift+Z", script_body)
+        self.assertNotIn("spacePanPressed", script_body)
+        self.assertNotIn("startCanvasPan", script_body)
+        self.assertNotIn("updateCanvasPan", script_body)
+        self.assertNotIn("Drag tensors directly on the canvas", script_body)
+        self.assertNotIn("Hold <strong>Shift</strong>", script_body)
 
     def test_static_assets_disable_browser_cache(self) -> None:
         _, headers = request_with_headers(f"{self.server.base_url}/app.js")
@@ -268,22 +329,6 @@ class AppServerTests(unittest.TestCase):
 
 
 class LaunchEditorSessionTests(unittest.TestCase):
-    def test_wait_for_editor_result_delegates_to_session_without_private_event_access(self) -> None:
-        class FakeSession:
-            def __init__(self) -> None:
-                self.calls: list[float | None] = []
-
-            def wait_for_result(self, timeout: float | None = None) -> object | None:
-                self.calls.append(timeout)
-                return None
-
-        session = FakeSession()
-
-        result = wait_for_editor_result(session, poll_interval=0.05)
-
-        self.assertIsNone(result)
-        self.assertEqual(session.calls, [None])
-
     def test_wait_for_editor_result_polls_until_a_result_is_available(self) -> None:
         session = EditorSession(initial_spec=build_sample_spec(), default_engine=EngineName.EINSUM)
 

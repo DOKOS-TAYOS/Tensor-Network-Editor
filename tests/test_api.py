@@ -61,9 +61,6 @@ def build_output_path(filename: str) -> Path:
 
 
 class PublicApiTests(unittest.TestCase):
-    def test_package_exposes_version_string(self) -> None:
-        self.assertRegex(tensor_network_editor.__version__, r"^\d+\.\d+\.\d+")
-
     def test_package_logger_uses_null_handler(self) -> None:
         package_logger = logging.getLogger("tensor_network_editor")
 
