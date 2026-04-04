@@ -35,7 +35,7 @@ class EditorSession:
         self.default_engine = default_engine
         self.print_code = print_code
         self.code_path = code_path
-        self._done_event = threading.Event()
+        self._finished_event = threading.Event()
         self._result: EditorResult | None = None
         self._lock = threading.Lock()
 
@@ -75,17 +75,17 @@ class EditorSession:
         )
         with self._lock:
             self._result = result
-            self._done_event.set()
+            self._finished_event.set()
         return result
 
     def cancel(self) -> None:
         LOGGER.info("Cancelling editor session")
         with self._lock:
             self._result = None
-            self._done_event.set()
+            self._finished_event.set()
 
     def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
-        finished = self._done_event.wait(timeout)
+        finished = self._finished_event.wait(timeout)
         if not finished:
             return None
         with self._lock:
@@ -97,10 +97,8 @@ def wait_for_editor_result(
     *,
     poll_interval: float = 0.2,
 ) -> EditorResult | None:
-    while True:
-        result = session.wait_for_result(timeout=poll_interval)
-        if result is not None or session._done_event.is_set():
-            return result
+    del poll_interval
+    return session.wait_for_result(timeout=None)
 
 
 def deserialize_serialized_spec(serialized_spec: dict[str, object]) -> NetworkSpec:

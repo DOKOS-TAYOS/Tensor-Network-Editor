@@ -70,6 +70,8 @@ jobs:
           }
           & $env:VENV_PYTHON -m pip install $wheel
           & $env:VENV_PYTHON -c "import tensor_network_editor; print(tensor_network_editor.__file__)"
+          & $env:VENV_PYTHON -c "from importlib.resources import files; target = files('tensor_network_editor.app').joinpath('static', 'js', 'main.js'); print(target.is_file())"
+          & $env:VENV_PYTHON -c "from importlib.metadata import distribution; names = {str(path) for path in (distribution('tensor-network-editor').files or [])}; assert any(name.endswith('licenses/THIRD_PARTY_LICENSES') for name in names), names"
           & $env:VENV_PYTHON -m tensor_network_editor --help
 
       - name: Upload build artifacts

@@ -89,6 +89,10 @@ The package is split into small layers:
 
 The frontend uses **Cytoscape.js**, bundled locally in the package, so the editor does not depend on a CDN or a Node runtime for end users.
 
+## License
+
+This project is distributed under the MIT license. Bundled third-party notices for redistributed assets are listed in `THIRD_PARTY_LICENSES`.
+
 ## Development
 
 Create the virtual environment and install the project in editable mode with the development tools:

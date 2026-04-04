@@ -9,6 +9,10 @@ from uuid import uuid4
 
 
 class CleanScriptTests(unittest.TestCase):
+    def test_clean_sh_exists_for_posix_workflows(self) -> None:
+        source_script = Path.cwd() / "scripts" / "clean.sh"
+        self.assertTrue(source_script.is_file(), "scripts/clean.sh should exist.")
+
     @unittest.skipUnless(os.name == "nt", "clean.bat is a Windows-only helper")
     def test_clean_bat_removes_generated_artifacts_and_preserves_venv(self) -> None:
         source_script = Path.cwd() / "scripts" / "clean.bat"
