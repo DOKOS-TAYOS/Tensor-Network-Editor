@@ -15,12 +15,12 @@ class CleanScriptTests(unittest.TestCase):
 
         script_text = source_script.read_text(encoding="utf-8")
 
-        self.assertIn("remove_dir \".pytest_cache\"", script_text)
-        self.assertIn("remove_dir \"build\"", script_text)
-        self.assertIn("remove_dir \"dist\"", script_text)
-        self.assertIn("remove_glob_dirs_warn \"./pytest-cache-files-*\"", script_text)
-        self.assertIn("remove_named_dirs \"./src\" \"__pycache__\"", script_text)
-        self.assertIn("remove_named_dirs \"./tests\" \"__pycache__\"", script_text)
+        self.assertIn('remove_dir ".pytest_cache"', script_text)
+        self.assertIn('remove_dir "build"', script_text)
+        self.assertIn('remove_dir "dist"', script_text)
+        self.assertIn('remove_glob_dirs_warn "./pytest-cache-files-*"', script_text)
+        self.assertIn('remove_named_dirs "./src" "__pycache__"', script_text)
+        self.assertIn('remove_named_dirs "./tests" "__pycache__"', script_text)
         self.assertNotIn(".venv", script_text)
 
     @unittest.skipUnless(os.name == "nt", "clean.bat is a Windows-only helper")
@@ -65,7 +65,11 @@ class CleanScriptTests(unittest.TestCase):
                 temp_root / "pytest-cache-files-demo" / "temp.txt",
                 temp_root / "package.egg-info" / "PKG-INFO",
                 temp_root / "__pycache__" / "root.pyc",
-                temp_root / "src" / "tensor_network_editor" / "__pycache__" / "module.pyc",
+                temp_root
+                / "src"
+                / "tensor_network_editor"
+                / "__pycache__"
+                / "module.pyc",
                 temp_root / "tests" / "__pycache__" / "module.pyc",
                 temp_root / "examples" / "__pycache__" / "module.pyc",
                 temp_root / ".venv" / "marker.txt",

@@ -150,7 +150,9 @@ class AppServerTests(unittest.TestCase):
         self.assertIn(".help-modal", css_body)
         self.assertIn(".help-shortcuts", css_body)
 
-    def test_frontend_script_registers_unload_cancel_and_relative_port_behaviour(self) -> None:
+    def test_frontend_script_registers_unload_cancel_and_relative_port_behaviour(
+        self,
+    ) -> None:
         script_body = request_text(f"{self.server.base_url}/app.js")
 
         self.assertIn("/api/cancel", script_body)
@@ -160,22 +162,28 @@ class AppServerTests(unittest.TestCase):
         self.assertIn("clampIndexOffset", script_body)
         self.assertIn("stripImportLines", script_body)
         self.assertIn("bringTensorToFront", script_body)
-        self.assertIn("type=\"color\"", script_body)
-        self.assertIn("kind: \"index-label\"", script_body)
+        self.assertIn('type="color"', script_body)
+        self.assertIn('kind: "index-label"', script_body)
         self.assertIn("metadata.color", script_body)
         self.assertIn("stripImportLines(payload.code)", script_body)
-        self.assertIn("labelElement.position(indexLabelPosition(absolutePosition))", script_body)
-        self.assertIn("syncIndexLabelNodePosition(located.index, absolutePosition)", script_body)
-        self.assertIn("syncIndexLabelNodePosition(index, absolutePosition)", script_body)
-        self.assertIn("text-halign\": \"center\"", script_body)
-        self.assertIn("\"text-margin-y\": 20", script_body)
+        self.assertIn(
+            "labelElement.position(indexLabelPosition(absolutePosition))", script_body
+        )
+        self.assertIn(
+            "syncIndexLabelNodePosition(located.index, absolutePosition)", script_body
+        )
+        self.assertIn(
+            "syncIndexLabelNodePosition(index, absolutePosition)", script_body
+        )
+        self.assertIn('text-halign": "center"', script_body)
+        self.assertIn('"text-margin-y": 20', script_body)
         self.assertIn(
             'name: nextName("i", tensor.indices.map((index) => index.name))',
             script_body,
         )
-        self.assertIn("class=\"field-row\"", script_body)
-        self.assertIn("class=\"field-group compact-number-field\"", script_body)
-        self.assertIn("class=\"control-inline-color\"", script_body)
+        self.assertIn('class="field-row"', script_body)
+        self.assertIn('class="field-group compact-number-field"', script_body)
+        self.assertIn('class="control-inline-color"', script_body)
         self.assertNotIn("Tensor color", script_body)
         self.assertNotIn("Port color", script_body)
         self.assertNotIn("locked: true", script_body)
@@ -241,14 +249,20 @@ class AppServerTests(unittest.TestCase):
             re.compile(r"clampIndexOffset\(\s*located\.index\.offset\s*\)"),
         )
 
-    def test_frontend_script_refreshes_toolbar_state_after_selection_changes(self) -> None:
+    def test_frontend_script_refreshes_toolbar_state_after_selection_changes(
+        self,
+    ) -> None:
         script_body = request_text(f"{self.server.base_url}/app.js")
 
-        set_selection_body = script_body.split("function setSelection(selectionIds, options = {}) {", maxsplit=1)[1].split(
+        set_selection_body = script_body.split(
+            "function setSelection(selectionIds, options = {}) {", maxsplit=1
+        )[1].split(
             "function selectElement(kind, id, options = {}) {",
             maxsplit=1,
         )[0]
-        clear_selection_body = script_body.split("function clearSelection(options = {}) {", maxsplit=1)[1].split(
+        clear_selection_body = script_body.split(
+            "function clearSelection(options = {}) {", maxsplit=1
+        )[1].split(
             "function selectAllTensors() {",
             maxsplit=1,
         )[0]
@@ -419,7 +433,9 @@ class AppServerTests(unittest.TestCase):
         status, payload = request_json_with_status(
             f"{self.server.base_url}/api/autolayout",
             method="POST",
-            payload={"spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}},
+            payload={
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}
+            },
         )
 
         self.assertEqual(status, 404)
@@ -459,11 +475,16 @@ class LaunchEditorSessionTests(unittest.TestCase):
         self.assertEqual(session.calls, [None])
 
     def test_wait_for_editor_result_polls_until_a_result_is_available(self) -> None:
-        session = EditorSession(initial_spec=build_sample_spec(), default_engine=EngineName.EINSUM)
+        session = EditorSession(
+            initial_spec=build_sample_spec(), default_engine=EngineName.EINSUM
+        )
 
         def finish_session() -> None:
             session.complete(
-                serialized_spec={"schema_version": 2, "network": build_sample_spec().to_dict()},
+                serialized_spec={
+                    "schema_version": 2,
+                    "network": build_sample_spec().to_dict(),
+                },
                 engine=EngineName.EINSUM,
             )
 

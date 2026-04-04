@@ -39,7 +39,9 @@ def analyze_network(spec: NetworkSpec) -> NetworkAnalysis:
         left_item = index_map.get(edge.left.index_id)
         right_item = index_map.get(edge.right.index_id)
 
-        left_tensor_by_edge_id[edge.id] = left_item[0] if left_item is not None else None
+        left_tensor_by_edge_id[edge.id] = (
+            left_item[0] if left_item is not None else None
+        )
         left_index_by_edge_id[edge.id] = left_item[1] if left_item is not None else None
         right_tensor_by_edge_id[edge.id] = (
             right_item[0] if right_item is not None else None

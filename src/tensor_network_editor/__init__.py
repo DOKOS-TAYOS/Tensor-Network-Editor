@@ -21,10 +21,12 @@ from .models import (
 )
 
 PACKAGE_LOGGER = logging.getLogger(__name__)
-if not any(isinstance(handler, logging.NullHandler) for handler in PACKAGE_LOGGER.handlers):
+if not any(
+    isinstance(handler, logging.NullHandler) for handler in PACKAGE_LOGGER.handlers
+):
     PACKAGE_LOGGER.addHandler(logging.NullHandler())
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "CanvasPosition",

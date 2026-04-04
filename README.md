@@ -2,7 +2,7 @@
 
 `tensor-network-editor` is a local, offline-friendly Python package for building tensor networks interactively and generating Python code for a chosen backend.
 
-This `0.1.0` release is aimed at researchers and developers who want a lightweight visual editor that still returns plain Python data structures and code.
+This `0.1.1` release is aimed at researchers and developers who want a lightweight visual editor that still returns plain Python data structures and code.
 
 ## Highlights
 
@@ -141,7 +141,7 @@ Designs are stored as plain JSON with a schema wrapper:
 
 - No hyperedges
 - No real tensor data editing: generated tensors are initialized to zeros
-- No TenPy backend in `0.1.0`
+- No TenPy backend in `0.1.1`
 - No desktop wrapper by default
 
 ## Future Extension Points

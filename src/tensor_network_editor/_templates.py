@@ -96,7 +96,9 @@ def _build_peps_template() -> NetworkSpec:
     ]
     for tensor in tensors:
         tensor.indices.append(_make_open_index(tensor.id, "phys", 2))
-    return NetworkSpec(id="template_peps", name="PEPS 2x2", tensors=tensors, edges=edges)
+    return NetworkSpec(
+        id="template_peps", name="PEPS 2x2", tensors=tensors, edges=edges
+    )
 
 
 def _build_mera_template() -> NetworkSpec:

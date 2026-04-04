@@ -27,9 +27,7 @@ def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
     return HTTPStatus.OK, session.bootstrap_payload()
 
 
-def handle_validate(
-    session: EditorSession, payload: JsonDict
-) -> tuple[int, JsonDict]:
+def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     del session
     try:
         serialized_spec = require_serialized_spec(payload)
@@ -59,9 +57,7 @@ def handle_validate(
     )
 
 
-def handle_generate(
-    session: EditorSession, payload: JsonDict
-) -> tuple[int, JsonDict]:
+def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     status, response = handle_codegen_operation(
         payload,
         default_engine=session.default_engine,
@@ -73,9 +69,7 @@ def handle_generate(
     return status, response
 
 
-def handle_complete(
-    session: EditorSession, payload: JsonDict
-) -> tuple[int, JsonDict]:
+def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     status, response = handle_codegen_operation(
         payload,
         default_engine=session.default_engine,
@@ -92,9 +86,7 @@ def handle_cancel(session: EditorSession) -> tuple[int, JsonDict]:
     return HTTPStatus.OK, {"ok": True}
 
 
-def handle_template(
-    session: EditorSession, payload: JsonDict
-) -> tuple[int, JsonDict]:
+def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     template_name = payload.get("template")
     if not isinstance(template_name, str) or not template_name.strip():
         return HTTPStatus.BAD_REQUEST, {

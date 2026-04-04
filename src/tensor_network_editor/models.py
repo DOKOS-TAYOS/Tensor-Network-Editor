@@ -52,9 +52,7 @@ class IndexSpec:
     id: str = field(default_factory=lambda: new_identifier("index"))
     name: str = "index"
     dimension: int = 2
-    offset: CanvasPosition = field(
-        default_factory=lambda: CanvasPosition(x=0.0, y=0.0)
-    )
+    offset: CanvasPosition = field(default_factory=lambda: CanvasPosition(x=0.0, y=0.0))
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
@@ -77,7 +75,9 @@ class IndexSpec:
             name=str(payload["name"]),
             dimension=coerce_int(payload["dimension"], field_name="dimension"),
             offset=CanvasPosition.from_dict(offset_payload),
-            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
         )
 
 
@@ -121,7 +121,9 @@ class TensorSpec:
                 IndexSpec.from_dict(require_dict(index, field_name="index"))
                 for index in indices_payload
             ],
-            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
         )
 
 
@@ -168,7 +170,9 @@ class EdgeSpec:
             right=EdgeEndpointRef.from_dict(
                 require_dict(payload["right"], field_name="right")
             ),
-            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
         )
 
 
@@ -196,7 +200,9 @@ class GroupSpec:
             id=str(payload["id"]),
             name=str(payload["name"]),
             tensor_ids=[str(tensor_id) for tensor_id in tensor_ids_payload],
-            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
         )
 
 
@@ -295,5 +301,7 @@ class NetworkSpec:
                 EdgeSpec.from_dict(require_dict(edge, field_name="edge"))
                 for edge in edges_payload
             ],
-            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
         )

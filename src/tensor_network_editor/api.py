@@ -50,7 +50,9 @@ def launch_tensor_network_editor(
 ) -> EditorResult | None:
     from .app.session import launch_editor_session
 
-    LOGGER.info("Launching tensor network editor with engine '%s'", default_engine.value)
+    LOGGER.info(
+        "Launching tensor network editor with engine '%s'", default_engine.value
+    )
     return launch_editor_session(
         initial_spec=initial_spec,
         default_engine=default_engine,

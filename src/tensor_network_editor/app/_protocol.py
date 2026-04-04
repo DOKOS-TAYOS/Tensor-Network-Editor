@@ -65,7 +65,10 @@ def handle_codegen_operation(
     try:
         serialized_spec = require_serialized_spec(payload)
     except ValueError:
-        return HTTPStatus.BAD_REQUEST, {"ok": False, "message": "Missing 'spec' payload."}
+        return HTTPStatus.BAD_REQUEST, {
+            "ok": False,
+            "message": "Missing 'spec' payload.",
+        }
 
     try:
         engine = resolve_engine(payload, default_engine)

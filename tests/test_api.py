@@ -72,7 +72,7 @@ def build_output_path(filename: str) -> Path:
 
 class PublicApiTests(unittest.TestCase):
     def test_package_exposes_version_string(self) -> None:
-        self.assertEqual(tensor_network_editor.__version__, "0.1.0")
+        self.assertEqual(tensor_network_editor.__version__, "0.1.1")
 
     def test_package_logger_uses_null_handler(self) -> None:
         package_logger = logging.getLogger("tensor_network_editor")
@@ -136,7 +136,9 @@ class PublicApiTests(unittest.TestCase):
 
     def test_save_spec_wraps_file_write_failures(self) -> None:
         spec = build_sample_spec()
-        missing_parent_path = Path.cwd() / ".test_output" / "missing_dir" / "network.json"
+        missing_parent_path = (
+            Path.cwd() / ".test_output" / "missing_dir" / "network.json"
+        )
 
         with self.assertRaises(PackageIOError):
             save_spec(spec, missing_parent_path)
@@ -165,7 +167,9 @@ class PublicApiTests(unittest.TestCase):
         )
 
         try:
-            with self.assertRaisesRegex(SerializationError, "Unsupported schema version"):
+            with self.assertRaisesRegex(
+                SerializationError, "Unsupported schema version"
+            ):
                 load_spec(legacy_path)
         finally:
             legacy_path.unlink(missing_ok=True)

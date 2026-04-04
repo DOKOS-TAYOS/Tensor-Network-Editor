@@ -19,7 +19,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(kwargs["default_engine"], EngineName.EINSUM)
         self.assertFalse(kwargs["open_browser"])
 
-    @patch("tensor_network_editor.cli.launch_tensor_network_editor", side_effect=KeyboardInterrupt)
+    @patch(
+        "tensor_network_editor.cli.launch_tensor_network_editor",
+        side_effect=KeyboardInterrupt,
+    )
     def test_main_returns_130_on_keyboard_interrupt(self, launch_mock) -> None:
         from tensor_network_editor.cli import main
 
