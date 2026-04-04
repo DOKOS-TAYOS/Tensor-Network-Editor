@@ -2,42 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Self, cast
-from uuid import uuid4
+from typing import Self
 
+from ._payloads import (
+    coerce_float,
+    coerce_int,
+    coerce_metadata,
+    new_identifier,
+    require_dict,
+    require_list,
+)
 from .types import JSONValue, MetadataDict
-
-
-def _new_identifier(prefix: str) -> str:
-    return f"{prefix}_{uuid4().hex[:8]}"
-
-
-def _coerce_float(value: object, *, field_name: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
-        raise TypeError(f"{field_name} must be a number.")
-    return float(value)
-
-
-def _coerce_int(value: object, *, field_name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
-        raise TypeError(f"{field_name} must be an integer.")
-    return int(value)
-
-
-def _require_dict(value: object, *, field_name: str) -> dict[str, object]:
-    if not isinstance(value, dict):
-        raise TypeError(f"{field_name} must be an object.")
-    return value
-
-
-def _require_list(value: object, *, field_name: str) -> list[object]:
-    if not isinstance(value, list):
-        raise TypeError(f"{field_name} must be a list.")
-    return value
-
-
-def _coerce_metadata(value: object, *, field_name: str) -> MetadataDict:
-    return cast(MetadataDict, dict(_require_dict(value, field_name=field_name)))
 
 
 @dataclass(slots=True)
@@ -51,14 +26,14 @@ class CanvasPosition:
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
         return cls(
-            x=_coerce_float(payload["x"], field_name="x"),
-            y=_coerce_float(payload["y"], field_name="y"),
+            x=coerce_float(payload["x"], field_name="x"),
+            y=coerce_float(payload["y"], field_name="y"),
         )
 
 
 @dataclass(slots=True)
 class IndexSpec:
-    id: str = field(default_factory=lambda: _new_identifier("index"))
+    id: str = field(default_factory=lambda: new_identifier("index"))
     name: str = "index"
     dimension: int = 2
     offset: CanvasPosition = field(
@@ -77,22 +52,22 @@ class IndexSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
-        offset_payload = _require_dict(
+        offset_payload = require_dict(
             payload.get("offset", {"x": 0.0, "y": 0.0}),
             field_name="offset",
         )
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
-            dimension=_coerce_int(payload["dimension"], field_name="dimension"),
+            dimension=coerce_int(payload["dimension"], field_name="dimension"),
             offset=CanvasPosition.from_dict(offset_payload),
-            metadata=_coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
         )
 
 
 @dataclass(slots=True)
 class TensorSpec:
-    id: str = field(default_factory=lambda: _new_identifier("tensor"))
+    id: str = field(default_factory=lambda: new_identifier("tensor"))
     name: str = "Tensor"
     position: CanvasPosition = field(default_factory=CanvasPosition)
     indices: list[IndexSpec] = field(default_factory=list)
@@ -113,17 +88,17 @@ class TensorSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
-        position_payload = _require_dict(payload["position"], field_name="position")
-        indices_payload = _require_list(payload.get("indices", []), field_name="indices")
+        position_payload = require_dict(payload["position"], field_name="position")
+        indices_payload = require_list(payload.get("indices", []), field_name="indices")
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
             position=CanvasPosition.from_dict(position_payload),
             indices=[
-                IndexSpec.from_dict(_require_dict(index, field_name="index"))
+                IndexSpec.from_dict(require_dict(index, field_name="index"))
                 for index in indices_payload
             ],
-            metadata=_coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
         )
 
 
@@ -144,7 +119,7 @@ class EdgeEndpointRef:
 
 @dataclass(slots=True)
 class EdgeSpec:
-    id: str = field(default_factory=lambda: _new_identifier("edge"))
+    id: str = field(default_factory=lambda: new_identifier("edge"))
     name: str = "edge"
     left: EdgeEndpointRef = field(default_factory=lambda: EdgeEndpointRef("", ""))
     right: EdgeEndpointRef = field(default_factory=lambda: EdgeEndpointRef("", ""))
@@ -165,12 +140,12 @@ class EdgeSpec:
             id=str(payload["id"]),
             name=str(payload["name"]),
             left=EdgeEndpointRef.from_dict(
-                _require_dict(payload["left"], field_name="left")
+                require_dict(payload["left"], field_name="left")
             ),
             right=EdgeEndpointRef.from_dict(
-                _require_dict(payload["right"], field_name="right")
+                require_dict(payload["right"], field_name="right")
             ),
-            metadata=_coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
         )
 
 
@@ -206,7 +181,7 @@ class EditorResult:
 
 @dataclass(slots=True)
 class NetworkSpec:
-    id: str = field(default_factory=lambda: _new_identifier("network"))
+    id: str = field(default_factory=lambda: new_identifier("network"))
     name: str = "Tensor Network"
     tensors: list[TensorSpec] = field(default_factory=list)
     edges: list[EdgeSpec] = field(default_factory=list)
@@ -249,18 +224,18 @@ class NetworkSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
-        tensors_payload = _require_list(payload.get("tensors", []), field_name="tensors")
-        edges_payload = _require_list(payload.get("edges", []), field_name="edges")
+        tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
+        edges_payload = require_list(payload.get("edges", []), field_name="edges")
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
             tensors=[
-                TensorSpec.from_dict(_require_dict(tensor, field_name="tensor"))
+                TensorSpec.from_dict(require_dict(tensor, field_name="tensor"))
                 for tensor in tensors_payload
             ],
             edges=[
-                EdgeSpec.from_dict(_require_dict(edge, field_name="edge"))
+                EdgeSpec.from_dict(require_dict(edge, field_name="edge"))
                 for edge in edges_payload
             ],
-            metadata=_coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
         )

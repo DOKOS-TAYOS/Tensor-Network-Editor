@@ -9,7 +9,7 @@ description = "Interactive local editor for building tensor networks and generat
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_LICENSES"]
 authors = [
   { name = "Alejandro Mata Ali" }
 ]
@@ -26,6 +26,11 @@ classifiers = [
   "Topic :: Software Development :: Code Generators",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+Repository = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+Issues = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues"
 
 [project.optional-dependencies]
 dev = [

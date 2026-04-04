@@ -329,6 +329,24 @@ class AppServerTests(unittest.TestCase):
 
 
 class LaunchEditorSessionTests(unittest.TestCase):
+    def test_wait_for_editor_result_delegates_to_session_without_private_event_access(
+        self,
+    ) -> None:
+        class FakeSession:
+            def __init__(self) -> None:
+                self.calls: list[float | None] = []
+
+            def wait_for_result(self, timeout: float | None = None) -> object | None:
+                self.calls.append(timeout)
+                return None
+
+        session = FakeSession()
+
+        result = wait_for_editor_result(session, poll_interval=0.05)
+
+        self.assertIsNone(result)
+        self.assertEqual(session.calls, [None])
+
     def test_wait_for_editor_result_polls_until_a_result_is_available(self) -> None:
         session = EditorSession(initial_spec=build_sample_spec(), default_engine=EngineName.EINSUM)
 

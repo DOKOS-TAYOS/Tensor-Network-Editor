@@ -4,6 +4,7 @@ import json
 import math
 from collections import Counter
 
+from ._analysis import analyze_network
 from .errors import SpecValidationError
 from .models import NetworkSpec, ValidationIssue
 
@@ -76,8 +77,7 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
                 )
             )
 
-    tensor_map = spec.tensor_map()
-    index_map = spec.index_map()
+    analysis = analyze_network(spec)
 
     for tensor in spec.tensors:
         if not _is_valid_name(tensor.name):
@@ -169,10 +169,10 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
             )
         _validate_metadata(f"edges.{edge.id}.metadata", edge.metadata, issues)
 
-        left_tensor = tensor_map.get(edge.left.tensor_id)
-        right_tensor = tensor_map.get(edge.right.tensor_id)
-        left_item = index_map.get(edge.left.index_id)
-        right_item = index_map.get(edge.right.index_id)
+        left_tensor = analysis.tensor_map.get(edge.left.tensor_id)
+        right_tensor = analysis.tensor_map.get(edge.right.tensor_id)
+        left_item = analysis.index_map.get(edge.left.index_id)
+        right_item = analysis.index_map.get(edge.right.index_id)
 
         if left_tensor is None or left_item is None:
             issues.append(
