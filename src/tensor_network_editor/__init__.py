@@ -13,8 +13,10 @@ from .models import (
     EdgeSpec,
     EditorResult,
     EngineName,
+    GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorSize,
     TensorSpec,
 )
 
@@ -31,8 +33,10 @@ __all__ = [
     "EdgeSpec",
     "EditorResult",
     "EngineName",
+    "GroupSpec",
     "IndexSpec",
     "NetworkSpec",
+    "TensorSize",
     "TensorSpec",
     "__version__",
     "generate_code",

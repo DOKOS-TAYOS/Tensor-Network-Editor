@@ -117,6 +117,13 @@ select {
   color: var(--muted);
 }
 
+.template-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+}
+
 .workspace {
   flex: 1;
   min-height: 0;
@@ -200,12 +207,85 @@ select {
   pointer-events: none;
 }
 
+.overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .selection-box {
   position: absolute;
   border: 1px solid rgba(139, 194, 255, 0.9);
   background: rgba(97, 168, 255, 0.18);
   box-shadow: inset 0 0 0 1px rgba(139, 194, 255, 0.12);
   border-radius: 8px;
+}
+
+.group-overlay {
+  position: absolute;
+  border: 1px solid rgba(139, 194, 255, 0.48);
+  background: rgba(97, 168, 255, 0.08);
+  border-radius: 18px;
+  pointer-events: auto;
+  cursor: grab;
+  box-shadow: inset 0 0 0 1px rgba(139, 194, 255, 0.08);
+}
+
+.group-overlay.is-selected {
+  border-color: rgba(139, 194, 255, 0.95);
+  background: rgba(97, 168, 255, 0.14);
+}
+
+.group-overlay.is-collapsed {
+  min-width: 140px;
+  height: 48px;
+  border-radius: 999px;
+}
+
+.group-label {
+  position: absolute;
+  top: -0.9rem;
+  left: 1rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(16, 23, 32, 0.96);
+  border: 1px solid rgba(90, 111, 145, 0.82);
+  color: var(--ink);
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.group-overlay.is-collapsed .group-label {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin-left: 0.85rem;
+  background: transparent;
+  border: 0;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(139, 194, 255, 0.98);
+  background: rgba(11, 15, 20, 0.94);
+  box-shadow: 0 0 0 3px rgba(97, 168, 255, 0.12);
+  pointer-events: auto;
+}
+
+.resize-handle.corner-nw,
+.resize-handle.corner-se {
+  cursor: nwse-resize;
+}
+
+.resize-handle.corner-ne,
+.resize-handle.corner-sw {
+  cursor: nesw-resize;
 }
 
 .minimap-shell {
@@ -400,6 +480,12 @@ button[disabled] {
   width: 1rem;
   height: 1rem;
   fill: currentColor;
+}
+
+.toolbar-icon-button {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .code-copy-floating {

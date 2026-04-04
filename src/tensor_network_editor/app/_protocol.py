@@ -13,6 +13,7 @@ from ..models import (
     NetworkSpec,
     ValidationIssue,
 )
+from ..serialization import deserialize_spec
 
 JsonDict: TypeAlias = dict[str, Any]
 CodegenOperation: TypeAlias = Callable[
@@ -84,13 +85,4 @@ def handle_codegen_operation(
 
 
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
-    network_payload = serialized_spec.get("network")
-    if not isinstance(network_payload, dict):
-        raise SerializationError("Serialized payload must include a network object.")
-
-    try:
-        return NetworkSpec.from_dict(network_payload)
-    except (KeyError, TypeError, ValueError) as exc:
-        raise SerializationError(
-            "Serialized payload contains a malformed network object."
-        ) from exc
+    return deserialize_spec(serialized_spec, validate=False)

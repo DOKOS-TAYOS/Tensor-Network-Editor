@@ -106,6 +106,8 @@ class EditorServer:
                 try:
                     if parsed.path == "/api/validate":
                         status, response = routes.handle_validate(session, payload)
+                    elif parsed.path == "/api/template":
+                        status, response = routes.handle_template(session, payload)
                     elif parsed.path == "/api/generate":
                         status, response = routes.handle_generate(session, payload)
                     elif parsed.path == "/api/complete":

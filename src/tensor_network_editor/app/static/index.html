@@ -14,6 +14,8 @@
           <button id="save-button" type="button">Save</button>
           <button id="load-button" type="button">Load</button>
           <button id="delete-button" type="button">Delete</button>
+          <button id="help-button" type="button" class="icon-button toolbar-icon-button" aria-label="Help" title="Help">?</button>
+          <button id="export-py-button" type="button">Export .py</button>
           <button id="export-png-button" type="button">Export PNG</button>
           <button id="export-svg-button" type="button">Export SVG</button>
           <input id="load-input" type="file" accept="application/json" hidden />
@@ -35,16 +37,23 @@
               <h1>Tensor Network Editor</h1>
             </div>
             <div class="title-actions">
-              <button id="help-button" type="button">Help</button>
               <button id="add-tensor-button" type="button">Add Tensor</button>
               <button id="connect-button" type="button">Connect</button>
-              <button id="undo-button" type="button">Undo</button>
-              <button id="redo-button" type="button">Redo</button>
+              <label class="template-picker" for="template-select">
+                Template
+                <select id="template-select"></select>
+              </label>
+              <button id="insert-template-button" type="button">Insert Template</button>
+              <button id="create-group-button" type="button">Create Group</button>
+              <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
+              <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
             </div>
           </div>
           <div id="canvas-shell" class="canvas-shell">
             <div id="canvas"></div>
             <div class="canvas-overlay">
+              <div id="group-layer" class="overlay-layer"></div>
+              <div id="resize-layer" class="overlay-layer"></div>
               <div id="canvas-selection-box" class="selection-box is-hidden"></div>
               <section class="minimap-shell" aria-label="Minimap">
                 <div class="minimap-header">

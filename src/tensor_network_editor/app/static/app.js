@@ -3,6 +3,8 @@
 
   const TENSOR_WIDTH = 180;
   const TENSOR_HEIGHT = 108;
+  const MIN_TENSOR_WIDTH = 140;
+  const MIN_TENSOR_HEIGHT = 84;
   const INDEX_RADIUS = 15;
   const INDEX_PADDING = 8;
   const HISTORY_LIMIT = 100;
@@ -20,6 +22,8 @@
 
   const state = {
     spec: null,
+    schemaVersion: null,
+    availableTemplates: [],
     selectedEngine: null,
     selectedElement: null,
     selectionIds: [],
@@ -38,6 +42,8 @@
     lastMutationClearedCode: false,
     activeTensorDrag: null,
     activeIndexDrag: null,
+    activeResize: null,
+    activeGroupDrag: null,
     boxSelection: null,
     isHelpOpen: false,
     minimapDrag: null,
@@ -52,13 +58,19 @@
   const loadInput = document.getElementById("load-input");
   const undoButton = document.getElementById("undo-button");
   const redoButton = document.getElementById("redo-button");
+  const exportPyButton = document.getElementById("export-py-button");
   const exportPngButton = document.getElementById("export-png-button");
   const exportSvgButton = document.getElementById("export-svg-button");
+  const templateSelect = document.getElementById("template-select");
+  const insertTemplateButton = document.getElementById("insert-template-button");
+  const createGroupButton = document.getElementById("create-group-button");
   const helpButton = document.getElementById("help-button");
   const helpModal = document.getElementById("help-modal");
   const helpBackdrop = document.getElementById("help-backdrop");
   const helpCloseButton = document.getElementById("help-close-button");
   const canvasShell = document.getElementById("canvas-shell");
+  const groupLayer = document.getElementById("group-layer");
+  const resizeLayer = document.getElementById("resize-layer");
   const selectionBox = document.getElementById("canvas-selection-box");
   const minimapCanvas = document.getElementById("minimap");
 
@@ -72,9 +84,12 @@
   async function bootstrap() {
     const payload = await apiGet("/api/bootstrap");
     state.spec = normalizeSpec(payload.spec.network);
+    state.schemaVersion = payload.schema_version;
+    state.availableTemplates = Array.isArray(payload.templates) ? [...payload.templates] : [];
     state.selectedEngine = payload.default_engine;
     reconcileTensorOrder();
     populateEngineOptions(payload.engines);
+    populateTemplateOptions(state.availableTemplates);
     initGraph();
     clearHistory();
     render();
@@ -97,8 +112,11 @@
     document.getElementById("copy-code-button").addEventListener("click", copyGeneratedCode);
     undoButton.addEventListener("click", performUndo);
     redoButton.addEventListener("click", performRedo);
+    exportPyButton.addEventListener("click", downloadPythonExport);
     exportPngButton.addEventListener("click", downloadPngExport);
     exportSvgButton.addEventListener("click", downloadSvgExport);
+    insertTemplateButton.addEventListener("click", insertTemplate);
+    createGroupButton.addEventListener("click", createGroupFromSelection);
     helpButton.addEventListener("click", () => toggleHelpModal(true));
     helpBackdrop.addEventListener("click", () => toggleHelpModal(false));
     helpCloseButton.addEventListener("click", () => toggleHelpModal(false));
@@ -234,6 +252,10 @@
   }
 
   function getSelectionEntry(selectionId) {
+    const group = findGroupById(selectionId);
+    if (group) {
+      return { kind: "group", id: group.id, group };
+    }
     const tensor = findTensorById(selectionId);
     if (tensor) {
       return { kind: "tensor", id: tensor.id, tensor };
@@ -282,6 +304,7 @@
         }
       });
     });
+    renderOverlayDecorations();
   }
 
   function pruneSelectionToExisting() {
@@ -308,6 +331,7 @@
     syncCySelection();
     renderProperties();
     renderMinimap();
+    updateToolbarState();
   }
 
   function selectElement(kind, id, options = {}) {
@@ -344,6 +368,7 @@
     syncCySelection();
     renderProperties();
     renderMinimap();
+    updateToolbarState();
   }
 
   function selectAllTensors() {
@@ -375,8 +400,8 @@
           selector: "node[kind = 'tensor']",
           style: {
             shape: "round-rectangle",
-            width: TENSOR_WIDTH,
-            height: TENSOR_HEIGHT,
+            width: "data(width)",
+            height: "data(height)",
             "background-color": "data(backgroundColor)",
             "border-width": 2,
             "border-color": "data(borderColor)",
@@ -525,12 +550,29 @@
       if (!tensor) {
         return;
       }
-      tensor.position.x = Math.round(event.target.position("x"));
-      tensor.position.y = Math.round(event.target.position("y"));
+      const candidatePosition = {
+        x: event.target.position("x"),
+        y: event.target.position("y"),
+      };
+      const nextPosition = {
+        x: Math.round(candidatePosition.x),
+        y: Math.round(candidatePosition.y),
+      };
+      tensor.position.x = nextPosition.x;
+      tensor.position.y = nextPosition.y;
+      if (
+        Math.abs(candidatePosition.x - nextPosition.x) > 0.5 ||
+        Math.abs(candidatePosition.y - nextPosition.y) > 0.5
+      ) {
+        runWithTensorSync(() => {
+          event.target.position(nextPosition);
+        });
+      }
       syncIndexNodePositions(tensor);
       if (state.activeTensorDrag && state.activeTensorDrag.anchorId === tensor.id) {
         moveCompanionTensorsDuringDrag();
       }
+      renderOverlayDecorations();
     });
 
     state.cy.on("dragfree", "node[kind = 'tensor']", (event) => {
@@ -565,7 +607,7 @@
       located.index.offset = clampIndexOffset({
         x: event.target.position("x") - located.tensor.position.x,
         y: event.target.position("y") - located.tensor.position.y,
-      });
+      }, located.tensor);
       const absolutePosition = indexAbsolutePosition(located.tensor, located.index);
       syncIndexLabelNodePosition(located.index, absolutePosition);
       if (
@@ -581,7 +623,7 @@
     state.cy.on("dragfree", "node[kind = 'index']", (event) => {
       const located = findIndexOwner(event.target.id());
       if (located) {
-        located.index.offset = clampIndexOffset(located.index.offset);
+        located.index.offset = clampIndexOffset(located.index.offset, located.tensor);
         syncSingleIndexNodePosition(located.tensor, located.index);
       }
       finishIndexDrag(event.target.id());
@@ -590,6 +632,7 @@
     });
 
     state.cy.on("pan zoom resize", () => {
+      renderOverlayDecorations();
       renderMinimap();
     });
   }
@@ -601,6 +644,7 @@
     connectButton.classList.toggle("is-active", state.connectMode);
     helpModal.classList.toggle("is-hidden", !state.isHelpOpen);
     updateToolbarState();
+    renderOverlayDecorations();
     renderMinimap();
   }
 
@@ -648,6 +692,8 @@
           id: tensor.id,
           label: tensor.name,
           kind: "tensor",
+          width: tensorWidth(tensor),
+          height: tensorHeight(tensor),
           backgroundColor: tensorColor,
           borderColor: shiftColor(tensorColor, 26),
           textColor: readableTextColor(tensorColor),
@@ -813,6 +859,10 @@
       renderEdgeProperties(singleSelection.id);
       return;
     }
+    if (singleSelection.kind === "group") {
+      renderGroupProperties(singleSelection.id);
+      return;
+    }
     renderNetworkProperties();
   }
 
@@ -829,6 +879,10 @@
       <div class="properties-chip">
         <span>Connections</span>
         <strong>${state.spec.edges.length}</strong>
+      </div>
+      <div class="properties-chip">
+        <span>Groups</span>
+        <strong>${Array.isArray(state.spec.groups) ? state.spec.groups.length : 0}</strong>
       </div>
     `;
 
@@ -854,6 +908,7 @@
     const tensorCount = selectedEntries.filter((entry) => entry.kind === "tensor").length;
     const indexCount = selectedEntries.filter((entry) => entry.kind === "index").length;
     const edgeCount = selectedEntries.filter((entry) => entry.kind === "edge").length;
+    const groupCount = selectedEntries.filter((entry) => entry.kind === "group").length;
     const tensorsOnly = tensorCount > 0 && tensorCount === selectedEntries.length;
     const batchColor = getBatchColorValue(selectedEntries);
 
@@ -875,6 +930,10 @@
           <div class="properties-chip">
             <span>Connections</span>
             <strong>${edgeCount}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Groups</span>
+            <strong>${groupCount}</strong>
           </div>
         </div>
       </div>
@@ -962,6 +1021,7 @@
         <button id="apply-tensor-button" type="button" class="apply-button is-hidden">Apply Changes</button>
       </div>
       <div class="properties-list">${indexList || "<p class='property-meta'>This tensor has no indices yet.</p>"}</div>
+      <p class="property-meta">Current size: ${Math.round(tensorWidth(tensor))} × ${Math.round(tensorHeight(tensor))}. Resize from the corner handles on the canvas.</p>
     `;
 
     const tensorNameInput = document.getElementById("tensor-name-input");
@@ -1136,6 +1196,74 @@
     });
   }
 
+  function renderGroupProperties(groupId) {
+    const group = findGroupById(groupId);
+    if (!group) {
+      clearSelection();
+      return;
+    }
+    const groupColor = getMetadataColor(group.metadata, "#61a8ff");
+    const isCollapsed = Boolean(group.metadata && group.metadata.collapsed);
+    propertiesPanel.innerHTML = `
+      <div class="field-group">
+        <label for="group-name-input">Group name</label>
+        <input id="group-name-input" value="${escapeHtml(group.name)}" />
+      </div>
+      <div class="properties-chip">
+        <span>Member tensors</span>
+        <strong>${Array.isArray(group.tensor_ids) ? group.tensor_ids.length : 0}</strong>
+      </div>
+      <div class="button-row">
+        <label class="control-inline-color" for="group-color-input">
+          <input id="group-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${escapeHtml(groupColor)}" />
+        </label>
+        <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
+        <button id="delete-group-button" type="button" class="danger">Delete Group</button>
+      </div>
+      <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
+    `;
+
+    document.getElementById("group-name-input").addEventListener("change", (event) => {
+      const proposedName = event.target.value.trim() || "Group";
+      applyDesignChange(
+        () => {
+          group.name = proposedName;
+        },
+        {
+          selectionIds: [group.id],
+          primaryId: group.id,
+          statusMessage: `Updated group ${proposedName}.`,
+        }
+      );
+    });
+    document.getElementById("group-color-input").addEventListener("change", (event) => {
+      applyDesignChange(
+        () => {
+          group.metadata.color = event.target.value;
+        },
+        {
+          selectionIds: [group.id],
+          primaryId: group.id,
+          statusMessage: `Updated group ${group.name}.`,
+        }
+      );
+    });
+    document.getElementById("toggle-group-button").addEventListener("click", () => {
+      toggleGroupCollapse(group.id);
+    });
+    document.getElementById("delete-group-button").addEventListener("click", () => {
+      applyDesignChange(
+        () => {
+          state.spec.groups = state.spec.groups.filter((candidate) => candidate.id !== group.id);
+        },
+        {
+          selectionIds: [],
+          statusMessage: `Deleted group ${group.name}.`,
+        }
+      );
+    });
+  }
+
   function renderEdgeProperties(edgeId) {
     const edge = findEdgeById(edgeId);
     if (!edge) {
@@ -1213,6 +1341,12 @@
     if (state.isHelpOpen) {
       return;
     }
+    if (
+      event.target.closest(".resize-handle") ||
+      event.target.closest(".group-overlay")
+    ) {
+      return;
+    }
     if (event.button === 2) {
       event.preventDefault();
       event.stopPropagation();
@@ -1225,6 +1359,14 @@
       updateBoxSelection(event);
       return;
     }
+    if (state.activeResize) {
+      updateActiveResize(event);
+      return;
+    }
+    if (state.activeGroupDrag) {
+      updateActiveGroupDrag(event);
+      return;
+    }
     if (state.minimapDrag) {
       updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
     }
@@ -1233,6 +1375,14 @@
   function handleGlobalMouseUp(event) {
     if (state.boxSelection && event.button === 2) {
       finishBoxSelection(false);
+      return;
+    }
+    if (state.activeResize && event.button === 0) {
+      finishActiveResize();
+      return;
+    }
+    if (state.activeGroupDrag && event.button === 0) {
+      finishActiveGroupDrag();
       return;
     }
     if (state.minimapDrag && event.button === 0) {
@@ -1385,6 +1535,7 @@
     if (state.cy) {
       state.cy.resize();
     }
+    renderOverlayDecorations();
     renderMinimap();
   }
 
@@ -1398,6 +1549,7 @@
         id: makeId("network"),
         name: "Untitled Network",
         tensors: [],
+        groups: [],
         edges: [],
         metadata: {},
       },
@@ -1405,8 +1557,9 @@
     );
   }
 
-  function resetDesignState(spec, message) {
+  function resetDesignState(spec, message, schemaVersion = state.schemaVersion) {
     state.spec = normalizeSpec(spec);
+    state.schemaVersion = schemaVersion;
     state.generatedCode = "";
     state.selectionIds = [];
     state.primarySelectionId = null;
@@ -1414,6 +1567,8 @@
     state.pendingIndexId = null;
     state.connectMode = false;
     state.hasFitCanvas = false;
+    state.activeResize = null;
+    state.activeGroupDrag = null;
     reconcileTensorOrder();
     clearHistory();
     render();
@@ -1482,8 +1637,8 @@
   function isTensorPositionOccupied(candidate) {
     return state.spec.tensors.some((tensor) => {
       return (
-        Math.abs(tensor.position.x - candidate.x) < 170 &&
-        Math.abs(tensor.position.y - candidate.y) < 120
+        Math.abs(tensor.position.x - candidate.x) < Math.max(170, tensorWidth(tensor) * 0.8) &&
+        Math.abs(tensor.position.y - candidate.y) < Math.max(120, tensorHeight(tensor) * 0.8)
       );
     });
   }
@@ -1582,6 +1737,7 @@
     const selectedTensorIds = new Set(getSelectedIdsByKind("tensor"));
     const selectedIndexIds = new Set(getSelectedIdsByKind("index"));
     const selectedEdgeIds = new Set(getSelectedIdsByKind("edge"));
+    const selectedGroupIds = new Set(getSelectedIdsByKind("group"));
 
     selectedTensorIds.forEach((tensorId) => {
       removeTensor(tensorId);
@@ -1599,6 +1755,10 @@
         removeEdge(edgeId);
       }
     });
+
+    if (selectedGroupIds.size) {
+      state.spec.groups = state.spec.groups.filter((group) => !selectedGroupIds.has(group.id));
+    }
   }
 
   async function generateCode() {
@@ -1671,10 +1831,19 @@
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const payload = JSON.parse(reader.result);
-        resetDesignState(payload.network ? payload.network : payload, `Loaded design from ${file.name}. History cleared.`);
+        const response = await apiPost("/api/validate", { spec: payload });
+        if (!response.ok) {
+          setStatus(formatIssues(response.issues), "error");
+          return;
+        }
+        resetDesignState(
+          response.spec.network,
+          `Loaded design from ${file.name}. History cleared.`,
+          response.spec.schema_version
+        );
       } catch (error) {
         setStatus(`Could not load ${file.name}: ${error.message}`, "error");
       } finally {
@@ -1695,6 +1864,57 @@
       setStatus("Generated code copied to the clipboard without import lines.", "success");
     } catch (error) {
       setStatus(`Could not copy the generated code: ${error.message}`, "error");
+    }
+  }
+
+  async function downloadPythonExport() {
+    try {
+      const payload = await apiPost("/api/generate", {
+        engine: state.selectedEngine,
+        spec: serializeCurrentSpec(),
+      });
+      if (!payload.ok) {
+        setStatus(formatIssues(payload.issues), "error");
+        return;
+      }
+      state.generatedCode = stripImportLines(payload.code);
+      generatedCode.value = state.generatedCode;
+      downloadBlob(
+        `${sanitizeFilename(state.spec.name || "tensor-network")}-${sanitizeFilename(state.selectedEngine || "engine")}.py`,
+        new Blob([payload.code], { type: "text/x-python;charset=utf-8" })
+      );
+      setStatus(`Exported ${payload.engine} Python code.`, "success");
+    } catch (error) {
+      setStatus(`Could not export Python code: ${error.message}`, "error");
+    }
+  }
+
+  async function insertTemplate() {
+    const templateName = templateSelect.value;
+    if (!templateName) {
+      setStatus("Choose a template first.");
+      return;
+    }
+    try {
+      const payload = await apiPost("/api/template", { template: templateName });
+      const importedSpec = uniquifyImportedSpec(payload.spec.network, makeId("template"));
+      const translatedSpec = translateImportedSpec(importedSpec, suggestTensorPosition(viewportCenterPosition()));
+      applyDesignChange(
+        () => {
+          state.spec.tensors.push(...translatedSpec.tensors);
+          state.spec.edges.push(...translatedSpec.edges);
+          state.spec.groups.push(...translatedSpec.groups);
+        },
+        {
+          selectionIds: translatedSpec.tensors.map((tensor) => tensor.id),
+          primaryId: translatedSpec.tensors.length
+            ? translatedSpec.tensors[translatedSpec.tensors.length - 1].id
+            : null,
+          statusMessage: `Inserted ${translatedSpec.name}.`,
+        }
+      );
+    } catch (error) {
+      setStatus(`Could not insert the template: ${error.message}`, "error");
     }
   }
 
@@ -1802,9 +2022,9 @@
 
     state.spec.tensors.forEach((tensor) => {
       const tensorColor = getMetadataColor(tensor.metadata, "#18212c");
-      const left = tensor.position.x - TENSOR_WIDTH / 2 - worldBounds.x1;
-      const top = tensor.position.y - TENSOR_HEIGHT / 2 - worldBounds.y1;
-      drawRoundRectPath(context, left, top, TENSOR_WIDTH, TENSOR_HEIGHT, 22);
+      const left = tensor.position.x - tensorWidth(tensor) / 2 - worldBounds.x1;
+      const top = tensor.position.y - tensorHeight(tensor) / 2 - worldBounds.y1;
+      drawRoundRectPath(context, left, top, tensorWidth(tensor), tensorHeight(tensor), 22);
       context.fillStyle = tensorColor;
       context.fill();
       context.lineWidth = (state.selectionIds.includes(tensor.id) ? 3 : 2) / scale;
@@ -1913,10 +2133,10 @@
       const tensorColor = getMetadataColor(tensor.metadata, "#18212c");
       const borderColor = shiftColor(tensorColor, 26);
       lines.push(
-        `<rect x="${tensor.position.x - TENSOR_WIDTH / 2}" y="${tensor.position.y - TENSOR_HEIGHT / 2}" width="${TENSOR_WIDTH}" height="${TENSOR_HEIGHT}" rx="22" ry="22" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
+        `<rect x="${tensor.position.x - tensorWidth(tensor) / 2}" y="${tensor.position.y - tensorHeight(tensor) / 2}" width="${tensorWidth(tensor)}" height="${tensorHeight(tensor)}" rx="22" ry="22" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
       );
       lines.push(
-        `<text x="${tensor.position.x}" y="${tensor.position.y - TENSOR_HEIGHT / 2 + 26}" fill="${readableTextColor(tensorColor)}" font-size="18" font-family="Georgia, Times New Roman, serif" text-anchor="middle">${escapeSvgText(tensor.name)}</text>`
+        `<text x="${tensor.position.x}" y="${tensor.position.y - tensorHeight(tensor) / 2 + 26}" fill="${readableTextColor(tensorColor)}" font-size="18" font-family="Georgia, Times New Roman, serif" text-anchor="middle">${escapeSvgText(tensor.name)}</text>`
       );
 
       tensor.indices.forEach((index, indexPosition) => {
@@ -1953,6 +2173,413 @@
     }
   }
 
+  // SECTION: overlays-layout-templates
+
+  function renderOverlayDecorations() {
+    renderGroupOverlays();
+    renderResizeHandles();
+  }
+
+  function renderGroupOverlays() {
+    if (!groupLayer) {
+      return;
+    }
+    groupLayer.innerHTML = "";
+    state.spec.groups.forEach((group) => {
+      const rect = groupDisplayRect(group);
+      if (!rect) {
+        return;
+      }
+      const color = getMetadataColor(group.metadata, "#61a8ff");
+      const overlay = document.createElement("div");
+      overlay.className = "group-overlay";
+      if (state.selectionIds.includes(group.id)) {
+        overlay.classList.add("is-selected");
+      }
+      if (Boolean(group.metadata && group.metadata.collapsed)) {
+        overlay.classList.add("is-collapsed");
+      }
+      overlay.dataset.groupId = group.id;
+      overlay.style.left = `${rect.left}px`;
+      overlay.style.top = `${rect.top}px`;
+      overlay.style.width = `${rect.width}px`;
+      overlay.style.height = `${rect.height}px`;
+      overlay.style.borderColor = color;
+      overlay.style.background = `${color}14`;
+
+      const label = document.createElement("div");
+      label.className = "group-label";
+      label.textContent = `${group.name} (${group.tensor_ids.length})`;
+      overlay.appendChild(label);
+
+      overlay.addEventListener("mousedown", (event) => startGroupDrag(event, group.id));
+      overlay.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectElement("group", group.id, {
+          additive: Boolean(event.shiftKey),
+        });
+      });
+      groupLayer.appendChild(overlay);
+    });
+  }
+
+  function renderResizeHandles() {
+    if (!resizeLayer) {
+      return;
+    }
+    resizeLayer.innerHTML = "";
+    if (state.selectionIds.length !== 1) {
+      return;
+    }
+    const selectedEntry = getSelectionEntry(state.selectionIds[0]);
+    if (!selectedEntry || selectedEntry.kind !== "tensor") {
+      return;
+    }
+    const tensor = selectedEntry.tensor;
+    const rect = tensorScreenRect(tensor);
+    [
+      { corner: "nw", left: rect.left, top: rect.top },
+      { corner: "ne", left: rect.left + rect.width, top: rect.top },
+      { corner: "sw", left: rect.left, top: rect.top + rect.height },
+      { corner: "se", left: rect.left + rect.width, top: rect.top + rect.height },
+    ].forEach((handleSpec) => {
+      const handle = document.createElement("div");
+      handle.className = `resize-handle corner-${handleSpec.corner}`;
+      handle.style.left = `${handleSpec.left - 7}px`;
+      handle.style.top = `${handleSpec.top - 7}px`;
+      handle.addEventListener("mousedown", (event) => startTensorResize(event, tensor.id, handleSpec.corner));
+      resizeLayer.appendChild(handle);
+    });
+  }
+
+  function createGroupFromSelection() {
+    const selectedTensorIds = getSelectedIdsByKind("tensor");
+    if (selectedTensorIds.length < 2) {
+      setStatus("Select at least two tensors to create a group.", "error");
+      return;
+    }
+    const alreadyGrouped = selectedTensorIds.find((tensorId) => findGroupsByTensorId(tensorId).length > 0);
+    if (alreadyGrouped) {
+      setStatus("A tensor can only belong to one group in this editor.", "error");
+      return;
+    }
+    const groupId = makeId("group");
+    applyDesignChange(
+      () => {
+        state.spec.groups.push({
+          id: groupId,
+          name: nextName("Group ", state.spec.groups.map((group) => group.name)),
+          tensor_ids: [...selectedTensorIds],
+          metadata: {},
+        });
+      },
+      {
+        selectionIds: [groupId],
+        primaryId: groupId,
+        statusMessage: "Created a new tensor group.",
+      }
+    );
+  }
+
+  function toggleGroupCollapse(groupId) {
+    const group = findGroupById(groupId);
+    if (!group) {
+      return;
+    }
+    const nextCollapsed = !Boolean(group.metadata.collapsed);
+    applyDesignChange(
+      () => {
+        group.metadata.collapsed = nextCollapsed;
+      },
+      {
+        selectionIds: [group.id],
+        primaryId: group.id,
+        statusMessage: nextCollapsed
+          ? `Collapsed ${group.name}.`
+          : `Expanded ${group.name}.`,
+      }
+    );
+  }
+
+  function startGroupDrag(event, groupId) {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const group = findGroupById(groupId);
+    if (!group) {
+      return;
+    }
+    selectElement("group", groupId, { additive: Boolean(event.shiftKey) });
+    state.activeGroupDrag = {
+      groupId,
+      snapshot: createHistorySnapshot(),
+      startPoint: clientPointToWorldPoint(event.clientX, event.clientY),
+      startPositions: Object.fromEntries(
+        group.tensor_ids
+          .map((tensorId) => findTensorById(tensorId))
+          .filter(Boolean)
+          .map((tensor) => [tensor.id, { x: tensor.position.x, y: tensor.position.y }])
+      ),
+    };
+  }
+
+  function updateActiveGroupDrag(event) {
+    if (!state.activeGroupDrag || !state.cy) {
+      return;
+    }
+    const group = findGroupById(state.activeGroupDrag.groupId);
+    if (!group) {
+      return;
+    }
+    const worldPoint = clientPointToWorldPoint(event.clientX, event.clientY);
+    const deltaX = worldPoint.x - state.activeGroupDrag.startPoint.x;
+    const deltaY = worldPoint.y - state.activeGroupDrag.startPoint.y;
+    runWithTensorSync(() => {
+      group.tensor_ids.forEach((tensorId) => {
+        const tensor = findTensorById(tensorId);
+        const startPosition = state.activeGroupDrag.startPositions[tensorId];
+        if (!tensor || !startPosition) {
+          return;
+        }
+        tensor.position.x = Math.round(startPosition.x + deltaX);
+        tensor.position.y = Math.round(startPosition.y + deltaY);
+        const tensorElement = state.cy.getElementById(tensor.id);
+        if (tensorElement && tensorElement.length) {
+          tensorElement.position(tensor.position);
+        }
+        syncIndexNodePositions(tensor);
+      });
+    });
+    renderOverlayDecorations();
+    renderMinimap();
+  }
+
+  function finishActiveGroupDrag() {
+    if (!state.activeGroupDrag) {
+      return;
+    }
+    commitHistorySnapshot(state.activeGroupDrag.snapshot);
+    state.activeGroupDrag = null;
+    updateToolbarState();
+    render();
+  }
+
+  function startTensorResize(event, tensorId, corner) {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const tensor = findTensorById(tensorId);
+    if (!tensor) {
+      return;
+    }
+    state.activeResize = {
+      tensorId,
+      corner,
+      snapshot: createHistorySnapshot(),
+      center: { x: tensor.position.x, y: tensor.position.y },
+      startSize: { width: tensorWidth(tensor), height: tensorHeight(tensor) },
+      startOffsets: Object.fromEntries(
+        tensor.indices.map((index) => [index.id, { x: index.offset.x, y: index.offset.y }])
+      ),
+    };
+  }
+
+  function updateActiveResize(event) {
+    if (!state.activeResize || !state.cy) {
+      return;
+    }
+    const tensor = findTensorById(state.activeResize.tensorId);
+    if (!tensor) {
+      return;
+    }
+    const worldPoint = clientPointToWorldPoint(event.clientX, event.clientY);
+    const width = Math.max(
+      MIN_TENSOR_WIDTH,
+      Math.abs(worldPoint.x - state.activeResize.center.x) * 2
+    );
+    const height = Math.max(
+      MIN_TENSOR_HEIGHT,
+      Math.abs(worldPoint.y - state.activeResize.center.y) * 2
+    );
+    const widthRatio = width / Math.max(1, state.activeResize.startSize.width);
+    const heightRatio = height / Math.max(1, state.activeResize.startSize.height);
+    tensor.size.width = Math.round(width);
+    tensor.size.height = Math.round(height);
+    tensor.indices.forEach((index) => {
+      const startOffset = state.activeResize.startOffsets[index.id] || { x: 0, y: 0 };
+      index.offset = clampIndexOffset(
+        {
+          x: startOffset.x * widthRatio,
+          y: startOffset.y * heightRatio,
+        },
+        tensor
+      );
+    });
+    syncTensorElementSize(tensor);
+    syncIndexNodePositions(tensor);
+    renderOverlayDecorations();
+    renderMinimap();
+  }
+
+  function finishActiveResize() {
+    if (!state.activeResize) {
+      return;
+    }
+    commitHistorySnapshot(state.activeResize.snapshot);
+    state.activeResize = null;
+    updateToolbarState();
+    render();
+  }
+
+  function tensorWidth(tensor) {
+    return Math.max(MIN_TENSOR_WIDTH, asFiniteNumber(tensor.size && tensor.size.width, TENSOR_WIDTH));
+  }
+
+  function tensorHeight(tensor) {
+    return Math.max(MIN_TENSOR_HEIGHT, asFiniteNumber(tensor.size && tensor.size.height, TENSOR_HEIGHT));
+  }
+
+  function tensorScreenRect(tensor) {
+    const topLeft = worldToCanvasPoint({
+      x: tensor.position.x - tensorWidth(tensor) / 2,
+      y: tensor.position.y - tensorHeight(tensor) / 2,
+    });
+    return {
+      left: topLeft.x,
+      top: topLeft.y,
+      width: tensorWidth(tensor) * state.cy.zoom(),
+      height: tensorHeight(tensor) * state.cy.zoom(),
+    };
+  }
+
+  function groupDisplayRect(group) {
+    const bounds = groupWorldBounds(group);
+    if (!bounds) {
+      return null;
+    }
+    if (Boolean(group.metadata && group.metadata.collapsed)) {
+      const anchor = worldToCanvasPoint({
+        x: (bounds.x1 + bounds.x2) / 2,
+        y: bounds.y1 - 30,
+      });
+      return {
+        left: anchor.x - 80,
+        top: anchor.y - 20,
+        width: 160,
+        height: 40,
+      };
+    }
+    const topLeft = worldToCanvasPoint({ x: bounds.x1, y: bounds.y1 });
+    const bottomRight = worldToCanvasPoint({ x: bounds.x2, y: bounds.y2 });
+    return {
+      left: topLeft.x,
+      top: topLeft.y,
+      width: Math.max(48, bottomRight.x - topLeft.x),
+      height: Math.max(48, bottomRight.y - topLeft.y),
+    };
+  }
+
+  function groupWorldBounds(group) {
+    const tensors = group.tensor_ids.map((tensorId) => findTensorById(tensorId)).filter(Boolean);
+    if (!tensors.length) {
+      return null;
+    }
+    return tensors.reduce(
+      (bounds, tensor) => ({
+        x1: Math.min(bounds.x1, tensor.position.x - tensorWidth(tensor) / 2 - 24),
+        y1: Math.min(bounds.y1, tensor.position.y - tensorHeight(tensor) / 2 - 24),
+        x2: Math.max(bounds.x2, tensor.position.x + tensorWidth(tensor) / 2 + 24),
+        y2: Math.max(bounds.y2, tensor.position.y + tensorHeight(tensor) / 2 + 24),
+      }),
+      {
+        x1: Number.POSITIVE_INFINITY,
+        y1: Number.POSITIVE_INFINITY,
+        x2: Number.NEGATIVE_INFINITY,
+        y2: Number.NEGATIVE_INFINITY,
+      }
+    );
+  }
+
+  function syncTensorElementSize(tensor) {
+    if (!state.cy) {
+      return;
+    }
+    const tensorElement = state.cy.getElementById(tensor.id);
+    if (!tensorElement || !tensorElement.length) {
+      return;
+    }
+    tensorElement.data("width", tensorWidth(tensor));
+    tensorElement.data("height", tensorHeight(tensor));
+  }
+
+  function uniquifyImportedSpec(spec, prefix) {
+    const cloned = deepClone(spec);
+    const tensorIdMap = {};
+    const indexIdMap = {};
+    const groupIdMap = {};
+
+    cloned.id = `${prefix}_${sanitizeFilename(cloned.name || "template")}`;
+    cloned.tensors.forEach((tensor) => {
+      const nextTensorId = makeId("tensor");
+      tensorIdMap[tensor.id] = nextTensorId;
+      tensor.id = nextTensorId;
+      tensor.indices.forEach((index) => {
+        const nextIndexId = makeId("index");
+        indexIdMap[index.id] = nextIndexId;
+        index.id = nextIndexId;
+      });
+    });
+    cloned.edges.forEach((edge) => {
+      edge.id = makeId("edge");
+      edge.left.tensor_id = tensorIdMap[edge.left.tensor_id];
+      edge.right.tensor_id = tensorIdMap[edge.right.tensor_id];
+      edge.left.index_id = indexIdMap[edge.left.index_id];
+      edge.right.index_id = indexIdMap[edge.right.index_id];
+    });
+    cloned.groups.forEach((group) => {
+      const nextGroupId = makeId("group");
+      groupIdMap[group.id] = nextGroupId;
+      group.id = nextGroupId;
+      group.tensor_ids = group.tensor_ids.map((tensorId) => tensorIdMap[tensorId]);
+    });
+    return normalizeSpec(cloned);
+  }
+
+  function translateImportedSpec(spec, targetCenter) {
+    const translated = deepClone(spec);
+    const bounds = computeSpecBounds(translated);
+    const sourceCenter = {
+      x: (bounds.x1 + bounds.x2) / 2,
+      y: (bounds.y1 + bounds.y2) / 2,
+    };
+    const deltaX = targetCenter.x - sourceCenter.x;
+    const deltaY = targetCenter.y - sourceCenter.y;
+    translated.tensors.forEach((tensor) => {
+      tensor.position.x += deltaX;
+      tensor.position.y += deltaY;
+    });
+    return normalizeSpec(translated);
+  }
+
+  function computeSpecBounds(spec) {
+    const bounds = {
+      x1: Number.POSITIVE_INFINITY,
+      y1: Number.POSITIVE_INFINITY,
+      x2: Number.NEGATIVE_INFINITY,
+      y2: Number.NEGATIVE_INFINITY,
+    };
+    spec.tensors.forEach((tensor) => {
+      expandBounds(bounds, tensor.position.x - tensorWidth(tensor) / 2, tensor.position.y - tensorHeight(tensor) / 2);
+      expandBounds(bounds, tensor.position.x + tensorWidth(tensor) / 2, tensor.position.y + tensorHeight(tensor) / 2);
+    });
+    return bounds;
+  }
+
   // SECTION: utilities
 
   function populateEngineOptions(engines) {
@@ -1968,9 +2595,19 @@
     });
   }
 
+  function populateTemplateOptions(templateNames) {
+    templateSelect.innerHTML = "";
+    templateNames.forEach((templateName) => {
+      const option = document.createElement("option");
+      option.value = templateName;
+      option.textContent = templateName.replaceAll("_", " ");
+      templateSelect.appendChild(option);
+    });
+  }
+
   function serializeCurrentSpec() {
     return {
-      schema_version: 1,
+      schema_version: state.schemaVersion,
       network: state.spec,
     };
   }
@@ -2011,6 +2648,12 @@
       (edge) => !tensorIndexIds.has(edge.left.index_id) && !tensorIndexIds.has(edge.right.index_id)
     );
     state.spec.tensors = state.spec.tensors.filter((candidate) => candidate.id !== tensorId);
+    state.spec.groups = state.spec.groups
+      .map((group) => ({
+        ...group,
+        tensor_ids: group.tensor_ids.filter((candidateId) => candidateId !== tensorId),
+      }))
+      .filter((group) => group.tensor_ids.length > 0);
     state.tensorOrder = state.tensorOrder.filter((candidateId) => candidateId !== tensorId);
   }
 
@@ -2031,6 +2674,14 @@
 
   function findTensorById(tensorId) {
     return state.spec.tensors.find((tensor) => tensor.id === tensorId) || null;
+  }
+
+  function findGroupById(groupId) {
+    return state.spec.groups.find((group) => group.id === groupId) || null;
+  }
+
+  function findGroupsByTensorId(tensorId) {
+    return state.spec.groups.filter((group) => group.tensor_ids.includes(tensorId));
   }
 
   function findEdgeById(edgeId) {
@@ -2060,6 +2711,7 @@
       id: makeId("tensor"),
       name: nextName("T", state.spec.tensors.map((tensor) => tensor.name)),
       position: { x, y },
+      size: { width: TENSOR_WIDTH, height: TENSOR_HEIGHT },
       indices: [],
       metadata: {},
     };
@@ -2073,7 +2725,7 @@
       id: makeId("index"),
       name: nextName("i", tensor.indices.map((index) => index.name)),
       dimension: 2,
-      offset: defaultIndexOffsetForOrder(indexPosition),
+      offset: defaultIndexOffsetForOrder(indexPosition, tensor),
       metadata: {},
     };
   }
@@ -2082,6 +2734,7 @@
     const normalized = deepClone(spec || {});
     normalized.metadata = isObject(normalized.metadata) ? normalized.metadata : {};
     normalized.tensors = Array.isArray(normalized.tensors) ? normalized.tensors : [];
+    normalized.groups = Array.isArray(normalized.groups) ? normalized.groups : [];
     normalized.edges = Array.isArray(normalized.edges) ? normalized.edges : [];
 
     normalized.tensors.forEach((tensor) => {
@@ -2089,6 +2742,10 @@
       tensor.position = {
         x: asFiniteNumber(tensor.position && tensor.position.x, 120),
         y: asFiniteNumber(tensor.position && tensor.position.y, 120),
+      };
+      tensor.size = {
+        width: Math.max(MIN_TENSOR_WIDTH, asFiniteNumber(tensor.size && tensor.size.width, TENSOR_WIDTH)),
+        height: Math.max(MIN_TENSOR_HEIGHT, asFiniteNumber(tensor.size && tensor.size.height, TENSOR_HEIGHT)),
       };
       tensor.indices = Array.isArray(tensor.indices) ? tensor.indices : [];
       tensor.indices.forEach((index, indexPosition) => {
@@ -2105,6 +2762,17 @@
       ensureTensorIndexOffsets(tensor);
     });
 
+    normalized.groups.forEach((group, groupPosition) => {
+      group.metadata = isObject(group.metadata) ? group.metadata : {};
+      group.tensor_ids = Array.isArray(group.tensor_ids) ? group.tensor_ids.map((tensorId) => String(tensorId)) : [];
+      if (!group.id) {
+        group.id = makeId("group");
+      }
+      if (!group.name) {
+        group.name = `Group ${groupPosition + 1}`;
+      }
+    });
+
     return normalized;
   }
 
@@ -2115,41 +2783,49 @@
 
     tensor.indices.forEach((index, indexPosition) => {
       if (needsAutoLayout) {
-        index.offset = defaultIndexOffsetForOrder(indexPosition);
+        index.offset = defaultIndexOffsetForOrder(indexPosition, tensor);
       } else {
-        index.offset = clampIndexOffset(index.offset);
+        index.offset = clampIndexOffset(index.offset, tensor);
       }
     });
   }
 
-  function defaultIndexOffsetForOrder(indexPosition) {
+  function defaultIndexOffsetForOrder(indexPosition, tensor) {
+    const scaleX = tensorWidth(tensor) / TENSOR_WIDTH;
+    const scaleY = tensorHeight(tensor) / TENSOR_HEIGHT;
     const slot = DEFAULT_INDEX_SLOTS[indexPosition];
     if (slot) {
-      return clampIndexOffset(slot);
+      return clampIndexOffset(
+        { x: slot.x * scaleX, y: slot.y * scaleY },
+        tensor
+      );
     }
-    return clampIndexOffset({
-      x: indexPosition % 2 === 0 ? -58 : 58,
-      y: -30 + Math.floor(indexPosition / 2) * 18,
-    });
+    return clampIndexOffset(
+      {
+        x: (indexPosition % 2 === 0 ? -58 : 58) * scaleX,
+        y: (-30 + Math.floor(indexPosition / 2) * 18) * scaleY,
+      },
+      tensor
+    );
   }
 
-  function clampIndexOffset(offset) {
+  function clampIndexOffset(offset, tensor) {
     return {
       x: clamp(
         asFiniteNumber(offset.x, 0),
-        -TENSOR_WIDTH / 2 + INDEX_RADIUS + INDEX_PADDING,
-        TENSOR_WIDTH / 2 - INDEX_RADIUS - INDEX_PADDING
+        -tensorWidth(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
+        tensorWidth(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
       ),
       y: clamp(
         asFiniteNumber(offset.y, 0),
-        -TENSOR_HEIGHT / 2 + INDEX_RADIUS + INDEX_PADDING,
-        TENSOR_HEIGHT / 2 - INDEX_RADIUS - INDEX_PADDING
+        -tensorHeight(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
+        tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
       ),
     };
   }
 
   function indexAbsolutePosition(tensor, index) {
-    const offset = clampIndexOffset(index.offset);
+    const offset = clampIndexOffset(index.offset, tensor);
     index.offset = offset;
     return {
       x: tensor.position.x + offset.x,
@@ -2202,6 +2878,15 @@
       action();
     } finally {
       state.syncingIndexPositions = false;
+    }
+  }
+
+  function runWithTensorSync(action) {
+    state.syncingTensorPositions = true;
+    try {
+      action();
+    } finally {
+      state.syncingTensorPositions = false;
     }
   }
 
@@ -2288,6 +2973,8 @@
         entry.located.index.metadata.color = colorValue;
       } else if (entry.kind === "edge") {
         entry.edge.metadata.color = colorValue;
+      } else if (entry.kind === "group") {
+        entry.group.metadata.color = colorValue;
       }
     });
   }
@@ -2308,6 +2995,9 @@
         entry.located.index.metadata,
         getIndexColor(entry.located.index, Boolean(findEdgeByIndexId(entry.id)))
       );
+    }
+    if (entry.kind === "group") {
+      return getMetadataColor(entry.group.metadata, "#61a8ff");
     }
     return getMetadataColor(entry.edge.metadata, "#8da1c3");
   }
@@ -2362,8 +3052,8 @@
     };
 
     state.spec.tensors.forEach((tensor) => {
-      expandBounds(bounds, tensor.position.x - TENSOR_WIDTH / 2, tensor.position.y - TENSOR_HEIGHT / 2);
-      expandBounds(bounds, tensor.position.x + TENSOR_WIDTH / 2, tensor.position.y + TENSOR_HEIGHT / 2);
+      expandBounds(bounds, tensor.position.x - tensorWidth(tensor) / 2, tensor.position.y - tensorHeight(tensor) / 2);
+      expandBounds(bounds, tensor.position.x + tensorWidth(tensor) / 2, tensor.position.y + tensorHeight(tensor) / 2);
       tensor.indices.forEach((index) => {
         const absolutePosition = indexAbsolutePosition(tensor, index);
         expandBounds(bounds, absolutePosition.x - INDEX_RADIUS, absolutePosition.y - INDEX_RADIUS);
@@ -2459,6 +3149,9 @@
   function updateToolbarState() {
     undoButton.disabled = state.undoStack.length === 0;
     redoButton.disabled = state.redoStack.length === 0;
+    exportPyButton.disabled = !state.spec || !state.selectedEngine;
+    insertTemplateButton.disabled = !templateSelect.value;
+    createGroupButton.disabled = getSelectedIdsByKind("tensor").length < 2;
   }
 
   function formatIssues(issues) {
@@ -2524,6 +3217,31 @@
     return {
       x: clamp(clientX - rect.left, 0, rect.width),
       y: clamp(clientY - rect.top, 0, rect.height),
+    };
+  }
+
+  function clientPointToWorldPoint(clientX, clientY) {
+    const canvasPoint = clientPointToCanvasPoint(clientX, clientY);
+    if (!state.cy) {
+      return canvasPoint;
+    }
+    const zoom = state.cy.zoom();
+    const pan = state.cy.pan();
+    return {
+      x: (canvasPoint.x - pan.x) / zoom,
+      y: (canvasPoint.y - pan.y) / zoom,
+    };
+  }
+
+  function worldToCanvasPoint(point) {
+    if (!state.cy) {
+      return point;
+    }
+    const zoom = state.cy.zoom();
+    const pan = state.cy.pan();
+    return {
+      x: point.x * zoom + pan.x,
+      y: point.y * zoom + pan.y,
     };
   }
 

@@ -9,7 +9,7 @@ from .models import NetworkSpec
 from .types import JSONValue, StrPath
 from .validation import ensure_valid_spec
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 LOGGER = logging.getLogger(__name__)
 
 
@@ -21,8 +21,14 @@ def serialize_spec(spec: NetworkSpec) -> dict[str, JSONValue]:
     }
 
 
-def deserialize_spec(payload: dict[str, object]) -> NetworkSpec:
-    schema_version_raw = payload.get("schema_version", SCHEMA_VERSION)
+def deserialize_spec(
+    payload: dict[str, object], *, validate: bool = True
+) -> NetworkSpec:
+    if "schema_version" not in payload:
+        raise SerializationError(
+            "Serialized payload must contain a valid schema version."
+        )
+    schema_version_raw = payload.get("schema_version")
     if isinstance(schema_version_raw, bool) or not isinstance(
         schema_version_raw, (int, float, str)
     ):
@@ -50,7 +56,7 @@ def deserialize_spec(payload: dict[str, object]) -> NetworkSpec:
         raise SerializationError(
             "Serialized payload contains a malformed network object."
         ) from exc
-    return ensure_valid_spec(spec)
+    return ensure_valid_spec(spec) if validate else spec
 
 
 def save_spec(spec: NetworkSpec, path: StrPath) -> None:

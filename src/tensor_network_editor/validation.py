@@ -98,6 +98,19 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
                     path=f"tensors.{tensor.id}.position",
                 )
             )
+        if (
+            not math.isfinite(tensor.size.width)
+            or not math.isfinite(tensor.size.height)
+            or tensor.size.width <= 0
+            or tensor.size.height <= 0
+        ):
+            issues.append(
+                ValidationIssue(
+                    code="invalid-size",
+                    message=f"Tensor '{tensor.id}' must have a positive finite size.",
+                    path=f"tensors.{tensor.id}.size",
+                )
+            )
 
         seen_tensor_index_ids = Counter(index.id for index in tensor.indices)
         for index_id, count in seen_tensor_index_ids.items():
@@ -156,6 +169,39 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
                 index.metadata,
                 issues,
             )
+
+    group_counts = Counter(group.id for group in spec.groups)
+    for group_id, count in group_counts.items():
+        if count > 1:
+            issues.append(
+                ValidationIssue(
+                    code="duplicate-group-id",
+                    message=f"Group id '{group_id}' is duplicated.",
+                    path="groups",
+                )
+            )
+
+    for group in spec.groups:
+        if not _is_valid_name(group.name):
+            issues.append(
+                ValidationIssue(
+                    code="invalid-name",
+                    message=f"Group '{group.id}' has an empty name.",
+                    path=f"groups.{group.id}.name",
+                )
+            )
+        _validate_metadata(f"groups.{group.id}.metadata", group.metadata, issues)
+        for tensor_id in group.tensor_ids:
+            if tensor_id not in analysis.tensor_map:
+                issues.append(
+                    ValidationIssue(
+                        code="missing-group-tensor",
+                        message=(
+                            f"Group '{group.id}' refers to missing tensor '{tensor_id}'."
+                        ),
+                        path=f"groups.{group.id}.tensor_ids",
+                    )
+                )
 
     connected_indices: set[str] = set()
     for edge in spec.edges:

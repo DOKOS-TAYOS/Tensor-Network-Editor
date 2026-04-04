@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import unittest
 from queue import Queue
@@ -75,8 +76,13 @@ class AppServerTests(unittest.TestCase):
         payload = request_json(f"{self.server.base_url}/api/bootstrap")
 
         self.assertEqual(payload["default_engine"], EngineName.EINSUM.value)
+        self.assertEqual(payload["schema_version"], 2)
         self.assertEqual(payload["spec"]["network"]["id"], "network_demo")
+        self.assertEqual(payload["spec"]["schema_version"], 2)
         self.assertIn(EngineName.QUIMB.value, payload["engines"])
+        self.assertEqual(
+            payload["templates"], ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+        )
 
     def test_root_serves_editor_shell(self) -> None:
         html = request_text(f"{self.server.base_url}/")
@@ -89,13 +95,29 @@ class AppServerTests(unittest.TestCase):
         self.assertIn('class="code-output-shell"', html)
         self.assertIn('id="undo-button"', html)
         self.assertIn('id="redo-button"', html)
+        self.assertIn('aria-label="Undo"', html)
+        self.assertIn('aria-label="Redo"', html)
         self.assertIn('id="export-png-button"', html)
         self.assertIn('id="export-svg-button"', html)
+        self.assertIn('id="export-py-button"', html)
         self.assertIn('id="help-button"', html)
+        self.assertIn('aria-label="Help"', html)
+        self.assertLess(
+            html.index('id="help-button"'),
+            html.index('<main class="workspace">'),
+        )
         self.assertIn('id="generate-button"', html)
+        self.assertIn('id="template-select"', html)
+        self.assertIn('id="insert-template-button"', html)
+        self.assertIn('id="create-group-button"', html)
         self.assertIn('id="canvas-selection-box"', html)
         self.assertIn('id="minimap"', html)
         self.assertIn('id="help-modal"', html)
+        self.assertNotIn('id="snap-guide-layer"', html)
+        self.assertNotIn(">Help</button>", html)
+        self.assertNotIn(">Undo</button>", html)
+        self.assertNotIn(">Redo</button>", html)
+        self.assertNotIn('id="auto-layout-button"', html)
         self.assertNotIn('id="validate-button"', html)
         self.assertNotIn('id="status-message"', html)
 
@@ -124,6 +146,7 @@ class AppServerTests(unittest.TestCase):
         self.assertIn(".code-output-shell", css_body)
         self.assertIn(".code-copy-floating", css_body)
         self.assertIn(".icon-button", css_body)
+        self.assertNotIn(".snap-guide", css_body)
         self.assertIn(".help-modal", css_body)
         self.assertIn(".help-shortcuts", css_body)
 
@@ -171,15 +194,67 @@ class AppServerTests(unittest.TestCase):
         self.assertIn("renderMinimap", script_body)
         self.assertIn("downloadSvgExport", script_body)
         self.assertIn("downloadPngExport", script_body)
+        self.assertIn("downloadPythonExport", script_body)
+        self.assertIn("/api/template", script_body)
+        self.assertIn("schemaVersion", script_body)
+        self.assertIn("insertTemplate", script_body)
+        self.assertIn("createGroupFromSelection", script_body)
+        self.assertIn("toggleGroupCollapse", script_body)
+        self.assertIn("renderResizeHandles", script_body)
+        self.assertNotIn("autoLayoutButton", script_body)
+        self.assertNotIn("performAutoLayout", script_body)
+        self.assertNotIn("/api/autolayout", script_body)
+        self.assertNotIn("SNAP_THRESHOLD", script_body)
+        self.assertNotIn("snapGuides", script_body)
+        self.assertNotIn("resolveTensorSnap", script_body)
+        self.assertNotIn("resolveAxisSnap", script_body)
+        self.assertNotIn("renderSnapGuides", script_body)
         self.assertIn("toggleHelpModal", script_body)
         self.assertIn("startBoxSelection", script_body)
         self.assertIn("contextmenu", script_body)
         self.assertIn("Ctrl+Shift+Z", script_body)
+        self.assertNotIn("payload.network ? payload.network : payload", script_body)
+        self.assertNotIn("schema_version: 1", script_body)
         self.assertNotIn("spacePanPressed", script_body)
         self.assertNotIn("startCanvasPan", script_body)
         self.assertNotIn("updateCanvasPan", script_body)
         self.assertNotIn("Drag tensors directly on the canvas", script_body)
         self.assertNotIn("Hold <strong>Shift</strong>", script_body)
+
+    def test_frontend_script_uses_tensor_aware_index_offset_helpers(self) -> None:
+        script_body = request_text(f"{self.server.base_url}/app.js")
+
+        self.assertIn(
+            "offset: defaultIndexOffsetForOrder(indexPosition, tensor)",
+            script_body,
+        )
+        self.assertNotRegex(
+            script_body,
+            re.compile(r"defaultIndexOffsetForOrder\(\s*indexPosition\s*\)"),
+        )
+        self.assertIn(
+            "located.index.offset = clampIndexOffset(located.index.offset, located.tensor);",
+            script_body,
+        )
+        self.assertNotRegex(
+            script_body,
+            re.compile(r"clampIndexOffset\(\s*located\.index\.offset\s*\)"),
+        )
+
+    def test_frontend_script_refreshes_toolbar_state_after_selection_changes(self) -> None:
+        script_body = request_text(f"{self.server.base_url}/app.js")
+
+        set_selection_body = script_body.split("function setSelection(selectionIds, options = {}) {", maxsplit=1)[1].split(
+            "function selectElement(kind, id, options = {}) {",
+            maxsplit=1,
+        )[0]
+        clear_selection_body = script_body.split("function clearSelection(options = {}) {", maxsplit=1)[1].split(
+            "function selectAllTensors() {",
+            maxsplit=1,
+        )[0]
+
+        self.assertIn("updateToolbarState();", set_selection_body)
+        self.assertIn("updateToolbarState();", clear_selection_body)
 
     def test_static_assets_disable_browser_cache(self) -> None:
         _, headers = request_with_headers(f"{self.server.base_url}/app.js")
@@ -193,7 +268,7 @@ class AppServerTests(unittest.TestCase):
         payload = request_json(
             f"{self.server.base_url}/api/validate",
             method="POST",
-            payload={"spec": {"schema_version": 1, "network": invalid_spec.to_dict()}},
+            payload={"spec": {"schema_version": 2, "network": invalid_spec.to_dict()}},
         )
 
         self.assertFalse(payload["ok"])
@@ -223,13 +298,26 @@ class AppServerTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("JSON object", payload["message"])
 
+    def test_validate_route_rejects_legacy_schema_versions(self) -> None:
+        status, payload = request_json_with_status(
+            f"{self.server.base_url}/api/validate",
+            method="POST",
+            payload={
+                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()}
+            },
+        )
+
+        self.assertEqual(status, 400)
+        self.assertFalse(payload["ok"])
+        self.assertIn("Unsupported schema version", payload["message"])
+
     def test_generate_route_returns_code(self) -> None:
         payload = request_json(
             f"{self.server.base_url}/api/generate",
             method="POST",
             payload={
                 "engine": EngineName.TENSORNETWORK.value,
-                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -253,7 +341,7 @@ class AppServerTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": "unknown-engine",
-                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -270,7 +358,7 @@ class AppServerTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.TENSORNETWORK.value,
-                "spec": {"schema_version": 1, "network": invalid_spec.to_dict()},
+                "spec": {"schema_version": 2, "network": invalid_spec.to_dict()},
             },
         )
 
@@ -290,7 +378,7 @@ class AppServerTests(unittest.TestCase):
                 payload={
                     "engine": EngineName.TENSORNETWORK.value,
                     "spec": {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "network": build_sample_spec().to_dict(),
                     },
                 },
@@ -306,7 +394,7 @@ class AppServerTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.QUIMB.value,
-                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -326,6 +414,29 @@ class AppServerTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertIsNone(self.session.wait_for_result(timeout=0.1))
+
+    def test_autolayout_route_is_not_available(self) -> None:
+        status, payload = request_json_with_status(
+            f"{self.server.base_url}/api/autolayout",
+            method="POST",
+            payload={"spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}},
+        )
+
+        self.assertEqual(status, 404)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["message"], "Not found.")
+
+    def test_template_route_returns_valid_serialized_spec(self) -> None:
+        payload = request_json(
+            f"{self.server.base_url}/api/template",
+            method="POST",
+            payload={"template": "mps"},
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["spec"]["schema_version"], 2)
+        self.assertEqual(payload["spec"]["network"]["name"], "MPS")
+        self.assertGreater(len(payload["spec"]["network"]["tensors"]), 0)
 
 
 class LaunchEditorSessionTests(unittest.TestCase):
@@ -352,7 +463,7 @@ class LaunchEditorSessionTests(unittest.TestCase):
 
         def finish_session() -> None:
             session.complete(
-                serialized_spec={"schema_version": 1, "network": build_sample_spec().to_dict()},
+                serialized_spec={"schema_version": 2, "network": build_sample_spec().to_dict()},
                 engine=EngineName.EINSUM,
             )
 
@@ -388,7 +499,7 @@ class LaunchEditorSessionTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.EINSUM.value,
-                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
             },
         )
         self.assertTrue(payload["ok"])

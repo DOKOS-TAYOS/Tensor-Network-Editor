@@ -13,8 +13,10 @@ from tensor_network_editor.models import (
     EdgeEndpointRef,
     EdgeSpec,
     EngineName,
+    GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorSize,
     TensorSpec,
 )
 
@@ -28,6 +30,7 @@ def build_sample_spec() -> NetworkSpec:
                 id="tensor_a",
                 name="A",
                 position=CanvasPosition(x=120.0, y=160.0),
+                size=TensorSize(width=200.0, height=120.0),
                 indices=[
                     IndexSpec(id="tensor_a_i", name="i", dimension=2),
                     IndexSpec(id="tensor_a_x", name="x", dimension=3),
@@ -42,6 +45,13 @@ def build_sample_spec() -> NetworkSpec:
                     IndexSpec(id="tensor_b_j", name="j", dimension=4),
                 ],
             ),
+        ],
+        groups=[
+            GroupSpec(
+                id="group_demo",
+                name="Demo Group",
+                tensor_ids=["tensor_a", "tensor_b"],
+            )
         ],
         edges=[
             EdgeSpec(
@@ -77,6 +87,8 @@ class PublicApiTests(unittest.TestCase):
     def test_package_root_exposes_canonical_public_api_only(self) -> None:
         self.assertTrue(hasattr(tensor_network_editor, "launch_tensor_network_editor"))
         self.assertFalse(hasattr(tensor_network_editor, "tensor_network_creation"))
+        self.assertTrue(hasattr(tensor_network_editor, "TensorSize"))
+        self.assertTrue(hasattr(tensor_network_editor, "GroupSpec"))
 
     def test_generate_code_returns_codegen_result_for_each_engine(self) -> None:
         spec = build_sample_spec()
@@ -119,6 +131,8 @@ class PublicApiTests(unittest.TestCase):
             [tensor.id for tensor in loaded_spec.tensors], ["tensor_a", "tensor_b"]
         )
         self.assertEqual(loaded_spec.edges[0].name, "bond_x")
+        self.assertEqual(loaded_spec.tensors[0].size.width, 200.0)
+        self.assertEqual(loaded_spec.groups[0].tensor_ids, ["tensor_a", "tensor_b"])
 
     def test_save_spec_wraps_file_write_failures(self) -> None:
         spec = build_sample_spec()
@@ -142,6 +156,32 @@ class PublicApiTests(unittest.TestCase):
                 load_spec(invalid_path)
         finally:
             invalid_path.unlink(missing_ok=True)
+
+    def test_load_spec_rejects_legacy_schema_versions(self) -> None:
+        legacy_path = build_output_path("legacy_network.json")
+        legacy_path.write_text(
+            '{"schema_version": 1, "network": {"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "metadata": {}}}',
+            encoding="utf-8",
+        )
+
+        try:
+            with self.assertRaisesRegex(SerializationError, "Unsupported schema version"):
+                load_spec(legacy_path)
+        finally:
+            legacy_path.unlink(missing_ok=True)
+
+    def test_load_spec_rejects_unwrapped_network_payloads(self) -> None:
+        unwrapped_path = build_output_path("unwrapped_network.json")
+        unwrapped_path.write_text(
+            '{"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "metadata": {}}',
+            encoding="utf-8",
+        )
+
+        try:
+            with self.assertRaisesRegex(SerializationError, "schema version"):
+                load_spec(unwrapped_path)
+        finally:
+            unwrapped_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

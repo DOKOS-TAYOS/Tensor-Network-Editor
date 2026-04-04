@@ -5,7 +5,7 @@ from http import HTTPStatus
 
 from ..errors import SerializationError
 from ..models import CodegenResult, EditorResult
-from ..serialization import SCHEMA_VERSION
+from ..serialization import SCHEMA_VERSION, serialize_spec
 from ..validation import validate_spec
 from ._protocol import (
     JsonDict,
@@ -30,6 +30,7 @@ def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
 def handle_validate(
     session: EditorSession, payload: JsonDict
 ) -> tuple[int, JsonDict]:
+    del session
     try:
         serialized_spec = require_serialized_spec(payload)
     except ValueError:
@@ -89,6 +90,22 @@ def handle_complete(
 def handle_cancel(session: EditorSession) -> tuple[int, JsonDict]:
     session.cancel()
     return HTTPStatus.OK, {"ok": True}
+
+
+def handle_template(
+    session: EditorSession, payload: JsonDict
+) -> tuple[int, JsonDict]:
+    template_name = payload.get("template")
+    if not isinstance(template_name, str) or not template_name.strip():
+        return HTTPStatus.BAD_REQUEST, {
+            "ok": False,
+            "message": "Missing 'template' payload.",
+        }
+    try:
+        spec = session.build_template(template_name)
+    except ValueError as exc:
+        return HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)}
+    return HTTPStatus.OK, {"ok": True, "spec": serialize_spec(spec)}
 
 
 def _build_generate_response(result: CodegenResult | EditorResult) -> JsonDict:

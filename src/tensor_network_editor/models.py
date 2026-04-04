@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Self
+from typing import Self, cast
 
 from ._payloads import (
     coerce_float,
@@ -28,6 +28,22 @@ class CanvasPosition:
         return cls(
             x=coerce_float(payload["x"], field_name="x"),
             y=coerce_float(payload["y"], field_name="y"),
+        )
+
+
+@dataclass(slots=True)
+class TensorSize:
+    width: float = 180.0
+    height: float = 108.0
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {"width": self.width, "height": self.height}
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        return cls(
+            width=coerce_float(payload["width"], field_name="width"),
+            height=coerce_float(payload["height"], field_name="height"),
         )
 
 
@@ -70,6 +86,7 @@ class TensorSpec:
     id: str = field(default_factory=lambda: new_identifier("tensor"))
     name: str = "Tensor"
     position: CanvasPosition = field(default_factory=CanvasPosition)
+    size: TensorSize = field(default_factory=TensorSize)
     indices: list[IndexSpec] = field(default_factory=list)
     metadata: MetadataDict = field(default_factory=dict)
 
@@ -82,6 +99,7 @@ class TensorSpec:
             "id": self.id,
             "name": self.name,
             "position": self.position.to_dict(),
+            "size": self.size.to_dict(),
             "indices": [index.to_dict() for index in self.indices],
             "metadata": self.metadata,
         }
@@ -89,11 +107,16 @@ class TensorSpec:
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
         position_payload = require_dict(payload["position"], field_name="position")
+        size_payload = require_dict(
+            payload.get("size", {"width": 180.0, "height": 108.0}),
+            field_name="size",
+        )
         indices_payload = require_list(payload.get("indices", []), field_name="indices")
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
             position=CanvasPosition.from_dict(position_payload),
+            size=TensorSize.from_dict(size_payload),
             indices=[
                 IndexSpec.from_dict(require_dict(index, field_name="index"))
                 for index in indices_payload
@@ -150,6 +173,34 @@ class EdgeSpec:
 
 
 @dataclass(slots=True)
+class GroupSpec:
+    id: str = field(default_factory=lambda: new_identifier("group"))
+    name: str = "Group"
+    tensor_ids: list[str] = field(default_factory=list)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "tensor_ids": cast(JSONValue, list(self.tensor_ids)),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        tensor_ids_payload = require_list(
+            payload.get("tensor_ids", []), field_name="tensor_ids"
+        )
+        return cls(
+            id=str(payload["id"]),
+            name=str(payload["name"]),
+            tensor_ids=[str(tensor_id) for tensor_id in tensor_ids_payload],
+            metadata=coerce_metadata(payload.get("metadata", {}), field_name="metadata"),
+        )
+
+
+@dataclass(slots=True)
 class ValidationIssue:
     code: str
     message: str
@@ -184,6 +235,7 @@ class NetworkSpec:
     id: str = field(default_factory=lambda: new_identifier("network"))
     name: str = "Tensor Network"
     tensors: list[TensorSpec] = field(default_factory=list)
+    groups: list[GroupSpec] = field(default_factory=list)
     edges: list[EdgeSpec] = field(default_factory=list)
     metadata: MetadataDict = field(default_factory=dict)
 
@@ -218,6 +270,7 @@ class NetworkSpec:
             "id": self.id,
             "name": self.name,
             "tensors": [tensor.to_dict() for tensor in self.tensors],
+            "groups": [group.to_dict() for group in self.groups],
             "edges": [edge.to_dict() for edge in self.edges],
             "metadata": self.metadata,
         }
@@ -225,6 +278,7 @@ class NetworkSpec:
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
+        groups_payload = require_list(payload.get("groups", []), field_name="groups")
         edges_payload = require_list(payload.get("edges", []), field_name="edges")
         return cls(
             id=str(payload["id"]),
@@ -232,6 +286,10 @@ class NetworkSpec:
             tensors=[
                 TensorSpec.from_dict(require_dict(tensor, field_name="tensor"))
                 for tensor in tensors_payload
+            ],
+            groups=[
+                GroupSpec.from_dict(require_dict(group, field_name="group"))
+                for group in groups_payload
             ],
             edges=[
                 EdgeSpec.from_dict(require_dict(edge, field_name="edge"))

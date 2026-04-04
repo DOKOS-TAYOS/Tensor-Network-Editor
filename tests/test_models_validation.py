@@ -6,8 +6,10 @@ from tensor_network_editor.models import (
     CanvasPosition,
     EdgeEndpointRef,
     EdgeSpec,
+    GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorSize,
     TensorSpec,
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
@@ -22,6 +24,7 @@ def build_valid_spec() -> NetworkSpec:
                 id="tensor_left",
                 name="Left",
                 position=CanvasPosition(x=40.0, y=80.0),
+                size=TensorSize(width=196.0, height=118.0),
                 indices=[
                     IndexSpec(id="tensor_left_open", name="left_open", dimension=2),
                     IndexSpec(id="tensor_left_bond", name="shared", dimension=5),
@@ -36,6 +39,13 @@ def build_valid_spec() -> NetworkSpec:
                     IndexSpec(id="tensor_right_open", name="right_open", dimension=7),
                 ],
             ),
+        ],
+        groups=[
+            GroupSpec(
+                id="group_pair",
+                name="Pair",
+                tensor_ids=["tensor_left", "tensor_right"],
+            )
         ],
         edges=[
             EdgeSpec(
@@ -66,6 +76,19 @@ class ModelAndValidationTests(unittest.TestCase):
 
         self.assertEqual(restored.offset.x, 34.0)
         self.assertEqual(restored.offset.y, -18.0)
+
+    def test_tensor_size_round_trip_is_serializable(self) -> None:
+        tensor = TensorSpec(
+            id="tensor_with_size",
+            name="Sized",
+            size=TensorSize(width=212.0, height=132.0),
+        )
+
+        payload = tensor.to_dict()
+        restored = TensorSpec.from_dict(payload)
+
+        self.assertEqual(restored.size.width, 212.0)
+        self.assertEqual(restored.size.height, 132.0)
 
     def test_tensor_shape_uses_index_order(self) -> None:
         spec = build_valid_spec()
@@ -127,6 +150,26 @@ class ModelAndValidationTests(unittest.TestCase):
         issues = validate_spec(spec)
 
         self.assertIn("duplicate-index-name", [issue.code for issue in issues])
+
+    def test_validate_spec_rejects_non_positive_tensor_size(self) -> None:
+        spec = build_valid_spec()
+        spec.tensors[0].size = TensorSize(width=0.0, height=118.0)
+
+        issues = validate_spec(spec)
+
+        self.assertIn("invalid-size", [issue.code for issue in issues])
+
+    def test_validate_spec_rejects_groups_with_missing_tensor_ids(self) -> None:
+        spec = build_valid_spec()
+        spec.groups[0] = GroupSpec(
+            id="group_pair",
+            name="Pair",
+            tensor_ids=["tensor_left", "tensor_missing"],
+        )
+
+        issues = validate_spec(spec)
+
+        self.assertIn("missing-group-tensor", [issue.code for issue in issues])
 
     def test_ensure_valid_spec_raises_clear_error(self) -> None:
         spec = build_valid_spec()
