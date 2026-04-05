@@ -48,7 +48,8 @@ export function registerInteractions(ctx) {
     }
     if (
       event.target.closest(".resize-handle") ||
-      event.target.closest(".group-overlay")
+      event.target.closest(".group-overlay") ||
+      event.target.closest(".canvas-note")
     ) {
       return;
     }
@@ -72,6 +73,10 @@ export function registerInteractions(ctx) {
       ctx.updateActiveGroupDrag(event);
       return;
     }
+    if (state.noteDragState) {
+      ctx.updateActiveNoteDrag(event);
+      return;
+    }
     if (state.minimapDrag) {
       ctx.updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
     }
@@ -88,6 +93,10 @@ export function registerInteractions(ctx) {
     }
     if (state.activeGroupDrag && event.button === 0) {
       ctx.finishActiveGroupDrag();
+      return;
+    }
+    if (state.noteDragState && event.button === 0) {
+      ctx.finishActiveNoteDrag();
       return;
     }
     if (state.minimapDrag && event.button === 0) {
@@ -171,6 +180,14 @@ export function registerInteractions(ctx) {
         ctx.setStatus("Connect mode cancelled.");
         return;
       }
+      if (state.pendingPlannerOperandId) {
+        state.pendingPlannerOperandId = null;
+        if (typeof ctx.renderPlanner === "function") {
+          ctx.renderPlanner();
+        }
+        ctx.setStatus("Manual planner operand selection cleared.");
+        return;
+      }
       ctx.clearSelection();
       return;
     }
@@ -197,6 +214,20 @@ export function registerInteractions(ctx) {
     if (hasModifier && event.key.toLowerCase() === "a") {
       event.preventDefault();
       ctx.selectAllTensors();
+      return;
+    }
+    if (hasModifier && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      if (typeof ctx.copySelectedSubgraphToClipboard === "function") {
+        ctx.copySelectedSubgraphToClipboard();
+      }
+      return;
+    }
+    if (hasModifier && event.key.toLowerCase() === "v") {
+      event.preventDefault();
+      if (typeof ctx.pasteClipboardToCanvas === "function") {
+        ctx.pasteClipboardToCanvas();
+      }
       return;
     }
     if (event.key === "Delete" || event.key === "Backspace") {
@@ -256,6 +287,8 @@ export function registerInteractions(ctx) {
         tensors: [],
         groups: [],
         edges: [],
+        notes: [],
+        contraction_plan: null,
         metadata: {},
       },
       "Started a new empty design. History cleared."
@@ -266,17 +299,25 @@ export function registerInteractions(ctx) {
     state.spec = ctx.normalizeSpec(spec);
     state.schemaVersion = schemaVersion;
     state.generatedCode = "";
+    state.activeSidebarTab = "selection";
     state.selectionIds = [];
     state.primarySelectionId = null;
     state.selectedElement = null;
     state.pendingIndexId = null;
+    state.pendingPlannerOperandId = null;
     state.connectMode = false;
+    state.plannerMode = false;
     state.hasFitCanvas = false;
     state.activeResize = null;
     state.activeGroupDrag = null;
+    state.noteDragState = null;
+    state.contractionAnalysis = null;
     ctx.reconcileTensorOrder();
     ctx.clearHistory();
     ctx.render();
+    if (typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
+    }
     ctx.setStatus(message, "success");
   }
 
@@ -443,6 +484,7 @@ export function registerInteractions(ctx) {
     const selectedIndexIds = new Set(ctx.getSelectedIdsByKind("index"));
     const selectedEdgeIds = new Set(ctx.getSelectedIdsByKind("edge"));
     const selectedGroupIds = new Set(ctx.getSelectedIdsByKind("group"));
+    const selectedNoteIds = new Set(ctx.getSelectedIdsByKind("note"));
 
     selectedTensorIds.forEach((tensorId) => {
       ctx.removeTensor(tensorId);
@@ -464,9 +506,18 @@ export function registerInteractions(ctx) {
     if (selectedGroupIds.size) {
       state.spec.groups = state.spec.groups.filter((group) => !selectedGroupIds.has(group.id));
     }
+
+    selectedNoteIds.forEach((noteId) => {
+      if (typeof ctx.removeNote === "function") {
+        ctx.removeNote(noteId);
+      }
+    });
   }
 
   async function generateCode() {
+    if (typeof ctx.setActiveSidebarTab === "function") {
+      ctx.setActiveSidebarTab("code");
+    }
     try {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,
@@ -573,6 +624,9 @@ export function registerInteractions(ctx) {
   }
 
   async function downloadPythonExport() {
+    if (typeof ctx.setActiveSidebarTab === "function") {
+      ctx.setActiveSidebarTab("code");
+    }
     try {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,

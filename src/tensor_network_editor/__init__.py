@@ -7,8 +7,11 @@ from .api import (
     save_spec,
 )
 from .models import (
+    CanvasNoteSpec,
     CanvasPosition,
     CodegenResult,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EdgeEndpointRef,
     EdgeSpec,
     EditorResult,
@@ -30,7 +33,10 @@ __version__ = "0.1.1"
 
 __all__ = [
     "CanvasPosition",
+    "CanvasNoteSpec",
     "CodegenResult",
+    "ContractionPlanSpec",
+    "ContractionStepSpec",
     "EdgeEndpointRef",
     "EdgeSpec",
     "EditorResult",

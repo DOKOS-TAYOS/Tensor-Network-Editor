@@ -76,7 +76,9 @@ class EditorServer:
                         parsed.path,
                         exc,
                     )
-                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)})
+                    self._write_json(
+                        HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)}
+                    )
                     return
                 try:
                     status, response = self._dispatch_post(parsed.path, payload)
@@ -96,7 +98,9 @@ class EditorServer:
                 if path == "/api/bootstrap":
                     return routes.handle_bootstrap(session)
                 if path == "/":
-                    return self._index_response(static_dir / "index.html", asset_version)
+                    return self._index_response(
+                        static_dir / "index.html", asset_version
+                    )
                 return self._static_response(path)
 
             def _dispatch_post(
@@ -108,6 +112,8 @@ class EditorServer:
                     return routes.handle_template(session, payload)
                 if path == "/api/generate":
                     return routes.handle_generate(session, payload)
+                if path == "/api/analyze-contraction":
+                    return routes.handle_analyze_contraction(session, payload)
                 if path == "/api/complete":
                     return routes.handle_complete(session, payload)
                 if path == "/api/cancel":

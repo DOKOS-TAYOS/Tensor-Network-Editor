@@ -9,7 +9,7 @@ from .models import NetworkSpec
 from .types import JSONValue, StrPath
 from .validation import ensure_valid_spec
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LOGGER = logging.getLogger(__name__)
 
 

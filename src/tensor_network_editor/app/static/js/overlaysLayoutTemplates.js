@@ -41,6 +41,9 @@ export function registerOverlaysLayoutTemplates(ctx) {
   function renderOverlayDecorations() {
     renderGroupOverlays();
     renderResizeHandles();
+    if (typeof ctx.renderNotes === "function") {
+      ctx.renderNotes();
+    }
   }
 
   function renderGroupOverlays() {

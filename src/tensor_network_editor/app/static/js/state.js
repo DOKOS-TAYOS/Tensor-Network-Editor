@@ -23,9 +23,16 @@ export function createInitialState() {
     activeIndexDrag: null,
     activeResize: null,
     activeGroupDrag: null,
+    noteDragState: null,
     boxSelection: null,
     isHelpOpen: false,
     minimapDrag: null,
     minimapTransform: null,
+    clipboard: null,
+    activeSidebarTab: "selection",
+    plannerMode: false,
+    pendingPlannerOperandId: null,
+    contractionAnalysis: null,
+    contractionAnalysisRequestId: 0,
   };
 }

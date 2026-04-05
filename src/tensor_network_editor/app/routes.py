@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
+from typing import cast
 
+from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
 from ..errors import SerializationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
@@ -94,6 +96,30 @@ def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     return ok_response({"spec": serialize_spec(spec)})
 
 
+def handle_analyze_contraction(
+    session: EditorSession, payload: JsonDict
+) -> tuple[int, JsonDict]:
+    del session
+    try:
+        serialized_spec = require_serialized_spec(payload)
+    except ValueError:
+        LOGGER.warning("Contraction analysis request missing 'spec' payload.")
+        return bad_request_response("Missing 'spec' payload.")
+
+    try:
+        spec = deserialize_spec_with_issues(serialized_spec)
+    except SerializationError as exc:
+        LOGGER.warning("Contraction analysis request contained malformed spec: %s", exc)
+        return bad_request_response(str(exc))
+
+    issues = validate_spec(spec)
+    if issues:
+        return issues_response(issues)
+
+    result = analyze_contraction(spec)
+    return ok_response(_serialize_contraction_analysis_result(result))
+
+
 def _serialize_generate_result(result: object) -> JsonDict:
     if not isinstance(result, CodegenResult):
         raise TypeError("Generate handler expected a code generation result.")
@@ -104,3 +130,9 @@ def _serialize_complete_result(result: object) -> JsonDict:
     if not isinstance(result, EditorResult):
         raise TypeError("Complete handler expected an editor result.")
     return serialize_editor_result(result)
+
+
+def _serialize_contraction_analysis_result(
+    result: ContractionAnalysisResult,
+) -> JsonDict:
+    return cast(JsonDict, result.to_dict())

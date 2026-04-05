@@ -75,9 +75,14 @@ export function registerHistorySelection(ctx) {
     state.tensorOrder = Array.isArray(snapshot.tensorOrder) ? [...snapshot.tensorOrder] : [];
     ctx.reconcileTensorOrder();
     state.pendingIndexId = null;
+    state.pendingPlannerOperandId = null;
+    state.activeSidebarTab = "selection";
     clearGeneratedCodePreview();
     pruneSelectionToExisting();
     ctx.render();
+    if (typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
+    }
     ctx.updateToolbarState();
   }
 
@@ -118,6 +123,9 @@ export function registerHistorySelection(ctx) {
   function applyDesignChange(mutator, options = {}) {
     const beforeSnapshot = createHistorySnapshot();
     mutator();
+    if (typeof ctx.repairContractionPlan === "function") {
+      ctx.repairContractionPlan();
+    }
     ctx.reconcileTensorOrder();
     const changed = commitHistorySnapshot(beforeSnapshot);
     if (!changed) {
@@ -136,6 +144,9 @@ export function registerHistorySelection(ctx) {
     ctx.render();
     if (typeof options.afterRender === "function") {
       options.afterRender();
+    }
+    if (!options.skipContractionAnalysisRefresh && typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
     }
 
     if (options.statusMessage) {
@@ -168,6 +179,10 @@ export function registerHistorySelection(ctx) {
     const edge = ctx.findEdgeById(selectionId);
     if (edge) {
       return { kind: "edge", id: edge.id, edge };
+    }
+    const note = typeof ctx.findNoteById === "function" ? ctx.findNoteById(selectionId) : null;
+    if (note) {
+      return { kind: "note", id: note.id, note };
     }
     return null;
   }
@@ -216,6 +231,13 @@ export function registerHistorySelection(ctx) {
     if (state.pendingIndexId && resolveSelectionKind(state.pendingIndexId) !== "index") {
       state.pendingIndexId = null;
     }
+    if (
+      state.pendingPlannerOperandId &&
+      typeof ctx.isPlannerOperandAvailable === "function" &&
+      !ctx.isPlannerOperandAvailable(state.pendingPlannerOperandId)
+    ) {
+      state.pendingPlannerOperandId = null;
+    }
   }
 
   function setSelection(selectionIds, options = {}) {
@@ -229,6 +251,9 @@ export function registerHistorySelection(ctx) {
     state.primarySelectionId =
       uniqueIds.includes(options.primaryId) ? options.primaryId : uniqueIds.length ? uniqueIds[uniqueIds.length - 1] : null;
     syncSelectedElementState();
+    if (typeof ctx.setActiveSidebarTab === "function") {
+      ctx.setActiveSidebarTab("selection");
+    }
     syncCySelection();
     ctx.renderProperties();
     ctx.renderMinimap();
@@ -265,6 +290,9 @@ export function registerHistorySelection(ctx) {
     state.selectedElement = null;
     if (!options.preservePendingIndex) {
       state.pendingIndexId = null;
+    }
+    if (typeof ctx.setActiveSidebarTab === "function") {
+      ctx.setActiveSidebarTab("selection");
     }
     syncCySelection();
     ctx.renderProperties();

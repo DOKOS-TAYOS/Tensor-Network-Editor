@@ -221,6 +221,55 @@ select {
   border-radius: 8px;
 }
 
+.canvas-note {
+  position: absolute;
+  width: 220px;
+  min-height: 112px;
+  padding: 0.7rem;
+  border-radius: 18px;
+  border: 1px solid rgba(95, 149, 255, 0.65);
+  background:
+    linear-gradient(180deg, rgba(23, 31, 46, 0.98), rgba(17, 23, 35, 0.98));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+.canvas-note.is-selected {
+  box-shadow:
+    0 0 0 1px rgba(139, 194, 255, 0.95),
+    0 18px 34px rgba(0, 0, 0, 0.34);
+}
+
+.canvas-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.55rem;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: grab;
+}
+
+.canvas-note-delete {
+  width: 1.8rem;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.canvas-note-body {
+  width: 100%;
+  min-height: 86px;
+  resize: none;
+  border-radius: 12px;
+  background: rgba(10, 15, 24, 0.82);
+  line-height: 1.4;
+}
+
 .group-overlay {
   position: absolute;
   border: 1px solid rgba(139, 194, 255, 0.48);
@@ -329,9 +378,7 @@ select {
 }
 
 .sidebar {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(260px, 0.85fr);
-  gap: 1rem;
+  display: flex;
   min-height: 0;
 }
 
@@ -340,7 +387,47 @@ select {
   overflow: hidden;
 }
 
+.sidebar-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0;
+}
+
+.sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(44, 52, 72, 0.95);
+  background: linear-gradient(180deg, rgba(21, 28, 39, 0.98), rgba(17, 23, 34, 0.92));
+}
+
+.sidebar-tab {
+  padding: 0.48rem 0.72rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.sidebar-pane {
+  display: none;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+.sidebar-pane.is-active {
+  display: flex;
+}
+
+.sidebar-pane[hidden] {
+  display: none !important;
+}
+
 .selection-card,
+.planner-card,
 .code-card {
   display: flex;
   flex-direction: column;
@@ -353,6 +440,122 @@ select {
   min-height: 0;
   overflow: auto;
   padding-right: 0.2rem;
+}
+
+.planner-panel {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.planner-toolbar {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.planner-inline-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.planner-error {
+  color: var(--danger);
+}
+
+.planner-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.planner-summary-card,
+.planner-section,
+.planner-step {
+  padding: 0.85rem;
+  border-radius: 18px;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  background: rgba(14, 20, 30, 0.84);
+}
+
+.planner-summary-card h3,
+.planner-section h3 {
+  margin: 0 0 0.55rem;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.planner-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.planner-chip {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 14px;
+  background: var(--panel-strong);
+  border: 1px solid rgba(44, 52, 72, 0.95);
+}
+
+.planner-chip span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.planner-step-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.planner-step-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.planner-step p {
+  margin: 0.5rem 0;
+}
+
+.planner-step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.planner-trim-button {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.planner-intermediate-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.55rem;
+}
+
+.planner-intermediate-card {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+  text-align: left;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: rgba(20, 28, 42, 0.96);
+}
+
+.planner-intermediate-card.is-selected {
+  border-color: var(--accent-strong);
+  background: rgba(33, 49, 77, 0.96);
 }
 
 .field-group {
@@ -633,7 +836,7 @@ button[disabled] {
   }
 
   .sidebar {
-    grid-template-rows: auto auto;
+    min-height: 340px;
   }
 
   #canvas {
@@ -659,5 +862,9 @@ button[disabled] {
     width: calc(100vw - 1rem);
     margin: 0.5rem auto;
     max-height: calc(100dvh - 1rem);
+  }
+
+  .planner-summary-grid {
+    grid-template-columns: 1fr;
   }
 }

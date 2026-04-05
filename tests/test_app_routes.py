@@ -25,9 +25,9 @@ class AppRouteTests(unittest.TestCase):
         payload = request_json(f"{self.server.base_url}/api/bootstrap")
 
         self.assertEqual(payload["default_engine"], EngineName.EINSUM.value)
-        self.assertEqual(payload["schema_version"], 2)
+        self.assertEqual(payload["schema_version"], 3)
         self.assertEqual(payload["spec"]["network"]["id"], "network_demo")
-        self.assertEqual(payload["spec"]["schema_version"], 2)
+        self.assertEqual(payload["spec"]["schema_version"], 3)
         self.assertIn(EngineName.QUIMB.value, payload["engines"])
         self.assertEqual(
             payload["templates"], ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
@@ -40,7 +40,7 @@ class AppRouteTests(unittest.TestCase):
         payload = request_json(
             f"{self.server.base_url}/api/validate",
             method="POST",
-            payload={"spec": {"schema_version": 2, "network": invalid_spec.to_dict()}},
+            payload={"spec": {"schema_version": 3, "network": invalid_spec.to_dict()}},
         )
 
         self.assertFalse(payload["ok"])
@@ -75,7 +75,7 @@ class AppRouteTests(unittest.TestCase):
             f"{self.server.base_url}/api/validate",
             method="POST",
             payload={
-                "spec": {"schema_version": 1, "network": build_sample_spec().to_dict()}
+                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}
             },
         )
 
@@ -89,7 +89,7 @@ class AppRouteTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.TENSORNETWORK.value,
-                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -113,7 +113,7 @@ class AppRouteTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": "unknown-engine",
-                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -130,7 +130,7 @@ class AppRouteTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.TENSORNETWORK.value,
-                "spec": {"schema_version": 2, "network": invalid_spec.to_dict()},
+                "spec": {"schema_version": 3, "network": invalid_spec.to_dict()},
             },
         )
 
@@ -145,7 +145,7 @@ class AppRouteTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.QUIMB.value,
-                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()},
             },
         )
 
@@ -171,7 +171,7 @@ class AppRouteTests(unittest.TestCase):
             f"{self.server.base_url}/api/autolayout",
             method="POST",
             payload={
-                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()}
             },
         )
 
@@ -187,9 +187,27 @@ class AppRouteTests(unittest.TestCase):
         )
 
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["spec"]["schema_version"], 2)
+        self.assertEqual(payload["spec"]["schema_version"], 3)
         self.assertEqual(payload["spec"]["network"]["name"], "MPS")
         self.assertGreater(len(payload["spec"]["network"]["tensors"]), 0)
+
+    def test_analyze_contraction_route_returns_manual_summary(self) -> None:
+        payload = request_json(
+            f"{self.server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()}
+            },
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["automatic_strategy"], "greedy")
+        self.assertEqual(payload["manual"]["status"], "complete")
+        self.assertEqual(payload["manual"]["summary"]["total_estimated_flops"], 24)
+        self.assertEqual(payload["manual"]["summary"]["final_shape"], [2, 4])
+        self.assertIn(payload["automatic"]["status"], {"complete", "unavailable"})
+        if payload["automatic"]["status"] == "complete":
+            self.assertEqual(payload["automatic"]["summary"]["final_shape"], [2, 4])
 
     def test_unexpected_server_errors_return_generic_500_payload(self) -> None:
         with patch(
@@ -202,7 +220,7 @@ class AppRouteTests(unittest.TestCase):
                 payload={
                     "engine": EngineName.TENSORNETWORK.value,
                     "spec": {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "network": build_sample_spec().to_dict(),
                     },
                 },

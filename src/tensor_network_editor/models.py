@@ -207,6 +207,92 @@ class GroupSpec:
 
 
 @dataclass(slots=True)
+class CanvasNoteSpec:
+    id: str = field(default_factory=lambda: new_identifier("note"))
+    text: str = "Note"
+    position: CanvasPosition = field(default_factory=CanvasPosition)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {
+            "id": self.id,
+            "text": self.text,
+            "position": self.position.to_dict(),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        position_payload = require_dict(payload["position"], field_name="position")
+        return cls(
+            id=str(payload["id"]),
+            text=str(payload["text"]),
+            position=CanvasPosition.from_dict(position_payload),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
+class ContractionStepSpec:
+    id: str = field(default_factory=lambda: new_identifier("step"))
+    left_operand_id: str = ""
+    right_operand_id: str = ""
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {
+            "id": self.id,
+            "left_operand_id": self.left_operand_id,
+            "right_operand_id": self.right_operand_id,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        return cls(
+            id=str(payload["id"]),
+            left_operand_id=str(payload["left_operand_id"]),
+            right_operand_id=str(payload["right_operand_id"]),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
+class ContractionPlanSpec:
+    id: str = field(default_factory=lambda: new_identifier("plan"))
+    name: str = "Manual contraction path"
+    steps: list[ContractionStepSpec] = field(default_factory=list)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "steps": [step.to_dict() for step in self.steps],
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        steps_payload = require_list(payload.get("steps", []), field_name="steps")
+        return cls(
+            id=str(payload["id"]),
+            name=str(payload["name"]),
+            steps=[
+                ContractionStepSpec.from_dict(require_dict(step, field_name="step"))
+                for step in steps_payload
+            ],
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class ValidationIssue:
     code: str
     message: str
@@ -243,6 +329,8 @@ class NetworkSpec:
     tensors: list[TensorSpec] = field(default_factory=list)
     groups: list[GroupSpec] = field(default_factory=list)
     edges: list[EdgeSpec] = field(default_factory=list)
+    notes: list[CanvasNoteSpec] = field(default_factory=list)
+    contraction_plan: ContractionPlanSpec | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
@@ -272,6 +360,12 @@ class NetworkSpec:
             "tensors": [tensor.to_dict() for tensor in self.tensors],
             "groups": [group.to_dict() for group in self.groups],
             "edges": [edge.to_dict() for edge in self.edges],
+            "notes": [note.to_dict() for note in self.notes],
+            "contraction_plan": (
+                self.contraction_plan.to_dict()
+                if self.contraction_plan is not None
+                else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -280,6 +374,8 @@ class NetworkSpec:
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
         groups_payload = require_list(payload.get("groups", []), field_name="groups")
         edges_payload = require_list(payload.get("edges", []), field_name="edges")
+        notes_payload = require_list(payload.get("notes", []), field_name="notes")
+        contraction_plan_payload = payload.get("contraction_plan")
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
@@ -295,6 +391,19 @@ class NetworkSpec:
                 EdgeSpec.from_dict(require_dict(edge, field_name="edge"))
                 for edge in edges_payload
             ],
+            notes=[
+                CanvasNoteSpec.from_dict(require_dict(note, field_name="note"))
+                for note in notes_payload
+            ],
+            contraction_plan=(
+                ContractionPlanSpec.from_dict(
+                    require_dict(
+                        contraction_plan_payload, field_name="contraction_plan"
+                    )
+                )
+                if contraction_plan_payload is not None
+                else None
+            ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),

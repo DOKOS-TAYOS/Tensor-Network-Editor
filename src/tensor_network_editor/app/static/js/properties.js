@@ -69,6 +69,10 @@ export function registerProperties(ctx) {
       renderGroupProperties(singleSelection.id);
       return;
     }
+    if (singleSelection.kind === "note") {
+      renderNoteProperties(singleSelection.id);
+      return;
+    }
     renderNetworkProperties();
   }
 
@@ -89,6 +93,10 @@ export function registerProperties(ctx) {
       <div class="properties-chip">
         <span>Groups</span>
         <strong>${Array.isArray(state.spec.groups) ? state.spec.groups.length : 0}</strong>
+      </div>
+      <div class="properties-chip">
+        <span>Notes</span>
+        <strong>${Array.isArray(state.spec.notes) ? state.spec.notes.length : 0}</strong>
       </div>
     `;
 
@@ -115,6 +123,7 @@ export function registerProperties(ctx) {
     const indexCount = selectedEntries.filter((entry) => entry.kind === "index").length;
     const edgeCount = selectedEntries.filter((entry) => entry.kind === "edge").length;
     const groupCount = selectedEntries.filter((entry) => entry.kind === "group").length;
+    const noteCount = selectedEntries.filter((entry) => entry.kind === "note").length;
     const tensorsOnly = tensorCount > 0 && tensorCount === selectedEntries.length;
     const batchColor = ctx.getBatchColorValue(selectedEntries);
 
@@ -140,6 +149,10 @@ export function registerProperties(ctx) {
           <div class="properties-chip">
             <span>Groups</span>
             <strong>${groupCount}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Notes</span>
+            <strong>${noteCount}</strong>
           </div>
         </div>
       </div>
@@ -526,6 +539,69 @@ export function registerProperties(ctx) {
     });
   }
 
+  function renderNoteProperties(noteId) {
+    const note = ctx.findNoteById(noteId);
+    if (!note) {
+      ctx.clearSelection();
+      return;
+    }
+
+    propertiesPanel.innerHTML = `
+      <div class="field-group">
+        <label for="note-text-input">Note text</label>
+        <textarea id="note-text-input" rows="6">${ctx.escapeHtml(note.text)}</textarea>
+      </div>
+      <div class="button-row">
+        <label class="control-inline-color" for="note-color-input">
+          <input id="note-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(ctx.getMetadataColor(note.metadata, "#5f95ff"))}" />
+        </label>
+        <button id="delete-note-button" type="button" class="danger">Delete Note</button>
+        <button id="apply-note-button" type="button" class="apply-button is-hidden">Apply Changes</button>
+      </div>
+      <p class="property-meta">Move the note from its title bar directly on the canvas.</p>
+    `;
+
+    const noteTextInput = document.getElementById("note-text-input");
+    const noteColorInput = document.getElementById("note-color-input");
+    installDirtyApply({
+      buttonElement: document.getElementById("apply-note-button"),
+      inputElements: [noteTextInput, noteColorInput],
+      isDirty: () =>
+        noteTextInput.value !== note.text ||
+        noteColorInput.value !== ctx.getMetadataColor(note.metadata, "#5f95ff"),
+      onApply: () => {
+        const proposedText = noteTextInput.value.trim();
+        if (!proposedText) {
+          ctx.setStatus("Notes cannot be empty.", "error");
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            note.text = proposedText;
+            note.metadata.color = noteColorInput.value;
+          },
+          {
+            selectionIds: [note.id],
+            primaryId: note.id,
+            statusMessage: "Updated the note.",
+          }
+        );
+      },
+    });
+
+    document.getElementById("delete-note-button").addEventListener("click", () => {
+      ctx.applyDesignChange(
+        () => {
+          ctx.removeNote(note.id);
+        },
+        {
+          selectionIds: [],
+          statusMessage: "Deleted the note.",
+        }
+      );
+    });
+  }
+
   function installDirtyApply({ buttonElement, inputElements, isDirty, onApply }) {
     const refreshVisibility = () => {
       buttonElement.classList.toggle("is-hidden", !isDirty());
@@ -545,6 +621,7 @@ export function registerProperties(ctx) {
     renderIndexProperties,
     renderGroupProperties,
     renderEdgeProperties,
+    renderNoteProperties,
     installDirtyApply
   });
 }

@@ -3,7 +3,10 @@ from __future__ import annotations
 import unittest
 
 from tensor_network_editor.models import (
+    CanvasNoteSpec,
     CanvasPosition,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
@@ -63,6 +66,40 @@ def build_valid_spec() -> NetworkSpec:
 
 
 class ModelAndValidationTests(unittest.TestCase):
+    def test_canvas_note_round_trip_is_serializable(self) -> None:
+        note = CanvasNoteSpec(
+            id="note_canvas",
+            text="Review this subnet",
+            position=CanvasPosition(x=12.0, y=-4.0),
+        )
+
+        payload = note.to_dict()
+        restored = CanvasNoteSpec.from_dict(payload)
+
+        self.assertEqual(restored.text, "Review this subnet")
+        self.assertEqual(restored.position.x, 12.0)
+        self.assertEqual(restored.position.y, -4.0)
+
+    def test_contraction_plan_round_trip_is_serializable(self) -> None:
+        plan = ContractionPlanSpec(
+            id="plan_manual",
+            name="Manual path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_one",
+                    left_operand_id="tensor_left",
+                    right_operand_id="tensor_right",
+                )
+            ],
+        )
+
+        payload = plan.to_dict()
+        restored = ContractionPlanSpec.from_dict(payload)
+
+        self.assertEqual(restored.name, "Manual path")
+        self.assertEqual(restored.steps[0].id, "step_one")
+        self.assertEqual(restored.steps[0].left_operand_id, "tensor_left")
+
     def test_index_offset_round_trip_is_serializable(self) -> None:
         index = IndexSpec(
             id="index_with_offset",
@@ -105,6 +142,31 @@ class ModelAndValidationTests(unittest.TestCase):
 
     def test_validate_spec_accepts_valid_network(self) -> None:
         issues = validate_spec(build_valid_spec())
+
+        self.assertEqual(issues, [])
+
+    def test_validate_spec_accepts_valid_network_with_notes_and_plan(self) -> None:
+        spec = build_valid_spec()
+        spec.notes = [
+            CanvasNoteSpec(
+                id="note_plan",
+                text="Contract from left to right",
+                position=CanvasPosition(x=18.0, y=24.0),
+            )
+        ]
+        spec.contraction_plan = ContractionPlanSpec(
+            id="plan_pair",
+            name="Pair path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_pair",
+                    left_operand_id="tensor_left",
+                    right_operand_id="tensor_right",
+                )
+            ],
+        )
+
+        issues = validate_spec(spec)
 
         self.assertEqual(issues, [])
 
@@ -170,6 +232,51 @@ class ModelAndValidationTests(unittest.TestCase):
         issues = validate_spec(spec)
 
         self.assertIn("missing-group-tensor", [issue.code for issue in issues])
+
+    def test_validate_spec_rejects_empty_note_text(self) -> None:
+        spec = build_valid_spec()
+        spec.notes = [
+            CanvasNoteSpec(
+                id="note_empty",
+                text="   ",
+                position=CanvasPosition(x=3.0, y=7.0),
+            )
+        ]
+
+        issues = validate_spec(spec)
+
+        self.assertIn("invalid-note-text", [issue.code for issue in issues])
+
+    def test_validate_spec_rejects_reused_contraction_operand(self) -> None:
+        spec = build_valid_spec()
+        spec.tensors.append(
+            TensorSpec(
+                id="tensor_extra",
+                name="Extra",
+                position=CanvasPosition(x=360.0, y=80.0),
+                indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
+            )
+        )
+        spec.contraction_plan = ContractionPlanSpec(
+            id="plan_invalid",
+            name="Invalid path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_pair",
+                    left_operand_id="tensor_left",
+                    right_operand_id="tensor_right",
+                ),
+                ContractionStepSpec(
+                    id="step_reuse",
+                    left_operand_id="tensor_left",
+                    right_operand_id="tensor_extra",
+                ),
+            ],
+        )
+
+        issues = validate_spec(spec)
+
+        self.assertIn("contraction-operand-reused", [issue.code for issue in issues])
 
     def test_ensure_valid_spec_raises_clear_error(self) -> None:
         spec = build_valid_spec()

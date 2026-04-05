@@ -16,6 +16,7 @@ export function startEditor(ctx) {
     propertiesPanel,
     generatedCode,
     engineSelect,
+    addNoteButton,
     connectButton,
     loadInput,
     undoButton,
@@ -57,6 +58,9 @@ export function startEditor(ctx) {
     ctx.initGraph();
     ctx.clearHistory();
     ctx.render();
+    if (typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
+    }
     ctx.setStatus(
       "Editor ready. Drag the canvas to move, use the wheel to zoom, and right drag to box-select.",
       "success"
@@ -66,6 +70,7 @@ export function startEditor(ctx) {
   function attachToolbarHandlers() {
     document.getElementById("new-design-button").addEventListener("click", ctx.handleNewDesign);
     document.getElementById("add-tensor-button").addEventListener("click", ctx.addTensorAtCenter);
+    addNoteButton.addEventListener("click", ctx.addNoteAtCenter);
     document.getElementById("connect-button").addEventListener("click", ctx.toggleConnectMode);
     document.getElementById("delete-button").addEventListener("click", ctx.deleteSelection);
     document.getElementById("save-button").addEventListener("click", ctx.saveDesign);

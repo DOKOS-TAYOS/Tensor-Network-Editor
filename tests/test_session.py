@@ -38,7 +38,7 @@ class SessionTests(unittest.TestCase):
         def finish_session() -> None:
             session.complete(
                 serialized_spec={
-                    "schema_version": 2,
+                    "schema_version": 3,
                     "network": build_sample_spec().to_dict(),
                 },
                 engine=EngineName.EINSUM,
@@ -76,7 +76,7 @@ class SessionTests(unittest.TestCase):
             method="POST",
             payload={
                 "engine": EngineName.EINSUM.value,
-                "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()},
+                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()},
             },
         )
         self.assertTrue(payload["ok"])

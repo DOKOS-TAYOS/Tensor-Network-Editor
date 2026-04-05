@@ -172,6 +172,10 @@ export function registerGraphRender(ctx) {
       if (kind === "index-label") {
         return;
       }
+      if (state.plannerMode && kind === "tensor") {
+        ctx.handlePlannerOperandClick(element.id());
+        return;
+      }
       if (state.connectMode && ctx.isIndexNode(element)) {
         ctx.handleConnectClick(element.id());
         return;
@@ -305,6 +309,12 @@ export function registerGraphRender(ctx) {
     helpModal.classList.toggle("is-hidden", !state.isHelpOpen);
     ctx.updateToolbarState();
     ctx.renderOverlayDecorations();
+    if (typeof ctx.renderPlanner === "function") {
+      ctx.renderPlanner();
+    }
+    if (typeof ctx.renderSidebarTabs === "function") {
+      ctx.renderSidebarTabs();
+    }
     ctx.renderMinimap();
   }
 

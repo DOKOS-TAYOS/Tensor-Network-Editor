@@ -29,10 +29,21 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn('id="generate-button"', html)
         self.assertIn('id="template-select"', html)
         self.assertIn('id="create-group-button"', html)
+        self.assertIn('id="add-note-button"', html)
+        self.assertIn('id="notes-layer"', html)
+        self.assertIn('id="sidebar-panel"', html)
+        self.assertIn('id="sidebar-tabs"', html)
+        self.assertIn('id="sidebar-tab-selection"', html)
+        self.assertIn('id="sidebar-tab-planner"', html)
+        self.assertIn('id="sidebar-tab-code"', html)
+        self.assertIn('id="sidebar-pane-selection"', html)
+        self.assertIn('id="sidebar-pane-planner"', html)
+        self.assertIn('id="sidebar-pane-code"', html)
+        self.assertIn('id="planner-panel"', html)
         self.assertIn('id="help-modal"', html)
         self.assertIn('id="minimap"', html)
         self.assertNotIn('id="status-message"', html)
-        self.assertNotIn('/app.js?v=', html)
+        self.assertNotIn("/app.js?v=", html)
 
     def test_frontend_module_entry_is_served_from_js_subdirectory(self) -> None:
         script_body = request_text(f"{self.server.base_url}/js/main.js")
@@ -40,6 +51,7 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("createEditorContext", script_body)
         self.assertIn("registerUtilities", script_body)
         self.assertIn("registerGraphRender", script_body)
+        self.assertIn("registerNotesPlanner", script_body)
         self.assertIn("startEditor", script_body)
 
     def test_frontend_modules_are_split_by_responsibility(self) -> None:
@@ -51,6 +63,8 @@ class AppAssetTests(unittest.TestCase):
         overlays_body = request_text(
             f"{self.server.base_url}/js/overlaysLayoutTemplates.js"
         )
+        notes_planner_body = request_text(f"{self.server.base_url}/js/notesPlanner.js")
+        sidebar_tabs_body = request_text(f"{self.server.base_url}/js/sidebarTabs.js")
         utilities_body = request_text(f"{self.server.base_url}/js/utilities.js")
 
         self.assertIn("registerHistorySelection", history_body)
@@ -65,6 +79,11 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("function renderMinimap", export_body)
         self.assertIn("registerOverlaysLayoutTemplates", overlays_body)
         self.assertIn("function createGroupFromSelection", overlays_body)
+        self.assertIn("registerNotesPlanner", notes_planner_body)
+        self.assertIn("function renderNotes", notes_planner_body)
+        self.assertIn("function renderPlanner", notes_planner_body)
+        self.assertIn("registerSidebarTabs", sidebar_tabs_body)
+        self.assertIn("function setActiveSidebarTab", sidebar_tabs_body)
         self.assertIn("registerUtilities", utilities_body)
         self.assertIn("function normalizeSpec", utilities_body)
 
@@ -82,6 +101,14 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn(".minimap-shell", css_body)
         self.assertIn(".code-output-shell", css_body)
         self.assertIn(".help-modal", css_body)
+        self.assertIn(".canvas-note", css_body)
+        self.assertIn(".planner-card", css_body)
+        self.assertIn(".planner-step", css_body)
+        self.assertIn(".sidebar-tabs", css_body)
+        self.assertIn(".sidebar-tab", css_body)
+        self.assertIn(".sidebar-pane", css_body)
+        self.assertIn(".sidebar-pane[hidden]", css_body)
+        self.assertIn("padding: 0.48rem 0.72rem", css_body)
 
     def test_static_assets_disable_browser_cache(self) -> None:
         _, headers = request_with_headers(f"{self.server.base_url}/js/main.js")

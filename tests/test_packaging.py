@@ -49,6 +49,20 @@ class PackagingMetadataTests(unittest.TestCase):
 
         self.assertIn("app/static/js/*.js", package_data)
 
+    def test_pyproject_declares_optional_planner_extra(self) -> None:
+        pyproject_path = Path.cwd() / "pyproject.toml"
+
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        optional_dependencies = payload["project"]["optional-dependencies"]
+
+        self.assertIn("planner", optional_dependencies)
+        self.assertTrue(
+            any(
+                dependency.startswith("opt_einsum")
+                for dependency in optional_dependencies["planner"]
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

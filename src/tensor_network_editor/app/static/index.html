@@ -45,6 +45,7 @@
               </label>
               <button id="insert-template-button" type="button">Insert Template</button>
               <button id="create-group-button" type="button">Create Group</button>
+              <button id="add-note-button" type="button">Add Note</button>
               <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
               <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
             </div>
@@ -54,6 +55,7 @@
             <div class="canvas-overlay">
               <div id="group-layer" class="overlay-layer"></div>
               <div id="resize-layer" class="overlay-layer"></div>
+              <div id="notes-layer" class="overlay-layer"></div>
               <div id="canvas-selection-box" class="selection-box is-hidden"></div>
               <section class="minimap-shell" aria-label="Minimap">
                 <div class="minimap-header">
@@ -66,34 +68,93 @@
         </section>
 
         <aside class="sidebar">
-          <section class="panel-card selection-card">
-            <h2>Selection</h2>
-            <div id="properties-panel" class="properties-panel"></div>
-          </section>
-
-          <section class="panel-card code-card">
-            <div class="code-header">
-              <h2>Generated Code</h2>
-              <div class="code-header-actions">
-                <button id="generate-button" type="button">Generate</button>
-              </div>
-            </div>
-            <div class="code-output-shell">
+          <section id="sidebar-panel" class="panel-card sidebar-panel">
+            <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Editor side panel sections">
               <button
-                id="copy-code-button"
+                id="sidebar-tab-selection"
+                class="sidebar-tab"
                 type="button"
-                class="icon-button code-copy-floating"
-                aria-label="Copy generated code"
-                title="Copy generated code"
+                role="tab"
+                aria-controls="sidebar-pane-selection"
+                aria-selected="true"
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                  <path
-                    d="M3.75 2.5A1.75 1.75 0 0 1 5.5.75h5A1.75 1.75 0 0 1 12.25 2.5v.75h.25A1.75 1.75 0 0 1 14.25 5v7.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 12.5v-.25H4A1.75 1.75 0 0 1 2.25 10.5Zm1.5 8h5.25A1.75 1.75 0 0 0 12.25 8.75V4.5h.25a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5Zm1-.75h4.5a.5.5 0 0 0 .5-.5v-6.75a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0-.5.5v7.25a.5.5 0 0 0 .5.5Z"
-                  />
-                </svg>
+                Selection
               </button>
-              <textarea id="generated-code" spellcheck="false" readonly></textarea>
+              <button
+                id="sidebar-tab-planner"
+                class="sidebar-tab"
+                type="button"
+                role="tab"
+                aria-controls="sidebar-pane-planner"
+                aria-selected="false"
+              >
+                Planner
+              </button>
+              <button
+                id="sidebar-tab-code"
+                class="sidebar-tab"
+                type="button"
+                role="tab"
+                aria-controls="sidebar-pane-code"
+                aria-selected="false"
+              >
+                Code
+              </button>
             </div>
+
+            <section
+              id="sidebar-pane-selection"
+              class="sidebar-pane selection-card is-active"
+              role="tabpanel"
+              aria-labelledby="sidebar-tab-selection"
+            >
+              <h2>Selection</h2>
+              <div id="properties-panel" class="properties-panel"></div>
+            </section>
+
+            <section
+              id="sidebar-pane-planner"
+              class="sidebar-pane planner-card"
+              role="tabpanel"
+              aria-labelledby="sidebar-tab-planner"
+              hidden
+            >
+              <div class="code-header">
+                <h2>Contraction Planner</h2>
+              </div>
+              <div id="planner-panel" class="planner-panel"></div>
+            </section>
+
+            <section
+              id="sidebar-pane-code"
+              class="sidebar-pane code-card"
+              role="tabpanel"
+              aria-labelledby="sidebar-tab-code"
+              hidden
+            >
+              <div class="code-header">
+                <h2>Generated Code</h2>
+                <div class="code-header-actions">
+                  <button id="generate-button" type="button">Generate</button>
+                </div>
+              </div>
+              <div class="code-output-shell">
+                <button
+                  id="copy-code-button"
+                  type="button"
+                  class="icon-button code-copy-floating"
+                  aria-label="Copy generated code"
+                  title="Copy generated code"
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path
+                      d="M3.75 2.5A1.75 1.75 0 0 1 5.5.75h5A1.75 1.75 0 0 1 12.25 2.5v.75h.25A1.75 1.75 0 0 1 14.25 5v7.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 12.5v-.25H4A1.75 1.75 0 0 1 2.25 10.5Zm1.5 8h5.25A1.75 1.75 0 0 0 12.25 8.75V4.5h.25a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5Zm1-.75h4.5a.5.5 0 0 0 .5-.5v-6.75a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0-.5.5v7.25a.5.5 0 0 0 .5.5Z"
+                    />
+                  </svg>
+                </button>
+                <textarea id="generated-code" spellcheck="false" readonly></textarea>
+              </div>
+            </section>
           </section>
         </aside>
       </main>

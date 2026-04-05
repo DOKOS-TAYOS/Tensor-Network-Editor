@@ -8,6 +8,9 @@ from collections.abc import Iterable
 from ._analysis import analyze_network
 from .errors import SpecValidationError
 from .models import (
+    CanvasNoteSpec,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EdgeSpec,
     GroupSpec,
     IndexSpec,
@@ -97,6 +100,13 @@ def _validate_network(spec: NetworkSpec, issues: list[ValidationIssue]) -> None:
         code="duplicate-group-id",
         path="groups",
         message_prefix="Group id",
+        issues=issues,
+    )
+    _append_duplicate_id_issues(
+        (note.id for note in spec.notes),
+        code="duplicate-note-id",
+        path="notes",
+        message_prefix="Note id",
         issues=issues,
     )
 
@@ -224,6 +234,145 @@ def _validate_group(
             )
 
 
+def _validate_note(note: CanvasNoteSpec, *, issues: list[ValidationIssue]) -> None:
+    if not note.text.strip():
+        _append_issue(
+            issues,
+            code="invalid-note-text",
+            message=f"Note '{note.id}' must contain non-empty text.",
+            path=f"notes.{note.id}.text",
+        )
+    if not math.isfinite(note.position.x) or not math.isfinite(note.position.y):
+        _append_issue(
+            issues,
+            code="invalid-note-position",
+            message=f"Note '{note.id}' has a non-finite position.",
+            path=f"notes.{note.id}.position",
+        )
+    _validate_metadata(f"notes.{note.id}.metadata", note.metadata, issues)
+
+
+def _validate_contraction_plan(
+    plan: ContractionPlanSpec,
+    *,
+    tensor_ids: set[str],
+    issues: list[ValidationIssue],
+) -> None:
+    if not _is_valid_name(plan.name):
+        _append_issue(
+            issues,
+            code="invalid-name",
+            message=f"Contraction plan '{plan.id}' has an empty name.",
+            path="contraction_plan.name",
+        )
+    _validate_metadata("contraction_plan.metadata", plan.metadata, issues)
+    _append_duplicate_id_issues(
+        (step.id for step in plan.steps),
+        code="duplicate-contraction-step-id",
+        path="contraction_plan.steps",
+        message_prefix="Contraction step id",
+        issues=issues,
+    )
+
+    available_operand_ids = set(tensor_ids)
+    consumed_operand_ids: set[str] = set()
+
+    for step in plan.steps:
+        _validate_contraction_step(
+            step,
+            available_operand_ids=available_operand_ids,
+            consumed_operand_ids=consumed_operand_ids,
+            issues=issues,
+        )
+
+
+def _validate_contraction_step(
+    step: ContractionStepSpec,
+    *,
+    available_operand_ids: set[str],
+    consumed_operand_ids: set[str],
+    issues: list[ValidationIssue],
+) -> None:
+    step_path = f"contraction_plan.steps.{step.id}"
+    _validate_metadata(f"{step_path}.metadata", step.metadata, issues)
+
+    if not _is_valid_name(step.id):
+        _append_issue(
+            issues,
+            code="invalid-name",
+            message="Contraction step id cannot be empty.",
+            path=f"{step_path}.id",
+        )
+        return
+
+    if step.id in available_operand_ids:
+        _append_issue(
+            issues,
+            code="duplicate-contraction-step-id",
+            message=(
+                f"Contraction step id '{step.id}' conflicts with an existing operand id."
+            ),
+            path=f"{step_path}.id",
+        )
+        return
+
+    operand_ids = [step.left_operand_id, step.right_operand_id]
+    if step.left_operand_id == step.right_operand_id:
+        _append_issue(
+            issues,
+            code="invalid-contraction-operand",
+            message=(
+                f"Contraction step '{step.id}' must use two distinct operand ids."
+            ),
+            path=f"{step_path}.left_operand_id",
+        )
+        return
+
+    has_invalid_operand = False
+    for attribute_name, operand_id in (
+        ("left_operand_id", step.left_operand_id),
+        ("right_operand_id", step.right_operand_id),
+    ):
+        if not _is_valid_name(operand_id):
+            _append_issue(
+                issues,
+                code="invalid-contraction-operand",
+                message=f"Contraction step '{step.id}' has an empty operand id.",
+                path=f"{step_path}.{attribute_name}",
+            )
+            has_invalid_operand = True
+            continue
+        if operand_id in consumed_operand_ids:
+            _append_issue(
+                issues,
+                code="contraction-operand-reused",
+                message=(
+                    f"Operand '{operand_id}' in contraction step '{step.id}' was already consumed."
+                ),
+                path=f"{step_path}.{attribute_name}",
+            )
+            has_invalid_operand = True
+            continue
+        if operand_id not in available_operand_ids:
+            _append_issue(
+                issues,
+                code="invalid-contraction-operand",
+                message=(
+                    f"Operand '{operand_id}' in contraction step '{step.id}' is not available."
+                ),
+                path=f"{step_path}.{attribute_name}",
+            )
+            has_invalid_operand = True
+
+    if has_invalid_operand:
+        return
+
+    for operand_id in operand_ids:
+        available_operand_ids.remove(operand_id)
+        consumed_operand_ids.add(operand_id)
+    available_operand_ids.add(step.id)
+
+
 def _validate_edge(
     edge: EdgeSpec,
     *,
@@ -323,6 +472,9 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
     for group in spec.groups:
         _validate_group(group, tensor_ids=tensor_ids, issues=issues)
 
+    for note in spec.notes:
+        _validate_note(note, issues=issues)
+
     connected_indices: set[str] = set()
     for edge in spec.edges:
         _validate_edge(
@@ -330,6 +482,13 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
             analysis_tensor_map=analysis.tensor_map,
             analysis_index_map=analysis.index_map,
             connected_indices=connected_indices,
+            issues=issues,
+        )
+
+    if spec.contraction_plan is not None:
+        _validate_contraction_plan(
+            spec.contraction_plan,
+            tensor_ids=tensor_ids,
             issues=issues,
         )
 

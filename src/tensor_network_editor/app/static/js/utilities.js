@@ -16,6 +16,7 @@ export function registerUtilities(ctx) {
     propertiesPanel,
     generatedCode,
     engineSelect,
+    addNoteButton,
     connectButton,
     loadInput,
     undoButton,
@@ -33,8 +34,10 @@ export function registerUtilities(ctx) {
     canvasShell,
     groupLayer,
     resizeLayer,
+    notesLayer,
     selectionBox,
     minimapCanvas,
+    plannerPanel,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
 
@@ -192,6 +195,10 @@ export function registerUtilities(ctx) {
     normalized.tensors = Array.isArray(normalized.tensors) ? normalized.tensors : [];
     normalized.groups = Array.isArray(normalized.groups) ? normalized.groups : [];
     normalized.edges = Array.isArray(normalized.edges) ? normalized.edges : [];
+    normalized.notes = Array.isArray(normalized.notes) ? normalized.notes : [];
+    normalized.contraction_plan = isObject(normalized.contraction_plan)
+      ? normalized.contraction_plan
+      : null;
 
     normalized.tensors.forEach((tensor) => {
       tensor.metadata = isObject(tensor.metadata) ? tensor.metadata : {};
@@ -228,6 +235,41 @@ export function registerUtilities(ctx) {
         group.name = `Group ${groupPosition + 1}`;
       }
     });
+
+    normalized.notes.forEach((note) => {
+      note.metadata = isObject(note.metadata) ? note.metadata : {};
+      note.position = {
+        x: asFiniteNumber(note.position && note.position.x, 120),
+        y: asFiniteNumber(note.position && note.position.y, 120),
+      };
+      note.text = typeof note.text === "string" && note.text.trim() ? note.text : "Note";
+      if (!note.id) {
+        note.id = makeId("note");
+      }
+    });
+
+    if (normalized.contraction_plan) {
+      normalized.contraction_plan.metadata = isObject(normalized.contraction_plan.metadata)
+        ? normalized.contraction_plan.metadata
+        : {};
+      normalized.contraction_plan.steps = Array.isArray(normalized.contraction_plan.steps)
+        ? normalized.contraction_plan.steps
+        : [];
+      if (!normalized.contraction_plan.id) {
+        normalized.contraction_plan.id = makeId("plan");
+      }
+      if (!normalized.contraction_plan.name) {
+        normalized.contraction_plan.name = "Manual path";
+      }
+      normalized.contraction_plan.steps.forEach((step) => {
+        step.metadata = isObject(step.metadata) ? step.metadata : {};
+        if (!step.id) {
+          step.id = makeId("step");
+        }
+        step.left_operand_id = String(step.left_operand_id || "");
+        step.right_operand_id = String(step.right_operand_id || "");
+      });
+    }
 
     return normalized;
   }
@@ -431,6 +473,8 @@ export function registerUtilities(ctx) {
         entry.edge.metadata.color = colorValue;
       } else if (entry.kind === "group") {
         entry.group.metadata.color = colorValue;
+      } else if (entry.kind === "note") {
+        entry.note.metadata.color = colorValue;
       }
     });
   }
@@ -454,6 +498,9 @@ export function registerUtilities(ctx) {
     }
     if (entry.kind === "group") {
       return getMetadataColor(entry.group.metadata, "#61a8ff");
+    }
+    if (entry.kind === "note") {
+      return getMetadataColor(entry.note.metadata, "#5f95ff");
     }
     return getMetadataColor(entry.edge.metadata, "#8da1c3");
   }

@@ -18,9 +18,7 @@ class NetworkAnalysis:
     right_index_by_edge_id: dict[str, IndexSpec | None]
 
 
-def analyze_network(
-    spec: NetworkSpec, *, validate: bool = False
-) -> NetworkAnalysis:
+def analyze_network(spec: NetworkSpec, *, validate: bool = False) -> NetworkAnalysis:
     if validate:
         from .validation import ensure_valid_spec
 

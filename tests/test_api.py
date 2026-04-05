@@ -9,7 +9,10 @@ import tensor_network_editor
 from tensor_network_editor.api import generate_code, load_spec, save_spec
 from tensor_network_editor.errors import PackageIOError, SerializationError
 from tensor_network_editor.models import (
+    CanvasNoteSpec,
     CanvasPosition,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EdgeEndpointRef,
     EdgeSpec,
     EngineName,
@@ -61,6 +64,24 @@ def build_sample_spec() -> NetworkSpec:
                 right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
             )
         ],
+        notes=[
+            CanvasNoteSpec(
+                id="note_demo",
+                text="Check the contraction order",
+                position=CanvasPosition(x=80.0, y=60.0),
+            )
+        ],
+        contraction_plan=ContractionPlanSpec(
+            id="plan_demo",
+            name="Manual path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_contract_ab",
+                    left_operand_id="tensor_a",
+                    right_operand_id="tensor_b",
+                )
+            ],
+        ),
     )
 
 
@@ -133,6 +154,12 @@ class PublicApiTests(unittest.TestCase):
         self.assertEqual(loaded_spec.edges[0].name, "bond_x")
         self.assertEqual(loaded_spec.tensors[0].size.width, 200.0)
         self.assertEqual(loaded_spec.groups[0].tensor_ids, ["tensor_a", "tensor_b"])
+        self.assertEqual(loaded_spec.notes[0].text, "Check the contraction order")
+        self.assertIsNotNone(loaded_spec.contraction_plan)
+        assert loaded_spec.contraction_plan is not None
+        self.assertEqual(
+            loaded_spec.contraction_plan.steps[0].left_operand_id, "tensor_a"
+        )
 
     def test_save_spec_wraps_file_write_failures(self) -> None:
         spec = build_sample_spec()
@@ -162,7 +189,7 @@ class PublicApiTests(unittest.TestCase):
     def test_load_spec_rejects_legacy_schema_versions(self) -> None:
         legacy_path = build_output_path("legacy_network.json")
         legacy_path.write_text(
-            '{"schema_version": 1, "network": {"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "metadata": {}}}',
+            '{"schema_version": 2, "network": {"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "notes": [], "contraction_plan": null, "metadata": {}}}',
             encoding="utf-8",
         )
 
