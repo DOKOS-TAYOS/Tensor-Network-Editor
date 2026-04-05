@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from importlib import import_module
 from string import ascii_letters
-from typing import cast
+from typing import Any, cast
 
 from .codegen.common import PreparedNetwork, prepare_network
 from .models import ContractionStepSpec, NetworkSpec
@@ -360,7 +361,10 @@ def _analyze_automatic_plan(
         )
 
     try:
-        from opt_einsum import contract_path
+        contract_path = cast(
+            Any,
+            cast(Any, import_module("opt_einsum")).contract_path,
+        )
     except ImportError:
         return _unavailable_automatic_analysis(
             "Install the planner extra to enable automatic greedy path suggestions."
