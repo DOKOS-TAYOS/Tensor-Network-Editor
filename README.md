@@ -8,7 +8,10 @@ This `0.1.1` release is aimed at researchers and developers who want a lightweig
 
 - Build tensor-network diagrams in a local browser session.
 - Save and load versioned JSON designs.
-- Generate readable Python code for `tensornetwork`, `quimb`, `tensorkrowch`, and `einsum`.
+- Generate readable Python code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`, and `einsum_torch`.
+- Insert built-in templates for MPS, MPO, PEPS grids, MERA, and binary-tree layouts with corrected open legs.
+- Configure template graph size, bond dimension, and physical dimension directly from the editor before insertion.
+- Add notes, select them together with tensors and groups, and move mixed selections on the canvas.
 - Use the package as a library or from the `tensor-network-editor` CLI.
 - Run on Windows and Linux with Python `3.11+`.
 
@@ -48,7 +51,7 @@ Python API:
 ```python
 from tensor_network_editor import EngineName, launch_tensor_network_editor
 
-result = launch_tensor_network_editor(default_engine=EngineName.EINSUM)
+result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
 
 if result is not None:
     print(result.spec.name)
@@ -59,7 +62,7 @@ if result is not None:
 CLI:
 
 ```bash
-tensor-network-editor --engine einsum
+tensor-network-editor --engine einsum_numpy
 ```
 
 Load an existing design:
@@ -67,6 +70,25 @@ Load an existing design:
 ```bash
 tensor-network-editor --load my_network.json --engine quimb
 ```
+
+## Template Inserts
+
+The editor includes a small template panel next to the `Template` selector.
+
+- `Graph size` changes meaning by template:
+  - `MPS` and `MPO`: number of sites
+  - `PEPS`: side length of the square grid
+  - `MERA` and `Binary Tree`: depth
+- `Bond dimension` is shared across internal links created by that template.
+- `Physical dimension` is shared across all physical legs created by that template.
+
+Default starting values match the built-in presets:
+
+- `MPS`: 4 sites
+- `MPO`: 4 sites
+- `PEPS`: 2x2
+- `MERA`: depth 3
+- `Binary Tree`: depth 3
 
 ## Public API
 
@@ -76,6 +98,14 @@ tensor-network-editor --load my_network.json --engine quimb
 - `load_spec(path) -> NetworkSpec`
 
 The editor blocks until the user presses `Done` or `Cancel`. On `Done`, it returns the abstract `NetworkSpec` and the generated code for the selected engine.
+
+Supported engine values:
+
+- `tensornetwork`
+- `quimb`
+- `tensorkrowch`
+- `einsum_numpy`
+- `einsum_torch`
 
 ## Architecture
 
@@ -103,10 +133,11 @@ python -m pip install -e ".[dev]"
 Useful checks:
 
 ```powershell
-python -m pytest
-python -m ruff check .
+python -m ruff check . --fix
+python -m ruff format .
 python -m mypy
 python -m pyright
+python -m pytest
 python -m build
 python -m twine check dist/*
 ```
@@ -131,7 +162,7 @@ Designs are stored as plain JSON with a schema wrapper:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "network": {
     "...": "..."
   }

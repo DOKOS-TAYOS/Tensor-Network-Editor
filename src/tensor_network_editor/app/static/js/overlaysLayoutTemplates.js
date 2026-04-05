@@ -237,17 +237,16 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!group) {
       return;
     }
-    ctx.selectElement("group", groupId, { additive: Boolean(event.shiftKey) });
+    if (Boolean(event.shiftKey) && !state.selectionIds.includes(groupId)) {
+      ctx.setSelection([...state.selectionIds, groupId], { primaryId: groupId });
+    } else if (!state.selectionIds.includes(groupId)) {
+      ctx.setSelection([groupId], { primaryId: groupId });
+    }
+    const dragSelection = ctx.buildCanvasSelectionDragState(groupId);
     state.activeGroupDrag = {
       groupId,
-      snapshot: ctx.createHistorySnapshot(),
       startPoint: ctx.clientPointToWorldPoint(event.clientX, event.clientY),
-      startPositions: Object.fromEntries(
-        group.tensor_ids
-          .map((tensorId) => ctx.findTensorById(tensorId))
-          .filter(Boolean)
-          .map((tensor) => [tensor.id, { x: tensor.position.x, y: tensor.position.y }])
-      ),
+      ...dragSelection,
     };
   }
 
@@ -262,22 +261,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
     const worldPoint = ctx.clientPointToWorldPoint(event.clientX, event.clientY);
     const deltaX = worldPoint.x - state.activeGroupDrag.startPoint.x;
     const deltaY = worldPoint.y - state.activeGroupDrag.startPoint.y;
-    ctx.runWithTensorSync(() => {
-      group.tensor_ids.forEach((tensorId) => {
-        const tensor = ctx.findTensorById(tensorId);
-        const startPosition = state.activeGroupDrag.startPositions[tensorId];
-        if (!tensor || !startPosition) {
-          return;
-        }
-        tensor.position.x = Math.round(startPosition.x + deltaX);
-        tensor.position.y = Math.round(startPosition.y + deltaY);
-        const tensorElement = state.cy.getElementById(tensor.id);
-        if (tensorElement && tensorElement.length) {
-          tensorElement.position(tensor.position);
-        }
-        ctx.syncIndexNodePositions(tensor);
-      });
-    });
+    ctx.applyCanvasSelectionDragDelta(state.activeGroupDrag, deltaX, deltaY);
     renderOverlayDecorations();
     ctx.renderMinimap();
   }

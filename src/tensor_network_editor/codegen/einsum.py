@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from string import ascii_letters
 
 from ..models import CodegenResult, EngineName, NetworkSpec
@@ -7,8 +8,11 @@ from .base import CodeGenerator
 from .common import PreparedTensor, prepare_network
 
 
-class EinsumCodeGenerator(CodeGenerator):
-    engine = EngineName.EINSUM
+class BaseEinsumCodeGenerator(CodeGenerator, ABC):
+    engine: EngineName
+    import_line: str
+    module_alias: str
+    zero_initializer_suffix: str = ""
 
     def generate(self, spec: NetworkSpec) -> CodegenResult:
         prepared = prepare_network(spec)
@@ -28,13 +32,13 @@ class EinsumCodeGenerator(CodeGenerator):
         }
 
         lines = [
-            "import numpy as np",
+            self.import_line,
             "",
         ]
 
         for tensor in prepared.tensors:
             lines.append(
-                f"{tensor.data_variable_name} = np.zeros({tensor.spec.shape!r}, dtype=float)"
+                f"{tensor.data_variable_name} = {self.module_alias}.zeros({tensor.spec.shape!r}{self.zero_initializer_suffix})"
             )
         lines.append("")
 
@@ -48,7 +52,9 @@ class EinsumCodeGenerator(CodeGenerator):
                 tensor.data_variable_name for tensor in prepared.tensors
             )
             lines.append(f"# Einsum equation: {equation}")
-            lines.append(f"result = np.einsum({equation!r}, {operand_names})")
+            lines.append(
+                f"result = {self.module_alias}.einsum({equation!r}, {operand_names})"
+            )
         else:
             lines.append(
                 "# Einsum uses the integer-sublist form because the network uses many labels."
@@ -60,7 +66,9 @@ class EinsumCodeGenerator(CodeGenerator):
                     str([label_to_int[index.label] for index in tensor.indices])
                 )
             sublist_args.append(str([label_to_int[label] for label in output_labels]))
-            lines.append("result = np.einsum(" + ", ".join(sublist_args) + ")")
+            lines.append(
+                f"result = {self.module_alias}.einsum(" + ", ".join(sublist_args) + ")"
+            )
 
         return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
 

@@ -15,7 +15,7 @@ class AppRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.session = EditorSession(
             initial_spec=build_sample_spec(),
-            default_engine=EngineName.EINSUM,
+            default_engine=EngineName.EINSUM_NUMPY,
         )
         self.server = EditorServer(self.session)
         self.server.start()
@@ -24,13 +24,31 @@ class AppRouteTests(unittest.TestCase):
     def test_bootstrap_returns_initial_spec_and_engine(self) -> None:
         payload = request_json(f"{self.server.base_url}/api/bootstrap")
 
-        self.assertEqual(payload["default_engine"], EngineName.EINSUM.value)
+        self.assertEqual(payload["default_engine"], EngineName.EINSUM_NUMPY.value)
         self.assertEqual(payload["schema_version"], 3)
         self.assertEqual(payload["spec"]["network"]["id"], "network_demo")
         self.assertEqual(payload["spec"]["schema_version"], 3)
         self.assertIn(EngineName.QUIMB.value, payload["engines"])
+        self.assertIn(EngineName.EINSUM_NUMPY.value, payload["engines"])
+        self.assertIn(EngineName.EINSUM_TORCH.value, payload["engines"])
         self.assertEqual(
             payload["templates"], ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+        )
+        self.assertEqual(
+            payload["template_definitions"]["mps"]["graph_size_label"], "Sites"
+        )
+        self.assertEqual(
+            payload["template_definitions"]["peps_2x2"]["graph_size_label"],
+            "Side length",
+        )
+        self.assertEqual(
+            payload["template_definitions"]["mera"]["graph_size_label"], "Depth"
+        )
+        self.assertEqual(
+            payload["template_definitions"]["mps"]["defaults"]["bond_dimension"], 3
+        )
+        self.assertEqual(
+            payload["template_definitions"]["mps"]["defaults"]["physical_dimension"], 2
         )
 
     def test_validate_route_reports_issues_for_invalid_spec(self) -> None:
@@ -190,6 +208,61 @@ class AppRouteTests(unittest.TestCase):
         self.assertEqual(payload["spec"]["schema_version"], 3)
         self.assertEqual(payload["spec"]["network"]["name"], "MPS")
         self.assertGreater(len(payload["spec"]["network"]["tensors"]), 0)
+
+    def test_template_route_applies_requested_parameters(self) -> None:
+        payload = request_json(
+            f"{self.server.base_url}/api/template",
+            method="POST",
+            payload={
+                "template": "peps_2x2",
+                "parameters": {
+                    "graph_size": 3,
+                    "bond_dimension": 5,
+                    "physical_dimension": 7,
+                },
+            },
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["spec"]["network"]["name"], "PEPS 3x3")
+        self.assertEqual(len(payload["spec"]["network"]["tensors"]), 9)
+        self.assertEqual(len(payload["spec"]["network"]["edges"]), 12)
+        center_tensor = next(
+            tensor
+            for tensor in payload["spec"]["network"]["tensors"]
+            if tensor["name"] == "B2"
+        )
+        self.assertEqual(
+            {index["name"] for index in center_tensor["indices"]},
+            {"left", "right", "up", "down", "phys"},
+        )
+        self.assertEqual(
+            {
+                index["dimension"]
+                for tensor in payload["spec"]["network"]["tensors"]
+                for index in tensor["indices"]
+                if index["name"] == "phys"
+            },
+            {7},
+        )
+
+    def test_template_route_rejects_invalid_template_parameters(self) -> None:
+        status, payload = request_json_with_status(
+            f"{self.server.base_url}/api/template",
+            method="POST",
+            payload={
+                "template": "mps",
+                "parameters": {
+                    "graph_size": 1,
+                    "bond_dimension": 0,
+                    "physical_dimension": 2,
+                },
+            },
+        )
+
+        self.assertEqual(status, 400)
+        self.assertFalse(payload["ok"])
+        self.assertIn("graph_size", payload["message"])
 
     def test_analyze_contraction_route_returns_manual_summary(self) -> None:
         payload = request_json(

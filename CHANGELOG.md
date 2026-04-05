@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Template parameter metadata in the bootstrap payload so the editor can show graph size, bond dimension, and physical dimension controls per template.
 - Editor layout templates (MPS, MPO, 2×2 PEPS, MERA, binary tree) with `/api/template` and template names exposed in the bootstrap payload.
 - Tensor groups in the save model (`GroupSpec` / `groups` on `NetworkSpec`) for organizing nodes on the canvas.
 - Per-tensor canvas size (`TensorSize`) and per-index label offsets on `IndexSpec`.
@@ -17,8 +18,16 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Substantial editor UI refresh: layout, styling, and graph interactions in the static web client.
+- Replaced the single `einsum` target with explicit `einsum_numpy` and `einsum_torch` engines across the API, CLI, editor bootstrap payload, and generated code.
 - HTTP layer refactored around shared JSON/spec helpers (`_protocol`); validation responses return structured issues and a normalized spec snapshot.
 - Stricter deserialization via dedicated payload coercion helpers; packaging manifest lists third-party license text.
+
+### Fixed
+
+- Built-in templates can now be inserted with configurable graph size, bond dimension, and physical dimension while keeping the existing template catalog.
+- Built-in templates now expose the expected tensor valences and open legs instead of starting from a generic four-port tensor shape.
+- New notes open taller, keep their text area inside the card, participate in right-drag box selection, and move together with selected tensors or groups.
+- README, example code, and in-app help now reflect the split einsum engines, corrected templates, and current editor interactions.
 
 ## [0.1.0] - 2026-04-03
 

@@ -5,6 +5,7 @@ from http import HTTPStatus
 from typing import cast
 
 from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
+from .._templates import parse_template_parameters
 from ..errors import SerializationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
@@ -90,7 +91,11 @@ def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     if not isinstance(template_name, str) or not template_name.strip():
         return bad_request_response("Missing 'template' payload.")
     try:
-        spec = session.build_template(template_name)
+        parameters = parse_template_parameters(
+            template_name,
+            payload.get("parameters"),
+        )
+        spec = session.build_template(template_name, parameters)
     except ValueError as exc:
         return bad_request_response(str(exc))
     return ok_response({"spec": serialize_spec(spec)})

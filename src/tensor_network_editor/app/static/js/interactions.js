@@ -145,13 +145,32 @@ export function registerInteractions(ctx) {
       .filter((element) => element.data("kind") !== "index-label")
       .filter((element) => ctx.boxesIntersect(box, element.renderedBoundingBox()))
       .map((element) => element.id());
+    const hitNoteIds = collectBoxSelectedNoteIds(box);
+    const selectionIds = [...hitIds, ...hitNoteIds];
     if (boxSelectionState.additive) {
-      ctx.setSelection([...state.selectionIds, ...hitIds], {
-        primaryId: hitIds.length ? hitIds[hitIds.length - 1] : state.primarySelectionId,
+      ctx.setSelection([...state.selectionIds, ...selectionIds], {
+        primaryId: selectionIds.length
+          ? selectionIds[selectionIds.length - 1]
+          : state.primarySelectionId,
       });
       return;
     }
-    ctx.setSelection(hitIds, { primaryId: hitIds.length ? hitIds[hitIds.length - 1] : null });
+    ctx.setSelection(selectionIds, {
+      primaryId: selectionIds.length ? selectionIds[selectionIds.length - 1] : null,
+    });
+  }
+
+  function collectBoxSelectedNoteIds(box) {
+    if (
+      !state.spec ||
+      !Array.isArray(state.spec.notes) ||
+      typeof ctx.noteCanvasBounds !== "function"
+    ) {
+      return [];
+    }
+    return state.spec.notes
+      .filter((note) => ctx.boxesIntersect(box, ctx.noteCanvasBounds(note)))
+      .map((note) => note.id);
   }
 
   function updateSelectionBoxElement() {
@@ -697,8 +716,12 @@ export function registerInteractions(ctx) {
       ctx.setStatus("Choose a template first.");
       return;
     }
+    const parameters = ctx.persistTemplateParametersFromControls();
     try {
-      const payload = await apiPost("/api/template", { template: templateName });
+      const payload = await apiPost("/api/template", {
+        template: templateName,
+        parameters,
+      });
       const importedSpec = ctx.uniquifyImportedSpec(payload.spec.network, ctx.makeId("template"));
       const translatedSpec = ctx.translateImportedSpec(importedSpec, suggestTensorPosition(viewportCenterPosition()));
       ctx.applyDesignChange(

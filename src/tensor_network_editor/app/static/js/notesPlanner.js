@@ -1,5 +1,12 @@
 export function registerNotesPlanner(ctx) {
   const state = ctx.state;
+  const {
+    NOTE_WIDTH,
+    NOTE_HEIGHT,
+    NOTE_MIN_WIDTH,
+    NOTE_MIN_HEIGHT,
+    NOTE_COLLAPSED_SIZE,
+  } = ctx.constants;
   const { addNoteButton, notesLayer, plannerPanel } = ctx.dom;
 
   function createNote(x, y) {
@@ -7,7 +14,7 @@ export function registerNotesPlanner(ctx) {
       id: ctx.makeId("note"),
       text: "New note",
       position: { x, y },
-      size: { width: 220, height: 112 },
+      size: { width: NOTE_WIDTH, height: NOTE_HEIGHT },
       metadata: {},
     };
   }
@@ -22,7 +29,10 @@ export function registerNotesPlanner(ctx) {
 
   function addNoteAtCenter() {
     const center = ctx.viewportCenterPosition();
-    const note = createNote(center.x - 110, center.y - 56);
+    const note = createNote(
+      center.x - NOTE_WIDTH / 2,
+      center.y - NOTE_HEIGHT / 2
+    );
     ctx.applyDesignChange(
       () => {
         state.spec.notes.push(note);
@@ -35,16 +45,159 @@ export function registerNotesPlanner(ctx) {
     );
   }
 
+  function getRenderableNoteSize(note) {
+    if (Boolean(note.metadata && note.metadata.collapsed)) {
+      return {
+        width: NOTE_COLLAPSED_SIZE,
+        height: NOTE_COLLAPSED_SIZE,
+      };
+    }
+    return {
+      width: Math.max(
+        NOTE_MIN_WIDTH,
+        Number(note.size && note.size.width) || NOTE_WIDTH
+      ),
+      height: Math.max(
+        NOTE_MIN_HEIGHT,
+        Number(note.size && note.size.height) || NOTE_HEIGHT
+      ),
+    };
+  }
+
+  function noteCanvasBounds(note) {
+    const canvasPoint = ctx.worldToCanvasPoint(note.position);
+    const noteSize = getRenderableNoteSize(note);
+    return {
+      x1: canvasPoint.x,
+      y1: canvasPoint.y,
+      x2: canvasPoint.x + noteSize.width,
+      y2: canvasPoint.y + noteSize.height,
+      width: noteSize.width,
+      height: noteSize.height,
+    };
+  }
+
+  function preserveSelectionForCanvasDrag(selectionId, options = {}) {
+    if (options.additive && !state.selectionIds.includes(selectionId)) {
+      ctx.setSelection([...state.selectionIds, selectionId], {
+        primaryId: selectionId,
+      });
+      return;
+    }
+    if (!state.selectionIds.includes(selectionId)) {
+      ctx.setSelection([selectionId], { primaryId: selectionId });
+    }
+  }
+
+  function buildCanvasSelectionDragState(anchorSelectionId) {
+    const tensorIds = [];
+    const noteIds = [];
+    const selectedEntries = ctx.getSelectedEntries();
+
+    selectedEntries.forEach((entry) => {
+      if (entry.kind === "tensor" && !tensorIds.includes(entry.tensor.id)) {
+        tensorIds.push(entry.tensor.id);
+        return;
+      }
+      if (entry.kind === "note" && !noteIds.includes(entry.note.id)) {
+        noteIds.push(entry.note.id);
+        return;
+      }
+      if (entry.kind === "group") {
+        entry.group.tensor_ids.forEach((tensorId) => {
+          if (!tensorIds.includes(tensorId)) {
+            tensorIds.push(tensorId);
+          }
+        });
+      }
+    });
+
+    if (!tensorIds.length && !noteIds.length) {
+      const anchorEntry = ctx.getSelectionEntry(anchorSelectionId);
+      if (anchorEntry && anchorEntry.kind === "tensor") {
+        tensorIds.push(anchorEntry.tensor.id);
+      } else if (anchorEntry && anchorEntry.kind === "note") {
+        noteIds.push(anchorEntry.note.id);
+      } else if (anchorEntry && anchorEntry.kind === "group") {
+        anchorEntry.group.tensor_ids.forEach((tensorId) => {
+          if (!tensorIds.includes(tensorId)) {
+            tensorIds.push(tensorId);
+          }
+        });
+      }
+    }
+
+    return {
+      snapshot: ctx.createHistorySnapshot(),
+      tensorIds,
+      noteIds,
+      tensorStartPositions: Object.fromEntries(
+        tensorIds
+          .map((tensorId) => ctx.findTensorById(tensorId))
+          .filter(Boolean)
+          .map((tensor) => [tensor.id, { x: tensor.position.x, y: tensor.position.y }])
+      ),
+      noteStartPositions: Object.fromEntries(
+        noteIds
+          .map((noteId) => findNoteById(noteId))
+          .filter(Boolean)
+          .map((note) => [note.id, { x: note.position.x, y: note.position.y }])
+      ),
+    };
+  }
+
+  function applyCanvasSelectionDragDelta(dragState, deltaX, deltaY, options = {}) {
+    const excludedTensorIds = Array.isArray(options.excludedTensorIds)
+      ? options.excludedTensorIds
+      : [];
+    const excludedNoteIds = Array.isArray(options.excludedNoteIds)
+      ? options.excludedNoteIds
+      : [];
+
+    if (state.cy) {
+      ctx.runWithTensorSync(() => {
+        dragState.tensorIds.forEach((tensorId) => {
+          if (excludedTensorIds.includes(tensorId)) {
+            return;
+          }
+          const tensor = ctx.findTensorById(tensorId);
+          const startPosition = dragState.tensorStartPositions[tensorId];
+          if (!tensor || !startPosition) {
+            return;
+          }
+          tensor.position.x = Math.round(startPosition.x + deltaX);
+          tensor.position.y = Math.round(startPosition.y + deltaY);
+          const tensorElement = state.cy.getElementById(tensor.id);
+          if (tensorElement && tensorElement.length) {
+            tensorElement.position(tensor.position);
+          }
+          ctx.syncIndexNodePositions(tensor);
+        });
+      });
+    }
+
+    dragState.noteIds.forEach((noteId) => {
+      if (excludedNoteIds.includes(noteId)) {
+        return;
+      }
+      const note = findNoteById(noteId);
+      const startPosition = dragState.noteStartPositions[noteId];
+      if (!note || !startPosition) {
+        return;
+      }
+      note.position.x = Math.round(startPosition.x + deltaX);
+      note.position.y = Math.round(startPosition.y + deltaY);
+    });
+  }
+
   function renderNotes() {
     if (!notesLayer) {
       return;
     }
     notesLayer.innerHTML = "";
     state.spec.notes.forEach((note) => {
-      const canvasPoint = ctx.worldToCanvasPoint(note.position);
       const isCollapsed = Boolean(note.metadata && note.metadata.collapsed);
-      const noteWidth = isCollapsed ? 48 : Math.max(140, Number(note.size && note.size.width) || 220);
-      const noteHeight = isCollapsed ? 48 : Math.max(96, Number(note.size && note.size.height) || 112);
+      const bounds = noteCanvasBounds(note);
       const noteElement = document.createElement("article");
       noteElement.className = "canvas-note";
       noteElement.dataset.noteId = note.id;
@@ -54,10 +207,10 @@ export function registerNotesPlanner(ctx) {
       if (isCollapsed) {
         noteElement.classList.add("is-collapsed");
       }
-      noteElement.style.left = `${canvasPoint.x}px`;
-      noteElement.style.top = `${canvasPoint.y}px`;
-      noteElement.style.width = `${noteWidth}px`;
-      noteElement.style.height = `${noteHeight}px`;
+      noteElement.style.left = `${bounds.x1}px`;
+      noteElement.style.top = `${bounds.y1}px`;
+      noteElement.style.width = `${bounds.width}px`;
+      noteElement.style.height = `${bounds.height}px`;
       noteElement.style.borderColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
 
       if (isCollapsed) {
@@ -114,7 +267,6 @@ export function registerNotesPlanner(ctx) {
         textarea.className = "canvas-note-body";
         textarea.value = note.text;
         textarea.spellcheck = false;
-        textarea.style.height = `${Math.max(54, noteHeight - 52)}px`;
         textarea.addEventListener("mousedown", (event) => {
           event.stopPropagation();
         });
@@ -197,12 +349,14 @@ export function registerNotesPlanner(ctx) {
     if (!note) {
       return;
     }
-    ctx.setSelection([noteId], { primaryId: noteId });
+    preserveSelectionForCanvasDrag(noteId, {
+      additive: Boolean(event.shiftKey),
+    });
+    const dragSelection = buildCanvasSelectionDragState(noteId);
     state.noteDragState = {
       noteId,
-      snapshot: ctx.createHistorySnapshot(),
       startPointer: ctx.clientPointToWorldPoint(event.clientX, event.clientY),
-      startPosition: { x: note.position.x, y: note.position.y },
+      ...dragSelection,
     };
   }
 
@@ -215,13 +369,11 @@ export function registerNotesPlanner(ctx) {
       return;
     }
     const worldPoint = ctx.clientPointToWorldPoint(event.clientX, event.clientY);
-    note.position.x = Math.round(
-      state.noteDragState.startPosition.x + worldPoint.x - state.noteDragState.startPointer.x
-    );
-    note.position.y = Math.round(
-      state.noteDragState.startPosition.y + worldPoint.y - state.noteDragState.startPointer.y
-    );
-    renderNotes();
+    const deltaX = worldPoint.x - state.noteDragState.startPointer.x;
+    const deltaY = worldPoint.y - state.noteDragState.startPointer.y;
+    applyCanvasSelectionDragDelta(state.noteDragState, deltaX, deltaY);
+    ctx.renderOverlayDecorations();
+    ctx.renderMinimap();
   }
 
   function finishActiveNoteDrag() {
@@ -244,14 +396,17 @@ export function registerNotesPlanner(ctx) {
     if (!note || (note.metadata && note.metadata.collapsed)) {
       return;
     }
-    ctx.setSelection([noteId], { primaryId: noteId });
+    preserveSelectionForCanvasDrag(noteId);
     state.activeNoteResize = {
       noteId,
       snapshot: ctx.createHistorySnapshot(),
       startPointer: ctx.clientPointToCanvasPoint(event.clientX, event.clientY),
       startSize: {
-        width: Math.max(140, Number(note.size && note.size.width) || 220),
-        height: Math.max(96, Number(note.size && note.size.height) || 112),
+        width: Math.max(NOTE_MIN_WIDTH, Number(note.size && note.size.width) || NOTE_WIDTH),
+        height: Math.max(
+          NOTE_MIN_HEIGHT,
+          Number(note.size && note.size.height) || NOTE_HEIGHT
+        ),
       },
     };
   }
@@ -266,11 +421,11 @@ export function registerNotesPlanner(ctx) {
     }
     const canvasPoint = ctx.clientPointToCanvasPoint(event.clientX, event.clientY);
     note.size.width = Math.max(
-      140,
+      NOTE_MIN_WIDTH,
       Math.round(state.activeNoteResize.startSize.width + canvasPoint.x - state.activeNoteResize.startPointer.x)
     );
     note.size.height = Math.max(
-      96,
+      NOTE_MIN_HEIGHT,
       Math.round(state.activeNoteResize.startSize.height + canvasPoint.y - state.activeNoteResize.startPointer.y)
     );
     renderNotes();
@@ -1019,6 +1174,10 @@ export function registerNotesPlanner(ctx) {
     addNoteAtCenter,
     createNote,
     findNoteById,
+    getRenderableNoteSize,
+    noteCanvasBounds,
+    buildCanvasSelectionDragState,
+    applyCanvasSelectionDragDelta,
     removeNote,
     renderNotes,
     startNoteDrag,

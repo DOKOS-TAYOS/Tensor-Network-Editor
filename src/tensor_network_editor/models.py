@@ -303,7 +303,8 @@ class EngineName(StrEnum):
     TENSORNETWORK = "tensornetwork"
     QUIMB = "quimb"
     TENSORKROWCH = "tensorkrowch"
-    EINSUM = "einsum"
+    EINSUM_NUMPY = "einsum_numpy"
+    EINSUM_TORCH = "einsum_torch"
 
 
 @dataclass(slots=True)

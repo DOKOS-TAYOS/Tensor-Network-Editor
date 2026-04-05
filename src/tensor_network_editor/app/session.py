@@ -9,7 +9,12 @@ from types import FrameType
 from typing import Any, Protocol
 
 from .._io import write_utf8_text
-from .._templates import build_template_spec, list_template_names
+from .._templates import (
+    TemplateParameters,
+    build_template_spec,
+    list_template_names,
+    serialize_template_definitions,
+)
 from ..codegen.registry import generate_code as generate_code_internal
 from ..models import CodegenResult, EditorResult, EngineName, NetworkSpec
 from ..serialization import SCHEMA_VERSION, serialize_spec
@@ -50,6 +55,7 @@ class EditorSession:
             "engines": [engine.value for engine in EngineName],
             "schema_version": SCHEMA_VERSION,
             "templates": list_template_names(),
+            "template_definitions": serialize_template_definitions(),
             "spec": serialize_spec(self.initial_spec),
         }
 
@@ -85,8 +91,12 @@ class EditorSession:
             self._finished_event.set()
         return result
 
-    def build_template(self, template_name: str) -> NetworkSpec:
-        return build_template_spec(template_name)
+    def build_template(
+        self,
+        template_name: str,
+        parameters: TemplateParameters | None = None,
+    ) -> NetworkSpec:
+        return build_template_spec(template_name, parameters)
 
     def cancel(self) -> None:
         LOGGER.info("Cancelling editor session")

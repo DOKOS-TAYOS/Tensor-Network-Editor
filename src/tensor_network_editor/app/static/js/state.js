@@ -3,6 +3,8 @@ export function createInitialState() {
     spec: null,
     schemaVersion: null,
     availableTemplates: [],
+    templateDefinitions: {},
+    templateParametersByTemplate: {},
     selectedEngine: null,
     selectedElement: null,
     selectionIds: [],

@@ -25,6 +25,9 @@ export function startEditor(ctx) {
     exportPngButton,
     exportSvgButton,
     templateSelect,
+    templateGraphSizeInput,
+    templateBondDimensionInput,
+    templatePhysicalDimensionInput,
     insertTemplateButton,
     createGroupButton,
     helpButton,
@@ -51,10 +54,18 @@ export function startEditor(ctx) {
     state.spec = ctx.normalizeSpec(payload.spec.network);
     state.schemaVersion = payload.schema_version;
     state.availableTemplates = Array.isArray(payload.templates) ? [...payload.templates] : [];
+    state.templateDefinitions = payload.template_definitions && typeof payload.template_definitions === "object"
+      ? { ...payload.template_definitions }
+      : {};
+    state.templateParametersByTemplate = ctx.buildTemplateParameterState(
+      state.availableTemplates,
+      state.templateDefinitions
+    );
     state.selectedEngine = payload.default_engine;
     ctx.reconcileTensorOrder();
     ctx.populateEngineOptions(payload.engines);
     ctx.populateTemplateOptions(state.availableTemplates);
+    ctx.syncTemplateParameterControls();
     ctx.initGraph();
     ctx.clearHistory();
     ctx.render();
@@ -84,6 +95,10 @@ export function startEditor(ctx) {
     exportPyButton.addEventListener("click", ctx.downloadPythonExport);
     exportPngButton.addEventListener("click", ctx.downloadPngExport);
     exportSvgButton.addEventListener("click", ctx.downloadSvgExport);
+    templateSelect.addEventListener("change", ctx.handleTemplateSelectionChange);
+    templateGraphSizeInput.addEventListener("change", ctx.handleTemplateParameterInput);
+    templateBondDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
+    templatePhysicalDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
     insertTemplateButton.addEventListener("click", ctx.insertTemplate);
     createGroupButton.addEventListener("click", ctx.createGroupFromSelection);
     helpButton.addEventListener("click", () => ctx.toggleHelpModal(true));

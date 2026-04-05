@@ -467,20 +467,10 @@ export function registerGraphRender(ctx) {
   }
 
   function createTensorDragState(anchorId) {
-    const selectedTensorIds = ctx.getSelectedIdsByKind("tensor");
-    const dragIds = selectedTensorIds.includes(anchorId) ? selectedTensorIds : [anchorId];
-    const startPositions = {};
-    dragIds.forEach((tensorId) => {
-      const tensor = ctx.findTensorById(tensorId);
-      if (tensor) {
-        startPositions[tensorId] = { x: tensor.position.x, y: tensor.position.y };
-      }
-    });
+    const dragSelection = ctx.buildCanvasSelectionDragState(anchorId);
     return {
       anchorId,
-      snapshot: ctx.createHistorySnapshot(),
-      dragIds,
-      startPositions,
+      ...dragSelection,
     };
   }
 
@@ -489,20 +479,20 @@ export function registerGraphRender(ctx) {
       return;
     }
     const anchor = ctx.findTensorById(state.activeTensorDrag.anchorId);
-    const anchorStartPosition = state.activeTensorDrag.startPositions[state.activeTensorDrag.anchorId];
+    const anchorStartPosition =
+      state.activeTensorDrag.tensorStartPositions[state.activeTensorDrag.anchorId];
     if (!anchor || !anchorStartPosition) {
       return;
     }
     const deltaX = anchor.position.x - anchorStartPosition.x;
     const deltaY = anchor.position.y - anchorStartPosition.y;
-    state.syncingTensorPositions = true;
-    try {
-      state.activeTensorDrag.dragIds.forEach((tensorId) => {
+    ctx.runWithTensorSync(() => {
+      state.activeTensorDrag.tensorIds.forEach((tensorId) => {
         if (tensorId === anchor.id) {
           return;
         }
         const tensor = ctx.findTensorById(tensorId);
-        const startPosition = state.activeTensorDrag.startPositions[tensorId];
+        const startPosition = state.activeTensorDrag.tensorStartPositions[tensorId];
         if (!tensor || !startPosition) {
           return;
         }
@@ -514,9 +504,16 @@ export function registerGraphRender(ctx) {
         }
         ctx.syncIndexNodePositions(tensor);
       });
-    } finally {
-      state.syncingTensorPositions = false;
-    }
+    });
+    state.activeTensorDrag.noteIds.forEach((noteId) => {
+      const note = ctx.findNoteById(noteId);
+      const startPosition = state.activeTensorDrag.noteStartPositions[noteId];
+      if (!note || !startPosition) {
+        return;
+      }
+      note.position.x = Math.round(startPosition.x + deltaX);
+      note.position.y = Math.round(startPosition.y + deltaY);
+    });
   }
 
   function finishTensorDrag(anchorId) {

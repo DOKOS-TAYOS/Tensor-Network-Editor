@@ -11,12 +11,12 @@ class CliTests(unittest.TestCase):
     def test_main_passes_engine_and_browser_flags(self, launch_mock) -> None:
         from tensor_network_editor.cli import main
 
-        exit_code = main(["--engine", "einsum", "--no-browser"])
+        exit_code = main(["--engine", "einsum_numpy", "--no-browser"])
 
         self.assertEqual(exit_code, 0)
         launch_mock.assert_called_once()
         _, kwargs = launch_mock.call_args
-        self.assertEqual(kwargs["default_engine"], EngineName.EINSUM)
+        self.assertEqual(kwargs["default_engine"], EngineName.EINSUM_NUMPY)
         self.assertFalse(kwargs["open_browser"])
 
     @patch(

@@ -4,7 +4,7 @@ from tensor_network_editor import EngineName, launch_tensor_network_editor
 
 
 def main() -> None:
-    result = launch_tensor_network_editor(default_engine=EngineName.EINSUM)
+    result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
     if result is None:
         print("Editor cancelled.")
         return

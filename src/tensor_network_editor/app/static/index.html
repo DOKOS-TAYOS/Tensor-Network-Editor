@@ -37,17 +37,51 @@
               <h1>Tensor Network Editor</h1>
             </div>
             <div class="title-actions">
-              <button id="add-tensor-button" type="button">Add Tensor</button>
-              <button id="connect-button" type="button">Connect</button>
-              <label class="template-picker" for="template-select">
-                Template
-                <select id="template-select"></select>
-              </label>
-              <button id="insert-template-button" type="button">Insert Template</button>
-              <button id="create-group-button" type="button">Create Group</button>
-              <button id="add-note-button" type="button">Add Note</button>
-              <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
-              <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
+              <div id="template-parameter-panel" class="title-control-row template-parameter-panel">
+                <label class="template-parameter-field template-select-field" for="template-select">
+                  <span class="template-parameter-title">Template</span>
+                  <select id="template-select"></select>
+                </label>
+                <label class="template-parameter-field template-number-field" for="template-graph-size-input">
+                  <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
+                  <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
+                </label>
+                <label class="template-parameter-field template-number-field" for="template-bond-dimension-input">
+                  <span class="template-parameter-title">Bond dimension</span>
+                  <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                </label>
+                <label class="template-parameter-field template-number-field" for="template-physical-dimension-input">
+                  <span class="template-parameter-title">Physical dimension</span>
+                  <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                </label>
+              </div>
+              <div class="title-button-row">
+                <button
+                  id="add-tensor-button"
+                  type="button"
+                  class="icon-button toolbar-icon-button"
+                  aria-label="Add tensor"
+                  title="Add tensor"
+                >
+                  +
+                </button>
+                <button id="connect-button" type="button">Connect</button>
+                <button id="insert-template-button" type="button">Insert Template</button>
+                <button id="create-group-button" type="button">Group</button>
+                <button
+                  id="add-note-button"
+                  type="button"
+                  class="icon-button"
+                  aria-label="Add note"
+                  title="Add note"
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>
+                  </svg>
+                </button>
+                <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
+                <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
+              </div>
             </div>
           </div>
           <div id="canvas-shell" class="canvas-shell">
@@ -166,7 +200,7 @@
         <div class="help-dialog-header">
           <div>
             <h2 id="help-title">How to use the editor</h2>
-            <p class="help-note">A quick guide for navigation, selection, copy and paste, groups, the Contract planner, exports, and shortcuts.</p>
+            <p class="help-note">A quick guide for navigation, templates, engines, selection, notes, the Contract planner, exports, and shortcuts.</p>
           </div>
           <button id="help-close-button" type="button" aria-label="Close help">Close</button>
         </div>
@@ -185,7 +219,7 @@
             <h3>Selection</h3>
             <ul>
               <li>Left click selects one tensor, index, or connection.</li>
-              <li>Drag with <strong>right click</strong> to select many elements at once.</li>
+              <li>Drag with <strong>right click</strong> to select many elements at once. Box selection also includes notes.</li>
               <li>Use <strong>Ctrl/Cmd+C</strong> and <strong>Ctrl/Cmd+V</strong> to copy and paste a tensor subgraph.</li>
             </ul>
           </section>
@@ -193,12 +227,16 @@
           <section class="help-section">
             <h3>Organize and edit</h3>
             <ul>
+              <li>Templates insert ready-to-edit network layouts with the expected open legs and bond structure.</li>
+              <li>Use <strong>Graph size</strong>, <strong>Bond dimension</strong>, and <strong>Physical dimension</strong> before inserting a template.</li>
+              <li><strong>Graph size</strong> means sites for MPS and MPO, side length for PEPS, and depth for MERA or Binary Tree.</li>
+              <li>Choose the code engine that fits your workflow, including <strong>NumPy einsum</strong> and <strong>PyTorch einsum</strong>.</li>
               <li>Drag one selected tensor to move all selected tensors together.</li>
               <li>Use the multi-selection panel to recolor or delete everything selected.</li>
               <li>If only tensors are selected, you can add one default index to each tensor.</li>
               <li>Resize tensors from the corner handles directly on the canvas.</li>
-              <li>Use <strong>Create Group</strong> to keep related tensors together and drag the group box as one block.</li>
-              <li>Notes can be moved, resized, collapsed, and expanded directly on the canvas.</li>
+              <li>Use <strong>Group</strong> to keep related tensors together and drag the group box as one block.</li>
+              <li>Notes can be moved, resized, collapsed, and expanded directly on the canvas, and they move together with other selected items.</li>
               <li>Notes, groups, colors, and copied selections are all part of the saved design.</li>
             </ul>
           </section>

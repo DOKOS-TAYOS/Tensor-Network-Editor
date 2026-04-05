@@ -7,6 +7,10 @@ export function registerUtilities(ctx) {
     MIN_TENSOR_HEIGHT,
     INDEX_RADIUS,
     INDEX_PADDING,
+    NOTE_WIDTH,
+    NOTE_HEIGHT,
+    NOTE_MIN_WIDTH,
+    NOTE_MIN_HEIGHT,
     HISTORY_LIMIT,
     REDO_SHORTCUT_LABEL,
     DEFAULT_INDEX_SLOTS,
@@ -25,6 +29,11 @@ export function registerUtilities(ctx) {
     exportPngButton,
     exportSvgButton,
     templateSelect,
+    templateParameterPanel,
+    templateGraphSizeLabel,
+    templateGraphSizeInput,
+    templateBondDimensionInput,
+    templatePhysicalDimensionInput,
     insertTemplateButton,
     createGroupButton,
     helpButton,
@@ -40,13 +49,26 @@ export function registerUtilities(ctx) {
     plannerPanel,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  const ENGINE_LABELS = {
+    tensornetwork: "TensorNetwork",
+    quimb: "Quimb",
+    tensorkrowch: "TensorKrowch",
+    einsum_numpy: "NumPy einsum",
+    einsum_torch: "PyTorch einsum",
+  };
+
+  function formatEngineLabel(engineName) {
+    return Object.prototype.hasOwnProperty.call(ENGINE_LABELS, engineName)
+      ? ENGINE_LABELS[engineName]
+      : engineName;
+  }
 
   function populateEngineOptions(engines) {
     engineSelect.innerHTML = "";
     engines.forEach((engineName) => {
       const option = document.createElement("option");
       option.value = engineName;
-      option.textContent = engineName;
+      option.textContent = formatEngineLabel(engineName);
       if (engineName === state.selectedEngine) {
         option.selected = true;
       }
@@ -59,9 +81,151 @@ export function registerUtilities(ctx) {
     templateNames.forEach((templateName) => {
       const option = document.createElement("option");
       option.value = templateName;
-      option.textContent = templateName.replaceAll("_", " ");
+      option.textContent = formatTemplateLabel(templateName);
       templateSelect.appendChild(option);
     });
+    if (templateNames.length && !templateSelect.value) {
+      templateSelect.value = templateNames[0];
+    }
+  }
+
+  function formatTemplateLabel(templateName) {
+    const definition = getTemplateDefinition(templateName);
+    if (definition && typeof definition.display_name === "string" && definition.display_name) {
+      return definition.display_name;
+    }
+    return templateName.replaceAll("_", " ");
+  }
+
+  function getTemplateDefinition(templateName = templateSelect.value) {
+    if (!templateName || !state.templateDefinitions || typeof state.templateDefinitions !== "object") {
+      return null;
+    }
+    return state.templateDefinitions[templateName] || null;
+  }
+
+  function buildTemplateParameterState(templateNames, templateDefinitions) {
+    return Object.fromEntries(
+      templateNames.map((templateName) => {
+        const definition = templateDefinitions && templateDefinitions[templateName]
+          ? templateDefinitions[templateName]
+          : null;
+        const defaults = definition && definition.defaults ? definition.defaults : {};
+        return [
+          templateName,
+          {
+            graph_size: sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
+            bond_dimension: sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
+            physical_dimension: sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
+          },
+        ];
+      })
+    );
+  }
+
+  function sanitizeTemplateIntegerValue(value, fallback, minimum) {
+    const numericValue = Number(value);
+    if (!Number.isInteger(numericValue)) {
+      return Math.max(minimum, fallback);
+    }
+    return Math.max(minimum, numericValue);
+  }
+
+  function syncTemplateParameterControls(templateName = templateSelect.value) {
+    if (!templateParameterPanel) {
+      return;
+    }
+    const definition = getTemplateDefinition(templateName);
+    if (!definition) {
+      templateParameterPanel.hidden = true;
+      return;
+    }
+    templateParameterPanel.hidden = false;
+    const minimums = definition.minimums || {};
+    const defaults = definition.defaults || {};
+    const parameters = state.templateParametersByTemplate[templateName]
+      || buildTemplateParameterState([templateName], { [templateName]: definition })[templateName];
+    templateGraphSizeLabel.textContent = `Graph size (${definition.graph_size_label || "Graph size"})`;
+    templateGraphSizeInput.min = String(sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1));
+    templateBondDimensionInput.min = String(sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1));
+    templatePhysicalDimensionInput.min = String(sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1));
+    templateGraphSizeInput.value = String(
+      sanitizeTemplateIntegerValue(
+        parameters.graph_size,
+        sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
+        sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1)
+      )
+    );
+    templateBondDimensionInput.value = String(
+      sanitizeTemplateIntegerValue(
+        parameters.bond_dimension,
+        sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
+        sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1)
+      )
+    );
+    templatePhysicalDimensionInput.value = String(
+      sanitizeTemplateIntegerValue(
+        parameters.physical_dimension,
+        sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
+        sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1)
+      )
+    );
+  }
+
+  function readTemplateParametersFromControls() {
+    const definition = getTemplateDefinition();
+    if (!definition) {
+      return {
+        graph_size: 2,
+        bond_dimension: 3,
+        physical_dimension: 2,
+      };
+    }
+    const minimums = definition.minimums || {};
+    const defaults = definition.defaults || {};
+    const parameters = {
+      graph_size: sanitizeTemplateIntegerValue(
+        templateGraphSizeInput.value,
+        sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
+        sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1)
+      ),
+      bond_dimension: sanitizeTemplateIntegerValue(
+        templateBondDimensionInput.value,
+        sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
+        sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1)
+      ),
+      physical_dimension: sanitizeTemplateIntegerValue(
+        templatePhysicalDimensionInput.value,
+        sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
+        sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1)
+      ),
+    };
+    templateGraphSizeInput.value = String(parameters.graph_size);
+    templateBondDimensionInput.value = String(parameters.bond_dimension);
+    templatePhysicalDimensionInput.value = String(parameters.physical_dimension);
+    return parameters;
+  }
+
+  function persistTemplateParametersFromControls() {
+    const templateName = templateSelect.value;
+    if (!templateName) {
+      return null;
+    }
+    const parameters = readTemplateParametersFromControls();
+    state.templateParametersByTemplate[templateName] = { ...parameters };
+    return parameters;
+  }
+
+  function handleTemplateSelectionChange(event) {
+    if (!event || !event.target) {
+      return;
+    }
+    syncTemplateParameterControls(event.target.value);
+    updateToolbarState();
+  }
+
+  function handleTemplateParameterInput() {
+    persistTemplateParametersFromControls();
   }
 
   function serializeCurrentSpec() {
@@ -243,8 +407,14 @@ export function registerUtilities(ctx) {
         y: asFiniteNumber(note.position && note.position.y, 120),
       };
       note.size = {
-        width: Math.max(48, asFiniteNumber(note.size && note.size.width, 220)),
-        height: Math.max(48, asFiniteNumber(note.size && note.size.height, 112)),
+        width: Math.max(
+          NOTE_MIN_WIDTH,
+          asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)
+        ),
+        height: Math.max(
+          NOTE_MIN_HEIGHT,
+          asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)
+        ),
       };
       note.text = typeof note.text === "string" && note.text.trim() ? note.text : "Note";
       if (!note.id) {
@@ -839,7 +1009,16 @@ export function registerUtilities(ctx) {
 
   Object.assign(ctx, {
     populateEngineOptions,
+    formatEngineLabel,
     populateTemplateOptions,
+    formatTemplateLabel,
+    getTemplateDefinition,
+    buildTemplateParameterState,
+    syncTemplateParameterControls,
+    readTemplateParametersFromControls,
+    persistTemplateParametersFromControls,
+    handleTemplateSelectionChange,
+    handleTemplateParameterInput,
     serializeCurrentSpec,
     stripImportLines,
     moveIndex,

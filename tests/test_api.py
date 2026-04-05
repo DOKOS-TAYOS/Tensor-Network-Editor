@@ -125,7 +125,11 @@ class PublicApiTests(unittest.TestCase):
         spec = build_sample_spec()
         output_path = build_output_path("generated_network.py")
         try:
-            result = generate_code(spec, engine=EngineName.EINSUM, path=output_path)
+            result = generate_code(
+                spec,
+                engine=EngineName.EINSUM_NUMPY,
+                path=output_path,
+            )
             self.assertEqual(output_path.read_text(encoding="utf-8"), result.code)
         finally:
             output_path.unlink(missing_ok=True)
@@ -137,7 +141,11 @@ class PublicApiTests(unittest.TestCase):
         )
 
         with self.assertRaises(PackageIOError):
-            generate_code(spec, engine=EngineName.EINSUM, path=missing_parent_path)
+            generate_code(
+                spec,
+                engine=EngineName.EINSUM_NUMPY,
+                path=missing_parent_path,
+            )
 
     def test_save_and_load_spec_round_trip_preserves_tensor_order(self) -> None:
         spec = build_sample_spec()

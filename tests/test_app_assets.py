@@ -13,7 +13,7 @@ class AppAssetTests(unittest.TestCase):
     def setUp(self) -> None:
         self.session = EditorSession(
             initial_spec=build_sample_spec(),
-            default_engine=EngineName.EINSUM,
+            default_engine=EngineName.EINSUM_NUMPY,
         )
         self.server = EditorServer(self.session)
         self.server.start()
@@ -28,8 +28,18 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("?v=", html)
         self.assertIn('id="generate-button"', html)
         self.assertIn('id="template-select"', html)
+        self.assertIn('id="template-parameter-panel"', html)
+        self.assertIn('id="template-graph-size-label"', html)
+        self.assertIn('id="template-graph-size-input"', html)
+        self.assertIn('id="template-bond-dimension-input"', html)
+        self.assertIn('id="template-physical-dimension-input"', html)
+        self.assertIn("title-control-row", html)
+        self.assertIn('class="title-button-row"', html)
+        self.assertIn('id="add-tensor-button"', html)
+        self.assertIn('aria-label="Add tensor"', html)
         self.assertIn('id="create-group-button"', html)
         self.assertIn('id="add-note-button"', html)
+        self.assertIn('aria-label="Add note"', html)
         self.assertIn('id="notes-layer"', html)
         self.assertIn('id="sidebar-panel"', html)
         self.assertIn('id="sidebar-tabs"', html)
@@ -114,6 +124,11 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("function setActiveSidebarTab", sidebar_tabs_body)
         self.assertIn("registerUtilities", utilities_body)
         self.assertIn("function normalizeSpec", utilities_body)
+        self.assertIn("function formatEngineLabel", utilities_body)
+        self.assertIn("function syncTemplateParameterControls", utilities_body)
+        self.assertIn("function readTemplateParametersFromControls", utilities_body)
+        self.assertIn("NumPy einsum", utilities_body)
+        self.assertIn("PyTorch einsum", utilities_body)
         self.assertIn("planner-order-badge", overlays_body)
         self.assertIn("planner-preview-badge", overlays_body)
         self.assertIn("planner-order-badge-stack", overlays_body)
@@ -122,6 +137,16 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("planner-pending-tensor", graph_body)
         self.assertIn("planner-pending-index", graph_body)
         self.assertIn("activeNoteResize", interactions_body)
+        self.assertIn("function noteCanvasBounds", notes_planner_body)
+        self.assertIn("function buildCanvasSelectionDragState", notes_planner_body)
+        self.assertIn("function collectBoxSelectedNoteIds", interactions_body)
+        self.assertIn("tensorStartPositions", graph_body)
+        self.assertIn("state.activeTensorDrag.noteIds.forEach", graph_body)
+        self.assertNotIn("state.activeTensorDrag.startPositions", graph_body)
+        self.assertNotIn(
+            "applyCanvasSelectionDragDelta(state.activeTensorDrag",
+            graph_body,
+        )
 
     def test_vendor_asset_is_served_locally(self) -> None:
         asset_body = request_text(f"{self.server.base_url}/vendor/cytoscape.min.js")
@@ -138,6 +163,10 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn(".code-output-shell", css_body)
         self.assertIn(".help-modal", css_body)
         self.assertIn(".canvas-note", css_body)
+        self.assertIn(".title-control-row", css_body)
+        self.assertIn(".title-button-row", css_body)
+        self.assertIn(".template-parameter-panel", css_body)
+        self.assertIn(".template-parameter-field", css_body)
         self.assertIn(".planner-card", css_body)
         self.assertIn(".planner-step", css_body)
         self.assertIn(".sidebar-tabs", css_body)
@@ -167,16 +196,29 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn(".planner-pending-index", css_body)
         self.assertIn(".canvas-note.is-collapsed", css_body)
         self.assertIn(".canvas-note-resize-handle", css_body)
+        self.assertRegex(
+            css_body,
+            r"\.canvas-note\s*\{[^}]*display: flex;[^}]*flex-direction: column;[^}]*min-height: 140px;",
+        )
 
     def test_help_modal_mentions_current_editor_capabilities(self) -> None:
         html = request_text(f"{self.server.base_url}/")
 
         self.assertIn("copy and paste", html)
-        self.assertIn("Create Group", html)
+        self.assertIn("Group", html)
         self.assertIn("Contract planner", html)
         self.assertIn("Ctrl/Cmd+C", html)
         self.assertIn("Ctrl/Cmd+V", html)
         self.assertIn("Resize tensors from the corner handles", html)
+        self.assertIn("NumPy einsum", html)
+        self.assertIn("PyTorch einsum", html)
+        self.assertIn("Graph size", html)
+        self.assertIn("Bond dimension", html)
+        self.assertIn("Physical dimension", html)
+        self.assertIn("Box selection also includes notes", html)
+        self.assertIn("Templates insert ready-to-edit network layouts", html)
+        self.assertNotIn("Shared across internal links", html)
+        self.assertNotIn("Shared across physical legs", html)
 
     def test_static_assets_disable_browser_cache(self) -> None:
         _, headers = request_with_headers(f"{self.server.base_url}/js/main.js")
