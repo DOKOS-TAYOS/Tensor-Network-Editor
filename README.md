@@ -1,105 +1,176 @@
 # Tensor Network Editor
 
-`tensor-network-editor` is a local, offline-friendly Python package for building tensor networks interactively and generating Python code for a chosen backend.
+[![CI](https://img.shields.io/github/actions/workflow/status/DOKOS-TAYOS/Tensor-Network-Editor/ci.yml?branch=main&label=CI)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor)
+[![Windows%20%7C%20Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0A7BBB)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/blob/main/LICENSE)
 
-This `0.1.2` release is aimed at researchers and developers who want a lightweight visual editor that still returns plain Python data structures and code.
+`tensor-network-editor` is a local-first Python package for building tensor networks visually, saving them as versioned JSON, and generating readable Python code for multiple backends.
 
-## Highlights
+It is meant for research, teaching, and experimentation workflows where you want a friendly editor without giving up plain Python objects, reproducible files, or offline use. The UI opens in your browser, but the whole session is served locally from your own machine.
 
-- Build tensor-network diagrams in a local browser session.
-- Save and load versioned JSON designs.
-- Generate readable Python code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`, and `einsum_torch`.
-- Insert built-in templates for MPS, MPO, PEPS grids, MERA, and binary-tree layouts with corrected open legs.
-- Configure template graph size, bond dimension, and physical dimension directly from the editor before insertion.
-- Add notes, select them together with tensors and groups, and move mixed selections on the canvas.
-- Use the package as a library or from the `tensor-network-editor` CLI.
-- Run on Windows and Linux with Python `3.11+`.
+## Why this project
+
+- Build tensor-network diagrams interactively in a local browser session.
+- Save and reload designs as versioned JSON files.
+- Generate Python code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`, and `einsum_torch`.
+- Insert built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
+- Tune template size, bond dimension, and physical dimension before inserting them.
+- Add notes and groups so larger diagrams stay easier to understand.
+- Inspect and edit manual contraction paths, with optional automatic suggestions through the planner extra.
+- Use the project either as a Python library or from the `tensor-network-editor` CLI.
+
+## Why it is useful in practice
+
+- **Local and offline-friendly.** No cloud dependency, no CDN requirement, and no Node runtime needed for end users.
+- **Python-native output.** The editor returns `NetworkSpec` data structures and generated Python code you can inspect, save, or post-process.
+- **Backend-flexible.** You can keep one abstract network design and target different Python ecosystems from it.
+- **Cross-platform by default.** The project is tested on Windows and Linux with Python `3.11+`.
 
 ## Installation
 
-Windows PowerShell:
+The distribution name is `tensor-network-editor`. The import package is `tensor_network_editor`.
+
+### Install from PyPI
+
+PowerShell:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install .
+python -m pip install tensor-network-editor
 ```
 
-Linux:
+Bash:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
-python -m pip install .
+python -m pip install tensor-network-editor
 ```
 
 Optional extras:
 
 ```bash
-python -m pip install ".[quimb]"
-python -m pip install ".[tensornetwork]"
-python -m pip install ".[tensorkrowch]"
-python -m pip install ".[desktop]"
+python -m pip install "tensor-network-editor[quimb]"
+python -m pip install "tensor-network-editor[tensornetwork]"
+python -m pip install "tensor-network-editor[tensorkrowch]"
+python -m pip install "tensor-network-editor[planner]"
 ```
 
-## Quick Start
+Use backend extras when you want the generated code to run in the same environment without installing those libraries separately. The `planner` extra installs `opt_einsum` for automatic greedy contraction suggestions inside the editor.
 
-Python API:
+You can combine extras when needed, for example:
+
+```bash
+python -m pip install "tensor-network-editor[quimb,planner]"
+```
+
+### Install from source
+
+If you want the current repository version instead of the published package:
+
+```bash
+python -m pip install .
+```
+
+For development work:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+## Quick start
+
+### Launch the editor from the CLI
+
+Start a local editing session:
+
+```bash
+tensor-network-editor --engine einsum_numpy
+```
+
+Open an existing design and write generated code to a file when you confirm the session:
+
+```bash
+tensor-network-editor --load my_network.json --engine quimb --save-code generated_network.py
+```
+
+Useful flags:
+
+- `--print-code` prints the generated code to standard output.
+- `--no-browser` starts the local server without opening the browser automatically.
+
+### Launch the editor from Python
 
 ```python
 from tensor_network_editor import EngineName, launch_tensor_network_editor
 
 result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
 
-if result is not None:
-    print(result.spec.name)
+if result is None:
+    print("Editor cancelled.")
+else:
+    print(f"Design name: {result.spec.name}")
     if result.codegen is not None:
         print(result.codegen.code)
 ```
 
-CLI:
+The editor blocks until the user presses `Done` or `Cancel`. On `Done`, it returns the abstract `NetworkSpec` together with the generated code for the selected engine.
 
-```bash
-tensor-network-editor --engine einsum_numpy
+## Use it as a library
+
+You can also skip the UI and work directly with saved network designs:
+
+```python
+from tensor_network_editor import EngineName, generate_code, load_spec
+
+spec = load_spec("my_network.json")
+result = generate_code(
+    spec,
+    engine=EngineName.QUIMB,
+    path="generated_network.py",
+)
+
+print(result.code)
 ```
 
-Load an existing design:
-
-```bash
-tensor-network-editor --load my_network.json --engine quimb
-```
-
-## Template Inserts
-
-The editor includes a small template panel next to the `Template` selector.
-
-- `Graph size` changes meaning by template:
-  - `MPS` and `MPO`: number of sites
-  - `PEPS`: side length of the square grid
-  - `MERA` and `Binary Tree`: depth
-- `Bond dimension` is shared across internal links created by that template.
-- `Physical dimension` is shared across all physical legs created by that template.
-
-Default starting values match the built-in presets:
-
-- `MPS`: 4 sites
-- `MPO`: 4 sites
-- `PEPS`: 2x2
-- `MERA`: depth 3
-- `Binary Tree`: depth 3
-
-## Public API
+Main public entry points:
 
 - `launch_tensor_network_editor(...) -> EditorResult | None`
-- `generate_code(spec, engine=...) -> CodegenResult`
+- `generate_code(spec, engine=..., path=...) -> CodegenResult`
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
 
-The editor blocks until the user presses `Done` or `Cancel`. On `Done`, it returns the abstract `NetworkSpec` and the generated code for the selected engine.
+The package also exposes the main data structures at the top level, including `NetworkSpec`, `TensorSpec`, `IndexSpec`, `EdgeSpec`, `GroupSpec`, `CanvasNoteSpec`, and the contraction-plan types.
 
-Supported engine values:
+## Templates and planner
+
+Built-in templates:
+
+- `MPS`
+- `MPO`
+- `PEPS`
+- `MERA`
+- `Binary Tree`
+
+Template controls let you adjust:
+
+- graph size
+- bond dimension
+- physical dimension
+
+The planner tools help with contraction-order work:
+
+- Manual contraction paths are available directly in the editor.
+- Automatic greedy suggestions are available when the optional `planner` extra is installed.
+- Contraction summaries include useful size and cost estimates such as FLOPs, MACs, and intermediate sizes.
+
+## Supported code-generation targets
+
+Available engine names:
 
 - `tensornetwork`
 - `quimb`
@@ -107,56 +178,13 @@ Supported engine values:
 - `einsum_numpy`
 - `einsum_torch`
 
-## Architecture
+In practice:
 
-The package is split into small layers:
+- `einsum_numpy` and `einsum_torch` are useful when you want lightweight generated code.
+- `tensornetwork`, `quimb`, and `tensorkrowch` are good fits when you already work in those ecosystems.
+- The abstract JSON save format stays backend-agnostic, so you can reopen the same design and generate for a different engine later.
 
-- `models.py`: abstract source-of-truth objects like `NetworkSpec`, `TensorSpec`, `IndexSpec`, and `EdgeSpec`
-- `validation.py`: checks names, dimensions, endpoints, duplicate connections, and serialization safety
-- `serialization.py`: JSON save/load with a versioned wire format
-- `codegen/`: one generator per engine plus a shared normalization layer
-- `app/`: local HTTP server, blocking session management, and the offline frontend assets
-
-The frontend uses **Cytoscape.js**, bundled locally in the package, so the editor does not depend on a CDN or a Node runtime for end users.
-
-## Development
-
-Create the virtual environment and install the project in editable mode with the development tools:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -U pip
-python -m pip install -e ".[dev]"
-```
-
-Useful checks:
-
-```powershell
-python -m ruff check . --fix
-python -m ruff format .
-python -m mypy
-python -m pyright
-python -m pytest
-python -m build
-python -m twine check dist/*
-```
-
-To remove local caches and generated build artifacts on Windows without touching `.venv`, run:
-
-```powershell
-.\scripts\clean.bat
-```
-
-On Linux, use:
-
-```bash
-./scripts/clean.sh
-```
-
-Bundled third-party notices for redistributed frontend assets are tracked in `THIRD_PARTY_LICENSES`.
-
-## Save Format
+## Save format
 
 Designs are stored as plain JSON with a schema wrapper:
 
@@ -169,18 +197,64 @@ Designs are stored as plain JSON with a schema wrapper:
 }
 ```
 
-## Current Limits
+That makes saved files easy to version, inspect, and exchange inside a normal Python workflow.
 
-- No hyperedges
-- No real tensor data editing: generated tensors are initialized to zeros
-- No TenPy backend in `0.1.2`
-- No desktop wrapper by default
+## Development
 
-## Future Extension Points
+Set up the project in editable mode:
 
-The project is already prepared for a future optional `pywebview` wrapper because the browser launcher is separate from:
+PowerShell:
 
-- `EditorSession`, which owns validation and return values
-- `EditorServer`, which serves the same app locally
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+```
 
-That means a desktop extra can reuse the same UI and backend flow without changing the core model or the generators.
+Bash:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+```
+
+Useful checks:
+
+```bash
+python -m ruff check .
+python -m ruff format .
+python -m mypy
+python -m pyright
+python -m pytest
+python -m build
+python -m twine check dist/*
+```
+
+Cleanup scripts:
+
+- Windows: `.\scripts\clean.bat`
+- Linux: `./scripts/clean.sh`
+
+Bundled third-party notices for redistributed frontend assets are tracked in `THIRD_PARTY_LICENSES`.
+
+## Current limits
+
+- Hyperedges are not supported yet.
+- Real tensor data editing is not supported yet; generated tensors are initialized to zeros.
+- TenPy code generation is not included in the current release.
+- The main supported experience today is the local browser editor.
+
+## Project links
+
+- Documentation: [docs/README.md](docs/README.md)
+- Source code: [github.com/DOKOS-TAYOS/Tensor-Network-Editor](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor)
+- Changelog: [CHANGELOG.md](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/blob/main/CHANGELOG.md)
+- Example script: [examples/basic_usage.py](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/blob/main/examples/basic_usage.py)
+- Issue tracker: [github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues)
+
+## License
+
+This project is distributed under the MIT License. See [LICENSE](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/blob/main/LICENSE) for details.
