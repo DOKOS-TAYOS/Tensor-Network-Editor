@@ -360,7 +360,7 @@ def _analyze_automatic_plan(
         )
 
     try:
-        from opt_einsum import contract_path  # type: ignore[import-untyped]
+        from opt_einsum import contract_path
     except ImportError:
         return _unavailable_automatic_analysis(
             "Install the planner extra to enable automatic greedy path suggestions."

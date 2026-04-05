@@ -85,6 +85,28 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertIn("Run Pyright", workflow_text)
         self.assertIn("-m pyright", workflow_text)
 
+    def test_mypy_allows_missing_optional_opt_einsum_dependency(self) -> None:
+        pyproject_path = Path.cwd() / "pyproject.toml"
+
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        overrides = payload["tool"]["mypy"].get("overrides", [])
+
+        self.assertTrue(
+            any(
+                (
+                    override.get("ignore_missing_imports") is True
+                    and "opt_einsum"
+                    in (
+                        override.get("module")
+                        if isinstance(override.get("module"), list)
+                        else [override.get("module")]
+                    )
+                )
+                for override in overrides
+            ),
+            "mypy should ignore missing optional imports for opt_einsum in CI.",
+        )
+
     def test_readme_documents_pyright_check(self) -> None:
         readme_path = Path.cwd() / "README.md"
 
