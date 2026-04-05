@@ -166,7 +166,7 @@
         <div class="help-dialog-header">
           <div>
             <h2 id="help-title">How to use the editor</h2>
-            <p class="help-note">A quick guide for navigation, selection, connect mode, exports, and shortcuts.</p>
+            <p class="help-note">A quick guide for navigation, selection, copy and paste, groups, the Contract planner, exports, and shortcuts.</p>
           </div>
           <button id="help-close-button" type="button" aria-label="Close help">Close</button>
         </div>
@@ -186,22 +186,29 @@
             <ul>
               <li>Left click selects one tensor, index, or connection.</li>
               <li>Drag with <strong>right click</strong> to select many elements at once.</li>
+              <li>Use <strong>Ctrl/Cmd+C</strong> and <strong>Ctrl/Cmd+V</strong> to copy and paste a tensor subgraph.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Batch actions</h3>
+            <h3>Organize and edit</h3>
             <ul>
               <li>Drag one selected tensor to move all selected tensors together.</li>
               <li>Use the multi-selection panel to recolor or delete everything selected.</li>
               <li>If only tensors are selected, you can add one default index to each tensor.</li>
+              <li>Resize tensors from the corner handles directly on the canvas.</li>
+              <li>Use <strong>Create Group</strong> to keep related tensors together and drag the group box as one block.</li>
+              <li>Notes can be moved, resized, collapsed, and expanded directly on the canvas.</li>
+              <li>Notes, groups, colors, and copied selections are all part of the saved design.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Connect and export</h3>
+            <h3>Connect and contract</h3>
             <ul>
               <li>Activate <strong>Connect</strong> and click two open indices with the same dimension.</li>
+              <li>Activate <strong>Contract</strong> in the planner, then click tensors or previous steps to build a manual contraction path.</li>
+              <li>Automatic global and local suggestions can be previewed visually before you accept them.</li>
               <li>Export <strong>PNG</strong> for a clean image or <strong>SVG</strong> for a vector version.</li>
               <li>Undo and redo affect the design, not the current zoom or viewport.</li>
             </ul>
@@ -217,6 +224,8 @@
             <div><strong>Delete / Backspace</strong><span>Delete selection</span></div>
             <div><strong>N</strong><span>Add tensor</span></div>
             <div><strong>C</strong><span>Toggle connect mode</span></div>
+            <div><strong>Ctrl/Cmd+C</strong><span>Copy selected tensors, edges, and groups</span></div>
+            <div><strong>Ctrl/Cmd+V</strong><span>Paste the copied subgraph</span></div>
             <div><strong>Ctrl/Cmd+A</strong><span>Select all tensors</span></div>
             <div><strong>?</strong><span>Open help</span></div>
             <div><strong>Escape</strong><span>Clear selection or close help</span></div>

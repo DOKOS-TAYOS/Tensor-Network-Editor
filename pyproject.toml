@@ -36,6 +36,7 @@ Issues = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues"
 dev = [
   "build>=1.2",
   "mypy>=1.10",
+  "pyright>=1.1",
   "pytest>=8.2",
   "ruff>=0.6",
   "twine>=5.1",
@@ -85,3 +86,10 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_return_any = true
 warn_unused_ignores = true
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["src", "tests"]
+extraPaths = ["src"]
+typeCheckingMode = "standard"

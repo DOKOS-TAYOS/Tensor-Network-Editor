@@ -1,16 +1,13 @@
 export function registerNotesPlanner(ctx) {
   const state = ctx.state;
-  const {
-    addNoteButton,
-    notesLayer,
-    plannerPanel,
-  } = ctx.dom;
+  const { addNoteButton, notesLayer, plannerPanel } = ctx.dom;
 
   function createNote(x, y) {
     return {
       id: ctx.makeId("note"),
       text: "New note",
       position: { x, y },
+      size: { width: 220, height: 112 },
       metadata: {},
     };
   }
@@ -45,83 +42,119 @@ export function registerNotesPlanner(ctx) {
     notesLayer.innerHTML = "";
     state.spec.notes.forEach((note) => {
       const canvasPoint = ctx.worldToCanvasPoint(note.position);
+      const isCollapsed = Boolean(note.metadata && note.metadata.collapsed);
+      const noteWidth = isCollapsed ? 48 : Math.max(140, Number(note.size && note.size.width) || 220);
+      const noteHeight = isCollapsed ? 48 : Math.max(96, Number(note.size && note.size.height) || 112);
       const noteElement = document.createElement("article");
       noteElement.className = "canvas-note";
       noteElement.dataset.noteId = note.id;
       if (state.selectionIds.includes(note.id)) {
         noteElement.classList.add("is-selected");
       }
+      if (isCollapsed) {
+        noteElement.classList.add("is-collapsed");
+      }
       noteElement.style.left = `${canvasPoint.x}px`;
       noteElement.style.top = `${canvasPoint.y}px`;
+      noteElement.style.width = `${noteWidth}px`;
+      noteElement.style.height = `${noteHeight}px`;
       noteElement.style.borderColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
 
-      const header = document.createElement("div");
-      header.className = "canvas-note-header";
-      header.textContent = "Note";
-      header.addEventListener("mousedown", (event) => startNoteDrag(event, note.id));
-      header.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
-      });
-
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "canvas-note-delete";
-      deleteButton.textContent = "×";
-      deleteButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        ctx.applyDesignChange(
-          () => {
-            removeNote(note.id);
-          },
-          {
-            selectionIds: [],
-            statusMessage: "Deleted a canvas note.",
+      if (isCollapsed) {
+        const collapsedToggle = createNoteCollapseButton(note);
+        collapsedToggle.classList.add("canvas-note-collapsed-toggle");
+        noteElement.appendChild(collapsedToggle);
+        noteElement.addEventListener("mousedown", (event) => {
+          if (event.target.closest(".toggle-note-collapse")) {
+            return;
           }
-        );
-      });
-      header.appendChild(deleteButton);
+          startNoteDrag(event, note.id);
+        });
+      } else {
+        const header = document.createElement("div");
+        header.className = "canvas-note-header";
+        header.textContent = "Note";
+        header.addEventListener("mousedown", (event) => startNoteDrag(event, note.id));
+        header.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
+        });
 
-      const textarea = document.createElement("textarea");
-      textarea.className = "canvas-note-body";
-      textarea.value = note.text;
-      textarea.spellcheck = false;
-      textarea.addEventListener("mousedown", (event) => {
-        event.stopPropagation();
-      });
-      textarea.addEventListener("click", (event) => {
-        event.stopPropagation();
-        ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
-      });
-      textarea.addEventListener("focus", () => {
-        ctx.setSelection([note.id], { primaryId: note.id });
-      });
-      textarea.addEventListener("change", () => {
-        const proposedText = textarea.value.trim();
-        if (!proposedText) {
-          textarea.value = note.text;
-          ctx.setStatus("Notes cannot be empty.", "error");
-          return;
-        }
-        if (proposedText === note.text) {
-          return;
-        }
-        ctx.applyDesignChange(
-          () => {
-            note.text = proposedText;
-          },
-          {
-            selectionIds: [note.id],
-            primaryId: note.id,
-            statusMessage: "Updated the note text.",
+        const actions = document.createElement("div");
+        actions.className = "canvas-note-actions";
+
+        const collapseButton = createNoteCollapseButton(note);
+        actions.appendChild(collapseButton);
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "canvas-note-delete";
+        deleteButton.textContent = "×";
+        deleteButton.addEventListener("mousedown", (event) => {
+          event.stopPropagation();
+        });
+        deleteButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          ctx.applyDesignChange(
+            () => {
+              removeNote(note.id);
+            },
+            {
+              selectionIds: [],
+              statusMessage: "Deleted a canvas note.",
+            }
+          );
+        });
+        actions.appendChild(deleteButton);
+        header.appendChild(actions);
+
+        const textarea = document.createElement("textarea");
+        textarea.className = "canvas-note-body";
+        textarea.value = note.text;
+        textarea.spellcheck = false;
+        textarea.style.height = `${Math.max(54, noteHeight - 52)}px`;
+        textarea.addEventListener("mousedown", (event) => {
+          event.stopPropagation();
+        });
+        textarea.addEventListener("click", (event) => {
+          event.stopPropagation();
+          ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
+        });
+        textarea.addEventListener("focus", () => {
+          ctx.setSelection([note.id], { primaryId: note.id });
+        });
+        textarea.addEventListener("change", () => {
+          const proposedText = textarea.value.trim();
+          if (!proposedText) {
+            textarea.value = note.text;
+            ctx.setStatus("Notes cannot be empty.", "error");
+            return;
           }
-        );
-      });
+          if (proposedText === note.text) {
+            return;
+          }
+          ctx.applyDesignChange(
+            () => {
+              note.text = proposedText;
+            },
+            {
+              selectionIds: [note.id],
+              primaryId: note.id,
+              statusMessage: "Updated the note text.",
+            }
+          );
+        });
 
-      noteElement.appendChild(header);
-      noteElement.appendChild(textarea);
+        const resizeHandle = document.createElement("div");
+        resizeHandle.className = "canvas-note-resize-handle";
+        resizeHandle.addEventListener("mousedown", (event) => startNoteResize(event, note.id));
+
+        noteElement.appendChild(header);
+        noteElement.appendChild(textarea);
+        noteElement.appendChild(resizeHandle);
+      }
       noteElement.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -129,6 +162,29 @@ export function registerNotesPlanner(ctx) {
       });
       notesLayer.appendChild(noteElement);
     });
+  }
+
+  function createNoteCollapseButton(note) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toggle-note-collapse";
+    button.setAttribute("aria-label", note.metadata && note.metadata.collapsed ? "Expand note" : "Collapse note");
+    button.setAttribute("title", note.metadata && note.metadata.collapsed ? "Expand note" : "Collapse note");
+    button.innerHTML = `
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>
+      </svg>
+    `;
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleNoteCollapse(note.id);
+    });
+    return button;
   }
 
   function startNoteDrag(event, noteId) {
@@ -176,6 +232,77 @@ export function registerNotesPlanner(ctx) {
     state.noteDragState = null;
     ctx.renderOverlayDecorations();
     ctx.updateToolbarState();
+  }
+
+  function startNoteResize(event, noteId) {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const note = findNoteById(noteId);
+    if (!note || (note.metadata && note.metadata.collapsed)) {
+      return;
+    }
+    ctx.setSelection([noteId], { primaryId: noteId });
+    state.activeNoteResize = {
+      noteId,
+      snapshot: ctx.createHistorySnapshot(),
+      startPointer: ctx.clientPointToCanvasPoint(event.clientX, event.clientY),
+      startSize: {
+        width: Math.max(140, Number(note.size && note.size.width) || 220),
+        height: Math.max(96, Number(note.size && note.size.height) || 112),
+      },
+    };
+  }
+
+  function updateActiveNoteResize(event) {
+    if (!state.activeNoteResize) {
+      return;
+    }
+    const note = findNoteById(state.activeNoteResize.noteId);
+    if (!note) {
+      return;
+    }
+    const canvasPoint = ctx.clientPointToCanvasPoint(event.clientX, event.clientY);
+    note.size.width = Math.max(
+      140,
+      Math.round(state.activeNoteResize.startSize.width + canvasPoint.x - state.activeNoteResize.startPointer.x)
+    );
+    note.size.height = Math.max(
+      96,
+      Math.round(state.activeNoteResize.startSize.height + canvasPoint.y - state.activeNoteResize.startPointer.y)
+    );
+    renderNotes();
+  }
+
+  function finishActiveNoteResize() {
+    if (!state.activeNoteResize) {
+      return;
+    }
+    ctx.commitHistorySnapshot(state.activeNoteResize.snapshot);
+    state.activeNoteResize = null;
+    ctx.renderOverlayDecorations();
+    ctx.updateToolbarState();
+  }
+
+  function toggleNoteCollapse(noteId) {
+    const note = findNoteById(noteId);
+    if (!note) {
+      return;
+    }
+    ctx.applyDesignChange(
+      () => {
+        note.metadata.collapsed = !Boolean(note.metadata && note.metadata.collapsed);
+      },
+      {
+        selectionIds: [note.id],
+        primaryId: note.id,
+        statusMessage: note.metadata && note.metadata.collapsed
+          ? "Expanded the note."
+          : "Collapsed the note.",
+      }
+    );
   }
 
   function copySelectedSubgraphToClipboard() {
@@ -282,53 +409,158 @@ export function registerNotesPlanner(ctx) {
     return state.spec.contraction_plan;
   }
 
-  function repairContractionPlan() {
-    const plan = state.spec.contraction_plan;
-    if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
-      return;
+  function getPlannerStepId(step) {
+    if (!step || typeof step !== "object") {
+      return null;
     }
-    const availableOperandIds = new Set(state.spec.tensors.map((tensor) => tensor.id));
-    const repairedSteps = [];
-    for (const step of plan.steps) {
+    if (typeof step.id === "string" && step.id) {
+      return step.id;
+    }
+    if (typeof step.step_id === "string" && step.step_id) {
+      return step.step_id;
+    }
+    return null;
+  }
+
+  function buildPlannerOperandState(tensors, steps) {
+    const activeOperands = new Map();
+    const representativeByTensorId = {};
+    const representativeByOperandId = {};
+    const sourceTensorIdsByOperandId = {};
+    const validSteps = [];
+    const reservedOperandIds = new Set();
+    const stepOrdersByTensorId = {};
+
+    tensors.forEach((tensor) => {
+      const sourceTensorIds = [tensor.id];
+      activeOperands.set(tensor.id, { sourceTensorIds });
+      representativeByTensorId[tensor.id] = tensor.id;
+      representativeByOperandId[tensor.id] = tensor.id;
+      sourceTensorIdsByOperandId[tensor.id] = sourceTensorIds;
+      reservedOperandIds.add(tensor.id);
+    });
+
+    for (const step of steps) {
+      const stepId = getPlannerStepId(step);
       if (
         !step ||
-        !step.id ||
+        !stepId ||
         step.left_operand_id === step.right_operand_id ||
-        !availableOperandIds.has(step.left_operand_id) ||
-        !availableOperandIds.has(step.right_operand_id) ||
-        availableOperandIds.has(step.id)
+        !activeOperands.has(step.left_operand_id) ||
+        !activeOperands.has(step.right_operand_id) ||
+        reservedOperandIds.has(stepId)
       ) {
         break;
       }
-      repairedSteps.push(step);
-      availableOperandIds.delete(step.left_operand_id);
-      availableOperandIds.delete(step.right_operand_id);
-      availableOperandIds.add(step.id);
+      const leftOperand = activeOperands.get(step.left_operand_id);
+      const rightOperand = activeOperands.get(step.right_operand_id);
+      if (!leftOperand || !rightOperand) {
+        break;
+      }
+      const sourceTensorIds = [...new Set([
+        ...leftOperand.sourceTensorIds,
+        ...rightOperand.sourceTensorIds,
+      ])];
+
+      activeOperands.delete(step.left_operand_id);
+      activeOperands.delete(step.right_operand_id);
+      activeOperands.set(stepId, { sourceTensorIds });
+      reservedOperandIds.add(stepId);
+      validSteps.push(step);
+      sourceTensorIdsByOperandId[stepId] = sourceTensorIds;
+
+      sourceTensorIds.forEach((tensorId) => {
+        representativeByTensorId[tensorId] = stepId;
+        representativeByOperandId[tensorId] = stepId;
+        if (!Array.isArray(stepOrdersByTensorId[tensorId])) {
+          stepOrdersByTensorId[tensorId] = [];
+        }
+        stepOrdersByTensorId[tensorId].push(validSteps.length);
+      });
+      Object.keys(sourceTensorIdsByOperandId).forEach((operandId) => {
+        const operandSourceTensorIds = sourceTensorIdsByOperandId[operandId] || [];
+        if (operandSourceTensorIds.some((tensorId) => sourceTensorIds.includes(tensorId))) {
+          representativeByOperandId[operandId] = stepId;
+        }
+      });
     }
-    if (!repairedSteps.length) {
-      state.spec.contraction_plan = null;
+
+    return {
+      activeOperandIds: [...activeOperands.keys()],
+      representativeByTensorId,
+      representativeByOperandId,
+      sourceTensorIdsByOperandId,
+      validSteps,
+      stepOrdersByTensorId,
+    };
+  }
+
+  function getPlannerOperandState() {
+    const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
+      ? state.spec.contraction_plan.steps
+      : [];
+    return buildPlannerOperandState(state.spec.tensors, planSteps);
+  }
+
+  function buildStepOrdersByTensorId(steps) {
+    return buildPlannerOperandState(state.spec.tensors, steps || []).stepOrdersByTensorId;
+  }
+
+  function syncPlannerOrderBadges() {
+    state.plannerManualOrderByTensorId = getPlannerOperandState().stepOrdersByTensorId;
+    if (state.plannerPreviewMode && state.contractionAnalysis && state.contractionAnalysis.status === "ready") {
+      const previewAnalysis = getAutomaticAnalysisByMode(
+        state.contractionAnalysis.payload,
+        state.plannerPreviewMode
+      );
+      state.plannerPreviewOrderByTensorId = previewAnalysis
+        ? buildStepOrdersByTensorId(previewAnalysis.steps)
+        : {};
+    } else {
+      state.plannerPreviewOrderByTensorId = {};
+    }
+  }
+
+  function resolvePlannerOperandId(operandId) {
+    if (typeof operandId !== "string" || !operandId) {
+      return null;
+    }
+    const plannerOperandState = getPlannerOperandState();
+    return plannerOperandState.representativeByOperandId[operandId]
+      || plannerOperandState.representativeByTensorId[operandId]
+      || null;
+  }
+
+  function repairContractionPlan() {
+    const plan = state.spec.contraction_plan;
+    if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
+      syncPlannerOrderBadges();
       return;
     }
-    plan.steps = repairedSteps;
+    const plannerOperandState = getPlannerOperandState();
+    if (!plannerOperandState.validSteps.length) {
+      state.spec.contraction_plan = null;
+      syncPlannerOrderBadges();
+      return;
+    }
+    plan.steps = plannerOperandState.validSteps;
+    syncPlannerOrderBadges();
   }
 
   function getPlannerRemainingOperandIds() {
-    if (
-      state.contractionAnalysis &&
-      state.contractionAnalysis.status === "ready" &&
-      state.contractionAnalysis.payload &&
-      state.contractionAnalysis.payload.manual &&
-      state.contractionAnalysis.payload.manual.summary
-    ) {
-      return Array.isArray(state.contractionAnalysis.payload.manual.summary.remaining_operand_ids)
-        ? [...state.contractionAnalysis.payload.manual.summary.remaining_operand_ids]
-        : [];
-    }
-    return state.spec.tensors.map((tensor) => tensor.id);
+    return getPlannerOperandState().activeOperandIds;
   }
 
   function isPlannerOperandAvailable(operandId) {
-    return getPlannerRemainingOperandIds().includes(operandId);
+    return resolvePlannerOperandId(operandId) !== null;
+  }
+
+  function getPlannerOperandSourceTensorIds(operandId) {
+    const representativeOperandId = resolvePlannerOperandId(operandId) || operandId;
+    const plannerOperandState = getPlannerOperandState();
+    return plannerOperandState.sourceTensorIdsByOperandId[representativeOperandId]
+      ? [...plannerOperandState.sourceTensorIdsByOperandId[representativeOperandId]]
+      : [];
   }
 
   function getPlannerOperandLabel(operandId) {
@@ -336,18 +568,15 @@ export function registerNotesPlanner(ctx) {
     if (tensor) {
       return tensor.name;
     }
-    const manualSteps =
-      state.contractionAnalysis &&
-      state.contractionAnalysis.status === "ready" &&
-      state.contractionAnalysis.payload &&
-      state.contractionAnalysis.payload.manual
-        ? state.contractionAnalysis.payload.manual.steps
-        : [];
-    const stepIndex = manualSteps.findIndex(
-      (step) => step.result_operand_id === operandId
-    );
+    const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
+      ? state.spec.contraction_plan.steps
+      : [];
+    const stepIndex = planSteps.findIndex((step) => step.id === operandId);
     if (stepIndex >= 0) {
       return `Intermediate ${stepIndex + 1}`;
+    }
+    if (/^auto_step_\d+$/.test(operandId)) {
+      return `Automatic ${operandId.replace("auto_step_", "step ")}`;
     }
     return operandId;
   }
@@ -359,25 +588,36 @@ export function registerNotesPlanner(ctx) {
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
     }
-    if (!isPlannerOperandAvailable(operandId)) {
+    const resolvedOperandId = resolvePlannerOperandId(operandId);
+    if (!resolvedOperandId) {
       ctx.setStatus("That operand is not available for the next manual contraction step.", "error");
       return;
     }
     if (!state.pendingPlannerOperandId) {
-      state.pendingPlannerOperandId = operandId;
+      state.pendingPlannerOperandId = resolvedOperandId;
+      state.pendingPlannerSelectionId = ctx.findTensorById(operandId) ? operandId : null;
+      if (typeof ctx.syncPendingInteractionClasses === "function") {
+        ctx.syncPendingInteractionClasses();
+      }
       renderPlanner();
-      ctx.setStatus(`Selected ${getPlannerOperandLabel(operandId)} as the first manual operand.`);
+      ctx.renderOverlayDecorations();
+      ctx.setStatus(`Selected ${getPlannerOperandLabel(resolvedOperandId)} as the first manual operand.`);
       return;
     }
-    if (state.pendingPlannerOperandId === operandId) {
-      state.pendingPlannerOperandId = null;
-      renderPlanner();
-      ctx.setStatus("Manual planner operand selection cleared.");
+    if (state.pendingPlannerOperandId === resolvedOperandId) {
+      ctx.setStatus(
+        "Choose a different tensor or intermediate; both selections refer to the same contracted operand.",
+        "error"
+      );
       return;
     }
     const leftOperandId = state.pendingPlannerOperandId;
-    const rightOperandId = operandId;
+    const rightOperandId = resolvedOperandId;
     state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    if (typeof ctx.syncPendingInteractionClasses === "function") {
+      ctx.syncPendingInteractionClasses();
+    }
     const leftLabel = getPlannerOperandLabel(leftOperandId);
     const rightLabel = getPlannerOperandLabel(rightOperandId);
     ctx.applyDesignChange(
@@ -404,6 +644,11 @@ export function registerNotesPlanner(ctx) {
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
     }
+    state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    if (typeof ctx.syncPendingInteractionClasses === "function") {
+      ctx.syncPendingInteractionClasses();
+    }
     ctx.applyDesignChange(
       () => {
         if (stepCount <= 0) {
@@ -423,11 +668,16 @@ export function registerNotesPlanner(ctx) {
     state.plannerMode = !state.plannerMode;
     if (!state.plannerMode) {
       state.pendingPlannerOperandId = null;
+      state.pendingPlannerSelectionId = null;
+    }
+    if (typeof ctx.syncPendingInteractionClasses === "function") {
+      ctx.syncPendingInteractionClasses();
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
     }
     renderPlanner();
+    ctx.renderOverlayDecorations();
     ctx.setStatus(
       state.plannerMode
         ? "Manual planner mode active. Click tensors or intermediate cards to define the next contraction step."
@@ -442,6 +692,7 @@ export function registerNotesPlanner(ctx) {
     const requestId = state.contractionAnalysisRequestId + 1;
     state.contractionAnalysisRequestId = requestId;
     state.contractionAnalysis = { status: "loading" };
+    syncPlannerOrderBadges();
     renderPlanner();
     try {
       const payload = await ctx.apiPost("/api/analyze-contraction", {
@@ -470,7 +721,9 @@ export function registerNotesPlanner(ctx) {
         message: error.message,
       };
     }
+    syncPlannerOrderBadges();
     renderPlanner();
+    ctx.renderOverlayDecorations();
   }
 
   function formatShape(shape) {
@@ -480,27 +733,158 @@ export function registerNotesPlanner(ctx) {
     return shape.join(" × ");
   }
 
-  function renderSummaryCard(title, analysis) {
-    if (!analysis) {
-      return `<section class="planner-summary-card"><h3>${ctx.escapeHtml(title)}</h3><p class="planner-inline-meta">Waiting for analysis.</p></section>`;
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString();
+  }
+
+  function getAutomaticAnalysisByMode(payload, mode) {
+    if (!payload) {
+      return null;
     }
-    if (analysis.status === "unavailable") {
-      return `
-        <section class="planner-summary-card">
-          <h3>${ctx.escapeHtml(title)}</h3>
-          <p class="planner-inline-meta">${ctx.escapeHtml(analysis.message || "Unavailable")}</p>
-        </section>
-      `;
+    if (mode === "automatic_global") {
+      return payload.automatic_global || null;
     }
-    const summary = analysis.summary || {};
+    if (mode === "automatic_local") {
+      return payload.automatic_local || null;
+    }
+    return null;
+  }
+
+  function togglePlannerDisclosure(disclosureKey) {
+    state.plannerDisclosureState[disclosureKey] = !state.plannerDisclosureState[disclosureKey];
+    renderPlanner();
+  }
+
+  function startAutomaticPreview(mode) {
+    if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {
+      return;
+    }
+    const analysis = getAutomaticAnalysisByMode(state.contractionAnalysis.payload, mode);
+    if (!analysis || analysis.status === "unavailable" || !Array.isArray(analysis.steps)) {
+      ctx.setStatus("That automatic preview is not available yet.", "error");
+      return;
+    }
+    state.plannerPreviewMode = mode;
+    syncPlannerOrderBadges();
+    ctx.render();
+    ctx.setStatus(
+      mode === "automatic_global"
+        ? "Showing the global automatic preview."
+        : "Showing the local automatic preview."
+    );
+  }
+
+  function acceptAutomaticPlan(mode) {
+    if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {
+      return;
+    }
+    const analysis = getAutomaticAnalysisByMode(state.contractionAnalysis.payload, mode);
+    if (!analysis || analysis.status === "unavailable" || !Array.isArray(analysis.steps) || !analysis.steps.length) {
+      ctx.setStatus("That automatic path is not available to accept.", "error");
+      return;
+    }
+    ctx.applyDesignChange(
+      () => {
+        const acceptedSteps = [];
+        const stepIdMap = {};
+        analysis.steps.forEach((step) => {
+          const nextStepId = ctx.makeId("step");
+          stepIdMap[step.result_operand_id] = nextStepId;
+          acceptedSteps.push({
+            id: nextStepId,
+            left_operand_id: stepIdMap[step.left_operand_id] || step.left_operand_id,
+            right_operand_id: stepIdMap[step.right_operand_id] || step.right_operand_id,
+            metadata: {},
+          });
+        });
+        state.spec.contraction_plan = {
+          id: state.spec.contraction_plan ? state.spec.contraction_plan.id : ctx.makeId("plan"),
+          name: "Manual path",
+          steps: acceptedSteps,
+          metadata: state.spec.contraction_plan && state.spec.contraction_plan.metadata
+            ? ctx.deepClone(state.spec.contraction_plan.metadata)
+            : {},
+        };
+        state.pendingPlannerOperandId = null;
+        state.pendingPlannerSelectionId = null;
+      },
+      {
+        statusMessage:
+          mode === "automatic_global"
+            ? "Replaced the manual path with the global automatic path."
+            : "Replaced the manual path with the local automatic path.",
+      }
+    );
+  }
+
+  function renderMetricChips(items) {
     return `
-      <section class="planner-summary-card">
-        <h3>${ctx.escapeHtml(title)}</h3>
-        <div class="planner-chip-grid">
-          <div class="planner-chip"><span>Status</span><strong>${ctx.escapeHtml(analysis.status || summary.completion_status || "unknown")}</strong></div>
-          <div class="planner-chip"><span>FLOPs</span><strong>${summary.total_estimated_flops ?? 0}</strong></div>
-          <div class="planner-chip"><span>Peak</span><strong>${summary.peak_intermediate_size ?? 0}</strong></div>
-          <div class="planner-chip"><span>Final shape</span><strong>${ctx.escapeHtml(formatShape(summary.final_shape))}</strong></div>
+      <div class="planner-chip-grid">
+        ${items
+          .map(
+            (item) => `
+              <div class="planner-chip">
+                <span>${ctx.escapeHtml(item.label)}</span>
+                <strong>${ctx.escapeHtml(String(item.value))}</strong>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderAutomaticSection(title, disclosureKey, mode, analysis) {
+    const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
+    const canAct = Boolean(analysis && analysis.status !== "unavailable");
+    const summary = analysis && analysis.summary ? analysis.summary : {};
+    const meta = analysis && analysis.message
+      ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`
+      : "";
+    return `
+      <section class="planner-section planner-disclosure">
+        <button
+          type="button"
+          class="planner-disclosure-toggle${isOpen ? " is-open" : ""}"
+          data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+        >
+          <span>${ctx.escapeHtml(title)}</span>
+          <strong>${isOpen ? "Hide" : "Show"}</strong>
+        </button>
+        ${isOpen ? `
+          <div class="planner-disclosure-body">
+            ${renderMetricChips([
+              { label: "FLOPs", value: formatNumber(summary.total_estimated_flops) },
+              { label: "MACs", value: formatNumber(summary.total_estimated_macs) },
+              { label: "Peak", value: formatNumber(summary.peak_intermediate_size) },
+            ])}
+            ${meta}
+            <div class="button-row">
+              <button type="button" data-preview-mode="${ctx.escapeHtml(mode)}"${canAct ? "" : " disabled"}>Preview</button>
+              <button type="button" class="apply-button" data-accept-mode="${ctx.escapeHtml(mode)}"${canAct ? "" : " disabled"}>Accept</button>
+            </div>
+          </div>
+        ` : ""}
+      </section>
+    `;
+  }
+
+  function renderManualSection(manualAnalysis) {
+    if (!manualAnalysis) {
+      return `<section class="planner-section"><h3>Manual</h3><p class="planner-inline-meta">Waiting for analysis.</p></section>`;
+    }
+    return `
+      <section class="planner-section">
+        <h3>Manual</h3>
+        ${renderMetricChips([
+          { label: "Status", value: manualAnalysis.status || "unknown" },
+          { label: "FLOPs", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
+          { label: "MACs", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
+          { label: "Peak", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size) },
+          { label: "Shape", value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape) },
+        ])}
+        <div class="planner-step-list">
+          ${renderManualSteps(manualAnalysis.steps)}
         </div>
       </section>
     `;
@@ -510,55 +894,24 @@ export function registerNotesPlanner(ctx) {
     if (!Array.isArray(steps) || !steps.length) {
       return `<p class="planner-inline-meta">No manual steps yet. Turn on manual mode and click two tensors to create the first contraction.</p>`;
     }
-    return `
-      <div class="planner-step-list">
-        ${steps
-          .map(
-            (step, index) => `
-              <article class="planner-step">
-                <div class="planner-step-header">
-                  <strong>Step ${index + 1}</strong>
-                  <button type="button" class="planner-trim-button" data-trim-step="${index}">Trim Here</button>
-                </div>
-                <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} × ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
-                <div class="planner-step-meta">
-                  <span>Shape ${ctx.escapeHtml(formatShape(step.result_shape))}</span>
-                  <span>Cost ${step.estimated_flops}</span>
-                  <span>Intermediate ${step.intermediate_size}</span>
-                </div>
-              </article>
-            `
-          )
-          .join("")}
-      </div>
-    `;
-  }
-
-  function renderIntermediateCards(steps) {
-    if (!Array.isArray(steps) || !steps.length) {
-      return "";
-    }
-    return `
-      <section class="planner-section">
-        <h3>Intermediates</h3>
-        <div class="planner-intermediate-list">
-          ${steps
-            .map(
-              (step, index) => `
-                <button
-                  type="button"
-                  class="planner-intermediate-card${state.pendingPlannerOperandId === step.result_operand_id ? " is-selected" : ""}"
-                  data-operand-id="${ctx.escapeHtml(step.result_operand_id)}"
-                >
-                  <strong>Intermediate ${index + 1}</strong>
-                  <span>${ctx.escapeHtml(formatShape(step.result_shape))}</span>
-                </button>
-              `
-            )
-            .join("")}
-        </div>
-      </section>
-    `;
+    return steps
+      .map(
+        (step, index) => `
+          <article class="planner-step">
+            <div class="planner-step-header">
+              <strong>Step ${index + 1}</strong>
+              <button type="button" class="planner-trim-button" data-trim-step="${index}">Trim Here</button>
+            </div>
+            <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} × ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
+            <div class="planner-step-meta">
+              <span>Shape ${ctx.escapeHtml(formatShape(step.result_shape))}</span>
+              <span>FLOPs ${formatNumber(step.estimated_flops)}</span>
+              <span>MACs ${formatNumber(step.estimated_macs)}</span>
+            </div>
+          </article>
+        `
+      )
+      .join("");
   }
 
   function renderPlannerAnalysis() {
@@ -573,15 +926,25 @@ export function registerNotesPlanner(ctx) {
     }
     const payload = state.contractionAnalysis.payload;
     return `
-      <div class="planner-summary-grid">
-        ${renderSummaryCard("Manual", payload.manual)}
-        ${renderSummaryCard("Automatic", payload.automatic)}
-      </div>
       <section class="planner-section">
-        <h3>Manual Steps</h3>
-        ${renderManualSteps(payload.manual.steps)}
+        <p class="planner-network-output-label">Network output shape</p>
+        <p class="planner-network-output">${ctx.escapeHtml(formatShape(payload.network_output_shape))}</p>
       </section>
-      ${renderIntermediateCards(payload.manual.steps)}
+      <div class="planner-summary-grid">
+        ${renderAutomaticSection(
+          "Automatic global",
+          "automaticGlobal",
+          "automatic_global",
+          payload.automatic_global
+        )}
+        ${renderAutomaticSection(
+          "Automatic local",
+          "automaticLocal",
+          "automatic_local",
+          payload.automatic_local
+        )}
+      </div>
+      ${renderManualSection(payload.manual)}
     `;
   }
 
@@ -589,38 +952,39 @@ export function registerNotesPlanner(ctx) {
     if (!plannerPanel) {
       return;
     }
+    syncPlannerOrderBadges();
     const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
       ? state.spec.contraction_plan.steps
       : [];
     const pendingLabel = state.pendingPlannerOperandId
       ? getPlannerOperandLabel(state.pendingPlannerOperandId)
       : null;
+
     plannerPanel.innerHTML = `
       <div class="planner-toolbar">
         <button id="toggle-planner-mode-button" type="button"${state.plannerMode ? ' class="is-active"' : ""}>
-          ${state.plannerMode ? "Exit Manual Mode" : "Enter Manual Mode"}
+          Contract
         </button>
-        <button id="refresh-planner-button" type="button">Refresh</button>
+        <button
+          id="planner-reset-button"
+          type="button"
+          class="icon-button planner-icon-button"
+          aria-label="Reset path"
+          title="Reset path"
+          ${planSteps.length ? "" : " disabled"}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+          </svg>
+        </button>
       </div>
-      <div class="planner-toolbar">
-        <button id="planner-remove-last-button" type="button"${planSteps.length ? "" : " disabled"}>Remove Last</button>
-        <button id="planner-reset-button" type="button"${planSteps.length ? "" : " disabled"}>Reset Path</button>
-      </div>
-      <p class="planner-inline-meta">
-        ${pendingLabel ? `Pending operand: ${ctx.escapeHtml(pendingLabel)}.` : "Manual mode uses clicks on tensors and intermediate cards."}
-      </p>
+      ${pendingLabel ? `<p class="planner-inline-meta">Pending operand: ${ctx.escapeHtml(pendingLabel)}.</p>` : ""}
       ${renderPlannerAnalysis()}
     `;
 
     document
       .getElementById("toggle-planner-mode-button")
       .addEventListener("click", togglePlannerMode);
-    document
-      .getElementById("refresh-planner-button")
-      .addEventListener("click", () => refreshContractionAnalysis({ focusTab: true }));
-    document
-      .getElementById("planner-remove-last-button")
-      .addEventListener("click", () => trimContractionPlan(planSteps.length - 1));
     document
       .getElementById("planner-reset-button")
       .addEventListener("click", () => trimContractionPlan(0));
@@ -629,11 +993,26 @@ export function registerNotesPlanner(ctx) {
         trimContractionPlan(Number(button.dataset.trimStep));
       });
     });
-    plannerPanel.querySelectorAll("[data-operand-id]").forEach((button) => {
+    plannerPanel.querySelectorAll("[data-disclosure]").forEach((button) => {
       button.addEventListener("click", () => {
-        handlePlannerOperandClick(button.dataset.operandId);
+        togglePlannerDisclosure(button.dataset.disclosure);
       });
     });
+    plannerPanel.querySelectorAll("[data-preview-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        startAutomaticPreview(button.dataset.previewMode);
+      });
+    });
+    plannerPanel.querySelectorAll("[data-accept-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        acceptAutomaticPlan(button.dataset.acceptMode);
+      });
+    });
+    ctx.renderOverlayDecorations();
+  }
+
+  if (addNoteButton) {
+    addNoteButton.addEventListener("click", addNoteAtCenter);
   }
 
   Object.assign(ctx, {
@@ -645,17 +1024,28 @@ export function registerNotesPlanner(ctx) {
     startNoteDrag,
     updateActiveNoteDrag,
     finishActiveNoteDrag,
+    startNoteResize,
+    updateActiveNoteResize,
+    finishActiveNoteResize,
+    toggleNoteCollapse,
     copySelectedSubgraphToClipboard,
     pasteClipboardToCanvas,
     repairContractionPlan,
     ensureContractionPlan,
     getPlannerRemainingOperandIds,
     isPlannerOperandAvailable,
+    getPlannerOperandSourceTensorIds,
     getPlannerOperandLabel,
+    resolvePlannerOperandId,
     handlePlannerOperandClick,
     trimContractionPlan,
     togglePlannerMode,
     refreshContractionAnalysis,
     renderPlanner,
+    buildPlannerOperandState,
+    buildStepOrdersByTensorId,
+    syncPlannerOrderBadges,
+    startAutomaticPreview,
+    acceptAutomaticPlan,
   });
 }

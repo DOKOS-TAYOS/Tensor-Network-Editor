@@ -6,7 +6,7 @@ import threading
 import webbrowser
 from collections.abc import Callable
 from types import FrameType
-from typing import Any
+from typing import Any, Protocol
 
 from .._io import write_utf8_text
 from .._templates import build_template_spec, list_template_names
@@ -17,6 +17,10 @@ from ..types import StrPath
 
 LOGGER = logging.getLogger(__name__)
 SignalHandler = Callable[[int, FrameType | None], Any]
+
+
+class SupportsWaitForResult(Protocol):
+    def wait_for_result(self, timeout: float | None = None) -> EditorResult | None: ...
 
 
 def build_blank_network_spec() -> NetworkSpec:
@@ -99,7 +103,7 @@ class EditorSession:
 
 
 def wait_for_editor_result(
-    session: EditorSession,
+    session: SupportsWaitForResult,
     *,
     poll_interval: float = 0.2,
 ) -> EditorResult | None:

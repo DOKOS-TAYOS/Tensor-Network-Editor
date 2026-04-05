@@ -24,6 +24,7 @@ export function createInitialState() {
     activeResize: null,
     activeGroupDrag: null,
     noteDragState: null,
+    activeNoteResize: null,
     boxSelection: null,
     isHelpOpen: false,
     minimapDrag: null,
@@ -32,6 +33,14 @@ export function createInitialState() {
     activeSidebarTab: "selection",
     plannerMode: false,
     pendingPlannerOperandId: null,
+    pendingPlannerSelectionId: null,
+    plannerPreviewMode: null,
+    plannerDisclosureState: {
+      automaticGlobal: false,
+      automaticLocal: false,
+    },
+    plannerManualOrderByTensorId: {},
+    plannerPreviewOrderByTensorId: {},
     contractionAnalysis: null,
     contractionAnalysisRequestId: 0,
   };

@@ -25,8 +25,14 @@ class NetworkAnalysisTests(unittest.TestCase):
             [(tensor.id, index.id) for tensor, index in analysis.open_indices],
             [("tensor_a", "tensor_a_i"), ("tensor_b", "tensor_b_j")],
         )
-        self.assertEqual(analysis.left_index_by_edge_id["edge_x"].id, "tensor_a_x")
-        self.assertEqual(analysis.right_index_by_edge_id["edge_x"].id, "tensor_b_x")
+        left_index = analysis.left_index_by_edge_id["edge_x"]
+        right_index = analysis.right_index_by_edge_id["edge_x"]
+        self.assertIsNotNone(left_index)
+        self.assertIsNotNone(right_index)
+        assert left_index is not None
+        assert right_index is not None
+        self.assertEqual(left_index.id, "tensor_a_x")
+        self.assertEqual(right_index.id, "tensor_b_x")
 
     def test_analyze_network_can_validate_before_building_lookups(self) -> None:
         spec = build_sample_spec()

@@ -134,6 +134,24 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "node.planner-pending-tensor",
+          style: {
+            "border-color": "#ff8c87",
+            "border-width": 4,
+            "overlay-color": "#ff8c87",
+            "overlay-opacity": 0.1,
+          },
+        },
+        {
+          selector: "node.planner-pending-index",
+          style: {
+            "border-color": "#61c7ff",
+            "border-width": 4,
+            "overlay-color": "#61c7ff",
+            "overlay-opacity": 0.18,
+          },
+        },
+        {
           selector: "edge",
           style: {
             width: 3,
@@ -329,6 +347,7 @@ export function registerGraphRender(ctx) {
       state.cy.add(elements);
     });
     ctx.applyTensorLayerData();
+    syncPendingInteractionClasses();
     if (!state.hasFitCanvas) {
       if (state.spec.tensors.length) {
         state.cy.fit(undefined, 40);
@@ -338,6 +357,18 @@ export function registerGraphRender(ctx) {
       state.hasFitCanvas = true;
     }
     ctx.syncCySelection();
+  }
+
+  function syncPendingInteractionClasses() {
+    if (!state.cy) {
+      return;
+    }
+    state.cy.nodes("node[kind = 'tensor']").forEach((node) => {
+      node.toggleClass("planner-pending-tensor", node.id() === state.pendingPlannerSelectionId);
+    });
+    state.cy.nodes("node[kind = 'index']").forEach((node) => {
+      node.toggleClass("planner-pending-index", node.id() === state.pendingIndexId);
+    });
   }
 
   function buildGraphElements() {
@@ -369,6 +400,7 @@ export function registerGraphRender(ctx) {
           textColor: ctx.readableTextColor(tensorColor),
           zIndex: 100 + tensorRank * 20,
         },
+        classes: state.pendingPlannerSelectionId === tensor.id ? "planner-pending-tensor" : "",
         position: { x: tensor.position.x, y: tensor.position.y },
       });
 
@@ -387,7 +419,12 @@ export function registerGraphRender(ctx) {
             textColor: ctx.readableTextColor(indexColor),
             zIndex: 300 + tensorRank * 20 + indexPosition,
           },
-          classes: connectedIndexIds.has(index.id) ? "index-connected" : "index-open",
+          classes: [
+            connectedIndexIds.has(index.id) ? "index-connected" : "index-open",
+            state.pendingIndexId === index.id ? "planner-pending-index" : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
           position: indexPositionAbsolute,
           grabbable: true,
           selectable: true,
@@ -504,6 +541,7 @@ export function registerGraphRender(ctx) {
     initGraph,
     render,
     renderGraph,
+    syncPendingInteractionClasses,
     buildGraphElements,
     createTensorDragState,
     moveCompanionTensorsDuringDrag,

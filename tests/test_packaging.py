@@ -63,6 +63,35 @@ class PackagingMetadataTests(unittest.TestCase):
             )
         )
 
+    def test_pyproject_declares_pyright_dev_tooling(self) -> None:
+        pyproject_path = Path.cwd() / "pyproject.toml"
+
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        dev_dependencies = payload["project"]["optional-dependencies"]["dev"]
+        pyright_config = payload["tool"]["pyright"]
+
+        self.assertTrue(
+            any(dependency.startswith("pyright") for dependency in dev_dependencies)
+        )
+        self.assertEqual(pyright_config["venvPath"], ".")
+        self.assertEqual(pyright_config["venv"], ".venv")
+        self.assertEqual(pyright_config["include"], ["src", "tests"])
+
+    def test_ci_workflow_runs_pyright(self) -> None:
+        workflow_path = Path.cwd() / ".github" / "workflows" / "ci.yml"
+
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+
+        self.assertIn("Run Pyright", workflow_text)
+        self.assertIn("-m pyright", workflow_text)
+
+    def test_readme_documents_pyright_check(self) -> None:
+        readme_path = Path.cwd() / "README.md"
+
+        readme_text = readme_path.read_text(encoding="utf-8")
+
+        self.assertIn("python -m pyright", readme_text)
+
 
 if __name__ == "__main__":
     unittest.main()

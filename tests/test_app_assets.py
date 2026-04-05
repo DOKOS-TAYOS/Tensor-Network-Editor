@@ -69,10 +69,15 @@ class AppAssetTests(unittest.TestCase):
 
         self.assertIn("registerHistorySelection", history_body)
         self.assertIn("function setSelection", history_body)
+        self.assertNotIn('setActiveSidebarTab("selection")', history_body)
         self.assertIn("registerGraphRender", graph_body)
         self.assertIn("function initGraph", graph_body)
         self.assertIn("registerProperties", properties_body)
         self.assertIn("function renderProperties", properties_body)
+        self.assertNotIn("Current size:", properties_body)
+        self.assertNotIn(
+            "Resize from the corner handles on the canvas.", properties_body
+        )
         self.assertIn("registerInteractions", interactions_body)
         self.assertIn("function handleKeydown", interactions_body)
         self.assertIn("registerExportMinimap", export_body)
@@ -82,10 +87,41 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn("registerNotesPlanner", notes_planner_body)
         self.assertIn("function renderNotes", notes_planner_body)
         self.assertIn("function renderPlanner", notes_planner_body)
+        self.assertIn("function resolvePlannerOperandId", notes_planner_body)
+        self.assertIn("Automatic global", notes_planner_body)
+        self.assertIn("Automatic local", notes_planner_body)
+        self.assertIn("Network output shape", notes_planner_body)
+        self.assertIn("Preview", notes_planner_body)
+        self.assertIn("Accept", notes_planner_body)
+        self.assertIn("MACs", notes_planner_body)
+        self.assertIn("estimated_macs", notes_planner_body)
+        self.assertIn("Contract", notes_planner_body)
+        self.assertIn("stepOrdersByTensorId", notes_planner_body)
+        self.assertIn("step.step_id", notes_planner_body)
+        self.assertNotIn("firstStepByTensorId", notes_planner_body)
+        self.assertIn("toggle-note-collapse", notes_planner_body)
+        self.assertIn("canvas-note-resize-handle", notes_planner_body)
+        self.assertNotIn("Refresh", notes_planner_body)
+        self.assertNotIn("Remove Last", notes_planner_body)
+        self.assertNotIn(
+            "Manual mode uses clicks on tensors and previously created steps.",
+            notes_planner_body,
+        )
+        self.assertNotIn("Global automatic preview active.", notes_planner_body)
+        self.assertNotIn("<h3>Intermediates</h3>", notes_planner_body)
+        self.assertIn("same contracted operand", notes_planner_body)
         self.assertIn("registerSidebarTabs", sidebar_tabs_body)
         self.assertIn("function setActiveSidebarTab", sidebar_tabs_body)
         self.assertIn("registerUtilities", utilities_body)
         self.assertIn("function normalizeSpec", utilities_body)
+        self.assertIn("planner-order-badge", overlays_body)
+        self.assertIn("planner-preview-badge", overlays_body)
+        self.assertIn("planner-order-badge-stack", overlays_body)
+        self.assertIn("is-preview", overlays_body)
+        self.assertIn("showingPreview", overlays_body)
+        self.assertIn("planner-pending-tensor", graph_body)
+        self.assertIn("planner-pending-index", graph_body)
+        self.assertIn("activeNoteResize", interactions_body)
 
     def test_vendor_asset_is_served_locally(self) -> None:
         asset_body = request_text(f"{self.server.base_url}/vendor/cytoscape.min.js")
@@ -109,6 +145,38 @@ class AppAssetTests(unittest.TestCase):
         self.assertIn(".sidebar-pane", css_body)
         self.assertIn(".sidebar-pane[hidden]", css_body)
         self.assertIn("padding: 0.48rem 0.72rem", css_body)
+        self.assertRegex(
+            css_body,
+            r"\.planner-summary-grid\s*\{[^}]*grid-template-columns: 1fr;",
+        )
+        self.assertRegex(
+            css_body,
+            r"\.planner-chip-grid\s*\{[^}]*grid-template-columns: 1fr;",
+        )
+        self.assertRegex(
+            css_body,
+            r"\.planner-intermediate-list\s*\{[^}]*grid-template-columns: 1fr;",
+        )
+        self.assertIn(".planner-disclosure", css_body)
+        self.assertIn(".planner-network-output", css_body)
+        self.assertIn(".planner-order-badge", css_body)
+        self.assertIn(".planner-preview-badge", css_body)
+        self.assertIn(".planner-order-badge-stack", css_body)
+        self.assertIn(".planner-order-badge-stack.is-preview", css_body)
+        self.assertIn(".planner-pending-tensor", css_body)
+        self.assertIn(".planner-pending-index", css_body)
+        self.assertIn(".canvas-note.is-collapsed", css_body)
+        self.assertIn(".canvas-note-resize-handle", css_body)
+
+    def test_help_modal_mentions_current_editor_capabilities(self) -> None:
+        html = request_text(f"{self.server.base_url}/")
+
+        self.assertIn("copy and paste", html)
+        self.assertIn("Create Group", html)
+        self.assertIn("Contract planner", html)
+        self.assertIn("Ctrl/Cmd+C", html)
+        self.assertIn("Ctrl/Cmd+V", html)
+        self.assertIn("Resize tensors from the corner handles", html)
 
     def test_static_assets_disable_browser_cache(self) -> None:
         _, headers = request_with_headers(f"{self.server.base_url}/js/main.js")

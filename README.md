@@ -106,6 +106,7 @@ Useful checks:
 python -m pytest
 python -m ruff check .
 python -m mypy
+python -m pyright
 python -m build
 python -m twine check dist/*
 ```

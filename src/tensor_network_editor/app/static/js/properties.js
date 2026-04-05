@@ -240,7 +240,6 @@ export function registerProperties(ctx) {
         <button id="apply-tensor-button" type="button" class="apply-button is-hidden">Apply Changes</button>
       </div>
       <div class="properties-list">${indexList || "<p class='property-meta'>This tensor has no indices yet.</p>"}</div>
-      <p class="property-meta">Current size: ${Math.round(ctx.tensorWidth(tensor))} × ${Math.round(ctx.tensorHeight(tensor))}. Resize from the corner handles on the canvas.</p>
     `;
 
     const tensorNameInput = document.getElementById("tensor-name-input");

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import cast
 
 from tensor_network_editor.models import (
     CanvasNoteSpec,
@@ -74,7 +75,7 @@ class ModelAndValidationTests(unittest.TestCase):
         )
 
         payload = note.to_dict()
-        restored = CanvasNoteSpec.from_dict(payload)
+        restored = CanvasNoteSpec.from_dict(cast(dict[str, object], payload))
 
         self.assertEqual(restored.text, "Review this subnet")
         self.assertEqual(restored.position.x, 12.0)
@@ -94,7 +95,7 @@ class ModelAndValidationTests(unittest.TestCase):
         )
 
         payload = plan.to_dict()
-        restored = ContractionPlanSpec.from_dict(payload)
+        restored = ContractionPlanSpec.from_dict(cast(dict[str, object], payload))
 
         self.assertEqual(restored.name, "Manual path")
         self.assertEqual(restored.steps[0].id, "step_one")
@@ -109,7 +110,7 @@ class ModelAndValidationTests(unittest.TestCase):
         )
 
         payload = index.to_dict()
-        restored = IndexSpec.from_dict(payload)
+        restored = IndexSpec.from_dict(cast(dict[str, object], payload))
 
         self.assertEqual(restored.offset.x, 34.0)
         self.assertEqual(restored.offset.y, -18.0)
@@ -122,7 +123,7 @@ class ModelAndValidationTests(unittest.TestCase):
         )
 
         payload = tensor.to_dict()
-        restored = TensorSpec.from_dict(payload)
+        restored = TensorSpec.from_dict(cast(dict[str, object], payload))
 
         self.assertEqual(restored.size.width, 212.0)
         self.assertEqual(restored.size.height, 132.0)
@@ -277,6 +278,37 @@ class ModelAndValidationTests(unittest.TestCase):
         issues = validate_spec(spec)
 
         self.assertIn("contraction-operand-reused", [issue.code for issue in issues])
+
+    def test_validate_spec_accepts_multi_step_contraction_plan(self) -> None:
+        spec = build_valid_spec()
+        spec.tensors.append(
+            TensorSpec(
+                id="tensor_extra",
+                name="Extra",
+                position=CanvasPosition(x=360.0, y=80.0),
+                indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
+            )
+        )
+        spec.contraction_plan = ContractionPlanSpec(
+            id="plan_valid",
+            name="Valid path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_pair",
+                    left_operand_id="tensor_left",
+                    right_operand_id="tensor_right",
+                ),
+                ContractionStepSpec(
+                    id="step_total",
+                    left_operand_id="step_pair",
+                    right_operand_id="tensor_extra",
+                ),
+            ],
+        )
+
+        issues = validate_spec(spec)
+
+        self.assertEqual(issues, [])
 
     def test_ensure_valid_spec_raises_clear_error(self) -> None:
         spec = build_valid_spec()

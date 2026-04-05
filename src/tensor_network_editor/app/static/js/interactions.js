@@ -77,6 +77,10 @@ export function registerInteractions(ctx) {
       ctx.updateActiveNoteDrag(event);
       return;
     }
+    if (state.activeNoteResize) {
+      ctx.updateActiveNoteResize(event);
+      return;
+    }
     if (state.minimapDrag) {
       ctx.updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
     }
@@ -97,6 +101,10 @@ export function registerInteractions(ctx) {
     }
     if (state.noteDragState && event.button === 0) {
       ctx.finishActiveNoteDrag();
+      return;
+    }
+    if (state.activeNoteResize && event.button === 0) {
+      ctx.finishActiveNoteResize();
       return;
     }
     if (state.minimapDrag && event.button === 0) {
@@ -176,16 +184,31 @@ export function registerInteractions(ctx) {
       if (state.connectMode) {
         state.pendingIndexId = null;
         state.connectMode = false;
+        if (typeof ctx.syncPendingInteractionClasses === "function") {
+          ctx.syncPendingInteractionClasses();
+        }
         ctx.render();
         ctx.setStatus("Connect mode cancelled.");
         return;
       }
       if (state.pendingPlannerOperandId) {
         state.pendingPlannerOperandId = null;
+        state.pendingPlannerSelectionId = null;
+        if (typeof ctx.syncPendingInteractionClasses === "function") {
+          ctx.syncPendingInteractionClasses();
+        }
         if (typeof ctx.renderPlanner === "function") {
           ctx.renderPlanner();
         }
+        ctx.renderOverlayDecorations();
         ctx.setStatus("Manual planner operand selection cleared.");
+        return;
+      }
+      if (state.plannerPreviewMode) {
+        state.plannerPreviewMode = null;
+        state.plannerPreviewOrderByTensorId = {};
+        ctx.render();
+        ctx.setStatus("Automatic preview cleared.");
         return;
       }
       ctx.clearSelection();
@@ -305,13 +328,18 @@ export function registerInteractions(ctx) {
     state.selectedElement = null;
     state.pendingIndexId = null;
     state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
     state.connectMode = false;
     state.plannerMode = false;
     state.hasFitCanvas = false;
     state.activeResize = null;
     state.activeGroupDrag = null;
     state.noteDragState = null;
+    state.activeNoteResize = null;
     state.contractionAnalysis = null;
+    state.plannerPreviewMode = null;
+    state.plannerManualOrderByTensorId = {};
+    state.plannerPreviewOrderByTensorId = {};
     ctx.reconcileTensorOrder();
     ctx.clearHistory();
     ctx.render();
@@ -422,13 +450,24 @@ export function registerInteractions(ctx) {
 
     if (!state.pendingIndexId) {
       state.pendingIndexId = indexId;
+      if (typeof ctx.setActiveSidebarTab === "function") {
+        ctx.setActiveSidebarTab("selection");
+      }
       ctx.setSelectedElement("index", indexId);
+      if (typeof ctx.syncPendingInteractionClasses === "function") {
+        ctx.syncPendingInteractionClasses();
+      }
+      ctx.renderOverlayDecorations();
       ctx.setStatus("First index selected. Click another compatible open index to connect.");
       return;
     }
 
     if (state.pendingIndexId === indexId) {
       state.pendingIndexId = null;
+      if (typeof ctx.syncPendingInteractionClasses === "function") {
+        ctx.syncPendingInteractionClasses();
+      }
+      ctx.renderOverlayDecorations();
       ctx.setStatus("Connection cancelled.");
       return;
     }
@@ -436,6 +475,10 @@ export function registerInteractions(ctx) {
     const left = ctx.findIndexOwner(state.pendingIndexId);
     if (!left) {
       state.pendingIndexId = null;
+      if (typeof ctx.syncPendingInteractionClasses === "function") {
+        ctx.syncPendingInteractionClasses();
+      }
+      ctx.renderOverlayDecorations();
       return;
     }
     if (left.index.dimension !== located.index.dimension) {

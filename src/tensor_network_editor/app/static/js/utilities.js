@@ -242,6 +242,10 @@ export function registerUtilities(ctx) {
         x: asFiniteNumber(note.position && note.position.x, 120),
         y: asFiniteNumber(note.position && note.position.y, 120),
       };
+      note.size = {
+        width: Math.max(48, asFiniteNumber(note.size && note.size.width, 220)),
+        height: Math.max(48, asFiniteNumber(note.size && note.size.height, 112)),
+      };
       note.text = typeof note.text === "string" && note.text.trim() ? note.text : "Note";
       if (!note.id) {
         note.id = makeId("note");

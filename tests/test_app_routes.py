@@ -202,12 +202,21 @@ class AppRouteTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["automatic_strategy"], "greedy")
+        self.assertEqual(payload["network_output_shape"], [2, 4])
         self.assertEqual(payload["manual"]["status"], "complete")
-        self.assertEqual(payload["manual"]["summary"]["total_estimated_flops"], 24)
+        self.assertEqual(payload["manual"]["summary"]["total_estimated_flops"], 48)
+        self.assertEqual(payload["manual"]["summary"]["total_estimated_macs"], 24)
         self.assertEqual(payload["manual"]["summary"]["final_shape"], [2, 4])
-        self.assertIn(payload["automatic"]["status"], {"complete", "unavailable"})
-        if payload["automatic"]["status"] == "complete":
-            self.assertEqual(payload["automatic"]["summary"]["final_shape"], [2, 4])
+        self.assertEqual(payload["manual"]["steps"][0]["estimated_flops"], 48)
+        self.assertEqual(payload["manual"]["steps"][0]["estimated_macs"], 24)
+        self.assertIn(
+            payload["automatic_global"]["status"], {"complete", "unavailable"}
+        )
+        self.assertIn(payload["automatic_local"]["status"], {"complete", "unavailable"})
+        self.assertNotIn("final_shape", payload["automatic_global"]["summary"])
+        self.assertNotIn("final_shape", payload["automatic_local"]["summary"])
+        self.assertIn("total_estimated_macs", payload["automatic_global"]["summary"])
+        self.assertIn("total_estimated_macs", payload["automatic_local"]["summary"])
 
     def test_unexpected_server_errors_return_generic_500_payload(self) -> None:
         with patch(

@@ -76,6 +76,11 @@ export function registerHistorySelection(ctx) {
     ctx.reconcileTensorOrder();
     state.pendingIndexId = null;
     state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    state.plannerPreviewMode = null;
+    state.plannerManualOrderByTensorId = {};
+    state.plannerPreviewOrderByTensorId = {};
+    state.activeNoteResize = null;
     state.activeSidebarTab = "selection";
     clearGeneratedCodePreview();
     pruneSelectionToExisting();
@@ -123,6 +128,8 @@ export function registerHistorySelection(ctx) {
   function applyDesignChange(mutator, options = {}) {
     const beforeSnapshot = createHistorySnapshot();
     mutator();
+    state.plannerPreviewMode = null;
+    state.plannerPreviewOrderByTensorId = {};
     if (typeof ctx.repairContractionPlan === "function") {
       ctx.repairContractionPlan();
     }
@@ -237,6 +244,7 @@ export function registerHistorySelection(ctx) {
       !ctx.isPlannerOperandAvailable(state.pendingPlannerOperandId)
     ) {
       state.pendingPlannerOperandId = null;
+      state.pendingPlannerSelectionId = null;
     }
   }
 
@@ -251,9 +259,6 @@ export function registerHistorySelection(ctx) {
     state.primarySelectionId =
       uniqueIds.includes(options.primaryId) ? options.primaryId : uniqueIds.length ? uniqueIds[uniqueIds.length - 1] : null;
     syncSelectedElementState();
-    if (typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab("selection");
-    }
     syncCySelection();
     ctx.renderProperties();
     ctx.renderMinimap();
@@ -290,9 +295,6 @@ export function registerHistorySelection(ctx) {
     state.selectedElement = null;
     if (!options.preservePendingIndex) {
       state.pendingIndexId = null;
-    }
-    if (typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab("selection");
     }
     syncCySelection();
     ctx.renderProperties();

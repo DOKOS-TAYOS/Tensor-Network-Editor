@@ -6,7 +6,7 @@ from queue import Queue
 
 from tensor_network_editor.api import launch_tensor_network_editor
 from tensor_network_editor.app.session import EditorSession, wait_for_editor_result
-from tensor_network_editor.models import EngineName
+from tensor_network_editor.models import EditorResult, EngineName
 from tests.app_support import request_json
 from tests.test_api import build_sample_spec
 
@@ -19,7 +19,9 @@ class SessionTests(unittest.TestCase):
             def __init__(self) -> None:
                 self.calls: list[float | None] = []
 
-            def wait_for_result(self, timeout: float | None = None) -> object | None:
+            def wait_for_result(
+                self, timeout: float | None = None
+            ) -> EditorResult | None:
                 self.calls.append(timeout)
                 return None
 
@@ -56,7 +58,7 @@ class SessionTests(unittest.TestCase):
 
     def test_launch_tensor_network_editor_waits_for_complete(self) -> None:
         ready_queue: Queue[str] = Queue()
-        result_queue: Queue[object] = Queue()
+        result_queue: Queue[EditorResult | None] = Queue()
 
         def run_editor() -> None:
             result = launch_tensor_network_editor(
@@ -90,7 +92,7 @@ class SessionTests(unittest.TestCase):
 
     def test_launch_tensor_network_editor_returns_none_on_cancel(self) -> None:
         ready_queue: Queue[str] = Queue()
-        result_queue: Queue[object] = Queue()
+        result_queue: Queue[EditorResult | None] = Queue()
 
         def run_editor() -> None:
             result = launch_tensor_network_editor(

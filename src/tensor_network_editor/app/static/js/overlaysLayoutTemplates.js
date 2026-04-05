@@ -41,6 +41,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
   function renderOverlayDecorations() {
     renderGroupOverlays();
     renderResizeHandles();
+    renderPlannerOrderBadges();
     if (typeof ctx.renderNotes === "function") {
       ctx.renderNotes();
     }
@@ -117,6 +118,64 @@ export function registerOverlaysLayoutTemplates(ctx) {
       handle.addEventListener("mousedown", (event) => startTensorResize(event, tensor.id, handleSpec.corner));
       resizeLayer.appendChild(handle);
     });
+  }
+
+  function renderPlannerOrderBadges() {
+    if (!resizeLayer) {
+      return;
+    }
+    const manualOrderByTensorId =
+      state.plannerManualOrderByTensorId && typeof state.plannerManualOrderByTensorId === "object"
+        ? state.plannerManualOrderByTensorId
+        : {};
+    const previewOrderByTensorId =
+      state.plannerPreviewOrderByTensorId && typeof state.plannerPreviewOrderByTensorId === "object"
+        ? state.plannerPreviewOrderByTensorId
+        : {};
+    const showingPreview = Boolean(
+      state.plannerPreviewMode && Object.keys(previewOrderByTensorId).length
+    );
+
+    state.spec.tensors.forEach((tensor) => {
+      const manualOrders = manualOrderByTensorId[tensor.id];
+      if (Array.isArray(manualOrders) && manualOrders.length) {
+        resizeLayer.appendChild(
+          createPlannerOrderBadgeStack(tensor, manualOrders, "planner-order-badge")
+        );
+      }
+      if (!showingPreview) {
+        return;
+      }
+      const previewOrders = previewOrderByTensorId[tensor.id];
+      if (Array.isArray(previewOrders) && previewOrders.length) {
+        resizeLayer.appendChild(
+          createPlannerOrderBadgeStack(tensor, previewOrders, "planner-preview-badge", {
+            anchor: "right",
+            stackClassName: "is-preview",
+          })
+        );
+      }
+    });
+  }
+
+  function createPlannerOrderBadgeStack(tensor, orders, className, options = {}) {
+    const rect = tensorScreenRect(tensor);
+    const stack = document.createElement("div");
+    stack.className = "planner-order-badge-stack";
+    if (options.stackClassName) {
+      stack.classList.add(options.stackClassName);
+    }
+    stack.style.left = `${
+      options.anchor === "right" ? rect.left + rect.width - 1 : rect.left + 1
+    }px`;
+    stack.style.top = `${rect.top + 1}px`;
+    orders.forEach((order) => {
+      const badge = document.createElement("div");
+      badge.className = className;
+      badge.textContent = String(order);
+      stack.appendChild(badge);
+    });
+    return stack;
   }
 
   function createGroupFromSelection() {
@@ -450,6 +509,8 @@ export function registerOverlaysLayoutTemplates(ctx) {
     renderOverlayDecorations,
     renderGroupOverlays,
     renderResizeHandles,
+    renderPlannerOrderBadges,
+    createPlannerOrderBadgeStack,
     createGroupFromSelection,
     toggleGroupCollapse,
     startGroupDrag,
