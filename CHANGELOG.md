@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [0.1.2] - 2026-04-05
+
+### Added
+
+- `analyze_contraction()`, `ContractionAnalysisResult`, and related summaries in `_contraction_analysis.py`: validates manual `contraction_plan` steps, reports pairwise costs and completeness, and computes automatic global/local greedy contraction paths; wired to `/api/analyze-contraction` for the in-app contract planner. Export/code generation does not yet consume these analysis results.
+- Tests for contraction analysis and the `/api/analyze-contraction` route.
+
+### Changed
+
+- Editor UI: grouping controls, layout refinements, and the contraction planner surfaced in the static client.
+- Replaced the single `einsum` target with explicit `einsum_numpy` and `einsum_torch` engines across the API, CLI, editor bootstrap payload, and generated code.
+- HTTP layer refactored around shared JSON/spec helpers (`_protocol`); validation responses return structured issues and a normalized spec snapshot.
+
+### Fixed
+
+- Built-in templates can now be inserted with configurable graph size, bond dimension, and physical dimension while keeping the existing template catalog.
+- Built-in templates now expose the expected tensor valences and open legs instead of starting from a generic four-port tensor shape.
+- Built-in templates: expected tensor valences, open legs, and wiring for each catalog layout instead of incorrect or generic default shapes.
+
 ## [0.1.1] - 2026-04-05
 
 ### Added
@@ -18,14 +39,10 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Substantial editor UI refresh: layout, styling, and graph interactions in the static web client.
-- Replaced the single `einsum` target with explicit `einsum_numpy` and `einsum_torch` engines across the API, CLI, editor bootstrap payload, and generated code.
-- HTTP layer refactored around shared JSON/spec helpers (`_protocol`); validation responses return structured issues and a normalized spec snapshot.
 - Stricter deserialization via dedicated payload coercion helpers; packaging manifest lists third-party license text.
 
 ### Fixed
 
-- Built-in templates can now be inserted with configurable graph size, bond dimension, and physical dimension while keeping the existing template catalog.
-- Built-in templates now expose the expected tensor valences and open legs instead of starting from a generic four-port tensor shape.
 - New notes open taller, keep their text area inside the card, participate in right-drag box selection, and move together with selected tensors or groups.
 - README, example code, and in-app help now reflect the split einsum engines, corrected templates, and current editor interactions.
 
