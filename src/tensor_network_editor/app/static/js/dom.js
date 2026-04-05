@@ -1,0 +1,27 @@
+export function getDomRefs(document) {
+  return {
+    statusMessage: document.getElementById("status-message"),
+    propertiesPanel: document.getElementById("properties-panel"),
+    generatedCode: document.getElementById("generated-code"),
+    engineSelect: document.getElementById("engine-select"),
+    connectButton: document.getElementById("connect-button"),
+    loadInput: document.getElementById("load-input"),
+    undoButton: document.getElementById("undo-button"),
+    redoButton: document.getElementById("redo-button"),
+    exportPyButton: document.getElementById("export-py-button"),
+    exportPngButton: document.getElementById("export-png-button"),
+    exportSvgButton: document.getElementById("export-svg-button"),
+    templateSelect: document.getElementById("template-select"),
+    insertTemplateButton: document.getElementById("insert-template-button"),
+    createGroupButton: document.getElementById("create-group-button"),
+    helpButton: document.getElementById("help-button"),
+    helpModal: document.getElementById("help-modal"),
+    helpBackdrop: document.getElementById("help-backdrop"),
+    helpCloseButton: document.getElementById("help-close-button"),
+    canvasShell: document.getElementById("canvas-shell"),
+    groupLayer: document.getElementById("group-layer"),
+    resizeLayer: document.getElementById("resize-layer"),
+    selectionBox: document.getElementById("canvas-selection-box"),
+    minimapCanvas: document.getElementById("minimap"),
+  };
+}

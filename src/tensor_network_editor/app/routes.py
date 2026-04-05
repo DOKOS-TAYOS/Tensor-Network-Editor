@@ -5,13 +5,19 @@ from http import HTTPStatus
 
 from ..errors import SerializationError
 from ..models import CodegenResult, EditorResult
-from ..serialization import SCHEMA_VERSION, serialize_spec
+from ..serialization import serialize_spec
 from ..validation import validate_spec
 from ._protocol import (
     JsonDict,
+    bad_request_response,
     deserialize_spec_with_issues,
     handle_codegen_operation,
+    issues_response,
+    ok_response,
     require_serialized_spec,
+    serialize_codegen_result,
+    serialize_editor_result,
+    serialize_spec_payload,
 )
 from ._protocol import read_json as _read_json
 from .session import EditorSession
@@ -33,28 +39,19 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
         serialized_spec = require_serialized_spec(payload)
     except ValueError:
         LOGGER.warning("Validation request missing 'spec' payload.")
-        return HTTPStatus.BAD_REQUEST, {
-            "ok": False,
-            "message": "Missing 'spec' payload.",
-        }
+        return bad_request_response("Missing 'spec' payload.")
 
     try:
         spec = deserialize_spec_with_issues(serialized_spec)
     except SerializationError as exc:
         LOGGER.warning("Validation request contained malformed spec payload: %s", exc)
-        return HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)}
+        return bad_request_response(str(exc))
     issues = validate_spec(spec)
-    return (
-        HTTPStatus.OK,
-        {
-            "ok": not issues,
-            "issues": [
-                {"code": issue.code, "message": issue.message, "path": issue.path}
-                for issue in issues
-            ],
-            "spec": {"schema_version": SCHEMA_VERSION, "network": spec.to_dict()},
-        },
-    )
+    if issues:
+        status, response = issues_response(issues)
+        response["spec"] = serialize_spec_payload(spec)
+        return status, response
+    return ok_response({"issues": [], "spec": serialize_spec_payload(spec)})
 
 
 def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
@@ -62,9 +59,9 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
         payload,
         default_engine=session.default_engine,
         operation=session.generate,
-        success_payload_builder=_build_generate_response,
+        success_payload_builder=_serialize_generate_result,
     )
-    if status == HTTPStatus.BAD_REQUEST:
+    if not response["ok"] and "message" in response:
         LOGGER.warning("Generate request rejected: %s", response["message"])
     return status, response
 
@@ -74,44 +71,36 @@ def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
         payload,
         default_engine=session.default_engine,
         operation=session.complete,
-        success_payload_builder=_build_complete_response,
+        success_payload_builder=_serialize_complete_result,
     )
-    if status == HTTPStatus.BAD_REQUEST:
+    if not response["ok"] and "message" in response:
         LOGGER.warning("Complete request rejected: %s", response["message"])
     return status, response
 
 
 def handle_cancel(session: EditorSession) -> tuple[int, JsonDict]:
     session.cancel()
-    return HTTPStatus.OK, {"ok": True}
+    return ok_response()
 
 
 def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     template_name = payload.get("template")
     if not isinstance(template_name, str) or not template_name.strip():
-        return HTTPStatus.BAD_REQUEST, {
-            "ok": False,
-            "message": "Missing 'template' payload.",
-        }
+        return bad_request_response("Missing 'template' payload.")
     try:
         spec = session.build_template(template_name)
     except ValueError as exc:
-        return HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)}
-    return HTTPStatus.OK, {"ok": True, "spec": serialize_spec(spec)}
+        return bad_request_response(str(exc))
+    return ok_response({"spec": serialize_spec(spec)})
 
 
-def _build_generate_response(result: CodegenResult | EditorResult) -> JsonDict:
+def _serialize_generate_result(result: object) -> JsonDict:
     if not isinstance(result, CodegenResult):
         raise TypeError("Generate handler expected a code generation result.")
-    return {
-        "engine": result.engine.value,
-        "code": result.code,
-        "warnings": result.warnings,
-        "artifacts": result.artifacts,
-    }
+    return serialize_codegen_result(result)
 
 
-def _build_complete_response(result: CodegenResult | EditorResult) -> JsonDict:
+def _serialize_complete_result(result: object) -> JsonDict:
     if not isinstance(result, EditorResult):
         raise TypeError("Complete handler expected an editor result.")
-    return {"engine": result.engine.value, "confirmed": result.confirmed}
+    return serialize_editor_result(result)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 
 from tensor_network_editor._analysis import analyze_network
+from tensor_network_editor.errors import SpecValidationError
+from tensor_network_editor.models import IndexSpec
 from tests.test_api import build_sample_spec
 
 
@@ -25,6 +27,13 @@ class NetworkAnalysisTests(unittest.TestCase):
         )
         self.assertEqual(analysis.left_index_by_edge_id["edge_x"].id, "tensor_a_x")
         self.assertEqual(analysis.right_index_by_edge_id["edge_x"].id, "tensor_b_x")
+
+    def test_analyze_network_can_validate_before_building_lookups(self) -> None:
+        spec = build_sample_spec()
+        spec.tensors[0].indices[0] = IndexSpec(id="tensor_a_i", name="", dimension=2)
+
+        with self.assertRaises(SpecValidationError):
+            analyze_network(spec, validate=True)
 
 
 if __name__ == "__main__":

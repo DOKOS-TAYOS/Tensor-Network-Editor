@@ -61,6 +61,7 @@ tensor_network_editor = [
   "app/static/*.html",
   "app/static/*.css",
   "app/static/*.js",
+  "app/static/js/*.js",
   "app/static/vendor/*.js",
 ]
 

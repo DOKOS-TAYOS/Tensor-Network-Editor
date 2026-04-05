@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from .._analysis import analyze_network
 from ..models import EdgeSpec, IndexSpec, NetworkSpec, TensorSpec
-from ..validation import ensure_valid_spec
 
 _NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
@@ -64,8 +63,7 @@ class PreparedNetwork:
 
 
 def prepare_network(spec: NetworkSpec) -> PreparedNetwork:
-    valid_spec = ensure_valid_spec(spec)
-    analysis = analyze_network(valid_spec)
+    analysis = analyze_network(spec, validate=True)
     tensor_names = make_unique_identifiers(
         [tensor.name or tensor.id for tensor in analysis.spec.tensors],
         "tensor",

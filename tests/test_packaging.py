@@ -39,6 +39,16 @@ class PackagingMetadataTests(unittest.TestCase):
         self.assertIn("Cytoscape.js", notices_text)
         self.assertIn("MIT License", notices_text)
 
+    def test_package_data_includes_nested_frontend_modules(self) -> None:
+        pyproject_path = Path.cwd() / "pyproject.toml"
+
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        package_data = payload["tool"]["setuptools"]["package-data"][
+            "tensor_network_editor"
+        ]
+
+        self.assertIn("app/static/js/*.js", package_data)
+
 
 if __name__ == "__main__":
     unittest.main()

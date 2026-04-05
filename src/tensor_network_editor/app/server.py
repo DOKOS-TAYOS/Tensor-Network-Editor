@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from . import routes
+from ._protocol import internal_server_error_response, not_found_response
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
@@ -61,35 +63,11 @@ class EditorServer:
         class RequestHandler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
-                if parsed.path == "/api/bootstrap":
-                    status, payload = routes.handle_bootstrap(session)
-                    self._write_json(status, payload)
-                    return
-
-                if parsed.path == "/":
-                    self._serve_index(static_dir / "index.html", asset_version)
-                    return
-
-                static_path = (static_dir / parsed.path.lstrip("/")).resolve()
-                if (
-                    not str(static_path).startswith(str(static_dir.resolve()))
-                    or not static_path.is_file()
-                ):
-                    self._write_json(
-                        HTTPStatus.NOT_FOUND, {"ok": False, "message": "Not found."}
-                    )
-                    return
-
-                content_type = "application/octet-stream"
-                if static_path.suffix == ".css":
-                    content_type = "text/css; charset=utf-8"
-                elif static_path.suffix == ".js":
-                    content_type = "application/javascript; charset=utf-8"
-                self._serve_static(static_path, content_type)
+                self._write_json(*self._dispatch_get(parsed.path))
 
             def do_POST(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
-                body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                body = self._read_request_body()
                 try:
                     payload = routes.read_json(body)
                 except ValueError as exc:
@@ -98,75 +76,102 @@ class EditorServer:
                         parsed.path,
                         exc,
                     )
-                    self._write_json(
-                        HTTPStatus.BAD_REQUEST,
-                        {"ok": False, "message": str(exc)},
-                    )
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)})
                     return
                 try:
-                    if parsed.path == "/api/validate":
-                        status, response = routes.handle_validate(session, payload)
-                    elif parsed.path == "/api/template":
-                        status, response = routes.handle_template(session, payload)
-                    elif parsed.path == "/api/generate":
-                        status, response = routes.handle_generate(session, payload)
-                    elif parsed.path == "/api/complete":
-                        status, response = routes.handle_complete(session, payload)
-                    elif parsed.path == "/api/cancel":
-                        status, response = routes.handle_cancel(session)
-                    else:
-                        status, response = (
-                            HTTPStatus.NOT_FOUND,
-                            {"ok": False, "message": "Not found."},
-                        )
+                    status, response = self._dispatch_post(parsed.path, payload)
                 except Exception:  # pragma: no cover - defensive server guard
                     LOGGER.exception(
                         "Unhandled exception while processing %s %s",
                         self.command,
                         parsed.path,
                     )
-                    status, response = (
-                        HTTPStatus.INTERNAL_SERVER_ERROR,
-                        {
-                            "ok": False,
-                            "message": "Internal server error.",
-                        },
-                    )
+                    status, response = internal_server_error_response()
                 self._write_json(status, response)
 
             def log_message(self, format: str, *args: object) -> None:  # noqa: A003
                 return
 
-            def _serve_static(self, path: Path, content_type: str) -> None:
-                if not path.is_file():
-                    self._write_json(
-                        HTTPStatus.NOT_FOUND, {"ok": False, "message": "Not found."}
-                    )
-                    return
-                body = path.read_bytes()
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(len(body)))
-                self._write_no_cache_headers()
-                self.end_headers()
-                self.wfile.write(body)
+            def _dispatch_get(self, path: str) -> tuple[int, dict[str, Any]]:
+                if path == "/api/bootstrap":
+                    return routes.handle_bootstrap(session)
+                if path == "/":
+                    return self._index_response(static_dir / "index.html", asset_version)
+                return self._static_response(path)
 
-            def _serve_index(self, path: Path, asset_version: str) -> None:
+            def _dispatch_post(
+                self, path: str, payload: dict[str, Any]
+            ) -> tuple[int, dict[str, Any]]:
+                if path == "/api/validate":
+                    return routes.handle_validate(session, payload)
+                if path == "/api/template":
+                    return routes.handle_template(session, payload)
+                if path == "/api/generate":
+                    return routes.handle_generate(session, payload)
+                if path == "/api/complete":
+                    return routes.handle_complete(session, payload)
+                if path == "/api/cancel":
+                    return routes.handle_cancel(session)
+                return not_found_response()
+
+            def _static_response(self, request_path: str) -> tuple[int, dict[str, Any]]:
+                static_path = self._resolve_static_path(request_path)
+                if static_path is None:
+                    return not_found_response()
+                body = static_path.read_bytes()
+                return HTTPStatus.OK, {
+                    "__binary_body__": body,
+                    "__content_type__": self._content_type_for_path(static_path),
+                }
+
+            def _index_response(
+                self, path: Path, asset_version: str
+            ) -> tuple[int, dict[str, Any]]:
                 body_text = path.read_text(encoding="utf-8").replace(
                     "__ASSET_VERSION__", asset_version
                 )
-                body = body_text.encode("utf-8")
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self._write_no_cache_headers()
-                self.end_headers()
-                self.wfile.write(body)
+                return HTTPStatus.OK, {
+                    "__binary_body__": body_text.encode("utf-8"),
+                    "__content_type__": "text/html; charset=utf-8",
+                }
+
+            def _resolve_static_path(self, request_path: str) -> Path | None:
+                candidate = (static_dir / request_path.lstrip("/")).resolve()
+                if not str(candidate).startswith(str(static_dir.resolve())):
+                    return None
+                if not candidate.is_file():
+                    return None
+                return candidate
+
+            def _content_type_for_path(self, path: Path) -> str:
+                guessed_type, _ = mimetypes.guess_type(path.name)
+                if path.suffix == ".js":
+                    return "application/javascript; charset=utf-8"
+                if path.suffix == ".css":
+                    return "text/css; charset=utf-8"
+                if path.suffix == ".html":
+                    return "text/html; charset=utf-8"
+                if guessed_type is None:
+                    return "application/octet-stream"
+                if guessed_type.startswith("text/"):
+                    return f"{guessed_type}; charset=utf-8"
+                return guessed_type
+
+            def _read_request_body(self) -> bytes:
+                return self.rfile.read(int(self.headers.get("Content-Length", "0")))
 
             def _write_json(self, status: int, payload: dict[str, Any]) -> None:
+                binary_body = payload.pop("__binary_body__", None)
+                content_type = payload.pop("__content_type__", None)
+                if isinstance(binary_body, bytes) and isinstance(content_type, str):
+                    self._write_bytes(status, binary_body, content_type)
+                    return
                 body = json.dumps(payload).encode("utf-8")
+                self._write_bytes(status, body, "application/json; charset=utf-8")
+
+            def _write_bytes(self, status: int, body: bytes, content_type: str) -> None:
                 self.send_response(status)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
                 self._write_no_cache_headers()
                 self.end_headers()

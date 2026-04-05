@@ -1,0 +1,20 @@
+export const constants = {
+  TENSOR_WIDTH: 180,
+  TENSOR_HEIGHT: 108,
+  MIN_TENSOR_WIDTH: 140,
+  MIN_TENSOR_HEIGHT: 84,
+  INDEX_RADIUS: 15,
+  INDEX_PADDING: 8,
+  HISTORY_LIMIT: 100,
+  REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+  DEFAULT_INDEX_SLOTS: [
+    { x: -58, y: -20 },
+    { x: 58, y: -20 },
+    { x: -58, y: 20 },
+    { x: 58, y: 20 },
+    { x: 0, y: -28 },
+    { x: 0, y: 28 },
+    { x: -24, y: -34 },
+    { x: 24, y: 34 },
+  ],
+};

@@ -246,30 +246,24 @@ class NetworkSpec:
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
-        return {tensor.id: tensor for tensor in self.tensors}
+        from ._analysis import analyze_network
+
+        return analyze_network(self).tensor_map
 
     def index_map(self) -> dict[str, tuple[TensorSpec, IndexSpec]]:
-        mapping: dict[str, tuple[TensorSpec, IndexSpec]] = {}
-        for tensor in self.tensors:
-            for index in tensor.indices:
-                mapping[index.id] = (tensor, index)
-        return mapping
+        from ._analysis import analyze_network
+
+        return analyze_network(self).index_map
 
     def connected_index_ids(self) -> set[str]:
-        connected: set[str] = set()
-        for edge in self.edges:
-            connected.add(edge.left.index_id)
-            connected.add(edge.right.index_id)
-        return connected
+        from ._analysis import analyze_network
+
+        return analyze_network(self).connected_index_ids
 
     def open_indices(self) -> list[tuple[TensorSpec, IndexSpec]]:
-        connected = self.connected_index_ids()
-        return [
-            (tensor, index)
-            for tensor in self.tensors
-            for index in tensor.indices
-            if index.id not in connected
-        ]
+        from ._analysis import analyze_network
+
+        return analyze_network(self).open_indices
 
     def to_dict(self) -> dict[str, JSONValue]:
         return {
