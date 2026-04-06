@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 from queue import Queue
+from typing import cast
 
 import pytest
 
@@ -30,15 +31,20 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     editor_session: EditorSession,
 ) -> None:
     payload = editor_session.bootstrap_payload()
-    template_definitions = payload["template_definitions"]
-    mps_definition = template_definitions["mps"]
-    binary_tree_definition = template_definitions["binary_tree"]
+    template_definitions = cast(dict[str, object], payload["template_definitions"])
+    mps_definition = cast(dict[str, object], template_definitions["mps"])
+    binary_tree_definition = cast(
+        dict[str, object], template_definitions["binary_tree"]
+    )
+    binary_tree_defaults = cast(dict[str, object], binary_tree_definition["defaults"])
+    spec_payload = cast(dict[str, object], payload["spec"])
+    network_payload = cast(dict[str, object], spec_payload["network"])
 
     assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
     assert payload["schema_version"] == 3
-    assert payload["spec"]["network"]["id"] == "network_demo"
+    assert network_payload["id"] == "network_demo"
     assert mps_definition["graph_size_label"] == "Sites"
-    assert binary_tree_definition["defaults"]["graph_size"] == 3
+    assert binary_tree_defaults["graph_size"] == 3
 
 
 def test_generate_returns_preview_without_finishing_session(

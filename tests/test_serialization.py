@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from typing import cast
 
 import pytest
 
@@ -11,16 +12,20 @@ from tensor_network_editor.serialization import (
     deserialize_spec,
     serialize_spec,
 )
+from tensor_network_editor.types import JSONValue
 
 
 def test_serialize_spec_wraps_valid_network_with_schema(
     sample_spec: NetworkSpec,
 ) -> None:
     payload = serialize_spec(sample_spec)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    notes_payload = cast(list[JSONValue], network_payload["notes"])
+    first_note = cast(dict[str, JSONValue], notes_payload[0])
 
     assert payload["schema_version"] == SCHEMA_VERSION
-    assert payload["network"]["id"] == sample_spec.id
-    assert payload["network"]["notes"][0]["text"] == "Check the contraction order"
+    assert network_payload["id"] == sample_spec.id
+    assert first_note["text"] == "Check the contraction order"
 
 
 def test_serialize_spec_rejects_invalid_network(sample_spec: NetworkSpec) -> None:
@@ -45,7 +50,10 @@ def test_deserialize_spec_can_skip_validation(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     payload = deepcopy(serialized_sample_spec)
-    payload["network"]["tensors"][0]["name"] = "   "
+    network_payload = cast(dict[str, object], payload["network"])
+    tensors_payload = cast(list[object], network_payload["tensors"])
+    first_tensor = cast(dict[str, object], tensors_payload[0])
+    first_tensor["name"] = "   "
 
     restored = deserialize_spec(payload, validate=False)
 
@@ -81,7 +89,10 @@ def test_deserialize_spec_rejects_malformed_network_payload(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     payload = deepcopy(serialized_sample_spec)
-    del payload["network"]["tensors"][0]["id"]
+    network_payload = cast(dict[str, object], payload["network"])
+    tensors_payload = cast(list[object], network_payload["tensors"])
+    first_tensor = cast(dict[str, object], tensors_payload[0])
+    del first_tensor["id"]
 
     with pytest.raises(SerializationError, match="malformed network object"):
         deserialize_spec(payload)

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+from typing import cast
 
 import pytest
 
 from tensor_network_editor.app._protocol import (
+    JsonDict,
     bad_request_response,
     deserialize_spec_with_issues,
     handle_codegen_operation,
@@ -25,6 +27,13 @@ from tensor_network_editor.models import (
     NetworkSpec,
     ValidationIssue,
 )
+
+
+def serialize_codegen_result_for_operation(
+    result: CodegenResult | EditorResult,
+) -> JsonDict:
+    assert isinstance(result, CodegenResult)
+    return serialize_codegen_result(result)
 
 
 def test_read_json_accepts_empty_body() -> None:
@@ -130,7 +139,7 @@ def test_handle_codegen_operation_returns_success_payload(
         {"spec": serialized_sample_spec, "engine": EngineName.QUIMB.value},
         default_engine=EngineName.EINSUM_NUMPY,
         operation=operation,
-        success_payload_builder=serialize_codegen_result,
+        success_payload_builder=serialize_codegen_result_for_operation,
     )
 
     assert status == HTTPStatus.OK
@@ -153,7 +162,7 @@ def test_handle_codegen_operation_uses_default_engine_when_missing(
         {"spec": serialized_sample_spec},
         default_engine=EngineName.EINSUM_TORCH,
         operation=operation,
-        success_payload_builder=serialize_codegen_result,
+        success_payload_builder=serialize_codegen_result_for_operation,
     )
 
     assert status == HTTPStatus.OK
@@ -175,7 +184,7 @@ def test_handle_codegen_operation_maps_serialization_failures_to_bad_request(
         {"spec": serialized_sample_spec},
         default_engine=EngineName.EINSUM_NUMPY,
         operation=operation,
-        success_payload_builder=serialize_codegen_result,
+        success_payload_builder=serialize_codegen_result_for_operation,
     )
 
     assert status == HTTPStatus.BAD_REQUEST
@@ -203,7 +212,7 @@ def test_handle_codegen_operation_maps_validation_failures_to_issue_payload(
         {"spec": serialized_sample_spec},
         default_engine=EngineName.EINSUM_NUMPY,
         operation=operation,
-        success_payload_builder=serialize_codegen_result,
+        success_payload_builder=serialize_codegen_result_for_operation,
     )
 
     assert status == HTTPStatus.OK
@@ -223,7 +232,7 @@ def test_deserialize_spec_with_issues_skips_validation(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     payload = dict(serialized_sample_spec)
-    network_payload = dict(payload["network"])
+    network_payload = dict(cast(dict[str, object], payload["network"]))
     network_payload["name"] = "   "
     payload["network"] = network_payload
 

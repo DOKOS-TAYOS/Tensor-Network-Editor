@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -168,7 +168,7 @@ def mismatched_edge_owner(spec: NetworkSpec) -> None:
 
 
 def non_serializable_metadata(spec: NetworkSpec) -> None:
-    spec.metadata = {"bad": {1, 2, 3}}
+    spec.metadata = cast(Any, {"bad": {1, 2, 3}})
 
 
 def test_canvas_note_round_trip_is_serializable() -> None:
