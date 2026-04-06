@@ -55,21 +55,6 @@ def sanitize_python_identifier(value: str, prefix: str) -> str:
     return collapsed
 
 
-def build_step_variable_names(plan: ContractionPlanSpec | None) -> dict[str, str]:
-    if plan is None:
-        return {}
-    seen: dict[str, int] = {}
-    variable_names: dict[str, str] = {}
-    for step in plan.steps:
-        candidate = sanitize_python_identifier(step.id, "step")
-        count = seen.get(candidate, 0)
-        seen[candidate] = count + 1
-        variable_names[step.id] = (
-            candidate if count == 0 else f"{candidate}_{count + 1}"
-        )
-    return variable_names
-
-
 def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
     dimension_by_label: dict[str, int] = {}
     for tensor in prepared.tensors:

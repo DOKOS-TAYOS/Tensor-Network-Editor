@@ -180,7 +180,7 @@ The planner tools help with contraction-order work:
 
 - Manual contraction paths are available directly in the editor.
 - Automatic greedy suggestions are available when the optional `planner` extra is installed.
-- Contraction summaries include useful size and cost estimates such as FLOPs, MACs, and intermediate sizes.
+- Contraction summaries include useful size and cost estimates such as FLOP, MAC, and intermediate sizes.
 - Generated code respects the saved manual plan when one is present.
 
 ## Supported code-generation targets

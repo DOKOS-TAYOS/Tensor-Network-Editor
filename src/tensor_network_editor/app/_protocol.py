@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import inspect
 import json
-from collections.abc import Callable
+from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 
-from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import (
     CodegenResult,
     EditorResult,
@@ -22,8 +20,14 @@ from ..serialization import (
 )
 
 JsonDict: TypeAlias = dict[str, Any]
-CodegenOperation: TypeAlias = Callable[..., CodegenResult | EditorResult]
 JsonResponse: TypeAlias = tuple[int, JsonDict]
+
+
+@dataclass(slots=True, frozen=True)
+class CodegenRequest:
+    serialized_spec: JsonDict
+    engine: EngineName
+    collection_format: TensorCollectionFormat
 
 
 def read_json(body: bytes) -> JsonDict:
@@ -57,6 +61,19 @@ def deserialize_validation_payload(payload: JsonDict) -> NetworkSpec:
         return deserialize_spec_from_python_code(python_code, validate=False)
 
     raise ValueError("Missing 'spec' or 'python_code' payload.")
+
+
+def parse_codegen_request(
+    payload: JsonDict,
+    *,
+    default_engine: EngineName,
+    default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+) -> CodegenRequest:
+    return CodegenRequest(
+        serialized_spec=cast(JsonDict, require_serialized_spec(payload)),
+        engine=resolve_engine(payload, default_engine),
+        collection_format=resolve_collection_format(payload, default_collection_format),
+    )
 
 
 def resolve_engine(payload: JsonDict, default_engine: EngineName) -> EngineName:
@@ -132,68 +149,5 @@ def serialize_editor_result(result: EditorResult) -> JsonDict:
     return {"engine": result.engine.value, "confirmed": result.confirmed}
 
 
-def handle_codegen_operation(
-    payload: JsonDict,
-    *,
-    default_engine: EngineName,
-    default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
-    operation: CodegenOperation,
-    success_payload_builder: Callable[[CodegenResult | EditorResult], JsonDict],
-) -> JsonResponse:
-    try:
-        serialized_spec = require_serialized_spec(payload)
-    except ValueError:
-        return bad_request_response("Missing 'spec' payload.")
-
-    try:
-        engine = resolve_engine(payload, default_engine)
-    except ValueError as exc:
-        return bad_request_response(str(exc))
-
-    try:
-        collection_format = resolve_collection_format(
-            payload, default_collection_format
-        )
-    except ValueError as exc:
-        return bad_request_response(str(exc))
-
-    try:
-        if operation_accepts_collection_format(operation):
-            result = operation(serialized_spec, engine, collection_format)
-        else:
-            result = operation(serialized_spec, engine)
-    except SerializationError as exc:
-        return bad_request_response(str(exc))
-    except CodeGenerationError as exc:
-        return bad_request_response(str(exc))
-    except SpecValidationError as exc:
-        return issues_response(exc.issues)
-
-    return ok_response(success_payload_builder(result))
-
-
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     return deserialize_spec(serialized_spec, validate=False)
-
-
-def operation_accepts_collection_format(operation: CodegenOperation) -> bool:
-    try:
-        signature = inspect.signature(operation)
-    except (TypeError, ValueError):
-        return True
-
-    positional_parameters = [
-        parameter
-        for parameter in signature.parameters.values()
-        if parameter.kind
-        in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        )
-    ]
-    if any(
-        parameter.kind is inspect.Parameter.VAR_POSITIONAL
-        for parameter in signature.parameters.values()
-    ):
-        return True
-    return len(positional_parameters) >= 3

@@ -36,6 +36,17 @@ def test_main_module_is_served_from_static_directory(
     assert headers["Content-Type"].startswith("application/javascript")
 
 
+def test_notes_planner_uses_singular_operation_labels(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+
+    assert '"FLOPs"' not in body
+    assert '"MACs"' not in body
+    assert '"FLOP"' in body
+    assert '"MAC"' in body
+
+
 def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
     body, headers = request_with_headers(
         f"{editor_server.base_url}/vendor/cytoscape.min.js"

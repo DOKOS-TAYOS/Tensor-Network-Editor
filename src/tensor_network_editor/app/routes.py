@@ -6,7 +6,7 @@ from typing import cast
 
 from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
 from .._templates import parse_template_parameters
-from ..errors import SerializationError, SpecValidationError
+from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec
@@ -15,9 +15,9 @@ from ._protocol import (
     bad_request_response,
     deserialize_spec_with_issues,
     deserialize_validation_payload,
-    handle_codegen_operation,
     issues_response,
     ok_response,
+    parse_codegen_request,
     require_serialized_spec,
     serialize_codegen_result,
     serialize_editor_result,
@@ -58,12 +58,10 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 
 def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
-    status, response = handle_codegen_operation(
-        payload,
-        default_engine=session.default_engine,
-        default_collection_format=session.default_collection_format,
-        operation=session.generate,
-        success_payload_builder=_serialize_generate_result,
+    status, response = _handle_session_codegen_request(
+        session=session,
+        payload=payload,
+        operation="generate",
     )
     if not response["ok"] and "message" in response:
         LOGGER.warning("Generate request rejected: %s", response["message"])
@@ -71,12 +69,10 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 
 def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
-    status, response = handle_codegen_operation(
-        payload,
-        default_engine=session.default_engine,
-        default_collection_format=session.default_collection_format,
-        operation=session.complete,
-        success_payload_builder=_serialize_complete_result,
+    status, response = _handle_session_codegen_request(
+        session=session,
+        payload=payload,
+        operation="complete",
     )
     if not response["ok"] and "message" in response:
         LOGGER.warning("Complete request rejected: %s", response["message"])
@@ -137,6 +133,45 @@ def _serialize_complete_result(result: object) -> JsonDict:
     if not isinstance(result, EditorResult):
         raise TypeError("Complete handler expected an editor result.")
     return serialize_editor_result(result)
+
+
+def _handle_session_codegen_request(
+    *,
+    session: EditorSession,
+    payload: JsonDict,
+    operation: str,
+) -> tuple[int, JsonDict]:
+    try:
+        request = parse_codegen_request(
+            payload,
+            default_engine=session.default_engine,
+            default_collection_format=session.default_collection_format,
+        )
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+
+    try:
+        if operation == "generate":
+            result = session.generate(
+                request.serialized_spec,
+                request.engine,
+                request.collection_format,
+            )
+            return ok_response(_serialize_generate_result(result))
+        if operation == "complete":
+            result = session.complete(
+                request.serialized_spec,
+                request.engine,
+                request.collection_format,
+            )
+            return ok_response(_serialize_complete_result(result))
+        raise ValueError(f"Unsupported code generation operation '{operation}'.")
+    except SerializationError as exc:
+        return bad_request_response(str(exc))
+    except CodeGenerationError as exc:
+        return bad_request_response(str(exc))
+    except SpecValidationError as exc:
+        return issues_response(exc.issues)
 
 
 def _serialize_contraction_analysis_result(

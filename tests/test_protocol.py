@@ -6,34 +6,29 @@ from typing import cast
 import pytest
 
 from tensor_network_editor.app._protocol import (
+    CodegenRequest,
     JsonDict,
     bad_request_response,
     deserialize_spec_with_issues,
-    handle_codegen_operation,
     issues_response,
     ok_response,
+    parse_codegen_request,
     read_json,
     require_serialized_spec,
+    resolve_collection_format,
     resolve_engine,
     serialize_codegen_result,
     serialize_editor_result,
     serialize_issues,
 )
-from tensor_network_editor.errors import SerializationError, SpecValidationError
 from tensor_network_editor.models import (
     CodegenResult,
     EditorResult,
     EngineName,
     NetworkSpec,
+    TensorCollectionFormat,
     ValidationIssue,
 )
-
-
-def serialize_codegen_result_for_operation(
-    result: CodegenResult | EditorResult,
-) -> JsonDict:
-    assert isinstance(result, CodegenResult)
-    return serialize_codegen_result(result)
 
 
 def test_read_json_accepts_empty_body() -> None:
@@ -62,6 +57,66 @@ def test_resolve_engine_uses_default_when_payload_omits_engine() -> None:
 def test_resolve_engine_rejects_unknown_engine() -> None:
     with pytest.raises(ValueError, match="Unsupported engine"):
         resolve_engine({"engine": "unknown"}, EngineName.EINSUM_NUMPY)
+
+
+def test_resolve_collection_format_uses_default_when_payload_omits_value() -> None:
+    assert (
+        resolve_collection_format({}, TensorCollectionFormat.MATRIX)
+        is TensorCollectionFormat.MATRIX
+    )
+
+
+def test_resolve_collection_format_rejects_unknown_collection_format() -> None:
+    with pytest.raises(ValueError, match="Unsupported collection format"):
+        resolve_collection_format(
+            {"collection_format": "invalid"},
+            TensorCollectionFormat.LIST,
+        )
+
+
+def test_parse_codegen_request_uses_defaults_when_optional_fields_are_missing(
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    request = parse_codegen_request(
+        {"spec": serialized_sample_spec},
+        default_engine=EngineName.EINSUM_TORCH,
+        default_collection_format=TensorCollectionFormat.DICT,
+    )
+
+    assert request == CodegenRequest(
+        serialized_spec=cast(JsonDict, serialized_sample_spec),
+        engine=EngineName.EINSUM_TORCH,
+        collection_format=TensorCollectionFormat.DICT,
+    )
+
+
+def test_parse_codegen_request_honors_explicit_engine_and_collection_format(
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    request = parse_codegen_request(
+        {
+            "spec": serialized_sample_spec,
+            "engine": EngineName.QUIMB.value,
+            "collection_format": TensorCollectionFormat.MATRIX.value,
+        },
+        default_engine=EngineName.EINSUM_NUMPY,
+        default_collection_format=TensorCollectionFormat.LIST,
+    )
+
+    assert request == CodegenRequest(
+        serialized_spec=cast(JsonDict, serialized_sample_spec),
+        engine=EngineName.QUIMB,
+        collection_format=TensorCollectionFormat.MATRIX,
+    )
+
+
+def test_parse_codegen_request_rejects_missing_spec() -> None:
+    with pytest.raises(ValueError, match="Missing 'spec' payload"):
+        parse_codegen_request(
+            {},
+            default_engine=EngineName.EINSUM_NUMPY,
+            default_collection_format=TensorCollectionFormat.LIST,
+        )
 
 
 def test_serialize_helpers_expose_public_response_shapes(
@@ -121,110 +176,6 @@ def test_serialize_helpers_expose_public_response_shapes(
     assert serialize_editor_result(editor_result) == {
         "engine": EngineName.EINSUM_NUMPY.value,
         "confirmed": True,
-    }
-
-
-def test_handle_codegen_operation_returns_success_payload(
-    serialized_sample_spec: dict[str, object],
-) -> None:
-    def operation(
-        serialized_spec: dict[str, object],
-        engine: EngineName,
-    ) -> CodegenResult:
-        assert serialized_spec is serialized_sample_spec
-        assert engine is EngineName.QUIMB
-        return CodegenResult(engine=engine, code="generated\n")
-
-    status, response = handle_codegen_operation(
-        {"spec": serialized_sample_spec, "engine": EngineName.QUIMB.value},
-        default_engine=EngineName.EINSUM_NUMPY,
-        operation=operation,
-        success_payload_builder=serialize_codegen_result_for_operation,
-    )
-
-    assert status == HTTPStatus.OK
-    assert response["ok"] is True
-    assert response["engine"] == EngineName.QUIMB.value
-    assert response["code"] == "generated\n"
-
-
-def test_handle_codegen_operation_uses_default_engine_when_missing(
-    serialized_sample_spec: dict[str, object],
-) -> None:
-    def operation(
-        serialized_spec: dict[str, object],
-        engine: EngineName,
-    ) -> CodegenResult:
-        assert serialized_spec is serialized_sample_spec
-        return CodegenResult(engine=engine, code="generated\n")
-
-    status, response = handle_codegen_operation(
-        {"spec": serialized_sample_spec},
-        default_engine=EngineName.EINSUM_TORCH,
-        operation=operation,
-        success_payload_builder=serialize_codegen_result_for_operation,
-    )
-
-    assert status == HTTPStatus.OK
-    assert response["engine"] == EngineName.EINSUM_TORCH.value
-
-
-def test_handle_codegen_operation_maps_serialization_failures_to_bad_request(
-    serialized_sample_spec: dict[str, object],
-) -> None:
-    def operation(
-        serialized_spec: dict[str, object],
-        engine: EngineName,
-    ) -> CodegenResult:
-        del serialized_spec
-        del engine
-        raise SerializationError("bad spec")
-
-    status, response = handle_codegen_operation(
-        {"spec": serialized_sample_spec},
-        default_engine=EngineName.EINSUM_NUMPY,
-        operation=operation,
-        success_payload_builder=serialize_codegen_result_for_operation,
-    )
-
-    assert status == HTTPStatus.BAD_REQUEST
-    assert response == {"ok": False, "message": "bad spec"}
-
-
-def test_handle_codegen_operation_maps_validation_failures_to_issue_payload(
-    serialized_sample_spec: dict[str, object],
-) -> None:
-    issue = ValidationIssue(
-        code="invalid-name",
-        message="Tensor name cannot be empty.",
-        path="tensors.tensor_a.name",
-    )
-
-    def operation(
-        serialized_spec: dict[str, object],
-        engine: EngineName,
-    ) -> CodegenResult:
-        del serialized_spec
-        del engine
-        raise SpecValidationError([issue])
-
-    status, response = handle_codegen_operation(
-        {"spec": serialized_sample_spec},
-        default_engine=EngineName.EINSUM_NUMPY,
-        operation=operation,
-        success_payload_builder=serialize_codegen_result_for_operation,
-    )
-
-    assert status == HTTPStatus.OK
-    assert response == {
-        "ok": False,
-        "issues": [
-            {
-                "code": "invalid-name",
-                "message": "Tensor name cannot be empty.",
-                "path": "tensors.tensor_a.name",
-            }
-        ],
     }
 
 

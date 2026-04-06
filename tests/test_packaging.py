@@ -61,3 +61,12 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
     assert "include THIRD_PARTY_LICENSES" in manifest_text
     assert third_party_notices.is_file()
     assert third_party_notices.read_text(encoding="utf-8").strip()
+
+
+def test_readme_uses_singular_operation_cost_labels() -> None:
+    readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
+
+    assert "FLOPs" not in readme_text
+    assert "MACs" not in readme_text
+    assert "FLOP" in readme_text
+    assert "MAC" in readme_text

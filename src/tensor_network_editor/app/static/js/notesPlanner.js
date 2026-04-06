@@ -1386,8 +1386,8 @@ export function registerNotesPlanner(ctx) {
         ${isOpen ? `
           <div class="planner-disclosure-body">
             ${renderMetricChips([
-              { label: "FLOPs", value: formatNumber(summary.total_estimated_flops) },
-              { label: "MACs", value: formatNumber(summary.total_estimated_macs) },
+              { label: "FLOP", value: formatNumber(summary.total_estimated_flops) },
+              { label: "MAC", value: formatNumber(summary.total_estimated_macs) },
               { label: "Peak", value: formatNumber(summary.peak_intermediate_size) },
             ])}
             ${
@@ -1436,8 +1436,8 @@ export function registerNotesPlanner(ctx) {
         <h3>Manual</h3>
         ${renderMetricChips([
           { label: "Status", value: manualAnalysis.status || "unknown" },
-          { label: "FLOPs", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
-          { label: "MACs", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
+          { label: "FLOP", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
+          { label: "MAC", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
           { label: "Peak", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size) },
           { label: "Shape", value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape) },
         ])}
@@ -1473,8 +1473,8 @@ export function registerNotesPlanner(ctx) {
             <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} × ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
             <div class="planner-step-meta">
               <span>Shape ${ctx.escapeHtml(formatShape(step.result_shape))}</span>
-              <span>FLOPs ${formatNumber(step.estimated_flops)}</span>
-              <span>MACs ${formatNumber(step.estimated_macs)}</span>
+              <span>FLOP ${formatNumber(step.estimated_flops)}</span>
+              <span>MAC ${formatNumber(step.estimated_macs)}</span>
             </div>
           </article>
         `

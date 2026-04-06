@@ -377,6 +377,46 @@ def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:
     }
 
 
+def test_validate_spec_rejects_duplicate_operand_ids_in_contraction_view_snapshot() -> (
+    None
+):
+    spec = build_valid_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_pair",
+        name="Pair path",
+        steps=[
+            ContractionStepSpec(
+                id="step_pair",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
+            )
+        ],
+        view_snapshots=[
+            ContractionViewSnapshotSpec(
+                applied_step_count=0,
+                operand_layouts=[
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_left",
+                        position=CanvasPosition(x=40.0, y=80.0),
+                        size=TensorSize(width=196.0, height=118.0),
+                    ),
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_left",
+                        position=CanvasPosition(x=220.0, y=80.0),
+                        size=TensorSize(width=180.0, height=108.0),
+                    ),
+                ],
+            )
+        ],
+    )
+
+    issues = validate_spec(spec)
+
+    assert find_issue(issues, "invalid-contraction-view-snapshot").path == (
+        "contraction_plan.view_snapshots.0.operand_layouts.tensor_left.operand_id"
+    )
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected_code", "expected_path"),
     [
