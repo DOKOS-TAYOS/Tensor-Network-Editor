@@ -47,9 +47,7 @@ def test_require_serialized_spec_rejects_missing_spec() -> None:
 
 
 def test_resolve_engine_uses_default_when_payload_omits_engine() -> None:
-    assert (
-        resolve_engine({}, EngineName.EINSUM_NUMPY) is EngineName.EINSUM_NUMPY
-    )
+    assert resolve_engine({}, EngineName.EINSUM_NUMPY) is EngineName.EINSUM_NUMPY
 
 
 def test_resolve_engine_rejects_unknown_engine() -> None:

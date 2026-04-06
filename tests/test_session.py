@@ -91,9 +91,7 @@ def test_wait_for_editor_result_delegates_to_session_once() -> None:
         def __init__(self) -> None:
             self.calls: list[float | None] = []
 
-        def wait_for_result(
-            self, timeout: float | None = None
-        ) -> EditorResult | None:
+        def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
             self.calls.append(timeout)
             return None
 

@@ -11,7 +11,6 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorSpec,
 )
-
 from tests.factories import build_three_tensor_spec
 
 

@@ -188,7 +188,9 @@ def test_autolayout_route_is_not_available(editor_server: EditorServer) -> None:
     status, payload = request_json_with_status(
         f"{editor_server.base_url}/api/autolayout",
         method="POST",
-        payload={"spec": {"schema_version": 3, "network": build_sample_spec().to_dict()}},
+        payload={
+            "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()}
+        },
     )
 
     assert status == 404

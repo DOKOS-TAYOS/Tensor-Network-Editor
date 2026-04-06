@@ -47,7 +47,11 @@ def build_many_label_spec() -> NetworkSpec:
         ),
         (
             EngineName.TENSORKROWCH,
-            ["import tensorkrowch as tk", "network = tk.TensorNetwork()", "tk.connect("],
+            [
+                "import tensorkrowch as tk",
+                "network = tk.TensorNetwork()",
+                "tk.connect(",
+            ],
         ),
         (
             EngineName.EINSUM_NUMPY,

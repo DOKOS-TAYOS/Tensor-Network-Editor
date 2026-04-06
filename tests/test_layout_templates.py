@@ -186,8 +186,7 @@ def test_mera_template_accepts_custom_depth_and_dimensions() -> None:
     assert len(spec.edges) == 12
     assert len(bottom_layer) == 4
     assert all(
-        any(index.name == "phys" for index in tensor.indices)
-        for tensor in bottom_layer
+        any(index.name == "phys" for index in tensor.indices) for tensor in bottom_layer
     )
     assert {
         index.dimension

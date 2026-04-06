@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
-import shutil
 from uuid import uuid4
 
 import pytest
@@ -10,7 +10,6 @@ import pytest
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, NetworkSpec
-
 from tests.factories import build_sample_spec, serialize_spec_payload
 
 

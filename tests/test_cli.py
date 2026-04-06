@@ -23,7 +23,9 @@ def test_main_uses_expected_defaults() -> None:
 
 def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> None:
     with (
-        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec) as load_mock,
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
         patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
     ):
         exit_code = main(
