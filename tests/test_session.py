@@ -1,145 +1,175 @@
 from __future__ import annotations
 
 import threading
-import unittest
+from pathlib import Path
 from queue import Queue
-from typing import cast
+
+import pytest
 
 from tensor_network_editor.api import launch_tensor_network_editor
-from tensor_network_editor.app.session import EditorSession, wait_for_editor_result
-from tensor_network_editor.models import EditorResult, EngineName
+from tensor_network_editor.app.session import (
+    EditorSession,
+    build_blank_network_spec,
+    wait_for_editor_result,
+)
+from tensor_network_editor.models import EditorResult, EngineName, NetworkSpec
 from tests.app_support import request_json
-from tests.test_api import build_sample_spec
 
 
-class SessionTests(unittest.TestCase):
-    def test_bootstrap_payload_includes_template_parameter_definitions(self) -> None:
-        session = EditorSession(
-            initial_spec=build_sample_spec(),
+def test_build_blank_network_spec_returns_empty_editor_state() -> None:
+    spec = build_blank_network_spec()
+
+    assert spec.name == "Untitled Network"
+    assert spec.tensors == []
+    assert spec.edges == []
+    assert spec.groups == []
+    assert spec.notes == []
+
+
+def test_bootstrap_payload_includes_template_parameter_definitions(
+    editor_session: EditorSession,
+) -> None:
+    payload = editor_session.bootstrap_payload()
+    template_definitions = payload["template_definitions"]
+    mps_definition = template_definitions["mps"]
+    binary_tree_definition = template_definitions["binary_tree"]
+
+    assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
+    assert payload["schema_version"] == 3
+    assert payload["spec"]["network"]["id"] == "network_demo"
+    assert mps_definition["graph_size_label"] == "Sites"
+    assert binary_tree_definition["defaults"]["graph_size"] == 3
+
+
+def test_generate_returns_preview_without_finishing_session(
+    editor_session: EditorSession,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    result = editor_session.generate(
+        serialized_sample_spec,
+        EngineName.EINSUM_NUMPY,
+    )
+
+    assert result.engine is EngineName.EINSUM_NUMPY
+    assert result.code
+    assert editor_session.wait_for_result(timeout=0.01) is None
+
+
+def test_complete_records_result_and_can_write_code(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: dict[str, object],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_path = tmp_path / "generated.py"
+    session = EditorSession(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+        print_code=True,
+        code_path=output_path,
+    )
+
+    result = session.complete(serialized_sample_spec, EngineName.EINSUM_NUMPY)
+
+    assert result.confirmed is True
+    assert result.codegen is not None
+    assert session.wait_for_result(timeout=0.01) == result
+    assert output_path.read_text(encoding="utf-8") == result.codegen.code
+    assert capsys.readouterr().out == f"{result.codegen.code}\n"
+
+
+def test_cancel_marks_session_finished_without_result(
+    editor_session: EditorSession,
+) -> None:
+    editor_session.cancel()
+
+    assert editor_session.wait_for_result(timeout=0.01) is None
+
+
+def test_wait_for_editor_result_delegates_to_session_once() -> None:
+    class FakeSession:
+        def __init__(self) -> None:
+            self.calls: list[float | None] = []
+
+        def wait_for_result(
+            self, timeout: float | None = None
+        ) -> EditorResult | None:
+            self.calls.append(timeout)
+            return None
+
+    session = FakeSession()
+
+    result = wait_for_editor_result(session, poll_interval=0.05)
+
+    assert result is None
+    assert session.calls == [None]
+
+
+def test_launch_tensor_network_editor_waits_for_complete(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    ready_queue: Queue[str] = Queue()
+    result_queue: Queue[EditorResult | None] = Queue()
+
+    def run_editor() -> None:
+        result = launch_tensor_network_editor(
+            initial_spec=sample_spec,
             default_engine=EngineName.EINSUM_NUMPY,
+            open_browser=False,
+            _on_server_ready=ready_queue.put,
         )
+        result_queue.put(result)
 
-        payload = session.bootstrap_payload()
-        template_definitions = cast(dict[str, object], payload["template_definitions"])
-        mps_definition = cast(dict[str, object], template_definitions["mps"])
-        binary_tree_definition = cast(
-            dict[str, object], template_definitions["binary_tree"]
-        )
-        binary_tree_defaults = cast(
-            dict[str, object], binary_tree_definition["defaults"]
-        )
+    thread = threading.Thread(target=run_editor, daemon=True)
+    thread.start()
 
-        self.assertIn("template_definitions", payload)
-        self.assertEqual(mps_definition["graph_size_label"], "Sites")
-        self.assertEqual(binary_tree_defaults["graph_size"], 3)
+    base_url = ready_queue.get(timeout=5)
+    payload = request_json(
+        f"{base_url}/api/complete",
+        method="POST",
+        payload={
+            "engine": EngineName.EINSUM_NUMPY.value,
+            "spec": serialized_sample_spec,
+        },
+    )
 
-    def test_wait_for_editor_result_delegates_to_session_without_private_event_access(
-        self,
-    ) -> None:
-        class FakeSession:
-            def __init__(self) -> None:
-                self.calls: list[float | None] = []
+    assert payload["ok"] is True
 
-            def wait_for_result(
-                self, timeout: float | None = None
-            ) -> EditorResult | None:
-                self.calls.append(timeout)
-                return None
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    result = result_queue.get(timeout=1)
+    assert result is not None
+    assert result.engine is EngineName.EINSUM_NUMPY
 
-        session = FakeSession()
 
-        result = wait_for_editor_result(session, poll_interval=0.05)
+def test_launch_tensor_network_editor_returns_none_on_cancel(
+    sample_spec: NetworkSpec,
+) -> None:
+    ready_queue: Queue[str] = Queue()
+    result_queue: Queue[EditorResult | None] = Queue()
 
-        self.assertIsNone(result)
-        self.assertEqual(session.calls, [None])
-
-    def test_wait_for_editor_result_polls_until_a_result_is_available(self) -> None:
-        session = EditorSession(
-            initial_spec=build_sample_spec(),
+    def run_editor() -> None:
+        result = launch_tensor_network_editor(
+            initial_spec=sample_spec,
             default_engine=EngineName.EINSUM_NUMPY,
+            open_browser=False,
+            _on_server_ready=ready_queue.put,
         )
+        result_queue.put(result)
 
-        def finish_session() -> None:
-            session.complete(
-                serialized_spec={
-                    "schema_version": 3,
-                    "network": build_sample_spec().to_dict(),
-                },
-                engine=EngineName.EINSUM_NUMPY,
-            )
+    thread = threading.Thread(target=run_editor, daemon=True)
+    thread.start()
 
-        timer = threading.Timer(0.2, finish_session)
-        timer.start()
-        self.addCleanup(timer.cancel)
+    base_url = ready_queue.get(timeout=5)
+    payload = request_json(
+        f"{base_url}/api/cancel",
+        method="POST",
+        payload={},
+    )
 
-        result = wait_for_editor_result(session, poll_interval=0.05)
+    assert payload["ok"] is True
 
-        self.assertIsNotNone(result)
-        assert result is not None
-        self.assertEqual(result.engine, EngineName.EINSUM_NUMPY)
-
-    def test_launch_tensor_network_editor_waits_for_complete(self) -> None:
-        ready_queue: Queue[str] = Queue()
-        result_queue: Queue[EditorResult | None] = Queue()
-
-        def run_editor() -> None:
-            result = launch_tensor_network_editor(
-                initial_spec=build_sample_spec(),
-                default_engine=EngineName.EINSUM_NUMPY,
-                open_browser=False,
-                _on_server_ready=ready_queue.put,
-            )
-            result_queue.put(result)
-
-        thread = threading.Thread(target=run_editor, daemon=True)
-        thread.start()
-
-        base_url = ready_queue.get(timeout=5)
-        payload = request_json(
-            f"{base_url}/api/complete",
-            method="POST",
-            payload={
-                "engine": EngineName.EINSUM_NUMPY.value,
-                "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()},
-            },
-        )
-        self.assertTrue(payload["ok"])
-
-        thread.join(timeout=5)
-        self.assertFalse(thread.is_alive())
-        result = result_queue.get(timeout=1)
-        self.assertIsNotNone(result)
-        assert result is not None
-        self.assertEqual(result.engine, EngineName.EINSUM_NUMPY)
-
-    def test_launch_tensor_network_editor_returns_none_on_cancel(self) -> None:
-        ready_queue: Queue[str] = Queue()
-        result_queue: Queue[EditorResult | None] = Queue()
-
-        def run_editor() -> None:
-            result = launch_tensor_network_editor(
-                initial_spec=build_sample_spec(),
-                default_engine=EngineName.EINSUM_NUMPY,
-                open_browser=False,
-                _on_server_ready=ready_queue.put,
-            )
-            result_queue.put(result)
-
-        thread = threading.Thread(target=run_editor, daemon=True)
-        thread.start()
-
-        base_url = ready_queue.get(timeout=5)
-        payload = request_json(
-            f"{base_url}/api/cancel",
-            method="POST",
-            payload={},
-        )
-        self.assertTrue(payload["ok"])
-
-        thread.join(timeout=5)
-        self.assertFalse(thread.is_alive())
-        self.assertIsNone(result_queue.get(timeout=1))
-
-
-if __name__ == "__main__":
-    unittest.main()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert result_queue.get(timeout=1) is None

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import unittest
+from collections.abc import Callable
 from typing import cast
 
+import pytest
+
+from tensor_network_editor.errors import SpecValidationError
 from tensor_network_editor.models import (
     CanvasNoteSpec,
     CanvasPosition,
@@ -15,6 +18,7 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorSize,
     TensorSpec,
+    ValidationIssue,
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
 
@@ -66,259 +70,288 @@ def build_valid_spec() -> NetworkSpec:
     )
 
 
-class ModelAndValidationTests(unittest.TestCase):
-    def test_canvas_note_round_trip_is_serializable(self) -> None:
-        note = CanvasNoteSpec(
-            id="note_canvas",
-            text="Review this subnet",
-            position=CanvasPosition(x=12.0, y=-4.0),
+def find_issue(issues: list[ValidationIssue], code: str) -> ValidationIssue:
+    return next(issue for issue in issues if issue.code == code)
+
+
+def duplicate_index_connection(spec: NetworkSpec) -> None:
+    spec.edges.append(
+        EdgeSpec(
+            id="edge_duplicate",
+            name="duplicate",
+            left=EdgeEndpointRef(tensor_id="tensor_left", index_id="tensor_left_bond"),
+            right=EdgeEndpointRef(
+                tensor_id="tensor_right", index_id="tensor_right_open"
+            ),
         )
+    )
 
-        payload = note.to_dict()
-        restored = CanvasNoteSpec.from_dict(cast(dict[str, object], payload))
 
-        self.assertEqual(restored.text, "Review this subnet")
-        self.assertEqual(restored.position.x, 12.0)
-        self.assertEqual(restored.position.y, -4.0)
+def dimension_mismatch(spec: NetworkSpec) -> None:
+    spec.tensors[1].indices[0] = IndexSpec(
+        id="tensor_right_bond",
+        name="shared",
+        dimension=9,
+    )
 
-    def test_contraction_plan_round_trip_is_serializable(self) -> None:
-        plan = ContractionPlanSpec(
-            id="plan_manual",
-            name="Manual path",
-            steps=[
-                ContractionStepSpec(
-                    id="step_one",
-                    left_operand_id="tensor_left",
-                    right_operand_id="tensor_right",
-                )
-            ],
+
+def duplicate_index_name(spec: NetworkSpec) -> None:
+    spec.tensors[0].indices[1] = IndexSpec(
+        id="tensor_left_bond",
+        name="left_open",
+        dimension=5,
+    )
+
+
+def invalid_size(spec: NetworkSpec) -> None:
+    spec.tensors[0].size = TensorSize(width=0.0, height=118.0)
+
+
+def missing_group_tensor(spec: NetworkSpec) -> None:
+    spec.groups[0] = GroupSpec(
+        id="group_pair",
+        name="Pair",
+        tensor_ids=["tensor_left", "tensor_missing"],
+    )
+
+
+def invalid_note_text(spec: NetworkSpec) -> None:
+    spec.notes = [
+        CanvasNoteSpec(
+            id="note_empty",
+            text="   ",
+            position=CanvasPosition(x=3.0, y=7.0),
         )
+    ]
 
-        payload = plan.to_dict()
-        restored = ContractionPlanSpec.from_dict(cast(dict[str, object], payload))
 
-        self.assertEqual(restored.name, "Manual path")
-        self.assertEqual(restored.steps[0].id, "step_one")
-        self.assertEqual(restored.steps[0].left_operand_id, "tensor_left")
-
-    def test_index_offset_round_trip_is_serializable(self) -> None:
-        index = IndexSpec(
-            id="index_with_offset",
-            name="offset_index",
-            dimension=3,
-            offset=CanvasPosition(x=34.0, y=-18.0),
+def reused_contraction_operand(spec: NetworkSpec) -> None:
+    spec.tensors.append(
+        TensorSpec(
+            id="tensor_extra",
+            name="Extra",
+            position=CanvasPosition(x=360.0, y=80.0),
+            indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
         )
+    )
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_invalid",
+        name="Invalid path",
+        steps=[
+            ContractionStepSpec(
+                id="step_pair",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
+            ),
+            ContractionStepSpec(
+                id="step_reuse",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_extra",
+            ),
+        ],
+    )
 
-        payload = index.to_dict()
-        restored = IndexSpec.from_dict(cast(dict[str, object], payload))
 
-        self.assertEqual(restored.offset.x, 34.0)
-        self.assertEqual(restored.offset.y, -18.0)
+def mismatched_edge_owner(spec: NetworkSpec) -> None:
+    spec.edges[0] = EdgeSpec(
+        id="edge_shared",
+        name="shared",
+        left=EdgeEndpointRef(
+            tensor_id="tensor_right",
+            index_id="tensor_left_bond",
+        ),
+        right=EdgeEndpointRef(
+            tensor_id="tensor_right",
+            index_id="tensor_right_bond",
+        ),
+    )
 
-    def test_tensor_size_round_trip_is_serializable(self) -> None:
-        tensor = TensorSpec(
-            id="tensor_with_size",
-            name="Sized",
-            size=TensorSize(width=212.0, height=132.0),
-        )
 
-        payload = tensor.to_dict()
-        restored = TensorSpec.from_dict(cast(dict[str, object], payload))
+def non_serializable_metadata(spec: NetworkSpec) -> None:
+    spec.metadata = {"bad": {1, 2, 3}}
 
-        self.assertEqual(restored.size.width, 212.0)
-        self.assertEqual(restored.size.height, 132.0)
 
-    def test_tensor_shape_uses_index_order(self) -> None:
-        spec = build_valid_spec()
+def test_canvas_note_round_trip_is_serializable() -> None:
+    note = CanvasNoteSpec(
+        id="note_canvas",
+        text="Review this subnet",
+        position=CanvasPosition(x=12.0, y=-4.0),
+    )
 
-        self.assertEqual(spec.tensors[0].shape, (2, 5))
-        self.assertEqual(spec.tensors[1].shape, (5, 7))
+    payload = note.to_dict()
+    restored = CanvasNoteSpec.from_dict(cast(dict[str, object], payload))
 
-    def test_open_indices_are_derived_from_unconnected_ports(self) -> None:
-        spec = build_valid_spec()
+    assert restored.text == "Review this subnet"
+    assert restored.position.x == 12.0
+    assert restored.position.y == -4.0
 
-        open_indices = [index.name for _, index in spec.open_indices()]
 
-        self.assertEqual(open_indices, ["left_open", "right_open"])
-
-    def test_validate_spec_accepts_valid_network(self) -> None:
-        issues = validate_spec(build_valid_spec())
-
-        self.assertEqual(issues, [])
-
-    def test_validate_spec_accepts_valid_network_with_notes_and_plan(self) -> None:
-        spec = build_valid_spec()
-        spec.notes = [
-            CanvasNoteSpec(
-                id="note_plan",
-                text="Contract from left to right",
-                position=CanvasPosition(x=18.0, y=24.0),
+def test_contraction_plan_round_trip_is_serializable() -> None:
+    plan = ContractionPlanSpec(
+        id="plan_manual",
+        name="Manual path",
+        steps=[
+            ContractionStepSpec(
+                id="step_one",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
             )
-        ]
-        spec.contraction_plan = ContractionPlanSpec(
-            id="plan_pair",
-            name="Pair path",
-            steps=[
-                ContractionStepSpec(
-                    id="step_pair",
-                    left_operand_id="tensor_left",
-                    right_operand_id="tensor_right",
-                )
-            ],
+        ],
+    )
+
+    payload = plan.to_dict()
+    restored = ContractionPlanSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.name == "Manual path"
+    assert restored.steps[0].id == "step_one"
+    assert restored.steps[0].left_operand_id == "tensor_left"
+
+
+def test_index_offset_round_trip_is_serializable() -> None:
+    index = IndexSpec(
+        id="index_with_offset",
+        name="offset_index",
+        dimension=3,
+        offset=CanvasPosition(x=34.0, y=-18.0),
+    )
+
+    payload = index.to_dict()
+    restored = IndexSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.offset.x == 34.0
+    assert restored.offset.y == -18.0
+
+
+def test_tensor_size_round_trip_is_serializable() -> None:
+    tensor = TensorSpec(
+        id="tensor_with_size",
+        name="Sized",
+        size=TensorSize(width=212.0, height=132.0),
+    )
+
+    payload = tensor.to_dict()
+    restored = TensorSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.size.width == 212.0
+    assert restored.size.height == 132.0
+
+
+def test_tensor_shape_uses_index_order() -> None:
+    spec = build_valid_spec()
+
+    assert spec.tensors[0].shape == (2, 5)
+    assert spec.tensors[1].shape == (5, 7)
+
+
+def test_open_indices_are_derived_from_unconnected_ports() -> None:
+    spec = build_valid_spec()
+
+    assert [index.name for _, index in spec.open_indices()] == [
+        "left_open",
+        "right_open",
+    ]
+
+
+def test_validate_spec_accepts_valid_network() -> None:
+    assert validate_spec(build_valid_spec()) == []
+
+
+def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:
+    spec = build_valid_spec()
+    spec.notes = [
+        CanvasNoteSpec(
+            id="note_plan",
+            text="Contract from left to right",
+            position=CanvasPosition(x=18.0, y=24.0),
         )
-
-        issues = validate_spec(spec)
-
-        self.assertEqual(issues, [])
-
-    def test_validate_spec_rejects_duplicate_index_connection(self) -> None:
-        spec = build_valid_spec()
-        spec.edges.append(
-            EdgeSpec(
-                id="edge_duplicate",
-                name="duplicate",
-                left=EdgeEndpointRef(
-                    tensor_id="tensor_left", index_id="tensor_left_bond"
-                ),
-                right=EdgeEndpointRef(
-                    tensor_id="tensor_right", index_id="tensor_right_open"
-                ),
+    ]
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_pair",
+        name="Pair path",
+        steps=[
+            ContractionStepSpec(
+                id="step_pair",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
             )
+        ],
+    )
+
+    assert validate_spec(spec) == []
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected_code", "expected_path"),
+    [
+        (
+            duplicate_index_connection,
+            "index-already-connected",
+            "edges.edge_duplicate.left",
+        ),
+        (dimension_mismatch, "dimension-mismatch", "edges.edge_shared"),
+        (duplicate_index_name, "duplicate-index-name", "tensors.tensor_left.indices"),
+        (invalid_size, "invalid-size", "tensors.tensor_left.size"),
+        (
+            missing_group_tensor,
+            "missing-group-tensor",
+            "groups.group_pair.tensor_ids",
+        ),
+        (invalid_note_text, "invalid-note-text", "notes.note_empty.text"),
+        (
+            reused_contraction_operand,
+            "contraction-operand-reused",
+            "contraction_plan.steps.step_reuse.left_operand_id",
+        ),
+        (mismatched_edge_owner, "endpoint-tensor-mismatch", "edges.edge_shared.left"),
+        (non_serializable_metadata, "metadata-not-serializable", "metadata"),
+    ],
+)
+def test_validate_spec_reports_targeted_issue_codes_and_paths(
+    mutate: Callable[[NetworkSpec], None],
+    expected_code: str,
+    expected_path: str,
+) -> None:
+    spec = build_valid_spec()
+
+    mutate(spec)
+    issue = find_issue(validate_spec(spec), expected_code)
+
+    assert issue.path == expected_path
+
+
+def test_validate_spec_accepts_multi_step_contraction_plan() -> None:
+    spec = build_valid_spec()
+    spec.tensors.append(
+        TensorSpec(
+            id="tensor_extra",
+            name="Extra",
+            position=CanvasPosition(x=360.0, y=80.0),
+            indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
         )
+    )
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_valid",
+        name="Valid path",
+        steps=[
+            ContractionStepSpec(
+                id="step_pair",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
+            ),
+            ContractionStepSpec(
+                id="step_total",
+                left_operand_id="step_pair",
+                right_operand_id="tensor_extra",
+            ),
+        ],
+    )
 
-        issues = validate_spec(spec)
-
-        self.assertIn("index-already-connected", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_dimension_mismatch(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors[1].indices[0] = IndexSpec(
-            id="tensor_right_bond",
-            name="shared",
-            dimension=9,
-        )
-
-        issues = validate_spec(spec)
-
-        self.assertIn("dimension-mismatch", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_duplicate_index_name_within_tensor(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors[0].indices[1] = IndexSpec(
-            id="tensor_left_bond",
-            name="left_open",
-            dimension=5,
-        )
-
-        issues = validate_spec(spec)
-
-        self.assertIn("duplicate-index-name", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_non_positive_tensor_size(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors[0].size = TensorSize(width=0.0, height=118.0)
-
-        issues = validate_spec(spec)
-
-        self.assertIn("invalid-size", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_groups_with_missing_tensor_ids(self) -> None:
-        spec = build_valid_spec()
-        spec.groups[0] = GroupSpec(
-            id="group_pair",
-            name="Pair",
-            tensor_ids=["tensor_left", "tensor_missing"],
-        )
-
-        issues = validate_spec(spec)
-
-        self.assertIn("missing-group-tensor", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_empty_note_text(self) -> None:
-        spec = build_valid_spec()
-        spec.notes = [
-            CanvasNoteSpec(
-                id="note_empty",
-                text="   ",
-                position=CanvasPosition(x=3.0, y=7.0),
-            )
-        ]
-
-        issues = validate_spec(spec)
-
-        self.assertIn("invalid-note-text", [issue.code for issue in issues])
-
-    def test_validate_spec_rejects_reused_contraction_operand(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors.append(
-            TensorSpec(
-                id="tensor_extra",
-                name="Extra",
-                position=CanvasPosition(x=360.0, y=80.0),
-                indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
-            )
-        )
-        spec.contraction_plan = ContractionPlanSpec(
-            id="plan_invalid",
-            name="Invalid path",
-            steps=[
-                ContractionStepSpec(
-                    id="step_pair",
-                    left_operand_id="tensor_left",
-                    right_operand_id="tensor_right",
-                ),
-                ContractionStepSpec(
-                    id="step_reuse",
-                    left_operand_id="tensor_left",
-                    right_operand_id="tensor_extra",
-                ),
-            ],
-        )
-
-        issues = validate_spec(spec)
-
-        self.assertIn("contraction-operand-reused", [issue.code for issue in issues])
-
-    def test_validate_spec_accepts_multi_step_contraction_plan(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors.append(
-            TensorSpec(
-                id="tensor_extra",
-                name="Extra",
-                position=CanvasPosition(x=360.0, y=80.0),
-                indices=[IndexSpec(id="tensor_extra_open", name="free", dimension=11)],
-            )
-        )
-        spec.contraction_plan = ContractionPlanSpec(
-            id="plan_valid",
-            name="Valid path",
-            steps=[
-                ContractionStepSpec(
-                    id="step_pair",
-                    left_operand_id="tensor_left",
-                    right_operand_id="tensor_right",
-                ),
-                ContractionStepSpec(
-                    id="step_total",
-                    left_operand_id="step_pair",
-                    right_operand_id="tensor_extra",
-                ),
-            ],
-        )
-
-        issues = validate_spec(spec)
-
-        self.assertEqual(issues, [])
-
-    def test_ensure_valid_spec_raises_clear_error(self) -> None:
-        spec = build_valid_spec()
-        spec.tensors[0].indices[0] = IndexSpec(
-            id="tensor_left_open", name="", dimension=2
-        )
-
-        with self.assertRaisesRegex(Exception, "invalid"):
-            ensure_valid_spec(spec)
+    assert validate_spec(spec) == []
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_ensure_valid_spec_raises_spec_validation_error() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].indices[0] = IndexSpec(id="tensor_left_open", name="", dimension=2)
+
+    with pytest.raises(SpecValidationError, match="invalid"):
+        ensure_valid_spec(spec)

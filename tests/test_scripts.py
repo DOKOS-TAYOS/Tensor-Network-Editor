@@ -3,120 +3,134 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import unittest
 from pathlib import Path
-from uuid import uuid4
+
+import pytest
 
 
-class CleanScriptTests(unittest.TestCase):
-    def test_clean_sh_exists_and_targets_standard_artifacts(self) -> None:
-        source_script = Path.cwd() / "scripts" / "clean.sh"
-        self.assertTrue(source_script.is_file(), "scripts/clean.sh should exist.")
+def seed_generated_artifacts(root: Path) -> None:
+    directories_to_create = [
+        root / "build",
+        root / "dist",
+        root / ".pytest_cache",
+        root / ".mypy_cache",
+        root / ".ruff_cache",
+        root / ".test_output",
+        root / "pytest-cache-files-demo",
+        root / "package.egg-info",
+        root / "__pycache__",
+        root / "src" / "tensor_network_editor" / "__pycache__",
+        root / "tests" / "__pycache__",
+        root / "examples" / "__pycache__",
+        root / "scripts" / "__pycache__",
+        root / ".venv",
+    ]
+    for directory in directories_to_create:
+        directory.mkdir(parents=True, exist_ok=True)
 
+    files_to_create = [
+        root / "build" / "artifact.txt",
+        root / "dist" / "artifact.whl",
+        root / ".pytest_cache" / "cache.txt",
+        root / ".mypy_cache" / "cache.txt",
+        root / ".ruff_cache" / "cache.txt",
+        root / ".test_output" / "output.txt",
+        root / "pytest-cache-files-demo" / "temp.txt",
+        root / "package.egg-info" / "PKG-INFO",
+        root / "__pycache__" / "root.pyc",
+        root / "src" / "tensor_network_editor" / "__pycache__" / "module.pyc",
+        root / "tests" / "__pycache__" / "module.pyc",
+        root / "examples" / "__pycache__" / "module.pyc",
+        root / "scripts" / "__pycache__" / "module.pyc",
+        root / ".venv" / "marker.txt",
+        root / ".coverage",
+        root / ".coverage.unit",
+        root / "coverage.xml",
+    ]
+    for file_path in files_to_create:
+        file_path.write_text("temporary", encoding="utf-8")
+
+
+def assert_cleanup_removed_artifacts(root: Path) -> None:
+    removed_paths = [
+        root / "build",
+        root / "dist",
+        root / ".pytest_cache",
+        root / ".mypy_cache",
+        root / ".ruff_cache",
+        root / ".test_output",
+        root / "pytest-cache-files-demo",
+        root / "package.egg-info",
+        root / "__pycache__",
+        root / "src" / "tensor_network_editor" / "__pycache__",
+        root / "tests" / "__pycache__",
+        root / "examples" / "__pycache__",
+        root / "scripts" / "__pycache__",
+        root / ".coverage",
+        root / ".coverage.unit",
+        root / "coverage.xml",
+    ]
+    for path in removed_paths:
+        assert not path.exists()
+
+    assert (root / ".venv").exists()
+    assert (root / ".venv" / "marker.txt").exists()
+
+
+def prepare_script_workspace(tmp_path: Path, script_name: str) -> Path:
+    workspace = tmp_path / script_name.replace(".", "_")
+    scripts_dir = workspace / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(Path.cwd() / "scripts" / script_name, scripts_dir / script_name)
+    seed_generated_artifacts(workspace)
+    return workspace
+
+
+@pytest.mark.skipif(os.name != "nt", reason="clean.bat is a Windows-only helper")
+def test_clean_bat_removes_generated_artifacts_and_preserves_venv(
+    tmp_path: Path,
+) -> None:
+    workspace = prepare_script_workspace(tmp_path, "clean.bat")
+
+    for _ in range(2):
+        result = subprocess.run(
+            ["cmd", "/c", "scripts\\clean.bat"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    assert_cleanup_removed_artifacts(workspace)
+
+
+def test_clean_sh_removes_generated_artifacts_and_preserves_venv(
+    tmp_path: Path,
+) -> None:
+    shell_path = shutil.which("sh")
+    source_script = Path.cwd() / "scripts" / "clean.sh"
+
+    if shell_path is None:
         script_text = source_script.read_text(encoding="utf-8")
+        assert 'remove_dir ".pytest_cache"' in script_text
+        assert 'remove_dir "build"' in script_text
+        assert 'remove_named_dirs "./scripts" "__pycache__"' in script_text
+        assert ".venv" not in script_text
+        return
 
-        self.assertIn('remove_dir ".pytest_cache"', script_text)
-        self.assertIn('remove_dir "build"', script_text)
-        self.assertIn('remove_dir "dist"', script_text)
-        self.assertIn('remove_glob_dirs_warn "./pytest-cache-files-*"', script_text)
-        self.assertIn('remove_named_dirs "./src" "__pycache__"', script_text)
-        self.assertIn('remove_named_dirs "./tests" "__pycache__"', script_text)
-        self.assertNotIn(".venv", script_text)
+    workspace = prepare_script_workspace(tmp_path, "clean.sh")
+    copied_script = workspace / "scripts" / "clean.sh"
+    copied_script.chmod(0o755)
 
-    @unittest.skipUnless(os.name == "nt", "clean.bat is a Windows-only helper")
-    def test_clean_bat_removes_generated_artifacts_and_preserves_venv(self) -> None:
-        source_script = Path.cwd() / "scripts" / "clean.bat"
-        self.assertTrue(source_script.is_file(), "scripts/clean.bat should exist.")
+    for _ in range(2):
+        result = subprocess.run(
+            [shell_path, "scripts/clean.sh"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
 
-        temp_root = Path.cwd() / ".test_output" / f"clean_script_{uuid4().hex}"
-        temp_root.mkdir(parents=True, exist_ok=True)
-        self.addCleanup(lambda: shutil.rmtree(temp_root, ignore_errors=True))
-
-        try:
-            temp_scripts_dir = temp_root / "scripts"
-            temp_scripts_dir.mkdir()
-            shutil.copy2(source_script, temp_scripts_dir / "clean.bat")
-
-            directories_to_create = [
-                temp_root / "build",
-                temp_root / "dist",
-                temp_root / ".pytest_cache",
-                temp_root / ".mypy_cache",
-                temp_root / ".ruff_cache",
-                temp_root / ".test_output",
-                temp_root / "pytest-cache-files-demo",
-                temp_root / "package.egg-info",
-                temp_root / "__pycache__",
-                temp_root / "src" / "tensor_network_editor" / "__pycache__",
-                temp_root / "tests" / "__pycache__",
-                temp_root / "examples" / "__pycache__",
-                temp_root / ".venv",
-            ]
-            for directory in directories_to_create:
-                directory.mkdir(parents=True, exist_ok=True)
-
-            files_to_create = [
-                temp_root / "build" / "artifact.txt",
-                temp_root / "dist" / "artifact.whl",
-                temp_root / ".pytest_cache" / "cache.txt",
-                temp_root / ".mypy_cache" / "cache.txt",
-                temp_root / ".ruff_cache" / "cache.txt",
-                temp_root / ".test_output" / "output.txt",
-                temp_root / "pytest-cache-files-demo" / "temp.txt",
-                temp_root / "package.egg-info" / "PKG-INFO",
-                temp_root / "__pycache__" / "root.pyc",
-                temp_root
-                / "src"
-                / "tensor_network_editor"
-                / "__pycache__"
-                / "module.pyc",
-                temp_root / "tests" / "__pycache__" / "module.pyc",
-                temp_root / "examples" / "__pycache__" / "module.pyc",
-                temp_root / ".venv" / "marker.txt",
-                temp_root / ".coverage",
-                temp_root / ".coverage.unit",
-            ]
-            for file_path in files_to_create:
-                file_path.write_text("temporary", encoding="utf-8")
-
-            for _ in range(2):
-                result = subprocess.run(
-                    ["cmd", "/c", "scripts\\clean.bat"],
-                    cwd=temp_root,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                self.assertEqual(
-                    result.returncode,
-                    0,
-                    msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
-                )
-
-            removed_paths = [
-                temp_root / "build",
-                temp_root / "dist",
-                temp_root / ".pytest_cache",
-                temp_root / ".mypy_cache",
-                temp_root / ".ruff_cache",
-                temp_root / ".test_output",
-                temp_root / "pytest-cache-files-demo",
-                temp_root / "package.egg-info",
-                temp_root / "__pycache__",
-                temp_root / "src" / "tensor_network_editor" / "__pycache__",
-                temp_root / "tests" / "__pycache__",
-                temp_root / "examples" / "__pycache__",
-                temp_root / ".coverage",
-                temp_root / ".coverage.unit",
-            ]
-            for path in removed_paths:
-                self.assertFalse(path.exists(), f"{path} should have been removed.")
-
-            self.assertTrue((temp_root / ".venv").exists())
-            self.assertTrue((temp_root / ".venv" / "marker.txt").exists())
-        finally:
-            shutil.rmtree(temp_root, ignore_errors=True)
-
-
-if __name__ == "__main__":
-    unittest.main()
+    assert_cleanup_removed_artifacts(workspace)

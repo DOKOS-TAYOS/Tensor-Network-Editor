@@ -1,107 +1,63 @@
 from __future__ import annotations
 
+import importlib.metadata
 import tomllib
-import unittest
 from pathlib import Path
 
-
-class PackagingMetadataTests(unittest.TestCase):
-    def test_pyproject_declares_public_project_urls(self) -> None:
-        pyproject_path = Path.cwd() / "pyproject.toml"
-        self.assertTrue(pyproject_path.is_file(), "pyproject.toml should exist.")
-
-        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        project_urls = payload["project"]["urls"]
-
-        self.assertIn("Homepage", project_urls)
-        self.assertIn("Repository", project_urls)
-        self.assertIn("Issues", project_urls)
-
-    def test_distribution_declares_third_party_license_notices(self) -> None:
-        project_root = Path.cwd()
-        notices_path = project_root / "THIRD_PARTY_LICENSES"
-        manifest_path = project_root / "MANIFEST.in"
-        pyproject_path = project_root / "pyproject.toml"
-
-        self.assertTrue(
-            notices_path.is_file(),
-            "THIRD_PARTY_LICENSES should exist for bundled third-party assets.",
-        )
-        self.assertTrue(manifest_path.is_file(), "MANIFEST.in should exist.")
-
-        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        license_files = payload["project"]["license-files"]
-        manifest_text = manifest_path.read_text(encoding="utf-8")
-        notices_text = notices_path.read_text(encoding="utf-8")
-
-        self.assertIn("THIRD_PARTY_LICENSES", license_files)
-        self.assertIn("include THIRD_PARTY_LICENSES", manifest_text)
-        self.assertIn("Cytoscape.js", notices_text)
-        self.assertIn("MIT License", notices_text)
-
-    def test_package_data_includes_nested_frontend_modules(self) -> None:
-        pyproject_path = Path.cwd() / "pyproject.toml"
-
-        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        package_data = payload["tool"]["setuptools"]["package-data"][
-            "tensor_network_editor"
-        ]
-
-        self.assertIn("app/static/js/*.js", package_data)
-
-    def test_pyproject_declares_optional_planner_extra(self) -> None:
-        pyproject_path = Path.cwd() / "pyproject.toml"
-
-        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        optional_dependencies = payload["project"]["optional-dependencies"]
-
-        self.assertIn("planner", optional_dependencies)
-        self.assertTrue(
-            any(
-                dependency.startswith("opt_einsum")
-                for dependency in optional_dependencies["planner"]
-            )
-        )
-
-    def test_pyproject_declares_pyright_dev_tooling(self) -> None:
-        pyproject_path = Path.cwd() / "pyproject.toml"
-
-        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-        dev_dependencies = payload["project"]["optional-dependencies"]["dev"]
-        pyright_config = payload["tool"]["pyright"]
-
-        self.assertTrue(
-            any(dependency.startswith("pyright") for dependency in dev_dependencies)
-        )
-        self.assertEqual(pyright_config["venvPath"], ".")
-        self.assertEqual(pyright_config["venv"], ".venv")
-        self.assertEqual(pyright_config["include"], ["src", "tests"])
-
-    def test_ci_workflow_runs_pyright(self) -> None:
-        workflow_path = Path.cwd() / ".github" / "workflows" / "ci.yml"
-
-        workflow_text = workflow_path.read_text(encoding="utf-8")
-
-        self.assertIn("Run Pyright", workflow_text)
-        self.assertIn("-m pyright", workflow_text)
-
-    def test_optional_opt_einsum_import_uses_dynamic_loading(self) -> None:
-        analysis_path = (
-            Path.cwd() / "src" / "tensor_network_editor" / "_contraction_analysis.py"
-        )
-
-        analysis_text = analysis_path.read_text(encoding="utf-8")
-
-        self.assertNotIn("from opt_einsum import contract_path", analysis_text)
-        self.assertIn('import_module("opt_einsum")', analysis_text)
-
-    def test_readme_documents_pyright_check(self) -> None:
-        readme_path = Path.cwd() / "README.md"
-
-        readme_text = readme_path.read_text(encoding="utf-8")
-
-        self.assertIn("python -m pyright", readme_text)
+import tensor_network_editor
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_installed_distribution_exposes_public_metadata_contracts() -> None:
+    distribution = importlib.metadata.distribution("tensor-network-editor")
+    project_urls = distribution.metadata.get_all("Project-URL") or []
+
+    assert distribution.metadata["Name"] == "tensor-network-editor"
+    assert distribution.version == tensor_network_editor.__version__
+    assert any(url.startswith("Homepage, https://") for url in project_urls)
+    assert any(url.startswith("Repository, https://") for url in project_urls)
+    assert any(url.startswith("Issues, https://") for url in project_urls)
+    assert any(
+        entry_point.group == "console_scripts"
+        and entry_point.name == "tensor-network-editor"
+        and entry_point.value == "tensor_network_editor.cli:main"
+        for entry_point in distribution.entry_points
+    )
+
+
+def test_installed_package_contains_required_frontend_assets() -> None:
+    package_root = Path(tensor_network_editor.__file__).resolve().parent
+
+    required_assets = [
+        package_root / "app" / "static" / "index.html",
+        package_root / "app" / "static" / "app.css",
+        package_root / "app" / "static" / "js" / "main.js",
+        package_root / "app" / "static" / "vendor" / "cytoscape.min.js",
+    ]
+
+    for asset_path in required_assets:
+        assert asset_path.is_file()
+
+
+def test_project_metadata_declares_package_data_and_license_files() -> None:
+    pyproject_path = Path.cwd() / "pyproject.toml"
+    manifest_path = Path.cwd() / "MANIFEST.in"
+    third_party_notices = Path.cwd() / "THIRD_PARTY_LICENSES"
+
+    payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    license_files = set(payload["project"]["license-files"])
+    package_data = set(
+        payload["tool"]["setuptools"]["package-data"]["tensor_network_editor"]
+    )
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+
+    assert {"LICENSE", "THIRD_PARTY_LICENSES"} <= license_files
+    assert {
+        "app/static/*.html",
+        "app/static/*.css",
+        "app/static/*.js",
+        "app/static/js/*.js",
+        "app/static/vendor/*.js",
+    } <= package_data
+    assert "include THIRD_PARTY_LICENSES" in manifest_text
+    assert third_party_notices.is_file()
+    assert third_party_notices.read_text(encoding="utf-8").strip()

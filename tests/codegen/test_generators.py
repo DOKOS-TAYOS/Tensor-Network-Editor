@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import unittest
+import pytest
 
 from tensor_network_editor.api import generate_code
 from tensor_network_editor.models import (
@@ -10,7 +10,7 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorSpec,
 )
-from tests.test_api import build_sample_spec
+from tests.factories import build_sample_spec
 
 
 def build_many_label_spec() -> NetworkSpec:
@@ -34,72 +34,58 @@ def build_many_label_spec() -> NetworkSpec:
     return NetworkSpec(id="many_labels", name="many labels", tensors=tensors)
 
 
-class CodegenTests(unittest.TestCase):
-    def test_tensornetwork_codegen_uses_axis_names_and_connections(self) -> None:
-        result = generate_code(build_sample_spec(), engine=EngineName.TENSORNETWORK)
+@pytest.mark.parametrize(
+    ("engine", "expected_snippets"),
+    [
+        (
+            EngineName.TENSORNETWORK,
+            ["import tensornetwork as tn", "axis_names=['i', 'x']", "tn.connect("],
+        ),
+        (
+            EngineName.QUIMB,
+            ["import quimb.tensor as qtn", "qtn.Tensor(", "qtn.TensorNetwork(["],
+        ),
+        (
+            EngineName.TENSORKROWCH,
+            ["import tensorkrowch as tk", "network = tk.TensorNetwork()", "tk.connect("],
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            ["import numpy as np", "np.zeros((2, 3)", "result = np.einsum("],
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "import torch",
+                "torch.zeros((2, 3), dtype=torch.float32)",
+                "result = torch.einsum(",
+            ],
+        ),
+    ],
+)
+def test_generate_code_emits_engine_specific_contracts(
+    engine: EngineName,
+    expected_snippets: list[str],
+) -> None:
+    result = generate_code(build_sample_spec(), engine=engine)
 
-        self.assertIn("import tensornetwork as tn", result.code)
-        self.assertIn("axis_names=['i', 'x']", result.code)
-        self.assertIn("tn.connect(", result.code)
-
-    def test_quimb_codegen_builds_tensors_from_inds(self) -> None:
-        result = generate_code(build_sample_spec(), engine=EngineName.QUIMB)
-
-        self.assertIn("import quimb.tensor as qtn", result.code)
-        self.assertIn("qtn.Tensor(", result.code)
-        self.assertIn("qtn.TensorNetwork([", result.code)
-
-    def test_tensorkrowch_codegen_builds_nodes_and_connections(self) -> None:
-        result = generate_code(build_sample_spec(), engine=EngineName.TENSORKROWCH)
-
-        self.assertIn("import tensorkrowch as tk", result.code)
-        self.assertIn("network = tk.TensorNetwork()", result.code)
-        self.assertIn("tk.connect(", result.code)
-
-    def test_numpy_einsum_codegen_emits_equation_and_zero_arrays(self) -> None:
-        result = generate_code(build_sample_spec(), engine=EngineName.EINSUM_NUMPY)
-
-        self.assertIn("import numpy as np", result.code)
-        self.assertIn("np.zeros((2, 3)", result.code)
-        self.assertIn("np.einsum", result.code)
-
-    def test_torch_einsum_codegen_emits_equation_and_zero_tensors(self) -> None:
-        result = generate_code(build_sample_spec(), engine=EngineName.EINSUM_TORCH)
-
-        self.assertIn("import torch", result.code)
-        self.assertIn("torch.zeros((2, 3), dtype=torch.float32)", result.code)
-        self.assertIn("torch.einsum", result.code)
-
-    def test_numpy_einsum_codegen_uses_integer_sublist_form_for_many_labels(
-        self,
-    ) -> None:
-        result = generate_code(
-            build_many_label_spec(),
-            engine=EngineName.EINSUM_NUMPY,
-        )
-
-        self.assertIn(
-            "integer-sublist form because the network uses many labels",
-            result.code,
-        )
-        self.assertIn("result = np.einsum(", result.code)
-        self.assertNotIn("# Einsum equation:", result.code)
-
-    def test_torch_einsum_codegen_uses_integer_sublist_form_for_many_labels(
-        self,
-    ) -> None:
-        result = generate_code(
-            build_many_label_spec(),
-            engine=EngineName.EINSUM_TORCH,
-        )
-
-        self.assertIn(
-            "integer-sublist form because the network uses many labels",
-            result.code,
-        )
-        self.assertIn("result = torch.einsum(", result.code)
-        self.assertNotIn("# Einsum equation:", result.code)
+    assert result.engine is engine
+    assert result.code.endswith("\n")
+    for snippet in expected_snippets:
+        assert snippet in result.code
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+)
+def test_einsum_codegen_uses_integer_sublist_form_for_many_labels(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_many_label_spec(), engine=engine)
+
+    module_alias = "np" if engine is EngineName.EINSUM_NUMPY else "torch"
+
+    assert "integer-sublist form because the network uses many labels" in result.code
+    assert f"result = {module_alias}.einsum(" in result.code
+    assert "# Einsum equation:" not in result.code

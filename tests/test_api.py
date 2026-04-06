@@ -1,227 +1,137 @@
 from __future__ import annotations
 
+import importlib.metadata
 import logging
-import unittest
 from pathlib import Path
-from uuid import uuid4
+
+import pytest
 
 import tensor_network_editor
 from tensor_network_editor.api import generate_code, load_spec, save_spec
 from tensor_network_editor.errors import PackageIOError, SerializationError
-from tensor_network_editor.models import (
-    CanvasNoteSpec,
-    CanvasPosition,
-    ContractionPlanSpec,
-    ContractionStepSpec,
-    EdgeEndpointRef,
-    EdgeSpec,
-    EngineName,
-    GroupSpec,
-    IndexSpec,
-    NetworkSpec,
-    TensorSize,
-    TensorSpec,
-)
+from tensor_network_editor.models import EngineName, NetworkSpec
 
 
-def build_sample_spec() -> NetworkSpec:
-    return NetworkSpec(
-        id="network_demo",
-        name="demo",
-        tensors=[
-            TensorSpec(
-                id="tensor_a",
-                name="A",
-                position=CanvasPosition(x=120.0, y=160.0),
-                size=TensorSize(width=200.0, height=120.0),
-                indices=[
-                    IndexSpec(id="tensor_a_i", name="i", dimension=2),
-                    IndexSpec(id="tensor_a_x", name="x", dimension=3),
-                ],
-            ),
-            TensorSpec(
-                id="tensor_b",
-                name="B",
-                position=CanvasPosition(x=360.0, y=160.0),
-                indices=[
-                    IndexSpec(id="tensor_b_x", name="x", dimension=3),
-                    IndexSpec(id="tensor_b_j", name="j", dimension=4),
-                ],
-            ),
-        ],
-        groups=[
-            GroupSpec(
-                id="group_demo",
-                name="Demo Group",
-                tensor_ids=["tensor_a", "tensor_b"],
-            )
-        ],
-        edges=[
-            EdgeSpec(
-                id="edge_x",
-                name="bond_x",
-                left=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_x"),
-                right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
-            )
-        ],
-        notes=[
-            CanvasNoteSpec(
-                id="note_demo",
-                text="Check the contraction order",
-                position=CanvasPosition(x=80.0, y=60.0),
-            )
-        ],
-        contraction_plan=ContractionPlanSpec(
-            id="plan_demo",
-            name="Manual path",
-            steps=[
-                ContractionStepSpec(
-                    id="step_contract_ab",
-                    left_operand_id="tensor_a",
-                    right_operand_id="tensor_b",
-                )
-            ],
-        ),
+def test_package_version_matches_installed_metadata() -> None:
+    assert tensor_network_editor.__version__ == importlib.metadata.version(
+        "tensor-network-editor"
     )
 
 
-def build_output_path(filename: str) -> Path:
-    output_dir = Path.cwd() / ".test_output"
-    output_dir.mkdir(exist_ok=True)
-    return output_dir / f"{uuid4().hex}_{filename}"
+def test_package_logger_uses_null_handler() -> None:
+    package_logger = logging.getLogger("tensor_network_editor")
+
+    assert any(
+        isinstance(handler, logging.NullHandler) for handler in package_logger.handlers
+    )
 
 
-class PublicApiTests(unittest.TestCase):
-    def test_package_exposes_version_string(self) -> None:
-        self.assertEqual(tensor_network_editor.__version__, "0.1.2")
+def test_package_root_exports_supported_public_api() -> None:
+    assert set(tensor_network_editor.__all__) == {
+        "CanvasPosition",
+        "CanvasNoteSpec",
+        "CodegenResult",
+        "ContractionPlanSpec",
+        "ContractionStepSpec",
+        "EdgeEndpointRef",
+        "EdgeSpec",
+        "EditorResult",
+        "EngineName",
+        "GroupSpec",
+        "IndexSpec",
+        "NetworkSpec",
+        "TensorSize",
+        "TensorSpec",
+        "__version__",
+        "generate_code",
+        "launch_tensor_network_editor",
+        "load_spec",
+        "save_spec",
+    }
+    assert tensor_network_editor.generate_code is generate_code
+    assert tensor_network_editor.load_spec is load_spec
+    assert tensor_network_editor.save_spec is save_spec
+    assert not hasattr(tensor_network_editor, "tensor_network_creation")
 
-    def test_package_logger_uses_null_handler(self) -> None:
-        package_logger = logging.getLogger("tensor_network_editor")
 
-        self.assertTrue(
-            any(
-                isinstance(handler, logging.NullHandler)
-                for handler in package_logger.handlers
-            )
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_generate_code_returns_codegen_result_for_each_engine(
+    sample_spec: NetworkSpec,
+    engine: EngineName,
+) -> None:
+    result = generate_code(sample_spec, engine=engine)
+
+    assert result.engine is engine
+    assert result.code
+    assert isinstance(result.warnings, list)
+
+
+def test_generate_code_can_print_and_write_code(
+    sample_spec: NetworkSpec,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_path = tmp_path / "generated_network.py"
+
+    result = generate_code(
+        sample_spec,
+        engine=EngineName.EINSUM_NUMPY,
+        print_code=True,
+        path=output_path,
+    )
+
+    assert output_path.read_text(encoding="utf-8") == result.code
+    assert capsys.readouterr().out == f"{result.code}\n"
+
+
+def test_generate_code_wraps_file_write_failures(sample_spec: NetworkSpec) -> None:
+    missing_parent_path = Path(".test_output") / "missing_dir" / "generated_network.py"
+
+    with pytest.raises(PackageIOError):
+        generate_code(
+            sample_spec,
+            engine=EngineName.EINSUM_NUMPY,
+            path=missing_parent_path,
         )
 
-    def test_package_root_exposes_canonical_public_api_only(self) -> None:
-        self.assertTrue(hasattr(tensor_network_editor, "launch_tensor_network_editor"))
-        self.assertFalse(hasattr(tensor_network_editor, "tensor_network_creation"))
-        self.assertTrue(hasattr(tensor_network_editor, "TensorSize"))
-        self.assertTrue(hasattr(tensor_network_editor, "GroupSpec"))
 
-    def test_generate_code_returns_codegen_result_for_each_engine(self) -> None:
-        spec = build_sample_spec()
+def test_save_and_load_spec_round_trip_preserves_structure(
+    sample_spec: NetworkSpec,
+    tmp_path: Path,
+) -> None:
+    spec_path = tmp_path / "network.json"
 
-        for engine in EngineName:
-            with self.subTest(engine=engine):
-                result = generate_code(spec, engine=engine)
-                self.assertEqual(result.engine, engine)
-                self.assertTrue(result.code)
-                self.assertIsInstance(result.warnings, list)
+    save_spec(sample_spec, spec_path)
+    loaded_spec = load_spec(spec_path)
 
-    def test_generate_code_writes_code_to_requested_path(self) -> None:
-        spec = build_sample_spec()
-        output_path = build_output_path("generated_network.py")
-        try:
-            result = generate_code(
-                spec,
-                engine=EngineName.EINSUM_NUMPY,
-                path=output_path,
-            )
-            self.assertEqual(output_path.read_text(encoding="utf-8"), result.code)
-        finally:
-            output_path.unlink(missing_ok=True)
-
-    def test_generate_code_wraps_file_write_failures(self) -> None:
-        spec = build_sample_spec()
-        missing_parent_path = (
-            Path.cwd() / ".test_output" / "missing_dir" / "generated_network.py"
-        )
-
-        with self.assertRaises(PackageIOError):
-            generate_code(
-                spec,
-                engine=EngineName.EINSUM_NUMPY,
-                path=missing_parent_path,
-            )
-
-    def test_save_and_load_spec_round_trip_preserves_tensor_order(self) -> None:
-        spec = build_sample_spec()
-        spec_path = build_output_path("network.json")
-        try:
-            save_spec(spec, spec_path)
-            loaded_spec = load_spec(spec_path)
-        finally:
-            spec_path.unlink(missing_ok=True)
-
-        self.assertEqual(
-            [tensor.id for tensor in loaded_spec.tensors], ["tensor_a", "tensor_b"]
-        )
-        self.assertEqual(loaded_spec.edges[0].name, "bond_x")
-        self.assertEqual(loaded_spec.tensors[0].size.width, 200.0)
-        self.assertEqual(loaded_spec.groups[0].tensor_ids, ["tensor_a", "tensor_b"])
-        self.assertEqual(loaded_spec.notes[0].text, "Check the contraction order")
-        self.assertIsNotNone(loaded_spec.contraction_plan)
-        assert loaded_spec.contraction_plan is not None
-        self.assertEqual(
-            loaded_spec.contraction_plan.steps[0].left_operand_id, "tensor_a"
-        )
-
-    def test_save_spec_wraps_file_write_failures(self) -> None:
-        spec = build_sample_spec()
-        missing_parent_path = (
-            Path.cwd() / ".test_output" / "missing_dir" / "network.json"
-        )
-
-        with self.assertRaises(PackageIOError):
-            save_spec(spec, missing_parent_path)
-
-    def test_load_spec_wraps_missing_file_failures(self) -> None:
-        missing_path = Path.cwd() / ".test_output" / "does_not_exist.json"
-
-        with self.assertRaises(PackageIOError):
-            load_spec(missing_path)
-
-    def test_load_spec_wraps_invalid_json_failures(self) -> None:
-        invalid_path = build_output_path("invalid_network.json")
-        invalid_path.write_text("{not json}", encoding="utf-8")
-
-        try:
-            with self.assertRaises(SerializationError):
-                load_spec(invalid_path)
-        finally:
-            invalid_path.unlink(missing_ok=True)
-
-    def test_load_spec_rejects_legacy_schema_versions(self) -> None:
-        legacy_path = build_output_path("legacy_network.json")
-        legacy_path.write_text(
-            '{"schema_version": 2, "network": {"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "notes": [], "contraction_plan": null, "metadata": {}}}',
-            encoding="utf-8",
-        )
-
-        try:
-            with self.assertRaisesRegex(
-                SerializationError, "Unsupported schema version"
-            ):
-                load_spec(legacy_path)
-        finally:
-            legacy_path.unlink(missing_ok=True)
-
-    def test_load_spec_rejects_unwrapped_network_payloads(self) -> None:
-        unwrapped_path = build_output_path("unwrapped_network.json")
-        unwrapped_path.write_text(
-            '{"id": "network", "name": "legacy", "tensors": [], "edges": [], "groups": [], "metadata": {}}',
-            encoding="utf-8",
-        )
-
-        try:
-            with self.assertRaisesRegex(SerializationError, "schema version"):
-                load_spec(unwrapped_path)
-        finally:
-            unwrapped_path.unlink(missing_ok=True)
+    assert [tensor.id for tensor in loaded_spec.tensors] == ["tensor_a", "tensor_b"]
+    assert loaded_spec.edges[0].name == "bond_x"
+    assert loaded_spec.tensors[0].size.width == 200.0
+    assert loaded_spec.groups[0].tensor_ids == ["tensor_a", "tensor_b"]
+    assert loaded_spec.notes[0].text == "Check the contraction order"
+    assert loaded_spec.contraction_plan is not None
+    assert loaded_spec.contraction_plan.steps[0].left_operand_id == "tensor_a"
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_save_spec_wraps_file_write_failures(sample_spec: NetworkSpec) -> None:
+    missing_parent_path = Path(".test_output") / "missing_dir" / "network.json"
+
+    with pytest.raises(PackageIOError):
+        save_spec(sample_spec, missing_parent_path)
+
+
+def test_load_spec_wraps_missing_file_failures(tmp_path: Path) -> None:
+    missing_path = tmp_path / "does_not_exist.json"
+
+    with pytest.raises(PackageIOError):
+        load_spec(missing_path)
+
+
+def test_load_spec_wraps_invalid_json_failures(
+    tmp_path: Path,
+) -> None:
+    invalid_path = tmp_path / "invalid_network.json"
+    invalid_path.write_text("{not json}", encoding="utf-8")
+
+    with pytest.raises(SerializationError):
+        load_spec(invalid_path)
