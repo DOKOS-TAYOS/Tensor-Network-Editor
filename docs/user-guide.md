@@ -102,6 +102,30 @@ In practical terms:
 This is useful when you want explicit control over contraction order instead of
 accepting an automatic heuristic.
 
+When you generate code from a saved design:
+
+- if there is no saved `contraction_plan`, the package keeps the usual
+  one-shot backend-specific export
+- if there is a saved `contraction_plan`, the generated code follows those
+  manual steps exactly
+- complete plans emit a final `result`
+- partial plans emit explicit intermediate variables and a
+  `remaining_operands` mapping with the operands that are still alive after the
+  exported prefix
+
+For the `einsum_numpy` and `einsum_torch` engines, partial plans also emit
+`remaining_operand_labels` so the surviving index labels stay easy to inspect.
+
+### Backend-specific note for manual plans
+
+- `tensornetwork` exports manual steps with `contract_between(...)`
+- `quimb` exports manual steps with its tensor-network contraction helpers
+- `tensorkrowch` exports manual steps with `contract_between(...)`, but manual
+  outer-product steps are not supported there and are rejected during code
+  generation
+- `einsum_numpy` and `einsum_torch` export one `einsum(...)` call per manual
+  step instead of a single global einsum
+
 ## Planner extra
 
 If you install the `planner` extra, the editor can also offer automatic greedy

@@ -18,6 +18,12 @@ from tensor_network_editor.models import (
 from tensor_network_editor.serialization import serialize_spec
 
 
+def build_sample_spec_without_plan() -> NetworkSpec:
+    spec = build_sample_spec()
+    spec.contraction_plan = None
+    return spec
+
+
 def build_sample_spec() -> NetworkSpec:
     return NetworkSpec(
         id="network_demo",
@@ -79,6 +85,12 @@ def build_sample_spec() -> NetworkSpec:
     )
 
 
+def build_three_tensor_spec_without_plan() -> NetworkSpec:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = None
+    return spec
+
+
 def build_three_tensor_spec() -> NetworkSpec:
     return NetworkSpec(
         id="network_chain",
@@ -132,6 +144,65 @@ def build_three_tensor_spec() -> NetworkSpec:
             steps=[
                 ContractionStepSpec(
                     id="step_ab",
+                    left_operand_id="tensor_a",
+                    right_operand_id="tensor_b",
+                )
+            ],
+        ),
+    )
+
+
+def build_three_tensor_complete_plan_spec() -> NetworkSpec:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_chain_complete",
+        name="Complete chain path",
+        steps=[
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="tensor_a",
+                right_operand_id="tensor_b",
+            ),
+            ContractionStepSpec(
+                id="step_abc",
+                left_operand_id="step_ab",
+                right_operand_id="tensor_c",
+            ),
+        ],
+    )
+    return spec
+
+
+def build_outer_product_plan_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="network_outer_product",
+        name="outer-product",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=120.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_a_i", name="i", dimension=2),
+                    IndexSpec(id="tensor_a_x", name="x", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=360.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_b_y", name="y", dimension=5),
+                    IndexSpec(id="tensor_b_j", name="j", dimension=7),
+                ],
+            ),
+        ],
+        contraction_plan=ContractionPlanSpec(
+            id="plan_outer_product",
+            name="Outer product path",
+            steps=[
+                ContractionStepSpec(
+                    id="step_outer",
                     left_operand_id="tensor_a",
                     right_operand_id="tensor_b",
                 )

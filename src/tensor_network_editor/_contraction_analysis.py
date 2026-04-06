@@ -6,8 +6,15 @@ from importlib import import_module
 from string import ascii_letters
 from typing import Any, cast
 
-from .codegen.common import PreparedNetwork, prepare_network
-from .models import ContractionStepSpec, NetworkSpec
+from ._contraction_plan import (
+    build_dimension_by_label,
+    build_initial_operand_axis_names,
+    build_initial_operand_labels,
+    simulate_contraction_plan,
+    simulate_contraction_step,
+)
+from .codegen.common import prepare_network
+from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 from .types import JSONValue
 
 
@@ -139,8 +146,9 @@ class ContractionAnalysisResult:
 
 def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
     prepared = prepare_network(spec)
-    dimension_by_label = _build_dimension_by_label(prepared)
-    initial_operands = _build_initial_operands(prepared)
+    dimension_by_label = build_dimension_by_label(prepared)
+    initial_operands = build_initial_operand_labels(prepared)
+    initial_axis_names = build_initial_operand_axis_names(prepared)
     network_output_shape = tuple(
         index.spec.dimension for index in prepared.open_indices
     )
@@ -152,6 +160,7 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
     manual_operand_state = _build_manual_operand_state(
         spec=spec,
         initial_operands=initial_operands,
+        initial_axis_names=initial_axis_names,
         dimension_by_label=dimension_by_label,
     )
     automatic_future = _analyze_future_automatic_plan(
@@ -182,21 +191,6 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
     )
 
 
-def _build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
-    dimension_by_label: dict[str, int] = {}
-    for tensor in prepared.tensors:
-        for index in tensor.indices:
-            dimension_by_label[index.label] = index.spec.dimension
-    return dimension_by_label
-
-
-def _build_initial_operands(prepared: PreparedNetwork) -> dict[str, tuple[str, ...]]:
-    return {
-        tensor.spec.id: tuple(index.label for index in tensor.indices)
-        for tensor in prepared.tensors
-    }
-
-
 @dataclass(slots=True)
 class ManualOperandState:
     active_operand_ids: tuple[str, ...]
@@ -208,59 +202,21 @@ def _build_manual_operand_state(
     *,
     spec: NetworkSpec,
     initial_operands: dict[str, tuple[str, ...]],
+    initial_axis_names: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
 ) -> ManualOperandState:
-    remaining_operands = dict(initial_operands)
-    source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]] = {
-        operand_id: (operand_id,) for operand_id in initial_operands
-    }
-
-    plan = spec.contraction_plan
-    if plan is None or not plan.steps:
-        return ManualOperandState(
-            active_operand_ids=tuple(remaining_operands),
-            remaining_operands=remaining_operands,
-            source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
-        )
-
-    for step in plan.steps:
-        left_labels = remaining_operands.get(step.left_operand_id)
-        right_labels = remaining_operands.get(step.right_operand_id)
-        left_source_tensor_ids = source_tensor_ids_by_operand_id.get(
-            step.left_operand_id
-        )
-        right_source_tensor_ids = source_tensor_ids_by_operand_id.get(
-            step.right_operand_id
-        )
-        if (
-            left_labels is None
-            or right_labels is None
-            or left_source_tensor_ids is None
-            or right_source_tensor_ids is None
-        ):
-            break
-
-        step_result = _contract_operands(
-            step_id=step.id,
-            left_operand_id=step.left_operand_id,
-            right_operand_id=step.right_operand_id,
-            left_labels=left_labels,
-            right_labels=right_labels,
-            dimension_by_label=dimension_by_label,
-        )
-        remaining_operands.pop(step.left_operand_id, None)
-        remaining_operands.pop(step.right_operand_id, None)
-        source_tensor_ids_by_operand_id.pop(step.left_operand_id, None)
-        source_tensor_ids_by_operand_id.pop(step.right_operand_id, None)
-        remaining_operands[step.id] = step_result.surviving_labels
-        source_tensor_ids_by_operand_id[step.id] = tuple(
-            dict.fromkeys(left_source_tensor_ids + right_source_tensor_ids)
-        )
+    simulation = simulate_contraction_plan(
+        initial_operand_ids=tuple(initial_operands),
+        initial_operands=initial_operands,
+        initial_axis_names=initial_axis_names,
+        dimension_by_label=dimension_by_label,
+        plan=spec.contraction_plan,
+    )
 
     return ManualOperandState(
-        active_operand_ids=tuple(remaining_operands),
-        remaining_operands=remaining_operands,
-        source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
+        active_operand_ids=simulation.remaining_operand_ids,
+        remaining_operands=simulation.remaining_operands,
+        source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
     )
 
 
@@ -299,37 +255,40 @@ def _simulate_plan_steps(
     initial_operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
 ) -> ManualContractionPlanAnalysis:
-    remaining_operands = dict(initial_operands)
-    step_results: list[ContractionStepAnalysis] = []
-    total_estimated_flops = 0
-    total_estimated_macs = 0
-    peak_intermediate_size = 0
-
-    for step in steps:
-        left_operand = remaining_operands.pop(step.left_operand_id)
-        right_operand = remaining_operands.pop(step.right_operand_id)
-        step_result = _contract_operands(
-            step_id=step.id,
+    simulation = simulate_contraction_plan(
+        initial_operand_ids=tuple(initial_operands),
+        initial_operands=initial_operands,
+        initial_axis_names={
+            operand_id: labels for operand_id, labels in initial_operands.items()
+        },
+        dimension_by_label=dimension_by_label,
+        plan=ContractionPlanSpec(steps=steps),
+    )
+    step_results = [
+        ContractionStepAnalysis(
+            step_id=step.step_id,
             left_operand_id=step.left_operand_id,
             right_operand_id=step.right_operand_id,
-            left_labels=left_operand,
-            right_labels=right_operand,
-            dimension_by_label=dimension_by_label,
+            result_operand_id=step.step_id,
+            contracted_labels=step.contracted_labels,
+            surviving_labels=step.surviving_labels,
+            result_shape=step.result_shape,
+            result_rank=step.result_rank,
+            estimated_flops=step.estimated_flops,
+            estimated_macs=step.estimated_macs,
+            intermediate_size=step.intermediate_size,
         )
-        remaining_operands = {
-            step.id: step_result.surviving_labels,
-            **remaining_operands,
-        }
-        step_results.append(step_result)
-        total_estimated_flops += step_result.estimated_flops
-        total_estimated_macs += step_result.estimated_macs
-        peak_intermediate_size = max(
-            peak_intermediate_size, step_result.intermediate_size
-        )
-
-    status = "complete" if len(remaining_operands) <= 1 else "incomplete"
+        for step in simulation.steps
+    ]
+    total_estimated_flops = sum(step.estimated_flops for step in step_results)
+    total_estimated_macs = sum(step.estimated_macs for step in step_results)
+    peak_intermediate_size = max(
+        (step.intermediate_size for step in step_results),
+        default=0,
+    )
+    status = "complete" if len(simulation.remaining_operands) <= 1 else "incomplete"
     summary = _build_manual_summary_from_operands(
-        remaining_operands=remaining_operands,
+        remaining_operands=simulation.remaining_operands,
         status=status,
         total_estimated_flops=total_estimated_flops,
         total_estimated_macs=total_estimated_macs,
@@ -341,42 +300,6 @@ def _simulate_plan_steps(
         status=status,
         steps=step_results,
         summary=summary,
-    )
-
-
-def _contract_operands(
-    *,
-    step_id: str,
-    left_operand_id: str,
-    right_operand_id: str,
-    left_labels: tuple[str, ...],
-    right_labels: tuple[str, ...],
-    dimension_by_label: dict[str, int],
-) -> ContractionStepAnalysis:
-    right_label_set = set(right_labels)
-    contracted_labels = tuple(
-        label for label in left_labels if label in right_label_set
-    )
-    surviving_labels = tuple(
-        label for label in left_labels if label not in contracted_labels
-    ) + tuple(label for label in right_labels if label not in contracted_labels)
-    union_labels = tuple(dict.fromkeys(left_labels + right_labels))
-    result_shape = tuple(dimension_by_label[label] for label in surviving_labels)
-    estimated_macs = _product(dimension_by_label[label] for label in union_labels)
-    intermediate_size = _product(result_shape)
-    estimated_flops = estimated_macs * 2
-    return ContractionStepAnalysis(
-        step_id=step_id,
-        left_operand_id=left_operand_id,
-        right_operand_id=right_operand_id,
-        result_operand_id=step_id,
-        contracted_labels=contracted_labels,
-        surviving_labels=surviving_labels,
-        result_shape=result_shape,
-        result_rank=len(result_shape),
-        estimated_flops=estimated_flops,
-        estimated_macs=estimated_macs,
-        intermediate_size=intermediate_size,
     )
 
 
@@ -403,6 +326,42 @@ def _build_manual_summary_from_operands(
         final_shape=final_shape if status == "complete" or last_result_shape else None,
         completion_status=status,
         remaining_operand_ids=tuple(remaining_operands),
+    )
+
+
+def _contract_operands(
+    *,
+    step_id: str,
+    left_operand_id: str,
+    right_operand_id: str,
+    left_labels: tuple[str, ...],
+    right_labels: tuple[str, ...],
+    dimension_by_label: dict[str, int],
+) -> ContractionStepAnalysis:
+    simulated_step = simulate_contraction_step(
+        step=ContractionStepSpec(
+            id=step_id,
+            left_operand_id=left_operand_id,
+            right_operand_id=right_operand_id,
+        ),
+        left_labels=left_labels,
+        right_labels=right_labels,
+        left_axis_names=left_labels,
+        right_axis_names=right_labels,
+        dimension_by_label=dimension_by_label,
+    )
+    return ContractionStepAnalysis(
+        step_id=simulated_step.step_id,
+        left_operand_id=simulated_step.left_operand_id,
+        right_operand_id=simulated_step.right_operand_id,
+        result_operand_id=simulated_step.step_id,
+        contracted_labels=simulated_step.contracted_labels,
+        surviving_labels=simulated_step.surviving_labels,
+        result_shape=simulated_step.result_shape,
+        result_rank=simulated_step.result_rank,
+        estimated_flops=simulated_step.estimated_flops,
+        estimated_macs=simulated_step.estimated_macs,
+        intermediate_size=simulated_step.intermediate_size,
     )
 
 

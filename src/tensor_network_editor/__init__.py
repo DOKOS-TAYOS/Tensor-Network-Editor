@@ -7,6 +7,7 @@ from .api import (
     load_spec_from_python_code,
     save_spec,
 )
+from .errors import CodeGenerationError
 from .models import (
     CanvasNoteSpec,
     CanvasPosition,
@@ -38,6 +39,7 @@ __version__ = "0.1.2"
 __all__ = [
     "CanvasPosition",
     "CanvasNoteSpec",
+    "CodeGenerationError",
     "CodegenResult",
     "ContractionOperandLayoutSpec",
     "ContractionPlanSpec",

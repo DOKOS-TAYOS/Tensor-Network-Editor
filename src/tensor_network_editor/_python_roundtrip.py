@@ -48,6 +48,7 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
     tensor_order: list[str] = []
     pending_edges: list[_PendingEdge] = []
     einsum_labels_by_reference: dict[str, list[str]] = {}
+    remaining_einsum_labels_by_reference: dict[str, list[str]] = {}
 
     for statement in module.body:
         _collect_data_shape(statement, data_shapes)
@@ -60,6 +61,9 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
         )
         _collect_pending_edge(statement, pending_edges)
         _collect_einsum_labels(statement, einsum_labels_by_reference)
+        _collect_remaining_einsum_labels(
+            statement, remaining_einsum_labels_by_reference
+        )
 
     if not tensor_order:
         raise SerializationError(
@@ -69,7 +73,9 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
     for reference in tensor_order:
         parsed_tensor = tensors_by_reference[reference]
         if parsed_tensor.index_labels is None:
-            labels = einsum_labels_by_reference.get(reference)
+            labels = einsum_labels_by_reference.get(reference) or (
+                remaining_einsum_labels_by_reference.get(reference)
+            )
             if labels is None:
                 raise SerializationError(
                     "Generated Python code does not follow a supported Tensor Network Editor format."
@@ -197,27 +203,53 @@ def _collect_tensor(
 def _collect_pending_edge(
     statement: ast.stmt, pending_edges: list[_PendingEdge]
 ) -> None:
+    edge_name: str | None = None
+    connect_call: ast.Call | None = None
+
     if (
-        not isinstance(statement, ast.Assign)
-        or len(statement.targets) != 1
-        or not isinstance(statement.targets[0], ast.Name)
-        or not isinstance(statement.value, ast.Call)
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+        and isinstance(statement.value, ast.Call)
     ):
+        connect_call = statement.value
+        edge_name = statement.targets[0].id.removesuffix("_edge")
+    else:
+        appended_value = _parse_list_append_value(statement, "edges_list")
+        if appended_value is None:
+            return
+        if isinstance(appended_value, ast.Call):
+            connect_call = appended_value
+        elif (
+            isinstance(appended_value, (ast.Tuple, ast.List))
+            and len(appended_value.elts) == 2
+            and isinstance(appended_value.elts[1], ast.Call)
+        ):
+            edge_name = _literal_string(appended_value.elts[0])
+            connect_call = appended_value.elts[1]
+        else:
+            return
+
+    if connect_call is None:
         return
-    call_name = _call_name(statement.value.func)
+    call_name = _call_name(connect_call.func)
     if not call_name.endswith(".connect") and call_name != "connect":
         return
-    if len(statement.value.args) < 2:
+    if len(connect_call.args) < 2:
         raise SerializationError("Generated Python connect call is malformed.")
-    left_operand = _parse_index_operand(statement.value.args[0])
-    right_operand = _parse_index_operand(statement.value.args[1])
+    left_operand = _parse_index_operand(connect_call.args[0])
+    right_operand = _parse_index_operand(connect_call.args[1])
     if left_operand is None or right_operand is None:
         raise SerializationError(
             "Generated Python connect calls must target tensor indices."
         )
-    edge_name = _literal_string(_keyword_value(statement.value, "name"))
+    keyword_edge_name = _literal_string(_keyword_value(connect_call, "name"))
+    if keyword_edge_name is not None:
+        edge_name = keyword_edge_name
     if edge_name is None:
-        edge_name = statement.targets[0].id.removesuffix("_edge")
+        raise SerializationError(
+            "Generated Python connect calls must include a recoverable edge name."
+        )
     pending_edges.append(
         _PendingEdge(
             name=edge_name,
@@ -232,53 +264,71 @@ def _collect_pending_edge(
 def _collect_einsum_labels(
     statement: ast.stmt, einsum_labels_by_reference: dict[str, list[str]]
 ) -> None:
+    einsum_call: ast.Call | None = None
     if (
-        not isinstance(statement, ast.Assign)
-        or len(statement.targets) != 1
-        or not isinstance(statement.targets[0], ast.Name)
-        or statement.targets[0].id != "result"
-        or not isinstance(statement.value, ast.Call)
+        isinstance(statement, ast.Assign)
+        and len(statement.targets) == 1
+        and isinstance(statement.targets[0], ast.Name)
+        and isinstance(statement.value, ast.Call)
     ):
+        einsum_call = statement.value
+    else:
+        appended_value = _parse_list_append_value(statement, "results_list")
+        if isinstance(appended_value, ast.Call):
+            einsum_call = appended_value
+    if einsum_call is None:
         return
-    call_name = _call_name(statement.value.func)
+    call_name = _call_name(einsum_call.func)
     if not call_name.endswith(".einsum") and call_name != "einsum":
         return
-    if statement.value.args and isinstance(statement.value.args[0], ast.Constant):
-        equation = _literal_string(statement.value.args[0])
+    if einsum_call.args and isinstance(einsum_call.args[0], ast.Constant):
+        equation = _literal_string(einsum_call.args[0])
         if equation is not None:
             input_terms = equation.split("->", maxsplit=1)[0].split(",")
-            references = [
-                _parse_tensor_reference(argument)
-                for argument in statement.value.args[1:]
-            ]
-            if len(input_terms) != len(references):
+            if len(input_terms) != len(einsum_call.args[1:]):
                 raise SerializationError(
                     "Generated Python einsum operands do not match the equation."
                 )
-            resolved_references: list[str] = []
-            for reference in references:
-                if reference is None:
-                    raise SerializationError(
-                        "Generated Python einsum operands do not match the equation."
-                    )
-                resolved_references.append(reference)
-            for reference, input_term in zip(
-                resolved_references, input_terms, strict=True
+            for argument, input_term in zip(
+                einsum_call.args[1:], input_terms, strict=True
             ):
-                einsum_labels_by_reference[reference] = list(input_term)
+                reference = _parse_tensor_reference(argument)
+                if reference is not None:
+                    einsum_labels_by_reference[reference] = list(input_term)
             return
 
-    arguments = statement.value.args
+    arguments = einsum_call.args
     if len(arguments) < 3 or len(arguments) % 2 == 0:
         raise SerializationError("Generated Python einsum call is malformed.")
     for argument_index in range(0, len(arguments) - 1, 2):
         reference = _parse_tensor_reference(arguments[argument_index])
         label_values = _literal_int_sequence(arguments[argument_index + 1])
-        if reference is None or label_values is None:
+        if label_values is None:
             raise SerializationError("Generated Python einsum sublists are malformed.")
-        einsum_labels_by_reference[reference] = [
-            f"label_{value}" for value in label_values
-        ]
+        if reference is not None:
+            einsum_labels_by_reference[reference] = [
+                f"label_{value}" for value in label_values
+            ]
+
+
+def _collect_remaining_einsum_labels(
+    statement: ast.stmt,
+    remaining_einsum_labels_by_reference: dict[str, list[str]],
+) -> None:
+    if (
+        not isinstance(statement, ast.Assign)
+        or len(statement.targets) != 1
+        or not isinstance(statement.targets[0], ast.Name)
+        or statement.targets[0].id != "remaining_operand_labels"
+        or not isinstance(statement.value, ast.Dict)
+    ):
+        return
+
+    for key, value in zip(statement.value.keys, statement.value.values, strict=True):
+        reference = _parse_tensor_reference_string(_literal_string(key))
+        labels = _literal_string_sequence(value)
+        if reference is not None and labels is not None:
+            remaining_einsum_labels_by_reference[reference] = labels
 
 
 def _parse_tensor_expression(
@@ -520,6 +570,24 @@ def _parse_tensor_reference(expression: ast.expr) -> str | None:
     return None
 
 
+def _parse_tensor_reference_string(expression: str | None) -> str | None:
+    if expression is None:
+        return None
+    list_match = re.fullmatch(r"tensors\[(\d+)\]", expression)
+    if list_match is not None:
+        return f"list:{list_match.group(1)}"
+
+    matrix_match = re.fullmatch(r"tensor_rows\[(\d+)\]\[(\d+)\]", expression)
+    if matrix_match is not None:
+        return f"matrix:{matrix_match.group(1)}:{matrix_match.group(2)}"
+
+    dict_match = re.fullmatch(r"""tensors_dict\[(["'])(.+)\1\]""", expression)
+    if dict_match is not None:
+        return f"dict:{dict_match.group(2)}"
+
+    return None
+
+
 def _parse_matrix_row_index(expression: ast.expr) -> int | None:
     if (
         isinstance(expression, ast.Subscript)
@@ -528,6 +596,20 @@ def _parse_matrix_row_index(expression: ast.expr) -> int | None:
     ):
         return _literal_int(expression.slice)
     return None
+
+
+def _parse_list_append_value(statement: ast.stmt, list_name: str) -> ast.expr | None:
+    if (
+        not isinstance(statement, ast.Expr)
+        or not isinstance(statement.value, ast.Call)
+        or not isinstance(statement.value.func, ast.Attribute)
+        or statement.value.func.attr != "append"
+        or len(statement.value.args) != 1
+        or not isinstance(statement.value.func.value, ast.Name)
+        or statement.value.func.value.id != list_name
+    ):
+        return None
+    return statement.value.args[0]
 
 
 def _parse_index_operand(expression: ast.expr) -> tuple[str, str] | None:

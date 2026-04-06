@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from tensor_network_editor.api import generate_code
+from tensor_network_editor.errors import CodeGenerationError
 from tensor_network_editor.models import (
     CanvasPosition,
     EngineName,
@@ -11,7 +12,12 @@ from tensor_network_editor.models import (
     TensorCollectionFormat,
     TensorSpec,
 )
-from tests.factories import build_sample_spec
+from tests.factories import (
+    build_outer_product_plan_spec,
+    build_sample_spec,
+    build_sample_spec_without_plan,
+    build_three_tensor_spec,
+)
 
 
 def build_many_label_spec() -> NetworkSpec:
@@ -112,7 +118,7 @@ def test_generate_code_emits_engine_specific_contracts(
     engine: EngineName,
     expected_snippets: list[str],
 ) -> None:
-    result = generate_code(build_sample_spec(), engine=engine)
+    result = generate_code(build_sample_spec_without_plan(), engine=engine)
 
     assert result.engine is engine
     assert result.code.endswith("\n")
@@ -190,10 +196,76 @@ def test_matrix_collection_format_groups_tensors_by_visual_rows() -> None:
 
 
 def test_generate_code_does_not_emit_roundtrip_metadata() -> None:
-    result = generate_code(build_sample_spec(), engine=EngineName.TENSORNETWORK)
+    result = generate_code(
+        build_sample_spec_without_plan(),
+        engine=EngineName.TENSORNETWORK,
+    )
 
     assert "_TNE_SPEC" not in result.code
     assert "_data =" not in result.code
+
+
+@pytest.mark.parametrize(
+    ("engine", "expected_snippet"),
+    [
+        (EngineName.TENSORNETWORK, "results_list.append(tn.contract_between("),
+        (EngineName.QUIMB, "results_list.append(network["),
+        (EngineName.TENSORKROWCH, "results_list.append(tk.contract_between("),
+        (EngineName.EINSUM_NUMPY, "results_list.append(np.einsum("),
+        (EngineName.EINSUM_TORCH, "results_list.append(torch.einsum("),
+    ],
+)
+def test_generate_code_respects_manual_plan_steps(
+    engine: EngineName,
+    expected_snippet: str,
+) -> None:
+    result = generate_code(build_sample_spec(), engine=engine)
+
+    assert expected_snippet in result.code
+    assert "results_list = []" in result.code
+    assert "remaining_operands = {" in result.code
+    assert "'A-B': results_list[-1]" in result.code
+    assert "result = results_list[-1]" in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_generate_code_keeps_partial_manual_plan_as_prefix(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_three_tensor_spec(), engine=engine)
+
+    assert "results_list = []" in result.code
+    assert "remaining_operands = {" in result.code
+    assert "'A-B': results_list[-1]" in result.code
+    assert "'C': tensors[2]" in result.code
+    assert "result =" not in result.code
+
+
+def test_tensorkrowch_codegen_rejects_manual_outer_product_plan() -> None:
+    with pytest.raises(CodeGenerationError, match="outer product"):
+        generate_code(build_outer_product_plan_spec(), engine=EngineName.TENSORKROWCH)
+
+
+def test_tensorkrowch_codegen_uses_edges_list_for_connections() -> None:
+    result = generate_code(
+        build_sample_spec_without_plan(),
+        engine=EngineName.TENSORKROWCH,
+    )
+
+    assert "edges_list = []" in result.code
+    assert "edges_list.append((" in result.code
+    assert "tk.connect(" in result.code
+
+
+def test_tensornetwork_codegen_uses_edges_list_for_connections() -> None:
+    result = generate_code(
+        build_sample_spec_without_plan(),
+        engine=EngineName.TENSORNETWORK,
+    )
+
+    assert "edges_list = []" in result.code
+    assert "edges_list.append(tn.connect(" in result.code
+    assert "name='bond_x'" in result.code
 
 
 @pytest.mark.parametrize(

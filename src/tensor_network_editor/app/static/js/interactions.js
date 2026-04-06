@@ -844,7 +844,7 @@ export function registerInteractions(ctx) {
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {
-        ctx.setStatus(ctx.formatIssues(payload.issues), "error");
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);
@@ -863,7 +863,7 @@ export function registerInteractions(ctx) {
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {
-        ctx.setStatus(ctx.formatIssues(payload.issues), "error");
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
         return;
       }
       state.editorFinished = true;
@@ -961,7 +961,7 @@ export function registerInteractions(ctx) {
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {
-        ctx.setStatus(ctx.formatIssues(payload.issues), "error");
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);

@@ -32,6 +32,10 @@ If you want fewer external dependencies, start with:
 - `einsum_numpy`
 - `einsum_torch`
 
+If the design contains a saved manual contraction plan, the generated code also
+follows that plan step by step instead of recomputing a different contraction
+order during export.
+
 ## I loaded a JSON file and got a schema-version error
 
 Saved designs use a schema wrapper. The current package expects:
@@ -95,6 +99,10 @@ Install it with:
 python -m pip install "tensor-network-editor[planner]"
 ```
 
+When a manual plan is already saved in the design, code generation respects
+that saved plan. A partial plan is exported only as that manual prefix, leaving
+the surviving operands in `remaining_operands`.
+
 ## Does the package support hyperedges?
 
 Not in the current release.
@@ -127,4 +135,22 @@ A good practical rule is:
 - save the JSON design if you care about the abstract tensor network
 - save generated Python code if you want a concrete implementation artifact
 - keep both if you want reproducibility plus an immediately runnable script
+
+## Why did TensorKrowch code generation fail on a manual contraction plan?
+
+TensorKrowch exports manual plans through `contract_between(...)`. That works
+for standard contractions, but it does not safely cover manual outer-product
+steps.
+
+If your saved plan includes a step where the two operands do not share any
+contracted index, `generate_code(...)` raises `CodeGenerationError` for the
+`tensorkrowch` backend.
+
+Practical ways around it:
+
+- generate code for `tensornetwork` or `quimb` for that design
+- change the saved manual plan so the TensorKrowch export only uses shared-edge
+  contractions
+- use `einsum_numpy` or `einsum_torch` if a step-by-step einsum export fits
+  your workflow better
 

@@ -211,6 +211,32 @@ def tensor_variable_name(prepared: PreparedNetwork, tensor_id: str) -> str:
     raise KeyError(tensor_id)
 
 
+def tensor_display_name_by_id(prepared: PreparedNetwork) -> dict[str, str]:
+    return {
+        tensor.spec.id: (tensor.spec.name or tensor.variable_name or tensor.spec.id)
+        for tensor in prepared.tensors
+    }
+
+
+def joined_tensor_display_name(
+    source_tensor_ids: tuple[str, ...],
+    tensor_names_by_id: dict[str, str],
+) -> str:
+    return "-".join(
+        tensor_names_by_id.get(tensor_id, tensor_id) for tensor_id in source_tensor_ids
+    )
+
+
+def render_results_list_reference(
+    result_index: int,
+    *,
+    latest_result_index: int | None,
+) -> str:
+    if latest_result_index is not None and result_index == latest_result_index:
+        return "results_list[-1]"
+    return f"results_list[{result_index}]"
+
+
 def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
     if collection_format is TensorCollectionFormat.MATRIX:
         return "tensor_rows"

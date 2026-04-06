@@ -8,7 +8,7 @@ from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, TensorCollectionFormat
 from tests.app_support import request_json, request_json_with_status
-from tests.factories import build_sample_spec
+from tests.factories import build_outer_product_plan_spec, build_sample_spec
 
 
 def test_bootstrap_returns_session_contract(
@@ -192,6 +192,26 @@ def test_generate_route_returns_validation_issues_for_invalid_spec(
 
     assert payload["ok"] is False
     assert "index-already-connected" in [issue["code"] for issue in payload["issues"]]
+
+
+def test_generate_route_returns_backend_codegen_error_message(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/generate",
+        method="POST",
+        payload={
+            "engine": EngineName.TENSORKROWCH.value,
+            "spec": {
+                "schema_version": 3,
+                "network": build_outer_product_plan_spec().to_dict(),
+            },
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "TensorKrowch" in payload["message"]
 
 
 def test_complete_route_stores_result_in_session(

@@ -17,6 +17,10 @@ class SerializationError(TensorNetworkEditorError):
     """Raised when serialized editor data cannot be parsed or emitted safely."""
 
 
+class CodeGenerationError(TensorNetworkEditorError):
+    """Raised when a backend cannot emit valid code for the requested spec."""
+
+
 class SpecValidationError(TensorNetworkEditorError):
     def __init__(self, issues: Sequence[ValidationIssue]) -> None:
         self.issues: list[ValidationIssue] = list(issues)

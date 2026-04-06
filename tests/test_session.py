@@ -13,6 +13,7 @@ from tensor_network_editor.app.session import (
     build_blank_network_spec,
     wait_for_editor_result,
 )
+from tensor_network_editor.errors import CodeGenerationError
 from tensor_network_editor.models import (
     EditorResult,
     EngineName,
@@ -20,6 +21,7 @@ from tensor_network_editor.models import (
     TensorCollectionFormat,
 )
 from tests.app_support import request_json
+from tests.factories import build_outer_product_plan_spec, serialize_spec_payload
 
 
 def test_build_blank_network_spec_returns_empty_editor_state() -> None:
@@ -112,6 +114,20 @@ def test_complete_supports_collection_format_in_generated_output(
 
     assert result.codegen is not None
     assert "tensor_rows = []" in result.codegen.code
+
+
+def test_generate_propagates_codegen_errors_from_backend() -> None:
+    spec = build_outer_product_plan_spec()
+    session = EditorSession(
+        initial_spec=spec,
+        default_engine=EngineName.TENSORKROWCH,
+    )
+
+    with pytest.raises(CodeGenerationError, match="TensorKrowch"):
+        session.generate(
+            serialize_spec_payload(spec),
+            EngineName.TENSORKROWCH,
+        )
 
 
 def test_cancel_marks_session_finished_without_result(

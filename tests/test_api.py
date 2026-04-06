@@ -13,9 +13,17 @@ from tensor_network_editor.api import (
     load_spec_from_python_code,
     save_spec,
 )
-from tensor_network_editor.errors import PackageIOError, SerializationError
+from tensor_network_editor.errors import (
+    CodeGenerationError,
+    PackageIOError,
+    SerializationError,
+)
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
-from tests.factories import build_sample_spec
+from tests.factories import (
+    build_outer_product_plan_spec,
+    build_three_tensor_spec,
+    build_three_tensor_spec_without_plan,
+)
 
 
 def test_package_version_matches_installed_metadata() -> None:
@@ -36,6 +44,7 @@ def test_package_root_exports_supported_public_api() -> None:
     assert set(tensor_network_editor.__all__) == {
         "CanvasPosition",
         "CanvasNoteSpec",
+        "CodeGenerationError",
         "CodegenResult",
         "ContractionOperandLayoutSpec",
         "ContractionPlanSpec",
@@ -129,10 +138,7 @@ def test_save_and_load_spec_round_trip_preserves_structure(
 def test_load_spec_round_trips_generated_python_file(
     tmp_path: Path,
 ) -> None:
-    sample_spec = build_sample_spec()
-    sample_spec.groups = []
-    sample_spec.notes = []
-    sample_spec.contraction_plan = None
+    sample_spec = build_three_tensor_spec_without_plan()
     spec_path = tmp_path / "network_roundtrip.py"
     generate_code(
         sample_spec,
@@ -143,9 +149,9 @@ def test_load_spec_round_trips_generated_python_file(
 
     loaded_spec = load_spec(spec_path)
 
-    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
-    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 4)]
-    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5), (5, 7)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x", "bond_y"]
     assert loaded_spec.groups == []
     assert loaded_spec.notes == []
     assert loaded_spec.contraction_plan is None
@@ -160,10 +166,7 @@ def test_load_spec_from_python_code_round_trips_generated_source(
     engine: EngineName,
     collection_format: TensorCollectionFormat,
 ) -> None:
-    sample_spec = build_sample_spec()
-    sample_spec.groups = []
-    sample_spec.notes = []
-    sample_spec.contraction_plan = None
+    sample_spec = build_three_tensor_spec_without_plan()
     result = generate_code(
         sample_spec,
         engine=engine,
@@ -171,18 +174,44 @@ def test_load_spec_from_python_code_round_trips_generated_source(
     )
 
     loaded_spec = load_spec_from_python_code(result.code)
-    expected_edge_name = (
-        "b"
+    expected_edge_names = (
+        ["b", "c"]
         if engine in {EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH}
-        else "bond_x"
+        else ["bond_x", "bond_y"]
     )
 
-    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
-    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 4)]
-    assert [edge.name for edge in loaded_spec.edges] == [expected_edge_name]
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5), (5, 7)]
+    assert [edge.name for edge in loaded_spec.edges] == expected_edge_names
     assert loaded_spec.groups == []
     assert loaded_spec.notes == []
     assert loaded_spec.contraction_plan is None
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+)
+def test_load_spec_from_python_code_round_trips_stepwise_manual_einsum(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_spec()
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5), (5, 7)]
+    assert len(loaded_spec.edges) == 2
+    assert loaded_spec.contraction_plan is None
+
+
+def test_generate_code_reports_backend_specific_codegen_errors() -> None:
+    with pytest.raises(CodeGenerationError, match="TensorKrowch"):
+        generate_code(
+            build_outer_product_plan_spec(),
+            engine=EngineName.TENSORKROWCH,
+        )
 
 
 def test_load_spec_rejects_unsupported_python_code(tmp_path: Path) -> None:

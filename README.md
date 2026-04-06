@@ -125,16 +125,24 @@ The editor blocks until the user presses `Done` or `Cancel`. On `Done`, it retur
 You can also skip the UI and work directly with saved network designs:
 
 ```python
-from tensor_network_editor import EngineName, generate_code, load_spec
-
-spec = load_spec("my_network.json")
-result = generate_code(
-    spec,
-    engine=EngineName.QUIMB,
-    path="generated_network.py",
+from tensor_network_editor import (
+    CodeGenerationError,
+    EngineName,
+    generate_code,
+    load_spec,
 )
 
-print(result.code)
+spec = load_spec("my_network.json")
+try:
+    result = generate_code(
+        spec,
+        engine=EngineName.QUIMB,
+        path="generated_network.py",
+    )
+except CodeGenerationError as exc:
+    print(f"Cannot generate this backend: {exc}")
+else:
+    print(result.code)
 ```
 
 Main public entry points:
@@ -143,6 +151,12 @@ Main public entry points:
 - `generate_code(spec, engine=..., path=...) -> CodegenResult`
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
+
+If the `NetworkSpec` includes a saved manual `contraction_plan`, generated code
+now follows that plan directly instead of collapsing everything into one final
+contraction. Complete plans emit a final `result`. Partial plans emit named
+intermediates and a `remaining_operands` mapping so you can continue from that
+state manually.
 
 The package also exposes the main data structures at the top level, including `NetworkSpec`, `TensorSpec`, `IndexSpec`, `EdgeSpec`, `GroupSpec`, `CanvasNoteSpec`, and the contraction-plan types.
 
@@ -167,6 +181,7 @@ The planner tools help with contraction-order work:
 - Manual contraction paths are available directly in the editor.
 - Automatic greedy suggestions are available when the optional `planner` extra is installed.
 - Contraction summaries include useful size and cost estimates such as FLOPs, MACs, and intermediate sizes.
+- Generated code respects the saved manual plan when one is present.
 
 ## Supported code-generation targets
 
@@ -183,6 +198,9 @@ In practice:
 - `einsum_numpy` and `einsum_torch` are useful when you want lightweight generated code.
 - `tensornetwork`, `quimb`, and `tensorkrowch` are good fits when you already work in those ecosystems.
 - The abstract JSON save format stays backend-agnostic, so you can reopen the same design and generate for a different engine later.
+- `tensornetwork` and `quimb` can export manual contraction plans step by step, including outer products.
+- `einsum_numpy` and `einsum_torch` export manual plans as several `einsum(...)` calls with intermediate tensors.
+- `tensorkrowch` also exports manual plans step by step, but manual outer-product steps are rejected because `contract_between(...)` cannot represent them safely there.
 
 ## Save format
 
@@ -246,6 +264,7 @@ Bundled third-party notices for redistributed frontend assets are tracked in `TH
 - Real tensor data editing is not supported yet; generated tensors are initialized to zeros.
 - TenPy code generation is not included in the current release.
 - The main supported experience today is the local browser editor.
+- Manual outer-product steps cannot be exported to `tensorkrowch`; `generate_code(...)` raises `CodeGenerationError` for that backend-specific case.
 
 ## Project links
 

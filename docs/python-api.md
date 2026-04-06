@@ -20,6 +20,7 @@ Main imports:
 from tensor_network_editor import (
     CanvasNoteSpec,
     CanvasPosition,
+    CodeGenerationError,
     EdgeEndpointRef,
     EdgeSpec,
     EngineName,
@@ -96,6 +97,8 @@ print(result.warnings)
 
 - if `print_code=True`, the generated code is printed
 - if `path="..."` is provided, the code is also written to that file
+- if the backend cannot represent a saved manual contraction step,
+  `generate_code(...)` raises `CodeGenerationError`
 
 `CodegenResult` contains:
 
@@ -103,6 +106,46 @@ print(result.warnings)
 - `code`: generated Python source code
 - `warnings`: a list of warnings, if any
 - `artifacts`: extra metadata returned by the generator
+
+### Manual contraction plans during code generation
+
+If `spec.contraction_plan` is present, `generate_code(...)` uses that saved
+manual plan directly.
+
+- complete plans emit step-by-step code and a final `result`
+- partial plans emit step-by-step code and a `remaining_operands` mapping
+- `einsum_numpy` and `einsum_torch` also emit `remaining_operand_labels` for
+  partial plans
+- if `spec.contraction_plan` is missing, the package keeps the usual one-shot
+  export for that backend
+
+This means the generated Python is now aligned with the contraction plan stored
+inside the `NetworkSpec`, not just with the abstract graph connectivity.
+
+### Handling backend-specific generation errors
+
+```python
+from tensor_network_editor import (
+    CodeGenerationError,
+    EngineName,
+    generate_code,
+    load_spec,
+)
+
+spec = load_spec("my_network.json")
+
+try:
+    result = generate_code(spec, engine=EngineName.TENSORKROWCH)
+except CodeGenerationError as exc:
+    print(f"Code generation failed: {exc}")
+else:
+    print(result.code)
+```
+
+One current example is TensorKrowch: if a saved manual contraction plan
+contains an outer-product step, code generation fails with
+`CodeGenerationError` because that backend cannot export the step safely with
+`contract_between(...)`.
 
 ## `save_spec` and `load_spec`
 

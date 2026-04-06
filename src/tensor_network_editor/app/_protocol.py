@@ -6,7 +6,7 @@ from collections.abc import Callable
 from http import HTTPStatus
 from typing import Any, TypeAlias
 
-from ..errors import SerializationError, SpecValidationError
+from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import (
     CodegenResult,
     EditorResult,
@@ -163,6 +163,8 @@ def handle_codegen_operation(
         else:
             result = operation(serialized_spec, engine)
     except SerializationError as exc:
+        return bad_request_response(str(exc))
+    except CodeGenerationError as exc:
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
         return issues_response(exc.issues)
