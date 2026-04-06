@@ -292,7 +292,7 @@ export function registerProperties(ctx) {
       <div class="button-row">
         ${
           tensorsOnly
-            ? '<button id="add-index-to-selection-button" type="button">Add Index to Tensors</button>'
+            ? '<button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>'
             : ""
         }
         <button id="delete-selection-button" type="button" class="danger">Delete Selected</button>
@@ -516,7 +516,7 @@ export function registerProperties(ctx) {
         <button
           id="add-index-button"
           type="button"
-          class="icon-button"
+          class="icon-button button-accent-insert"
           aria-label="Add index"
           title="Add index"
         >
@@ -812,7 +812,15 @@ export function registerProperties(ctx) {
           />
         </label>
         <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
-        <button id="delete-group-button" type="button" class="danger">Delete Group</button>
+        <button
+          id="delete-group-button"
+          type="button"
+          class="icon-button index-action-button danger"
+          aria-label="Delete group"
+          title="Delete group"
+        >
+          ${renderTrashIcon()}
+        </button>
       </div>
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
     `;

@@ -264,6 +264,26 @@ export function registerInteractions(ctx) {
     }
   }
 
+  function toggleSidebarVisibility() {
+    if (typeof ctx.toggleSidebarCollapsed !== "function") {
+      return;
+    }
+    ctx.toggleSidebarCollapsed();
+    ctx.setStatus(
+      state.sidebarCollapsed ? "Sidebar collapsed." : "Sidebar expanded."
+    );
+  }
+
+  function toggleMinimapVisibility() {
+    if (typeof ctx.toggleMinimapVisibility !== "function") {
+      return;
+    }
+    ctx.toggleMinimapVisibility();
+    ctx.setStatus(
+      state.minimapHidden ? "Minimap hidden." : "Minimap shown."
+    );
+  }
+
   function handleKeydown(event) {
     const activeElement = document.activeElement;
     const inTextInput = ctx.isTextInput(activeElement);
@@ -339,11 +359,6 @@ export function registerInteractions(ctx) {
       }
       return;
     }
-    if (hasModifier && lowerKey === "y") {
-      event.preventDefault();
-      ctx.performRedo();
-      return;
-    }
     if (hasModifier && event.shiftKey && lowerKey === "a") {
       event.preventDefault();
       acceptAutomaticShortcut("automaticPast");
@@ -364,7 +379,7 @@ export function registerInteractions(ctx) {
       loadInput.click();
       return;
     }
-    if (hasModifier && lowerKey === "n") {
+    if (hasModifier && lowerKey === "y") {
       event.preventDefault();
       setSelectedEngine("einsum_numpy");
       return;
@@ -403,6 +418,15 @@ export function registerInteractions(ctx) {
       }
       return;
     }
+    if (event.shiftKey && lowerKey === "r") {
+      event.preventDefault();
+      if (typeof ctx.trimContractionPlan === "function" && state.spec.contraction_plan) {
+        ctx.trimContractionPlan(0);
+      } else {
+        ctx.setStatus("There is no contraction path to reset.");
+      }
+      return;
+    }
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
       deleteSelection();
@@ -411,6 +435,11 @@ export function registerInteractions(ctx) {
     if (event.shiftKey && lowerKey === "a") {
       event.preventDefault();
       toggleAutomaticPreview("automaticPast");
+      return;
+    }
+    if (event.shiftKey && lowerKey === "m") {
+      event.preventDefault();
+      toggleMinimapVisibility();
       return;
     }
     if (lowerKey === "a") {
@@ -429,6 +458,11 @@ export function registerInteractions(ctx) {
     if (event.shiftKey && lowerKey === "g") {
       event.preventDefault();
       generateCode();
+      return;
+    }
+    if (lowerKey === "s") {
+      event.preventDefault();
+      toggleSidebarVisibility();
       return;
     }
     if (lowerKey === "g") {

@@ -49,13 +49,15 @@ export function registerSidebarTabs(ctx) {
     if (sidebarToggleButton) {
       sidebarToggleButton.innerHTML = isCollapsed ? "&lt;&lt;" : "&gt;&gt;";
       sidebarToggleButton.setAttribute("aria-expanded", String(!isCollapsed));
-      sidebarToggleButton.setAttribute(
-        "aria-label",
-        isCollapsed ? "Expand sidebar" : "Collapse sidebar"
-      );
-      sidebarToggleButton.title = isCollapsed
+      sidebarToggleButton.dataset.shortcut = "S";
+      sidebarToggleButton.dataset.shortcutLabel = isCollapsed
         ? "Expand sidebar"
         : "Collapse sidebar";
+      sidebarToggleButton.setAttribute(
+        "aria-label",
+        `${sidebarToggleButton.dataset.shortcutLabel} (S)`
+      );
+      sidebarToggleButton.removeAttribute("title");
     }
 
     Object.entries(tabConfig).forEach(([tabName, config]) => {

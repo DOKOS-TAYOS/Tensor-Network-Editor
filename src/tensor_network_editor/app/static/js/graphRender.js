@@ -1,5 +1,9 @@
 export function registerGraphRender(ctx) {
   const state = ctx.state;
+  const TENSOR_BASE_Z_INDEX = 10;
+  const EDGE_Z_INDEX = 100;
+  const PORT_BASE_Z_INDEX = 200;
+  const INDEX_LABEL_BASE_Z_INDEX = 230;
   const {
     TENSOR_WIDTH,
     TENSOR_HEIGHT,
@@ -170,11 +174,23 @@ export function registerGraphRender(ctx) {
           },
         },
         {
-          selector: ":selected",
+          selector: "node[kind = 'tensor']:selected",
           style: {
-            "overlay-color": "#61a8ff",
-            "overlay-opacity": 0.14,
             "border-color": "#8bc2ff",
+            "border-width": 4,
+            "overlay-opacity": 0,
+          },
+        },
+        {
+          selector: "node[kind = 'index']:selected",
+          style: {
+            "border-color": "#8bc2ff",
+            "overlay-opacity": 0,
+          },
+        },
+        {
+          selector: "edge:selected",
+          style: {
             "line-color": "#8bc2ff",
           },
         },
@@ -439,7 +455,7 @@ export function registerGraphRender(ctx) {
           backgroundColor: tensorColor,
           borderColor: ctx.shiftColor(tensorColor, 26),
           textColor: ctx.readableTextColor(tensorColor),
-          zIndex: 100 + tensorRank * 20,
+          zIndex: TENSOR_BASE_Z_INDEX + tensorRank,
         },
         classes: state.pendingPlannerSelectionId === tensor.id ? "planner-pending-tensor" : "",
         position: { x: tensor.position.x, y: tensor.position.y },
@@ -465,7 +481,7 @@ export function registerGraphRender(ctx) {
             backgroundColor: indexColor,
             borderColor: ctx.shiftColor(indexColor, 34),
             textColor: ctx.readableTextColor(indexColor),
-            zIndex: 300 + tensorRank * 20 + indexPosition,
+            zIndex: PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition,
           },
           classes: [
             connectedIndexIds.has(index.id) ? "index-connected" : "index-open",
@@ -485,7 +501,7 @@ export function registerGraphRender(ctx) {
             kind: "index-label",
             label: `${index.name} · ${index.dimension}`,
             textColor: ctx.shiftColor(indexColor, 64),
-            zIndex: 310 + tensorRank * 20 + indexPosition,
+            zIndex: INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition,
           },
           position: ctx.indexLabelPosition(indexPositionAbsolute),
           grabbable: false,
@@ -506,7 +522,7 @@ export function registerGraphRender(ctx) {
           kind: "edge",
           lineColor: edgeColor,
           textColor: ctx.shiftColor(edgeColor, 72),
-          zIndex: 220,
+          zIndex: EDGE_Z_INDEX,
         },
         selectable: !contractionScene,
       });

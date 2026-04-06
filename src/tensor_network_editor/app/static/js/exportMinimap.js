@@ -34,6 +34,7 @@ export function registerExportMinimap(ctx) {
     groupLayer,
     resizeLayer,
     selectionBox,
+    minimapShell,
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
@@ -41,12 +42,39 @@ export function registerExportMinimap(ctx) {
   function handleMinimapMouseDown(event) {
     event.preventDefault();
     event.stopPropagation();
-    if (!state.minimapTransform) {
+    if (state.minimapHidden || !state.minimapTransform) {
       return;
     }
     state.minimapDrag = { active: true };
     minimapCanvas.classList.add("is-dragging");
     updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
+  }
+
+  function renderMinimapVisibility() {
+    if (!minimapShell) {
+      return;
+    }
+    minimapShell.classList.toggle("is-hidden", Boolean(state.minimapHidden));
+  }
+
+  function setMinimapVisibility(forceHidden) {
+    state.minimapHidden =
+      typeof forceHidden === "boolean" ? forceHidden : Boolean(state.minimapHidden);
+    if (state.minimapHidden) {
+      state.minimapDrag = null;
+      state.minimapTransform = null;
+      minimapCanvas.classList.remove("is-dragging");
+    }
+    renderMinimapVisibility();
+    if (!state.minimapHidden) {
+      renderMinimap();
+    }
+  }
+
+  function toggleMinimapVisibility(forceHidden) {
+    setMinimapVisibility(
+      typeof forceHidden === "boolean" ? forceHidden : !state.minimapHidden
+    );
   }
 
   function updateViewportFromMinimapClientPoint(clientX, clientY) {
@@ -77,6 +105,11 @@ export function registerExportMinimap(ctx) {
   }
 
   function renderMinimap() {
+    renderMinimapVisibility();
+    if (state.minimapHidden) {
+      state.minimapTransform = null;
+      return;
+    }
     const context = minimapCanvas.getContext("2d");
     if (!context) {
       return;
@@ -305,6 +338,9 @@ export function registerExportMinimap(ctx) {
     updateViewportFromMinimapClientPoint,
     centerViewportAt,
     renderMinimap,
+    renderMinimapVisibility,
+    setMinimapVisibility,
+    toggleMinimapVisibility,
     worldToMinimapPoint,
     downloadPngExport,
     downloadSvgExport,

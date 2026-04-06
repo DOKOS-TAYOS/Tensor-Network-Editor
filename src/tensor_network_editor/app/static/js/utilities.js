@@ -1,5 +1,9 @@
 export function registerUtilities(ctx) {
   const state = ctx.state;
+  const TENSOR_BASE_Z_INDEX = 10;
+  const EDGE_Z_INDEX = 100;
+  const PORT_BASE_Z_INDEX = 200;
+  const INDEX_LABEL_BASE_Z_INDEX = 230;
   const {
     TENSOR_WIDTH,
     TENSOR_HEIGHT,
@@ -723,7 +727,7 @@ export function registerUtilities(ctx) {
       if (tensorElement && tensorElement.length) {
         const tensor = findTensorById(tensorId);
         const tensorColor = tensor ? getMetadataColor(tensor.metadata, "#18212c") : "#18212c";
-        tensorElement.data("zIndex", 100 + tensorRank * 20);
+        tensorElement.data("zIndex", TENSOR_BASE_Z_INDEX + tensorRank);
         tensorElement.data("backgroundColor", tensorColor);
         tensorElement.data("borderColor", shiftColor(tensorColor, 26));
         tensorElement.data("textColor", readableTextColor(tensorColor));
@@ -737,7 +741,7 @@ export function registerUtilities(ctx) {
         const indexElement = state.cy.getElementById(index.id);
         if (indexElement && indexElement.length) {
           const indexColor = getIndexColor(index, Boolean(findEdgeByIndexId(index.id)));
-          indexElement.data("zIndex", 300 + tensorRank * 20 + indexPosition);
+          indexElement.data("zIndex", PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
           indexElement.data("orderLabel", String(indexPosition + 1));
           indexElement.data("backgroundColor", indexColor);
           indexElement.data("borderColor", shiftColor(indexColor, 34));
@@ -747,14 +751,14 @@ export function registerUtilities(ctx) {
         syncIndexLabelNodePosition(index, absolutePosition);
         const labelElement = state.cy.getElementById(indexLabelNodeId(index.id));
         if (labelElement && labelElement.length) {
-          labelElement.data("zIndex", 310 + tensorRank * 20 + indexPosition);
+          labelElement.data("zIndex", INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
         }
       });
     });
     state.cy.edges().forEach((edgeElement) => {
       const edge = findEdgeById(edgeElement.id());
       const edgeColor = edge ? getMetadataColor(edge.metadata, "#8da1c3") : "#8da1c3";
-      edgeElement.data("zIndex", 220);
+      edgeElement.data("zIndex", EDGE_Z_INDEX);
       edgeElement.data("lineColor", edgeColor);
       edgeElement.data("textColor", shiftColor(edgeColor, 72));
     });

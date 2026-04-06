@@ -43,6 +43,8 @@ export function startEditor(ctx) {
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  let shortcutTooltip = null;
+  let activeShortcutButton = null;
 
   document.addEventListener("DOMContentLoaded", () => {
     attachToolbarHandlers();
@@ -91,8 +93,136 @@ export function startEditor(ctx) {
       return;
     }
     button.dataset.shortcut = shortcut;
-    button.title = `${label} (${shortcut})`;
+    button.dataset.shortcutLabel = label;
     button.setAttribute("aria-label", `${label} (${shortcut})`);
+    button.removeAttribute("title");
+  }
+
+  function ensureShortcutTooltip() {
+    if (shortcutTooltip) {
+      return shortcutTooltip;
+    }
+    shortcutTooltip = document.createElement("div");
+    shortcutTooltip.className = "shortcut-tooltip is-hidden";
+    shortcutTooltip.setAttribute("aria-hidden", "true");
+    document.body.appendChild(shortcutTooltip);
+    return shortcutTooltip;
+  }
+
+  function formatShortcutTooltipText(button) {
+    const label = button.dataset.shortcutLabel || button.textContent.trim();
+    const shortcut = button.dataset.shortcut || "";
+    return label ? `${label} (${shortcut})` : shortcut;
+  }
+
+  function positionShortcutTooltip(button) {
+    const tooltip = ensureShortcutTooltip();
+    const rect = button.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.right - tooltipRect.width;
+    let top = rect.bottom + margin;
+
+    if (top + tooltipRect.height > window.innerHeight - margin) {
+      top = rect.top - tooltipRect.height - margin;
+    }
+    left = Math.min(
+      Math.max(margin, left),
+      Math.max(margin, window.innerWidth - tooltipRect.width - margin)
+    );
+    top = Math.min(
+      Math.max(margin, top),
+      Math.max(margin, window.innerHeight - tooltipRect.height - margin)
+    );
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  }
+
+  function showShortcutTooltip(button) {
+    if (!button || !button.dataset.shortcut || button.disabled) {
+      return;
+    }
+    const tooltip = ensureShortcutTooltip();
+    tooltip.textContent = formatShortcutTooltipText(button);
+    tooltip.classList.remove("is-hidden");
+    activeShortcutButton = button;
+    positionShortcutTooltip(button);
+  }
+
+  function hideShortcutTooltip(button = null) {
+    if (button && activeShortcutButton && button !== activeShortcutButton) {
+      return;
+    }
+    if (!shortcutTooltip) {
+      return;
+    }
+    shortcutTooltip.classList.add("is-hidden");
+    activeShortcutButton = null;
+  }
+
+  function attachShortcutTooltipHandlers() {
+    document.addEventListener("mouseover", (event) => {
+      const button =
+        event.target instanceof Element
+          ? event.target.closest("button[data-shortcut]")
+          : null;
+      if (!button) {
+        return;
+      }
+      showShortcutTooltip(button);
+    });
+    document.addEventListener("mouseout", (event) => {
+      const button =
+        event.target instanceof Element
+          ? event.target.closest("button[data-shortcut]")
+          : null;
+      if (!button) {
+        return;
+      }
+      const relatedButton =
+        event.relatedTarget instanceof Element
+          ? event.relatedTarget.closest("button[data-shortcut]")
+          : null;
+      if (relatedButton === button) {
+        return;
+      }
+      hideShortcutTooltip(button);
+    });
+    document.addEventListener("focusin", (event) => {
+      const button =
+        event.target instanceof Element
+          ? event.target.closest("button[data-shortcut]")
+          : null;
+      if (!button) {
+        return;
+      }
+      showShortcutTooltip(button);
+    });
+    document.addEventListener("focusout", (event) => {
+      const button =
+        event.target instanceof Element
+          ? event.target.closest("button[data-shortcut]")
+          : null;
+      if (!button) {
+        return;
+      }
+      hideShortcutTooltip(button);
+    });
+    window.addEventListener("resize", () => {
+      if (activeShortcutButton) {
+        positionShortcutTooltip(activeShortcutButton);
+      }
+    });
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (activeShortcutButton) {
+          positionShortcutTooltip(activeShortcutButton);
+        }
+      },
+      true
+    );
   }
 
   function attachToolbarHandlers() {
@@ -106,8 +236,9 @@ export function startEditor(ctx) {
     applyShortcutHint("load-button", "Load", "Ctrl/Cmd+L");
     applyShortcutHint("generate-button", "Generate code", "Shift+G");
     applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
-    applyShortcutHint("redo-button", "Redo", "Ctrl+Y");
+    applyShortcutHint("redo-button", "Redo", REDO_SHORTCUT_LABEL);
     applyShortcutHint("help-button", "Help", "?");
+    attachShortcutTooltipHandlers();
     document.getElementById("new-design-button").addEventListener("click", ctx.handleNewDesign);
     document.getElementById("add-tensor-button").addEventListener("click", ctx.addTensorAtCenter);
     addNoteButton.addEventListener("click", ctx.addNoteAtCenter);

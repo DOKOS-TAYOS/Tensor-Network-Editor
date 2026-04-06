@@ -284,8 +284,15 @@ export function registerNotesPlanner(ctx) {
 
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
-        deleteButton.className = "canvas-note-delete";
+        deleteButton.className = "canvas-note-delete danger";
+        deleteButton.setAttribute("aria-label", "Delete note");
+        deleteButton.setAttribute("title", "Delete note");
         deleteButton.textContent = "×";
+        deleteButton.innerHTML = `
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+          </svg>
+        `;
         deleteButton.addEventListener("mousedown", (event) => {
           event.stopPropagation();
         });
@@ -1370,7 +1377,7 @@ export function registerNotesPlanner(ctx) {
       <section class="planner-section planner-disclosure">
         <button
           type="button"
-          class="planner-disclosure-toggle${isOpen ? " is-open" : ""}"
+          class="planner-disclosure-toggle button-accent-cool${isOpen ? " is-open" : ""}"
           data-disclosure="${ctx.escapeHtml(disclosureKey)}"
         >
           <span>${ctx.escapeHtml(title)}</span>
@@ -1394,11 +1401,11 @@ export function registerNotesPlanner(ctx) {
             <div class="button-row">
               <button
                 type="button"
+                class="button-accent-cool${isPreviewing ? " is-active" : ""}"
                 data-preview-mode="${ctx.escapeHtml(mode)}"
                 data-shortcut="${ctx.escapeHtml(previewShortcut)}"
-                title="${ctx.escapeHtml(`${isPreviewing ? "Deactivate preview" : "Preview"} (${previewShortcut})`)}"
+                data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
                 aria-pressed="${isPreviewing}"
-                class="${isPreviewing ? "is-active" : ""}"
                 ${canAct ? "" : " disabled"}
               >
                 ${isPreviewing ? "Deactivate preview" : "Preview"}
@@ -1408,7 +1415,7 @@ export function registerNotesPlanner(ctx) {
                 class="apply-button"
                 data-accept-mode="${ctx.escapeHtml(mode)}"
                 data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
-                title="${ctx.escapeHtml(`Accept (${acceptShortcut})`)}"
+                data-shortcut-label="Accept"
                 ${canAct ? "" : " disabled"}
               >
                 Accept
@@ -1531,16 +1538,18 @@ export function registerNotesPlanner(ctx) {
         <button
           id="toggle-planner-mode-button"
           type="button"
+          class="button-accent-cool${state.plannerMode ? " is-active" : ""}"
           data-shortcut="M"
-          title="Manual scheme (M)"
-          ${state.plannerMode ? ' class="is-active"' : ""}
+          data-shortcut-label="Manual scheme"
         >
           Contract
         </button>
         <button
           id="planner-reset-button"
           type="button"
-          class="icon-button planner-icon-button"
+          class="icon-button planner-icon-button danger"
+          data-shortcut="Shift+R"
+          data-shortcut-label="Reset path"
           aria-label="Reset path"
           title="Reset path"
           ${planSteps.length ? "" : " disabled"}

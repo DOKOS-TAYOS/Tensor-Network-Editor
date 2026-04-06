@@ -11,7 +11,7 @@ export const constants = {
   NOTE_MIN_HEIGHT: 140,
   NOTE_COLLAPSED_SIZE: 48,
   HISTORY_LIMIT: 100,
-  REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+  REDO_SHORTCUT_LABEL: "Ctrl/Cmd+Shift+Z",
   DEFAULT_INDEX_SLOTS: [
     { x: -58, y: -20 },
     { x: 58, y: -20 },

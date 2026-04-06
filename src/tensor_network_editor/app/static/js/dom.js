@@ -31,6 +31,7 @@ export function getDomRefs(document) {
     resizeLayer: document.getElementById("resize-layer"),
     notesLayer: document.getElementById("notes-layer"),
     selectionBox: document.getElementById("canvas-selection-box"),
+    minimapShell: document.getElementById("minimap-shell"),
     minimapCanvas: document.getElementById("minimap"),
     sidebar: document.getElementById("sidebar"),
     sidebarPanel: document.getElementById("sidebar-panel"),

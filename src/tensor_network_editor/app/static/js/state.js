@@ -32,6 +32,7 @@ export function createInitialState() {
     boxSelection: null,
     isHelpOpen: false,
     minimapDrag: null,
+    minimapHidden: false,
     minimapTransform: null,
     clipboard: null,
     activeSidebarTab: "selection",
