@@ -251,13 +251,20 @@ def _collect_einsum_labels(
                 _parse_tensor_reference(argument)
                 for argument in statement.value.args[1:]
             ]
-            if len(input_terms) != len(references) or any(
-                reference is None for reference in references
-            ):
+            if len(input_terms) != len(references):
                 raise SerializationError(
                     "Generated Python einsum operands do not match the equation."
                 )
-            for reference, input_term in zip(references, input_terms, strict=True):
+            resolved_references: list[str] = []
+            for reference in references:
+                if reference is None:
+                    raise SerializationError(
+                        "Generated Python einsum operands do not match the equation."
+                    )
+                resolved_references.append(reference)
+            for reference, input_term in zip(
+                resolved_references, input_terms, strict=True
+            ):
                 einsum_labels_by_reference[reference] = list(input_term)
             return
 
