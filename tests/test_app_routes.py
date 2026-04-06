@@ -362,6 +362,8 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert payload["ok"] is True
     assert payload["automatic_strategy"] == "greedy"
     assert payload["network_output_shape"] == [2, 4]
+    assert "automatic_future" in payload
+    assert "automatic_past" in payload
     assert payload["manual"]["status"] == "complete"
     assert payload["manual"]["summary"]["total_estimated_flops"] == 48
     assert payload["manual"]["summary"]["total_estimated_macs"] == 24

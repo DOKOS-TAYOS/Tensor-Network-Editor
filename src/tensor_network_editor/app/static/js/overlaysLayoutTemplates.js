@@ -41,7 +41,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
   function renderOverlayDecorations() {
     renderGroupOverlays();
     renderResizeHandles();
-    renderPlannerOrderBadges();
+    renderContractionBadges();
     if (typeof ctx.renderNotes === "function") {
       ctx.renderNotes();
     }
@@ -52,6 +52,16 @@ export function registerOverlaysLayoutTemplates(ctx) {
       return;
     }
     groupLayer.innerHTML = "";
+    const scene =
+      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
+    const hideGroupsForContractedScene = Boolean(
+      scene &&
+      (scene.tensors.some((tensor) => tensor.isDerived) ||
+        scene.tensors.length !== state.spec.tensors.length)
+    );
+    if (hideGroupsForContractedScene) {
+      return;
+    }
     state.spec.groups.forEach((group) => {
       const rect = groupDisplayRect(group);
       if (!rect) {
@@ -100,7 +110,19 @@ export function registerOverlaysLayoutTemplates(ctx) {
       return;
     }
     const selectedEntry = ctx.getSelectionEntry(state.selectionIds[0]);
-    if (!selectedEntry || selectedEntry.kind !== "tensor") {
+    if (
+      !selectedEntry ||
+      (selectedEntry.kind !== "tensor" && selectedEntry.kind !== "contraction-tensor")
+    ) {
+      return;
+    }
+    if (
+      selectedEntry.kind === "contraction-tensor" &&
+      !(
+        typeof ctx.canEditCurrentContractionStage === "function" &&
+        ctx.canEditCurrentContractionStage()
+      )
+    ) {
       return;
     }
     const tensor = selectedEntry.tensor;
@@ -120,61 +142,107 @@ export function registerOverlaysLayoutTemplates(ctx) {
     });
   }
 
-  function renderPlannerOrderBadges() {
+  function renderContractionBadges() {
     if (!resizeLayer) {
       return;
     }
-    const manualOrderByTensorId =
-      state.plannerManualOrderByTensorId && typeof state.plannerManualOrderByTensorId === "object"
-        ? state.plannerManualOrderByTensorId
-        : {};
     const previewOrderByTensorId =
       state.plannerPreviewOrderByTensorId && typeof state.plannerPreviewOrderByTensorId === "object"
         ? state.plannerPreviewOrderByTensorId
         : {};
-    const showingPreview = Boolean(
-      state.plannerPreviewMode && Object.keys(previewOrderByTensorId).length
-    );
-
-    state.spec.tensors.forEach((tensor) => {
-      const manualOrders = manualOrderByTensorId[tensor.id];
-      if (Array.isArray(manualOrders) && manualOrders.length) {
-        resizeLayer.appendChild(
-          createPlannerOrderBadgeStack(tensor, manualOrders, "planner-order-badge")
-        );
-      }
-      if (!showingPreview) {
-        return;
-      }
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    visibleTensors.forEach((tensor) => {
       const previewOrders = previewOrderByTensorId[tensor.id];
       if (Array.isArray(previewOrders) && previewOrders.length) {
         resizeLayer.appendChild(
-          createPlannerOrderBadgeStack(tensor, previewOrders, "planner-preview-badge", {
-            anchor: "right",
-            stackClassName: "is-preview",
-          })
+          createPreviewBadgeStack(tensor, previewOrders)
         );
+      }
+    });
+    const scene =
+      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
+    if (!scene) {
+      return;
+    }
+    scene.tensors.forEach((tensor) => {
+      if (Number(tensor.resultCount || 0) > 1) {
+        resizeLayer.appendChild(createResultCountBadge(tensor));
+      }
+      const futureOrders = scene.futureOrdersByOperandId[tensor.id];
+      if (
+        typeof ctx.isInspectingPastStage === "function" &&
+        ctx.isInspectingPastStage() &&
+        Array.isArray(futureOrders) &&
+        futureOrders.length
+      ) {
+        resizeLayer.appendChild(createFutureStepBadgeStack(tensor, futureOrders));
       }
     });
   }
 
-  function createPlannerOrderBadgeStack(tensor, orders, className, options = {}) {
+  function createResultCountBadge(tensor) {
+    const rect = tensorScreenRect(tensor);
+    const badge = document.createElement("div");
+    badge.className = "planner-result-count-badge";
+    badge.textContent = String(Number(tensor.resultCount || 0));
+    badge.style.left = `${rect.left + 8}px`;
+    badge.style.top = `${rect.top + rect.height - 28}px`;
+    return badge;
+  }
+
+  function createPreviewBadgeStack(tensor, orders) {
     const rect = tensorScreenRect(tensor);
     const stack = document.createElement("div");
-    stack.className = "planner-order-badge-stack";
-    if (options.stackClassName) {
-      stack.classList.add(options.stackClassName);
-    }
-    stack.style.left = `${
-      options.anchor === "right" ? rect.left + rect.width - 1 : rect.left + 1
-    }px`;
+    stack.className = "planner-order-badge-stack is-preview";
+    stack.style.left = `${rect.left + rect.width - 1}px`;
     stack.style.top = `${rect.top + 1}px`;
     orders.forEach((order) => {
       const badge = document.createElement("div");
-      badge.className = className;
+      badge.className = "planner-preview-badge";
       badge.textContent = String(order);
       stack.appendChild(badge);
     });
+    return stack;
+  }
+
+  function createFutureStepBadgeStack(tensor, orders) {
+    const rect = tensorScreenRect(tensor);
+    const stack = document.createElement("div");
+    const isOpen = Boolean(state.plannerFutureBadgeDisclosure[tensor.id]);
+    stack.className = `planner-order-badge-stack planner-future-badge-stack${
+      isOpen ? " is-open" : ""
+    }`;
+    stack.style.left = `${rect.left + 1}px`;
+    stack.style.top = `${rect.top + 1}px`;
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "planner-order-badge planner-future-badge-toggle";
+    toggle.textContent = String(orders[0]);
+    toggle.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof ctx.toggleFutureBadgeDisclosure === "function") {
+        ctx.toggleFutureBadgeDisclosure(tensor.id);
+      }
+      renderOverlayDecorations();
+    });
+    stack.appendChild(toggle);
+
+    if (isOpen) {
+      orders.slice(1).forEach((order) => {
+        const badge = document.createElement("div");
+        badge.className = "planner-order-badge";
+        badge.textContent = String(order);
+        stack.appendChild(badge);
+      });
+    }
+
     return stack;
   }
 
@@ -282,7 +350,10 @@ export function registerOverlaysLayoutTemplates(ctx) {
     }
     event.preventDefault();
     event.stopPropagation();
-    const tensor = ctx.findTensorById(tensorId);
+    const tensor =
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(tensorId)
+        : ctx.findTensorById(tensorId);
     if (!tensor) {
       return;
     }
@@ -293,8 +364,14 @@ export function registerOverlaysLayoutTemplates(ctx) {
       center: { x: tensor.position.x, y: tensor.position.y },
       startSize: { width: tensorWidth(tensor), height: tensorHeight(tensor) },
       startOffsets: Object.fromEntries(
-        tensor.indices.map((index) => [index.id, { x: index.offset.x, y: index.offset.y }])
+        (Array.isArray(tensor.indices) ? tensor.indices : []).map((index) => [
+          index.id,
+          { x: index.offset.x, y: index.offset.y },
+        ])
       ),
+      usesSnapshot:
+        typeof ctx.canEditCurrentContractionStage === "function" &&
+        ctx.canEditCurrentContractionStage(),
     };
   }
 
@@ -302,7 +379,10 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!state.activeResize || !state.cy) {
       return;
     }
-    const tensor = ctx.findTensorById(state.activeResize.tensorId);
+    const tensor =
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(state.activeResize.tensorId)
+        : ctx.findTensorById(state.activeResize.tensorId);
     if (!tensor) {
       return;
     }
@@ -317,18 +397,29 @@ export function registerOverlaysLayoutTemplates(ctx) {
     );
     const widthRatio = width / Math.max(1, state.activeResize.startSize.width);
     const heightRatio = height / Math.max(1, state.activeResize.startSize.height);
-    tensor.size.width = Math.round(width);
-    tensor.size.height = Math.round(height);
-    tensor.indices.forEach((index) => {
-      const startOffset = state.activeResize.startOffsets[index.id] || { x: 0, y: 0 };
-      index.offset = ctx.clampIndexOffset(
-        {
-          x: startOffset.x * widthRatio,
-          y: startOffset.y * heightRatio,
-        },
-        tensor
-      );
-    });
+    if (
+      state.activeResize.usesSnapshot &&
+      typeof ctx.updateCurrentStageOperandLayout === "function"
+    ) {
+      ctx.updateCurrentStageOperandLayout(tensor.id, {
+        size: { width, height },
+      });
+      tensor.size.width = Math.round(width);
+      tensor.size.height = Math.round(height);
+    } else {
+      tensor.size.width = Math.round(width);
+      tensor.size.height = Math.round(height);
+      tensor.indices.forEach((index) => {
+        const startOffset = state.activeResize.startOffsets[index.id] || { x: 0, y: 0 };
+        index.offset = ctx.clampIndexOffset(
+          {
+            x: startOffset.x * widthRatio,
+            y: startOffset.y * heightRatio,
+          },
+          tensor
+        );
+      });
+    }
     syncTensorElementSize(tensor);
     ctx.syncIndexNodePositions(tensor);
     renderOverlayDecorations();
@@ -493,8 +584,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
     renderOverlayDecorations,
     renderGroupOverlays,
     renderResizeHandles,
-    renderPlannerOrderBadges,
-    createPlannerOrderBadgeStack,
+    renderContractionBadges,
     createGroupFromSelection,
     toggleGroupCollapse,
     startGroupDrag,

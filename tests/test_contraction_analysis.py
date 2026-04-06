@@ -29,8 +29,8 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.manual.summary.total_estimated_macs == 24
     assert result.manual.summary.final_shape == (2, 4)
     assert result.manual.summary.peak_intermediate_size == 8
-    assert result.automatic_global is not None
-    assert result.automatic_local is not None
+    assert result.automatic_future is not None
+    assert result.automatic_past is not None
 
 
 def test_analyze_contraction_marks_incomplete_manual_plan() -> None:
@@ -45,15 +45,24 @@ def test_analyze_contraction_marks_incomplete_manual_plan() -> None:
     assert result.manual.summary.final_shape == (2, 5)
     assert result.manual.summary.peak_intermediate_size == 10
     assert result.manual.summary.remaining_operand_ids == ("step_ab", "tensor_c")
-    assert result.automatic_global.status in {"complete", "unavailable"}
-    assert result.automatic_local.status in {"complete", "unavailable"}
-    if result.automatic_local.status == "complete":
-        assert len(result.automatic_local.steps) == 1
-        assert result.automatic_local.summary.total_estimated_flops == 60
-        assert result.automatic_local.summary.total_estimated_macs == 30
+    assert result.automatic_future.status in {"complete", "unavailable"}
+    assert result.automatic_past.status in {"complete", "unavailable"}
+    if result.automatic_future.status == "complete":
+        assert len(result.automatic_future.steps) == 1
+        assert result.automatic_future.summary.total_estimated_flops == 140
+        assert result.automatic_future.summary.total_estimated_macs == 70
         assert {
-            result.automatic_local.steps[0].left_operand_id,
-            result.automatic_local.steps[0].right_operand_id,
+            result.automatic_future.steps[0].left_operand_id,
+            result.automatic_future.steps[0].right_operand_id,
+        } == {"step_ab", "tensor_c"}
+    if result.automatic_past.status == "complete":
+        assert len(result.automatic_past.steps) == 1
+        assert result.automatic_past.steps[0].result_operand_id == "step_ab"
+        assert result.automatic_past.summary.total_estimated_flops == 60
+        assert result.automatic_past.summary.total_estimated_macs == 30
+        assert {
+            result.automatic_past.steps[0].left_operand_id,
+            result.automatic_past.steps[0].right_operand_id,
         } == {"tensor_a", "tensor_b"}
 
 
@@ -94,8 +103,8 @@ def test_analyze_contraction_accepts_multi_step_manual_plan() -> None:
 def test_automatic_summaries_do_not_expose_final_shape() -> None:
     result = analyze_contraction(build_three_tensor_spec())
 
-    assert not hasattr(result.automatic_global.summary, "final_shape")
-    assert not hasattr(result.automatic_local.summary, "final_shape")
+    assert not hasattr(result.automatic_future.summary, "final_shape")
+    assert not hasattr(result.automatic_past.summary, "final_shape")
 
 
 def test_matrix_multiplication_counts_two_flops_per_mac() -> None:
@@ -147,3 +156,56 @@ def test_matrix_multiplication_counts_two_flops_per_mac() -> None:
 
     assert result.manual.steps[0].estimated_macs == 8
     assert result.manual.steps[0].estimated_flops == 16
+
+
+def test_analyze_contraction_past_preserves_existing_root_step_id() -> None:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_chain_complete",
+        name="Chain complete",
+        steps=[
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="tensor_a",
+                right_operand_id="tensor_b",
+            ),
+            ContractionStepSpec(
+                id="step_abc",
+                left_operand_id="step_ab",
+                right_operand_id="tensor_c",
+            ),
+        ],
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.automatic_past.status in {"complete", "unavailable"}
+    if result.automatic_past.status == "complete":
+        assert result.automatic_past.steps
+        assert result.automatic_past.steps[-1].result_operand_id == "step_abc"
+        assert result.automatic_past.steps[-1].step_id == "step_abc"
+
+
+def test_analyze_contraction_future_is_complete_when_manual_path_is_complete() -> None:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_chain_complete",
+        name="Chain complete",
+        steps=[
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="tensor_a",
+                right_operand_id="tensor_b",
+            ),
+            ContractionStepSpec(
+                id="step_abc",
+                left_operand_id="step_ab",
+                right_operand_id="tensor_c",
+            ),
+        ],
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.automatic_future.status == "complete"
+    assert result.automatic_future.steps == []

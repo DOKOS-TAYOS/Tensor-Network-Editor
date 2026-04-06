@@ -263,6 +263,11 @@ select {
 
 .canvas-note {
   position: absolute;
+  pointer-events: auto;
+  overflow: visible;
+}
+
+.canvas-note-frame {
   width: 220px;
   display: flex;
   flex-direction: column;
@@ -273,17 +278,16 @@ select {
   background:
     linear-gradient(180deg, rgba(23, 31, 46, 0.98), rgba(17, 23, 35, 0.98));
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
-  pointer-events: auto;
   box-sizing: border-box;
 }
 
-.canvas-note.is-selected {
+.canvas-note-frame.is-selected {
   box-shadow:
     0 0 0 1px rgba(139, 194, 255, 0.95),
     0 18px 34px rgba(0, 0, 0, 0.34);
 }
 
-.canvas-note.is-collapsed {
+.canvas-note-frame.is-collapsed {
   width: 48px;
   min-height: 48px;
   height: 48px;
@@ -764,6 +768,57 @@ select {
   color: #ffe7ae;
 }
 
+.planner-result-count-badge {
+  position: absolute;
+  min-width: 1.2rem;
+  min-height: 1rem;
+  padding: 0.08rem 0.32rem;
+  border-radius: 0.42rem;
+  border: 1px solid rgba(168, 220, 255, 0.82);
+  background: rgba(15, 46, 63, 0.94);
+  color: #d7f4ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.planner-future-badge-stack {
+  pointer-events: auto;
+  z-index: 4;
+}
+
+.planner-future-badge-toggle {
+  cursor: pointer;
+}
+
+.planner-step.is-active {
+  border-color: rgba(97, 199, 255, 0.72);
+  background: rgba(18, 42, 58, 0.96);
+}
+
+.planner-step-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.planner-step-toggle[aria-pressed="true"] {
+  color: var(--accent-strong);
+}
+
+.planner-preview-step-list {
+  margin-bottom: 0.75rem;
+}
+
 .planner-preview-badge {
   border: 1px solid rgba(97, 199, 255, 0.8);
   background: rgba(11, 52, 74, 0.94);
@@ -781,6 +836,38 @@ select {
 .field-group {
   display: grid;
   gap: 0.35rem;
+}
+
+.property-readonly {
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(141, 161, 195, 0.28);
+  background: rgba(13, 18, 27, 0.9);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+button[data-shortcut] {
+  position: relative;
+}
+
+button[data-shortcut]:hover::after,
+button[data-shortcut]:focus-visible::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  border: 1px solid rgba(141, 161, 195, 0.35);
+  background: rgba(13, 18, 27, 0.98);
+  color: #d7e1f2;
+  font-size: 0.7rem;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  z-index: 40;
 }
 
 .field-row {

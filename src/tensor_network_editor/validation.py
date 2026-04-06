@@ -9,8 +9,10 @@ from ._analysis import analyze_network
 from .errors import SpecValidationError
 from .models import (
     CanvasNoteSpec,
+    ContractionOperandLayoutSpec,
     ContractionPlanSpec,
     ContractionStepSpec,
+    ContractionViewSnapshotSpec,
     EdgeSpec,
     GroupSpec,
     IndexSpec,
@@ -277,12 +279,96 @@ def _validate_contraction_plan(
     available_operand_ids = set(tensor_ids)
     consumed_operand_ids: set[str] = set()
 
+    for snapshot in plan.view_snapshots:
+        _validate_contraction_view_snapshot(snapshot, issues=issues)
+
     for step in plan.steps:
         _validate_contraction_step(
             step,
             available_operand_ids=available_operand_ids,
             consumed_operand_ids=consumed_operand_ids,
             issues=issues,
+        )
+
+
+def _validate_contraction_view_snapshot(
+    snapshot: ContractionViewSnapshotSpec,
+    *,
+    issues: list[ValidationIssue],
+) -> None:
+    snapshot_path = f"contraction_plan.view_snapshots.{snapshot.applied_step_count}"
+    if snapshot.applied_step_count < 0:
+        _append_issue(
+            issues,
+            code="invalid-contraction-view-snapshot",
+            message="Contraction view snapshots must use a non-negative step count.",
+            path=f"{snapshot_path}.applied_step_count",
+        )
+
+    seen_operand_ids: set[str] = set()
+    for operand_layout in snapshot.operand_layouts:
+        _validate_contraction_operand_layout(
+            operand_layout,
+            snapshot_path=snapshot_path,
+            seen_operand_ids=seen_operand_ids,
+            issues=issues,
+        )
+
+
+def _validate_contraction_operand_layout(
+    operand_layout: ContractionOperandLayoutSpec,
+    *,
+    snapshot_path: str,
+    seen_operand_ids: set[str],
+    issues: list[ValidationIssue],
+) -> None:
+    operand_path = f"{snapshot_path}.operand_layouts.{operand_layout.operand_id or '_'}"
+    if not _is_valid_name(operand_layout.operand_id):
+        _append_issue(
+            issues,
+            code="invalid-contraction-view-snapshot",
+            message="Contraction operand layouts must use a non-empty operand id.",
+            path=f"{operand_path}.operand_id",
+        )
+    elif operand_layout.operand_id in seen_operand_ids:
+        _append_issue(
+            issues,
+            code="invalid-contraction-view-snapshot",
+            message=(
+                f"Contraction view snapshot duplicates operand id "
+                f"'{operand_layout.operand_id}'."
+            ),
+            path=f"{operand_path}.operand_id",
+        )
+    else:
+        seen_operand_ids.add(operand_layout.operand_id)
+
+    if not math.isfinite(operand_layout.position.x) or not math.isfinite(
+        operand_layout.position.y
+    ):
+        _append_issue(
+            issues,
+            code="invalid-contraction-view-snapshot",
+            message=(
+                f"Contraction operand layout '{operand_layout.operand_id}' has a "
+                "non-finite position."
+            ),
+            path=f"{operand_path}.position",
+        )
+    if (
+        not math.isfinite(operand_layout.size.width)
+        or not math.isfinite(operand_layout.size.height)
+        or operand_layout.size.width <= 0
+        or operand_layout.size.height <= 0
+    ):
+        _append_issue(
+            issues,
+            code="invalid-size",
+            message=(
+                f"Contraction operand layout '{operand_layout.operand_id}' must "
+                "have a positive finite size."
+            ),
+            path=f"{operand_path}.size",
         )
 
 

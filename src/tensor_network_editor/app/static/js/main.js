@@ -1,4 +1,5 @@
 import { startEditor } from "./bootstrap.js";
+import { registerContractionScene } from "./contractionScene.js";
 import { createEditorContext } from "./editorContext.js";
 import { registerExportMinimap } from "./exportMinimap.js";
 import { registerGraphRender } from "./graphRender.js";
@@ -17,6 +18,7 @@ const context = createEditorContext({
 });
 
 registerUtilities(context);
+registerContractionScene(context);
 registerHistorySelection(context);
 registerGraphRender(context);
 registerSidebarTabs(context);

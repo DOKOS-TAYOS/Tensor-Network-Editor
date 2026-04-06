@@ -87,7 +87,12 @@ export function registerExportMinimap(ctx) {
     context.fillStyle = "#0d121b";
     context.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    if (!state.spec || !state.spec.tensors.length) {
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
+
+    if (!state.spec || !visibleTensors.length) {
       context.fillStyle = "#95a3b8";
       context.font = '12px "Segoe UI", "Helvetica Neue", sans-serif';
       context.textAlign = "center";
@@ -116,9 +121,9 @@ export function registerExportMinimap(ctx) {
     context.translate(offsetX, offsetY);
     context.scale(scale, scale);
 
-    state.spec.edges.forEach((edge) => {
-      const left = ctx.findIndexOwner(edge.left.index_id);
-      const right = ctx.findIndexOwner(edge.right.index_id);
+    visibleEdges.forEach((edge) => {
+      const left = ctx.findIndexOwner(edge.leftIndexId || edge.left.index_id);
+      const right = ctx.findIndexOwner(edge.rightIndexId || edge.right.index_id);
       if (!left || !right) {
         return;
       }
@@ -138,7 +143,7 @@ export function registerExportMinimap(ctx) {
       context.stroke();
     });
 
-    state.spec.tensors.forEach((tensor) => {
+    visibleTensors.forEach((tensor) => {
       const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
       const left = tensor.position.x - ctx.tensorWidth(tensor) / 2 - worldBounds.x1;
       const top = tensor.position.y - ctx.tensorHeight(tensor) / 2 - worldBounds.y1;
@@ -221,6 +226,10 @@ export function registerExportMinimap(ctx) {
     const width = Math.max(240, Math.ceil(bounds.x2 - bounds.x1));
     const height = Math.max(180, Math.ceil(bounds.y2 - bounds.y1));
     const lines = [];
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
 
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
     lines.push(
@@ -228,9 +237,9 @@ export function registerExportMinimap(ctx) {
     );
     lines.push(`<rect x="${bounds.x1}" y="${bounds.y1}" width="${width}" height="${height}" fill="#0b0f14" />`);
 
-    state.spec.edges.forEach((edge) => {
-      const left = ctx.findIndexOwner(edge.left.index_id);
-      const right = ctx.findIndexOwner(edge.right.index_id);
+    visibleEdges.forEach((edge) => {
+      const left = ctx.findIndexOwner(edge.leftIndexId || edge.left.index_id);
+      const right = ctx.findIndexOwner(edge.rightIndexId || edge.right.index_id);
       if (!left || !right) {
         return;
       }
@@ -243,11 +252,11 @@ export function registerExportMinimap(ctx) {
         `<path d="M ${source.x} ${source.y} Q ${curve.control.x} ${curve.control.y} ${target.x} ${target.y}" fill="none" stroke="${edgeColor}" stroke-width="3" />`
       );
       lines.push(
-        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 72)}" font-size="11" font-family="Segoe UI, Helvetica Neue, sans-serif" text-anchor="middle">${ctx.escapeSvgText(edge.name)}</text>`
+        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 72)}" font-size="11" font-family="Segoe UI, Helvetica Neue, sans-serif" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
       );
     });
 
-    state.spec.tensors.forEach((tensor) => {
+    visibleTensors.forEach((tensor) => {
       const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
       const borderColor = ctx.shiftColor(tensorColor, 26);
       lines.push(

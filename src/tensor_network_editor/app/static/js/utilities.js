@@ -391,8 +391,10 @@ export function registerUtilities(ctx) {
     return state.spec.edges.find((edge) => edge.id === edgeId) || null;
   }
 
-  function findIndexOwner(indexId) {
-    for (const tensor of state.spec.tensors) {
+  function findVisibleIndexOwner(indexId) {
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : [];
+    for (const tensor of visibleTensors) {
       const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
       if (indexPosition >= 0) {
         return { tensor, index: tensor.indices[indexPosition], indexPosition };
@@ -401,10 +403,28 @@ export function registerUtilities(ctx) {
     return null;
   }
 
+  function findIndexOwner(indexId) {
+    for (const tensor of state.spec.tensors) {
+      const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
+      if (indexPosition >= 0) {
+        return { tensor, index: tensor.indices[indexPosition], indexPosition };
+      }
+    }
+    return findVisibleIndexOwner(indexId);
+  }
+
   function findEdgeByIndexId(indexId) {
+    const baseEdge = state.spec.edges.find(
+      (edge) => edge.left.index_id === indexId || edge.right.index_id === indexId
+    );
+    if (baseEdge) {
+      return baseEdge;
+    }
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : [];
     return (
-      state.spec.edges.find(
-        (edge) => edge.left.index_id === indexId || edge.right.index_id === indexId
+      visibleEdges.find(
+        (edge) => edge.leftIndexId === indexId || edge.rightIndexId === indexId
       ) || null
     );
   }
@@ -487,14 +507,8 @@ export function registerUtilities(ctx) {
         y: asFiniteNumber(note.position && note.position.y, 120),
       };
       note.size = {
-        width: Math.max(
-          NOTE_MIN_WIDTH,
-          asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)
-        ),
-        height: Math.max(
-          NOTE_MIN_HEIGHT,
-          asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)
-        ),
+        width: Math.max(1, asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)),
+        height: Math.max(1, asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)),
       };
       note.text = typeof note.text === "string" && note.text.trim() ? note.text : "Note";
       if (!note.id) {
@@ -509,6 +523,9 @@ export function registerUtilities(ctx) {
       normalized.contraction_plan.steps = Array.isArray(normalized.contraction_plan.steps)
         ? normalized.contraction_plan.steps
         : [];
+      normalized.contraction_plan.view_snapshots = Array.isArray(normalized.contraction_plan.view_snapshots)
+        ? normalized.contraction_plan.view_snapshots
+        : [];
       if (!normalized.contraction_plan.id) {
         normalized.contraction_plan.id = makeId("plan");
       }
@@ -522,6 +539,32 @@ export function registerUtilities(ctx) {
         }
         step.left_operand_id = String(step.left_operand_id || "");
         step.right_operand_id = String(step.right_operand_id || "");
+      });
+      normalized.contraction_plan.view_snapshots.forEach((snapshot, snapshotIndex) => {
+        snapshot.applied_step_count = Math.max(
+          0,
+          Math.round(asFiniteNumber(snapshot.applied_step_count, snapshotIndex))
+        );
+        snapshot.operand_layouts = Array.isArray(snapshot.operand_layouts)
+          ? snapshot.operand_layouts
+          : [];
+        snapshot.operand_layouts.forEach((layout) => {
+          layout.operand_id = String(layout.operand_id || "");
+          layout.position = {
+            x: asFiniteNumber(layout.position && layout.position.x, 120),
+            y: asFiniteNumber(layout.position && layout.position.y, 120),
+          };
+          layout.size = {
+            width: Math.max(
+              MIN_TENSOR_WIDTH,
+              asFiniteNumber(layout.size && layout.size.width, TENSOR_WIDTH)
+            ),
+            height: Math.max(
+              MIN_TENSOR_HEIGHT,
+              asFiniteNumber(layout.size && layout.size.height, TENSOR_HEIGHT)
+            ),
+          };
+        });
       });
     }
 
@@ -807,8 +850,12 @@ export function registerUtilities(ctx) {
       x2: Number.NEGATIVE_INFINITY,
       y2: Number.NEGATIVE_INFINITY,
     };
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
 
-    state.spec.tensors.forEach((tensor) => {
+    visibleTensors.forEach((tensor) => {
       expandBounds(bounds, tensor.position.x - ctx.tensorWidth(tensor) / 2, tensor.position.y - ctx.tensorHeight(tensor) / 2);
       expandBounds(bounds, tensor.position.x + ctx.tensorWidth(tensor) / 2, tensor.position.y + ctx.tensorHeight(tensor) / 2);
       tensor.indices.forEach((index) => {
@@ -819,9 +866,9 @@ export function registerUtilities(ctx) {
       });
     });
 
-    state.spec.edges.forEach((edge) => {
-      const left = findIndexOwner(edge.left.index_id);
-      const right = findIndexOwner(edge.right.index_id);
+    visibleEdges.forEach((edge) => {
+      const left = findIndexOwner(edge.leftIndexId || edge.left.index_id);
+      const right = findIndexOwner(edge.rightIndexId || edge.right.index_id);
       if (!left || !right) {
         return;
       }
@@ -1113,6 +1160,7 @@ export function registerUtilities(ctx) {
     findGroupById,
     findGroupsByTensorId,
     findEdgeById,
+    findVisibleIndexOwner,
     findIndexOwner,
     findEdgeByIndexId,
     createTensor,

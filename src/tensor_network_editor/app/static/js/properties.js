@@ -150,6 +150,10 @@ export function registerProperties(ctx) {
       renderTensorProperties(singleSelection.id);
       return;
     }
+    if (singleSelection.kind === "contraction-tensor") {
+      renderContractionTensorProperties(singleSelection.tensor);
+      return;
+    }
     if (singleSelection.kind === "index") {
       renderTensorProperties(singleSelection.located.tensor.id, {
         focusedIndexId: singleSelection.id,
@@ -222,8 +226,11 @@ export function registerProperties(ctx) {
 
   function renderMultiSelectionProperties() {
     const selectedEntries = ctx.getSelectedEntries();
-    const tensorCount = selectedEntries.filter(
+    const baseTensorCount = selectedEntries.filter(
       (entry) => entry.kind === "tensor"
+    ).length;
+    const tensorCount = selectedEntries.filter(
+      (entry) => entry.kind === "tensor" || entry.kind === "contraction-tensor"
     ).length;
     const indexCount = selectedEntries.filter(
       (entry) => entry.kind === "index"
@@ -238,7 +245,7 @@ export function registerProperties(ctx) {
       (entry) => entry.kind === "note"
     ).length;
     const tensorsOnly =
-      tensorCount > 0 && tensorCount === selectedEntries.length;
+      baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
     const batchColor = ctx.getBatchColorValue(selectedEntries);
 
     propertiesPanel.innerHTML = `
@@ -340,6 +347,49 @@ export function registerProperties(ctx) {
     document
       .getElementById("delete-selection-button")
       .addEventListener("click", ctx.deleteSelection);
+  }
+
+  function renderContractionTensorProperties(tensor) {
+    const sourceTensorLabels = Array.isArray(tensor.sourceTensorIds)
+      ? tensor.sourceTensorIds
+          .map((sourceTensorId) => {
+            const sourceTensor = ctx.findTensorById(sourceTensorId);
+            return sourceTensor ? sourceTensor.name : sourceTensorId;
+          })
+          .join(", ")
+      : "";
+
+    propertiesPanel.innerHTML = `
+      <div class="properties-summary">
+        <div class="properties-chip">
+          <span>Result tensor</span>
+          <strong>${ctx.escapeHtml(tensor.name)}</strong>
+        </div>
+        <div class="properties-chip-wrap">
+          <div class="properties-chip">
+            <span>Contains</span>
+            <strong>${Number(tensor.resultCount || 0)}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Open indices</span>
+            <strong>${Array.isArray(tensor.indices) ? tensor.indices.length : 0}</strong>
+          </div>
+        </div>
+      </div>
+      <p class="property-meta">
+        This tensor is a contracted result shown only in the planner scene, so its structure is read-only here.
+      </p>
+      ${
+        sourceTensorLabels
+          ? `
+            <div class="field-group">
+              <label>Base tensors inside</label>
+              <div class="property-readonly">${ctx.escapeHtml(sourceTensorLabels)}</div>
+            </div>
+          `
+          : ""
+      }
+    `;
   }
 
   function renderTensorProperties(tensorId, options = {}) {

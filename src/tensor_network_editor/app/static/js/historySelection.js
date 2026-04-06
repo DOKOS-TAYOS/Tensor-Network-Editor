@@ -77,9 +77,9 @@ export function registerHistorySelection(ctx) {
     state.pendingIndexId = null;
     state.pendingPlannerOperandId = null;
     state.pendingPlannerSelectionId = null;
+    state.plannerInspectionStepCount = null;
     state.plannerPreviewMode = null;
-    state.plannerManualOrderByTensorId = {};
-    state.plannerPreviewOrderByTensorId = {};
+    state.plannerFutureBadgeDisclosure = {};
     state.activeNoteResize = null;
     state.activeSidebarTab = "selection";
     state.pendingPropertiesIndexFocusId = null;
@@ -137,7 +137,7 @@ export function registerHistorySelection(ctx) {
     const previousSelectionIds = [...state.selectionIds];
     mutator();
     state.plannerPreviewMode = null;
-    state.plannerPreviewOrderByTensorId = {};
+    state.plannerFutureBadgeDisclosure = {};
     if (typeof ctx.repairContractionPlan === "function") {
       ctx.repairContractionPlan();
     }
@@ -187,16 +187,64 @@ export function registerHistorySelection(ctx) {
     if (group) {
       return { kind: "group", id: group.id, group };
     }
+    const visibleTensor =
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(selectionId)
+        : null;
+    if (
+      visibleTensor &&
+      typeof ctx.isContractionSceneVisible === "function" &&
+      ctx.isContractionSceneVisible()
+    ) {
+      return {
+        kind: visibleTensor.isDerived ? "contraction-tensor" : "tensor",
+        id: visibleTensor.id,
+        tensor: visibleTensor,
+        isBaseTensor: !visibleTensor.isDerived,
+      };
+    }
     const tensor = ctx.findTensorById(selectionId);
+    if (
+      tensor &&
+      typeof ctx.isContractionSceneVisible === "function" &&
+      ctx.isContractionSceneVisible()
+    ) {
+      return null;
+    }
     if (tensor) {
-      return { kind: "tensor", id: tensor.id, tensor };
+      return {
+        kind: "tensor",
+        id: tensor.id,
+        tensor,
+        isBaseTensor: true,
+      };
+    }
+    if (visibleTensor) {
+      return {
+        kind: "contraction-tensor",
+        id: visibleTensor.id,
+        tensor: visibleTensor,
+        isBaseTensor: false,
+      };
     }
     const locatedIndex = ctx.findIndexOwner(selectionId);
     if (locatedIndex) {
+      if (
+        typeof ctx.isContractionSceneVisible === "function" &&
+        ctx.isContractionSceneVisible()
+      ) {
+        return null;
+      }
       return { kind: "index", id: selectionId, located: locatedIndex };
     }
     const edge = ctx.findEdgeById(selectionId);
     if (edge) {
+      if (
+        typeof ctx.isContractionSceneVisible === "function" &&
+        ctx.isContractionSceneVisible()
+      ) {
+        return null;
+      }
       return { kind: "edge", id: edge.id, edge };
     }
     const note = typeof ctx.findNoteById === "function" ? ctx.findNoteById(selectionId) : null;
@@ -380,7 +428,9 @@ export function registerHistorySelection(ctx) {
   }
 
   function selectAllTensors() {
-    const tensorIds = state.spec.tensors.map((tensor) => tensor.id);
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const tensorIds = visibleTensors.map((tensor) => tensor.id);
     setSelection(tensorIds, { primaryId: tensorIds.length ? tensorIds[tensorIds.length - 1] : null });
   }
 

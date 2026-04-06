@@ -44,6 +44,43 @@ export function registerInteractions(ctx) {
     event.preventDefault();
   }
 
+  function handleCanvasWheel(event) {
+    if (!state.cy || state.isHelpOpen) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      const container = state.cy.container();
+      const rect = container.getBoundingClientRect();
+      const renderedPosition = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      const zoomFactor = Math.exp(-event.deltaY * 0.0025);
+      const nextZoom = ctx.clamp(
+        state.cy.zoom() * zoomFactor,
+        state.cy.minZoom(),
+        state.cy.maxZoom()
+      );
+      state.cy.zoom({
+        level: nextZoom,
+        renderedPosition,
+      });
+      ctx.renderOverlayDecorations();
+      ctx.renderMinimap();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    state.cy.panBy({
+      x: -event.deltaX,
+      y: -event.deltaY,
+    });
+    ctx.renderOverlayDecorations();
+    ctx.renderMinimap();
+  }
+
   function handleCanvasMouseDown(event) {
     if (state.isHelpOpen) {
       return;
@@ -188,9 +225,49 @@ export function registerInteractions(ctx) {
     selectionBox.style.height = `${Math.max(1, box.height)}px`;
   }
 
+  function openSidebarTab(tabName) {
+    if (typeof ctx.toggleSidebarCollapsed === "function") {
+      ctx.toggleSidebarCollapsed(false);
+    }
+    if (typeof ctx.setActiveSidebarTab === "function") {
+      ctx.setActiveSidebarTab(tabName);
+    }
+  }
+
+  function setSelectedEngine(engineName) {
+    if (!engineSelect) {
+      return;
+    }
+    const hasEngine = Array.from(engineSelect.options).some(
+      (option) => option.value === engineName
+    );
+    if (!hasEngine) {
+      ctx.setStatus(`The ${engineName} engine is not available in this session.`, "error");
+      return;
+    }
+    state.selectedEngine = engineName;
+    engineSelect.value = engineName;
+    ctx.setStatus(`Engine set to ${ctx.formatEngineLabel(engineName)}.`);
+  }
+
+  function toggleAutomaticPreview(mode) {
+    openSidebarTab("planner");
+    if (typeof ctx.startAutomaticPreview === "function") {
+      ctx.startAutomaticPreview(mode);
+    }
+  }
+
+  function acceptAutomaticShortcut(mode) {
+    openSidebarTab("planner");
+    if (typeof ctx.acceptAutomaticPlan === "function") {
+      ctx.acceptAutomaticPlan(mode);
+    }
+  }
+
   function handleKeydown(event) {
     const activeElement = document.activeElement;
     const inTextInput = ctx.isTextInput(activeElement);
+    const lowerKey = event.key.toLowerCase();
 
     if (event.key === "Escape") {
       event.preventDefault();
@@ -226,10 +303,22 @@ export function registerInteractions(ctx) {
         return;
       }
       if (state.plannerPreviewMode) {
-        state.plannerPreviewMode = null;
-        state.plannerPreviewOrderByTensorId = {};
+        if (typeof ctx.clearAutomaticPreview === "function") {
+          ctx.clearAutomaticPreview();
+        } else {
+          state.plannerPreviewMode = null;
+        }
         ctx.render();
         ctx.setStatus("Automatic preview cleared.");
+        return;
+      }
+      if (
+        Number.isInteger(state.plannerInspectionStepCount) &&
+        typeof ctx.clearPastInspection === "function"
+      ) {
+        ctx.clearPastInspection();
+        ctx.render();
+        ctx.setStatus("Returned to the latest contracted view.");
         return;
       }
       ctx.clearSelection();
@@ -241,7 +330,7 @@ export function registerInteractions(ctx) {
     }
 
     const hasModifier = event.ctrlKey || event.metaKey;
-    if (hasModifier && event.key.toLowerCase() === "z") {
+    if (hasModifier && lowerKey === "z") {
       event.preventDefault();
       if (event.shiftKey) {
         ctx.performRedo();
@@ -250,24 +339,64 @@ export function registerInteractions(ctx) {
       }
       return;
     }
-    if (hasModifier && event.key.toLowerCase() === "y") {
+    if (hasModifier && lowerKey === "y") {
       event.preventDefault();
       ctx.performRedo();
       return;
     }
-    if (hasModifier && event.key.toLowerCase() === "a") {
+    if (hasModifier && event.shiftKey && lowerKey === "a") {
       event.preventDefault();
-      ctx.selectAllTensors();
+      acceptAutomaticShortcut("automaticPast");
       return;
     }
-    if (hasModifier && event.key.toLowerCase() === "c") {
+    if (hasModifier && lowerKey === "a") {
+      event.preventDefault();
+      acceptAutomaticShortcut("automaticFuture");
+      return;
+    }
+    if (hasModifier && lowerKey === "s") {
+      event.preventDefault();
+      saveDesign();
+      return;
+    }
+    if (hasModifier && lowerKey === "l") {
+      event.preventDefault();
+      loadInput.click();
+      return;
+    }
+    if (hasModifier && lowerKey === "n") {
+      event.preventDefault();
+      setSelectedEngine("einsum_numpy");
+      return;
+    }
+    if (hasModifier && lowerKey === "p") {
+      event.preventDefault();
+      setSelectedEngine("einsum_torch");
+      return;
+    }
+    if (hasModifier && lowerKey === "k") {
+      event.preventDefault();
+      setSelectedEngine("tensorkrowch");
+      return;
+    }
+    if (hasModifier && lowerKey === "q") {
+      event.preventDefault();
+      setSelectedEngine("quimb");
+      return;
+    }
+    if (hasModifier && lowerKey === "t") {
+      event.preventDefault();
+      setSelectedEngine("tensornetwork");
+      return;
+    }
+    if (hasModifier && lowerKey === "c") {
       event.preventDefault();
       if (typeof ctx.copySelectedSubgraphToClipboard === "function") {
         ctx.copySelectedSubgraphToClipboard();
       }
       return;
     }
-    if (hasModifier && event.key.toLowerCase() === "v") {
+    if (hasModifier && lowerKey === "v") {
       event.preventDefault();
       if (typeof ctx.pasteClipboardToCanvas === "function") {
         ctx.pasteClipboardToCanvas();
@@ -279,12 +408,54 @@ export function registerInteractions(ctx) {
       deleteSelection();
       return;
     }
-    if (event.key.toLowerCase() === "n") {
+    if (event.shiftKey && lowerKey === "a") {
+      event.preventDefault();
+      toggleAutomaticPreview("automaticPast");
+      return;
+    }
+    if (lowerKey === "a") {
+      event.preventDefault();
+      toggleAutomaticPreview("automaticFuture");
+      return;
+    }
+    if (lowerKey === "m") {
+      event.preventDefault();
+      openSidebarTab("planner");
+      if (typeof ctx.togglePlannerMode === "function") {
+        ctx.togglePlannerMode();
+      }
+      return;
+    }
+    if (event.shiftKey && lowerKey === "g") {
+      event.preventDefault();
+      generateCode();
+      return;
+    }
+    if (lowerKey === "g") {
+      event.preventDefault();
+      if (typeof ctx.createGroupFromSelection === "function") {
+        ctx.createGroupFromSelection();
+      }
+      return;
+    }
+    if (lowerKey === "t") {
+      event.preventDefault();
+      insertTemplate();
+      return;
+    }
+    if (lowerKey === "p") {
+      event.preventDefault();
+      if (typeof ctx.addNoteAtCenter === "function") {
+        ctx.addNoteAtCenter();
+      }
+      return;
+    }
+    if (lowerKey === "n") {
       event.preventDefault();
       addTensorAtCenter();
       return;
     }
-    if (event.key.toLowerCase() === "c") {
+    if (lowerKey === "c") {
       event.preventDefault();
       toggleConnectMode();
       return;
@@ -353,6 +524,7 @@ export function registerInteractions(ctx) {
     state.autoExpandedTensorIndex = null;
     state.pendingPlannerOperandId = null;
     state.pendingPlannerSelectionId = null;
+    state.plannerInspectionStepCount = null;
     state.connectMode = false;
     state.plannerMode = false;
     state.hasFitCanvas = false;
@@ -362,8 +534,7 @@ export function registerInteractions(ctx) {
     state.activeNoteResize = null;
     state.contractionAnalysis = null;
     state.plannerPreviewMode = null;
-    state.plannerManualOrderByTensorId = {};
-    state.plannerPreviewOrderByTensorId = {};
+    state.plannerFutureBadgeDisclosure = {};
     ctx.reconcileTensorOrder();
     ctx.clearHistory();
     ctx.render();
@@ -442,16 +613,44 @@ export function registerInteractions(ctx) {
   }
 
   function centerTensor(tensorId) {
-    const tensor = ctx.findTensorById(tensorId);
+    const tensor =
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(tensorId)
+        : ctx.findTensorById(tensorId);
     if (!tensor) {
       return;
     }
     const center = viewportCenterPosition();
-    tensor.position.x = center.x;
-    tensor.position.y = center.y;
+    if (
+      typeof ctx.canEditCurrentContractionStage === "function" &&
+      ctx.canEditCurrentContractionStage() &&
+      typeof ctx.updateCurrentStageOperandLayout === "function"
+    ) {
+      ctx.updateCurrentStageOperandLayout(tensor.id, { position: center });
+      tensor.position.x = center.x;
+      tensor.position.y = center.y;
+      return;
+    }
+    const baseTensor = ctx.findTensorById(tensorId);
+    if (!baseTensor) {
+      return;
+    }
+    baseTensor.position.x = center.x;
+    baseTensor.position.y = center.y;
   }
 
   function toggleConnectMode() {
+    if (
+      !state.connectMode &&
+      typeof ctx.isContractionSceneVisible === "function" &&
+      ctx.isContractionSceneVisible()
+    ) {
+      ctx.setStatus(
+        "Connect mode is only available in the base tensor view. Reset or trim the contraction path to edit indices.",
+        "error"
+      );
+      return;
+    }
     state.connectMode = !state.connectMode;
     state.pendingIndexId = null;
     ctx.render();
@@ -536,6 +735,19 @@ export function registerInteractions(ctx) {
   function deleteSelection() {
     if (!state.selectionIds.length) {
       ctx.setStatus("Nothing is selected to delete.");
+      return;
+    }
+    const selectedEntries = ctx.getSelectedEntries();
+    const hasMutableSelection = selectedEntries.some(
+      (entry) =>
+        entry.kind === "tensor" ||
+        entry.kind === "index" ||
+        entry.kind === "edge" ||
+        entry.kind === "group" ||
+        entry.kind === "note"
+    );
+    if (!hasMutableSelection) {
+      ctx.setStatus("Contracted result tensors are view-only in this scene.", "error");
       return;
     }
     ctx.applyDesignChange(
@@ -765,6 +977,7 @@ export function registerInteractions(ctx) {
 
   Object.assign(ctx, {
     handleCanvasContextMenu,
+    handleCanvasWheel,
     handleCanvasMouseDown,
     handleGlobalMouseMove,
     handleGlobalMouseUp,

@@ -10,13 +10,21 @@ export function registerNotesPlanner(ctx) {
   const { addNoteButton, notesLayer, plannerPanel } = ctx.dom;
 
   function createNote(x, y) {
+    const zoom = getCanvasZoom();
     return {
       id: ctx.makeId("note"),
       text: "New note",
       position: { x, y },
-      size: { width: NOTE_WIDTH, height: NOTE_HEIGHT },
+      size: {
+        width: NOTE_WIDTH / zoom,
+        height: NOTE_HEIGHT / zoom,
+      },
       metadata: {},
     };
+  }
+
+  function getCanvasZoom() {
+    return state.cy ? Math.max(0.1, state.cy.zoom()) : 1;
   }
 
   function findNoteById(noteId) {
@@ -29,9 +37,12 @@ export function registerNotesPlanner(ctx) {
 
   function addNoteAtCenter() {
     const center = ctx.viewportCenterPosition();
+    const zoom = getCanvasZoom();
+    const worldWidth = NOTE_WIDTH / zoom;
+    const worldHeight = NOTE_HEIGHT / zoom;
     const note = createNote(
-      center.x - NOTE_WIDTH / 2,
-      center.y - NOTE_HEIGHT / 2
+      center.x - worldWidth / 2,
+      center.y - worldHeight / 2
     );
     ctx.applyDesignChange(
       () => {
@@ -53,27 +64,22 @@ export function registerNotesPlanner(ctx) {
       };
     }
     return {
-      width: Math.max(
-        NOTE_MIN_WIDTH,
-        Number(note.size && note.size.width) || NOTE_WIDTH
-      ),
-      height: Math.max(
-        NOTE_MIN_HEIGHT,
-        Number(note.size && note.size.height) || NOTE_HEIGHT
-      ),
+      width: Number(note.size && note.size.width) || NOTE_WIDTH,
+      height: Number(note.size && note.size.height) || NOTE_HEIGHT,
     };
   }
 
   function noteCanvasBounds(note) {
     const canvasPoint = ctx.worldToCanvasPoint(note.position);
     const noteSize = getRenderableNoteSize(note);
+    const zoom = getCanvasZoom();
     return {
       x1: canvasPoint.x,
       y1: canvasPoint.y,
-      x2: canvasPoint.x + noteSize.width,
-      y2: canvasPoint.y + noteSize.height,
-      width: noteSize.width,
-      height: noteSize.height,
+      x2: canvasPoint.x + noteSize.width * zoom,
+      y2: canvasPoint.y + noteSize.height * zoom,
+      width: noteSize.width * zoom,
+      height: noteSize.height * zoom,
     };
   }
 
@@ -95,7 +101,10 @@ export function registerNotesPlanner(ctx) {
     const selectedEntries = ctx.getSelectedEntries();
 
     selectedEntries.forEach((entry) => {
-      if (entry.kind === "tensor" && !tensorIds.includes(entry.tensor.id)) {
+      if (
+        (entry.kind === "tensor" || entry.kind === "contraction-tensor") &&
+        !tensorIds.includes(entry.tensor.id)
+      ) {
         tensorIds.push(entry.tensor.id);
         return;
       }
@@ -114,7 +123,10 @@ export function registerNotesPlanner(ctx) {
 
     if (!tensorIds.length && !noteIds.length) {
       const anchorEntry = ctx.getSelectionEntry(anchorSelectionId);
-      if (anchorEntry && anchorEntry.kind === "tensor") {
+      if (
+        anchorEntry &&
+        (anchorEntry.kind === "tensor" || anchorEntry.kind === "contraction-tensor")
+      ) {
         tensorIds.push(anchorEntry.tensor.id);
       } else if (anchorEntry && anchorEntry.kind === "note") {
         noteIds.push(anchorEntry.note.id);
@@ -133,7 +145,11 @@ export function registerNotesPlanner(ctx) {
       noteIds,
       tensorStartPositions: Object.fromEntries(
         tensorIds
-          .map((tensorId) => ctx.findTensorById(tensorId))
+          .map((tensorId) =>
+            typeof ctx.findVisibleTensorById === "function"
+              ? ctx.findVisibleTensorById(tensorId)
+              : ctx.findTensorById(tensorId)
+          )
           .filter(Boolean)
           .map((tensor) => [tensor.id, { x: tensor.position.x, y: tensor.position.y }])
       ),
@@ -160,13 +176,31 @@ export function registerNotesPlanner(ctx) {
           if (excludedTensorIds.includes(tensorId)) {
             return;
           }
-          const tensor = ctx.findTensorById(tensorId);
+          const tensor =
+            typeof ctx.findVisibleTensorById === "function"
+              ? ctx.findVisibleTensorById(tensorId)
+              : ctx.findTensorById(tensorId);
           const startPosition = dragState.tensorStartPositions[tensorId];
           if (!tensor || !startPosition) {
             return;
           }
-          tensor.position.x = Math.round(startPosition.x + deltaX);
-          tensor.position.y = Math.round(startPosition.y + deltaY);
+          const nextPosition = {
+            x: Math.round(startPosition.x + deltaX),
+            y: Math.round(startPosition.y + deltaY),
+          };
+          if (
+            typeof ctx.canEditCurrentContractionStage === "function" &&
+            ctx.canEditCurrentContractionStage() &&
+            typeof ctx.updateCurrentStageOperandLayout === "function"
+          ) {
+            ctx.updateCurrentStageOperandLayout(tensor.id, { position: nextPosition });
+            tensor.position = nextPosition;
+          } else if (ctx.findTensorById(tensorId)) {
+            tensor.position.x = nextPosition.x;
+            tensor.position.y = nextPosition.y;
+          } else {
+            return;
+          }
           const tensorElement = state.cy.getElementById(tensor.id);
           if (tensorElement && tensorElement.length) {
             tensorElement.position(tensor.position);
@@ -195,29 +229,37 @@ export function registerNotesPlanner(ctx) {
       return;
     }
     notesLayer.innerHTML = "";
+    const noteZoom = getCanvasZoom();
     state.spec.notes.forEach((note) => {
       const isCollapsed = Boolean(note.metadata && note.metadata.collapsed);
       const bounds = noteCanvasBounds(note);
+      const noteSize = getRenderableNoteSize(note);
       const noteElement = document.createElement("article");
       noteElement.className = "canvas-note";
       noteElement.dataset.noteId = note.id;
-      if (state.selectionIds.includes(note.id)) {
-        noteElement.classList.add("is-selected");
-      }
-      if (isCollapsed) {
-        noteElement.classList.add("is-collapsed");
-      }
       noteElement.style.left = `${bounds.x1}px`;
       noteElement.style.top = `${bounds.y1}px`;
       noteElement.style.width = `${bounds.width}px`;
       noteElement.style.height = `${bounds.height}px`;
-      noteElement.style.borderColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
+      const frame = document.createElement("div");
+      frame.className = "canvas-note-frame";
+      if (state.selectionIds.includes(note.id)) {
+        frame.classList.add("is-selected");
+      }
+      if (isCollapsed) {
+        frame.classList.add("is-collapsed");
+      }
+      frame.style.width = `${noteSize.width}px`;
+      frame.style.height = `${noteSize.height}px`;
+      frame.style.transform = `scale(${noteZoom})`;
+      frame.style.transformOrigin = "top left";
+      frame.style.borderColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
 
       if (isCollapsed) {
         const collapsedToggle = createNoteCollapseButton(note);
         collapsedToggle.classList.add("canvas-note-collapsed-toggle");
-        noteElement.appendChild(collapsedToggle);
-        noteElement.addEventListener("mousedown", (event) => {
+        frame.appendChild(collapsedToggle);
+        frame.addEventListener("mousedown", (event) => {
           if (event.target.closest(".toggle-note-collapse")) {
             return;
           }
@@ -303,15 +345,16 @@ export function registerNotesPlanner(ctx) {
         resizeHandle.className = "canvas-note-resize-handle";
         resizeHandle.addEventListener("mousedown", (event) => startNoteResize(event, note.id));
 
-        noteElement.appendChild(header);
-        noteElement.appendChild(textarea);
-        noteElement.appendChild(resizeHandle);
+        frame.appendChild(header);
+        frame.appendChild(textarea);
+        frame.appendChild(resizeHandle);
       }
       noteElement.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
         ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
       });
+      noteElement.appendChild(frame);
       notesLayer.appendChild(noteElement);
     });
   }
@@ -400,13 +443,10 @@ export function registerNotesPlanner(ctx) {
     state.activeNoteResize = {
       noteId,
       snapshot: ctx.createHistorySnapshot(),
-      startPointer: ctx.clientPointToCanvasPoint(event.clientX, event.clientY),
+      startPointer: ctx.clientPointToWorldPoint(event.clientX, event.clientY),
       startSize: {
-        width: Math.max(NOTE_MIN_WIDTH, Number(note.size && note.size.width) || NOTE_WIDTH),
-        height: Math.max(
-          NOTE_MIN_HEIGHT,
-          Number(note.size && note.size.height) || NOTE_HEIGHT
-        ),
+        width: Number(note.size && note.size.width) || NOTE_WIDTH,
+        height: Number(note.size && note.size.height) || NOTE_HEIGHT,
       },
     };
   }
@@ -419,14 +459,16 @@ export function registerNotesPlanner(ctx) {
     if (!note) {
       return;
     }
-    const canvasPoint = ctx.clientPointToCanvasPoint(event.clientX, event.clientY);
+    const worldPoint = ctx.clientPointToWorldPoint(event.clientX, event.clientY);
+    const minimumWorldWidth = NOTE_MIN_WIDTH / getCanvasZoom();
+    const minimumWorldHeight = NOTE_MIN_HEIGHT / getCanvasZoom();
     note.size.width = Math.max(
-      NOTE_MIN_WIDTH,
-      Math.round(state.activeNoteResize.startSize.width + canvasPoint.x - state.activeNoteResize.startPointer.x)
+      minimumWorldWidth,
+      Math.round(state.activeNoteResize.startSize.width + worldPoint.x - state.activeNoteResize.startPointer.x)
     );
     note.size.height = Math.max(
-      NOTE_MIN_HEIGHT,
-      Math.round(state.activeNoteResize.startSize.height + canvasPoint.y - state.activeNoteResize.startPointer.y)
+      minimumWorldHeight,
+      Math.round(state.activeNoteResize.startSize.height + worldPoint.y - state.activeNoteResize.startPointer.y)
     );
     renderNotes();
   }
@@ -661,19 +703,61 @@ export function registerNotesPlanner(ctx) {
     return buildPlannerOperandState(state.spec.tensors, steps || []).stepOrdersByTensorId;
   }
 
+  function buildPreviewOrderByVisibleTensorId(steps) {
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const previewOrderByTensorId = Object.fromEntries(
+      visibleTensors.map((tensor) => [tensor.id, []])
+    );
+    const sourceTensorIdsByOperandId = {};
+
+    visibleTensors.forEach((tensor) => {
+      sourceTensorIdsByOperandId[tensor.id] =
+        Array.isArray(tensor.sourceTensorIds) && tensor.sourceTensorIds.length
+          ? [...tensor.sourceTensorIds]
+          : [tensor.id];
+    });
+
+    (Array.isArray(steps) ? steps : []).forEach((step, index) => {
+      const leftSourceTensorIds = sourceTensorIdsByOperandId[step.left_operand_id] || [
+        step.left_operand_id,
+      ];
+      const rightSourceTensorIds = sourceTensorIdsByOperandId[step.right_operand_id] || [
+        step.right_operand_id,
+      ];
+      const resultSourceTensorIds = [...new Set([...leftSourceTensorIds, ...rightSourceTensorIds])];
+      sourceTensorIdsByOperandId[step.result_operand_id] = resultSourceTensorIds;
+
+      visibleTensors.forEach((tensor) => {
+        const visibleSourceTensorIds = sourceTensorIdsByOperandId[tensor.id] || [tensor.id];
+        if (
+          resultSourceTensorIds.some((tensorId) => visibleSourceTensorIds.includes(tensorId))
+        ) {
+          previewOrderByTensorId[tensor.id].push(index + 1);
+        }
+      });
+    });
+
+    return previewOrderByTensorId;
+  }
+
   function syncPlannerOrderBadges() {
-    state.plannerManualOrderByTensorId = getPlannerOperandState().stepOrdersByTensorId;
-    if (state.plannerPreviewMode && state.contractionAnalysis && state.contractionAnalysis.status === "ready") {
+    state.plannerManualOrderByTensorId = {};
+    if (
+      state.plannerPreviewMode &&
+      state.contractionAnalysis &&
+      state.contractionAnalysis.status === "ready"
+    ) {
       const previewAnalysis = getAutomaticAnalysisByMode(
         state.contractionAnalysis.payload,
         state.plannerPreviewMode
       );
       state.plannerPreviewOrderByTensorId = previewAnalysis
-        ? buildStepOrdersByTensorId(previewAnalysis.steps)
+        ? buildPreviewOrderByVisibleTensorId(previewAnalysis.steps)
         : {};
-    } else {
-      state.plannerPreviewOrderByTensorId = {};
+      return;
     }
+    state.plannerPreviewOrderByTensorId = {};
   }
 
   function resolvePlannerOperandId(operandId) {
@@ -689,17 +773,35 @@ export function registerNotesPlanner(ctx) {
   function repairContractionPlan() {
     const plan = state.spec.contraction_plan;
     if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
-      syncPlannerOrderBadges();
+      if (plan) {
+        plan.view_snapshots = [];
+      }
+      state.plannerInspectionStepCount = null;
+      state.plannerFutureBadgeDisclosure = {};
       return;
     }
     const plannerOperandState = getPlannerOperandState();
     if (!plannerOperandState.validSteps.length) {
       state.spec.contraction_plan = null;
-      syncPlannerOrderBadges();
+      state.plannerInspectionStepCount = null;
+      state.plannerFutureBadgeDisclosure = {};
       return;
     }
     plan.steps = plannerOperandState.validSteps;
-    syncPlannerOrderBadges();
+    if (typeof ctx.ensureContractionViewSnapshots === "function") {
+      ctx.ensureContractionViewSnapshots();
+    }
+    const latestAppliedStepCount =
+      typeof ctx.getLatestAppliedStepCount === "function"
+        ? ctx.getLatestAppliedStepCount()
+        : plannerOperandState.validSteps.length;
+    if (
+      Number.isInteger(state.plannerInspectionStepCount) &&
+      state.plannerInspectionStepCount >= latestAppliedStepCount
+    ) {
+      state.plannerInspectionStepCount = null;
+    }
+    state.plannerFutureBadgeDisclosure = {};
   }
 
   function getPlannerRemainingOperandIds() {
@@ -728,16 +830,29 @@ export function registerNotesPlanner(ctx) {
       : [];
     const stepIndex = planSteps.findIndex((step) => step.id === operandId);
     if (stepIndex >= 0) {
-      return `Intermediate ${stepIndex + 1}`;
+      return `Result ${stepIndex + 1}`;
     }
-    if (/^auto_step_\d+$/.test(operandId)) {
-      return `Automatic ${operandId.replace("auto_step_", "step ")}`;
+    if (/^auto_future_step_\d+$/.test(operandId)) {
+      return `Auto future ${operandId.replace("auto_future_step_", "step ")}`;
+    }
+    if (/__auto_past_\d+$/.test(operandId)) {
+      return `Auto past ${operandId.split("__auto_past_")[1]}`;
     }
     return operandId;
   }
 
   function handlePlannerOperandClick(operandId) {
     if (!state.plannerMode) {
+      return;
+    }
+    if (
+      typeof ctx.isInspectingPastStage === "function" &&
+      ctx.isInspectingPastStage()
+    ) {
+      ctx.setStatus(
+        "Past contraction steps are read-only. Return to the latest step before adding a new contraction.",
+        "error"
+      );
       return;
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
@@ -750,7 +865,7 @@ export function registerNotesPlanner(ctx) {
     }
     if (!state.pendingPlannerOperandId) {
       state.pendingPlannerOperandId = resolvedOperandId;
-      state.pendingPlannerSelectionId = ctx.findTensorById(operandId) ? operandId : null;
+      state.pendingPlannerSelectionId = operandId;
       if (typeof ctx.syncPendingInteractionClasses === "function") {
         ctx.syncPendingInteractionClasses();
       }
@@ -777,13 +892,17 @@ export function registerNotesPlanner(ctx) {
     const rightLabel = getPlannerOperandLabel(rightOperandId);
     ctx.applyDesignChange(
       () => {
-        const plan = ensureContractionPlan();
-        plan.steps.push({
-          id: ctx.makeId("step"),
-          left_operand_id: leftOperandId,
-          right_operand_id: rightOperandId,
-          metadata: {},
-        });
+        if (typeof ctx.applyManualContractionStep === "function") {
+          ctx.applyManualContractionStep(leftOperandId, rightOperandId);
+        } else {
+          const plan = ensureContractionPlan();
+          plan.steps.push({
+            id: ctx.makeId("step"),
+            left_operand_id: leftOperandId,
+            right_operand_id: rightOperandId,
+            metadata: {},
+          });
+        }
       },
       {
         statusMessage: `Added manual contraction step ${leftLabel} × ${rightLabel}.`,
@@ -811,6 +930,14 @@ export function registerNotesPlanner(ctx) {
         } else {
           plan.steps = plan.steps.slice(0, stepCount);
         }
+        state.plannerPreviewMode = null;
+        state.plannerFutureBadgeDisclosure = {};
+        state.plannerInspectionStepCount =
+          stepCount <= 0
+            ? null
+            : Number.isInteger(state.plannerInspectionStepCount)
+            ? Math.min(state.plannerInspectionStepCount, stepCount - 1)
+            : null;
       },
       {
         statusMessage:
@@ -835,7 +962,7 @@ export function registerNotesPlanner(ctx) {
     ctx.renderOverlayDecorations();
     ctx.setStatus(
       state.plannerMode
-        ? "Manual planner mode active. Click tensors or intermediate cards to define the next contraction step."
+        ? "Manual planner mode active. Click visible tensors or result tensors to define the next contraction step."
         : "Manual planner mode disabled."
     );
   }
@@ -847,7 +974,6 @@ export function registerNotesPlanner(ctx) {
     const requestId = state.contractionAnalysisRequestId + 1;
     state.contractionAnalysisRequestId = requestId;
     state.contractionAnalysis = { status: "loading" };
-    syncPlannerOrderBadges();
     renderPlanner();
     try {
       const payload = await ctx.apiPost("/api/analyze-contraction", {
@@ -876,7 +1002,6 @@ export function registerNotesPlanner(ctx) {
         message: error.message,
       };
     }
-    syncPlannerOrderBadges();
     renderPlanner();
     ctx.renderOverlayDecorations();
   }
@@ -896,11 +1021,11 @@ export function registerNotesPlanner(ctx) {
     if (!payload) {
       return null;
     }
-    if (mode === "automatic_global") {
-      return payload.automatic_global || null;
+    if (mode === "automaticFuture") {
+      return payload.automatic_future || null;
     }
-    if (mode === "automatic_local") {
-      return payload.automatic_local || null;
+    if (mode === "automaticPast") {
+      return payload.automatic_past || null;
     }
     return null;
   }
@@ -910,8 +1035,71 @@ export function registerNotesPlanner(ctx) {
     renderPlanner();
   }
 
+  function buildAutomaticPastRootGroups(steps) {
+    const plannerOperandState = getPlannerOperandState();
+    const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
+      ? state.spec.contraction_plan.steps
+      : [];
+    const sourceTensorIdsByOperandId = plannerOperandState.sourceTensorIdsByOperandId || {};
+    const stepOrderById = Object.fromEntries(
+      planSteps.map((step, index) => [step.id, index + 1])
+    );
+    const groups = {};
+
+    (Array.isArray(steps) ? steps : []).forEach((step) => {
+      const rootId = typeof step.result_operand_id === "string" &&
+        Object.prototype.hasOwnProperty.call(stepOrderById, step.result_operand_id)
+        ? step.result_operand_id
+        : step.result_operand_id.split("__auto_past_")[0];
+      if (!groups[rootId]) {
+        const rootSourceTensorIds = sourceTensorIdsByOperandId[rootId] || [];
+        const earliestStepCount = planSteps.reduce((minimum, candidate, index) => {
+          const candidateSourceTensorIds = sourceTensorIdsByOperandId[candidate.id] || [];
+          const belongsToRoot =
+            rootSourceTensorIds.length &&
+            candidateSourceTensorIds.every((tensorId) => rootSourceTensorIds.includes(tensorId));
+          if (!belongsToRoot) {
+            return minimum;
+          }
+          return Math.min(minimum, index);
+        }, Number.POSITIVE_INFINITY);
+        groups[rootId] = {
+          rootId,
+          steps: [],
+          earliestStepCount: Number.isFinite(earliestStepCount) ? earliestStepCount : 0,
+          originalStepOrder: stepOrderById[rootId] || 0,
+        };
+      }
+      groups[rootId].steps.push(step);
+    });
+
+    return Object.values(groups).sort(
+      (left, right) => left.originalStepOrder - right.originalStepOrder
+    );
+  }
+
+  function clearAutomaticPreview(options = {}) {
+    const previousPreviewMode = state.plannerPreviewMode;
+    state.plannerPreviewMode = null;
+    state.plannerPreviewOrderByTensorId = {};
+    if (
+      previousPreviewMode === "automaticPast" &&
+      !options.preservePastInspection &&
+      typeof ctx.clearPastInspection === "function"
+    ) {
+      ctx.clearPastInspection();
+    }
+  }
+
   function startAutomaticPreview(mode) {
     if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {
+      return;
+    }
+    if (state.plannerPreviewMode === mode) {
+      clearAutomaticPreview();
+      renderPlanner();
+      ctx.render();
+      ctx.setStatus("Automatic preview cleared.");
       return;
     }
     const analysis = getAutomaticAnalysisByMode(state.contractionAnalysis.payload, mode);
@@ -919,14 +1107,115 @@ export function registerNotesPlanner(ctx) {
       ctx.setStatus("That automatic preview is not available yet.", "error");
       return;
     }
+    clearAutomaticPreview();
     state.plannerPreviewMode = mode;
-    syncPlannerOrderBadges();
+    if (mode === "automaticPast") {
+      const rootGroups = buildAutomaticPastRootGroups(analysis.steps);
+      if (rootGroups.length && typeof ctx.beginPastInspection === "function") {
+        ctx.beginPastInspection(rootGroups[0].earliestStepCount);
+      }
+      renderPlanner();
+      ctx.render();
+      ctx.setStatus("Showing the auto past preview from the first affected contraction step.");
+      return;
+    }
+    if (typeof ctx.clearPastInspection === "function") {
+      ctx.clearPastInspection();
+    }
+    renderPlanner();
     ctx.render();
-    ctx.setStatus(
-      mode === "automatic_global"
-        ? "Showing the global automatic preview."
-        : "Showing the local automatic preview."
+    ctx.setStatus("Showing the auto future preview.");
+  }
+
+  function appendAutomaticFutureSteps(steps) {
+    const plan = ensureContractionPlan();
+    const stepIdMap = {};
+    steps.forEach((step) => {
+      const nextStepId = ctx.makeId("step");
+      stepIdMap[step.result_operand_id] = nextStepId;
+      plan.steps.push({
+        id: nextStepId,
+        left_operand_id: stepIdMap[step.left_operand_id] || step.left_operand_id,
+        right_operand_id: stepIdMap[step.right_operand_id] || step.right_operand_id,
+        metadata: {},
+      });
+    });
+    if (typeof ctx.ensureContractionViewSnapshots === "function") {
+      ctx.ensureContractionViewSnapshots();
+    }
+  }
+
+  function rewriteAutomaticPastSteps(steps) {
+    const plan = ensureContractionPlan();
+    const previousVisibleLayoutMap =
+      typeof ctx.captureVisibleOperandLayoutMap === "function"
+        ? ctx.captureVisibleOperandLayoutMap(
+            typeof ctx.getLatestAppliedStepCount === "function"
+              ? ctx.getLatestAppliedStepCount()
+              : null
+          )
+        : {};
+    const rootGroups = buildAutomaticPastRootGroups(steps);
+    const plannerOperandState = getPlannerOperandState();
+    const sourceTensorIdsByOperandId = plannerOperandState.sourceTensorIdsByOperandId || {};
+    const sourceTensorIdsByRootId = Object.fromEntries(
+      rootGroups.map((group) => [group.rootId, sourceTensorIdsByOperandId[group.rootId] || []])
     );
+    const rewrittenSteps = [];
+
+    plan.steps.forEach((step) => {
+      const rootMatch = rootGroups.find((group) => {
+        const rootSourceTensorIds = sourceTensorIdsByRootId[group.rootId] || [];
+        const stepSourceTensorIds = sourceTensorIdsByOperandId[step.id] || [];
+        return (
+          rootSourceTensorIds.length &&
+          stepSourceTensorIds.length &&
+          stepSourceTensorIds.every((tensorId) => rootSourceTensorIds.includes(tensorId))
+        );
+      });
+      if (!rootMatch) {
+        rewrittenSteps.push(step);
+        return;
+      }
+      if (step.id !== rootMatch.rootId) {
+        return;
+      }
+
+      const existingRootStep = plan.steps.find((candidate) => candidate.id === rootMatch.rootId);
+      const autoOperandIdMap = {};
+      rootMatch.steps.forEach((autoStep) => {
+        const isRootResult = autoStep.result_operand_id === rootMatch.rootId;
+        const nextStepId = isRootResult ? rootMatch.rootId : ctx.makeId("step");
+        autoOperandIdMap[autoStep.result_operand_id] = nextStepId;
+        rewrittenSteps.push({
+          id: nextStepId,
+          left_operand_id: autoOperandIdMap[autoStep.left_operand_id] || autoStep.left_operand_id,
+          right_operand_id: autoOperandIdMap[autoStep.right_operand_id] || autoStep.right_operand_id,
+          metadata:
+            isRootResult && existingRootStep && existingRootStep.metadata
+              ? ctx.deepClone(existingRootStep.metadata)
+              : {},
+        });
+      });
+    });
+
+    plan.steps = rewrittenSteps;
+    if (typeof ctx.ensureContractionViewSnapshots === "function") {
+      ctx.ensureContractionViewSnapshots();
+    }
+    if (
+      typeof ctx.getLatestAppliedStepCount === "function" &&
+      typeof ctx.applySnapshotLayoutMap === "function"
+    ) {
+      ctx.applySnapshotLayoutMap(ctx.getLatestAppliedStepCount(), previousVisibleLayoutMap);
+    }
+    if (
+      state.plannerPreviewMode === "automaticPast" &&
+      rootGroups.length &&
+      typeof ctx.beginPastInspection === "function"
+    ) {
+      ctx.beginPastInspection(rootGroups[0].earliestStepCount);
+    }
   }
 
   function acceptAutomaticPlan(mode) {
@@ -940,34 +1229,24 @@ export function registerNotesPlanner(ctx) {
     }
     ctx.applyDesignChange(
       () => {
-        const acceptedSteps = [];
-        const stepIdMap = {};
-        analysis.steps.forEach((step) => {
-          const nextStepId = ctx.makeId("step");
-          stepIdMap[step.result_operand_id] = nextStepId;
-          acceptedSteps.push({
-            id: nextStepId,
-            left_operand_id: stepIdMap[step.left_operand_id] || step.left_operand_id,
-            right_operand_id: stepIdMap[step.right_operand_id] || step.right_operand_id,
-            metadata: {},
-          });
-        });
-        state.spec.contraction_plan = {
-          id: state.spec.contraction_plan ? state.spec.contraction_plan.id : ctx.makeId("plan"),
-          name: "Manual path",
-          steps: acceptedSteps,
-          metadata: state.spec.contraction_plan && state.spec.contraction_plan.metadata
-            ? ctx.deepClone(state.spec.contraction_plan.metadata)
-            : {},
-        };
+        if (mode === "automaticFuture") {
+          appendAutomaticFutureSteps(analysis.steps);
+          if (typeof ctx.clearPastInspection === "function") {
+            ctx.clearPastInspection();
+          }
+        } else {
+          rewriteAutomaticPastSteps(analysis.steps);
+        }
         state.pendingPlannerOperandId = null;
         state.pendingPlannerSelectionId = null;
+        state.plannerFutureBadgeDisclosure = {};
+        clearAutomaticPreview();
       },
       {
         statusMessage:
-          mode === "automatic_global"
-            ? "Replaced the manual path with the global automatic path."
-            : "Replaced the manual path with the local automatic path.",
+          mode === "automaticFuture"
+            ? "Assigned the remaining contraction steps from the auto future path."
+            : "Rewired the contracted history with the auto past path.",
       }
     );
   }
@@ -989,10 +1268,101 @@ export function registerNotesPlanner(ctx) {
     `;
   }
 
+  function renderAutomaticPreviewSteps(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return "";
+    }
+    const previewLabelByOperandId = {};
+    const resolvePreviewLabel = (operandId) => {
+      if (previewLabelByOperandId[operandId]) {
+        return previewLabelByOperandId[operandId];
+      }
+      const autoFutureMatch =
+        typeof operandId === "string" ? operandId.match(/^auto_future_step_(\d+)$/) : null;
+      if (autoFutureMatch) {
+        return `Result ${autoFutureMatch[1]}`;
+      }
+      const autoPastMatch =
+        typeof operandId === "string" ? operandId.match(/__auto_past_(\d+)$/) : null;
+      if (autoPastMatch) {
+        return `Result ${autoPastMatch[1]}`;
+      }
+      return getPlannerOperandLabel(operandId);
+    };
+    return `
+      <div class="planner-step-list planner-preview-step-list">
+        ${steps
+          .map(
+            (step, index) => {
+              const leftLabel = resolvePreviewLabel(step.left_operand_id);
+              const rightLabel = resolvePreviewLabel(step.right_operand_id);
+              previewLabelByOperandId[step.step_id] = `Result ${index + 1}`;
+              previewLabelByOperandId[step.result_operand_id] = `Result ${index + 1}`;
+              return `
+              <article class="planner-step planner-preview-step">
+                <div class="planner-step-header">
+                  <strong>Step ${index + 1}</strong>
+                </div>
+                <p>${ctx.escapeHtml(leftLabel)} Ã— ${ctx.escapeHtml(rightLabel)}</p>
+              </article>
+            `;
+            }
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderAutomaticPreviewStepList(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return "";
+    }
+    const previewLabelByOperandId = {};
+    const resolvePreviewLabel = (operandId) => {
+      if (previewLabelByOperandId[operandId]) {
+        return previewLabelByOperandId[operandId];
+      }
+      const autoFutureMatch =
+        typeof operandId === "string" ? operandId.match(/^auto_future_step_(\d+)$/) : null;
+      if (autoFutureMatch) {
+        return `Result ${autoFutureMatch[1]}`;
+      }
+      const autoPastMatch =
+        typeof operandId === "string" ? operandId.match(/__auto_past_(\d+)$/) : null;
+      if (autoPastMatch) {
+        return `Result ${autoPastMatch[1]}`;
+      }
+      return getPlannerOperandLabel(operandId);
+    };
+    return `
+      <div class="planner-step-list planner-preview-step-list">
+        ${steps
+          .map((step, index) => {
+            const leftLabel = resolvePreviewLabel(step.left_operand_id);
+            const rightLabel = resolvePreviewLabel(step.right_operand_id);
+            previewLabelByOperandId[step.step_id] = `Result ${index + 1}`;
+            previewLabelByOperandId[step.result_operand_id] = `Result ${index + 1}`;
+            return `
+              <article class="planner-step planner-preview-step">
+                <div class="planner-step-header">
+                  <strong>Step ${index + 1}</strong>
+                </div>
+                <p>${ctx.escapeHtml(leftLabel)} &times; ${ctx.escapeHtml(rightLabel)}</p>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderAutomaticSection(title, disclosureKey, mode, analysis) {
     const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
     const canAct = Boolean(analysis && analysis.status !== "unavailable");
     const summary = analysis && analysis.summary ? analysis.summary : {};
+    const isPreviewing = state.plannerPreviewMode === mode;
+    const previewShortcut = mode === "automaticFuture" ? "A" : "Shift+A";
+    const acceptShortcut = mode === "automaticFuture" ? "Ctrl+A" : "Ctrl+Shift+A";
     const meta = analysis && analysis.message
       ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`
       : "";
@@ -1013,10 +1383,36 @@ export function registerNotesPlanner(ctx) {
               { label: "MACs", value: formatNumber(summary.total_estimated_macs) },
               { label: "Peak", value: formatNumber(summary.peak_intermediate_size) },
             ])}
+            ${
+              isPreviewing
+                ? `<p class="planner-inline-meta">Preview active.</p>${renderAutomaticPreviewStepList(
+                    analysis && analysis.steps
+                  )}`
+                : ""
+            }
             ${meta}
             <div class="button-row">
-              <button type="button" data-preview-mode="${ctx.escapeHtml(mode)}"${canAct ? "" : " disabled"}>Preview</button>
-              <button type="button" class="apply-button" data-accept-mode="${ctx.escapeHtml(mode)}"${canAct ? "" : " disabled"}>Accept</button>
+              <button
+                type="button"
+                data-preview-mode="${ctx.escapeHtml(mode)}"
+                data-shortcut="${ctx.escapeHtml(previewShortcut)}"
+                title="${ctx.escapeHtml(`${isPreviewing ? "Deactivate preview" : "Preview"} (${previewShortcut})`)}"
+                aria-pressed="${isPreviewing}"
+                class="${isPreviewing ? "is-active" : ""}"
+                ${canAct ? "" : " disabled"}
+              >
+                ${isPreviewing ? "Deactivate preview" : "Preview"}
+              </button>
+              <button
+                type="button"
+                class="apply-button"
+                data-accept-mode="${ctx.escapeHtml(mode)}"
+                data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
+                title="${ctx.escapeHtml(`Accept (${acceptShortcut})`)}"
+                ${canAct ? "" : " disabled"}
+              >
+                Accept
+              </button>
             </div>
           </div>
         ` : ""}
@@ -1049,12 +1445,22 @@ export function registerNotesPlanner(ctx) {
     if (!Array.isArray(steps) || !steps.length) {
       return `<p class="planner-inline-meta">No manual steps yet. Turn on manual mode and click two tensors to create the first contraction.</p>`;
     }
+    const inspectedStepCount = Number.isInteger(state.plannerInspectionStepCount)
+      ? state.plannerInspectionStepCount
+      : null;
     return steps
       .map(
         (step, index) => `
-          <article class="planner-step">
+          <article class="planner-step${inspectedStepCount === index ? " is-active" : ""}">
             <div class="planner-step-header">
-              <strong>Step ${index + 1}</strong>
+              <button
+                type="button"
+                class="planner-step-toggle"
+                data-inspect-step="${index}"
+                aria-pressed="${inspectedStepCount === index}"
+              >
+                Step ${index + 1}
+              </button>
               <button type="button" class="planner-trim-button" data-trim-step="${index}">Trim Here</button>
             </div>
             <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} × ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
@@ -1080,23 +1486,28 @@ export function registerNotesPlanner(ctx) {
       return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(state.contractionAnalysis.message || "Could not analyze contraction paths.")}</p>`;
     }
     const payload = state.contractionAnalysis.payload;
+    const inspectionMeta =
+      Number.isInteger(state.plannerInspectionStepCount)
+        ? `<section class="planner-section"><p class="planner-inline-meta">Viewing the scene before step ${state.plannerInspectionStepCount + 1}. Click that step again to return to the latest contracted view.</p></section>`
+        : "";
     return `
       <section class="planner-section">
         <p class="planner-network-output-label">Network output shape</p>
         <p class="planner-network-output">${ctx.escapeHtml(formatShape(payload.network_output_shape))}</p>
       </section>
+      ${inspectionMeta}
       <div class="planner-summary-grid">
         ${renderAutomaticSection(
-          "Automatic global",
-          "automaticGlobal",
-          "automatic_global",
-          payload.automatic_global
+          "Auto future",
+          "automaticFuture",
+          "automaticFuture",
+          payload.automatic_future
         )}
         ${renderAutomaticSection(
-          "Automatic local",
-          "automaticLocal",
-          "automatic_local",
-          payload.automatic_local
+          "Auto past",
+          "automaticPast",
+          "automaticPast",
+          payload.automatic_past
         )}
       </div>
       ${renderManualSection(payload.manual)}
@@ -1117,7 +1528,13 @@ export function registerNotesPlanner(ctx) {
 
     plannerPanel.innerHTML = `
       <div class="planner-toolbar">
-        <button id="toggle-planner-mode-button" type="button"${state.plannerMode ? ' class="is-active"' : ""}>
+        <button
+          id="toggle-planner-mode-button"
+          type="button"
+          data-shortcut="M"
+          title="Manual scheme (M)"
+          ${state.plannerMode ? ' class="is-active"' : ""}
+        >
           Contract
         </button>
         <button
@@ -1146,6 +1563,16 @@ export function registerNotesPlanner(ctx) {
     plannerPanel.querySelectorAll("[data-trim-step]").forEach((button) => {
       button.addEventListener("click", () => {
         trimContractionPlan(Number(button.dataset.trimStep));
+      });
+    });
+    plannerPanel.querySelectorAll("[data-inspect-step]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (typeof ctx.togglePastInspection === "function") {
+          ctx.togglePastInspection(Number(button.dataset.inspectStep));
+        }
+        clearAutomaticPreview({ preservePastInspection: true });
+        renderPlanner();
+        ctx.render();
       });
     });
     plannerPanel.querySelectorAll("[data-disclosure]").forEach((button) => {
@@ -1206,5 +1633,6 @@ export function registerNotesPlanner(ctx) {
     syncPlannerOrderBadges,
     startAutomaticPreview,
     acceptAutomaticPlan,
+    clearAutomaticPreview,
   });
 }

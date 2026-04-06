@@ -9,8 +9,10 @@ from tensor_network_editor.errors import SpecValidationError
 from tensor_network_editor.models import (
     CanvasNoteSpec,
     CanvasPosition,
+    ContractionOperandLayoutSpec,
     ContractionPlanSpec,
     ContractionStepSpec,
+    ContractionViewSnapshotSpec,
     EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
@@ -207,6 +209,45 @@ def test_contraction_plan_round_trip_is_serializable() -> None:
     assert restored.steps[0].left_operand_id == "tensor_left"
 
 
+def test_contraction_plan_round_trip_preserves_view_snapshots() -> None:
+    plan = ContractionPlanSpec(
+        id="plan_manual",
+        name="Manual path",
+        steps=[
+            ContractionStepSpec(
+                id="step_one",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
+            )
+        ],
+        view_snapshots=[
+            ContractionViewSnapshotSpec(
+                applied_step_count=0,
+                operand_layouts=[
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_left",
+                        position=CanvasPosition(x=20.0, y=40.0),
+                        size=TensorSize(width=180.0, height=108.0),
+                    ),
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_right",
+                        position=CanvasPosition(x=220.0, y=40.0),
+                        size=TensorSize(width=190.0, height=118.0),
+                    ),
+                ],
+            )
+        ],
+    )
+
+    payload = plan.to_dict()
+    restored = ContractionPlanSpec.from_dict(cast(dict[str, object], payload))
+
+    assert len(restored.view_snapshots) == 1
+    assert restored.view_snapshots[0].applied_step_count == 0
+    assert restored.view_snapshots[0].operand_layouts[0].operand_id == "tensor_left"
+    assert restored.view_snapshots[0].operand_layouts[1].size.width == 190.0
+
+
 def test_index_offset_round_trip_is_serializable() -> None:
     index = IndexSpec(
         id="index_with_offset",
@@ -275,9 +316,65 @@ def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:
                 right_operand_id="tensor_right",
             )
         ],
+        view_snapshots=[
+            ContractionViewSnapshotSpec(
+                applied_step_count=0,
+                operand_layouts=[
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_left",
+                        position=CanvasPosition(x=40.0, y=80.0),
+                        size=TensorSize(width=196.0, height=118.0),
+                    ),
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_right",
+                        position=CanvasPosition(x=220.0, y=80.0),
+                        size=TensorSize(width=180.0, height=108.0),
+                    ),
+                    ContractionOperandLayoutSpec(
+                        operand_id="unknown_stale_operand",
+                        position=CanvasPosition(x=320.0, y=80.0),
+                        size=TensorSize(width=180.0, height=108.0),
+                    ),
+                ],
+            )
+        ],
     )
 
     assert validate_spec(spec) == []
+
+
+def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:
+    spec = build_valid_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_pair",
+        name="Pair path",
+        steps=[
+            ContractionStepSpec(
+                id="step_pair",
+                left_operand_id="tensor_left",
+                right_operand_id="tensor_right",
+            )
+        ],
+        view_snapshots=[
+            ContractionViewSnapshotSpec(
+                applied_step_count=-1,
+                operand_layouts=[
+                    ContractionOperandLayoutSpec(
+                        operand_id="tensor_left",
+                        position=CanvasPosition(x=40.0, y=80.0),
+                        size=TensorSize(width=0.0, height=118.0),
+                    )
+                ],
+            )
+        ],
+    )
+
+    issues = validate_spec(spec)
+
+    assert {issue.code for issue in issues} >= {
+        "invalid-contraction-view-snapshot",
+        "invalid-size",
+    }
 
 
 @pytest.mark.parametrize(

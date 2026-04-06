@@ -80,12 +80,34 @@ export function startEditor(ctx) {
       ctx.refreshContractionAnalysis();
     }
     ctx.setStatus(
-      "Editor ready. Drag the canvas to move, use the wheel to zoom, and right drag to box-select.",
+      "Editor ready. Drag the canvas to move, use Ctrl+wheel to zoom, use the wheel to pan, and right drag to box-select.",
       "success"
     );
   }
 
+  function applyShortcutHint(buttonId, label, shortcut) {
+    const button = document.getElementById(buttonId);
+    if (!button) {
+      return;
+    }
+    button.dataset.shortcut = shortcut;
+    button.title = `${label} (${shortcut})`;
+    button.setAttribute("aria-label", `${label} (${shortcut})`);
+  }
+
   function attachToolbarHandlers() {
+    applyShortcutHint("add-tensor-button", "Add tensor", "N");
+    applyShortcutHint("insert-template-button", "Insert template", "T");
+    applyShortcutHint("create-group-button", "Group", "G");
+    applyShortcutHint("add-note-button", "Add note", "P");
+    applyShortcutHint("connect-button", "Connect", "C");
+    applyShortcutHint("delete-button", "Delete", "Delete");
+    applyShortcutHint("save-button", "Save", "Ctrl/Cmd+S");
+    applyShortcutHint("load-button", "Load", "Ctrl/Cmd+L");
+    applyShortcutHint("generate-button", "Generate code", "Shift+G");
+    applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
+    applyShortcutHint("redo-button", "Redo", "Ctrl+Y");
+    applyShortcutHint("help-button", "Help", "?");
     document.getElementById("new-design-button").addEventListener("click", ctx.handleNewDesign);
     document.getElementById("add-tensor-button").addEventListener("click", ctx.addTensorAtCenter);
     addNoteButton.addEventListener("click", ctx.addNoteAtCenter);
@@ -125,6 +147,7 @@ export function startEditor(ctx) {
     window.addEventListener("mousemove", ctx.handleGlobalMouseMove);
     window.addEventListener("mouseup", ctx.handleGlobalMouseUp);
     canvasShell.addEventListener("contextmenu", ctx.handleCanvasContextMenu);
+    canvasShell.addEventListener("wheel", ctx.handleCanvasWheel, { passive: false });
     canvasShell.addEventListener("mousedown", ctx.handleCanvasMouseDown, true);
     minimapCanvas.addEventListener("mousedown", ctx.handleMinimapMouseDown);
   }

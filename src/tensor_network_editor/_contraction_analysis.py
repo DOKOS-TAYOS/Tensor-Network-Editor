@@ -119,8 +119,8 @@ class AutomaticContractionPlanAnalysis:
 class ContractionAnalysisResult:
     network_output_shape: tuple[int, ...]
     manual: ManualContractionPlanAnalysis
-    automatic_global: AutomaticContractionPlanAnalysis
-    automatic_local: AutomaticContractionPlanAnalysis
+    automatic_future: AutomaticContractionPlanAnalysis
+    automatic_past: AutomaticContractionPlanAnalysis
     automatic_strategy: str = "greedy"
     message: str | None = None
 
@@ -128,8 +128,8 @@ class ContractionAnalysisResult:
         payload: dict[str, JSONValue] = {
             "network_output_shape": cast(JSONValue, list(self.network_output_shape)),
             "manual": self.manual.to_dict(),
-            "automatic_global": self.automatic_global.to_dict(),
-            "automatic_local": self.automatic_local.to_dict(),
+            "automatic_future": self.automatic_future.to_dict(),
+            "automatic_past": self.automatic_past.to_dict(),
             "automatic_strategy": self.automatic_strategy,
         }
         if self.message is not None:
@@ -149,25 +149,34 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
         initial_operands=initial_operands,
         dimension_by_label=dimension_by_label,
     )
-    automatic_global = _analyze_automatic_plan(
-        prepared=prepared,
+    manual_operand_state = _build_manual_operand_state(
+        spec=spec,
         initial_operands=initial_operands,
         dimension_by_label=dimension_by_label,
     )
-    local_tensor_ids = _collect_manual_tensor_ids(spec, prepared)
-    automatic_local = _analyze_local_automatic_plan(spec, local_tensor_ids)
+    automatic_future = _analyze_future_automatic_plan(
+        initial_operands=initial_operands,
+        manual_operand_state=manual_operand_state,
+        dimension_by_label=dimension_by_label,
+    )
+    automatic_past = _analyze_past_automatic_plan(
+        spec=spec,
+        initial_operands=initial_operands,
+        manual_operand_state=manual_operand_state,
+        dimension_by_label=dimension_by_label,
+    )
     message = (
-        automatic_global.message
-        if automatic_global.status == "unavailable"
-        else automatic_local.message
-        if automatic_local.status == "unavailable"
+        automatic_future.message
+        if automatic_future.status == "unavailable"
+        else automatic_past.message
+        if automatic_past.status == "unavailable"
         else None
     )
     return ContractionAnalysisResult(
         network_output_shape=network_output_shape,
         manual=manual,
-        automatic_global=automatic_global,
-        automatic_local=automatic_local,
+        automatic_future=automatic_future,
+        automatic_past=automatic_past,
         automatic_strategy="greedy",
         message=message,
     )
@@ -186,6 +195,73 @@ def _build_initial_operands(prepared: PreparedNetwork) -> dict[str, tuple[str, .
         tensor.spec.id: tuple(index.label for index in tensor.indices)
         for tensor in prepared.tensors
     }
+
+
+@dataclass(slots=True)
+class ManualOperandState:
+    active_operand_ids: tuple[str, ...]
+    remaining_operands: dict[str, tuple[str, ...]]
+    source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]]
+
+
+def _build_manual_operand_state(
+    *,
+    spec: NetworkSpec,
+    initial_operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+) -> ManualOperandState:
+    remaining_operands = dict(initial_operands)
+    source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]] = {
+        operand_id: (operand_id,) for operand_id in initial_operands
+    }
+
+    plan = spec.contraction_plan
+    if plan is None or not plan.steps:
+        return ManualOperandState(
+            active_operand_ids=tuple(remaining_operands),
+            remaining_operands=remaining_operands,
+            source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
+        )
+
+    for step in plan.steps:
+        left_labels = remaining_operands.get(step.left_operand_id)
+        right_labels = remaining_operands.get(step.right_operand_id)
+        left_source_tensor_ids = source_tensor_ids_by_operand_id.get(
+            step.left_operand_id
+        )
+        right_source_tensor_ids = source_tensor_ids_by_operand_id.get(
+            step.right_operand_id
+        )
+        if (
+            left_labels is None
+            or right_labels is None
+            or left_source_tensor_ids is None
+            or right_source_tensor_ids is None
+        ):
+            break
+
+        step_result = _contract_operands(
+            step_id=step.id,
+            left_operand_id=step.left_operand_id,
+            right_operand_id=step.right_operand_id,
+            left_labels=left_labels,
+            right_labels=right_labels,
+            dimension_by_label=dimension_by_label,
+        )
+        remaining_operands.pop(step.left_operand_id, None)
+        remaining_operands.pop(step.right_operand_id, None)
+        source_tensor_ids_by_operand_id.pop(step.left_operand_id, None)
+        source_tensor_ids_by_operand_id.pop(step.right_operand_id, None)
+        remaining_operands[step.id] = step_result.surviving_labels
+        source_tensor_ids_by_operand_id[step.id] = tuple(
+            dict.fromkeys(left_source_tensor_ids + right_source_tensor_ids)
+        )
+
+    return ManualOperandState(
+        active_operand_ids=tuple(remaining_operands),
+        remaining_operands=remaining_operands,
+        source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
+    )
 
 
 def _analyze_manual_plan(
@@ -343,13 +419,91 @@ def _build_automatic_summary(
     )
 
 
-def _analyze_automatic_plan(
+def _analyze_future_automatic_plan(
     *,
-    prepared: PreparedNetwork,
     initial_operands: dict[str, tuple[str, ...]],
+    manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
 ) -> AutomaticContractionPlanAnalysis:
-    if len(prepared.tensors) <= 1:
+    del initial_operands
+    return _analyze_automatic_operands(
+        operand_order=list(manual_operand_state.active_operand_ids),
+        operands=manual_operand_state.remaining_operands,
+        dimension_by_label=dimension_by_label,
+        step_id_prefix="auto_future_step_",
+    )
+
+
+def _analyze_past_automatic_plan(
+    *,
+    spec: NetworkSpec,
+    initial_operands: dict[str, tuple[str, ...]],
+    manual_operand_state: ManualOperandState,
+    dimension_by_label: dict[str, int],
+) -> AutomaticContractionPlanAnalysis:
+    del spec
+    base_tensor_ids = set(initial_operands)
+    contracted_root_operand_ids = [
+        operand_id
+        for operand_id in manual_operand_state.active_operand_ids
+        if operand_id not in base_tensor_ids
+        and len(
+            manual_operand_state.source_tensor_ids_by_operand_id.get(operand_id, ())
+        )
+        > 1
+    ]
+    if not contracted_root_operand_ids:
+        return _unavailable_automatic_analysis(
+            "Contract at least one tensor pair to unlock the auto past preview."
+        )
+
+    all_steps: list[ContractionStepAnalysis] = []
+    total_estimated_flops = 0
+    total_estimated_macs = 0
+    peak_intermediate_size = 0
+
+    for root_operand_id in contracted_root_operand_ids:
+        root_tensor_ids = manual_operand_state.source_tensor_ids_by_operand_id.get(
+            root_operand_id, ()
+        )
+        analysis = _analyze_automatic_operands(
+            operand_order=list(root_tensor_ids),
+            operands={
+                tensor_id: initial_operands[tensor_id] for tensor_id in root_tensor_ids
+            },
+            dimension_by_label=dimension_by_label,
+            step_id_prefix=f"{root_operand_id}__auto_past_",
+            final_step_id=root_operand_id,
+        )
+        if analysis.status == "unavailable":
+            return analysis
+        all_steps.extend(analysis.steps)
+        total_estimated_flops += analysis.summary.total_estimated_flops
+        total_estimated_macs += analysis.summary.total_estimated_macs
+        peak_intermediate_size = max(
+            peak_intermediate_size, analysis.summary.peak_intermediate_size
+        )
+
+    return AutomaticContractionPlanAnalysis(
+        status="complete",
+        steps=all_steps,
+        summary=_build_automatic_summary(
+            total_estimated_flops=total_estimated_flops,
+            total_estimated_macs=total_estimated_macs,
+            peak_intermediate_size=peak_intermediate_size,
+        ),
+    )
+
+
+def _analyze_automatic_operands(
+    *,
+    operand_order: list[str],
+    operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+    step_id_prefix: str,
+    final_step_id: str | None = None,
+) -> AutomaticContractionPlanAnalysis:
+    if len(operand_order) <= 1:
         return AutomaticContractionPlanAnalysis(
             status="complete",
             steps=[],
@@ -371,10 +525,10 @@ def _analyze_automatic_plan(
         )
 
     label_order: list[str] = []
-    for tensor in prepared.tensors:
-        for index in tensor.indices:
-            if index.label not in label_order:
-                label_order.append(index.label)
+    for operand_id in operand_order:
+        for label in operands[operand_id]:
+            if label not in label_order:
+                label_order.append(label)
     if len(label_order) > len(ascii_letters):
         return _unavailable_automatic_analysis(
             "Automatic greedy path analysis currently supports up to 52 distinct labels."
@@ -384,19 +538,28 @@ def _analyze_automatic_plan(
         label: ascii_letters[offset]
         for offset, label in enumerate(label_order[: len(ascii_letters)])
     }
+    label_counts = {
+        label: sum(operand_labels.count(label) for operand_labels in operands.values())
+        for label in label_order
+    }
+    output_labels = [label for label in label_order if label_counts[label] == 1]
     equation = (
         ",".join(
-            "".join(symbol_map[index.label] for index in tensor.indices)
-            for tensor in prepared.tensors
+            "".join(symbol_map[label] for label in operands[operand_id])
+            for operand_id in operand_order
         )
         + "->"
-        + "".join(symbol_map[index.label] for index in prepared.open_indices)
+        + "".join(symbol_map[label] for label in output_labels)
     )
+    shapes = [
+        tuple(dimension_by_label[label] for label in operands[operand_id])
+        for operand_id in operand_order
+    ]
 
     try:
         path, _ = contract_path(
             equation,
-            *(tensor.spec.shape for tensor in prepared.tensors),
+            *shapes,
             shapes=True,
             optimize="greedy",
         )
@@ -405,8 +568,8 @@ def _analyze_automatic_plan(
             f"Automatic greedy path analysis failed: {exc}"
         )
 
-    remaining_order = [tensor.spec.id for tensor in prepared.tensors]
-    remaining_operands = dict(initial_operands)
+    remaining_order = list(operand_order)
+    remaining_operands = dict(operands)
     steps: list[ContractionStepAnalysis] = []
     total_estimated_flops = 0
     total_estimated_macs = 0
@@ -420,7 +583,11 @@ def _analyze_automatic_plan(
             )
         left_operand_id = remaining_order[indices[0]]
         right_operand_id = remaining_order[indices[1]]
-        step_id = f"auto_step_{step_index}"
+        step_id = (
+            final_step_id
+            if final_step_id is not None and step_index == len(path)
+            else f"{step_id_prefix}{step_index}"
+        )
         step_result = _contract_operands(
             step_id=step_id,
             left_operand_id=left_operand_id,
@@ -449,79 +616,6 @@ def _analyze_automatic_plan(
             total_estimated_macs=total_estimated_macs,
             peak_intermediate_size=peak_intermediate_size,
         ),
-    )
-
-
-def _collect_manual_tensor_ids(
-    spec: NetworkSpec, prepared: PreparedNetwork
-) -> tuple[str, ...]:
-    available_tensors = {tensor.spec.id for tensor in prepared.tensors}
-    plan = spec.contraction_plan
-    if plan is None or not plan.steps:
-        return tuple()
-
-    represented_tensor_ids: dict[str, tuple[str, ...]] = {
-        tensor_id: (tensor_id,) for tensor_id in available_tensors
-    }
-    included_tensor_ids: list[str] = []
-
-    for step in plan.steps:
-        left_tensor_ids = represented_tensor_ids.get(step.left_operand_id)
-        right_tensor_ids = represented_tensor_ids.get(step.right_operand_id)
-        if (
-            left_tensor_ids is None
-            or right_tensor_ids is None
-            or step.left_operand_id == step.right_operand_id
-            or step.id in represented_tensor_ids
-        ):
-            break
-        merged_tensor_ids = tuple(dict.fromkeys(left_tensor_ids + right_tensor_ids))
-        represented_tensor_ids.pop(step.left_operand_id)
-        represented_tensor_ids.pop(step.right_operand_id)
-        represented_tensor_ids[step.id] = merged_tensor_ids
-        for tensor_id in merged_tensor_ids:
-            if tensor_id not in included_tensor_ids:
-                included_tensor_ids.append(tensor_id)
-
-    return tuple(included_tensor_ids)
-
-
-def _analyze_local_automatic_plan(
-    spec: NetworkSpec, local_tensor_ids: tuple[str, ...]
-) -> AutomaticContractionPlanAnalysis:
-    if len(local_tensor_ids) < 2:
-        return AutomaticContractionPlanAnalysis(
-            status="unavailable",
-            steps=[],
-            summary=_build_automatic_summary(
-                total_estimated_flops=0,
-                total_estimated_macs=0,
-                peak_intermediate_size=0,
-            ),
-            message="Add at least two tensors to the manual path to unlock the local automatic preview.",
-        )
-
-    tensor_id_set = set(local_tensor_ids)
-    subset_spec = NetworkSpec(
-        id=f"{spec.id}_local_auto",
-        name=f"{spec.name} local automatic",
-        tensors=[tensor for tensor in spec.tensors if tensor.id in tensor_id_set],
-        edges=[
-            edge
-            for edge in spec.edges
-            if edge.left.tensor_id in tensor_id_set
-            and edge.right.tensor_id in tensor_id_set
-        ],
-        groups=[],
-        notes=[],
-        contraction_plan=None,
-        metadata={},
-    )
-    prepared = prepare_network(subset_spec)
-    return _analyze_automatic_plan(
-        prepared=prepared,
-        initial_operands=_build_initial_operands(prepared),
-        dimension_by_label=_build_dimension_by_label(prepared),
     )
 
 
