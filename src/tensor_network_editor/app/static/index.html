@@ -18,7 +18,12 @@
           <button id="export-py-button" type="button">Export .py</button>
           <button id="export-png-button" type="button">Export PNG</button>
           <button id="export-svg-button" type="button">Export SVG</button>
-          <input id="load-input" type="file" accept="application/json" hidden />
+          <input
+            id="load-input"
+            type="file"
+            accept="application/json,.json,.py,text/x-python,text/plain"
+            hidden
+          />
         </div>
         <div class="toolbar-group toolbar-group-right">
           <label class="engine-picker" for="engine-select">
@@ -30,7 +35,7 @@
         </div>
       </header>
 
-      <main class="workspace">
+      <main id="workspace" class="workspace">
         <section class="canvas-panel">
           <div class="panel-heading canvas-titlebar">
             <div class="title-main">
@@ -101,9 +106,20 @@
           </div>
         </section>
 
-        <aside class="sidebar">
+        <aside id="sidebar" class="sidebar">
           <section id="sidebar-panel" class="panel-card sidebar-panel">
-            <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Editor side panel sections">
+            <div class="sidebar-topbar">
+              <button
+                id="sidebar-toggle-button"
+                type="button"
+                class="sidebar-toggle-button"
+                aria-label="Collapse sidebar"
+                aria-expanded="true"
+                title="Collapse sidebar"
+              >
+                &gt;&gt;
+              </button>
+              <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Editor side panel sections">
               <button
                 id="sidebar-tab-selection"
                 class="sidebar-tab"
@@ -134,6 +150,7 @@
               >
                 Code
               </button>
+            </div>
             </div>
 
             <section
@@ -169,6 +186,10 @@
               <div class="code-header">
                 <h2>Generated Code</h2>
                 <div class="code-header-actions">
+                  <label class="code-format-picker" for="collection-format-select">
+                    Format
+                    <select id="collection-format-select"></select>
+                  </label>
                   <button id="generate-button" type="button">Generate</button>
                 </div>
               </div>

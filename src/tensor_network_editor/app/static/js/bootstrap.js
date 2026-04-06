@@ -12,10 +12,12 @@ export function startEditor(ctx) {
     DEFAULT_INDEX_SLOTS,
   } = ctx.constants;
   const {
+    workspace,
     statusMessage,
     propertiesPanel,
     generatedCode,
     engineSelect,
+    collectionFormatSelect,
     addNoteButton,
     connectButton,
     loadInput,
@@ -54,6 +56,9 @@ export function startEditor(ctx) {
     state.spec = ctx.normalizeSpec(payload.spec.network);
     state.schemaVersion = payload.schema_version;
     state.availableTemplates = Array.isArray(payload.templates) ? [...payload.templates] : [];
+    state.availableCollectionFormats = Array.isArray(payload.collection_formats)
+      ? [...payload.collection_formats]
+      : ["list"];
     state.templateDefinitions = payload.template_definitions && typeof payload.template_definitions === "object"
       ? { ...payload.template_definitions }
       : {};
@@ -62,8 +67,10 @@ export function startEditor(ctx) {
       state.templateDefinitions
     );
     state.selectedEngine = payload.default_engine;
+    state.selectedCollectionFormat = payload.default_collection_format || "list";
     ctx.reconcileTensorOrder();
     ctx.populateEngineOptions(payload.engines);
+    ctx.populateCollectionFormatOptions(state.availableCollectionFormats);
     ctx.populateTemplateOptions(state.availableTemplates);
     ctx.syncTemplateParameterControls();
     ctx.initGraph();
@@ -106,6 +113,9 @@ export function startEditor(ctx) {
     helpCloseButton.addEventListener("click", () => ctx.toggleHelpModal(false));
     engineSelect.addEventListener("change", (event) => {
       state.selectedEngine = event.target.value;
+    });
+    collectionFormatSelect.addEventListener("change", (event) => {
+      state.selectedCollectionFormat = event.target.value;
     });
     loadInput.addEventListener("change", ctx.loadDesignFromFile);
     window.addEventListener("keydown", ctx.handleKeydown);

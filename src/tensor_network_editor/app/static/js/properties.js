@@ -1,45 +1,138 @@
 export function registerProperties(ctx) {
   const state = ctx.state;
-  const {
-    TENSOR_WIDTH,
-    TENSOR_HEIGHT,
-    MIN_TENSOR_WIDTH,
-    MIN_TENSOR_HEIGHT,
-    INDEX_RADIUS,
-    INDEX_PADDING,
-    HISTORY_LIMIT,
-    REDO_SHORTCUT_LABEL,
-    DEFAULT_INDEX_SLOTS,
-  } = ctx.constants;
-  const {
-    statusMessage,
-    propertiesPanel,
-    generatedCode,
-    engineSelect,
-    connectButton,
-    loadInput,
-    undoButton,
-    redoButton,
-    exportPyButton,
-    exportPngButton,
-    exportSvgButton,
-    templateSelect,
-    insertTemplateButton,
-    createGroupButton,
-    helpButton,
-    helpModal,
-    helpBackdrop,
-    helpCloseButton,
-    canvasShell,
-    groupLayer,
-    resizeLayer,
-    selectionBox,
-    minimapCanvas,
-  } = ctx.dom;
-  const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  const { propertiesPanel } = ctx.dom;
+  const { document, window } = ctx;
+  const AUTOSAVE_DELAY_MS = 300;
+  const autosaveTimers = new Map();
+
+  function clearAutosaveTimer(fieldKey) {
+    const timerId = autosaveTimers.get(fieldKey);
+    if (typeof timerId === "number") {
+      window.clearTimeout(timerId);
+    }
+    autosaveTimers.delete(fieldKey);
+  }
+
+  function commitAutosave(fieldKey, commit) {
+    clearAutosaveTimer(fieldKey);
+    commit();
+  }
+
+  function scheduleAutosave(fieldKey, commit) {
+    clearAutosaveTimer(fieldKey);
+    autosaveTimers.set(
+      fieldKey,
+      window.setTimeout(() => {
+        autosaveTimers.delete(fieldKey);
+        commit();
+      }, AUTOSAVE_DELAY_MS)
+    );
+  }
+
+  function bindDebouncedAutosave(element, fieldKey, commit, options = {}) {
+    if (!element) {
+      return;
+    }
+    element.dataset.focusKey = fieldKey;
+    element.addEventListener("input", () => {
+      scheduleAutosave(fieldKey, commit);
+    });
+    element.addEventListener("blur", () => {
+      commitAutosave(fieldKey, commit);
+    });
+    if (options.commitOnEnter !== false) {
+      element.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.shiftKey) {
+          return;
+        }
+        event.preventDefault();
+        commitAutosave(fieldKey, commit);
+      });
+    }
+  }
+
+  function bindImmediateAutosave(
+    element,
+    fieldKey,
+    commit,
+    eventName = "change"
+  ) {
+    if (!element) {
+      return;
+    }
+    if (fieldKey) {
+      element.dataset.focusKey = fieldKey;
+    }
+    element.addEventListener(eventName, () => {
+      commit();
+    });
+  }
+
+  function renderTrashIcon() {
+    return `
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+      </svg>
+    `;
+  }
+
+  function tensorDisclosureState(tensorId) {
+    if (!state.tensorIndexDisclosureState[tensorId]) {
+      state.tensorIndexDisclosureState[tensorId] = {};
+    }
+    return state.tensorIndexDisclosureState[tensorId];
+  }
+
+  function isTensorIndexDisclosureOpen(tensorId, indexId) {
+    return Boolean(tensorDisclosureState(tensorId)[indexId]);
+  }
+
+  function setTensorIndexDisclosureOpen(tensorId, indexId, isOpen) {
+    const disclosureState = tensorDisclosureState(tensorId);
+    if (isOpen) {
+      disclosureState[indexId] = true;
+      return;
+    }
+    delete disclosureState[indexId];
+  }
+
+  function syncPendingTensorIndexDisclosure() {
+    const pendingIndexId = state.pendingPropertiesIndexFocusId;
+    if (!pendingIndexId) {
+      return;
+    }
+
+    const located = ctx.findIndexOwner(pendingIndexId);
+    state.pendingPropertiesIndexFocusId = null;
+    if (!located) {
+      return;
+    }
+
+    const wasOpen = isTensorIndexDisclosureOpen(located.tensor.id, pendingIndexId);
+    setTensorIndexDisclosureOpen(located.tensor.id, pendingIndexId, true);
+    state.autoExpandedTensorIndex = {
+      tensorId: located.tensor.id,
+      indexId: pendingIndexId,
+      wasOpen,
+    };
+  }
+
+  function toggleTensorIndexDisclosure(tensorId, indexId) {
+    const nextOpen = !isTensorIndexDisclosureOpen(tensorId, indexId);
+    setTensorIndexDisclosureOpen(tensorId, indexId, nextOpen);
+    if (
+      state.autoExpandedTensorIndex &&
+      state.autoExpandedTensorIndex.tensorId === tensorId &&
+      state.autoExpandedTensorIndex.indexId === indexId
+    ) {
+      state.autoExpandedTensorIndex = null;
+    }
+    ctx.renderProperties();
+  }
 
   function renderProperties() {
     ctx.pruneSelectionToExisting();
+    syncPendingTensorIndexDisclosure();
     if (!state.selectionIds.length) {
       renderNetworkProperties();
       return;
@@ -58,7 +151,9 @@ export function registerProperties(ctx) {
       return;
     }
     if (singleSelection.kind === "index") {
-      renderIndexProperties(singleSelection.id);
+      renderTensorProperties(singleSelection.located.tensor.id, {
+        focusedIndexId: singleSelection.id,
+      });
       return;
     }
     if (singleSelection.kind === "edge") {
@@ -80,7 +175,11 @@ export function registerProperties(ctx) {
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="network-name-input">Design name</label>
-        <input id="network-name-input" value="${ctx.escapeHtml(state.spec.name)}" />
+        <input
+          id="network-name-input"
+          data-focus-key="network:name"
+          value="${ctx.escapeHtml(state.spec.name)}"
+        />
       </div>
       <div class="properties-chip">
         <span>Tensors</span>
@@ -101,8 +200,12 @@ export function registerProperties(ctx) {
     `;
 
     const networkNameInput = document.getElementById("network-name-input");
-    networkNameInput.addEventListener("change", () => {
-      const proposedName = networkNameInput.value.trim() || "Untitled Network";
+    bindDebouncedAutosave(networkNameInput, "network:name", () => {
+      const proposedName = networkNameInput.value.trim();
+      if (!proposedName) {
+        ctx.setStatus("Design name cannot be empty.", "error");
+        return;
+      }
       if (proposedName === state.spec.name) {
         return;
       }
@@ -119,12 +222,23 @@ export function registerProperties(ctx) {
 
   function renderMultiSelectionProperties() {
     const selectedEntries = ctx.getSelectedEntries();
-    const tensorCount = selectedEntries.filter((entry) => entry.kind === "tensor").length;
-    const indexCount = selectedEntries.filter((entry) => entry.kind === "index").length;
-    const edgeCount = selectedEntries.filter((entry) => entry.kind === "edge").length;
-    const groupCount = selectedEntries.filter((entry) => entry.kind === "group").length;
-    const noteCount = selectedEntries.filter((entry) => entry.kind === "note").length;
-    const tensorsOnly = tensorCount > 0 && tensorCount === selectedEntries.length;
+    const tensorCount = selectedEntries.filter(
+      (entry) => entry.kind === "tensor"
+    ).length;
+    const indexCount = selectedEntries.filter(
+      (entry) => entry.kind === "index"
+    ).length;
+    const edgeCount = selectedEntries.filter(
+      (entry) => entry.kind === "edge"
+    ).length;
+    const groupCount = selectedEntries.filter(
+      (entry) => entry.kind === "group"
+    ).length;
+    const noteCount = selectedEntries.filter(
+      (entry) => entry.kind === "note"
+    ).length;
+    const tensorsOnly =
+      tensorCount > 0 && tensorCount === selectedEntries.length;
     const batchColor = ctx.getBatchColorValue(selectedEntries);
 
     propertiesPanel.innerHTML = `
@@ -156,12 +270,24 @@ export function registerProperties(ctx) {
           </div>
         </div>
       </div>
-      <div class="button-row">
+      <div class="field-group">
+        <label for="multi-color-input">Selection color</label>
         <label class="control-inline-color" for="multi-color-input">
-          <input id="multi-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(batchColor)}" />
+          <input
+            id="multi-color-input"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(batchColor)}"
+          />
         </label>
-        <button id="apply-multi-color-button" type="button">Apply Color</button>
-        ${tensorsOnly ? '<button id="add-index-to-selection-button" type="button">Add Index to Tensors</button>' : ""}
+      </div>
+      <div class="button-row">
+        ${
+          tensorsOnly
+            ? '<button id="add-index-to-selection-button" type="button">Add Index to Tensors</button>'
+            : ""
+        }
         <button id="delete-selection-button" type="button" class="danger">Delete Selected</button>
       </div>
       <p class="property-meta">
@@ -169,20 +295,30 @@ export function registerProperties(ctx) {
       </p>
     `;
 
-    document.getElementById("apply-multi-color-button").addEventListener("click", () => {
-      const colorValue = document.getElementById("multi-color-input").value;
-      ctx.applyDesignChange(
-        () => {
-          ctx.applyColorToSelection(colorValue);
-        },
-        {
-          preserveSelection: true,
-          statusMessage: "Updated the selection color.",
+    const multiColorInput = document.getElementById("multi-color-input");
+    bindImmediateAutosave(
+      multiColorInput,
+      "selection:color",
+      () => {
+        const colorValue = multiColorInput.value;
+        if (colorValue === batchColor) {
+          return;
         }
-      );
-    });
+        ctx.applyDesignChange(
+          () => {
+            ctx.applyColorToSelection(colorValue);
+          },
+          {
+            statusMessage: "Updated the selection color.",
+          }
+        );
+      },
+      "input"
+    );
 
-    const addIndexButton = document.getElementById("add-index-to-selection-button");
+    const addIndexButton = document.getElementById(
+      "add-index-to-selection-button"
+    );
     if (addIndexButton) {
       addIndexButton.addEventListener("click", () => {
         ctx.applyDesignChange(
@@ -195,75 +331,219 @@ export function registerProperties(ctx) {
             });
           },
           {
-            preserveSelection: true,
             statusMessage: "Added one index to each selected tensor.",
           }
         );
       });
     }
 
-    document.getElementById("delete-selection-button").addEventListener("click", ctx.deleteSelection);
+    document
+      .getElementById("delete-selection-button")
+      .addEventListener("click", ctx.deleteSelection);
   }
 
-  function renderTensorProperties(tensorId) {
+  function renderTensorProperties(tensorId, options = {}) {
     const tensor = ctx.findTensorById(tensorId);
     if (!tensor) {
       ctx.clearSelection();
       return;
     }
 
-    const indexList = tensor.indices
-      .map(
-        (index, indexPosition) => `
-          <button type="button" class="properties-chip index-select-button" data-index-id="${index.id}">
-            <span>${indexPosition + 1}. ${ctx.escapeHtml(index.name)}</span>
-            <strong>${index.dimension}</strong>
-          </button>
-        `
-      )
+    const focusedIndexId = options.focusedIndexId || null;
+    const indexEditors = tensor.indices
+      .map((index, indexPosition) => {
+        const isOpen = isTensorIndexDisclosureOpen(tensor.id, index.id);
+        const isConnected = Boolean(ctx.findEdgeByIndexId(index.id));
+
+        return `
+          <section class="planner-section planner-disclosure index-disclosure${isOpen ? " is-open" : ""}">
+            <button
+              type="button"
+              class="planner-disclosure-toggle index-disclosure-toggle${
+                isOpen ? " is-open" : ""
+              }${focusedIndexId === index.id ? " is-focused" : ""}"
+              data-index-toggle="${index.id}"
+              aria-expanded="${isOpen}"
+            >
+              <span class="index-disclosure-title">
+                <strong>${indexPosition + 1}. ${ctx.escapeHtml(index.name)}</strong>
+                <span>${isConnected ? "Connected" : "Open"} · dim ${index.dimension}</span>
+              </span>
+              <strong>${isOpen ? "Hide" : "Show"}</strong>
+            </button>
+            ${
+              isOpen
+                ? `
+                  <div class="planner-disclosure-body index-disclosure-body">
+                    <div class="field-row index-disclosure-fields">
+                      <div class="field-group index-name-field">
+                        <label for="index-name-input-${index.id}">Index name</label>
+                        <input
+                          id="index-name-input-${index.id}"
+                          data-focus-key="index:${index.id}:name"
+                          value="${ctx.escapeHtml(index.name)}"
+                        />
+                      </div>
+                      <div class="field-group compact-number-field index-dimension-field">
+                        <label for="index-dimension-input-${index.id}">Dimension</label>
+                        <input
+                          id="index-dimension-input-${index.id}"
+                          data-focus-key="index:${index.id}:dimension"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value="${index.dimension}"
+                        />
+                      </div>
+                    </div>
+                    <div class="button-row">
+                      <label class="control-inline-color" for="index-color-input-${index.id}">
+                        <input
+                          id="index-color-input-${index.id}"
+                          data-focus-key="index:${index.id}:color"
+                          type="color"
+                          title="Choose tint"
+                          aria-label="Choose tint"
+                          value="${ctx.escapeHtml(
+                            ctx.getMetadataColor(
+                              index.metadata,
+                              ctx.getIndexColor(index, isConnected)
+                            )
+                          )}"
+                        />
+                      </label>
+                      <button
+                        id="move-index-up-button-${index.id}"
+                        type="button"
+                        class="icon-button index-action-button"
+                        aria-label="Move index up"
+                        title="Move index up"
+                        ${indexPosition === 0 ? "disabled" : ""}
+                      >
+                        <span aria-hidden="true">&#8593;</span>
+                      </button>
+                      <button
+                        id="move-index-down-button-${index.id}"
+                        type="button"
+                        class="icon-button index-action-button"
+                        aria-label="Move index down"
+                        title="Move index down"
+                        ${
+                          indexPosition === tensor.indices.length - 1 ? "disabled" : ""
+                        }
+                      >
+                        <span aria-hidden="true">&#8595;</span>
+                      </button>
+                      <button
+                        id="delete-index-button-${index.id}"
+                        type="button"
+                        class="icon-button index-action-button danger"
+                        aria-label="Delete index"
+                        title="Delete index"
+                      >
+                        ${renderTrashIcon()}
+                      </button>
+                    </div>
+                  </div>
+                `
+                : ""
+            }
+          </section>
+        `;
+      })
       .join("");
 
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="tensor-name-input">Tensor name</label>
-        <input id="tensor-name-input" value="${ctx.escapeHtml(tensor.name)}" />
+        <input
+          id="tensor-name-input"
+          data-focus-key="tensor:${tensor.id}:name"
+          value="${ctx.escapeHtml(tensor.name)}"
+        />
       </div>
       <div class="button-row">
-        <button id="add-index-button" type="button">Add Index</button>
-        <button id="center-tensor-button" type="button">Center in View</button>
+        <button
+          id="add-index-button"
+          type="button"
+          class="icon-button"
+          aria-label="Add index"
+          title="Add index"
+        >
+          +
+        </button>
+        <button id="center-tensor-button" type="button">Center</button>
         <label class="control-inline-color" for="tensor-color-input">
-          <input id="tensor-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, "#18212c"))}" />
+          <input
+            id="tensor-color-input"
+            data-focus-key="tensor:${tensor.id}:color"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, "#18212c"))}"
+          />
         </label>
+        <button
+          id="delete-tensor-button"
+          type="button"
+          class="icon-button danger"
+          aria-label="Delete tensor"
+          title="Delete tensor"
+        >
+          ${renderTrashIcon()}
+        </button>
       </div>
-      <div class="button-row">
-        <button id="delete-tensor-button" type="button" class="danger">Delete Tensor</button>
-        <button id="apply-tensor-button" type="button" class="apply-button is-hidden">Apply Changes</button>
+      <div class="properties-list">
+        ${indexEditors || "<p class='property-meta'>This tensor has no indices yet.</p>"}
       </div>
-      <div class="properties-list">${indexList || "<p class='property-meta'>This tensor has no indices yet.</p>"}</div>
     `;
 
     const tensorNameInput = document.getElementById("tensor-name-input");
     const tensorColorInput = document.getElementById("tensor-color-input");
-    installDirtyApply({
-      buttonElement: document.getElementById("apply-tensor-button"),
-      inputElements: [tensorNameInput, tensorColorInput],
-      isDirty: () =>
-        tensorNameInput.value !== tensor.name ||
-        tensorColorInput.value !== ctx.getMetadataColor(tensor.metadata, "#18212c"),
-      onApply: () => {
+
+    bindDebouncedAutosave(
+      tensorNameInput,
+      `tensor:${tensor.id}:name`,
+      () => {
+        const proposedName = tensorNameInput.value.trim();
+        if (!proposedName) {
+          ctx.setStatus("Tensor name cannot be empty.", "error");
+          return;
+        }
+        if (proposedName === tensor.name) {
+          return;
+        }
         ctx.applyDesignChange(
           () => {
-            tensor.name = tensorNameInput.value.trim() || tensor.name;
+            tensor.name = proposedName;
+          },
+          {
+            statusMessage: `Updated tensor ${proposedName}.`,
+          }
+        );
+      }
+    );
+    bindImmediateAutosave(
+      tensorColorInput,
+      `tensor:${tensor.id}:color`,
+      () => {
+        if (
+          tensorColorInput.value ===
+          ctx.getMetadataColor(tensor.metadata, "#18212c")
+        ) {
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
             tensor.metadata.color = tensorColorInput.value;
           },
           {
-            selectionIds: [tensor.id],
-            primaryId: tensor.id,
-            statusMessage: `Updated tensor ${tensorNameInput.value.trim() || tensor.name}.`,
+            statusMessage: `Updated tensor ${tensor.name}.`,
           }
         );
       },
-    });
+      "input"
+    );
 
     document.getElementById("add-index-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -277,140 +557,175 @@ export function registerProperties(ctx) {
         }
       );
     });
-    document.getElementById("center-tensor-button").addEventListener("click", () => {
-      ctx.applyDesignChange(
-        () => {
-          ctx.centerTensor(tensor.id);
-        },
-        {
-          selectionIds: [tensor.id],
-          primaryId: tensor.id,
-          statusMessage: `Centered tensor ${tensor.name} in the current view.`,
-        }
-      );
-    });
-    document.getElementById("delete-tensor-button").addEventListener("click", () => {
-      ctx.applyDesignChange(
-        () => {
-          ctx.removeTensor(tensor.id);
-        },
-        {
-          selectionIds: [],
-          statusMessage: `Deleted tensor ${tensor.name}.`,
-        }
-      );
-    });
-    document.querySelectorAll(".index-select-button").forEach((button) => {
-      button.addEventListener("click", () => {
-        ctx.setSelection([button.dataset.indexId], { primaryId: button.dataset.indexId });
-      });
-    });
-  }
-
-  function renderIndexProperties(indexId) {
-    const located = ctx.findIndexOwner(indexId);
-    if (!located) {
-      ctx.clearSelection();
-      return;
-    }
-
-    const { tensor, index, indexPosition } = located;
-    propertiesPanel.innerHTML = `
-      <div class="field-row">
-        <div class="field-group">
-          <label for="index-name-input">Index name</label>
-          <input id="index-name-input" value="${ctx.escapeHtml(index.name)}" />
-        </div>
-        <div class="field-group compact-number-field">
-          <label for="index-dimension-input">Dimension</label>
-          <input id="index-dimension-input" type="number" min="1" step="1" value="${index.dimension}" />
-        </div>
-      </div>
-      <div class="button-row">
-        <button id="move-index-up-button" type="button">Move Earlier</button>
-        <button id="move-index-down-button" type="button">Move Later</button>
-        <label class="control-inline-color" for="index-color-input">
-          <input id="index-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(ctx.getMetadataColor(index.metadata, ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(indexId)))))}" />
-        </label>
-        <button id="delete-index-button" type="button" class="danger">Delete Index</button>
-        <button id="apply-index-button" type="button" class="apply-button is-hidden">Apply Changes</button>
-      </div>
-    `;
-
-    const indexNameInput = document.getElementById("index-name-input");
-    const indexDimensionInput = document.getElementById("index-dimension-input");
-    const indexColorInput = document.getElementById("index-color-input");
-    installDirtyApply({
-      buttonElement: document.getElementById("apply-index-button"),
-      inputElements: [indexNameInput, indexDimensionInput, indexColorInput],
-      isDirty: () =>
-        indexNameInput.value !== index.name ||
-        indexDimensionInput.value !== String(index.dimension) ||
-        indexColorInput.value !== ctx.getMetadataColor(index.metadata, ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(indexId)))),
-      onApply: () => {
-        const proposedName = indexNameInput.value.trim();
-        const parsed = Number.parseInt(indexDimensionInput.value, 10);
-        if (!proposedName) {
-          ctx.setStatus("Index name cannot be empty.", "error");
-          return;
-        }
-        if (!Number.isFinite(parsed) || parsed <= 0) {
-          ctx.setStatus("Index dimension must be a positive integer.", "error");
-          return;
-        }
-        if (ctx.tensorIndexNameExists(tensor, proposedName, index.id)) {
-          ctx.setStatus(`Tensor ${tensor.name} already has an index named ${proposedName}.`, "error");
-          return;
-        }
+    document
+      .getElementById("center-tensor-button")
+      .addEventListener("click", () => {
         ctx.applyDesignChange(
           () => {
-            index.name = proposedName;
-            index.dimension = parsed;
-            index.metadata.color = indexColorInput.value;
+            ctx.centerTensor(tensor.id);
           },
           {
-            selectionIds: [index.id],
-            primaryId: index.id,
-            statusMessage: `Updated index ${proposedName}.`,
+            statusMessage: `Centered tensor ${tensor.name} in the current view.`,
           }
         );
-      },
+      });
+    document
+      .getElementById("delete-tensor-button")
+      .addEventListener("click", () => {
+        ctx.applyDesignChange(
+          () => {
+            ctx.removeTensor(tensor.id);
+          },
+          {
+            selectionIds: [],
+            statusMessage: `Deleted tensor ${tensor.name}.`,
+          }
+        );
+      });
+
+    propertiesPanel.querySelectorAll("[data-index-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        toggleTensorIndexDisclosure(tensor.id, button.dataset.indexToggle);
+      });
     });
 
-    document.getElementById("move-index-up-button").addEventListener("click", () => {
-      ctx.applyDesignChange(
+    tensor.indices.forEach((index, indexPosition) => {
+      const isConnected = Boolean(ctx.findEdgeByIndexId(index.id));
+      const indexNameInput = document.getElementById(
+        `index-name-input-${index.id}`
+      );
+      const indexDimensionInput = document.getElementById(
+        `index-dimension-input-${index.id}`
+      );
+      const indexColorInput = document.getElementById(
+        `index-color-input-${index.id}`
+      );
+      const moveIndexUpButton = document.getElementById(
+        `move-index-up-button-${index.id}`
+      );
+      const moveIndexDownButton = document.getElementById(
+        `move-index-down-button-${index.id}`
+      );
+      const deleteIndexButton = document.getElementById(
+        `delete-index-button-${index.id}`
+      );
+
+      bindDebouncedAutosave(
+        indexNameInput,
+        `index:${index.id}:name`,
         () => {
-          ctx.moveIndex(tensor.id, indexPosition, -1);
-        },
-        {
-          selectionIds: [index.id],
-          primaryId: index.id,
-          statusMessage: `Moved index ${index.name}.`,
+          const proposedName = indexNameInput.value.trim();
+          if (!proposedName) {
+            ctx.setStatus("Index name cannot be empty.", "error");
+            return;
+          }
+          if (ctx.tensorIndexNameExists(tensor, proposedName, index.id)) {
+            ctx.setStatus(
+              `Tensor ${tensor.name} already has an index named ${proposedName}.`,
+              "error"
+            );
+            return;
+          }
+          if (proposedName === index.name) {
+            return;
+          }
+          ctx.applyDesignChange(
+            () => {
+              index.name = proposedName;
+            },
+            {
+              statusMessage: `Updated index ${proposedName}.`,
+            }
+          );
         }
       );
-    });
-    document.getElementById("move-index-down-button").addEventListener("click", () => {
-      ctx.applyDesignChange(
+      bindDebouncedAutosave(
+        indexDimensionInput,
+        `index:${index.id}:dimension`,
         () => {
-          ctx.moveIndex(tensor.id, indexPosition, 1);
-        },
-        {
-          selectionIds: [index.id],
-          primaryId: index.id,
-          statusMessage: `Moved index ${index.name}.`,
+          const parsed = Number.parseInt(indexDimensionInput.value, 10);
+          if (!Number.isFinite(parsed) || parsed <= 0) {
+            ctx.setStatus("Index dimension must be a positive integer.", "error");
+            return;
+          }
+          if (parsed === index.dimension) {
+            return;
+          }
+          ctx.applyDesignChange(
+            () => {
+              index.dimension = parsed;
+            },
+            {
+              statusMessage: `Updated index ${index.name}.`,
+            }
+          );
         }
       );
-    });
-    document.getElementById("delete-index-button").addEventListener("click", () => {
-      ctx.applyDesignChange(
+      bindImmediateAutosave(
+        indexColorInput,
+        `index:${index.id}:color`,
         () => {
-          ctx.removeIndex(tensor.id, index.id);
+          const currentColor = ctx.getMetadataColor(
+            index.metadata,
+            ctx.getIndexColor(index, isConnected)
+          );
+          if (indexColorInput.value === currentColor) {
+            return;
+          }
+          ctx.applyDesignChange(
+            () => {
+              index.metadata.color = indexColorInput.value;
+            },
+            {
+              statusMessage: `Updated index ${index.name}.`,
+            }
+          );
         },
-        {
-          selectionIds: [],
-          statusMessage: `Deleted index ${index.name}.`,
-        }
+        "input"
       );
+
+      if (moveIndexUpButton) {
+        moveIndexUpButton.addEventListener("click", () => {
+          ctx.applyDesignChange(
+            () => {
+              ctx.moveIndex(tensor.id, indexPosition, -1);
+            },
+            {
+              selectionIds: [index.id],
+              primaryId: index.id,
+              statusMessage: `Moved index ${index.name}.`,
+            }
+          );
+        });
+      }
+      if (moveIndexDownButton) {
+        moveIndexDownButton.addEventListener("click", () => {
+          ctx.applyDesignChange(
+            () => {
+              ctx.moveIndex(tensor.id, indexPosition, 1);
+            },
+            {
+              selectionIds: [index.id],
+              primaryId: index.id,
+              statusMessage: `Moved index ${index.name}.`,
+            }
+          );
+        });
+      }
+      if (deleteIndexButton) {
+        deleteIndexButton.addEventListener("click", () => {
+          ctx.applyDesignChange(
+            () => {
+              ctx.removeIndex(tensor.id, index.id);
+            },
+            {
+              selectionIds: [tensor.id],
+              primaryId: tensor.id,
+              statusMessage: `Deleted index ${index.name}.`,
+            }
+          );
+        });
+      }
     });
   }
 
@@ -425,7 +740,11 @@ export function registerProperties(ctx) {
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="group-name-input">Group name</label>
-        <input id="group-name-input" value="${ctx.escapeHtml(group.name)}" />
+        <input
+          id="group-name-input"
+          data-focus-key="group:${group.id}:name"
+          value="${ctx.escapeHtml(group.name)}"
+        />
       </div>
       <div class="properties-chip">
         <span>Member tensors</span>
@@ -433,7 +752,14 @@ export function registerProperties(ctx) {
       </div>
       <div class="button-row">
         <label class="control-inline-color" for="group-color-input">
-          <input id="group-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(groupColor)}" />
+          <input
+            id="group-color-input"
+            data-focus-key="group:${group.id}:color"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(groupColor)}"
+          />
         </label>
         <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
         <button id="delete-group-button" type="button" class="danger">Delete Group</button>
@@ -441,38 +767,54 @@ export function registerProperties(ctx) {
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
     `;
 
-    document.getElementById("group-name-input").addEventListener("change", (event) => {
-      const proposedName = event.target.value.trim() || "Group";
+    const groupNameInput = document.getElementById("group-name-input");
+    const groupColorInput = document.getElementById("group-color-input");
+
+    bindDebouncedAutosave(groupNameInput, `group:${group.id}:name`, () => {
+      const proposedName = groupNameInput.value.trim();
+      if (!proposedName) {
+        ctx.setStatus("Group name cannot be empty.", "error");
+        return;
+      }
+      if (proposedName === group.name) {
+        return;
+      }
       ctx.applyDesignChange(
         () => {
           group.name = proposedName;
         },
         {
-          selectionIds: [group.id],
-          primaryId: group.id,
           statusMessage: `Updated group ${proposedName}.`,
         }
       );
     });
-    document.getElementById("group-color-input").addEventListener("change", (event) => {
-      ctx.applyDesignChange(
-        () => {
-          group.metadata.color = event.target.value;
-        },
-        {
-          selectionIds: [group.id],
-          primaryId: group.id,
-          statusMessage: `Updated group ${group.name}.`,
+    bindImmediateAutosave(
+      groupColorInput,
+      `group:${group.id}:color`,
+      () => {
+        if (groupColorInput.value === groupColor) {
+          return;
         }
-      );
-    });
+        ctx.applyDesignChange(
+          () => {
+            group.metadata.color = groupColorInput.value;
+          },
+          {
+            statusMessage: `Updated group ${group.name}.`,
+          }
+        );
+      },
+      "input"
+    );
     document.getElementById("toggle-group-button").addEventListener("click", () => {
       ctx.toggleGroupCollapse(group.id);
     });
     document.getElementById("delete-group-button").addEventListener("click", () => {
       ctx.applyDesignChange(
         () => {
-          state.spec.groups = state.spec.groups.filter((candidate) => candidate.id !== group.id);
+          state.spec.groups = state.spec.groups.filter(
+            (candidate) => candidate.id !== group.id
+          );
         },
         {
           selectionIds: [],
@@ -491,39 +833,69 @@ export function registerProperties(ctx) {
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="edge-name-input">Edge name</label>
-        <input id="edge-name-input" value="${ctx.escapeHtml(edge.name)}" />
+        <input
+          id="edge-name-input"
+          data-focus-key="edge:${edge.id}:name"
+          value="${ctx.escapeHtml(edge.name)}"
+        />
       </div>
       <div class="button-row">
         <label class="control-inline-color" for="edge-color-input">
-          <input id="edge-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(ctx.getMetadataColor(edge.metadata, "#8da1c3"))}" />
+          <input
+            id="edge-color-input"
+            data-focus-key="edge:${edge.id}:color"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(edge.metadata, "#8da1c3"))}"
+          />
         </label>
         <button id="delete-edge-button" type="button" class="danger">Delete Connection</button>
-        <button id="apply-edge-button" type="button" class="apply-button is-hidden">Apply Changes</button>
       </div>
     `;
 
     const edgeNameInput = document.getElementById("edge-name-input");
     const edgeColorInput = document.getElementById("edge-color-input");
-    installDirtyApply({
-      buttonElement: document.getElementById("apply-edge-button"),
-      inputElements: [edgeNameInput, edgeColorInput],
-      isDirty: () =>
-        edgeNameInput.value !== edge.name ||
-        edgeColorInput.value !== ctx.getMetadataColor(edge.metadata, "#8da1c3"),
-      onApply: () => {
+
+    bindDebouncedAutosave(edgeNameInput, `edge:${edge.id}:name`, () => {
+      const proposedName = edgeNameInput.value.trim();
+      if (!proposedName) {
+        ctx.setStatus("Connection name cannot be empty.", "error");
+        return;
+      }
+      if (proposedName === edge.name) {
+        return;
+      }
+      ctx.applyDesignChange(
+        () => {
+          edge.name = proposedName;
+        },
+        {
+          statusMessage: `Updated connection ${proposedName}.`,
+        }
+      );
+    });
+    bindImmediateAutosave(
+      edgeColorInput,
+      `edge:${edge.id}:color`,
+      () => {
+        if (
+          edgeColorInput.value ===
+          ctx.getMetadataColor(edge.metadata, "#8da1c3")
+        ) {
+          return;
+        }
         ctx.applyDesignChange(
           () => {
-            edge.name = edgeNameInput.value.trim() || edge.name;
             edge.metadata.color = edgeColorInput.value;
           },
           {
-            selectionIds: [edge.id],
-            primaryId: edge.id,
-            statusMessage: `Updated connection ${edgeNameInput.value.trim() || edge.name}.`,
+            statusMessage: `Updated connection ${edge.name}.`,
           }
         );
       },
-    });
+      "input"
+    );
 
     document.getElementById("delete-edge-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -548,45 +920,75 @@ export function registerProperties(ctx) {
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="note-text-input">Note text</label>
-        <textarea id="note-text-input" rows="6">${ctx.escapeHtml(note.text)}</textarea>
+        <textarea
+          id="note-text-input"
+          data-focus-key="note:${note.id}:text"
+          rows="6"
+        >${ctx.escapeHtml(note.text)}</textarea>
       </div>
       <div class="button-row">
         <label class="control-inline-color" for="note-color-input">
-          <input id="note-color-input" type="color" title="Choose tint" aria-label="Choose tint" value="${ctx.escapeHtml(ctx.getMetadataColor(note.metadata, "#5f95ff"))}" />
+          <input
+            id="note-color-input"
+            data-focus-key="note:${note.id}:color"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(note.metadata, "#5f95ff"))}"
+          />
         </label>
         <button id="delete-note-button" type="button" class="danger">Delete Note</button>
-        <button id="apply-note-button" type="button" class="apply-button is-hidden">Apply Changes</button>
       </div>
       <p class="property-meta">Move the note from its title bar directly on the canvas.</p>
     `;
 
     const noteTextInput = document.getElementById("note-text-input");
     const noteColorInput = document.getElementById("note-color-input");
-    installDirtyApply({
-      buttonElement: document.getElementById("apply-note-button"),
-      inputElements: [noteTextInput, noteColorInput],
-      isDirty: () =>
-        noteTextInput.value !== note.text ||
-        noteColorInput.value !== ctx.getMetadataColor(note.metadata, "#5f95ff"),
-      onApply: () => {
+
+    bindDebouncedAutosave(
+      noteTextInput,
+      `note:${note.id}:text`,
+      () => {
         const proposedText = noteTextInput.value.trim();
         if (!proposedText) {
           ctx.setStatus("Notes cannot be empty.", "error");
           return;
         }
+        if (proposedText === note.text) {
+          return;
+        }
         ctx.applyDesignChange(
           () => {
             note.text = proposedText;
-            note.metadata.color = noteColorInput.value;
           },
           {
-            selectionIds: [note.id],
-            primaryId: note.id,
             statusMessage: "Updated the note.",
           }
         );
       },
-    });
+      { commitOnEnter: false }
+    );
+    bindImmediateAutosave(
+      noteColorInput,
+      `note:${note.id}:color`,
+      () => {
+        if (
+          noteColorInput.value ===
+          ctx.getMetadataColor(note.metadata, "#5f95ff")
+        ) {
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            note.metadata.color = noteColorInput.value;
+          },
+          {
+            statusMessage: "Updated the note.",
+          }
+        );
+      },
+      "input"
+    );
 
     document.getElementById("delete-note-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -601,26 +1003,13 @@ export function registerProperties(ctx) {
     });
   }
 
-  function installDirtyApply({ buttonElement, inputElements, isDirty, onApply }) {
-    const refreshVisibility = () => {
-      buttonElement.classList.toggle("is-hidden", !isDirty());
-    };
-    inputElements.forEach((element) => {
-      element.addEventListener("input", refreshVisibility);
-    });
-    buttonElement.addEventListener("click", onApply);
-    refreshVisibility();
-  }
-
   Object.assign(ctx, {
     renderProperties,
     renderNetworkProperties,
     renderMultiSelectionProperties,
     renderTensorProperties,
-    renderIndexProperties,
     renderGroupProperties,
     renderEdgeProperties,
     renderNoteProperties,
-    installDirtyApply
   });
 }

@@ -4,6 +4,7 @@ from .api import (
     generate_code,
     launch_tensor_network_editor,
     load_spec,
+    load_spec_from_python_code,
     save_spec,
 )
 from .models import (
@@ -19,6 +20,7 @@ from .models import (
     GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorCollectionFormat,
     TensorSize,
     TensorSpec,
 )
@@ -44,11 +46,13 @@ __all__ = [
     "GroupSpec",
     "IndexSpec",
     "NetworkSpec",
+    "TensorCollectionFormat",
     "TensorSize",
     "TensorSpec",
     "__version__",
     "generate_code",
     "launch_tensor_network_editor",
     "load_spec",
+    "load_spec_from_python_code",
     "save_spec",
 ]

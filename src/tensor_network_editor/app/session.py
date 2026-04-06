@@ -16,7 +16,13 @@ from .._templates import (
     serialize_template_definitions,
 )
 from ..codegen.registry import generate_code as generate_code_internal
-from ..models import CodegenResult, EditorResult, EngineName, NetworkSpec
+from ..models import (
+    CodegenResult,
+    EditorResult,
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from ..serialization import SCHEMA_VERSION, serialize_spec
 from ..types import StrPath
 
@@ -37,12 +43,14 @@ class EditorSession:
         self,
         initial_spec: NetworkSpec | None = None,
         default_engine: EngineName = EngineName.TENSORNETWORK,
+        default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
         *,
         print_code: bool = False,
         code_path: StrPath | None = None,
     ) -> None:
         self.initial_spec = initial_spec or build_blank_network_spec()
         self.default_engine = default_engine
+        self.default_collection_format = default_collection_format
         self.print_code = print_code
         self.code_path = code_path
         self._finished_event = threading.Event()
@@ -53,6 +61,10 @@ class EditorSession:
         return {
             "default_engine": self.default_engine.value,
             "engines": [engine.value for engine in EngineName],
+            "default_collection_format": self.default_collection_format.value,
+            "collection_formats": [
+                collection_format.value for collection_format in TensorCollectionFormat
+            ],
             "schema_version": SCHEMA_VERSION,
             "templates": list_template_names(),
             "template_definitions": serialize_template_definitions(),
@@ -60,19 +72,35 @@ class EditorSession:
         }
 
     def generate(
-        self, serialized_spec: dict[str, object], engine: EngineName
+        self,
+        serialized_spec: dict[str, object],
+        engine: EngineName,
+        collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
         LOGGER.debug("Generating preview code for engine '%s'", engine.value)
         spec = deserialize_serialized_spec(serialized_spec)
-        result = generate_code_internal(spec, engine)
+        resolved_collection_format = collection_format or self.default_collection_format
+        result = generate_code_internal(
+            spec,
+            engine,
+            collection_format=resolved_collection_format,
+        )
         return result
 
     def complete(
-        self, serialized_spec: dict[str, object], engine: EngineName
+        self,
+        serialized_spec: dict[str, object],
+        engine: EngineName,
+        collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
         LOGGER.info("Completing editor session with engine '%s'", engine.value)
         spec = deserialize_serialized_spec(serialized_spec)
-        codegen_result = generate_code_internal(spec, engine)
+        resolved_collection_format = collection_format or self.default_collection_format
+        codegen_result = generate_code_internal(
+            spec,
+            engine,
+            collection_format=resolved_collection_format,
+        )
 
         if self.print_code:
             print(codegen_result.code)
@@ -131,6 +159,7 @@ def launch_editor_session(
     initial_spec: NetworkSpec | None = None,
     *,
     default_engine: EngineName = EngineName.TENSORNETWORK,
+    default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",
     port: int = 0,
@@ -144,6 +173,7 @@ def launch_editor_session(
     session = EditorSession(
         initial_spec=initial_spec,
         default_engine=default_engine,
+        default_collection_format=default_collection_format,
         print_code=print_code,
         code_path=code_path,
     )

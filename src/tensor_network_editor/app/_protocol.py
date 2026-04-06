@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Callable
 from http import HTTPStatus
@@ -11,14 +12,17 @@ from ..models import (
     EditorResult,
     EngineName,
     NetworkSpec,
+    TensorCollectionFormat,
     ValidationIssue,
 )
-from ..serialization import SCHEMA_VERSION, deserialize_spec
+from ..serialization import (
+    SCHEMA_VERSION,
+    deserialize_spec,
+    deserialize_spec_from_python_code,
+)
 
 JsonDict: TypeAlias = dict[str, Any]
-CodegenOperation: TypeAlias = Callable[
-    [JsonDict, EngineName], CodegenResult | EditorResult
-]
+CodegenOperation: TypeAlias = Callable[..., CodegenResult | EditorResult]
 JsonResponse: TypeAlias = tuple[int, JsonDict]
 
 
@@ -41,12 +45,41 @@ def require_serialized_spec(payload: JsonDict) -> JsonDict:
     return serialized_spec
 
 
+def deserialize_validation_payload(payload: JsonDict) -> NetworkSpec:
+    serialized_spec = payload.get("spec")
+    if isinstance(serialized_spec, dict):
+        return deserialize_spec_with_issues(serialized_spec)
+
+    python_code = payload.get("python_code")
+    if isinstance(python_code, str):
+        if not python_code.strip():
+            raise ValueError("Missing 'spec' or 'python_code' payload.")
+        return deserialize_spec_from_python_code(python_code, validate=False)
+
+    raise ValueError("Missing 'spec' or 'python_code' payload.")
+
+
 def resolve_engine(payload: JsonDict, default_engine: EngineName) -> EngineName:
     engine_value = payload.get("engine", default_engine.value)
     try:
         return EngineName(str(engine_value))
     except ValueError as exc:
         raise ValueError(f"Unsupported engine '{engine_value}'.") from exc
+
+
+def resolve_collection_format(
+    payload: JsonDict,
+    default_collection_format: TensorCollectionFormat,
+) -> TensorCollectionFormat:
+    collection_format_value = payload.get(
+        "collection_format", default_collection_format.value
+    )
+    try:
+        return TensorCollectionFormat(str(collection_format_value))
+    except ValueError as exc:
+        raise ValueError(
+            f"Unsupported collection format '{collection_format_value}'."
+        ) from exc
 
 
 def serialize_issues(issues: list[ValidationIssue]) -> list[JsonDict]:
@@ -103,6 +136,7 @@ def handle_codegen_operation(
     payload: JsonDict,
     *,
     default_engine: EngineName,
+    default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     operation: CodegenOperation,
     success_payload_builder: Callable[[CodegenResult | EditorResult], JsonDict],
 ) -> JsonResponse:
@@ -117,7 +151,17 @@ def handle_codegen_operation(
         return bad_request_response(str(exc))
 
     try:
-        result = operation(serialized_spec, engine)
+        collection_format = resolve_collection_format(
+            payload, default_collection_format
+        )
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+
+    try:
+        if operation_accepts_collection_format(operation):
+            result = operation(serialized_spec, engine, collection_format)
+        else:
+            result = operation(serialized_spec, engine)
     except SerializationError as exc:
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
@@ -128,3 +172,26 @@ def handle_codegen_operation(
 
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     return deserialize_spec(serialized_spec, validate=False)
+
+
+def operation_accepts_collection_format(operation: CodegenOperation) -> bool:
+    try:
+        signature = inspect.signature(operation)
+    except (TypeError, ValueError):
+        return True
+
+    positional_parameters = [
+        parameter
+        for parameter in signature.parameters.values()
+        if parameter.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+    ]
+    if any(
+        parameter.kind is inspect.Parameter.VAR_POSITIONAL
+        for parameter in signature.parameters.values()
+    ):
+        return True
+    return len(positional_parameters) >= 3

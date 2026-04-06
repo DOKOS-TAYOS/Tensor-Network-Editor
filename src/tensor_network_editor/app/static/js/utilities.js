@@ -16,10 +16,12 @@ export function registerUtilities(ctx) {
     DEFAULT_INDEX_SLOTS,
   } = ctx.constants;
   const {
+    workspace,
     statusMessage,
     propertiesPanel,
     generatedCode,
     engineSelect,
+    collectionFormatSelect,
     addNoteButton,
     connectButton,
     loadInput,
@@ -46,6 +48,7 @@ export function registerUtilities(ctx) {
     notesLayer,
     selectionBox,
     minimapCanvas,
+    sidebar,
     plannerPanel,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
@@ -55,6 +58,11 @@ export function registerUtilities(ctx) {
     tensorkrowch: "TensorKrowch",
     einsum_numpy: "NumPy einsum",
     einsum_torch: "PyTorch einsum",
+  };
+  const COLLECTION_FORMAT_LABELS = {
+    list: "List",
+    matrix: "Matrix",
+    dict: "Dictionary",
   };
 
   function formatEngineLabel(engineName) {
@@ -73,6 +81,31 @@ export function registerUtilities(ctx) {
         option.selected = true;
       }
       engineSelect.appendChild(option);
+    });
+  }
+
+  function formatCollectionFormatLabel(collectionFormat) {
+    return Object.prototype.hasOwnProperty.call(
+      COLLECTION_FORMAT_LABELS,
+      collectionFormat
+    )
+      ? COLLECTION_FORMAT_LABELS[collectionFormat]
+      : collectionFormat;
+  }
+
+  function populateCollectionFormatOptions(collectionFormats) {
+    if (!collectionFormatSelect) {
+      return;
+    }
+    collectionFormatSelect.innerHTML = "";
+    collectionFormats.forEach((collectionFormat) => {
+      const option = document.createElement("option");
+      option.value = collectionFormat;
+      option.textContent = formatCollectionFormatLabel(collectionFormat);
+      if (collectionFormat === state.selectedCollectionFormat) {
+        option.selected = true;
+      }
+      collectionFormatSelect.appendChild(option);
     });
   }
 
@@ -233,6 +266,53 @@ export function registerUtilities(ctx) {
       schema_version: state.schemaVersion,
       network: state.spec,
     };
+  }
+
+  function captureEditableFocus() {
+    const activeElement = document.activeElement;
+    if (!activeElement || !(activeElement instanceof HTMLElement)) {
+      return null;
+    }
+    const focusKey = activeElement.dataset ? activeElement.dataset.focusKey : "";
+    if (!focusKey) {
+      return null;
+    }
+    const focusState = {
+      key: focusKey,
+      selectionStart: null,
+      selectionEnd: null,
+    };
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
+    ) {
+      focusState.selectionStart = activeElement.selectionStart;
+      focusState.selectionEnd = activeElement.selectionEnd;
+    }
+    return focusState;
+  }
+
+  function restoreEditableFocus(focusState) {
+    if (!focusState) {
+      return;
+    }
+    const target = Array.from(
+      document.querySelectorAll("[data-focus-key]")
+    ).find((element) => element.dataset.focusKey === focusState.key);
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    target.focus({ preventScroll: true });
+    if (
+      typeof focusState.selectionStart === "number" &&
+      typeof focusState.selectionEnd === "number" &&
+      (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+    ) {
+      target.setSelectionRange(
+        focusState.selectionStart,
+        focusState.selectionEnd
+      );
+    }
   }
 
   function stripImportLines(code) {
@@ -1010,6 +1090,8 @@ export function registerUtilities(ctx) {
   Object.assign(ctx, {
     populateEngineOptions,
     formatEngineLabel,
+    populateCollectionFormatOptions,
+    formatCollectionFormatLabel,
     populateTemplateOptions,
     formatTemplateLabel,
     getTemplateDefinition,
@@ -1020,6 +1102,8 @@ export function registerUtilities(ctx) {
     handleTemplateSelectionChange,
     handleTemplateParameterInput,
     serializeCurrentSpec,
+    captureEditableFocus,
+    restoreEditableFocus,
     stripImportLines,
     moveIndex,
     removeTensor,

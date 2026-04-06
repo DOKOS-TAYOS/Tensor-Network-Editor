@@ -5,8 +5,15 @@ from collections.abc import Callable
 
 from ._io import write_utf8_text
 from .codegen.registry import generate_code as _generate_code
-from .models import CodegenResult, EditorResult, EngineName, NetworkSpec
+from .models import (
+    CodegenResult,
+    EditorResult,
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from .serialization import load_spec as _load_spec
+from .serialization import load_spec_from_python_code as _load_spec_from_python_code
 from .serialization import save_spec as _save_spec
 from .types import StrPath
 
@@ -17,11 +24,12 @@ def generate_code(
     spec: NetworkSpec,
     engine: EngineName,
     *,
+    collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     print_code: bool = False,
     path: StrPath | None = None,
 ) -> CodegenResult:
     LOGGER.info("Generating %s code for network '%s'", engine.value, spec.name)
-    result = _generate_code(spec, engine)
+    result = _generate_code(spec, engine, collection_format=collection_format)
     if print_code:
         print(result.code)
     if path is not None:
@@ -37,10 +45,15 @@ def load_spec(path: StrPath) -> NetworkSpec:
     return _load_spec(path)
 
 
+def load_spec_from_python_code(code: str) -> NetworkSpec:
+    return _load_spec_from_python_code(code)
+
+
 def launch_tensor_network_editor(
     initial_spec: NetworkSpec | None = None,
     *,
     default_engine: EngineName = EngineName.TENSORNETWORK,
+    default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",
     port: int = 0,
@@ -56,6 +69,7 @@ def launch_tensor_network_editor(
     return launch_editor_session(
         initial_spec=initial_spec,
         default_engine=default_engine,
+        default_collection_format=default_collection_format,
         open_browser=open_browser,
         host=host,
         port=port,

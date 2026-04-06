@@ -3,9 +3,15 @@ from __future__ import annotations
 from abc import ABC
 from string import ascii_letters
 
-from ..models import CodegenResult, EngineName, NetworkSpec
+from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
-from .common import PreparedTensor, prepare_network
+from .common import (
+    PreparedTensor,
+    container_name_for_format,
+    prepare_network,
+    render_tensor_collection_assignment,
+    tensor_collection_reference,
+)
 
 
 class BaseEinsumCodeGenerator(CodeGenerator, ABC):
@@ -14,7 +20,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     module_alias: str
     zero_initializer_suffix: str = ""
 
-    def generate(self, spec: NetworkSpec) -> CodegenResult:
+    def generate(
+        self,
+        spec: NetworkSpec,
+        collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    ) -> CodegenResult:
         prepared = prepare_network(spec)
         label_order: list[str] = []
         for tensor in prepared.tensors:
@@ -30,16 +40,27 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             label: ascii_letters[offset]
             for offset, label in enumerate(label_order[: len(ascii_letters)])
         }
+        collection_name = container_name_for_format(collection_format)
 
         lines = [
             self.import_line,
             "",
         ]
 
-        for tensor in prepared.tensors:
-            lines.append(
-                f"{tensor.data_variable_name} = {self.module_alias}.zeros({tensor.spec.shape!r}{self.zero_initializer_suffix})"
+        lines.extend(
+            render_tensor_collection_assignment(
+                collection_name=collection_name,
+                collection_format=collection_format,
+                prepared=prepared,
+                tensor_value_by_id={
+                    tensor.spec.id: (
+                        f"{self.module_alias}.zeros({tensor.spec.shape!r}"
+                        f"{self.zero_initializer_suffix})"
+                    )
+                    for tensor in prepared.tensors
+                },
             )
+        )
         lines.append("")
 
         if use_string_equation:
@@ -49,7 +70,8 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 symbol_map=symbol_map,
             )
             operand_names = ", ".join(
-                tensor.data_variable_name for tensor in prepared.tensors
+                tensor_collection_reference(tensor, collection_format, collection_name)
+                for tensor in prepared.tensors
             )
             lines.append(f"# Einsum equation: {equation}")
             lines.append(
@@ -61,7 +83,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             )
             sublist_args: list[str] = []
             for tensor in prepared.tensors:
-                sublist_args.append(tensor.data_variable_name)
+                sublist_args.append(
+                    tensor_collection_reference(
+                        tensor, collection_format, collection_name
+                    )
+                )
                 sublist_args.append(
                     str([label_to_int[index.label] for index in tensor.indices])
                 )

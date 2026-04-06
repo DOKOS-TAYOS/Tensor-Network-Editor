@@ -157,6 +157,10 @@ select {
   overflow: hidden;
 }
 
+.workspace.sidebar-is-collapsed {
+  grid-template-columns: minmax(0, 1fr) 72px;
+}
+
 .canvas-panel,
 .panel-card {
   background: rgba(23, 27, 38, 0.92);
@@ -470,6 +474,7 @@ select {
 .sidebar {
   display: flex;
   min-height: 0;
+  min-width: 0;
 }
 
 .panel-card {
@@ -484,13 +489,47 @@ select {
   padding: 0;
 }
 
-.sidebar-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.sidebar-panel.is-collapsed {
+  align-items: center;
+}
+
+.sidebar-topbar {
+  display: flex;
+  align-items: stretch;
   gap: 0.45rem;
   padding: 0.75rem;
   border-bottom: 1px solid rgba(44, 52, 72, 0.95);
   background: linear-gradient(180deg, rgba(21, 28, 39, 0.98), rgba(17, 23, 34, 0.92));
+}
+
+.sidebar-panel.is-collapsed .sidebar-topbar {
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.6rem 0;
+  display: grid;
+  place-items: center;
+  border-bottom: 0;
+}
+
+.sidebar-toggle-button {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.sidebar-panel.is-collapsed .sidebar-toggle-button {
+  margin: 0 auto;
+}
+
+.sidebar-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  flex: 1;
 }
 
 .sidebar-tab {
@@ -806,6 +845,113 @@ button[disabled] {
   gap: 0.5rem;
 }
 
+.index-editor-card {
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  border-radius: 18px;
+  background: rgba(14, 20, 30, 0.84);
+  overflow: hidden;
+}
+
+.index-editor-card.is-open {
+  border-color: rgba(97, 168, 255, 0.55);
+}
+
+.index-editor-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: rgba(20, 28, 42, 0.96);
+}
+
+.index-editor-toggle:hover {
+  transform: none;
+  border-color: transparent;
+}
+
+.index-editor-toggle.is-focused {
+  box-shadow: inset 0 0 0 1px rgba(139, 194, 255, 0.72);
+}
+
+.index-editor-title {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.index-editor-title span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.index-editor-chevron {
+  min-width: 1.5rem;
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.index-editor-body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+}
+
+.index-disclosure {
+  padding: 0.7rem;
+}
+
+.index-disclosure-title {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.index-disclosure-title span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.index-disclosure-toggle.is-focused {
+  box-shadow: inset 0 0 0 1px rgba(139, 194, 255, 0.72);
+}
+
+.index-disclosure-fields {
+  grid-template-columns: minmax(0, 190px) 84px;
+  justify-content: start;
+}
+
+.index-name-field input {
+  width: 190px;
+  max-width: 100%;
+}
+
+.index-dimension-field input {
+  width: 84px;
+}
+
+.index-action-button {
+  width: 2.15rem;
+  min-width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+}
+
+.index-action-button span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.index-action-button svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  fill: currentColor;
+}
+
 .properties-chip {
   display: flex;
   justify-content: space-between;
@@ -841,6 +987,19 @@ button[disabled] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.code-format-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+}
+
+.code-format-picker select {
+  min-width: 8rem;
 }
 
 .code-output-shell {
@@ -1014,6 +1173,10 @@ button[disabled] {
   .workspace {
     grid-template-columns: 1fr;
     overflow: visible;
+  }
+
+  .workspace.sidebar-is-collapsed {
+    grid-template-columns: 1fr;
   }
 
   .sidebar {

@@ -6,7 +6,7 @@ from typing import cast
 
 from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
 from .._templates import parse_template_parameters
-from ..errors import SerializationError
+from ..errors import SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec
@@ -14,6 +14,7 @@ from ._protocol import (
     JsonDict,
     bad_request_response,
     deserialize_spec_with_issues,
+    deserialize_validation_payload,
     handle_codegen_operation,
     issues_response,
     ok_response,
@@ -39,16 +40,15 @@ def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
 def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
     del session
     try:
-        serialized_spec = require_serialized_spec(payload)
-    except ValueError:
-        LOGGER.warning("Validation request missing 'spec' payload.")
-        return bad_request_response("Missing 'spec' payload.")
-
-    try:
-        spec = deserialize_spec_with_issues(serialized_spec)
+        spec = deserialize_validation_payload(payload)
     except SerializationError as exc:
         LOGGER.warning("Validation request contained malformed spec payload: %s", exc)
         return bad_request_response(str(exc))
+    except SpecValidationError as exc:
+        return issues_response(exc.issues)
+    except ValueError:
+        LOGGER.warning("Validation request missing 'spec' or 'python_code' payload.")
+        return bad_request_response("Missing 'spec' or 'python_code' payload.")
     issues = validate_spec(spec)
     if issues:
         status, response = issues_response(issues)
@@ -61,6 +61,7 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     status, response = handle_codegen_operation(
         payload,
         default_engine=session.default_engine,
+        default_collection_format=session.default_collection_format,
         operation=session.generate,
         success_payload_builder=_serialize_generate_result,
     )
@@ -73,6 +74,7 @@ def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     status, response = handle_codegen_operation(
         payload,
         default_engine=session.default_engine,
+        default_collection_format=session.default_collection_format,
         operation=session.complete,
         success_payload_builder=_serialize_complete_result,
     )

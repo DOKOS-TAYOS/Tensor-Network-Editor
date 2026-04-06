@@ -14,6 +14,8 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert "Tensor Network Editor" in html
     assert 'type="module"' in html
     assert "/js/main.js?v=" in html
+    assert 'id="collection-format-select"' in html
+    assert 'id="sidebar-toggle-button"' in html
     assert headers["Content-Type"].startswith("text/html")
 
 

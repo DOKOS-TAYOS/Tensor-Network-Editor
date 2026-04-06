@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+from tensor_network_editor.api import generate_code
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
-from tensor_network_editor.models import EngineName
+from tensor_network_editor.models import EngineName, TensorCollectionFormat
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import build_sample_spec
 
@@ -16,6 +17,10 @@ def test_bootstrap_returns_session_contract(
     payload = request_json(f"{editor_server.base_url}/api/bootstrap")
 
     assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
+    assert payload["default_collection_format"] == TensorCollectionFormat.LIST.value
+    assert payload["collection_formats"] == [
+        collection_format.value for collection_format in TensorCollectionFormat
+    ]
     assert payload["schema_version"] == 3
     assert payload["spec"]["network"]["id"] == "network_demo"
     assert set(payload["engines"]) == {engine.value for engine in EngineName}
@@ -39,6 +44,31 @@ def test_validate_route_reports_issues_and_echoes_serialized_spec(
     assert payload["spec"]["schema_version"] == 3
     assert payload["spec"]["network"]["id"] == invalid_spec.id
     assert "index-already-connected" in [issue["code"] for issue in payload["issues"]]
+
+
+def test_validate_route_accepts_generated_python_code_payload(
+    editor_server: EditorServer,
+) -> None:
+    generated = generate_code(
+        build_sample_spec(),
+        engine=EngineName.QUIMB,
+        collection_format=TensorCollectionFormat.DICT,
+    )
+
+    payload = request_json(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={"python_code": generated.code},
+    )
+
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert payload["spec"]["schema_version"] == 3
+    assert payload["spec"]["network"]["name"] == "Imported Python Network"
+    assert [tensor["name"] for tensor in payload["spec"]["network"]["tensors"]] == [
+        "A",
+        "B",
+    ]
 
 
 def test_validate_route_rejects_invalid_json_with_400(
@@ -96,6 +126,25 @@ def test_generate_route_uses_default_engine_when_missing(
     assert payload["ok"] is True
     assert payload["engine"] == EngineName.EINSUM_NUMPY.value
     assert payload["code"]
+
+
+def test_generate_route_accepts_collection_format(
+    editor_server: EditorServer,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/generate",
+        method="POST",
+        payload={
+            "engine": EngineName.EINSUM_NUMPY.value,
+            "collection_format": TensorCollectionFormat.DICT.value,
+            "spec": serialized_sample_spec,
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["engine"] == EngineName.EINSUM_NUMPY.value
+    assert "tensors_dict = {" in payload["code"]
 
 
 def test_generate_route_rejects_missing_spec_with_400(
@@ -168,6 +217,32 @@ def test_complete_route_stores_result_in_session(
     assert result is not None
     assert result.engine is EngineName.QUIMB
     assert result.codegen is not None
+
+
+def test_complete_route_accepts_collection_format(
+    editor_server: EditorServer,
+    editor_session: EditorSession,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/complete",
+        method="POST",
+        payload={
+            "engine": EngineName.EINSUM_NUMPY.value,
+            "collection_format": TensorCollectionFormat.MATRIX.value,
+            "spec": serialized_sample_spec,
+        },
+    )
+
+    assert payload == {
+        "ok": True,
+        "engine": EngineName.EINSUM_NUMPY.value,
+        "confirmed": True,
+    }
+    result = editor_session.wait_for_result(timeout=0.1)
+    assert result is not None
+    assert result.codegen is not None
+    assert "tensor_rows = []" in result.codegen.code
 
 
 def test_cancel_route_ends_session_without_result(

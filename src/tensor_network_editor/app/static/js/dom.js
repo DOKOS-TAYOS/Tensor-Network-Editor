@@ -1,9 +1,11 @@
 export function getDomRefs(document) {
   return {
+    workspace: document.getElementById("workspace"),
     statusMessage: document.getElementById("status-message"),
     propertiesPanel: document.getElementById("properties-panel"),
     generatedCode: document.getElementById("generated-code"),
     engineSelect: document.getElementById("engine-select"),
+    collectionFormatSelect: document.getElementById("collection-format-select"),
     addNoteButton: document.getElementById("add-note-button"),
     connectButton: document.getElementById("connect-button"),
     loadInput: document.getElementById("load-input"),
@@ -30,7 +32,9 @@ export function getDomRefs(document) {
     notesLayer: document.getElementById("notes-layer"),
     selectionBox: document.getElementById("canvas-selection-box"),
     minimapCanvas: document.getElementById("minimap"),
+    sidebar: document.getElementById("sidebar"),
     sidebarPanel: document.getElementById("sidebar-panel"),
+    sidebarToggleButton: document.getElementById("sidebar-toggle-button"),
     sidebarTabs: document.getElementById("sidebar-tabs"),
     sidebarTabSelection: document.getElementById("sidebar-tab-selection"),
     sidebarTabPlanner: document.getElementById("sidebar-tab-planner"),

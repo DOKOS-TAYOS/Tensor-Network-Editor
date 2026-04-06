@@ -13,7 +13,12 @@ from tensor_network_editor.app.session import (
     build_blank_network_spec,
     wait_for_editor_result,
 )
-from tensor_network_editor.models import EditorResult, EngineName, NetworkSpec
+from tensor_network_editor.models import (
+    EditorResult,
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from tests.app_support import request_json
 
 
@@ -41,6 +46,10 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     network_payload = cast(dict[str, object], spec_payload["network"])
 
     assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
+    assert payload["default_collection_format"] == TensorCollectionFormat.LIST.value
+    assert payload["collection_formats"] == [
+        collection_format.value for collection_format in TensorCollectionFormat
+    ]
     assert payload["schema_version"] == 3
     assert network_payload["id"] == "network_demo"
     assert mps_definition["graph_size_label"] == "Sites"
@@ -54,10 +63,12 @@ def test_generate_returns_preview_without_finishing_session(
     result = editor_session.generate(
         serialized_sample_spec,
         EngineName.EINSUM_NUMPY,
+        TensorCollectionFormat.DICT,
     )
 
     assert result.engine is EngineName.EINSUM_NUMPY
     assert result.code
+    assert "tensors_dict = {" in result.code
     assert editor_session.wait_for_result(timeout=0.01) is None
 
 
@@ -82,6 +93,25 @@ def test_complete_records_result_and_can_write_code(
     assert session.wait_for_result(timeout=0.01) == result
     assert output_path.read_text(encoding="utf-8") == result.codegen.code
     assert capsys.readouterr().out == f"{result.codegen.code}\n"
+
+
+def test_complete_supports_collection_format_in_generated_output(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    session = EditorSession(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+    )
+
+    result = session.complete(
+        serialized_sample_spec,
+        EngineName.EINSUM_NUMPY,
+        TensorCollectionFormat.MATRIX,
+    )
+
+    assert result.codegen is not None
+    assert "tensor_rows = []" in result.codegen.code
 
 
 def test_cancel_marks_session_finished_without_result(

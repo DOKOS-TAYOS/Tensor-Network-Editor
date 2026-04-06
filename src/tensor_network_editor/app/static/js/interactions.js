@@ -12,10 +12,12 @@ export function registerInteractions(ctx) {
     DEFAULT_INDEX_SLOTS,
   } = ctx.constants;
   const {
+    workspace,
     statusMessage,
     propertiesPanel,
     generatedCode,
     engineSelect,
+    collectionFormatSelect,
     connectButton,
     loadInput,
     undoButton,
@@ -346,6 +348,9 @@ export function registerInteractions(ctx) {
     state.primarySelectionId = null;
     state.selectedElement = null;
     state.pendingIndexId = null;
+    state.pendingPropertiesIndexFocusId = null;
+    state.tensorIndexDisclosureState = {};
+    state.autoExpandedTensorIndex = null;
     state.pendingPlannerOperandId = null;
     state.pendingPlannerSelectionId = null;
     state.connectMode = false;
@@ -469,6 +474,9 @@ export function registerInteractions(ctx) {
 
     if (!state.pendingIndexId) {
       state.pendingIndexId = indexId;
+      if (typeof ctx.toggleSidebarCollapsed === "function") {
+        ctx.toggleSidebarCollapsed(false);
+      }
       if (typeof ctx.setActiveSidebarTab === "function") {
         ctx.setActiveSidebarTab("selection");
       }
@@ -577,12 +585,16 @@ export function registerInteractions(ctx) {
   }
 
   async function generateCode() {
+    if (typeof ctx.toggleSidebarCollapsed === "function") {
+      ctx.toggleSidebarCollapsed(false);
+    }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("code");
     }
     try {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,
+        collection_format: state.selectedCollectionFormat,
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {
@@ -601,6 +613,7 @@ export function registerInteractions(ctx) {
     try {
       const payload = await apiPost("/api/complete", {
         engine: state.selectedEngine,
+        collection_format: state.selectedCollectionFormat,
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {
@@ -651,8 +664,11 @@ export function registerInteractions(ctx) {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const payload = JSON.parse(reader.result);
-        const response = await apiPost("/api/validate", { spec: payload });
+        const fileText = typeof reader.result === "string" ? reader.result : "";
+        const isPythonSource = file.name.toLowerCase().endsWith(".py");
+        const response = isPythonSource
+          ? await apiPost("/api/validate", { python_code: fileText })
+          : await apiPost("/api/validate", { spec: JSON.parse(fileText) });
         if (!response.ok) {
           ctx.setStatus(ctx.formatIssues(response.issues), "error");
           return;
@@ -686,12 +702,16 @@ export function registerInteractions(ctx) {
   }
 
   async function downloadPythonExport() {
+    if (typeof ctx.toggleSidebarCollapsed === "function") {
+      ctx.toggleSidebarCollapsed(false);
+    }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("code");
     }
     try {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,
+        collection_format: state.selectedCollectionFormat,
         spec: ctx.serializeCurrentSpec(),
       });
       if (!payload.ok) {

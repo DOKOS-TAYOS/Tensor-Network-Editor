@@ -82,6 +82,9 @@ export function registerHistorySelection(ctx) {
     state.plannerPreviewOrderByTensorId = {};
     state.activeNoteResize = null;
     state.activeSidebarTab = "selection";
+    state.pendingPropertiesIndexFocusId = null;
+    state.autoExpandedTensorIndex = null;
+    state.tensorIndexDisclosureState = {};
     clearGeneratedCodePreview();
     pruneSelectionToExisting();
     ctx.render();
@@ -127,6 +130,11 @@ export function registerHistorySelection(ctx) {
 
   function applyDesignChange(mutator, options = {}) {
     const beforeSnapshot = createHistorySnapshot();
+    const preservedFocus =
+      typeof ctx.captureEditableFocus === "function"
+        ? ctx.captureEditableFocus()
+        : null;
+    const previousSelectionIds = [...state.selectionIds];
     mutator();
     state.plannerPreviewMode = null;
     state.plannerPreviewOrderByTensorId = {};
@@ -147,10 +155,14 @@ export function registerHistorySelection(ctx) {
     }
 
     pruneSelectionToExisting();
+    updatePendingPropertiesIndexFocus(previousSelectionIds, state.selectionIds);
     syncSelectedElementState();
     ctx.render();
     if (typeof options.afterRender === "function") {
       options.afterRender();
+    }
+    if (typeof ctx.restoreEditableFocus === "function") {
+      ctx.restoreEditableFocus(preservedFocus);
     }
     if (!options.skipContractionAnalysisRefresh && typeof ctx.refreshContractionAnalysis === "function") {
       ctx.refreshContractionAnalysis();
@@ -214,6 +226,67 @@ export function registerHistorySelection(ctx) {
     state.selectedElement = null;
   }
 
+  function updatePendingPropertiesIndexFocus(previousSelectionIds, nextSelectionIds) {
+    releaseAutoExpandedTensorIndex(
+      nextSelectionIds.length === 1 ? nextSelectionIds[0] : null
+    );
+    const previousPropertiesTensorId = getPropertiesTensorId(previousSelectionIds);
+    const nextPropertiesTensorId = getPropertiesTensorId(nextSelectionIds);
+    if (previousPropertiesTensorId !== nextPropertiesTensorId) {
+      state.tensorIndexDisclosureState = {};
+    }
+
+    const previousSingleSelectionId =
+      previousSelectionIds.length === 1 ? previousSelectionIds[0] : null;
+    const nextSingleSelectionId =
+      nextSelectionIds.length === 1 ? nextSelectionIds[0] : null;
+
+    if (previousSingleSelectionId === nextSingleSelectionId) {
+      return;
+    }
+
+    const nextEntry = nextSingleSelectionId
+      ? getSelectionEntry(nextSingleSelectionId)
+      : null;
+    state.pendingPropertiesIndexFocusId =
+      nextEntry && nextEntry.kind === "index" ? nextEntry.id : null;
+  }
+
+  function releaseAutoExpandedTensorIndex(nextSingleSelectionId) {
+    const autoExpanded = state.autoExpandedTensorIndex;
+    if (!autoExpanded || nextSingleSelectionId === autoExpanded.indexId) {
+      return;
+    }
+    if (!autoExpanded.wasOpen) {
+      const disclosureState =
+        state.tensorIndexDisclosureState[autoExpanded.tensorId];
+      if (disclosureState) {
+        delete disclosureState[autoExpanded.indexId];
+        if (!Object.keys(disclosureState).length) {
+          delete state.tensorIndexDisclosureState[autoExpanded.tensorId];
+        }
+      }
+    }
+    state.autoExpandedTensorIndex = null;
+  }
+
+  function getPropertiesTensorId(selectionIds) {
+    if (!Array.isArray(selectionIds) || selectionIds.length !== 1) {
+      return null;
+    }
+    const entry = getSelectionEntry(selectionIds[0]);
+    if (!entry) {
+      return null;
+    }
+    if (entry.kind === "tensor") {
+      return entry.id;
+    }
+    if (entry.kind === "index") {
+      return entry.located.tensor.id;
+    }
+    return null;
+  }
+
   function syncCySelection() {
     if (!state.cy) {
       return;
@@ -249,6 +322,7 @@ export function registerHistorySelection(ctx) {
   }
 
   function setSelection(selectionIds, options = {}) {
+    const previousSelectionIds = [...state.selectionIds];
     const uniqueIds = [];
     selectionIds.forEach((selectionId) => {
       if (resolveSelectionKind(selectionId) && !uniqueIds.includes(selectionId)) {
@@ -258,6 +332,7 @@ export function registerHistorySelection(ctx) {
     state.selectionIds = uniqueIds;
     state.primarySelectionId =
       uniqueIds.includes(options.primaryId) ? options.primaryId : uniqueIds.length ? uniqueIds[uniqueIds.length - 1] : null;
+    updatePendingPropertiesIndexFocus(previousSelectionIds, uniqueIds);
     syncSelectedElementState();
     syncCySelection();
     ctx.renderProperties();
@@ -290,12 +365,14 @@ export function registerHistorySelection(ctx) {
   }
 
   function clearSelection(options = {}) {
+    const previousSelectionIds = [...state.selectionIds];
     state.selectionIds = [];
     state.primarySelectionId = null;
     state.selectedElement = null;
     if (!options.preservePendingIndex) {
       state.pendingIndexId = null;
     }
+    updatePendingPropertiesIndexFocus(previousSelectionIds, []);
     syncCySelection();
     ctx.renderProperties();
     ctx.renderMinimap();
@@ -322,6 +399,8 @@ export function registerHistorySelection(ctx) {
     getSelectionEntry,
     getSelectedEntries,
     getSelectedIdsByKind,
+    getPropertiesTensorId,
+    releaseAutoExpandedTensorIndex,
     syncSelectedElementState,
     syncCySelection,
     pruneSelectionToExisting,

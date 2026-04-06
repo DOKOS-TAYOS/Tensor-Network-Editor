@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 from ._io import read_utf8_text, write_utf8_text
+from ._python_roundtrip import parse_generated_python_network
 from .errors import SerializationError
 from .models import NetworkSpec
 from .types import JSONValue, StrPath
@@ -71,6 +73,11 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
 
 
 def load_spec(path: StrPath) -> NetworkSpec:
+    if Path(path).suffix.lower() == ".py":
+        body = read_utf8_text(path, description="generated Python code")
+        LOGGER.debug("Loaded generated Python code payload from %s", path)
+        return load_spec_from_python_code(body)
+
     body = read_utf8_text(path, description="network specification JSON")
     LOGGER.debug("Loaded serialized network payload from %s", path)
     try:
@@ -80,3 +87,14 @@ def load_spec(path: StrPath) -> NetworkSpec:
     if not isinstance(payload, dict):
         raise SerializationError("Serialized network must be a JSON object.")
     return deserialize_spec(payload)
+
+
+def deserialize_spec_from_python_code(
+    code: str, *, validate: bool = True
+) -> NetworkSpec:
+    spec = parse_generated_python_network(code)
+    return ensure_valid_spec(spec) if validate else spec
+
+
+def load_spec_from_python_code(code: str) -> NetworkSpec:
+    return deserialize_spec_from_python_code(code, validate=True)

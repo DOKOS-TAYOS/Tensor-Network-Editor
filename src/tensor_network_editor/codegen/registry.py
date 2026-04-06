@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..models import CodegenResult, EngineName, NetworkSpec
+from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .einsum_numpy import EinsumNumpyCodeGenerator
 from .einsum_torch import EinsumTorchCodeGenerator
@@ -21,5 +21,10 @@ def get_generator(engine: EngineName) -> CodeGenerator:
     return _GENERATORS[engine]
 
 
-def generate_code(spec: NetworkSpec, engine: EngineName) -> CodegenResult:
-    return get_generator(engine).generate(spec)
+def generate_code(
+    spec: NetworkSpec,
+    engine: EngineName,
+    *,
+    collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+) -> CodegenResult:
+    return get_generator(engine).generate(spec, collection_format=collection_format)

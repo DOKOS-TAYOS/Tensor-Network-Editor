@@ -307,6 +307,12 @@ class EngineName(StrEnum):
     EINSUM_TORCH = "einsum_torch"
 
 
+class TensorCollectionFormat(StrEnum):
+    LIST = "list"
+    MATRIX = "matrix"
+    DICT = "dict"
+
+
 @dataclass(slots=True)
 class CodegenResult:
     engine: EngineName
