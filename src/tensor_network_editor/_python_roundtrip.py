@@ -61,15 +61,17 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
     pending_edges: list[_PendingEdge] = []
     einsum_labels_by_reference: dict[str, list[str]] = {}
     remaining_einsum_labels_by_reference: dict[str, list[str]] = {}
+    saw_supported_tensor_collection = False
 
     for statement in module.body:
         _collect_data_shape(statement, data_shapes)
-        _collect_tensor(
+        saw_supported_tensor_collection = _collect_tensor(
             statement=statement,
             data_shapes=data_shapes,
             tensors_by_reference=tensors_by_reference,
             tensor_rows=tensor_rows,
             tensor_order=tensor_order,
+            saw_supported_tensor_collection=saw_supported_tensor_collection,
         )
         _collect_pending_edge(statement, pending_edges)
         _collect_einsum_labels(statement, einsum_labels_by_reference)
@@ -78,6 +80,8 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
         )
 
     if not tensor_order:
+        if saw_supported_tensor_collection:
+            return _build_empty_network_spec()
         raise SerializationError(
             "Could not reconstruct a tensor network from the generated Python code."
         )
@@ -129,7 +133,8 @@ def _collect_tensor(
     tensors_by_reference: dict[str, _ParsedTensor],
     tensor_rows: list[list[str]],
     tensor_order: list[str],
-) -> None:
+    saw_supported_tensor_collection: bool,
+) -> bool:
     """Collect tensor definitions from list, matrix, and dict layouts."""
     if (
         isinstance(statement, ast.Assign)
@@ -139,9 +144,9 @@ def _collect_tensor(
         target_name = statement.targets[0].id
         if target_name == "tensor_rows" and isinstance(statement.value, ast.List):
             tensor_rows.clear()
-            return
+            return True
         if target_name in {"tensors", "tensors_dict"}:
-            return
+            return True
 
     if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
         if (
@@ -151,7 +156,7 @@ def _collect_tensor(
         ):
             dict_reference = _parse_tensor_reference(statement.targets[0])
             if dict_reference is None or not dict_reference.startswith("dict:"):
-                return
+                return saw_supported_tensor_collection
             parsed_tensor = _parse_tensor_expression(
                 expression=statement.value,
                 data_shapes=data_shapes,
@@ -160,7 +165,7 @@ def _collect_tensor(
             )
             tensors_by_reference[dict_reference] = parsed_tensor
             tensor_order.append(dict_reference)
-        return
+        return saw_supported_tensor_collection
 
     call = statement.value
     if (
@@ -178,7 +183,7 @@ def _collect_tensor(
             fallback_name=_default_tensor_name_from_position(len(tensor_order)),
         )
         tensor_order.append(reference)
-        return
+        return True
 
     if (
         isinstance(call.func, ast.Attribute)
@@ -190,7 +195,7 @@ def _collect_tensor(
         and not call.args[0].elts
     ):
         tensor_rows.append([])
-        return
+        return True
 
     if (
         isinstance(call.func, ast.Attribute)
@@ -200,7 +205,7 @@ def _collect_tensor(
     ):
         row_index = _parse_matrix_row_index(call.func.value)
         if row_index is None:
-            return
+            return saw_supported_tensor_collection
         while len(tensor_rows) <= row_index:
             tensor_rows.append([])
         reference = f"matrix:{row_index}:{len(tensor_rows[row_index])}"
@@ -212,6 +217,9 @@ def _collect_tensor(
         )
         tensor_rows[row_index].append(reference)
         tensor_order.append(reference)
+        return True
+
+    return saw_supported_tensor_collection
 
 
 def _collect_pending_edge(
@@ -862,6 +870,19 @@ def _build_network_spec(
         name="Imported Python Network",
         tensors=tensor_specs,
         edges=edges,
+        groups=[],
+        notes=[],
+        contraction_plan=None,
+    )
+
+
+def _build_empty_network_spec() -> NetworkSpec:
+    """Return the canonical imported spec for a supported empty network."""
+    return NetworkSpec(
+        id="imported_python_network",
+        name="Imported Python Network",
+        tensors=[],
+        edges=[],
         groups=[],
         notes=[],
         contraction_plan=None,

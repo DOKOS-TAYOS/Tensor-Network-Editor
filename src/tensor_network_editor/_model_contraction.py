@@ -9,6 +9,7 @@ from ._model_geometry import CanvasPosition, TensorSize
 from ._payloads import (
     coerce_int,
     coerce_metadata,
+    coerce_string,
     new_identifier,
     require_dict,
     require_list,
@@ -38,9 +39,13 @@ class ContractionStepSpec:
     def from_dict(cls, payload: dict[str, object]) -> Self:
         """Build a contraction step from a serialized mapping."""
         return cls(
-            id=str(payload["id"]),
-            left_operand_id=str(payload["left_operand_id"]),
-            right_operand_id=str(payload["right_operand_id"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            left_operand_id=coerce_string(
+                payload["left_operand_id"], field_name="left_operand_id"
+            ),
+            right_operand_id=coerce_string(
+                payload["right_operand_id"], field_name="right_operand_id"
+            ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),
@@ -69,7 +74,7 @@ class ContractionOperandLayoutSpec:
         position_payload = require_dict(payload["position"], field_name="position")
         size_payload = require_dict(payload["size"], field_name="size")
         return cls(
-            operand_id=str(payload["operand_id"]),
+            operand_id=coerce_string(payload["operand_id"], field_name="operand_id"),
             position=CanvasPosition.from_dict(position_payload),
             size=TensorSize.from_dict(size_payload),
         )
@@ -145,8 +150,8 @@ class ContractionPlanSpec:
             field_name="view_snapshots",
         )
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
             steps=[
                 ContractionStepSpec.from_dict(require_dict(step, field_name="step"))
                 for step in steps_payload

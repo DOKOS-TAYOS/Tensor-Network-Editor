@@ -47,6 +47,12 @@ def test_coerce_int_rejects_booleans() -> None:
         coerce_int(False, field_name="value")
 
 
+@pytest.mark.parametrize("value", [2.5, "3.5"])
+def test_coerce_int_rejects_non_integral_numeric_values(value: object) -> None:
+    with pytest.raises(TypeError, match="value must be an integer"):
+        coerce_int(value, field_name="value")
+
+
 def test_require_dict_rejects_non_mapping_values() -> None:
     with pytest.raises(TypeError, match="payload must be an object"):
         require_dict([], field_name="payload")

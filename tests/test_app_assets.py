@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import urlopen
+
 import pytest
 
 from tensor_network_editor.app.server import EditorServer
@@ -65,6 +69,30 @@ def test_main_module_is_served_from_static_directory(
     assert body.strip()
     assert "startEditor" in body
     assert headers["Content-Type"].startswith("application/javascript")
+
+
+def test_static_server_rejects_parent_directory_traversal(
+    editor_server: EditorServer,
+) -> None:
+    app_directory = (
+        Path(__file__).resolve().parents[1] / "src" / "tensor_network_editor" / "app"
+    )
+    sibling_directory = app_directory / "static_backup"
+    secret_path = sibling_directory / "secret.txt"
+    sibling_directory.mkdir(exist_ok=True)
+    secret_path.write_text("secret", encoding="utf-8")
+
+    try:
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(
+                f"{editor_server.base_url}/../static_backup/secret.txt",
+                timeout=5,
+            )
+    finally:
+        secret_path.unlink(missing_ok=True)
+        sibling_directory.rmdir()
+
+    assert exc_info.value.code == 404
 
 
 def test_notes_planner_uses_singular_operation_labels(

@@ -229,6 +229,30 @@ def test_load_spec_from_python_code_round_trips_stepwise_manual_einsum(
     assert loaded_spec.contraction_plan is None
 
 
+@pytest.mark.parametrize("engine", list(EngineName))
+@pytest.mark.parametrize(
+    "collection_format",
+    list(TensorCollectionFormat),
+)
+def test_load_spec_from_python_code_round_trips_empty_network(
+    engine: EngineName,
+    collection_format: TensorCollectionFormat,
+) -> None:
+    result = generate_code(
+        NetworkSpec(id="network_empty", name="empty network"),
+        engine=engine,
+        collection_format=collection_format,
+    )
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.tensors == []
+    assert loaded_spec.edges == []
+    assert loaded_spec.groups == []
+    assert loaded_spec.notes == []
+    assert loaded_spec.contraction_plan is None
+
+
 def test_generate_code_reports_backend_specific_codegen_errors() -> None:
     with pytest.raises(CodeGenerationError, match="TensorKrowch"):
         generate_code(

@@ -77,6 +77,10 @@ def build_matrix_layout_spec() -> NetworkSpec:
     )
 
 
+def build_empty_spec() -> NetworkSpec:
+    return NetworkSpec(id="empty_network", name="empty network")
+
+
 @pytest.mark.parametrize(
     ("engine", "expected_snippets"),
     [
@@ -282,3 +286,16 @@ def test_einsum_codegen_uses_integer_sublist_form_for_many_labels(
     assert "integer-sublist form because the network uses many labels" in result.code
     assert f"result = {module_alias}.einsum(" in result.code
     assert "# Einsum equation:" not in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+)
+def test_einsum_codegen_executes_for_empty_network(engine: EngineName) -> None:
+    result = generate_code(build_empty_spec(), engine=engine)
+    namespace: dict[str, object] = {}
+
+    exec(result.code, namespace, namespace)
+
+    assert "result" in namespace

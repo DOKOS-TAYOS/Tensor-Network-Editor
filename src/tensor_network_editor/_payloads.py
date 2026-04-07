@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import cast
 from uuid import uuid4
 
@@ -24,7 +25,30 @@ def coerce_int(value: object, *, field_name: str) -> int:
     """Coerce ``value`` to ``int`` or raise a typed payload error."""
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{field_name} must be an integer.")
-    return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isfinite(value) and value.is_integer():
+            return int(value)
+        raise TypeError(f"{field_name} must be an integer.")
+
+    stripped_value = value.strip()
+    if not stripped_value:
+        raise TypeError(f"{field_name} must be an integer.")
+    try:
+        numeric_value = float(stripped_value)
+    except ValueError as exc:
+        raise TypeError(f"{field_name} must be an integer.") from exc
+    if not math.isfinite(numeric_value) or not numeric_value.is_integer():
+        raise TypeError(f"{field_name} must be an integer.")
+    return int(numeric_value)
+
+
+def coerce_string(value: object, *, field_name: str) -> str:
+    """Require that ``value`` is a string."""
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string.")
+    return value
 
 
 def require_dict(value: object, *, field_name: str) -> dict[str, object]:

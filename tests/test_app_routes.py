@@ -4,9 +4,10 @@ import json
 from unittest.mock import patch
 
 from tensor_network_editor.api import generate_code
+from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
-from tensor_network_editor.models import EngineName, TensorCollectionFormat
+from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
 from tensor_network_editor.serialization import (
     deserialize_spec as deserialize_spec_impl,
 )
@@ -33,6 +34,19 @@ def test_bootstrap_returns_session_contract(
     assert set(payload["engines"]) == {engine.value for engine in EngineName}
     assert payload["templates"] == list(payload["template_definitions"])
     assert payload["template_definitions"]["mps"]["graph_size_label"] == "Sites"
+
+
+def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:
+    status, payload = handle_bootstrap(
+        EditorSession(
+            initial_spec=NetworkSpec(id="network_invalid", name="   "),
+            default_engine=EngineName.EINSUM_NUMPY,
+        )
+    )
+
+    assert status == 200
+    assert payload["spec"]["network"]["id"] == "network_invalid"
+    assert payload["spec"]["network"]["name"] == "   "
 
 
 def test_validate_route_reports_issues_and_echoes_serialized_spec(

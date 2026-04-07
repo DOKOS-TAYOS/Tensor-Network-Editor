@@ -33,6 +33,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     import_line: str
     module_alias: str
     zero_initializer_suffix: str = ""
+    empty_network_expression: str
 
     def generate(
         self,
@@ -91,6 +92,12 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         collection_name: str,
     ) -> list[str]:
         """Render a single einsum call for the full network."""
+        if not prepared.tensors:
+            return [
+                "# Empty network contracts to the scalar identity.",
+                f"result = {self.empty_network_expression}",
+            ]
+
         label_order: list[str] = []
         for tensor in prepared.tensors:
             for index in tensor.indices:

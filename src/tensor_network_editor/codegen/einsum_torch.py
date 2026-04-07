@@ -13,3 +13,4 @@ class EinsumTorchCodeGenerator(BaseEinsumCodeGenerator):
     import_line = "import torch"
     module_alias = "torch"
     zero_initializer_suffix = ", dtype=torch.float32"
+    empty_network_expression = "torch.tensor(1.0, dtype=torch.float32)"

@@ -71,7 +71,16 @@ class EditorServer:
         class RequestHandler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
-                self._write_json(*self._dispatch_get(parsed.path))
+                try:
+                    status, response = self._dispatch_get(parsed.path)
+                except Exception:  # pragma: no cover - defensive server guard
+                    LOGGER.exception(
+                        "Unhandled exception while processing %s %s",
+                        self.command,
+                        parsed.path,
+                    )
+                    status, response = internal_server_error_response()
+                self._write_json(status, response)
 
             def do_POST(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
@@ -150,8 +159,11 @@ class EditorServer:
                 }
 
             def _resolve_static_path(self, request_path: str) -> Path | None:
+                static_root = static_dir.resolve()
                 candidate = (static_dir / request_path.lstrip("/")).resolve()
-                if not str(candidate).startswith(str(static_dir.resolve())):
+                try:
+                    candidate.relative_to(static_root)
+                except ValueError:
                     return None
                 if not candidate.is_file():
                     return None

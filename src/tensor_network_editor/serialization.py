@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from ._io import read_utf8_text, write_utf8_text
+from ._payloads import coerce_int
 from ._python_roundtrip import parse_generated_python_network
 from .errors import SerializationError
 from .models import NetworkSpec
@@ -42,8 +43,11 @@ def deserialize_spec(
             "Serialized payload must contain a valid schema version."
         )
     try:
-        schema_version = int(schema_version_raw)
-    except (TypeError, ValueError) as exc:
+        schema_version = coerce_int(
+            schema_version_raw,
+            field_name="schema_version",
+        )
+    except TypeError as exc:
         raise SerializationError(
             "Serialized payload must contain a valid schema version."
         ) from exc

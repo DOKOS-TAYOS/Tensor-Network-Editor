@@ -90,6 +90,16 @@ def test_deserialize_spec_rejects_boolean_schema_version() -> None:
         deserialize_spec({"schema_version": True, "network": {}})
 
 
+def test_deserialize_spec_rejects_non_integral_schema_version(
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    payload = deepcopy(serialized_sample_spec)
+    payload["schema_version"] = 3.9
+
+    with pytest.raises(SerializationError, match="schema version"):
+        deserialize_spec(payload)
+
+
 def test_deserialize_spec_rejects_unsupported_schema_version(
     serialized_sample_spec: dict[str, object],
 ) -> None:
@@ -113,6 +123,42 @@ def test_deserialize_spec_rejects_malformed_network_payload(
     tensors_payload = cast(list[object], network_payload["tensors"])
     first_tensor = cast(dict[str, object], tensors_payload[0])
     del first_tensor["id"]
+
+    with pytest.raises(SerializationError, match="malformed network object"):
+        deserialize_spec(payload)
+
+
+@pytest.mark.parametrize(
+    ("field_path", "value"),
+    [
+        ("name", False),
+        ("tensors.0.name", 123),
+        ("tensors.0.indices.0.name", None),
+        ("notes.0.text", 7),
+        ("contraction_plan.name", []),
+        ("contraction_plan.steps.0.left_operand_id", 9),
+    ],
+)
+def test_deserialize_spec_rejects_non_string_text_fields(
+    serialized_sample_spec: dict[str, object],
+    field_path: str,
+    value: object,
+) -> None:
+    payload = deepcopy(serialized_sample_spec)
+    current = cast(dict[str, object], payload["network"])
+    path_parts = field_path.split(".")
+    for path_part in path_parts[:-1]:
+        if path_part.isdigit():
+            current = cast(
+                dict[str, object], cast(list[object], current)[int(path_part)]
+            )
+            continue
+        current = cast(dict[str, object], current[path_part])
+    last_part = path_parts[-1]
+    if last_part.isdigit():
+        cast(list[object], current)[int(last_part)] = value
+    else:
+        current[last_part] = value
 
     with pytest.raises(SerializationError, match="malformed network object"):
         deserialize_spec(payload)

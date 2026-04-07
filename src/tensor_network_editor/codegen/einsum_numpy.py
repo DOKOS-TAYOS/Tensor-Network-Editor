@@ -13,3 +13,4 @@ class EinsumNumpyCodeGenerator(BaseEinsumCodeGenerator):
     import_line = "import numpy as np"
     module_alias = "np"
     zero_initializer_suffix = ", dtype=float"
+    empty_network_expression = "np.array(1.0, dtype=float)"

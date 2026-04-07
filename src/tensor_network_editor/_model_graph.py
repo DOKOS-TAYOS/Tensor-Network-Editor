@@ -10,6 +10,7 @@ from ._model_geometry import CanvasPosition, TensorSize
 from ._payloads import (
     coerce_int,
     coerce_metadata,
+    coerce_string,
     new_identifier,
     require_dict,
     require_list,
@@ -45,8 +46,8 @@ class IndexSpec:
             field_name="offset",
         )
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
             dimension=coerce_int(payload["dimension"], field_name="dimension"),
             offset=CanvasPosition.from_dict(offset_payload),
             metadata=coerce_metadata(
@@ -92,8 +93,8 @@ class TensorSpec:
         )
         indices_payload = require_list(payload.get("indices", []), field_name="indices")
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
             position=CanvasPosition.from_dict(position_payload),
             size=TensorSize.from_dict(size_payload),
             indices=[
@@ -121,7 +122,8 @@ class EdgeEndpointRef:
     def from_dict(cls, payload: dict[str, object]) -> Self:
         """Build an endpoint reference from a serialized mapping."""
         return cls(
-            tensor_id=str(payload["tensor_id"]), index_id=str(payload["index_id"])
+            tensor_id=coerce_string(payload["tensor_id"], field_name="tensor_id"),
+            index_id=coerce_string(payload["index_id"], field_name="index_id"),
         )
 
 
@@ -149,8 +151,8 @@ class EdgeSpec:
     def from_dict(cls, payload: dict[str, object]) -> Self:
         """Build an edge from a serialized mapping."""
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
             left=EdgeEndpointRef.from_dict(
                 require_dict(payload["left"], field_name="left")
             ),
@@ -188,9 +190,12 @@ class GroupSpec:
             payload.get("tensor_ids", []), field_name="tensor_ids"
         )
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
-            tensor_ids=[str(tensor_id) for tensor_id in tensor_ids_payload],
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
+            tensor_ids=[
+                coerce_string(tensor_id, field_name="tensor_id")
+                for tensor_id in tensor_ids_payload
+            ],
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),
@@ -220,8 +225,8 @@ class CanvasNoteSpec:
         """Build a note from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         return cls(
-            id=str(payload["id"]),
-            text=str(payload["text"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            text=coerce_string(payload["text"], field_name="text"),
             position=CanvasPosition.from_dict(position_payload),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
@@ -292,8 +297,8 @@ class NetworkSpec:
         notes_payload = require_list(payload.get("notes", []), field_name="notes")
         contraction_plan_payload = payload.get("contraction_plan")
         return cls(
-            id=str(payload["id"]),
-            name=str(payload["name"]),
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
             tensors=[
                 TensorSpec.from_dict(require_dict(tensor, field_name="tensor"))
                 for tensor in tensors_payload

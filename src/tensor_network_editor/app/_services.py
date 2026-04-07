@@ -20,7 +20,7 @@ from ..models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
-from ..serialization import SCHEMA_VERSION, deserialize_spec, serialize_spec
+from ..serialization import SCHEMA_VERSION, deserialize_spec
 
 if TYPE_CHECKING:
     from .session import EditorSession
@@ -38,7 +38,10 @@ def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
         "schema_version": SCHEMA_VERSION,
         "templates": list_template_names(),
         "template_definitions": serialize_template_definitions(),
-        "spec": serialize_spec(session.initial_spec),
+        "spec": {
+            "schema_version": SCHEMA_VERSION,
+            "network": session.initial_spec.to_dict(),
+        },
     }
 
 
