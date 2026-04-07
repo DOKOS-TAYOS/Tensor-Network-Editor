@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, TypeAlias, cast
+from typing import Any, TypeAlias
 
 from ..models import (
     CodegenResult,
@@ -70,7 +70,7 @@ def parse_codegen_request(
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
 ) -> CodegenRequest:
     return CodegenRequest(
-        serialized_spec=cast(JsonDict, require_serialized_spec(payload)),
+        serialized_spec=require_serialized_spec(payload),
         engine=resolve_engine(payload, default_engine),
         collection_format=resolve_collection_format(payload, default_collection_format),
     )

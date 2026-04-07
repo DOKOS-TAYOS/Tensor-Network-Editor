@@ -69,12 +69,25 @@ def test_main_module_is_served_from_static_directory(
 def test_notes_planner_uses_singular_operation_labels(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+    body = request_text(f"{editor_server.base_url}/js/planner.js")
 
     assert '"FLOPs"' not in body
     assert '"MACs"' not in body
     assert '"FLOP"' in body
     assert '"MAC"' in body
+
+
+def test_notes_and_planner_feature_modules_are_served(
+    editor_server: EditorServer,
+) -> None:
+    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    registrar_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+
+    assert "registerNotesFeature" in notes_body
+    assert "registerPlannerFeature" in planner_body
+    assert 'from "./notes.js"' in registrar_body
+    assert 'from "./planner.js"' in registrar_body
 
 
 def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
@@ -160,7 +173,7 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
 def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:
-    planner_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "Total elements" in planner_body

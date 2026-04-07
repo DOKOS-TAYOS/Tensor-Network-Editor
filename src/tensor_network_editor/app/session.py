@@ -6,16 +6,9 @@ import threading
 import webbrowser
 from collections.abc import Callable
 from types import FrameType
-from typing import Any
+from typing import Any, Protocol
 
-from .._io import write_utf8_text
-from .._templates import (
-    TemplateParameters,
-    build_template_spec,
-    list_template_names,
-    serialize_template_definitions,
-)
-from ..codegen.registry import generate_code as generate_code_internal
+from .._templates import TemplateParameters
 from ..models import (
     CodegenResult,
     EditorResult,
@@ -23,11 +16,20 @@ from ..models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
-from ..serialization import SCHEMA_VERSION, deserialize_spec, serialize_spec
 from ..types import StrPath
+from ._services import (
+    build_bootstrap_payload,
+    build_template_from_payload,
+    complete_session_request,
+    generate_session_request,
+)
 
 LOGGER = logging.getLogger(__name__)
 SignalHandler = Callable[[int, FrameType | None], Any]
+
+
+class SupportsWaitForResult(Protocol):
+    def wait_for_result(self, timeout: float | None = None) -> EditorResult | None: ...
 
 
 def build_blank_network_spec() -> NetworkSpec:
@@ -54,18 +56,7 @@ class EditorSession:
         self._lock = threading.Lock()
 
     def bootstrap_payload(self) -> dict[str, object]:
-        return {
-            "default_engine": self.default_engine.value,
-            "engines": [engine.value for engine in EngineName],
-            "default_collection_format": self.default_collection_format.value,
-            "collection_formats": [
-                collection_format.value for collection_format in TensorCollectionFormat
-            ],
-            "schema_version": SCHEMA_VERSION,
-            "templates": list_template_names(),
-            "template_definitions": serialize_template_definitions(),
-            "spec": serialize_spec(self.initial_spec),
-        }
+        return build_bootstrap_payload(self)
 
     def generate(
         self,
@@ -74,7 +65,8 @@ class EditorSession:
         collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
         LOGGER.debug("Generating preview code for engine '%s'", engine.value)
-        return self._generate_codegen_result(
+        return generate_session_request(
+            self,
             serialized_spec,
             engine,
             collection_format,
@@ -87,55 +79,23 @@ class EditorSession:
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
         LOGGER.info("Completing editor session with engine '%s'", engine.value)
-        spec = deserialize_spec(serialized_spec)
-        codegen_result = generate_code_internal(
-            spec,
+        result = complete_session_request(
+            self,
+            serialized_spec,
             engine,
-            collection_format=self._resolve_collection_format(collection_format),
-        )
-
-        if self.print_code:
-            print(codegen_result.code)
-        if self.code_path is not None:
-            write_utf8_text(
-                self.code_path,
-                codegen_result.code,
-                description="generated Python code",
-            )
-
-        result = EditorResult(
-            spec=spec, engine=engine, codegen=codegen_result, confirmed=True
+            collection_format,
         )
         with self._lock:
             self._result = result
             self._finished_event.set()
         return result
 
-    def _generate_codegen_result(
-        self,
-        serialized_spec: dict[str, object],
-        engine: EngineName,
-        collection_format: TensorCollectionFormat | None,
-    ) -> CodegenResult:
-        spec = deserialize_spec(serialized_spec)
-        return generate_code_internal(
-            spec,
-            engine,
-            collection_format=self._resolve_collection_format(collection_format),
-        )
-
-    def _resolve_collection_format(
-        self,
-        collection_format: TensorCollectionFormat | None,
-    ) -> TensorCollectionFormat:
-        return collection_format or self.default_collection_format
-
     def build_template(
         self,
         template_name: str,
         parameters: TemplateParameters | None = None,
     ) -> NetworkSpec:
-        return build_template_spec(template_name, parameters)
+        return build_template_from_payload(self, template_name, parameters)
 
     def cancel(self) -> None:
         LOGGER.info("Cancelling editor session")
@@ -152,7 +112,7 @@ class EditorSession:
 
 
 def wait_for_editor_result(
-    session: EditorSession,
+    session: SupportsWaitForResult,
     *,
     poll_interval: float = 0.2,
 ) -> EditorResult | None:

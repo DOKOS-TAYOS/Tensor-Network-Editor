@@ -9,6 +9,7 @@ from .._contraction_plan import (
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    PreparedNetwork,
     container_name_for_format,
     flattened_tensor_collection_expression,
     joined_tensor_display_name,
@@ -104,7 +105,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
     def _render_manual_plan(
         self,
         *,
-        prepared,
+        prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:

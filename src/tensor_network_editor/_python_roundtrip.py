@@ -4,6 +4,13 @@ import ast
 import re
 from dataclasses import dataclass
 
+from ._python_roundtrip_helpers import (
+    default_tensor_name_from_position,
+    recover_index_name,
+    recover_tensor_name_from_data_variable,
+    sanitize_identifier,
+    synthetic_data_variable_name,
+)
 from .errors import SerializationError
 from .models import (
     CanvasPosition,
@@ -14,8 +21,6 @@ from .models import (
     TensorSize,
     TensorSpec,
 )
-
-_NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
 
 @dataclass(slots=True)
@@ -629,34 +634,17 @@ def _extract_name_from_expression(expression: ast.expr | None) -> str | None:
 
 
 def _synthetic_data_variable_name(reference: str, fallback_name: str | None) -> str:
-    candidate = _sanitize_identifier(fallback_name or reference)
-    if not candidate:
-        candidate = "tensor"
-    return f"{candidate}_data"
+    return synthetic_data_variable_name(reference, fallback_name)
 
 
 def _default_tensor_name_from_position(position: int) -> str:
-    if 0 <= position < 26:
-        return chr(ord("A") + position)
-    return f"T{position + 1}"
+    return default_tensor_name_from_position(position)
 
 
 def _recover_tensor_name_from_data_variable(
     data_variable_name: str, fallback_name: str | None = None
 ) -> str:
-    base_name = data_variable_name.removesuffix("_data").strip()
-    if not base_name and fallback_name:
-        base_name = fallback_name.strip()
-    if not base_name:
-        return "Tensor"
-
-    parts = [part for part in base_name.split("_") if part]
-    if not parts:
-        return "Tensor"
-    return " ".join(
-        part.upper() if len(part) == 1 and part.isalpha() else part.capitalize()
-        for part in parts
-    )
+    return recover_tensor_name_from_data_variable(data_variable_name, fallback_name)
 
 
 def _recover_index_name(
@@ -666,35 +654,16 @@ def _recover_index_name(
     data_variable_name: str,
     connected_edge_label: str | None,
 ) -> str:
-    if connected_edge_label and label == connected_edge_label:
-        if "_" in label:
-            suffix = label.rsplit("_", maxsplit=1)[-1].strip()
-            if suffix:
-                return suffix
-        return label
-
-    tensor_identifiers = {
-        _sanitize_identifier(tensor_name),
-        _sanitize_identifier(
-            _recover_tensor_name_from_data_variable(data_variable_name)
-        ),
-        _sanitize_identifier(data_variable_name.removesuffix("_data")),
-    }
-    for tensor_identifier in tensor_identifiers:
-        if tensor_identifier and label.startswith(f"{tensor_identifier}_"):
-            candidate = label[len(tensor_identifier) + 1 :].strip("_")
-            if candidate:
-                return candidate
-
-    if "_" in label:
-        suffix = label.rsplit("_", maxsplit=1)[-1].strip()
-        if suffix:
-            return suffix
-    return label
+    return recover_index_name(
+        label=label,
+        tensor_name=tensor_name,
+        data_variable_name=data_variable_name,
+        connected_edge_label=connected_edge_label,
+    )
 
 
 def _sanitize_identifier(value: str) -> str:
-    return _NON_IDENTIFIER_PATTERN.sub("_", value.strip()).strip("_").lower()
+    return sanitize_identifier(value)
 
 
 def _build_edge_specs(

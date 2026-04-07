@@ -12,6 +12,7 @@ from .._contraction_plan import (
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    PreparedNetwork,
     PreparedTensor,
     container_name_for_format,
     joined_tensor_display_name,
@@ -80,7 +81,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     def _render_full_network_einsum(
         self,
         *,
-        prepared,
+        prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
@@ -130,7 +131,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     def _render_manual_plan(
         self,
         *,
-        prepared,
+        prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:

@@ -4,8 +4,7 @@ import logging
 from http import HTTPStatus
 from typing import cast
 
-from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
-from .._templates import parse_template_parameters
+from .._contraction_analysis import ContractionAnalysisResult
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
@@ -24,6 +23,11 @@ from ._protocol import (
     serialize_spec_payload,
 )
 from ._protocol import read_json as _read_json
+from ._services import (
+    analyze_serialized_contraction,
+    build_bootstrap_payload,
+    build_template_from_payload,
+)
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
@@ -34,7 +38,7 @@ def read_json(body: bytes) -> JsonDict:
 
 
 def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
-    return HTTPStatus.OK, session.bootstrap_payload()
+    return HTTPStatus.OK, build_bootstrap_payload(session)
 
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
@@ -89,11 +93,11 @@ def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     if not isinstance(template_name, str) or not template_name.strip():
         return bad_request_response("Missing 'template' payload.")
     try:
-        parameters = parse_template_parameters(
+        spec = build_template_from_payload(
+            session,
             template_name,
             payload.get("parameters"),
         )
-        spec = session.build_template(template_name, parameters)
     except ValueError as exc:
         return bad_request_response(str(exc))
     return ok_response({"spec": serialize_spec(spec)})
@@ -119,7 +123,7 @@ def handle_analyze_contraction(
     if issues:
         return issues_response(issues)
 
-    result = analyze_contraction(spec)
+    result = analyze_serialized_contraction(serialized_spec)
     return ok_response(_serialize_contraction_analysis_result(result))
 
 
@@ -152,19 +156,19 @@ def _handle_session_codegen_request(
 
     try:
         if operation == "generate":
-            result = session.generate(
+            generate_result = session.generate(
                 request.serialized_spec,
                 request.engine,
                 request.collection_format,
             )
-            return ok_response(_serialize_generate_result(result))
+            return ok_response(_serialize_generate_result(generate_result))
         if operation == "complete":
-            result = session.complete(
+            complete_result = session.complete(
                 request.serialized_spec,
                 request.engine,
                 request.collection_format,
             )
-            return ok_response(_serialize_complete_result(result))
+            return ok_response(_serialize_complete_result(complete_result))
         raise ValueError(f"Unsupported code generation operation '{operation}'.")
     except SerializationError as exc:
         return bad_request_response(str(exc))

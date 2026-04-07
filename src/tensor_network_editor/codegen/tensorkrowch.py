@@ -10,6 +10,7 @@ from ..errors import CodeGenerationError
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    PreparedNetwork,
     container_name_for_format,
     joined_tensor_display_name,
     prepare_network,
@@ -102,7 +103,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
     def _render_manual_plan(
         self,
         *,
-        prepared,
+        prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
