@@ -266,6 +266,13 @@ export function registerUtilities(ctx) {
   }
 
   function serializeCurrentSpec() {
+    if (
+      state.spec &&
+      state.spec.contraction_plan &&
+      typeof ctx.ensureContractionViewSnapshots === "function"
+    ) {
+      ctx.ensureContractionViewSnapshots();
+    }
     return {
       schema_version: state.schemaVersion,
       network: state.spec,
@@ -364,6 +371,16 @@ export function registerUtilities(ctx) {
     state.tensorOrder = state.tensorOrder.filter((candidateId) => candidateId !== tensorId);
   }
 
+  function findBaseIndexOwner(indexId) {
+    for (const tensor of state.spec.tensors) {
+      const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
+      if (indexPosition >= 0) {
+        return { tensor, index: tensor.indices[indexPosition], indexPosition };
+      }
+    }
+    return null;
+  }
+
   function removeIndex(tensorId, indexId) {
     const tensor = findTensorById(tensorId);
     if (!tensor) {
@@ -375,8 +392,31 @@ export function registerUtilities(ctx) {
     tensor.indices = tensor.indices.filter((index) => index.id !== indexId);
   }
 
+  function resolveBaseEdgeId(edgeId) {
+    if (!edgeId) {
+      return null;
+    }
+    const baseEdge = state.spec.edges.find((edge) => edge.id === edgeId);
+    if (baseEdge) {
+      return baseEdge.id;
+    }
+    const visibleEdge =
+      typeof ctx.findVisibleEdgeById === "function"
+        ? ctx.findVisibleEdgeById(edgeId)
+        : null;
+    if (
+      visibleEdge &&
+      typeof visibleEdge.baseEdgeId === "string" &&
+      visibleEdge.baseEdgeId
+    ) {
+      return visibleEdge.baseEdgeId;
+    }
+    return null;
+  }
+
   function removeEdge(edgeId) {
-    state.spec.edges = state.spec.edges.filter((edge) => edge.id !== edgeId);
+    const resolvedEdgeId = resolveBaseEdgeId(edgeId) || edgeId;
+    state.spec.edges = state.spec.edges.filter((edge) => edge.id !== resolvedEdgeId);
   }
 
   function findTensorById(tensorId) {
@@ -392,7 +432,10 @@ export function registerUtilities(ctx) {
   }
 
   function findEdgeById(edgeId) {
-    return state.spec.edges.find((edge) => edge.id === edgeId) || null;
+    const resolvedEdgeId = resolveBaseEdgeId(edgeId);
+    return resolvedEdgeId
+      ? state.spec.edges.find((edge) => edge.id === resolvedEdgeId) || null
+      : null;
   }
 
   function findVisibleIndexOwner(indexId) {
@@ -408,13 +451,27 @@ export function registerUtilities(ctx) {
   }
 
   function findIndexOwner(indexId) {
-    for (const tensor of state.spec.tensors) {
-      const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
-      if (indexPosition >= 0) {
-        return { tensor, index: tensor.indices[indexPosition], indexPosition };
-      }
+    const baseOwner = findBaseIndexOwner(indexId);
+    if (baseOwner) {
+      return baseOwner;
     }
     return findVisibleIndexOwner(indexId);
+  }
+
+  function resolveConnectableIndexOwner(indexId) {
+    const baseOwner = findBaseIndexOwner(indexId);
+    if (baseOwner) {
+      return baseOwner;
+    }
+    const visibleOwner = findVisibleIndexOwner(indexId);
+    if (
+      !visibleOwner ||
+      typeof visibleOwner.index.sourceIndexId !== "string" ||
+      !visibleOwner.index.sourceIndexId
+    ) {
+      return null;
+    }
+    return findBaseIndexOwner(visibleOwner.index.sourceIndexId);
   }
 
   function findEdgeByIndexId(indexId) {
@@ -1166,7 +1223,9 @@ export function registerUtilities(ctx) {
     findEdgeById,
     findVisibleIndexOwner,
     findIndexOwner,
+    resolveConnectableIndexOwner,
     findEdgeByIndexId,
+    resolveBaseEdgeId,
     createTensor,
     createIndex,
     normalizeSpec,

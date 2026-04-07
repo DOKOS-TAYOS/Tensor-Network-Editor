@@ -286,7 +286,8 @@ export function registerInteractions(ctx) {
 
   function handleKeydown(event) {
     const activeElement = document.activeElement;
-    const inTextInput = ctx.isTextInput(activeElement);
+    const inTextInput =
+      ctx.isTextInput(event.target) || ctx.isTextInput(activeElement);
     const lowerKey = event.key.toLowerCase();
 
     if (event.key === "Escape") {
@@ -676,11 +677,11 @@ export function registerInteractions(ctx) {
   function toggleConnectMode() {
     if (
       !state.connectMode &&
-      typeof ctx.isContractionSceneVisible === "function" &&
-      ctx.isContractionSceneVisible()
+      typeof ctx.isInspectingPastStage === "function" &&
+      ctx.isInspectingPastStage()
     ) {
       ctx.setStatus(
-        "Connect mode is only available in the base tensor view. Reset or trim the contraction path to edit indices.",
+        "Return to the latest contraction step before editing ports.",
         "error"
       );
       return;
@@ -696,11 +697,22 @@ export function registerInteractions(ctx) {
   }
 
   function handleConnectClick(indexId) {
-    const located = ctx.findIndexOwner(indexId);
-    if (!located) {
+    if (ctx.findEdgeByIndexId(indexId)) {
+      ctx.setStatus("This index is already connected. Delete the connection first.", "error");
       return;
     }
-    if (ctx.findEdgeByIndexId(indexId)) {
+    const located =
+      typeof ctx.resolveConnectableIndexOwner === "function"
+        ? ctx.resolveConnectableIndexOwner(indexId)
+        : ctx.findIndexOwner(indexId);
+    if (!located) {
+      ctx.setStatus(
+        "This port is not available for new connections in the current view.",
+        "error"
+      );
+      return;
+    }
+    if (ctx.findEdgeByIndexId(located.index.id)) {
       ctx.setStatus("This index is already connected. Delete the connection first.", "error");
       return;
     }
@@ -732,7 +744,10 @@ export function registerInteractions(ctx) {
       return;
     }
 
-    const left = ctx.findIndexOwner(state.pendingIndexId);
+    const left =
+      typeof ctx.resolveConnectableIndexOwner === "function"
+        ? ctx.resolveConnectableIndexOwner(state.pendingIndexId)
+        : ctx.findIndexOwner(state.pendingIndexId);
     if (!left) {
       state.pendingIndexId = null;
       if (typeof ctx.syncPendingInteractionClasses === "function") {
@@ -759,8 +774,15 @@ export function registerInteractions(ctx) {
         });
       },
       {
-        selectionIds: [newEdgeId],
-        primaryId: newEdgeId,
+        selectionIds: [
+          typeof ctx.findVisibleEdgeSelectionIdByBaseEdgeId === "function"
+            ? ctx.findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId)
+            : newEdgeId,
+        ].filter(Boolean),
+        primaryId:
+          typeof ctx.findVisibleEdgeSelectionIdByBaseEdgeId === "function"
+            ? ctx.findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId)
+            : newEdgeId,
         statusMessage: "Connection created.",
       }
     );

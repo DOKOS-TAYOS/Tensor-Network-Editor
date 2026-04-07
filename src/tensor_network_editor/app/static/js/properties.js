@@ -253,6 +253,10 @@ export function registerProperties(ctx) {
       });
       return;
     }
+    if (singleSelection.kind === "contraction-index") {
+      renderContractionIndexProperties(singleSelection.located);
+      return;
+    }
     if (singleSelection.kind === "edge") {
       renderEdgeProperties(singleSelection.id);
       return;
@@ -503,6 +507,37 @@ export function registerProperties(ctx) {
           `
           : ""
       }
+    `;
+  }
+
+  function renderContractionIndexProperties(located) {
+    const ownerLabel = located && located.tensor ? located.tensor.name : "Result tensor";
+    const isConnected = Boolean(ctx.findEdgeByIndexId(located.index.id));
+
+    propertiesPanel.innerHTML = `
+      <div class="properties-summary">
+        <div class="properties-chip">
+          <span>Port</span>
+          <strong>${ctx.escapeHtml(located.index.name)}</strong>
+        </div>
+        <div class="properties-chip-wrap">
+          <div class="properties-chip">
+            <span>Owner</span>
+            <strong>${ctx.escapeHtml(ownerLabel)}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Dimension</span>
+            <strong>${located.index.dimension}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Status</span>
+            <strong>${isConnected ? "Connected" : "Open"}</strong>
+          </div>
+        </div>
+      </div>
+      <p class="property-meta">
+        This port is shown in the contraction scene. You can use Connect here, but tensor structure edits still belong to the base graph.
+      </p>
     `;
   }
 
@@ -1219,12 +1254,15 @@ export function registerProperties(ctx) {
   }
 
   Object.assign(ctx, {
+    bindDebouncedAutosave,
+    bindImmediateAutosave,
     renderProperties,
     renderNetworkProperties,
     renderMultiSelectionProperties,
     renderTensorProperties,
     renderGroupProperties,
     renderEdgeProperties,
+    renderContractionIndexProperties,
     renderNoteProperties,
   });
 }

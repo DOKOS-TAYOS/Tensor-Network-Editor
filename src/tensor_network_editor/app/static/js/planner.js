@@ -283,10 +283,14 @@ export function registerPlannerFeature(ctx) {
       return;
     }
     if (state.pendingPlannerOperandId === resolvedOperandId) {
-      ctx.setStatus(
-        "Choose a different tensor or intermediate; both selections refer to the same contracted operand.",
-        "error"
-      );
+      state.pendingPlannerOperandId = null;
+      state.pendingPlannerSelectionId = null;
+      if (typeof ctx.syncPendingInteractionClasses === "function") {
+        ctx.syncPendingInteractionClasses();
+      }
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+      ctx.setStatus("Selection cleared.");
       return;
     }
     const leftOperandId = state.pendingPlannerOperandId;

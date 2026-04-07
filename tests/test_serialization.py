@@ -13,6 +13,7 @@ from tensor_network_editor.serialization import (
     serialize_spec,
 )
 from tensor_network_editor.types import JSONValue
+from tests.factories import build_sample_spec_with_view_snapshots
 
 
 def test_serialize_spec_wraps_valid_network_with_schema(
@@ -44,6 +45,25 @@ def test_deserialize_spec_round_trips_valid_payload(
     assert [tensor.name for tensor in restored.tensors] == ["A", "B"]
     assert restored.contraction_plan is not None
     assert restored.contraction_plan.steps[0].id == "step_contract_ab"
+
+
+def test_serialize_spec_preserves_contraction_view_snapshots() -> None:
+    payload = serialize_spec(build_sample_spec_with_view_snapshots())
+
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    contraction_plan_payload = cast(
+        dict[str, JSONValue], network_payload["contraction_plan"]
+    )
+    view_snapshots = cast(list[JSONValue], contraction_plan_payload["view_snapshots"])
+    latest_snapshot = cast(dict[str, JSONValue], view_snapshots[-1])
+    operand_layouts = cast(list[JSONValue], latest_snapshot["operand_layouts"])
+    latest_layout = cast(dict[str, JSONValue], operand_layouts[0])
+    latest_size = cast(dict[str, JSONValue], latest_layout["size"])
+
+    assert len(view_snapshots) == 2
+    assert latest_snapshot["applied_step_count"] == 1
+    assert latest_layout["operand_id"] == "step_contract_ab"
+    assert latest_size["width"] == 230.0
 
 
 def test_deserialize_spec_can_skip_validation(

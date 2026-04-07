@@ -8,7 +8,11 @@ from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, TensorCollectionFormat
 from tests.app_support import request_json, request_json_with_status
-from tests.factories import build_outer_product_plan_spec, build_sample_spec
+from tests.factories import (
+    build_outer_product_plan_spec,
+    build_sample_spec,
+    build_sample_spec_with_view_snapshots,
+)
 
 
 def test_bootstrap_returns_session_contract(
@@ -44,6 +48,28 @@ def test_validate_route_reports_issues_and_echoes_serialized_spec(
     assert payload["spec"]["schema_version"] == 3
     assert payload["spec"]["network"]["id"] == invalid_spec.id
     assert "index-already-connected" in [issue["code"] for issue in payload["issues"]]
+
+
+def test_validate_route_preserves_contraction_view_snapshots(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": 3,
+                "network": build_sample_spec_with_view_snapshots().to_dict(),
+            }
+        },
+    )
+
+    snapshots = payload["spec"]["network"]["contraction_plan"]["view_snapshots"]
+
+    assert payload["ok"] is True
+    assert len(snapshots) == 2
+    assert snapshots[1]["applied_step_count"] == 1
+    assert snapshots[1]["operand_layouts"][0]["operand_id"] == "step_contract_ab"
 
 
 def test_validate_route_accepts_generated_python_code_payload(

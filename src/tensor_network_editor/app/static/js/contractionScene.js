@@ -28,6 +28,8 @@ export function registerContractionScene(ctx) {
           name: edge ? edge.name : index.name,
           dimension: Number(index.dimension) || 1,
           textColorSeed: edge ? edge.id : index.id,
+          sourceEdgeId: edge ? edge.id : null,
+          sourceIndexId: edge ? null : index.id,
         };
       }),
     }));
@@ -305,6 +307,7 @@ export function registerContractionScene(ctx) {
             name: token.name,
             dimension: token.dimension,
             offset,
+            sourceIndexId: token.sourceIndexId || null,
           };
           if (!Array.isArray(tokenOccurrencesByKey[token.key])) {
             tokenOccurrencesByKey[token.key] = [];
@@ -323,13 +326,29 @@ export function registerContractionScene(ctx) {
 
     const edges = Object.entries(tokenOccurrencesByKey)
       .filter(([, occurrences]) => Array.isArray(occurrences) && occurrences.length === 2)
-      .map(([tokenKey, occurrences]) => ({
-        id: `scene-edge:${tokenKey}`,
-        key: tokenKey,
-        label: occurrences[0].token.name,
-        leftIndexId: occurrences[0].indexId,
-        rightIndexId: occurrences[1].indexId,
-      }));
+      .map(([tokenKey, occurrences]) => {
+        const baseEdgeId =
+          occurrences.find(
+            (occurrence) =>
+              occurrence &&
+              occurrence.token &&
+              typeof occurrence.token.sourceEdgeId === "string" &&
+              occurrence.token.sourceEdgeId
+          )?.token.sourceEdgeId || null;
+        const baseEdge = baseEdgeId
+          ? state.spec.edges.find((edge) => edge.id === baseEdgeId) || null
+          : null;
+        return {
+          id: `scene-edge:${tokenKey}`,
+          key: tokenKey,
+          name: baseEdge ? baseEdge.name : occurrences[0].token.name,
+          label: baseEdge ? baseEdge.name : occurrences[0].token.name,
+          metadata: baseEdge && baseEdge.metadata ? baseEdge.metadata : {},
+          baseEdgeId,
+          leftIndexId: occurrences[0].indexId,
+          rightIndexId: occurrences[1].indexId,
+        };
+      });
 
     return {
       appliedStepCount: normalizedAppliedStepCount,
@@ -389,6 +408,20 @@ export function registerContractionScene(ctx) {
   function getVisibleEdges() {
     const scene = buildContractionScene();
     return scene ? scene.edges : state.spec.edges;
+  }
+
+  function findVisibleEdgeById(edgeId) {
+    return getVisibleEdges().find((edge) => edge.id === edgeId) || null;
+  }
+
+  function findVisibleEdgeSelectionIdByBaseEdgeId(baseEdgeId) {
+    if (!baseEdgeId) {
+      return null;
+    }
+    const visibleEdge = getVisibleEdges().find(
+      (edge) => edge.baseEdgeId === baseEdgeId
+    );
+    return visibleEdge ? visibleEdge.id : baseEdgeId;
   }
 
   function canEditCurrentContractionStage() {
@@ -539,6 +572,8 @@ export function registerContractionScene(ctx) {
     findVisibleTensorById,
     getVisibleTensors,
     getVisibleEdges,
+    findVisibleEdgeById,
+    findVisibleEdgeSelectionIdByBaseEdgeId,
     canEditCurrentContractionStage,
     updateCurrentStageOperandLayout,
     applySnapshotLayoutMap,

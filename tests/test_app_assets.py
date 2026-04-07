@@ -54,6 +54,7 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert add_index < delete_index < undo_index < redo_index
     assert redo_index < connect_index < group_index < note_index
     assert note_index < template_index < insert_template_index
+    assert ">Insert Template<" in html
 
 
 def test_main_module_is_served_from_static_directory(
@@ -104,6 +105,7 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/js/interactions.js")
 
+    assert "ctx.isTextInput(event.target) || ctx.isTextInput(activeElement)" in body
     assert 'if (hasModifier && lowerKey === "y") {' in body
     assert 'setSelectedEngine("einsum_numpy");' in body
     assert 'if (hasModifier && lowerKey === "n") {' not in body
@@ -152,6 +154,9 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "height: var(--canvas-control-height);" in body
     assert ".template-parameter-panel select," in body
     assert "height: var(--canvas-control-height);" in body
+    assert ".template-select-field select {" in body
+    assert "min-width: 9rem;" in body
+    assert "min-width: 10.5rem;" not in body
 
 
 def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
@@ -168,6 +173,46 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert 'aria-label="Delete note"' in body
     assert "function getSelectionTotalElementCount(" in body
     assert "function getTensorTotalElementCount(" in body
+
+
+def test_note_assets_move_note_editing_into_canvas(
+    editor_server: EditorServer,
+) -> None:
+    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert 'textarea.addEventListener("keydown", (event) => {' in notes_body
+    assert "event.stopPropagation();" in notes_body
+    assert 'className = "canvas-note-color-button"' in notes_body
+    assert 'colorInput.type = "color";' in notes_body
+    assert "ctx.bindDebouncedAutosave(" in notes_body
+    assert '<label for="note-text-input">Note text</label>' in properties_body
+    assert 'id="note-color-input"' in properties_body
+    assert "Edit this note directly on the canvas." not in properties_body
+    assert ".canvas-note-color-button {" in css_body
+
+
+def test_interaction_assets_support_latest_contraction_scene_editing(
+    editor_server: EditorServer,
+) -> None:
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+
+    assert (
+        "Connect mode is only available in the base tensor view."
+        not in interactions_body
+    )
+    assert "Selection cleared." in planner_body
+    assert (
+        "Choose a different tensor or intermediate; both selections refer to the same contracted operand."
+        not in planner_body
+    )
+    assert "const indexNodesInteractive = !readOnlyScene;" in graph_body
+    assert "selectable: !readOnlyScene," in graph_body
+    assert "ctx.ensureContractionViewSnapshots();" in utilities_body
 
 
 def test_planner_assets_expose_total_elements_and_step_spacing(

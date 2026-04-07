@@ -21,6 +21,7 @@ from tensor_network_editor.errors import (
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
 from tests.factories import (
     build_outer_product_plan_spec,
+    build_sample_spec_with_view_snapshots,
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
 )
@@ -133,6 +134,28 @@ def test_save_and_load_spec_round_trip_preserves_structure(
     assert loaded_spec.notes[0].text == "Check the contraction order"
     assert loaded_spec.contraction_plan is not None
     assert loaded_spec.contraction_plan.steps[0].left_operand_id == "tensor_a"
+
+
+def test_save_and_load_spec_round_trip_preserves_contraction_view_snapshots(
+    tmp_path: Path,
+) -> None:
+    spec_path = tmp_path / "network-with-snapshots.json"
+    sample_spec = build_sample_spec_with_view_snapshots()
+
+    save_spec(sample_spec, spec_path)
+    loaded_spec = load_spec(spec_path)
+
+    assert loaded_spec.contraction_plan is not None
+    assert len(loaded_spec.contraction_plan.view_snapshots) == 2
+    assert loaded_spec.contraction_plan.view_snapshots[1].applied_step_count == 1
+    assert (
+        loaded_spec.contraction_plan.view_snapshots[1].operand_layouts[0].operand_id
+        == "step_contract_ab"
+    )
+    assert (
+        loaded_spec.contraction_plan.view_snapshots[1].operand_layouts[0].size.width
+        == 230.0
+    )
 
 
 def test_load_spec_round_trips_generated_python_file(

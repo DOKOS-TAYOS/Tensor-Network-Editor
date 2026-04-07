@@ -183,6 +183,12 @@ export function registerHistorySelection(ctx) {
   }
 
   function getSelectionEntry(selectionId) {
+    const inContractionScene =
+      typeof ctx.isContractionSceneVisible === "function" &&
+      ctx.isContractionSceneVisible();
+    const inspectingPastStage =
+      typeof ctx.isInspectingPastStage === "function" &&
+      ctx.isInspectingPastStage();
     const group = ctx.findGroupById(selectionId);
     if (group) {
       return { kind: "group", id: group.id, group };
@@ -193,8 +199,7 @@ export function registerHistorySelection(ctx) {
         : null;
     if (
       visibleTensor &&
-      typeof ctx.isContractionSceneVisible === "function" &&
-      ctx.isContractionSceneVisible()
+      inContractionScene
     ) {
       return {
         kind: visibleTensor.isDerived ? "contraction-tensor" : "tensor",
@@ -204,11 +209,7 @@ export function registerHistorySelection(ctx) {
       };
     }
     const tensor = ctx.findTensorById(selectionId);
-    if (
-      tensor &&
-      typeof ctx.isContractionSceneVisible === "function" &&
-      ctx.isContractionSceneVisible()
-    ) {
+    if (tensor && inContractionScene) {
       return null;
     }
     if (tensor) {
@@ -229,23 +230,20 @@ export function registerHistorySelection(ctx) {
     }
     const locatedIndex = ctx.findIndexOwner(selectionId);
     if (locatedIndex) {
-      if (
-        typeof ctx.isContractionSceneVisible === "function" &&
-        ctx.isContractionSceneVisible()
-      ) {
+      if (inContractionScene && inspectingPastStage) {
         return null;
+      }
+      if (inContractionScene) {
+        return { kind: "contraction-index", id: selectionId, located: locatedIndex };
       }
       return { kind: "index", id: selectionId, located: locatedIndex };
     }
     const edge = ctx.findEdgeById(selectionId);
     if (edge) {
-      if (
-        typeof ctx.isContractionSceneVisible === "function" &&
-        ctx.isContractionSceneVisible()
-      ) {
+      if (inContractionScene && inspectingPastStage) {
         return null;
       }
-      return { kind: "edge", id: edge.id, edge };
+      return { kind: "edge", id: selectionId, edge };
     }
     const note = typeof ctx.findNoteById === "function" ? ctx.findNoteById(selectionId) : null;
     if (note) {
@@ -356,7 +354,14 @@ export function registerHistorySelection(ctx) {
     if (!state.selectionIds.includes(state.primarySelectionId)) {
       state.primarySelectionId = state.selectionIds.length ? state.selectionIds[state.selectionIds.length - 1] : null;
     }
-    if (state.pendingIndexId && resolveSelectionKind(state.pendingIndexId) !== "index") {
+    const pendingIndexKind = state.pendingIndexId
+      ? resolveSelectionKind(state.pendingIndexId)
+      : null;
+    if (
+      state.pendingIndexId &&
+      pendingIndexKind !== "index" &&
+      pendingIndexKind !== "contraction-index"
+    ) {
       state.pendingIndexId = null;
     }
     if (

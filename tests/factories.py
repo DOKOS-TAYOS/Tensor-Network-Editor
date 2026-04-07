@@ -5,8 +5,10 @@ from typing import cast
 from tensor_network_editor.models import (
     CanvasNoteSpec,
     CanvasPosition,
+    ContractionOperandLayoutSpec,
     ContractionPlanSpec,
     ContractionStepSpec,
+    ContractionViewSnapshotSpec,
     EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
@@ -83,6 +85,39 @@ def build_sample_spec() -> NetworkSpec:
             ],
         ),
     )
+
+
+def build_sample_spec_with_view_snapshots() -> NetworkSpec:
+    spec = build_sample_spec()
+    assert spec.contraction_plan is not None
+    spec.contraction_plan.view_snapshots = [
+        ContractionViewSnapshotSpec(
+            applied_step_count=0,
+            operand_layouts=[
+                ContractionOperandLayoutSpec(
+                    operand_id="tensor_a",
+                    position=CanvasPosition(x=120.0, y=160.0),
+                    size=TensorSize(width=200.0, height=120.0),
+                ),
+                ContractionOperandLayoutSpec(
+                    operand_id="tensor_b",
+                    position=CanvasPosition(x=360.0, y=160.0),
+                    size=TensorSize(width=180.0, height=120.0),
+                ),
+            ],
+        ),
+        ContractionViewSnapshotSpec(
+            applied_step_count=1,
+            operand_layouts=[
+                ContractionOperandLayoutSpec(
+                    operand_id="step_contract_ab",
+                    position=CanvasPosition(x=180.0, y=200.0),
+                    size=TensorSize(width=230.0, height=140.0),
+                )
+            ],
+        ),
+    ]
+    return spec
 
 
 def build_three_tensor_spec_without_plan() -> NetworkSpec:

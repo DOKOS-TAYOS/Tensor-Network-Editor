@@ -208,8 +208,8 @@ export function registerGraphRender(ctx) {
       }
       if (
         kind === "edge" &&
-        typeof ctx.isContractionSceneVisible === "function" &&
-        ctx.isContractionSceneVisible()
+        typeof ctx.isInspectingPastStage === "function" &&
+        ctx.isInspectingPastStage()
       ) {
         return;
       }
@@ -427,7 +427,7 @@ export function registerGraphRender(ctx) {
     const readOnlyScene = Boolean(
       contractionScene && typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage()
     );
-    const indexNodesInteractive = !contractionScene;
+    const indexNodesInteractive = !readOnlyScene;
 
     visibleEdges.forEach((edge) => {
       connectedIndexIds.add(edge.leftIndexId || edge.left.index_id);
@@ -524,7 +524,7 @@ export function registerGraphRender(ctx) {
           textColor: ctx.shiftColor(edgeColor, 72),
           zIndex: EDGE_Z_INDEX,
         },
-        selectable: !contractionScene,
+        selectable: !readOnlyScene,
       });
     });
 

@@ -96,6 +96,18 @@ export function registerNotesFeature(ctx) {
     }
   }
 
+  function selectNoteIfNeeded(noteId, options = {}) {
+    if (options.additive) {
+      ctx.selectElement("note", noteId, { additive: true });
+      return true;
+    }
+    if (state.selectionIds.length === 1 && state.selectionIds[0] === noteId) {
+      return false;
+    }
+    ctx.setSelection([noteId], { primaryId: noteId });
+    return true;
+  }
+
   function buildCanvasSelectionDragState(anchorSelectionId) {
     const tensorIds = [];
     const noteIds = [];
@@ -274,11 +286,15 @@ export function registerNotesFeature(ctx) {
         header.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
+          selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
         });
 
         const actions = document.createElement("div");
         actions.className = "canvas-note-actions";
+
+        const { colorButton, colorInput } = createNoteColorControl(note);
+        actions.appendChild(colorButton);
+        actions.appendChild(colorInput);
 
         const collapseButton = createNoteCollapseButton(note);
         actions.appendChild(collapseButton);
@@ -320,34 +336,45 @@ export function registerNotesFeature(ctx) {
         textarea.addEventListener("mousedown", (event) => {
           event.stopPropagation();
         });
+        textarea.addEventListener("keydown", (event) => {
+          event.stopPropagation();
+        });
         textarea.addEventListener("click", (event) => {
           event.stopPropagation();
-          ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
+          selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
         });
         textarea.addEventListener("focus", () => {
+          if (state.selectionIds.length === 1 && state.selectionIds[0] === note.id) {
+            return;
+          }
           ctx.setSelection([note.id], { primaryId: note.id });
         });
-        textarea.addEventListener("change", () => {
-          const proposedText = textarea.value.trim();
-          if (!proposedText) {
-            textarea.value = note.text;
-            ctx.setStatus("Notes cannot be empty.", "error");
-            return;
-          }
-          if (proposedText === note.text) {
-            return;
-          }
-          ctx.applyDesignChange(
-            () => {
-              note.text = proposedText;
-            },
-            {
-              selectionIds: [note.id],
-              primaryId: note.id,
-              statusMessage: "Updated the note text.",
+        ctx.bindDebouncedAutosave(
+          textarea,
+          `note:${note.id}:canvas-text`,
+          () => {
+            const proposedText = textarea.value.trim();
+            if (!proposedText) {
+              textarea.value = note.text;
+              ctx.setStatus("Notes cannot be empty.", "error");
+              return;
             }
-          );
-        });
+            if (proposedText === note.text) {
+              return;
+            }
+            ctx.applyDesignChange(
+              () => {
+                note.text = proposedText;
+              },
+              {
+                selectionIds: [note.id],
+                primaryId: note.id,
+                statusMessage: "Updated the note text.",
+              }
+            );
+          },
+          { commitOnEnter: false }
+        );
 
         const resizeHandle = document.createElement("div");
         resizeHandle.className = "canvas-note-resize-handle";
@@ -360,11 +387,68 @@ export function registerNotesFeature(ctx) {
       noteElement.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        ctx.selectElement("note", note.id, { additive: Boolean(event.shiftKey) });
+        selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
       });
       noteElement.appendChild(frame);
       notesLayer.appendChild(noteElement);
     });
+  }
+
+  function createNoteColorControl(note) {
+    const colorButton = document.createElement("button");
+    colorButton.type = "button";
+    colorButton.className = "canvas-note-color-button";
+    colorButton.setAttribute("aria-label", "Change note color");
+    colorButton.setAttribute("title", "Change note color");
+    colorButton.innerHTML = `
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M11.6 1.5a1.9 1.9 0 0 1 2.7 2.7l-1 1-2.7-2.7zm-1.7 1.7L2.2 10.9a2.5 2.5 0 0 0-.6 1l-.7 2.5a.7.7 0 0 0 .9.9l2.5-.7a2.5 2.5 0 0 0 1-.6L13 6.2z"/>
+      </svg>
+    `;
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.className = "canvas-note-color-input";
+    colorInput.value = ctx.getMetadataColor(note.metadata, "#5f95ff");
+    colorInput.setAttribute("tabindex", "-1");
+    colorInput.setAttribute("aria-hidden", "true");
+
+    colorButton.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    colorButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof colorInput.showPicker === "function") {
+        colorInput.showPicker();
+      } else {
+        colorInput.click();
+      }
+    });
+    ctx.bindImmediateAutosave(
+      colorInput,
+      `note:${note.id}:canvas-color`,
+      () => {
+        if (
+          colorInput.value ===
+          ctx.getMetadataColor(note.metadata, "#5f95ff")
+        ) {
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            note.metadata.color = colorInput.value;
+          },
+          {
+            selectionIds: [note.id],
+            primaryId: note.id,
+            statusMessage: "Updated the note.",
+          }
+        );
+      },
+      "input"
+    );
+    return { colorButton, colorInput };
   }
 
   function createNoteCollapseButton(note) {
