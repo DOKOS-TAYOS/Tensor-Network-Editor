@@ -54,7 +54,7 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert add_index < delete_index < undo_index < redo_index
     assert redo_index < connect_index < group_index < note_index
     assert note_index < template_index < insert_template_index
-    assert ">Insert Template<" in html
+    assert ">Insert<" in html
 
 
 def test_main_module_is_served_from_static_directory(
@@ -238,6 +238,36 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     assert "ANALYSIS_REFRESH_DELAY_MS = 200" in planner_body
     assert "requestAnimationFrame" in minimap_body
     assert "requestAnimationFrame" in overlays_body
+
+
+def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
+    editor_server: EditorServer,
+) -> None:
+    history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    state_body = request_text(f"{editor_server.base_url}/js/state.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+
+    assert (
+        "JSON.stringify(leftSnapshot) === JSON.stringify(rightSnapshot)"
+        not in history_body
+    )
+    assert "function normalizeInvalidations(" in history_body
+    assert "structuredClone" in utilities_body
+    assert "function ensureSpecLookups()" in utilities_body
+    assert "tensorById: {}" in state_body
+    assert "edgeById: {}" in state_body
+    assert "indexOwnerById: {}" in state_body
+    assert "noteById: {}" in state_body
+    assert "return state.noteById[noteId] || null;" in notes_body
+    assert "function propertyInvalidation(" in properties_body
+    assert "function selectionColorInvalidation(" in properties_body
+    assert "invalidate: selectionColorInvalidation(selectedEntries)" in properties_body
+    assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
+    assert "startOffset:" in graph_body
 
 
 def test_planner_assets_expose_total_elements_and_step_spacing(

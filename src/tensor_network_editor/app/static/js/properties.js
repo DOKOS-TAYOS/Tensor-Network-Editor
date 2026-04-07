@@ -68,6 +68,38 @@ export function registerProperties(ctx) {
     });
   }
 
+  function propertyInvalidation(overrides = {}) {
+    return {
+      graph: false,
+      lookups: false,
+      analysis: false,
+      overlays: false,
+      planner: false,
+      minimap: false,
+      ...overrides,
+    };
+  }
+
+  function selectionColorInvalidation(selectedEntries) {
+    const entryKinds = new Set(
+      (Array.isArray(selectedEntries) ? selectedEntries : []).map(
+        (entry) => entry.kind
+      )
+    );
+    const affectsGraph =
+      entryKinds.has("tensor") ||
+      entryKinds.has("index") ||
+      entryKinds.has("edge");
+    const affectsOverlays =
+      entryKinds.has("group") ||
+      entryKinds.has("note");
+    return propertyInvalidation({
+      graph: affectsGraph,
+      overlays: affectsOverlays,
+      minimap: affectsGraph,
+    });
+  }
+
   function renderTrashIcon() {
     return `
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -315,6 +347,7 @@ export function registerProperties(ctx) {
           state.spec.name = proposedName;
         },
         {
+          invalidate: propertyInvalidation(),
           statusMessage: "Updated design name.",
         }
       );
@@ -429,6 +462,7 @@ export function registerProperties(ctx) {
             ctx.applyColorToSelection(colorValue);
           },
           {
+            invalidate: selectionColorInvalidation(selectedEntries),
             statusMessage: "Updated the selection color.",
           }
         );
@@ -729,6 +763,7 @@ export function registerProperties(ctx) {
             tensor.name = proposedName;
           },
           {
+            invalidate: propertyInvalidation({ graph: true, planner: true }),
             statusMessage: `Updated tensor ${proposedName}.`,
           }
         );
@@ -749,6 +784,7 @@ export function registerProperties(ctx) {
             tensor.metadata.color = tensorColorInput.value;
           },
           {
+            invalidate: propertyInvalidation({ graph: true, minimap: true }),
             statusMessage: `Updated tensor ${tensor.name}.`,
           }
         );
@@ -776,6 +812,11 @@ export function registerProperties(ctx) {
             ctx.centerTensor(tensor.id);
           },
           {
+            invalidate: propertyInvalidation({
+              graph: true,
+              overlays: true,
+              minimap: true,
+            }),
             statusMessage: `Centered tensor ${tensor.name} in the current view.`,
           }
         );
@@ -845,6 +886,7 @@ export function registerProperties(ctx) {
               index.name = proposedName;
             },
             {
+              invalidate: propertyInvalidation({ graph: true }),
               statusMessage: `Updated index ${proposedName}.`,
             }
           );
@@ -867,6 +909,10 @@ export function registerProperties(ctx) {
               index.dimension = parsed;
             },
             {
+              invalidate: propertyInvalidation({
+                graph: true,
+                analysis: true,
+              }),
               statusMessage: `Updated index ${index.name}.`,
             }
           );
@@ -888,6 +934,7 @@ export function registerProperties(ctx) {
               index.metadata.color = indexColorInput.value;
             },
             {
+              invalidate: propertyInvalidation({ graph: true, minimap: true }),
               statusMessage: `Updated index ${index.name}.`,
             }
           );
@@ -902,6 +949,10 @@ export function registerProperties(ctx) {
               ctx.moveIndex(tensor.id, indexPosition, -1);
             },
             {
+              invalidate: propertyInvalidation({
+                graph: true,
+                lookups: true,
+              }),
               selectionIds: [index.id],
               primaryId: index.id,
               statusMessage: `Moved index ${index.name}.`,
@@ -916,6 +967,10 @@ export function registerProperties(ctx) {
               ctx.moveIndex(tensor.id, indexPosition, 1);
             },
             {
+              invalidate: propertyInvalidation({
+                graph: true,
+                lookups: true,
+              }),
               selectionIds: [index.id],
               primaryId: index.id,
               statusMessage: `Moved index ${index.name}.`,
@@ -1018,6 +1073,7 @@ export function registerProperties(ctx) {
           group.name = proposedName;
         },
         {
+          invalidate: propertyInvalidation({ overlays: true }),
           statusMessage: `Updated group ${proposedName}.`,
         }
       );
@@ -1034,6 +1090,7 @@ export function registerProperties(ctx) {
             group.metadata.color = groupColorInput.value;
           },
           {
+            invalidate: propertyInvalidation({ overlays: true }),
             statusMessage: `Updated group ${group.name}.`,
           }
         );
@@ -1051,6 +1108,10 @@ export function registerProperties(ctx) {
           );
         },
         {
+          invalidate: propertyInvalidation({
+            lookups: true,
+            overlays: true,
+          }),
           selectionIds: [],
           statusMessage: `Deleted group ${group.name}.`,
         }
@@ -1113,6 +1174,7 @@ export function registerProperties(ctx) {
           edge.name = proposedName;
         },
         {
+          invalidate: propertyInvalidation({ graph: true }),
           statusMessage: `Updated connection ${proposedName}.`,
         }
       );
@@ -1132,6 +1194,7 @@ export function registerProperties(ctx) {
             edge.metadata.color = edgeColorInput.value;
           },
           {
+            invalidate: propertyInvalidation({ graph: true, minimap: true }),
             statusMessage: `Updated connection ${edge.name}.`,
           }
         );
@@ -1212,6 +1275,7 @@ export function registerProperties(ctx) {
             note.text = proposedText;
           },
           {
+            invalidate: propertyInvalidation({ overlays: true }),
             statusMessage: "Updated the note.",
           }
         );
@@ -1233,6 +1297,7 @@ export function registerProperties(ctx) {
             note.metadata.color = noteColorInput.value;
           },
           {
+            invalidate: propertyInvalidation({ overlays: true }),
             statusMessage: "Updated the note.",
           }
         );
@@ -1246,6 +1311,10 @@ export function registerProperties(ctx) {
           ctx.removeNote(note.id);
         },
         {
+          invalidate: propertyInvalidation({
+            lookups: true,
+            overlays: true,
+          }),
           selectionIds: [],
           statusMessage: "Deleted the note.",
         }

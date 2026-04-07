@@ -265,6 +265,69 @@ export function registerUtilities(ctx) {
     persistTemplateParametersFromControls();
   }
 
+  function bumpSpecRevision() {
+    state.specRevision += 1;
+    state.lookupRevision = -1;
+  }
+
+  function ensureSpecLookups() {
+    if (!state.spec) {
+      state.lookupRevision = state.specRevision;
+      state.tensorById = {};
+      state.edgeById = {};
+      state.edgeByIndexId = {};
+      state.groupById = {};
+      state.indexOwnerById = {};
+      state.groupsByTensorId = {};
+      state.noteById = {};
+      return;
+    }
+    if (state.lookupRevision === state.specRevision) {
+      return;
+    }
+
+    const tensorById = {};
+    const edgeById = {};
+    const edgeByIndexId = {};
+    const groupById = {};
+    const indexOwnerById = {};
+    const groupsByTensorId = {};
+    const noteById = {};
+
+    state.spec.tensors.forEach((tensor) => {
+      tensorById[tensor.id] = tensor;
+      tensor.indices.forEach((index, indexPosition) => {
+        indexOwnerById[index.id] = { tensor, index, indexPosition };
+      });
+    });
+    state.spec.edges.forEach((edge) => {
+      edgeById[edge.id] = edge;
+      edgeByIndexId[edge.left.index_id] = edge;
+      edgeByIndexId[edge.right.index_id] = edge;
+    });
+    state.spec.groups.forEach((group) => {
+      groupById[group.id] = group;
+      group.tensor_ids.forEach((tensorId) => {
+        if (!Array.isArray(groupsByTensorId[tensorId])) {
+          groupsByTensorId[tensorId] = [];
+        }
+        groupsByTensorId[tensorId].push(group);
+      });
+    });
+    state.spec.notes.forEach((note) => {
+      noteById[note.id] = note;
+    });
+
+    state.tensorById = tensorById;
+    state.edgeById = edgeById;
+    state.edgeByIndexId = edgeByIndexId;
+    state.groupById = groupById;
+    state.indexOwnerById = indexOwnerById;
+    state.groupsByTensorId = groupsByTensorId;
+    state.noteById = noteById;
+    state.lookupRevision = state.specRevision;
+  }
+
   function serializeCurrentSpec(options = {}) {
     const { persistViewSnapshots = false } = options;
     if (
@@ -374,13 +437,8 @@ export function registerUtilities(ctx) {
   }
 
   function findBaseIndexOwner(indexId) {
-    for (const tensor of state.spec.tensors) {
-      const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
-      if (indexPosition >= 0) {
-        return { tensor, index: tensor.indices[indexPosition], indexPosition };
-      }
-    }
-    return null;
+    ensureSpecLookups();
+    return state.indexOwnerById[indexId] || null;
   }
 
   function removeIndex(tensorId, indexId) {
@@ -398,7 +456,8 @@ export function registerUtilities(ctx) {
     if (!edgeId) {
       return null;
     }
-    const baseEdge = state.spec.edges.find((edge) => edge.id === edgeId);
+    ensureSpecLookups();
+    const baseEdge = state.edgeById[edgeId];
     if (baseEdge) {
       return baseEdge.id;
     }
@@ -422,22 +481,27 @@ export function registerUtilities(ctx) {
   }
 
   function findTensorById(tensorId) {
-    return state.spec.tensors.find((tensor) => tensor.id === tensorId) || null;
+    ensureSpecLookups();
+    return state.tensorById[tensorId] || null;
   }
 
   function findGroupById(groupId) {
-    return state.spec.groups.find((group) => group.id === groupId) || null;
+    ensureSpecLookups();
+    return state.groupById[groupId] || null;
   }
 
   function findGroupsByTensorId(tensorId) {
-    return state.spec.groups.filter((group) => group.tensor_ids.includes(tensorId));
+    ensureSpecLookups();
+    return state.groupsByTensorId[tensorId] || [];
   }
 
   function findEdgeById(edgeId) {
     const resolvedEdgeId = resolveBaseEdgeId(edgeId);
-    return resolvedEdgeId
-      ? state.spec.edges.find((edge) => edge.id === resolvedEdgeId) || null
-      : null;
+    if (!resolvedEdgeId) {
+      return null;
+    }
+    ensureSpecLookups();
+    return state.edgeById[resolvedEdgeId] || null;
   }
 
   function findVisibleIndexOwner(indexId) {
@@ -477,9 +541,8 @@ export function registerUtilities(ctx) {
   }
 
   function findEdgeByIndexId(indexId) {
-    const baseEdge = state.spec.edges.find(
-      (edge) => edge.left.index_id === indexId || edge.right.index_id === indexId
-    );
+    ensureSpecLookups();
+    const baseEdge = state.edgeByIndexId[indexId];
     if (baseEdge) {
       return baseEdge;
     }
@@ -1056,7 +1119,11 @@ export function registerUtilities(ctx) {
   }
 
   function deepClone(value) {
-    return JSON.parse(JSON.stringify(value));
+    if (typeof window.structuredClone === "function") {
+      return window.structuredClone(value);
+    }
+    const serializedValue = JSON.stringify(value);
+    return serializedValue === undefined ? undefined : JSON.parse(serializedValue);
   }
 
   function clientPointToCanvasPoint(clientX, clientY) {
@@ -1211,6 +1278,8 @@ export function registerUtilities(ctx) {
     persistTemplateParametersFromControls,
     handleTemplateSelectionChange,
     handleTemplateParameterInput,
+    bumpSpecRevision,
+    ensureSpecLookups,
     serializeCurrentSpec,
     captureEditableFocus,
     restoreEditableFocus,

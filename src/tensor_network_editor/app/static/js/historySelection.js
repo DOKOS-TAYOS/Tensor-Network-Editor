@@ -51,15 +51,7 @@ export function registerHistorySelection(ctx) {
     };
   }
 
-  function snapshotsEqual(leftSnapshot, rightSnapshot) {
-    return JSON.stringify(leftSnapshot) === JSON.stringify(rightSnapshot);
-  }
-
   function commitHistorySnapshot(previousSnapshot) {
-    const nextSnapshot = createHistorySnapshot();
-    if (snapshotsEqual(previousSnapshot, nextSnapshot)) {
-      return false;
-    }
     state.undoStack.push(previousSnapshot);
     if (state.undoStack.length > HISTORY_LIMIT) {
       state.undoStack.shift();
@@ -73,6 +65,9 @@ export function registerHistorySelection(ctx) {
   function restoreHistorySnapshot(snapshot) {
     state.spec = ctx.normalizeSpec(snapshot.spec);
     state.tensorOrder = Array.isArray(snapshot.tensorOrder) ? [...snapshot.tensorOrder] : [];
+    if (typeof ctx.bumpSpecRevision === "function") {
+      ctx.bumpSpecRevision();
+    }
     ctx.reconcileTensorOrder();
     state.pendingIndexId = null;
     state.pendingPlannerOperandId = null;
@@ -128,8 +123,47 @@ export function registerHistorySelection(ctx) {
     return `${baseMessage} Generated code preview cleared; generate again to refresh it.`;
   }
 
+  function normalizeInvalidations(overrides = {}) {
+    return {
+      graph: true,
+      lookups: true,
+      analysis: true,
+      properties: true,
+      toolbar: true,
+      overlays: true,
+      planner: true,
+      sidebarTabs: true,
+      minimap: true,
+      code: true,
+      ...overrides,
+    };
+  }
+
+  function renderMutationState(invalidate) {
+    ctx.render({
+      graph: invalidate.graph,
+      properties: invalidate.properties,
+      code: invalidate.code,
+      toolbar: invalidate.toolbar,
+      overlays: invalidate.overlays,
+      planner: invalidate.planner,
+      sidebarTabs: invalidate.sidebarTabs,
+      minimap: invalidate.minimap,
+      syncSelection: true,
+    });
+  }
+
+  function renderSelectionUi() {
+    ctx.syncCySelection();
+    ctx.render({
+      graph: false,
+      code: false,
+    });
+  }
+
   function applyDesignChange(mutator, options = {}) {
     const beforeSnapshot = createHistorySnapshot();
+    const invalidate = normalizeInvalidations(options.invalidate);
     const preservedFocus =
       typeof ctx.captureEditableFocus === "function"
         ? ctx.captureEditableFocus()
@@ -142,11 +176,10 @@ export function registerHistorySelection(ctx) {
       ctx.repairContractionPlan();
     }
     ctx.reconcileTensorOrder();
-    const changed = commitHistorySnapshot(beforeSnapshot);
-    if (!changed) {
-      ctx.render();
-      return false;
+    if (invalidate.lookups && typeof ctx.bumpSpecRevision === "function") {
+      ctx.bumpSpecRevision();
     }
+    commitHistorySnapshot(beforeSnapshot);
 
     if (Array.isArray(options.selectionIds)) {
       state.selectionIds = [...options.selectionIds];
@@ -157,14 +190,14 @@ export function registerHistorySelection(ctx) {
     pruneSelectionToExisting();
     updatePendingPropertiesIndexFocus(previousSelectionIds, state.selectionIds);
     syncSelectedElementState();
-    ctx.render();
+    renderMutationState(invalidate);
     if (typeof options.afterRender === "function") {
       options.afterRender();
     }
     if (typeof ctx.restoreEditableFocus === "function") {
       ctx.restoreEditableFocus(preservedFocus);
     }
-    if (!options.skipContractionAnalysisRefresh && typeof ctx.refreshContractionAnalysis === "function") {
+    if (invalidate.analysis && typeof ctx.refreshContractionAnalysis === "function") {
       ctx.refreshContractionAnalysis();
     }
 
@@ -387,10 +420,7 @@ export function registerHistorySelection(ctx) {
       uniqueIds.includes(options.primaryId) ? options.primaryId : uniqueIds.length ? uniqueIds[uniqueIds.length - 1] : null;
     updatePendingPropertiesIndexFocus(previousSelectionIds, uniqueIds);
     syncSelectedElementState();
-    syncCySelection();
-    ctx.renderProperties();
-    ctx.renderMinimap();
-    ctx.updateToolbarState();
+    renderSelectionUi();
   }
 
   function selectElement(kind, id, options = {}) {
@@ -426,10 +456,7 @@ export function registerHistorySelection(ctx) {
       state.pendingIndexId = null;
     }
     updatePendingPropertiesIndexFocus(previousSelectionIds, []);
-    syncCySelection();
-    ctx.renderProperties();
-    ctx.renderMinimap();
-    ctx.updateToolbarState();
+    renderSelectionUi();
   }
 
   function selectAllTensors() {
@@ -442,13 +469,13 @@ export function registerHistorySelection(ctx) {
   Object.assign(ctx, {
     clearHistory,
     createHistorySnapshot,
-    snapshotsEqual,
     commitHistorySnapshot,
     restoreHistorySnapshot,
     performUndo,
     performRedo,
     clearGeneratedCodePreview,
     buildDesignStatusMessage,
+    normalizeInvalidations,
     applyDesignChange,
     resolveSelectionKind,
     getSelectionEntry,
