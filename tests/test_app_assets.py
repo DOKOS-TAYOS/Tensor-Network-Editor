@@ -26,6 +26,36 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert headers["Content-Type"].startswith("text/html")
 
 
+def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_requested_order(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert '<h1 class="toolbar-title">' in html
+    assert 'href="https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"' in html
+    assert 'class="toolbar-title-link"' in html
+    assert '<div class="title-main">' not in html
+    assert 'class="title-control-divider"' in html
+    assert 'class="title-control-group title-control-group-template"' in html
+    assert html.index('class="toolbar-title-link"') < html.index(
+        'id="new-design-button"'
+    )
+
+    add_index = html.index('id="add-tensor-button"')
+    delete_index = html.index('id="delete-button"')
+    undo_index = html.index('id="undo-button"')
+    redo_index = html.index('id="redo-button"')
+    connect_index = html.index('id="connect-button"')
+    group_index = html.index('id="create-group-button"')
+    note_index = html.index('id="add-note-button"')
+    template_index = html.index('id="template-select"')
+    insert_template_index = html.index('id="insert-template-button"')
+
+    assert add_index < delete_index < undo_index < redo_index
+    assert redo_index < connect_index < group_index < note_index
+    assert note_index < template_index < insert_template_index
+
+
 def test_main_module_is_served_from_static_directory(
     editor_server: EditorServer,
 ) -> None:
@@ -77,12 +107,67 @@ def test_css_asset_exposes_explicit_canvas_layer_ordering(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/app.css")
 
+    assert ".canvas-panel {" in body
+    assert "isolation: isolate;" in body
+    assert ".canvas-shell {" in body
+    assert "overflow: hidden;" in body
+    assert ".toolbar {" in body
+    assert "z-index: 20;" in body
+    assert ".sidebar {" in body
+    assert "z-index: 10;" in body
     assert "#canvas {" in body
     assert "z-index: 0;" in body
     assert "#group-layer {" in body
     assert "z-index: 10;" in body
     assert "#notes-layer {" in body
     assert "z-index: 30;" in body
+
+
+def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "--canvas-control-height:" in body
+    assert ".toolbar-title-link {" in body
+    assert ".title-control-divider {" in body
+    assert ".title-control-group-template {" in body
+    assert "margin-left: auto;" in body
+    assert ".title-button-row {" in body
+    assert "align-items: flex-end;" in body
+    assert ".title-button-row button {" in body
+    assert "height: var(--canvas-control-height);" in body
+    assert ".template-parameter-panel select," in body
+    assert "height: var(--canvas-control-height);" in body
+
+
+def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/properties.js")
+
+    assert "Total elements" in body
+    assert "Delete Selected" not in body
+    assert "Delete Connection" not in body
+    assert "Delete Note" not in body
+    assert 'aria-label="Delete selection"' in body
+    assert 'aria-label="Delete connection"' in body
+    assert 'aria-label="Delete note"' in body
+    assert "function getSelectionTotalElementCount(" in body
+    assert "function getTensorTotalElementCount(" in body
+
+
+def test_planner_assets_expose_total_elements_and_step_spacing(
+    editor_server: EditorServer,
+) -> None:
+    planner_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "Total elements" in planner_body
+    assert "function getShapeElementCount(" in planner_body
+    assert "planner-manual-step-list" in planner_body
+    assert ".planner-manual-step-list {" in css_body
+    assert "border-top:" in css_body
 
 
 def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(

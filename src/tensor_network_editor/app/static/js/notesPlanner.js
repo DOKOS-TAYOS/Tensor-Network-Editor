@@ -1267,12 +1267,66 @@ export function registerNotesPlanner(ctx) {
               <div class="planner-chip">
                 <span>${ctx.escapeHtml(item.label)}</span>
                 <strong>${ctx.escapeHtml(String(item.value))}</strong>
+                ${
+                  item.detail
+                    ? `<small class="planner-chip-detail">${ctx.escapeHtml(String(item.detail))}</small>`
+                    : ""
+                }
               </div>
             `
           )
           .join("")}
       </div>
     `;
+  }
+
+  /**
+   * @param {unknown} value
+   * @returns {bigint | null}
+   */
+  function normalizeShapeDimension(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    return BigInt(Math.max(1, Math.round(numericValue)));
+  }
+
+  /**
+   * @param {unknown} shape
+   * @returns {bigint | null}
+   */
+  function getShapeElementCount(shape) {
+    if (!Array.isArray(shape)) {
+      return null;
+    }
+    return shape.reduce((product, dimension) => {
+      const normalizedDimension = normalizeShapeDimension(dimension);
+      if (normalizedDimension === null) {
+        return product;
+      }
+      return product * normalizedDimension;
+    }, 1n);
+  }
+
+  /**
+   * @param {unknown} shape
+   * @returns {string}
+   */
+  function formatShapeElementCount(shape) {
+    const elementCount = getShapeElementCount(shape);
+    return elementCount === null ? "" : elementCount.toString();
+  }
+
+  /**
+   * @param {unknown} shape
+   * @returns {string}
+   */
+  function renderShapeElementDetail(shape) {
+    const formattedElementCount = formatShapeElementCount(shape);
+    return formattedElementCount
+      ? `Total elements ${formattedElementCount}`
+      : "";
   }
 
   function renderAutomaticPreviewSteps(steps) {
@@ -1439,9 +1493,13 @@ export function registerNotesPlanner(ctx) {
           { label: "FLOP", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
           { label: "MAC", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
           { label: "Peak", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size) },
-          { label: "Shape", value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape) },
+          {
+            label: "Shape",
+            value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape),
+            detail: renderShapeElementDetail(manualAnalysis.summary && manualAnalysis.summary.final_shape),
+          },
         ])}
-        <div class="planner-step-list">
+        <div class="planner-step-list planner-manual-step-list">
           ${renderManualSteps(manualAnalysis.steps)}
         </div>
       </section>
@@ -1476,6 +1534,11 @@ export function registerNotesPlanner(ctx) {
               <span>FLOP ${formatNumber(step.estimated_flops)}</span>
               <span>MAC ${formatNumber(step.estimated_macs)}</span>
             </div>
+            ${
+              renderShapeElementDetail(step.result_shape)
+                ? `<div class="planner-step-detail">${ctx.escapeHtml(renderShapeElementDetail(step.result_shape))}</div>`
+                : ""
+            }
           </article>
         `
       )
@@ -1501,6 +1564,11 @@ export function registerNotesPlanner(ctx) {
       <section class="planner-section">
         <p class="planner-network-output-label">Network output shape</p>
         <p class="planner-network-output">${ctx.escapeHtml(formatShape(payload.network_output_shape))}</p>
+        ${
+          renderShapeElementDetail(payload.network_output_shape)
+            ? `<p class="planner-shape-detail">${ctx.escapeHtml(renderShapeElementDetail(payload.network_output_shape))}</p>`
+            : ""
+        }
       </section>
       ${inspectionMeta}
       <div class="planner-summary-grid">
