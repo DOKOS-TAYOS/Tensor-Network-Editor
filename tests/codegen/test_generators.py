@@ -295,6 +295,9 @@ def test_einsum_codegen_uses_integer_sublist_form_for_many_labels(
 def test_einsum_codegen_executes_for_empty_network(engine: EngineName) -> None:
     result = generate_code(build_empty_spec(), engine=engine)
     namespace: dict[str, object] = {}
+    module_name = "numpy" if engine is EngineName.EINSUM_NUMPY else "torch"
+
+    pytest.importorskip(module_name)
 
     exec(result.code, namespace, namespace)
 
