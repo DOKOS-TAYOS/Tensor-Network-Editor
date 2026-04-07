@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-07
+
+### Added
+
+- Many new editor/CLI commands.
+- Generated export code now includes contraction steps for the current scheme (not only tensor wiring).
+
+### Changed
+
+- Improved controls, forms, and menus; various UI elements relocated for clearer layout and behavior.
+
+### Fixed
+
+- Assorted bug fixes across the editor and tooling.
+
 ## [0.1.2] - 2026-04-05
 
 ### Added
