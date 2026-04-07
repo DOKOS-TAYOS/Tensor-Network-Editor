@@ -441,10 +441,12 @@ def test_analyze_contraction_route_deserializes_the_spec_once(
 ) -> None:
     deserialize_call_count = 0
 
-    def counting_deserialize_spec(*args: object, **kwargs: object) -> object:
+    def counting_deserialize_spec(
+        payload: dict[str, object], *, validate: bool = True
+    ) -> NetworkSpec:
         nonlocal deserialize_call_count
         deserialize_call_count += 1
-        return deserialize_spec_impl(*args, **kwargs)
+        return deserialize_spec_impl(payload, validate=validate)
 
     with (
         patch(
