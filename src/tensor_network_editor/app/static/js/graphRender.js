@@ -315,6 +315,12 @@ export function registerGraphRender(ctx) {
       }
       state.activeIndexDrag = {
         indexId: event.target.id(),
+        startOffset: located
+          ? {
+            x: located.index.offset.x,
+            y: located.index.offset.y,
+          }
+          : null,
         snapshot: ctx.createHistorySnapshot(),
       };
     });
@@ -360,21 +366,47 @@ export function registerGraphRender(ctx) {
     });
   }
 
-  function render() {
-    renderGraph();
-    ctx.renderProperties();
-    generatedCode.value = state.generatedCode;
+  function render(options = {}) {
+    const resolvedOptions = {
+      graph: true,
+      properties: true,
+      code: true,
+      toolbar: true,
+      overlays: true,
+      planner: true,
+      sidebarTabs: true,
+      minimap: true,
+      syncSelection: false,
+      ...options,
+    };
+    if (resolvedOptions.graph) {
+      renderGraph();
+    } else if (resolvedOptions.syncSelection) {
+      ctx.syncCySelection();
+    }
+    if (resolvedOptions.properties) {
+      ctx.renderProperties();
+    }
+    if (resolvedOptions.code) {
+      generatedCode.value = state.generatedCode;
+    }
     connectButton.classList.toggle("is-active", state.connectMode);
     helpModal.classList.toggle("is-hidden", !state.isHelpOpen);
-    ctx.updateToolbarState();
-    ctx.renderOverlayDecorations();
-    if (typeof ctx.renderPlanner === "function") {
+    if (resolvedOptions.toolbar) {
+      ctx.updateToolbarState();
+    }
+    if (resolvedOptions.overlays) {
+      ctx.renderOverlayDecorations();
+    }
+    if (resolvedOptions.planner && typeof ctx.renderPlanner === "function") {
       ctx.renderPlanner();
     }
-    if (typeof ctx.renderSidebarTabs === "function") {
+    if (resolvedOptions.sidebarTabs && typeof ctx.renderSidebarTabs === "function") {
       ctx.renderSidebarTabs();
     }
-    ctx.renderMinimap();
+    if (resolvedOptions.minimap) {
+      ctx.renderMinimap();
+    }
   }
 
   function renderGraph() {
@@ -602,7 +634,30 @@ export function registerGraphRender(ctx) {
     if (!state.activeTensorDrag || state.activeTensorDrag.anchorId !== anchorId) {
       return;
     }
-    ctx.commitHistorySnapshot(state.activeTensorDrag.snapshot);
+    const changed =
+      state.activeTensorDrag.tensorIds.some((tensorId) => {
+        const tensor = typeof ctx.findVisibleTensorById === "function"
+          ? ctx.findVisibleTensorById(tensorId)
+          : ctx.findTensorById(tensorId);
+        const startPosition = state.activeTensorDrag.tensorStartPositions[tensorId];
+        return (
+          tensor &&
+          startPosition &&
+          (tensor.position.x !== startPosition.x || tensor.position.y !== startPosition.y)
+        );
+      }) ||
+      state.activeTensorDrag.noteIds.some((noteId) => {
+        const note = ctx.findNoteById(noteId);
+        const startPosition = state.activeTensorDrag.noteStartPositions[noteId];
+        return (
+          note &&
+          startPosition &&
+          (note.position.x !== startPosition.x || note.position.y !== startPosition.y)
+        );
+      });
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeTensorDrag.snapshot);
+    }
     state.activeTensorDrag = null;
     ctx.updateToolbarState();
   }
@@ -611,7 +666,17 @@ export function registerGraphRender(ctx) {
     if (!state.activeIndexDrag || state.activeIndexDrag.indexId !== indexId) {
       return;
     }
-    ctx.commitHistorySnapshot(state.activeIndexDrag.snapshot);
+    const located = ctx.findIndexOwner(indexId);
+    const changed =
+      located &&
+      state.activeIndexDrag.startOffset &&
+      (
+        located.index.offset.x !== state.activeIndexDrag.startOffset.x ||
+        located.index.offset.y !== state.activeIndexDrag.startOffset.y
+      );
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeIndexDrag.snapshot);
+    }
     state.activeIndexDrag = null;
     ctx.updateToolbarState();
   }

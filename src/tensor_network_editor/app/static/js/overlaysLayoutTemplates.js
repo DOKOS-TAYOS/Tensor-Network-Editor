@@ -37,6 +37,18 @@ export function registerOverlaysLayoutTemplates(ctx) {
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+
+  function overlayOnlyInvalidation(overrides = {}) {
+    return {
+      graph: false,
+      lookups: false,
+      analysis: false,
+      overlays: true,
+      planner: false,
+      minimap: false,
+      ...overrides,
+    };
+  }
   let overlayFrameId = null;
   let overlayRenderQueued = false;
 
@@ -294,6 +306,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
       {
         selectionIds: [groupId],
         primaryId: groupId,
+        invalidate: overlayOnlyInvalidation({ lookups: true }),
         statusMessage: "Created a new tensor group.",
       }
     );
@@ -312,6 +325,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
       {
         selectionIds: [group.id],
         primaryId: group.id,
+        invalidate: overlayOnlyInvalidation(),
         statusMessage: nextCollapsed
           ? `Collapsed ${group.name}.`
           : `Expanded ${group.name}.`,
@@ -362,7 +376,18 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!state.activeGroupDrag) {
       return;
     }
-    ctx.commitHistorySnapshot(state.activeGroupDrag.snapshot);
+    const changed = state.activeGroupDrag.tensorIds.some((tensorId) => {
+      const tensor = ctx.findTensorById(tensorId);
+      const startPosition = state.activeGroupDrag.tensorStartPositions[tensorId];
+      return (
+        tensor &&
+        startPosition &&
+        (tensor.position.x !== startPosition.x || tensor.position.y !== startPosition.y)
+      );
+    });
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeGroupDrag.snapshot);
+    }
     state.activeGroupDrag = null;
     ctx.updateToolbarState();
     ctx.render();
@@ -454,7 +479,29 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!state.activeResize) {
       return;
     }
-    ctx.commitHistorySnapshot(state.activeResize.snapshot);
+    const tensor =
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(state.activeResize.tensorId)
+        : ctx.findTensorById(state.activeResize.tensorId);
+    const changed =
+      tensor &&
+      (
+        tensor.size.width !== state.activeResize.startSize.width ||
+        tensor.size.height !== state.activeResize.startSize.height ||
+        tensor.indices.some((index) => {
+          const startOffset = state.activeResize.startOffsets[index.id];
+          return (
+            startOffset &&
+            (
+              index.offset.x !== startOffset.x ||
+              index.offset.y !== startOffset.y
+            )
+          );
+        })
+      );
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeResize.snapshot);
+    }
     state.activeResize = null;
     ctx.updateToolbarState();
     ctx.render();

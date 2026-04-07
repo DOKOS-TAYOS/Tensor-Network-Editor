@@ -547,6 +547,9 @@ export function registerInteractions(ctx) {
 
   function resetDesignState(spec, message, schemaVersion = state.schemaVersion) {
     state.spec = ctx.normalizeSpec(spec);
+    if (typeof ctx.bumpSpecRevision === "function") {
+      ctx.bumpSpecRevision();
+    }
     state.schemaVersion = schemaVersion;
     state.generatedCode = "";
     state.activeSidebarTab = "selection";

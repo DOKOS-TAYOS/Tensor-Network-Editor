@@ -9,6 +9,18 @@ export function registerNotesFeature(ctx) {
   } = ctx.constants;
   const { addNoteButton, notesLayer } = ctx.dom;
 
+  function noteInvalidation(overrides = {}) {
+    return {
+      graph: false,
+      lookups: false,
+      analysis: false,
+      overlays: true,
+      planner: false,
+      minimap: false,
+      ...overrides,
+    };
+  }
+
 
   function createNote(x, y) {
     const zoom = getCanvasZoom();
@@ -29,7 +41,10 @@ export function registerNotesFeature(ctx) {
   }
 
   function findNoteById(noteId) {
-    return state.spec.notes.find((note) => note.id === noteId) || null;
+    if (typeof ctx.ensureSpecLookups === "function") {
+      ctx.ensureSpecLookups();
+    }
+    return state.noteById[noteId] || null;
   }
 
   function removeNote(noteId) {
@@ -52,6 +67,7 @@ export function registerNotesFeature(ctx) {
       {
         selectionIds: [note.id],
         primaryId: note.id,
+        invalidate: noteInvalidation({ lookups: true }),
         statusMessage: "Added a canvas note.",
       }
     );
@@ -322,6 +338,7 @@ export function registerNotesFeature(ctx) {
             },
             {
               selectionIds: [],
+              invalidate: noteInvalidation({ lookups: true }),
               statusMessage: "Deleted a canvas note.",
             }
           );
@@ -369,6 +386,7 @@ export function registerNotesFeature(ctx) {
               {
                 selectionIds: [note.id],
                 primaryId: note.id,
+                invalidate: noteInvalidation(),
                 statusMessage: "Updated the note text.",
               }
             );
@@ -442,6 +460,7 @@ export function registerNotesFeature(ctx) {
           {
             selectionIds: [note.id],
             primaryId: note.id,
+            invalidate: noteInvalidation(),
             statusMessage: "Updated the note.",
           }
         );
@@ -515,7 +534,18 @@ export function registerNotesFeature(ctx) {
     if (!state.noteDragState) {
       return;
     }
-    ctx.commitHistorySnapshot(state.noteDragState.snapshot);
+    const changed = state.noteDragState.noteIds.some((noteId) => {
+      const note = findNoteById(noteId);
+      const startPosition = state.noteDragState.noteStartPositions[noteId];
+      return (
+        note &&
+        startPosition &&
+        (note.position.x !== startPosition.x || note.position.y !== startPosition.y)
+      );
+    });
+    if (changed) {
+      ctx.commitHistorySnapshot(state.noteDragState.snapshot);
+    }
     state.noteDragState = null;
     ctx.renderOverlayDecorations();
     ctx.updateToolbarState();
@@ -562,14 +592,23 @@ export function registerNotesFeature(ctx) {
       minimumWorldHeight,
       Math.round(state.activeNoteResize.startSize.height + worldPoint.y - state.activeNoteResize.startPointer.y)
     );
-    renderNotes();
+    ctx.renderOverlayDecorations();
   }
 
   function finishActiveNoteResize() {
     if (!state.activeNoteResize) {
       return;
     }
-    ctx.commitHistorySnapshot(state.activeNoteResize.snapshot);
+    const note = findNoteById(state.activeNoteResize.noteId);
+    const changed =
+      note &&
+      (
+        note.size.width !== state.activeNoteResize.startSize.width ||
+        note.size.height !== state.activeNoteResize.startSize.height
+      );
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeNoteResize.snapshot);
+    }
     state.activeNoteResize = null;
     ctx.renderOverlayDecorations();
     ctx.updateToolbarState();
@@ -587,6 +626,7 @@ export function registerNotesFeature(ctx) {
       {
         selectionIds: [note.id],
         primaryId: note.id,
+        invalidate: noteInvalidation(),
         statusMessage: note.metadata && note.metadata.collapsed
           ? "Expanded the note."
           : "Collapsed the note.",
