@@ -1,3 +1,5 @@
+"""Base abstractions shared by all code generators."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -6,6 +8,8 @@ from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFor
 
 
 class CodeGenerator(ABC):
+    """Abstract interface implemented by backend-specific code generators."""
+
     engine: EngineName
 
     @abstractmethod
@@ -14,4 +18,5 @@ class CodeGenerator(ABC):
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     ) -> CodegenResult:
+        """Generate Python code for ``spec`` using the given collection layout."""
         raise NotImplementedError

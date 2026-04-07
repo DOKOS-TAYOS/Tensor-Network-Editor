@@ -1,3 +1,5 @@
+"""Structured results returned by contraction analysis endpoints and helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -8,6 +10,8 @@ from .types import JSONValue
 
 @dataclass(slots=True)
 class ContractionStepAnalysis:
+    """Estimated metrics for one contraction step."""
+
     step_id: str
     left_operand_id: str
     right_operand_id: str
@@ -21,6 +25,7 @@ class ContractionStepAnalysis:
     intermediate_size: int
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the step analysis to a JSON-compatible mapping."""
         return {
             "step_id": self.step_id,
             "left_operand_id": self.left_operand_id,
@@ -38,6 +43,8 @@ class ContractionStepAnalysis:
 
 @dataclass(slots=True)
 class ManualContractionSummary:
+    """Summary metrics for the saved manual contraction plan."""
+
     total_estimated_flops: int
     total_estimated_macs: int
     peak_intermediate_size: int
@@ -46,6 +53,7 @@ class ManualContractionSummary:
     remaining_operand_ids: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the manual summary to a JSON-compatible mapping."""
         return {
             "total_estimated_flops": self.total_estimated_flops,
             "total_estimated_macs": self.total_estimated_macs,
@@ -62,11 +70,14 @@ class ManualContractionSummary:
 
 @dataclass(slots=True)
 class AutomaticContractionSummary:
+    """Summary metrics for an automatically suggested contraction path."""
+
     total_estimated_flops: int
     total_estimated_macs: int
     peak_intermediate_size: int
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the automatic summary to a JSON-compatible mapping."""
         return {
             "total_estimated_flops": self.total_estimated_flops,
             "total_estimated_macs": self.total_estimated_macs,
@@ -76,12 +87,15 @@ class AutomaticContractionSummary:
 
 @dataclass(slots=True)
 class ManualContractionPlanAnalysis:
+    """Detailed analysis for the saved manual contraction plan."""
+
     status: str
     steps: list[ContractionStepAnalysis]
     summary: ManualContractionSummary
     message: str | None = None
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the manual plan analysis to a JSON-compatible mapping."""
         payload: dict[str, JSONValue] = {
             "status": self.status,
             "steps": [step.to_dict() for step in self.steps],
@@ -94,12 +108,15 @@ class ManualContractionPlanAnalysis:
 
 @dataclass(slots=True)
 class AutomaticContractionPlanAnalysis:
+    """Detailed analysis for an automatically derived contraction plan."""
+
     status: str
     steps: list[ContractionStepAnalysis]
     summary: AutomaticContractionSummary
     message: str | None = None
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the automatic plan analysis to a JSON-compatible mapping."""
         payload: dict[str, JSONValue] = {
             "status": self.status,
             "steps": [step.to_dict() for step in self.steps],
@@ -112,6 +129,8 @@ class AutomaticContractionPlanAnalysis:
 
 @dataclass(slots=True)
 class ContractionAnalysisResult:
+    """Top-level contraction analysis payload for the editor UI."""
+
     network_output_shape: tuple[int, ...]
     manual: ManualContractionPlanAnalysis
     automatic_future: AutomaticContractionPlanAnalysis
@@ -120,6 +139,7 @@ class ContractionAnalysisResult:
     message: str | None = None
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the full contraction analysis result."""
         payload: dict[str, JSONValue] = {
             "network_output_shape": cast(JSONValue, list(self.network_output_shape)),
             "manual": self.manual.to_dict(),

@@ -1,3 +1,5 @@
+"""Catalog metadata for the built-in network templates."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +7,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class TemplateParameters:
+    """Normalized parameters accepted by a built-in template."""
+
     graph_size: int
     bond_dimension: int
     physical_dimension: int
@@ -12,6 +16,8 @@ class TemplateParameters:
 
 @dataclass(frozen=True)
 class TemplateDefinition:
+    """Metadata shown for one built-in template option."""
+
     name: str
     display_name: str
     graph_size_label: str
@@ -21,6 +27,7 @@ class TemplateDefinition:
     minimum_physical_dimension: int = 1
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the template definition for frontend bootstrap payloads."""
         return {
             "display_name": self.display_name,
             "graph_size_label": self.graph_size_label,
@@ -93,10 +100,12 @@ TEMPLATE_NAMES = list(TEMPLATE_DEFINITIONS)
 
 
 def list_template_names() -> list[str]:
+    """Return the public template names in display order."""
     return list(TEMPLATE_NAMES)
 
 
 def serialize_template_definitions() -> dict[str, dict[str, object]]:
+    """Serialize all template definitions for the browser bootstrap payload."""
     return {
         template_name: definition.to_dict()
         for template_name, definition in TEMPLATE_DEFINITIONS.items()
@@ -104,6 +113,7 @@ def serialize_template_definitions() -> dict[str, dict[str, object]]:
 
 
 def get_template_definition(template_name: str) -> TemplateDefinition:
+    """Return the catalog entry for ``template_name``."""
     try:
         return TEMPLATE_DEFINITIONS[template_name]
     except KeyError as exc:
@@ -113,6 +123,7 @@ def get_template_definition(template_name: str) -> TemplateDefinition:
 def parse_template_integer(
     value: object, *, field_name: str, default: int, minimum: int
 ) -> int:
+    """Validate one integer template parameter and apply its default."""
     if value is None:
         return default
     if isinstance(value, bool) or not isinstance(value, int):
@@ -127,6 +138,7 @@ def parse_template_integer(
 def validate_template_parameters(
     template_name: str, parameters: TemplateParameters
 ) -> TemplateParameters:
+    """Normalize template parameters against the rules for ``template_name``."""
     definition = get_template_definition(template_name)
     return TemplateParameters(
         graph_size=parse_template_integer(

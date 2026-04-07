@@ -1,3 +1,5 @@
+"""Naming helpers used while reconstructing specs from generated Python."""
+
 from __future__ import annotations
 
 import re
@@ -6,10 +8,12 @@ _NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
 
 def sanitize_identifier(value: str) -> str:
+    """Normalize free-form text into a lowercase identifier fragment."""
     return _NON_IDENTIFIER_PATTERN.sub("_", value.strip()).strip("_").lower()
 
 
 def synthetic_data_variable_name(reference: str, fallback_name: str | None) -> str:
+    """Build a synthetic data-variable name for inline tensor initializers."""
     candidate = sanitize_identifier(fallback_name or reference)
     if not candidate:
         candidate = "tensor"
@@ -17,6 +21,7 @@ def synthetic_data_variable_name(reference: str, fallback_name: str | None) -> s
 
 
 def default_tensor_name_from_position(position: int) -> str:
+    """Return a readable default tensor name for a positional fallback."""
     if 0 <= position < 26:
         return chr(ord("A") + position)
     return f"T{position + 1}"
@@ -25,6 +30,7 @@ def default_tensor_name_from_position(position: int) -> str:
 def recover_tensor_name_from_data_variable(
     data_variable_name: str, fallback_name: str | None = None
 ) -> str:
+    """Recover a human-friendly tensor name from a data-variable name."""
     base_name = data_variable_name.removesuffix("_data").strip()
     if not base_name and fallback_name:
         base_name = fallback_name.strip()
@@ -47,6 +53,7 @@ def recover_index_name(
     data_variable_name: str,
     connected_edge_label: str | None,
 ) -> str:
+    """Recover a readable index name from labels found in generated code."""
     if connected_edge_label and label == connected_edge_label:
         if "_" in label:
             suffix = label.rsplit("_", maxsplit=1)[-1].strip()

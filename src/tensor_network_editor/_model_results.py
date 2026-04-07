@@ -1,3 +1,5 @@
+"""Result and enum models returned by validation, codegen, and sessions."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,12 +14,16 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class ValidationIssue:
+    """A single validation problem found in a network specification."""
+
     code: str
     message: str
     path: str
 
 
 class EngineName(StrEnum):
+    """Supported code-generation backends."""
+
     TENSORNETWORK = "tensornetwork"
     QUIMB = "quimb"
     TENSORKROWCH = "tensorkrowch"
@@ -26,6 +32,8 @@ class EngineName(StrEnum):
 
 
 class TensorCollectionFormat(StrEnum):
+    """Supported container layouts for generated tensor collections."""
+
     LIST = "list"
     MATRIX = "matrix"
     DICT = "dict"
@@ -33,6 +41,8 @@ class TensorCollectionFormat(StrEnum):
 
 @dataclass(slots=True)
 class CodegenResult:
+    """Generated Python code together with metadata about the export."""
+
     engine: EngineName
     code: str
     warnings: list[str] = field(default_factory=list)
@@ -41,6 +51,8 @@ class CodegenResult:
 
 @dataclass(slots=True)
 class EditorResult:
+    """Final result returned when an editor session finishes."""
+
     spec: NetworkSpec
     engine: EngineName
     codegen: CodegenResult | None = None

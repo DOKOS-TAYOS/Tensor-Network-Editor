@@ -1,3 +1,5 @@
+"""Code generation for the ``tensorkrowch`` backend."""
+
 from __future__ import annotations
 
 from .._contraction_plan import (
@@ -22,6 +24,8 @@ from .common import (
 
 
 class TensorKrowchCodeGenerator(CodeGenerator):
+    """Generate ``tensorkrowch`` code for a network specification."""
+
     engine = EngineName.TENSORKROWCH
 
     def generate(
@@ -29,6 +33,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     ) -> CodegenResult:
+        """Generate ``tensorkrowch`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
         lines = [
@@ -107,6 +112,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
+        """Render a saved manual plan, rejecting unsupported outer products."""
         simulation = simulate_contraction_plan(
             initial_operand_ids=tuple(tensor.spec.id for tensor in prepared.tensors),
             initial_operands=build_initial_operand_labels(prepared),
@@ -186,6 +192,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> str:
+        """Resolve an operand id to its generated Python expression."""
         if operand_id in base_operand_expressions:
             return base_operand_expressions[operand_id]
         return render_results_list_reference(
@@ -203,6 +210,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> list[str]:
+        """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
             operand_expression = TensorKrowchCodeGenerator._operand_expression(

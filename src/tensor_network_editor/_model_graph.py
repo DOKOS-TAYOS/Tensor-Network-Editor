@@ -1,3 +1,5 @@
+"""Core graph data models used by saved network specifications."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,6 +19,8 @@ from .types import JSONValue, MetadataDict
 
 @dataclass(slots=True)
 class IndexSpec:
+    """One named index that belongs to a tensor."""
+
     id: str = field(default_factory=lambda: new_identifier("index"))
     name: str = "index"
     dimension: int = 2
@@ -24,6 +28,7 @@ class IndexSpec:
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the index to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -34,6 +39,7 @@ class IndexSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build an index from a serialized mapping."""
         offset_payload = require_dict(
             payload.get("offset", {"x": 0.0, "y": 0.0}),
             field_name="offset",
@@ -51,6 +57,8 @@ class IndexSpec:
 
 @dataclass(slots=True)
 class TensorSpec:
+    """A tensor node together with its canvas placement and indices."""
+
     id: str = field(default_factory=lambda: new_identifier("tensor"))
     name: str = "Tensor"
     position: CanvasPosition = field(default_factory=CanvasPosition)
@@ -60,9 +68,11 @@ class TensorSpec:
 
     @property
     def shape(self) -> tuple[int, ...]:
+        """Return the tensor shape derived from its index dimensions."""
         return tuple(index.dimension for index in self.indices)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the tensor to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -74,6 +84,7 @@ class TensorSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a tensor from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         size_payload = require_dict(
             payload.get("size", {"width": 180.0, "height": 108.0}),
@@ -97,14 +108,18 @@ class TensorSpec:
 
 @dataclass(slots=True, frozen=True)
 class EdgeEndpointRef:
+    """Reference one endpoint of an edge by tensor id and index id."""
+
     tensor_id: str
     index_id: str
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the endpoint reference to a JSON-compatible mapping."""
         return {"tensor_id": self.tensor_id, "index_id": self.index_id}
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build an endpoint reference from a serialized mapping."""
         return cls(
             tensor_id=str(payload["tensor_id"]), index_id=str(payload["index_id"])
         )
@@ -112,6 +127,8 @@ class EdgeEndpointRef:
 
 @dataclass(slots=True)
 class EdgeSpec:
+    """A pairwise edge connecting two tensor indices."""
+
     id: str = field(default_factory=lambda: new_identifier("edge"))
     name: str = "edge"
     left: EdgeEndpointRef = field(default_factory=lambda: EdgeEndpointRef("", ""))
@@ -119,6 +136,7 @@ class EdgeSpec:
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the edge to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -129,6 +147,7 @@ class EdgeSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build an edge from a serialized mapping."""
         return cls(
             id=str(payload["id"]),
             name=str(payload["name"]),
@@ -146,12 +165,15 @@ class EdgeSpec:
 
 @dataclass(slots=True)
 class GroupSpec:
+    """A visual grouping of tensor ids in the editor."""
+
     id: str = field(default_factory=lambda: new_identifier("group"))
     name: str = "Group"
     tensor_ids: list[str] = field(default_factory=list)
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the group to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -161,6 +183,7 @@ class GroupSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a group from a serialized mapping."""
         tensor_ids_payload = require_list(
             payload.get("tensor_ids", []), field_name="tensor_ids"
         )
@@ -176,12 +199,15 @@ class GroupSpec:
 
 @dataclass(slots=True)
 class CanvasNoteSpec:
+    """A free-form text note placed on the editor canvas."""
+
     id: str = field(default_factory=lambda: new_identifier("note"))
     text: str = "Note"
     position: CanvasPosition = field(default_factory=CanvasPosition)
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the note to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "text": self.text,
@@ -191,6 +217,7 @@ class CanvasNoteSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a note from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         return cls(
             id=str(payload["id"]),
@@ -204,6 +231,8 @@ class CanvasNoteSpec:
 
 @dataclass(slots=True)
 class NetworkSpec:
+    """The root object that stores an abstract tensor-network design."""
+
     id: str = field(default_factory=lambda: new_identifier("network"))
     name: str = "Tensor Network"
     tensors: list[TensorSpec] = field(default_factory=list)
@@ -214,26 +243,31 @@ class NetworkSpec:
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
+        """Return a mapping from tensor ids to tensor specifications."""
         from ._network_analysis import tensor_map
 
         return tensor_map(self)
 
     def index_map(self) -> dict[str, tuple[TensorSpec, IndexSpec]]:
+        """Return a mapping from index ids to their owning tensor and index."""
         from ._network_analysis import index_map
 
         return index_map(self)
 
     def connected_index_ids(self) -> set[str]:
+        """Return the ids of indices that participate in an edge."""
         from ._network_analysis import connected_index_ids
 
         return connected_index_ids(self)
 
     def open_indices(self) -> list[tuple[TensorSpec, IndexSpec]]:
+        """Return the tensor/index pairs that are not connected by any edge."""
         from ._network_analysis import open_indices
 
         return open_indices(self)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the network to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -251,6 +285,7 @@ class NetworkSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a network from a serialized mapping."""
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
         groups_payload = require_list(payload.get("groups", []), field_name="groups")
         edges_payload = require_list(payload.get("edges", []), field_name="edges")

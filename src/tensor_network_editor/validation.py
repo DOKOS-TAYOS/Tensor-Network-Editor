@@ -1,3 +1,5 @@
+"""Validate abstract tensor-network specifications."""
+
 from __future__ import annotations
 
 from ._analysis import analyze_network
@@ -14,6 +16,7 @@ from .models import NetworkSpec, ValidationIssue
 
 
 def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
+    """Collect all validation issues found in ``spec``."""
     issues: list[ValidationIssue] = []
     validate_network(spec, issues)
     analysis = analyze_network(spec)
@@ -49,6 +52,7 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
 
 
 def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:
+    """Return ``spec`` or raise ``SpecValidationError`` if it is invalid."""
     issues = validate_spec(spec)
     if issues:
         raise SpecValidationError(issues)

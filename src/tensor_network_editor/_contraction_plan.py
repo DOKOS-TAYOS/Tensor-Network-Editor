@@ -1,3 +1,5 @@
+"""Helpers for simulating saved manual contraction plans."""
+
 from __future__ import annotations
 
 import re
@@ -15,6 +17,8 @@ _NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
 @dataclass(slots=True, frozen=True)
 class SimulatedContractionStep:
+    """Derived information for one simulated contraction step."""
+
     step_id: str
     left_operand_id: str
     right_operand_id: str
@@ -34,11 +38,14 @@ class SimulatedContractionStep:
 
     @property
     def is_outer_product(self) -> bool:
+        """Return ``True`` when the step contracts no shared labels."""
         return not self.contracted_labels
 
 
 @dataclass(slots=True)
 class SimulatedContractionPlan:
+    """Simulation output for a whole manual contraction plan."""
+
     steps: list[SimulatedContractionStep]
     remaining_operand_ids: tuple[str, ...]
     remaining_operands: dict[str, tuple[str, ...]]
@@ -47,6 +54,7 @@ class SimulatedContractionPlan:
 
 
 def sanitize_python_identifier(value: str, prefix: str) -> str:
+    """Normalize a value into a safe lowercase Python identifier."""
     collapsed = _NON_IDENTIFIER_PATTERN.sub("_", value.strip()).strip("_").lower()
     if not collapsed:
         collapsed = prefix
@@ -56,6 +64,7 @@ def sanitize_python_identifier(value: str, prefix: str) -> str:
 
 
 def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
+    """Build a mapping from prepared index labels to their dimensions."""
     dimension_by_label: dict[str, int] = {}
     for tensor in prepared.tensors:
         for index in tensor.indices:
@@ -66,6 +75,7 @@ def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
 def build_initial_operand_labels(
     prepared: PreparedNetwork,
 ) -> dict[str, tuple[str, ...]]:
+    """Build the starting label tuple for each tensor operand."""
     return {
         tensor.spec.id: tuple(index.label for index in tensor.indices)
         for tensor in prepared.tensors
@@ -75,6 +85,7 @@ def build_initial_operand_labels(
 def build_initial_operand_axis_names(
     prepared: PreparedNetwork,
 ) -> dict[str, tuple[str, ...]]:
+    """Build the starting axis-name tuple for each tensor operand."""
     return {
         tensor.spec.id: tuple(index.spec.name for index in tensor.indices)
         for tensor in prepared.tensors
@@ -89,6 +100,7 @@ def simulate_contraction_plan(
     dimension_by_label: dict[str, int],
     plan: ContractionPlanSpec | None,
 ) -> SimulatedContractionPlan:
+    """Simulate a full manual contraction plan from the initial operands."""
     remaining_operands = dict(initial_operands)
     remaining_axis_names = dict(initial_axis_names)
     remaining_operand_ids = list(initial_operand_ids)
@@ -169,6 +181,7 @@ def simulate_contraction_step(
     right_axis_names: tuple[str, ...],
     dimension_by_label: dict[str, int],
 ) -> SimulatedContractionStep:
+    """Simulate one pairwise contraction step using label metadata only."""
     right_label_set = set(right_labels)
     contracted_labels = tuple(
         label for label in left_labels if label in right_label_set
@@ -202,6 +215,7 @@ def simulate_contraction_step(
 
 
 def _product(values: Iterable[int]) -> int:
+    """Return the multiplicative product of ``values``."""
     result = 1
     for value in values:
         result *= int(value)

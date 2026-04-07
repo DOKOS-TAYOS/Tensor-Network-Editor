@@ -1,3 +1,5 @@
+"""Validation helpers for manual contraction plans and saved snapshots."""
+
 from __future__ import annotations
 
 import math
@@ -23,6 +25,7 @@ def validate_contraction_plan(
     tensor_ids: set[str],
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate the manual contraction plan stored on a network."""
     if not is_valid_name(plan.name):
         append_issue(
             issues,
@@ -59,6 +62,7 @@ def validate_contraction_view_snapshot(
     *,
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate one saved contraction-scene snapshot."""
     snapshot_path = f"contraction_plan.view_snapshots.{snapshot.applied_step_count}"
     if snapshot.applied_step_count < 0:
         append_issue(
@@ -85,6 +89,7 @@ def validate_contraction_operand_layout(
     seen_operand_ids: set[str],
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate one operand layout entry inside a snapshot."""
     operand_path = f"{snapshot_path}.operand_layouts.{operand_layout.operand_id or '_'}"
     if not is_valid_name(operand_layout.operand_id):
         append_issue(
@@ -142,6 +147,7 @@ def validate_contraction_step(
     consumed_operand_ids: set[str],
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate a single manual contraction step against available operands."""
     step_path = f"contraction_plan.steps.{step.id}"
     validate_metadata(f"{step_path}.metadata", step.metadata, issues)
 

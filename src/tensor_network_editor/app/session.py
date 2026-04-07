@@ -1,3 +1,5 @@
+"""Session lifecycle helpers for the local browser editor."""
+
 from __future__ import annotations
 
 import logging
@@ -29,14 +31,21 @@ SignalHandler = Callable[[int, FrameType | None], Any]
 
 
 class SupportsWaitForResult(Protocol):
-    def wait_for_result(self, timeout: float | None = None) -> EditorResult | None: ...
+    """Protocol implemented by session-like objects that can wait for results."""
+
+    def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
+        """Wait for the final editor result or ``None`` on timeout."""
+        ...
 
 
 def build_blank_network_spec() -> NetworkSpec:
+    """Build the default empty network shown in a new editor session."""
     return NetworkSpec(name="Untitled Network")
 
 
 class EditorSession:
+    """Mutable session state shared between the HTTP server and the caller."""
+
     def __init__(
         self,
         initial_spec: NetworkSpec | None = None,
@@ -56,6 +65,7 @@ class EditorSession:
         self._lock = threading.Lock()
 
     def bootstrap_payload(self) -> dict[str, object]:
+        """Return the bootstrap payload consumed by the browser client."""
         return build_bootstrap_payload(self)
 
     def generate(
@@ -64,6 +74,7 @@ class EditorSession:
         engine: EngineName,
         collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
+        """Generate preview code without finalizing the session."""
         LOGGER.debug("Generating preview code for engine '%s'", engine.value)
         return generate_session_request(
             self,
@@ -78,6 +89,7 @@ class EditorSession:
         engine: EngineName,
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
+        """Finalize the session and store the resulting editor output."""
         LOGGER.info("Completing editor session with engine '%s'", engine.value)
         result = complete_session_request(
             self,
@@ -95,15 +107,18 @@ class EditorSession:
         template_name: str,
         parameters: TemplateParameters | None = None,
     ) -> NetworkSpec:
+        """Build a validated template spec for insertion into the session."""
         return build_template_from_payload(self, template_name, parameters)
 
     def cancel(self) -> None:
+        """Cancel the session and unblock any waiter."""
         LOGGER.info("Cancelling editor session")
         with self._lock:
             self._result = None
             self._finished_event.set()
 
     def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
+        """Wait for the session to finish and return its final result."""
         finished = self._finished_event.wait(timeout)
         if not finished:
             return None
@@ -116,6 +131,7 @@ def wait_for_editor_result(
     *,
     poll_interval: float = 0.2,
 ) -> EditorResult | None:
+    """Wait for an editor session result using the session's blocking API."""
     del poll_interval
     return session.wait_for_result(timeout=None)
 
@@ -132,6 +148,7 @@ def launch_editor_session(
     code_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
+    """Create the local server, optionally open the browser, and wait for a result."""
     from .server import EditorServer
 
     LOGGER.info("Starting editor session")

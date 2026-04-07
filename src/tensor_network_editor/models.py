@@ -1,3 +1,5 @@
+"""Public re-exports for the package data models."""
+
 from __future__ import annotations
 
 from ._model_contraction import (

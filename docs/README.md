@@ -28,6 +28,11 @@ Python code without having to read the whole codebase first.
 The browser interface is local to your machine. The package starts a local
 server, opens a browser tab, and waits until you confirm or cancel the session.
 
+The same public API also supports round-tripping supported generated Python
+exports back into a `NetworkSpec`, choosing tensor collection layouts during
+code generation, and preserving manual contraction-scene snapshots inside saved
+plans.
+
 ## Typical workflow
 
 1. Install the package in a virtual environment.
@@ -36,6 +41,8 @@ server, opens a browser tab, and waits until you confirm or cancel the session.
 4. Confirm the session.
 5. Save the abstract design as JSON and optionally generate Python code for a
    target engine.
+6. Reload the saved JSON or a supported generated Python export later if you
+   want to inspect or regenerate the network.
 
 ## Which page should I read?
 

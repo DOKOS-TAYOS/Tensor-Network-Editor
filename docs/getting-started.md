@@ -124,7 +124,14 @@ The package stores designs as plain JSON with a schema wrapper. That makes the
 files easy to version and inspect.
 
 ```python
-from tensor_network_editor import EngineName, generate_code, load_spec, save_spec
+from tensor_network_editor import (
+    EngineName,
+    TensorCollectionFormat,
+    generate_code,
+    load_spec,
+    load_spec_from_python_code,
+    save_spec,
+)
 
 spec = load_spec("my_network.json")
 save_spec(spec, "copy_of_my_network.json")
@@ -132,11 +139,24 @@ save_spec(spec, "copy_of_my_network.json")
 result = generate_code(
     spec,
     engine=EngineName.EINSUM_NUMPY,
+    collection_format=TensorCollectionFormat.DICT,
     path="generated_network.py",
 )
 
 print(result.code)
+
+round_tripped_spec = load_spec_from_python_code(result.code)
+print(round_tripped_spec.name)
 ```
+
+Important detail:
+
+- `load_spec(...)` accepts saved JSON files and supported generated `.py`
+  exports
+- `load_spec_from_python_code(...)` is useful when you already have the source
+  code in memory
+- `collection_format` lets you organize generated tensors as a `list`, `matrix`,
+  or `dict`
 
 ## 5. Understand the save format at a glance
 
@@ -167,6 +187,9 @@ If you want a simple first session, this is a good path:
 4. Press `Done`.
 5. Save the generated code.
 6. Save the JSON design so you can reopen it later.
+
+If you want to compare generated layouts, try the same design again with
+`TensorCollectionFormat.MATRIX` or `TensorCollectionFormat.DICT`.
 
 After that, continue with [user-guide.md](user-guide.md) to understand the
 editor workflow more clearly.

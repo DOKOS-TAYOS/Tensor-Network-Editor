@@ -1,3 +1,5 @@
+"""Threaded local HTTP server that hosts the browser editor."""
+
 from __future__ import annotations
 
 import json
@@ -18,6 +20,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class EditorServer:
+    """Serve the browser app and JSON API for one editor session."""
+
     def __init__(
         self, session: EditorSession, host: str = "127.0.0.1", port: int = 0
     ) -> None:
@@ -39,6 +43,7 @@ class EditorServer:
 
     @property
     def base_url(self) -> str:
+        """Return the local base URL assigned to the server."""
         server_address = self._server.server_address
         host = server_address[0]
         port = server_address[1]
@@ -46,16 +51,19 @@ class EditorServer:
         return f"http://{host_text}:{port}"
 
     def start(self) -> None:
+        """Start serving requests in a background thread."""
         self._thread.start()
         LOGGER.info("Editor server started at %s", self.base_url)
 
     def stop(self) -> None:
+        """Stop the server and wait for the worker thread to exit."""
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)
         LOGGER.info("Editor server stopped")
 
     def _build_handler(self) -> type[BaseHTTPRequestHandler]:
+        """Build the request-handler class bound to this server instance."""
         session = self.session
         static_dir = self._static_dir
         asset_version = self._asset_version

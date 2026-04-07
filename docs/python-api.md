@@ -10,9 +10,10 @@ kind of objects you get back.
 The package exposes these main functions at the top level:
 
 - `launch_tensor_network_editor(...) -> EditorResult | None`
-- `generate_code(spec, engine=..., path=...) -> CodegenResult`
+- `generate_code(spec, engine=..., collection_format=..., path=...) -> CodegenResult`
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
+- `load_spec_from_python_code(code) -> NetworkSpec`
 
 Main imports:
 
@@ -21,17 +22,25 @@ from tensor_network_editor import (
     CanvasNoteSpec,
     CanvasPosition,
     CodeGenerationError,
+    CodegenResult,
+    ContractionOperandLayoutSpec,
+    ContractionPlanSpec,
+    ContractionStepSpec,
+    ContractionViewSnapshotSpec,
     EdgeEndpointRef,
     EdgeSpec,
+    EditorResult,
     EngineName,
     GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorCollectionFormat,
     TensorSize,
     TensorSpec,
     generate_code,
     launch_tensor_network_editor,
     load_spec,
+    load_spec_from_python_code,
     save_spec,
 )
 ```
@@ -64,6 +73,8 @@ else:
 - `port`: local port, default `0` so the OS chooses one
 - `print_code`: print generated code after confirmation
 - `code_path`: write generated code to a file after confirmation
+- `default_collection_format`: choose whether generated tensors default to a
+  `list`, `matrix`, or `dict` container layout
 
 ### Return value
 
@@ -83,10 +94,19 @@ Use this when you already have a `NetworkSpec` and want code for a specific
 backend.
 
 ```python
-from tensor_network_editor import EngineName, generate_code, load_spec
+from tensor_network_editor import (
+    EngineName,
+    TensorCollectionFormat,
+    generate_code,
+    load_spec,
+)
 
 spec = load_spec("my_network.json")
-result = generate_code(spec, engine=EngineName.QUIMB)
+result = generate_code(
+    spec,
+    engine=EngineName.QUIMB,
+    collection_format=TensorCollectionFormat.DICT,
+)
 
 print(result.engine.value)
 print(result.code)
@@ -97,6 +117,8 @@ print(result.warnings)
 
 - if `print_code=True`, the generated code is printed
 - if `path="..."` is provided, the code is also written to that file
+- `collection_format` lets you organize generated tensors as a Python `list`,
+  row-grouped `matrix`, or name-keyed `dict`
 - if the backend cannot represent a saved manual contraction step,
   `generate_code(...)` raises `CodeGenerationError`
 
@@ -162,6 +184,27 @@ Important detail:
 
 - `save_spec` validates the specification before writing it
 - `load_spec` checks the schema wrapper and validates the loaded design
+- `load_spec` also accepts supported generated `.py` exports and reconstructs a
+  `NetworkSpec` from them
+
+## `load_spec_from_python_code`
+
+Use this helper when you already have generated Python source in memory.
+
+```python
+from tensor_network_editor import (
+    EngineName,
+    generate_code,
+    load_spec_from_python_code,
+)
+
+result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
+round_tripped_spec = load_spec_from_python_code(result.code)
+```
+
+This parser is intentionally limited to the source layouts emitted by the
+package itself. Unsupported or unrelated Python source raises
+`SerializationError`.
 
 ## Main data models
 
@@ -261,6 +304,18 @@ plan = ContractionPlanSpec(
     ],
 )
 ```
+
+### `ContractionOperandLayoutSpec` and `ContractionViewSnapshotSpec`
+
+These types preserve contraction-scene UI state alongside a manual plan.
+
+- `ContractionOperandLayoutSpec` stores one operand id plus its position and
+  size on the scene
+- `ContractionViewSnapshotSpec` stores the applied step count and the visible
+  operand layouts for that scene state
+
+They are mainly useful for editor persistence, but they are part of the saved
+spec and survive JSON round trips.
 
 ## Small complete example
 

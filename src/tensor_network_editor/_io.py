@@ -1,3 +1,5 @@
+"""UTF-8 text I/O helpers that raise package-specific exceptions."""
+
 from __future__ import annotations
 
 import logging
@@ -10,6 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_utf8_text(path: StrPath, *, description: str) -> str:
+    """Read a UTF-8 text file and wrap filesystem errors."""
     target_path = Path(path)
     LOGGER.info("Reading %s from %s", description, target_path)
     try:
@@ -21,6 +24,7 @@ def read_utf8_text(path: StrPath, *, description: str) -> str:
 
 
 def write_utf8_text(path: StrPath, content: str, *, description: str) -> None:
+    """Write UTF-8 text to disk and wrap filesystem errors."""
     target_path = Path(path)
     LOGGER.info("Writing %s to %s", description, target_path)
     try:

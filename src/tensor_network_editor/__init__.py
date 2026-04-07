@@ -1,3 +1,5 @@
+"""Public package exports for Tensor Network Editor."""
+
 import logging
 
 from .api import (

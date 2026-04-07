@@ -1,3 +1,5 @@
+"""Data models for manual contraction plans and saved view snapshots."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,12 +18,15 @@ from .types import JSONValue, MetadataDict
 
 @dataclass(slots=True)
 class ContractionStepSpec:
+    """A single manual contraction step between two operands."""
+
     id: str = field(default_factory=lambda: new_identifier("step"))
     left_operand_id: str = ""
     right_operand_id: str = ""
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the contraction step to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "left_operand_id": self.left_operand_id,
@@ -31,6 +36,7 @@ class ContractionStepSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a contraction step from a serialized mapping."""
         return cls(
             id=str(payload["id"]),
             left_operand_id=str(payload["left_operand_id"]),
@@ -43,11 +49,14 @@ class ContractionStepSpec:
 
 @dataclass(slots=True)
 class ContractionOperandLayoutSpec:
+    """Saved position and size for one operand in the contraction scene."""
+
     operand_id: str = ""
     position: CanvasPosition = field(default_factory=CanvasPosition)
     size: TensorSize = field(default_factory=TensorSize)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the operand layout to a JSON-compatible mapping."""
         return {
             "operand_id": self.operand_id,
             "position": self.position.to_dict(),
@@ -56,6 +65,7 @@ class ContractionOperandLayoutSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build an operand layout from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         size_payload = require_dict(payload["size"], field_name="size")
         return cls(
@@ -67,10 +77,13 @@ class ContractionOperandLayoutSpec:
 
 @dataclass(slots=True)
 class ContractionViewSnapshotSpec:
+    """Saved contraction-scene state after a given number of applied steps."""
+
     applied_step_count: int = 0
     operand_layouts: list[ContractionOperandLayoutSpec] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the view snapshot to a JSON-compatible mapping."""
         return {
             "applied_step_count": self.applied_step_count,
             "operand_layouts": [
@@ -80,6 +93,7 @@ class ContractionViewSnapshotSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a view snapshot from a serialized mapping."""
         operand_layouts_payload = require_list(
             payload.get("operand_layouts", []),
             field_name="operand_layouts",
@@ -102,6 +116,8 @@ class ContractionViewSnapshotSpec:
 
 @dataclass(slots=True)
 class ContractionPlanSpec:
+    """A named manual contraction plan stored with a network design."""
+
     id: str = field(default_factory=lambda: new_identifier("plan"))
     name: str = "Manual contraction path"
     steps: list[ContractionStepSpec] = field(default_factory=list)
@@ -109,6 +125,7 @@ class ContractionPlanSpec:
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the contraction plan to a JSON-compatible mapping."""
         return {
             "id": self.id,
             "name": self.name,
@@ -121,6 +138,7 @@ class ContractionPlanSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a contraction plan from a serialized mapping."""
         steps_payload = require_list(payload.get("steps", []), field_name="steps")
         view_snapshots_payload = require_list(
             payload.get("view_snapshots", []),

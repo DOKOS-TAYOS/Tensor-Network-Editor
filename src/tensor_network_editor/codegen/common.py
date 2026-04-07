@@ -1,3 +1,5 @@
+"""Shared preparation and rendering helpers for backend code generators."""
+
 from __future__ import annotations
 
 import re
@@ -16,6 +18,7 @@ _NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
 
 def sanitize_identifier(value: str, prefix: str) -> str:
+    """Normalize free-form text into a safe lowercase Python identifier."""
     collapsed = _NON_IDENTIFIER_PATTERN.sub("_", value.strip()).strip("_").lower()
     if not collapsed:
         collapsed = prefix
@@ -25,6 +28,7 @@ def sanitize_identifier(value: str, prefix: str) -> str:
 
 
 def make_unique_identifiers(values: list[str], prefix: str) -> list[str]:
+    """Return unique normalized identifiers while preserving the input order."""
     seen: dict[str, int] = {}
     unique_names: list[str] = []
     for value in values:
@@ -37,6 +41,8 @@ def make_unique_identifiers(values: list[str], prefix: str) -> list[str]:
 
 @dataclass(slots=True)
 class PreparedIndex:
+    """A prepared index annotated with generator-friendly metadata."""
+
     tensor: TensorSpec
     spec: IndexSpec
     label: str
@@ -45,6 +51,8 @@ class PreparedIndex:
 
 @dataclass(slots=True)
 class PreparedTensor:
+    """A prepared tensor with generated variable names and layout metadata."""
+
     spec: TensorSpec
     variable_name: str
     data_variable_name: str
@@ -56,6 +64,8 @@ class PreparedTensor:
 
 @dataclass(slots=True)
 class PreparedEdge:
+    """A prepared edge with generated names and resolved endpoints."""
+
     spec: EdgeSpec
     variable_name: str
     label: str
@@ -65,6 +75,8 @@ class PreparedEdge:
 
 @dataclass(slots=True)
 class PreparedNetwork:
+    """The normalized network representation consumed by code generators."""
+
     spec: NetworkSpec
     tensors: list[PreparedTensor]
     tensor_rows: list[list[PreparedTensor]]
@@ -73,6 +85,7 @@ class PreparedNetwork:
 
 
 def prepare_network(spec: NetworkSpec) -> PreparedNetwork:
+    """Validate and normalize ``spec`` for backend code generation."""
     analysis = analyze_network(spec, validate=True)
     tensor_rows = group_tensors_by_visual_rows(analysis.spec.tensors)
     ordered_tensors = [tensor for tensor_row in tensor_rows for tensor in tensor_row]
@@ -170,6 +183,7 @@ def prepare_network(spec: NetworkSpec) -> PreparedNetwork:
 
 
 def group_tensors_by_visual_rows(tensors: list[TensorSpec]) -> list[list[TensorSpec]]:
+    """Group tensors into visual rows based on their canvas positions."""
     if not tensors:
         return []
 
@@ -205,6 +219,7 @@ def group_tensors_by_visual_rows(tensors: list[TensorSpec]) -> list[list[TensorS
 
 
 def tensor_variable_name(prepared: PreparedNetwork, tensor_id: str) -> str:
+    """Return the generated variable name for ``tensor_id``."""
     for tensor in prepared.tensors:
         if tensor.spec.id == tensor_id:
             return tensor.variable_name
@@ -212,6 +227,7 @@ def tensor_variable_name(prepared: PreparedNetwork, tensor_id: str) -> str:
 
 
 def tensor_display_name_by_id(prepared: PreparedNetwork) -> dict[str, str]:
+    """Return a readable tensor-display name for each tensor id."""
     return {
         tensor.spec.id: (tensor.spec.name or tensor.variable_name or tensor.spec.id)
         for tensor in prepared.tensors
@@ -222,6 +238,7 @@ def joined_tensor_display_name(
     source_tensor_ids: tuple[str, ...],
     tensor_names_by_id: dict[str, str],
 ) -> str:
+    """Join source tensor display names into one readable operand label."""
     return "-".join(
         tensor_names_by_id.get(tensor_id, tensor_id) for tensor_id in source_tensor_ids
     )
@@ -232,12 +249,14 @@ def render_results_list_reference(
     *,
     latest_result_index: int | None,
 ) -> str:
+    """Render a compact ``results_list`` reference for a step result."""
     if latest_result_index is not None and result_index == latest_result_index:
         return "results_list[-1]"
     return f"results_list[{result_index}]"
 
 
 def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
+    """Return the default container variable name for ``collection_format``."""
     if collection_format is TensorCollectionFormat.MATRIX:
         return "tensor_rows"
     if collection_format is TensorCollectionFormat.DICT:
@@ -250,6 +269,7 @@ def tensor_collection_reference(
     collection_format: TensorCollectionFormat,
     collection_name: str | None = None,
 ) -> str:
+    """Return the Python expression that references ``tensor`` in the container."""
     resolved_collection_name = collection_name or container_name_for_format(
         collection_format
     )
@@ -266,6 +286,7 @@ def tensor_collection_reference_by_id(
     collection_format: TensorCollectionFormat,
     collection_name: str | None = None,
 ) -> str:
+    """Return the Python expression that references a tensor by id."""
     for tensor in prepared.tensors:
         if tensor.spec.id == tensor_id:
             return tensor_collection_reference(
@@ -278,6 +299,7 @@ def flattened_tensor_collection_expression(
     collection_format: TensorCollectionFormat,
     collection_name: str | None = None,
 ) -> str:
+    """Return an expression that flattens the chosen tensor collection layout."""
     resolved_collection_name = collection_name or container_name_for_format(
         collection_format
     )
@@ -294,6 +316,7 @@ def render_tensor_collection_assignment(
     prepared: PreparedNetwork,
     tensor_value_by_id: dict[str, str],
 ) -> list[str]:
+    """Render assignment lines for the requested tensor collection layout."""
     if collection_format is TensorCollectionFormat.MATRIX:
         lines = [f"{collection_name} = []"]
         for row_index, tensor_row in enumerate(prepared.tensor_rows):

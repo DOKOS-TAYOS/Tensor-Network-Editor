@@ -1,3 +1,5 @@
+"""Public helpers for working with built-in template definitions and specs."""
+
 from __future__ import annotations
 
 from ._template_builders import build_template
@@ -16,6 +18,7 @@ from .models import NetworkSpec
 def parse_template_parameters(
     template_name: str, raw_parameters: object | None = None
 ) -> TemplateParameters:
+    """Parse raw template parameters using the defaults for ``template_name``."""
     definition = get_template_definition(template_name)
     defaults = definition.defaults
     if raw_parameters is None:
@@ -50,6 +53,7 @@ def parse_template_parameters(
 def build_template_spec(
     template_name: str, parameters: TemplateParameters | None = None
 ) -> NetworkSpec:
+    """Build and validate a ``NetworkSpec`` for a built-in template."""
     return build_template(template_name, parameters)
 
 

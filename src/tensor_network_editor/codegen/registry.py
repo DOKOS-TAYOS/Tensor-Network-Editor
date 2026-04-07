@@ -1,3 +1,5 @@
+"""Registry of backend code generators."""
+
 from __future__ import annotations
 
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
@@ -18,6 +20,7 @@ _GENERATORS: dict[EngineName, CodeGenerator] = {
 
 
 def get_generator(engine: EngineName) -> CodeGenerator:
+    """Return the generator instance registered for ``engine``."""
     return _GENERATORS[engine]
 
 
@@ -27,4 +30,5 @@ def generate_code(
     *,
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
 ) -> CodegenResult:
+    """Generate Python code through the registered backend generator."""
     return get_generator(engine).generate(spec, collection_format=collection_format)

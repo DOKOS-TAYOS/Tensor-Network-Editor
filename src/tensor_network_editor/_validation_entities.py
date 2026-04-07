@@ -1,3 +1,5 @@
+"""Validation helpers for network, tensor, group, and note models."""
+
 from __future__ import annotations
 
 import math
@@ -20,6 +22,7 @@ from .models import (
 
 
 def validate_network(spec: NetworkSpec, issues: list[ValidationIssue]) -> None:
+    """Validate network-wide names, metadata, and duplicate identifiers."""
     if not is_valid_name(spec.name):
         append_issue(
             issues,
@@ -71,6 +74,7 @@ def validate_tensor(
     *,
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate one tensor and all of its indices."""
     if not is_valid_name(tensor.name):
         append_issue(
             issues,
@@ -137,6 +141,7 @@ def validate_index(
     index: IndexSpec,
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate one tensor index in the context of its owning tensor."""
     if not is_valid_name(index.name):
         append_issue(
             issues,
@@ -171,6 +176,7 @@ def validate_group(
     tensor_ids: set[str],
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate a group name, metadata, and referenced tensor ids."""
     if not is_valid_name(group.name):
         append_issue(
             issues,
@@ -190,6 +196,7 @@ def validate_group(
 
 
 def validate_note(note: CanvasNoteSpec, *, issues: list[ValidationIssue]) -> None:
+    """Validate a note's text, position, and metadata."""
     if not note.text.strip():
         append_issue(
             issues,

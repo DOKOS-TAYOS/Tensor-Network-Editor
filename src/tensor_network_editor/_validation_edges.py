@@ -1,3 +1,5 @@
+"""Validation helpers for edge specifications."""
+
 from __future__ import annotations
 
 from ._validation_common import append_issue, is_valid_name, validate_metadata
@@ -12,6 +14,7 @@ def validate_edge(
     connected_indices: set[str],
     issues: list[ValidationIssue],
 ) -> None:
+    """Validate one edge against the analyzed tensor and index lookups."""
     if not is_valid_name(edge.name):
         append_issue(
             issues,

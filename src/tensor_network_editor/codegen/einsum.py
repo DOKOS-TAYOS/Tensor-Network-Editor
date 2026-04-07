@@ -1,3 +1,5 @@
+"""Shared einsum-based code generation helpers."""
+
 from __future__ import annotations
 
 from abc import ABC
@@ -25,6 +27,8 @@ from .common import (
 
 
 class BaseEinsumCodeGenerator(CodeGenerator, ABC):
+    """Base generator for NumPy and PyTorch einsum backends."""
+
     engine: EngineName
     import_line: str
     module_alias: str
@@ -35,6 +39,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     ) -> CodegenResult:
+        """Generate einsum-based Python code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
 
@@ -85,6 +90,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
+        """Render a single einsum call for the full network."""
         label_order: list[str] = []
         for tensor in prepared.tensors:
             for index in tensor.indices:
@@ -135,6 +141,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
+        """Render step-by-step einsum calls for a saved manual plan."""
         label_order: list[str] = []
         for tensor in prepared.tensors:
             for index in tensor.indices:
@@ -248,6 +255,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         symbol_map: dict[str, str],
         label_to_int: dict[str, int],
     ) -> str:
+        """Render the einsum call for one manual contraction step."""
         if use_string_labels:
             equation = (
                 "".join(symbol_map[label] for label in left_labels)
@@ -278,6 +286,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         symbol_map: dict[str, str],
         label_to_int: dict[str, int],
     ) -> list[str]:
+        """Render surviving labels for partial manual-plan exports."""
         if use_string_labels:
             return [symbol_map[label] for label in labels]
         return [f"label_{label_to_int[label]}" for label in labels]
@@ -290,6 +299,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> str:
+        """Resolve an operand id to its generated Python expression."""
         if operand_id in base_operand_expressions:
             return base_operand_expressions[operand_id]
         return render_results_list_reference(
@@ -307,6 +317,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> list[str]:
+        """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
             operand_expression = BaseEinsumCodeGenerator._operand_expression(
@@ -329,6 +340,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         output_labels: list[str],
         symbol_map: dict[str, str],
     ) -> str:
+        """Build a standard einsum equation string for the prepared tensors."""
         input_terms = [
             "".join(symbol_map[index.label] for index in tensor.indices)
             for tensor in tensors

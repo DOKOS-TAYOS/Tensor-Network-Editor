@@ -1,3 +1,5 @@
+"""Builders for the package's built-in tensor-network templates."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -34,6 +36,7 @@ TemplateIndexConfig = tuple[str, int, tuple[float, float]]
 def build_template(
     template_name: str, parameters: TemplateParameters | None = None
 ) -> NetworkSpec:
+    """Build and validate the named built-in template."""
     builders: dict[str, Callable[[TemplateParameters], NetworkSpec]] = {
         "mps": _build_mps_template,
         "mpo": _build_mpo_template,
@@ -53,6 +56,7 @@ def build_template(
 
 
 def _build_mps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build an MPS template with the requested site count and dimensions."""
     length = parameters.graph_size
     tensors = []
     for site_index in range(length):
@@ -95,6 +99,7 @@ def _build_mps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build an MPO template with the requested site count and dimensions."""
     length = parameters.graph_size
     tensors = []
     for site_index in range(length):
@@ -142,12 +147,14 @@ def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_peps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the requested PEPS template variant."""
     if parameters.graph_size == TEMPLATE_DEFINITIONS["peps_2x2"].defaults.graph_size:
         return _build_default_peps_template(parameters)
     return _build_generic_peps_template(parameters)
 
 
 def _build_default_peps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the default 2x2 PEPS layout."""
     tensors = [
         _make_tensor(
             "tensor_a",
@@ -209,6 +216,7 @@ def _build_default_peps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_generic_peps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build a square PEPS grid larger than the default 2x2 layout."""
     size = parameters.graph_size
     tensors: list[TensorSpec] = []
     tensor_lookup: dict[tuple[int, int], TensorSpec] = {}
@@ -274,12 +282,14 @@ def _build_generic_peps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_mera_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the requested MERA template variant."""
     if parameters.graph_size == TEMPLATE_DEFINITIONS["mera"].defaults.graph_size:
         return _build_default_mera_template(parameters)
     return _build_generic_mera_template(parameters)
 
 
 def _build_default_mera_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the default depth-3 MERA layout."""
     tensors = [
         _make_tensor(
             "tensor_top",
@@ -362,6 +372,7 @@ def _build_default_mera_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_generic_mera_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build a generic MERA layout with the requested depth."""
     depth = parameters.graph_size
     levels: list[list[TensorSpec]] = []
     for level_index in range(depth):
@@ -429,12 +440,14 @@ def _build_generic_mera_template(parameters: TemplateParameters) -> NetworkSpec:
 
 
 def _build_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the requested binary-tree template variant."""
     if parameters.graph_size == TEMPLATE_DEFINITIONS["binary_tree"].defaults.graph_size:
         return _build_default_binary_tree_template(parameters)
     return _build_generic_binary_tree_template(parameters)
 
 
 def _build_default_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build the default depth-3 binary-tree layout."""
     tensors = [
         _make_tensor(
             "tensor_root",
@@ -526,6 +539,7 @@ def _build_default_binary_tree_template(parameters: TemplateParameters) -> Netwo
 
 
 def _build_generic_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build a generic binary tree with the requested depth."""
     depth = parameters.graph_size
     levels: list[list[TensorSpec]] = []
     for level_index in range(depth):
@@ -590,6 +604,7 @@ def _build_generic_binary_tree_template(parameters: TemplateParameters) -> Netwo
 
 
 def _grid_tensor_name(row_index: int, column_index: int) -> str:
+    """Return a readable tensor name for a PEPS grid position."""
     if row_index < 26:
         return f"{chr(ord('A') + row_index)}{column_index + 1}"
     return f"R{row_index + 1}C{column_index + 1}"
@@ -602,6 +617,7 @@ def _make_tensor(
     y: float,
     indices: list[TemplateIndexConfig],
 ) -> TensorSpec:
+    """Create one template tensor with named indices and canvas placement."""
     return TensorSpec(
         id=tensor_id,
         name=name,
@@ -619,6 +635,7 @@ def _make_named_index(
     dimension: int,
     offset: tuple[float, float],
 ) -> IndexSpec:
+    """Create one named index for a template tensor."""
     return IndexSpec(
         id=f"{tensor_id}_{suffix}",
         name=suffix,
@@ -634,6 +651,7 @@ def _make_edge(
     right_tensor: TensorSpec,
     right_index_suffix: str,
 ) -> EdgeSpec:
+    """Create one template edge between two named tensor indices."""
     return EdgeSpec(
         id=edge_id,
         name=edge_id.replace("_", "-"),

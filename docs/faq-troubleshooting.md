@@ -36,6 +36,13 @@ If the design contains a saved manual contraction plan, the generated code also
 follows that plan step by step instead of recomputing a different contraction
 order during export.
 
+If you want to change how generated tensors are grouped in the emitted Python,
+choose the collection format that fits your workflow:
+
+- `list`
+- `matrix`
+- `dict`
+
 ## I loaded a JSON file and got a schema-version error
 
 Saved designs use a schema wrapper. The current package expects:
@@ -51,6 +58,17 @@ Saved designs use a schema wrapper. The current package expects:
 
 If your file uses an older or different structure, `load_spec(...)` will reject
 it instead of guessing.
+
+## Can I load generated Python code back into the package?
+
+Yes, for supported source code emitted by this package.
+
+- use `load_spec("generated_network.py")` when you have a saved file
+- use `load_spec_from_python_code(code)` when you already have the source in
+  memory
+
+This round trip is intentionally limited to known package output formats. It is
+not a general Python-to-network importer.
 
 ## Why is my network rejected as invalid?
 
@@ -103,6 +121,9 @@ When a manual plan is already saved in the design, code generation respects
 that saved plan. A partial plan is exported only as that manual prefix, leaving
 the surviving operands in `remaining_operands`.
 
+For `einsum_numpy` and `einsum_torch`, partial plans also emit
+`remaining_operand_labels` for the surviving operands.
+
 ## Does the package support hyperedges?
 
 Not in the current release.
@@ -115,6 +136,10 @@ Not in the current release.
 
 Today the package focuses on the network structure and code generation workflow.
 Generated tensors are initialized to zeros.
+
+Saved manual plans may also include contraction-scene snapshots through
+`ContractionOperandLayoutSpec` and `ContractionViewSnapshotSpec`, but those
+objects only preserve editor layout state, not numeric tensor data.
 
 ## Is TenPy supported?
 

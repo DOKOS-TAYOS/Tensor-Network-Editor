@@ -1,3 +1,5 @@
+"""Code generation for the ``quimb`` backend."""
+
 from __future__ import annotations
 
 from .._contraction_plan import (
@@ -22,6 +24,8 @@ from .common import (
 
 
 class QuimbCodeGenerator(CodeGenerator):
+    """Generate ``quimb`` tensor-network code."""
+
     engine = EngineName.QUIMB
 
     def generate(
@@ -29,6 +33,7 @@ class QuimbCodeGenerator(CodeGenerator):
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     ) -> CodegenResult:
+        """Generate ``quimb`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
         lines = [
@@ -84,6 +89,7 @@ class QuimbCodeGenerator(CodeGenerator):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
+        """Render a saved manual contraction plan against one ``TensorNetwork``."""
         simulation = simulate_contraction_plan(
             initial_operand_ids=tuple(tensor.spec.id for tensor in prepared.tensors),
             initial_operands=build_initial_operand_labels(prepared),
@@ -142,6 +148,7 @@ class QuimbCodeGenerator(CodeGenerator):
 
     @staticmethod
     def _operand_tag(operand_id: str) -> str:
+        """Return the internal tag used to track an operand inside the network."""
         return f"__tne_operand_{operand_id}"
 
     @classmethod
@@ -153,6 +160,7 @@ class QuimbCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> str:
+        """Resolve an operand id to its generated Python expression."""
         if operand_id in step_result_indexes:
             return render_results_list_reference(
                 step_result_indexes[operand_id],
@@ -171,6 +179,7 @@ class QuimbCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> list[str]:
+        """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
             operand_name = joined_tensor_display_name(

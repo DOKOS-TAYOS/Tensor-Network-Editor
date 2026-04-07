@@ -14,6 +14,7 @@ It is meant for research, teaching, and experimentation workflows where you want
 - Build tensor-network diagrams interactively in a local browser session.
 - Save and reload designs as versioned JSON files.
 - Generate Python code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`, and `einsum_torch`.
+- Reconstruct a `NetworkSpec` from supported generated Python exports when you need a code-to-spec round trip.
 - Insert built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
 - Tune template size, bond dimension, and physical dimension before inserting them.
 - Add notes and groups so larger diagrams stay easier to understand.
@@ -148,9 +149,10 @@ else:
 Main public entry points:
 
 - `launch_tensor_network_editor(...) -> EditorResult | None`
-- `generate_code(spec, engine=..., path=...) -> CodegenResult`
+- `generate_code(spec, engine=..., collection_format=..., path=...) -> CodegenResult`
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
+- `load_spec_from_python_code(code) -> NetworkSpec`
 
 If the `NetworkSpec` includes a saved manual `contraction_plan`, generated code
 now follows that plan directly instead of collapsing everything into one final
@@ -158,7 +160,19 @@ contraction. Complete plans emit a final `result`. Partial plans emit named
 intermediates and a `remaining_operands` mapping so you can continue from that
 state manually.
 
-The package also exposes the main data structures at the top level, including `NetworkSpec`, `TensorSpec`, `IndexSpec`, `EdgeSpec`, `GroupSpec`, `CanvasNoteSpec`, and the contraction-plan types.
+For `einsum_numpy` and `einsum_torch`, partial plans also emit
+`remaining_operand_labels`, which makes the surviving index labels easier to
+inspect when you continue the contraction manually.
+
+`load_spec(path)` accepts saved JSON designs and supported generated `.py`
+exports. If you already have the generated source code in memory, use
+`load_spec_from_python_code(code)` directly.
+
+The package also exposes the main data structures at the top level, including
+`NetworkSpec`, `TensorSpec`, `IndexSpec`, `EdgeSpec`, `GroupSpec`,
+`CanvasNoteSpec`, `ContractionPlanSpec`, `ContractionStepSpec`,
+`ContractionOperandLayoutSpec`, `ContractionViewSnapshotSpec`, `EngineName`,
+`TensorCollectionFormat`, `CodegenResult`, and `EditorResult`.
 
 ## Templates and planner
 
@@ -175,6 +189,12 @@ Template controls let you adjust:
 - graph size
 - bond dimension
 - physical dimension
+
+The graph-size control label depends on the template:
+
+- `MPS` and `MPO` use `Sites`
+- `PEPS` uses `Side length`
+- `MERA` and `Binary Tree` use `Depth`
 
 The planner tools help with contraction-order work:
 
@@ -193,6 +213,12 @@ Available engine names:
 - `einsum_numpy`
 - `einsum_torch`
 
+Generated code can organize created tensors in three collection formats:
+
+- `list`
+- `matrix`
+- `dict`
+
 In practice:
 
 - `einsum_numpy` and `einsum_torch` are useful when you want lightweight generated code.
@@ -201,6 +227,11 @@ In practice:
 - `tensornetwork` and `quimb` can export manual contraction plans step by step, including outer products.
 - `einsum_numpy` and `einsum_torch` export manual plans as several `einsum(...)` calls with intermediate tensors.
 - `tensorkrowch` also exports manual plans step by step, but manual outer-product steps are rejected because `contract_between(...)` cannot represent them safely there.
+
+From Python, choose the layout with
+`TensorCollectionFormat.LIST`, `TensorCollectionFormat.MATRIX`, or
+`TensorCollectionFormat.DICT` through `generate_code(...)` or
+`launch_tensor_network_editor(...)`.
 
 ## Save format
 
@@ -216,6 +247,11 @@ Designs are stored as plain JSON with a schema wrapper:
 ```
 
 That makes saved files easy to version, inspect, and exchange inside a normal Python workflow.
+
+When a saved design contains a manual contraction plan, the plan can also carry
+`view_snapshots`. Those snapshots store operand positions and sizes for the
+contraction-scene UI through `ContractionOperandLayoutSpec` and
+`ContractionViewSnapshotSpec`.
 
 ## Development
 

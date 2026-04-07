@@ -1,3 +1,5 @@
+"""Analyze manual and automatic contraction paths for a network spec."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -26,6 +28,7 @@ from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 
 
 def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
+    """Analyze the saved manual plan and available automatic greedy previews."""
     prepared = prepare_network(spec)
     dimension_by_label = build_dimension_by_label(prepared)
     initial_operands = build_initial_operand_labels(prepared)
@@ -74,6 +77,8 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
 
 @dataclass(slots=True)
 class ManualOperandState:
+    """Manual-plan state carried into automatic preview calculations."""
+
     active_operand_ids: tuple[str, ...]
     remaining_operands: dict[str, tuple[str, ...]]
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]]
@@ -86,6 +91,7 @@ def _build_manual_operand_state(
     initial_axis_names: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
 ) -> ManualOperandState:
+    """Simulate the saved manual plan and keep its remaining operands."""
     simulation = simulate_contraction_plan(
         initial_operand_ids=tuple(initial_operands),
         initial_operands=initial_operands,
@@ -107,6 +113,7 @@ def _analyze_manual_plan(
     initial_operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
 ) -> ManualContractionPlanAnalysis:
+    """Analyze the saved manual plan, or derive a trivial summary when absent."""
     plan = spec.contraction_plan
     if plan is None or not plan.steps:
         summary = _build_manual_summary_from_operands(
@@ -136,6 +143,7 @@ def _simulate_plan_steps(
     initial_operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
 ) -> ManualContractionPlanAnalysis:
+    """Simulate each saved step and accumulate manual-plan metrics."""
     simulation = simulate_contraction_plan(
         initial_operand_ids=tuple(initial_operands),
         initial_operands=initial_operands,
@@ -194,6 +202,7 @@ def _build_manual_summary_from_operands(
     dimension_by_label: dict[str, int],
     last_result_shape: tuple[int, ...] | None = None,
 ) -> ManualContractionSummary:
+    """Build the summary payload for the current manual-plan state."""
     final_shape = last_result_shape
     if final_shape is None and len(remaining_operands) == 1:
         labels = next(iter(remaining_operands.values()))
@@ -219,6 +228,7 @@ def _contract_operands(
     right_labels: tuple[str, ...],
     dimension_by_label: dict[str, int],
 ) -> ContractionStepAnalysis:
+    """Estimate the metrics for one pairwise contraction."""
     simulated_step = simulate_contraction_step(
         step=ContractionStepSpec(
             id=step_id,
@@ -252,6 +262,7 @@ def _build_automatic_summary(
     total_estimated_macs: int,
     peak_intermediate_size: int,
 ) -> AutomaticContractionSummary:
+    """Build a summary payload for automatic path analysis."""
     return AutomaticContractionSummary(
         total_estimated_flops=total_estimated_flops,
         total_estimated_macs=total_estimated_macs,
@@ -265,6 +276,7 @@ def _analyze_future_automatic_plan(
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
 ) -> AutomaticContractionPlanAnalysis:
+    """Analyze the greedy path that continues from the current manual state."""
     del initial_operands
     return _analyze_automatic_operands(
         operand_order=list(manual_operand_state.active_operand_ids),
@@ -281,6 +293,7 @@ def _analyze_past_automatic_plan(
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
 ) -> AutomaticContractionPlanAnalysis:
+    """Analyze greedy paths for already contracted manual subtrees."""
     del spec
     base_tensor_ids = set(initial_operands)
     contracted_root_operand_ids = [
@@ -343,6 +356,7 @@ def _analyze_automatic_operands(
     step_id_prefix: str,
     final_step_id: str | None = None,
 ) -> AutomaticContractionPlanAnalysis:
+    """Run automatic greedy analysis for the provided operand set."""
     if len(operand_order) <= 1:
         return AutomaticContractionPlanAnalysis(
             status="complete",
@@ -462,6 +476,7 @@ def _analyze_automatic_operands(
 def _unavailable_automatic_analysis(
     message: str,
 ) -> AutomaticContractionPlanAnalysis:
+    """Return a standardized unavailable-analysis payload."""
     return AutomaticContractionPlanAnalysis(
         status="unavailable",
         steps=[],
@@ -475,6 +490,7 @@ def _unavailable_automatic_analysis(
 
 
 def _product(values: Iterable[int]) -> int:
+    """Return the multiplicative product of ``values``."""
     result = 1
     for value in values:
         result *= int(value)

@@ -1,3 +1,5 @@
+"""Derived lookup structures for validated or in-progress network specs."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,6 +9,8 @@ from .models import IndexSpec, NetworkSpec, TensorSpec
 
 @dataclass(slots=True)
 class NetworkAnalysis:
+    """Cached lookup data derived from a ``NetworkSpec``."""
+
     spec: NetworkSpec
     tensor_map: dict[str, TensorSpec]
     index_map: dict[str, tuple[TensorSpec, IndexSpec]]
@@ -19,6 +23,7 @@ class NetworkAnalysis:
 
 
 def analyze_network(spec: NetworkSpec, *, validate: bool = False) -> NetworkAnalysis:
+    """Build convenient lookup maps and open-index lists for ``spec``."""
     if validate:
         from .validation import ensure_valid_spec
 
@@ -49,10 +54,12 @@ def analyze_network(spec: NetworkSpec, *, validate: bool = False) -> NetworkAnal
 
 
 def _build_tensor_map(spec: NetworkSpec) -> dict[str, TensorSpec]:
+    """Build the tensor-id lookup for ``spec``."""
     return {tensor.id: tensor for tensor in spec.tensors}
 
 
 def _build_index_map(spec: NetworkSpec) -> dict[str, tuple[TensorSpec, IndexSpec]]:
+    """Build the index-id lookup for ``spec``."""
     index_map: dict[str, tuple[TensorSpec, IndexSpec]] = {}
     for tensor in spec.tensors:
         for index in tensor.indices:
@@ -61,6 +68,7 @@ def _build_index_map(spec: NetworkSpec) -> dict[str, tuple[TensorSpec, IndexSpec
 
 
 def _build_connected_index_ids(spec: NetworkSpec) -> set[str]:
+    """Collect the ids of indices that are referenced by edges."""
     connected_index_ids: set[str] = set()
     for edge in spec.edges:
         connected_index_ids.add(edge.left.index_id)
@@ -77,6 +85,7 @@ def _build_edge_endpoint_maps(
     dict[str, TensorSpec | None],
     dict[str, IndexSpec | None],
 ]:
+    """Resolve edge ids to the tensors and indices referenced at each endpoint."""
     left_tensor_by_edge_id: dict[str, TensorSpec | None] = {}
     left_index_by_edge_id: dict[str, IndexSpec | None] = {}
     right_tensor_by_edge_id: dict[str, TensorSpec | None] = {}
@@ -107,6 +116,7 @@ def _build_edge_endpoint_maps(
 def _build_open_indices(
     spec: NetworkSpec, connected_index_ids: set[str]
 ) -> list[tuple[TensorSpec, IndexSpec]]:
+    """Return tensor/index pairs that are still open in the graph."""
     return [
         (tensor, index)
         for tensor in spec.tensors

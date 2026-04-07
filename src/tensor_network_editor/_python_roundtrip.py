@@ -1,3 +1,5 @@
+"""Parse supported generated Python exports back into ``NetworkSpec`` objects."""
+
 from __future__ import annotations
 
 import ast
@@ -25,6 +27,8 @@ from .models import (
 
 @dataclass(slots=True)
 class _ParsedTensor:
+    """Intermediate tensor data recovered from generated Python source."""
+
     reference: str
     data_variable_name: str
     shape: tuple[int, ...]
@@ -34,6 +38,8 @@ class _ParsedTensor:
 
 @dataclass(slots=True)
 class _PendingEdge:
+    """Intermediate edge data recovered before tensor specs are finalized."""
+
     name: str
     left_reference: str
     left_index_name: str
@@ -42,6 +48,7 @@ class _PendingEdge:
 
 
 def parse_generated_python_network(code: str) -> NetworkSpec:
+    """Reconstruct a ``NetworkSpec`` from supported generated Python source."""
     try:
         module = ast.parse(code, mode="exec")
     except SyntaxError as exc:
@@ -102,6 +109,7 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
 def _collect_data_shape(
     statement: ast.stmt, data_shapes: dict[str, tuple[int, ...]]
 ) -> None:
+    """Collect tensor-data shapes from supported ``zeros(...)`` assignments."""
     if (
         not isinstance(statement, ast.Assign)
         or len(statement.targets) != 1
@@ -122,6 +130,7 @@ def _collect_tensor(
     tensor_rows: list[list[str]],
     tensor_order: list[str],
 ) -> None:
+    """Collect tensor definitions from list, matrix, and dict layouts."""
     if (
         isinstance(statement, ast.Assign)
         and len(statement.targets) == 1
@@ -208,6 +217,7 @@ def _collect_tensor(
 def _collect_pending_edge(
     statement: ast.stmt, pending_edges: list[_PendingEdge]
 ) -> None:
+    """Collect pending edges from supported ``connect(...)`` calls."""
     edge_name: str | None = None
     connect_call: ast.Call | None = None
 
@@ -269,6 +279,7 @@ def _collect_pending_edge(
 def _collect_einsum_labels(
     statement: ast.stmt, einsum_labels_by_reference: dict[str, list[str]]
 ) -> None:
+    """Collect einsum label sequences emitted by supported generators."""
     einsum_call: ast.Call | None = None
     if (
         isinstance(statement, ast.Assign)
@@ -320,6 +331,7 @@ def _collect_remaining_einsum_labels(
     statement: ast.stmt,
     remaining_einsum_labels_by_reference: dict[str, list[str]],
 ) -> None:
+    """Collect labels emitted for remaining operands in partial einsum plans."""
     if (
         not isinstance(statement, ast.Assign)
         or len(statement.targets) != 1
@@ -343,6 +355,7 @@ def _parse_tensor_expression(
     reference: str,
     fallback_name: str | None,
 ) -> _ParsedTensor:
+    """Parse a supported tensor-construction expression."""
     resolved_data = _resolve_tensor_data_expression(
         expression=expression,
         data_shapes=data_shapes,
@@ -451,6 +464,7 @@ def _parse_tensor_expression(
 
 
 def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
+    """Parse the shape passed to a supported ``zeros(...)`` call."""
     call_name = _call_name(call.func)
     if not call_name.endswith(".zeros") and call_name != "zeros":
         return None
@@ -475,6 +489,7 @@ def _resolve_tensor_data_expression(
     reference: str,
     fallback_name: str | None,
 ) -> tuple[str, tuple[int, ...]] | None:
+    """Resolve a tensor data expression to its variable name and shape."""
     data_variable_name = _extract_name_from_expression(expression)
     if data_variable_name is not None:
         shape = data_shapes.get(data_variable_name)
@@ -495,6 +510,7 @@ def _resolve_tensor_data_expression(
 
 
 def _call_name(expression: ast.expr) -> str:
+    """Return the dotted call name for a simple AST expression."""
     if isinstance(expression, ast.Name):
         return expression.id
     if isinstance(expression, ast.Attribute):
@@ -504,6 +520,7 @@ def _call_name(expression: ast.expr) -> str:
 
 
 def _keyword_value(call: ast.Call, keyword_name: str) -> ast.expr | None:
+    """Return the AST value for the named keyword argument, if present."""
     for keyword in call.keywords:
         if keyword.arg == keyword_name:
             return keyword.value
@@ -511,6 +528,7 @@ def _keyword_value(call: ast.Call, keyword_name: str) -> ast.expr | None:
 
 
 def _literal_string(expression: ast.expr | None) -> str | None:
+    """Return the literal string value represented by ``expression``."""
     if (
         isinstance(expression, ast.Constant)
         and isinstance(expression.value, str)
@@ -521,6 +539,7 @@ def _literal_string(expression: ast.expr | None) -> str | None:
 
 
 def _literal_string_sequence(expression: ast.expr | None) -> list[str] | None:
+    """Return a list of literal strings or ``None`` if unsupported."""
     if not isinstance(expression, (ast.List, ast.Tuple)):
         return None
     values: list[str] = []
@@ -533,6 +552,7 @@ def _literal_string_sequence(expression: ast.expr | None) -> list[str] | None:
 
 
 def _literal_int(expression: ast.expr | None) -> int | None:
+    """Return the literal integer value represented by ``expression``."""
     if (
         isinstance(expression, ast.Constant)
         and isinstance(expression.value, int)
@@ -543,6 +563,7 @@ def _literal_int(expression: ast.expr | None) -> int | None:
 
 
 def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None:
+    """Return a tuple of literal integers or ``None`` if unsupported."""
     if not isinstance(expression, (ast.List, ast.Tuple)):
         return None
     values: list[int] = []
@@ -555,6 +576,7 @@ def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None
 
 
 def _parse_tensor_reference(expression: ast.expr) -> str | None:
+    """Parse a tensor reference from supported list, matrix, or dict access."""
     if not isinstance(expression, ast.Subscript):
         return None
 
@@ -576,6 +598,7 @@ def _parse_tensor_reference(expression: ast.expr) -> str | None:
 
 
 def _parse_tensor_reference_string(expression: str | None) -> str | None:
+    """Parse a tensor reference from its generated string representation."""
     if expression is None:
         return None
     list_match = re.fullmatch(r"tensors\[(\d+)\]", expression)
@@ -594,6 +617,7 @@ def _parse_tensor_reference_string(expression: str | None) -> str | None:
 
 
 def _parse_matrix_row_index(expression: ast.expr) -> int | None:
+    """Parse the row index from a matrix-layout tensor reference."""
     if (
         isinstance(expression, ast.Subscript)
         and isinstance(expression.value, ast.Name)
@@ -604,6 +628,7 @@ def _parse_matrix_row_index(expression: ast.expr) -> int | None:
 
 
 def _parse_list_append_value(statement: ast.stmt, list_name: str) -> ast.expr | None:
+    """Return the appended value for a simple ``list.append(...)`` statement."""
     if (
         not isinstance(statement, ast.Expr)
         or not isinstance(statement.value, ast.Call)
@@ -618,6 +643,7 @@ def _parse_list_append_value(statement: ast.stmt, list_name: str) -> ast.expr | 
 
 
 def _parse_index_operand(expression: ast.expr) -> tuple[str, str] | None:
+    """Parse a tensor-index operand like ``tensors[0]['left']``."""
     if not isinstance(expression, ast.Subscript):
         return None
     index_name = _literal_string(expression.slice)
@@ -628,22 +654,26 @@ def _parse_index_operand(expression: ast.expr) -> tuple[str, str] | None:
 
 
 def _extract_name_from_expression(expression: ast.expr | None) -> str | None:
+    """Return the referenced variable name for simple name expressions."""
     if isinstance(expression, ast.Name):
         return expression.id
     return None
 
 
 def _synthetic_data_variable_name(reference: str, fallback_name: str | None) -> str:
+    """Delegate synthetic data-variable naming to the helper module."""
     return synthetic_data_variable_name(reference, fallback_name)
 
 
 def _default_tensor_name_from_position(position: int) -> str:
+    """Delegate positional tensor naming to the helper module."""
     return default_tensor_name_from_position(position)
 
 
 def _recover_tensor_name_from_data_variable(
     data_variable_name: str, fallback_name: str | None = None
 ) -> str:
+    """Delegate tensor-name recovery to the helper module."""
     return recover_tensor_name_from_data_variable(data_variable_name, fallback_name)
 
 
@@ -654,6 +684,7 @@ def _recover_index_name(
     data_variable_name: str,
     connected_edge_label: str | None,
 ) -> str:
+    """Delegate index-name recovery to the helper module."""
     return recover_index_name(
         label=label,
         tensor_name=tensor_name,
@@ -663,6 +694,7 @@ def _recover_index_name(
 
 
 def _sanitize_identifier(value: str) -> str:
+    """Delegate identifier sanitization to the helper module."""
     return sanitize_identifier(value)
 
 
@@ -672,6 +704,7 @@ def _build_edge_specs(
     tensor_order: list[str],
     pending_edges: list[_PendingEdge],
 ) -> list[tuple[str, int, str, int, str]]:
+    """Build normalized edge descriptors from parsed tensor references."""
     if pending_edges:
         edge_specs: list[tuple[str, int, str, int, str]] = []
         for pending_edge in pending_edges:
@@ -739,6 +772,7 @@ def _build_network_spec(
     tensor_rows: list[list[str]],
     edge_specs: list[tuple[str, int, str, int, str]],
 ) -> NetworkSpec:
+    """Convert parsed tensors and edges into a reconstructed ``NetworkSpec``."""
     tensor_specs: list[TensorSpec] = []
     tensor_id_by_reference: dict[str, str] = {}
     index_id_by_reference_and_position: dict[tuple[str, int], str] = {}

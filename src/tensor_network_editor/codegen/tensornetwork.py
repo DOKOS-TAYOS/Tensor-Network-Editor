@@ -1,3 +1,5 @@
+"""Code generation for the ``tensornetwork`` backend."""
+
 from __future__ import annotations
 
 from .._contraction_plan import (
@@ -22,6 +24,8 @@ from .common import (
 
 
 class TensorNetworkCodeGenerator(CodeGenerator):
+    """Generate ``tensornetwork`` code for a network specification."""
+
     engine = EngineName.TENSORNETWORK
 
     def generate(
@@ -29,6 +33,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     ) -> CodegenResult:
+        """Generate ``tensornetwork`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
         lines = [
@@ -109,6 +114,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> list[str]:
+        """Render a saved manual contraction plan using ``tn.contract_between``."""
         simulation = simulate_contraction_plan(
             initial_operand_ids=tuple(tensor.spec.id for tensor in prepared.tensors),
             initial_operands=build_initial_operand_labels(prepared),
@@ -202,6 +208,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         right_axis_names: tuple[str, ...],
         contracted_labels: tuple[str, ...],
     ) -> str:
+        """Render the explicit output-edge order for one manual step."""
         output_edges: list[str] = []
         for label, axis_name in zip(left_labels, left_axis_names, strict=True):
             if label not in contracted_labels:
@@ -219,6 +226,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> str:
+        """Resolve an operand id to its generated Python expression."""
         if operand_id in base_operand_expressions:
             return base_operand_expressions[operand_id]
         return render_results_list_reference(
@@ -236,6 +244,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         step_result_indexes: dict[str, int],
         latest_result_index: int | None,
     ) -> list[str]:
+        """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
             operand_expression = TensorNetworkCodeGenerator._operand_expression(

@@ -1,3 +1,5 @@
+"""Shared type aliases used throughout the package."""
+
 from __future__ import annotations
 
 from os import PathLike

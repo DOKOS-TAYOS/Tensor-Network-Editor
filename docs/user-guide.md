@@ -75,6 +75,25 @@ Template controls let you adjust:
 - bond dimension
 - physical dimension
 
+The graph-size label depends on the selected template:
+
+- `MPS` and `MPO` use `Sites`
+- `PEPS` uses `Side length`
+- `MERA` and `Binary Tree` use `Depth`
+
+## Code output layout
+
+When you generate Python code, the package can organize created tensors in
+three collection formats:
+
+- `list`
+- `matrix`
+- `dict`
+
+That choice changes the surrounding container shape, but not the abstract
+tensor network itself. The JSON design remains backend-agnostic and
+collection-format agnostic.
+
 ## Saving and loading
 
 The JSON design is the durable part of your work.
@@ -115,6 +134,15 @@ When you generate code from a saved design:
 
 For the `einsum_numpy` and `einsum_torch` engines, partial plans also emit
 `remaining_operand_labels` so the surviving index labels stay easy to inspect.
+
+Manual plans can also store contraction-scene view state:
+
+- `ContractionOperandLayoutSpec` stores one operand position and size
+- `ContractionViewSnapshotSpec` stores a scene snapshot for a given applied step
+  count
+
+These snapshot objects are mainly for the editor UI, but they are part of the
+saved design and survive JSON round trips.
 
 ### Backend-specific note for manual plans
 
@@ -171,6 +199,8 @@ better when:
 - you want to save and load designs programmatically
 - you want to generate code in a batch process
 - you want to inspect open indices or tensor maps from the abstract model
+- you want to round-trip supported generated Python source back into a
+  `NetworkSpec`
 
 For that workflow, continue with [python-api.md](python-api.md).
 

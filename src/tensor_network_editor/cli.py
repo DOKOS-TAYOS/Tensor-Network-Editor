@@ -1,3 +1,5 @@
+"""Command-line interface for launching the local editor."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,6 +10,7 @@ from .models import EngineName
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser used by the CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="tensor-network-editor",
         description="Launch the local tensor network editor in your browser.",
@@ -42,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI and return a process-friendly exit code."""
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 

@@ -1,3 +1,5 @@
+"""Package-specific exception types."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -22,6 +24,8 @@ class CodeGenerationError(TensorNetworkEditorError):
 
 
 class SpecValidationError(TensorNetworkEditorError):
+    """Raised when one or more validation issues are found in a network spec."""
+
     def __init__(self, issues: Sequence[ValidationIssue]) -> None:
         self.issues: list[ValidationIssue] = list(issues)
         first_issue = self.issues[0] if self.issues else None

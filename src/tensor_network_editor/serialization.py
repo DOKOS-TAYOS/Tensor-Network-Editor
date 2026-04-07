@@ -1,3 +1,5 @@
+"""Serialize, deserialize, and persist tensor-network specifications."""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def serialize_spec(spec: NetworkSpec) -> dict[str, JSONValue]:
+    """Return the schema-wrapped JSON payload for ``spec``."""
     ensure_valid_spec(spec)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -26,6 +29,7 @@ def serialize_spec(spec: NetworkSpec) -> dict[str, JSONValue]:
 def deserialize_spec(
     payload: dict[str, object], *, validate: bool = True
 ) -> NetworkSpec:
+    """Build a ``NetworkSpec`` from a schema-wrapped JSON payload."""
     if "schema_version" not in payload:
         raise SerializationError(
             "Serialized payload must contain a valid schema version."
@@ -62,6 +66,7 @@ def deserialize_spec(
 
 
 def save_spec(spec: NetworkSpec, path: StrPath) -> None:
+    """Write ``spec`` to ``path`` as formatted UTF-8 JSON."""
     payload = serialize_spec(spec)
     try:
         body = json.dumps(payload, indent=2)
@@ -73,6 +78,7 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
 
 
 def load_spec(path: StrPath) -> NetworkSpec:
+    """Load a saved JSON spec or a supported generated Python file from disk."""
     if Path(path).suffix.lower() == ".py":
         body = read_utf8_text(path, description="generated Python code")
         LOGGER.debug("Loaded generated Python code payload from %s", path)
@@ -92,9 +98,11 @@ def load_spec(path: StrPath) -> NetworkSpec:
 def deserialize_spec_from_python_code(
     code: str, *, validate: bool = True
 ) -> NetworkSpec:
+    """Parse supported generated Python source into a ``NetworkSpec``."""
     spec = parse_generated_python_network(code)
     return ensure_valid_spec(spec) if validate else spec
 
 
 def load_spec_from_python_code(code: str) -> NetworkSpec:
+    """Parse and validate supported generated Python source."""
     return deserialize_spec_from_python_code(code, validate=True)

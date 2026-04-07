@@ -1,3 +1,5 @@
+"""Public API helpers for launching the editor and working with specs."""
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +30,7 @@ def generate_code(
     print_code: bool = False,
     path: StrPath | None = None,
 ) -> CodegenResult:
+    """Generate Python code for ``spec`` using the requested backend and layout."""
     LOGGER.info("Generating %s code for network '%s'", engine.value, spec.name)
     result = _generate_code(spec, engine, collection_format=collection_format)
     if print_code:
@@ -38,14 +41,17 @@ def generate_code(
 
 
 def save_spec(spec: NetworkSpec, path: StrPath) -> None:
+    """Validate and save ``spec`` as a versioned JSON document."""
     _save_spec(spec, path)
 
 
 def load_spec(path: StrPath) -> NetworkSpec:
+    """Load a saved JSON spec or a supported generated Python export."""
     return _load_spec(path)
 
 
 def load_spec_from_python_code(code: str) -> NetworkSpec:
+    """Reconstruct a network specification from supported generated Python code."""
     return _load_spec_from_python_code(code)
 
 
@@ -61,6 +67,7 @@ def launch_tensor_network_editor(
     code_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
+    """Launch the local editor session and block until it is confirmed or cancelled."""
     from .app.session import launch_editor_session
 
     LOGGER.info(

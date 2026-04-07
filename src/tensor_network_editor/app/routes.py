@@ -1,3 +1,5 @@
+"""HTTP route handlers for the local editor server."""
+
 from __future__ import annotations
 
 import logging
@@ -34,14 +36,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 def read_json(body: bytes) -> JsonDict:
+    """Parse a request body into a JSON object."""
     return _read_json(body)
 
 
 def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
+    """Return the bootstrap payload used by the browser client."""
     return HTTPStatus.OK, build_bootstrap_payload(session)
 
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+    """Validate a serialized spec or supported Python source payload."""
     del session
     try:
         spec = deserialize_validation_payload(payload)
@@ -62,6 +67,7 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 
 def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+    """Generate preview code for the current editor payload."""
     status, response = _handle_session_codegen_request(
         session=session,
         payload=payload,
@@ -73,6 +79,7 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 
 def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+    """Finalize an editor session and return the completion payload."""
     status, response = _handle_session_codegen_request(
         session=session,
         payload=payload,
@@ -84,11 +91,13 @@ def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 
 def handle_cancel(session: EditorSession) -> tuple[int, JsonDict]:
+    """Cancel the current editor session."""
     session.cancel()
     return ok_response()
 
 
 def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+    """Build a template spec from the requested template payload."""
     template_name = payload.get("template")
     if not isinstance(template_name, str) or not template_name.strip():
         return bad_request_response("Missing 'template' payload.")
@@ -106,6 +115,7 @@ def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 def handle_analyze_contraction(
     session: EditorSession, payload: JsonDict
 ) -> tuple[int, JsonDict]:
+    """Analyze contraction information for a validated serialized spec."""
     del session
     try:
         serialized_spec = require_serialized_spec(payload)
@@ -128,12 +138,14 @@ def handle_analyze_contraction(
 
 
 def _serialize_generate_result(result: object) -> JsonDict:
+    """Serialize a generate-route result and assert its type."""
     if not isinstance(result, CodegenResult):
         raise TypeError("Generate handler expected a code generation result.")
     return serialize_codegen_result(result)
 
 
 def _serialize_complete_result(result: object) -> JsonDict:
+    """Serialize a complete-route result and assert its type."""
     if not isinstance(result, EditorResult):
         raise TypeError("Complete handler expected an editor result.")
     return serialize_editor_result(result)
@@ -145,6 +157,7 @@ def _handle_session_codegen_request(
     payload: JsonDict,
     operation: str,
 ) -> tuple[int, JsonDict]:
+    """Handle shared generate and complete route behavior."""
     try:
         request = parse_codegen_request(
             payload,
@@ -181,4 +194,5 @@ def _handle_session_codegen_request(
 def _serialize_contraction_analysis_result(
     result: ContractionAnalysisResult,
 ) -> JsonDict:
+    """Serialize a contraction analysis result for the API."""
     return cast(JsonDict, result.to_dict())
