@@ -76,6 +76,99 @@ export function registerProperties(ctx) {
     `;
   }
 
+  /**
+   * @param {unknown} value
+   * @returns {bigint}
+   */
+  function normalizeElementDimension(value) {
+    return BigInt(Math.max(1, Math.round(ctx.asFiniteNumber(value, 1))));
+  }
+
+  /**
+   * @param {{ indices?: Array<{ dimension?: unknown }> } | null | undefined} tensor
+   * @returns {bigint}
+   */
+  function getTensorTotalElementCount(tensor) {
+    const indices = Array.isArray(tensor && tensor.indices) ? tensor.indices : [];
+    return indices.reduce(
+      (product, index) => product * normalizeElementDimension(index.dimension),
+      1n
+    );
+  }
+
+  /**
+   * @param {string[]} tensorIds
+   * @returns {bigint | null}
+   */
+  function getTotalElementCountForTensorIds(tensorIds) {
+    const uniqueTensorIds = [...new Set(Array.isArray(tensorIds) ? tensorIds : [])];
+    let resolvedTensorCount = 0;
+    const totalElementCount = uniqueTensorIds.reduce((sum, tensorId) => {
+      const tensor = ctx.findTensorById(tensorId);
+      if (!tensor) {
+        return sum;
+      }
+      resolvedTensorCount += 1;
+      return sum + getTensorTotalElementCount(tensor);
+    }, 0n);
+    return resolvedTensorCount ? totalElementCount : null;
+  }
+
+  /**
+   * @param {{ kind?: string, id?: string, tensor?: { id?: string, sourceTensorIds?: string[] }, group?: { tensor_ids?: string[] } }} entry
+   * @returns {string[]}
+   */
+  function getSelectionEntryTensorIds(entry) {
+    if (!entry) {
+      return [];
+    }
+    if (entry.kind === "group") {
+      return Array.isArray(entry.group && entry.group.tensor_ids)
+        ? [...entry.group.tensor_ids]
+        : [];
+    }
+    if (entry.kind === "contraction-tensor") {
+      return Array.isArray(entry.tensor && entry.tensor.sourceTensorIds)
+        ? [...entry.tensor.sourceTensorIds]
+        : [];
+    }
+    if (entry.kind === "tensor" && entry.id) {
+      return [entry.id];
+    }
+    return [];
+  }
+
+  /**
+   * @param {Array<{ kind?: string }>} selectedEntries
+   * @returns {bigint | null}
+   */
+  function getSelectionTotalElementCount(selectedEntries) {
+    const tensorIds = selectedEntries.flatMap((entry) => getSelectionEntryTensorIds(entry));
+    return getTotalElementCountForTensorIds(tensorIds);
+  }
+
+  /**
+   * @param {{ id?: string, indices?: Array<{ dimension?: unknown }>, sourceTensorIds?: string[] } | null | undefined} tensor
+   * @returns {bigint}
+   */
+  function getContractionTensorTotalElementCount(tensor) {
+    const sourceTensorIds = Array.isArray(tensor && tensor.sourceTensorIds)
+      ? tensor.sourceTensorIds
+      : [];
+    const totalElementCount = getTotalElementCountForTensorIds(sourceTensorIds);
+    return totalElementCount === null
+      ? getTensorTotalElementCount(tensor)
+      : totalElementCount;
+  }
+
+  /**
+   * @param {bigint | null} totalElementCount
+   * @returns {string}
+   */
+  function formatTotalElementCount(totalElementCount) {
+    return totalElementCount === null ? "" : totalElementCount.toString();
+  }
+
   function tensorDisclosureState(tensorId) {
     if (!state.tensorIndexDisclosureState[tensorId]) {
       state.tensorIndexDisclosureState[tensorId] = {};
@@ -247,6 +340,7 @@ export function registerProperties(ctx) {
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
     const batchColor = ctx.getBatchColorValue(selectedEntries);
+    const totalElementCount = getSelectionTotalElementCount(selectedEntries);
 
     propertiesPanel.innerHTML = `
       <div class="properties-summary">
@@ -275,10 +369,24 @@ export function registerProperties(ctx) {
             <span>Notes</span>
             <strong>${noteCount}</strong>
           </div>
+          ${
+            totalElementCount !== null
+              ? `
+                <div class="properties-chip">
+                  <span>Total elements</span>
+                  <strong>${formatTotalElementCount(totalElementCount)}</strong>
+                </div>
+              `
+              : ""
+          }
         </div>
       </div>
-      <div class="field-group">
-        <label for="multi-color-input">Selection color</label>
+      <div class="button-row">
+        ${
+          tensorsOnly
+            ? '<button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>'
+            : ""
+        }
         <label class="control-inline-color" for="multi-color-input">
           <input
             id="multi-color-input"
@@ -288,14 +396,15 @@ export function registerProperties(ctx) {
             value="${ctx.escapeHtml(batchColor)}"
           />
         </label>
-      </div>
-      <div class="button-row">
-        ${
-          tensorsOnly
-            ? '<button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>'
-            : ""
-        }
-        <button id="delete-selection-button" type="button" class="danger">Delete Selected</button>
+        <button
+          id="delete-selection-button"
+          type="button"
+          class="icon-button index-action-button danger"
+          aria-label="Delete selection"
+          title="Delete selection"
+        >
+          ${renderTrashIcon()}
+        </button>
       </div>
       <p class="property-meta">
         Drag any selected tensor to move the selected tensor group together.
@@ -358,6 +467,7 @@ export function registerProperties(ctx) {
           })
           .join(", ")
       : "";
+    const totalElementCount = getContractionTensorTotalElementCount(tensor);
 
     propertiesPanel.innerHTML = `
       <div class="properties-summary">
@@ -373,6 +483,10 @@ export function registerProperties(ctx) {
           <div class="properties-chip">
             <span>Open indices</span>
             <strong>${Array.isArray(tensor.indices) ? tensor.indices.length : 0}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Total elements</span>
+            <strong>${formatTotalElementCount(totalElementCount)}</strong>
           </div>
         </div>
       </div>
@@ -400,6 +514,8 @@ export function registerProperties(ctx) {
     }
 
     const focusedIndexId = options.focusedIndexId || null;
+    const tensorIndexCount = Array.isArray(tensor.indices) ? tensor.indices.length : 0;
+    const totalElementCount = getTensorTotalElementCount(tensor);
     const indexEditors = tensor.indices
       .map((index, indexPosition) => {
         const isOpen = isTensorIndexDisclosureOpen(tensor.id, index.id);
@@ -511,6 +627,16 @@ export function registerProperties(ctx) {
           data-focus-key="tensor:${tensor.id}:name"
           value="${ctx.escapeHtml(tensor.name)}"
         />
+      </div>
+      <div class="properties-chip-wrap">
+        <div class="properties-chip">
+          <span>Indices</span>
+          <strong>${tensorIndexCount}</strong>
+        </div>
+        <div class="properties-chip">
+          <span>Total elements</span>
+          <strong>${formatTotalElementCount(totalElementCount)}</strong>
+        </div>
       </div>
       <div class="button-row">
         <button
@@ -787,6 +913,9 @@ export function registerProperties(ctx) {
     }
     const groupColor = ctx.getMetadataColor(group.metadata, "#61a8ff");
     const isCollapsed = Boolean(group.metadata && group.metadata.collapsed);
+    const totalElementCount = getTotalElementCountForTensorIds(
+      Array.isArray(group.tensor_ids) ? group.tensor_ids : []
+    );
     propertiesPanel.innerHTML = `
       <div class="field-group">
         <label for="group-name-input">Group name</label>
@@ -796,9 +925,21 @@ export function registerProperties(ctx) {
           value="${ctx.escapeHtml(group.name)}"
         />
       </div>
-      <div class="properties-chip">
-        <span>Member tensors</span>
-        <strong>${Array.isArray(group.tensor_ids) ? group.tensor_ids.length : 0}</strong>
+      <div class="properties-chip-wrap">
+        <div class="properties-chip">
+          <span>Member tensors</span>
+          <strong>${Array.isArray(group.tensor_ids) ? group.tensor_ids.length : 0}</strong>
+        </div>
+        ${
+          totalElementCount !== null
+            ? `
+              <div class="properties-chip">
+                <span>Total elements</span>
+                <strong>${formatTotalElementCount(totalElementCount)}</strong>
+              </div>
+            `
+            : ""
+        }
       </div>
       <div class="button-row">
         <label class="control-inline-color" for="group-color-input">
@@ -908,7 +1049,15 @@ export function registerProperties(ctx) {
             value="${ctx.escapeHtml(ctx.getMetadataColor(edge.metadata, "#8da1c3"))}"
           />
         </label>
-        <button id="delete-edge-button" type="button" class="danger">Delete Connection</button>
+        <button
+          id="delete-edge-button"
+          type="button"
+          class="icon-button index-action-button danger"
+          aria-label="Delete connection"
+          title="Delete connection"
+        >
+          ${renderTrashIcon()}
+        </button>
       </div>
     `;
 
@@ -995,7 +1144,15 @@ export function registerProperties(ctx) {
             value="${ctx.escapeHtml(ctx.getMetadataColor(note.metadata, "#5f95ff"))}"
           />
         </label>
-        <button id="delete-note-button" type="button" class="danger">Delete Note</button>
+        <button
+          id="delete-note-button"
+          type="button"
+          class="icon-button index-action-button danger"
+          aria-label="Delete note"
+          title="Delete note"
+        >
+          ${renderTrashIcon()}
+        </button>
       </div>
       <p class="property-meta">Move the note from its title bar directly on the canvas.</p>
     `;

@@ -10,6 +10,16 @@
     <div class="app-shell">
       <header class="toolbar">
         <div class="toolbar-group">
+          <h1 class="toolbar-title">
+            <a
+              class="toolbar-title-link"
+              href="https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Tensor Network Editor
+            </a>
+          </h1>
           <button id="new-design-button" type="button">New</button>
           <button id="save-button" type="button" class="button-accent-positive">Save</button>
           <button id="load-button" type="button">Load</button>
@@ -37,29 +47,8 @@
       <main id="workspace" class="workspace">
         <section class="canvas-panel">
           <div class="panel-heading canvas-titlebar">
-            <div class="title-main">
-              <h1>Tensor Network Editor</h1>
-            </div>
-            <div class="title-actions">
-              <div id="template-parameter-panel" class="title-control-row template-parameter-panel">
-                <label class="template-parameter-field template-select-field" for="template-select">
-                  <span class="template-parameter-title">Template</span>
-                  <select id="template-select"></select>
-                </label>
-                <label class="template-parameter-field template-number-field" for="template-graph-size-input">
-                  <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
-                  <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
-                </label>
-                <label class="template-parameter-field template-number-field" for="template-bond-dimension-input">
-                  <span class="template-parameter-title">Bond dimension</span>
-                  <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                </label>
-                <label class="template-parameter-field template-number-field" for="template-physical-dimension-input">
-                  <span class="template-parameter-title">Physical dimension</span>
-                  <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                </label>
-              </div>
-              <div class="title-button-row">
+            <div class="title-button-row">
+              <div class="title-control-group title-control-group-primary">
                 <button
                   id="add-tensor-button"
                   type="button"
@@ -80,8 +69,9 @@
                     <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
                   </svg>
                 </button>
+                <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
+                <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
                 <button id="connect-button" type="button" class="button-accent-cool">Connect</button>
-                <button id="insert-template-button" type="button" class="button-accent-insert">Insert Template</button>
                 <button id="create-group-button" type="button">Group</button>
                 <button
                   id="add-note-button"
@@ -94,8 +84,28 @@
                     <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>
                   </svg>
                 </button>
-                <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
-                <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
+              </div>
+              <div class="title-control-divider" aria-hidden="true"></div>
+              <div class="title-control-group title-control-group-template">
+                <div id="template-parameter-panel" class="template-parameter-panel">
+                  <label class="template-parameter-field template-select-field" for="template-select">
+                    <span class="template-parameter-title">Template</span>
+                    <select id="template-select"></select>
+                  </label>
+                  <label class="template-parameter-field template-number-field" for="template-graph-size-input">
+                    <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
+                    <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
+                  </label>
+                  <label class="template-parameter-field template-number-field" for="template-bond-dimension-input">
+                    <span class="template-parameter-title">Bond dimension</span>
+                    <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                  </label>
+                  <label class="template-parameter-field template-number-field" for="template-physical-dimension-input">
+                    <span class="template-parameter-title">Physical dimension</span>
+                    <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                  </label>
+                </div>
+                <button id="insert-template-button" type="button" class="button-accent-insert">Insert Template</button>
               </div>
             </div>
           </div>
