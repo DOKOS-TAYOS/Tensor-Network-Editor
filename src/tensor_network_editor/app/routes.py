@@ -6,7 +6,7 @@ import logging
 from http import HTTPStatus
 from typing import cast
 
-from .._contraction_analysis import ContractionAnalysisResult
+from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
@@ -25,11 +25,7 @@ from ._protocol import (
     serialize_spec_payload,
 )
 from ._protocol import read_json as _read_json
-from ._services import (
-    analyze_serialized_contraction,
-    build_bootstrap_payload,
-    build_template_from_payload,
-)
+from ._services import build_bootstrap_payload, build_template_from_payload
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
@@ -133,7 +129,7 @@ def handle_analyze_contraction(
     if issues:
         return issues_response(issues)
 
-    result = analyze_serialized_contraction(serialized_spec)
+    result = analyze_contraction(spec)
     return ok_response(_serialize_contraction_analysis_result(result))
 
 

@@ -265,8 +265,10 @@ export function registerUtilities(ctx) {
     persistTemplateParametersFromControls();
   }
 
-  function serializeCurrentSpec() {
+  function serializeCurrentSpec(options = {}) {
+    const { persistViewSnapshots = false } = options;
     if (
+      persistViewSnapshots &&
       state.spec &&
       state.spec.contraction_plan &&
       typeof ctx.ensureContractionViewSnapshots === "function"

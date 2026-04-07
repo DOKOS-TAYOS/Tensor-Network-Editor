@@ -38,6 +38,8 @@ export function registerExportMinimap(ctx) {
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  let minimapFrameId = null;
+  let minimapRenderQueued = false;
 
   function handleMinimapMouseDown(event) {
     event.preventDefault();
@@ -63,6 +65,11 @@ export function registerExportMinimap(ctx) {
     if (state.minimapHidden) {
       state.minimapDrag = null;
       state.minimapTransform = null;
+      if (minimapFrameId !== null) {
+        window.cancelAnimationFrame(minimapFrameId);
+        minimapFrameId = null;
+      }
+      minimapRenderQueued = false;
       minimapCanvas.classList.remove("is-dragging");
     }
     renderMinimapVisibility();
@@ -104,7 +111,7 @@ export function registerExportMinimap(ctx) {
     renderMinimap();
   }
 
-  function renderMinimap() {
+  function renderMinimapNow() {
     renderMinimapVisibility();
     if (state.minimapHidden) {
       state.minimapTransform = null;
@@ -212,6 +219,28 @@ export function registerExportMinimap(ctx) {
       context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
       context.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
     }
+  }
+
+  function renderMinimap(options = {}) {
+    const { immediate = false } = options;
+    if (immediate || typeof window.requestAnimationFrame !== "function") {
+      if (minimapFrameId !== null) {
+        window.cancelAnimationFrame(minimapFrameId);
+        minimapFrameId = null;
+      }
+      minimapRenderQueued = false;
+      renderMinimapNow();
+      return;
+    }
+    if (minimapRenderQueued) {
+      return;
+    }
+    minimapRenderQueued = true;
+    minimapFrameId = window.requestAnimationFrame(() => {
+      minimapFrameId = null;
+      minimapRenderQueued = false;
+      renderMinimapNow();
+    });
   }
 
   function worldToMinimapPoint(point) {

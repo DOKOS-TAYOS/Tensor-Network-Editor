@@ -37,14 +37,38 @@ export function registerOverlaysLayoutTemplates(ctx) {
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  let overlayFrameId = null;
+  let overlayRenderQueued = false;
 
-  function renderOverlayDecorations() {
+  function renderOverlayDecorationsNow() {
     renderGroupOverlays();
     renderResizeHandles();
     renderContractionBadges();
     if (typeof ctx.renderNotes === "function") {
       ctx.renderNotes();
     }
+  }
+
+  function renderOverlayDecorations(options = {}) {
+    const { immediate = false } = options;
+    if (immediate || typeof window.requestAnimationFrame !== "function") {
+      if (overlayFrameId !== null) {
+        window.cancelAnimationFrame(overlayFrameId);
+        overlayFrameId = null;
+      }
+      overlayRenderQueued = false;
+      renderOverlayDecorationsNow();
+      return;
+    }
+    if (overlayRenderQueued) {
+      return;
+    }
+    overlayRenderQueued = true;
+    overlayFrameId = window.requestAnimationFrame(() => {
+      overlayFrameId = null;
+      overlayRenderQueued = false;
+      renderOverlayDecorationsNow();
+    });
   }
 
   function renderGroupOverlays() {

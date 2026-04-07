@@ -215,6 +215,31 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
     assert "ctx.ensureContractionViewSnapshots();" in utilities_body
 
 
+def test_performance_sensitive_assets_use_lightweight_analysis_paths(
+    editor_server: EditorServer,
+) -> None:
+    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+    overlays_body = request_text(
+        f"{editor_server.base_url}/js/overlaysLayoutTemplates.js"
+    )
+
+    assert "function serializeCurrentSpec(options = {})" in utilities_body
+    assert "persistViewSnapshots = false" in utilities_body
+    assert "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in planner_body
+    assert (
+        "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in interactions_body
+    )
+    assert (
+        "ctx.serializeCurrentSpec({ persistViewSnapshots: true })" in interactions_body
+    )
+    assert "ANALYSIS_REFRESH_DELAY_MS = 200" in planner_body
+    assert "requestAnimationFrame" in minimap_body
+    assert "requestAnimationFrame" in overlays_body
+
+
 def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:

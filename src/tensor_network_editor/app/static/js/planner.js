@@ -1,6 +1,10 @@
 export function registerPlannerFeature(ctx) {
   const state = ctx.state;
   const { plannerPanel } = ctx.dom;
+  const ANALYSIS_REFRESH_DELAY_MS = 200;
+  let contractionAnalysisDebounceId = null;
+  let contractionAnalysisRequestPending = false;
+  let pendingContractionAnalysisOptions = null;
 
   function ensureContractionPlan() {
     if (!state.spec.contraction_plan) {
@@ -379,17 +383,18 @@ export function registerPlannerFeature(ctx) {
     );
   }
 
-  async function refreshContractionAnalysis(options = {}) {
+  async function runContractionAnalysisRequest(options = {}) {
     if (options.focusTab && typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
     }
     const requestId = state.contractionAnalysisRequestId + 1;
     state.contractionAnalysisRequestId = requestId;
+    contractionAnalysisRequestPending = true;
     state.contractionAnalysis = { status: "loading" };
     renderPlanner();
     try {
       const payload = await ctx.apiPost("/api/analyze-contraction", {
-        spec: ctx.serializeCurrentSpec(),
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (state.contractionAnalysisRequestId !== requestId) {
         return;
@@ -413,9 +418,49 @@ export function registerPlannerFeature(ctx) {
         status: "error",
         message: error.message,
       };
+    } finally {
+      contractionAnalysisRequestPending = false;
     }
     renderPlanner();
     ctx.renderOverlayDecorations();
+  }
+
+  function flushContractionAnalysisQueue() {
+    contractionAnalysisDebounceId = null;
+    if (contractionAnalysisRequestPending) {
+      return;
+    }
+    const queuedOptions = pendingContractionAnalysisOptions || {};
+    pendingContractionAnalysisOptions = null;
+    runContractionAnalysisRequest(queuedOptions).finally(() => {
+      if (
+        pendingContractionAnalysisOptions &&
+        contractionAnalysisDebounceId === null
+      ) {
+        contractionAnalysisDebounceId = window.setTimeout(
+          flushContractionAnalysisQueue,
+          ANALYSIS_REFRESH_DELAY_MS
+        );
+      }
+    });
+  }
+
+  function refreshContractionAnalysis(options = {}) {
+    pendingContractionAnalysisOptions = {
+      focusTab:
+        Boolean(options.focusTab) ||
+        Boolean(
+          pendingContractionAnalysisOptions &&
+            pendingContractionAnalysisOptions.focusTab
+        ),
+    };
+    if (contractionAnalysisDebounceId !== null) {
+      window.clearTimeout(contractionAnalysisDebounceId);
+    }
+    contractionAnalysisDebounceId = window.setTimeout(
+      flushContractionAnalysisQueue,
+      ANALYSIS_REFRESH_DELAY_MS
+    );
   }
 
   function formatShape(shape) {

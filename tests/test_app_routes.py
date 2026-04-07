@@ -7,6 +7,9 @@ from tensor_network_editor.api import generate_code
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, TensorCollectionFormat
+from tensor_network_editor.serialization import (
+    deserialize_spec as deserialize_spec_impl,
+)
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
     build_outer_product_plan_spec,
@@ -416,6 +419,37 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert payload["manual"]["summary"]["final_shape"] == [2, 4]
     assert payload["manual"]["steps"][0]["estimated_flops"] == 48
     assert payload["manual"]["steps"][0]["estimated_macs"] == 24
+
+
+def test_analyze_contraction_route_deserializes_the_spec_once(
+    editor_server: EditorServer,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    deserialize_call_count = 0
+
+    def counting_deserialize_spec(*args: object, **kwargs: object) -> object:
+        nonlocal deserialize_call_count
+        deserialize_call_count += 1
+        return deserialize_spec_impl(*args, **kwargs)
+
+    with (
+        patch(
+            "tensor_network_editor.app._protocol.deserialize_spec",
+            side_effect=counting_deserialize_spec,
+        ),
+        patch(
+            "tensor_network_editor.app._services.deserialize_spec",
+            side_effect=counting_deserialize_spec,
+        ),
+    ):
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={"spec": serialized_sample_spec},
+        )
+
+    assert payload["ok"] is True
+    assert deserialize_call_count == 1
 
 
 def test_unexpected_server_errors_return_generic_500_payload(

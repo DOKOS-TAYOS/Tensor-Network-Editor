@@ -863,7 +863,7 @@ export function registerInteractions(ctx) {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,
         collection_format: state.selectedCollectionFormat,
-        spec: ctx.serializeCurrentSpec(),
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
@@ -882,7 +882,7 @@ export function registerInteractions(ctx) {
       const payload = await apiPost("/api/complete", {
         engine: state.selectedEngine,
         collection_format: state.selectedCollectionFormat,
-        spec: ctx.serializeCurrentSpec(),
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: true }),
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
@@ -912,7 +912,7 @@ export function registerInteractions(ctx) {
   }
 
   function saveDesign() {
-    const blob = new Blob([JSON.stringify(ctx.serializeCurrentSpec(), null, 2)], {
+    const blob = new Blob([JSON.stringify(ctx.serializeCurrentSpec({ persistViewSnapshots: true }), null, 2)], {
       type: "application/json",
     });
     const anchor = document.createElement("a");
@@ -980,7 +980,7 @@ export function registerInteractions(ctx) {
       const payload = await apiPost("/api/generate", {
         engine: state.selectedEngine,
         collection_format: state.selectedCollectionFormat,
-        spec: ctx.serializeCurrentSpec(),
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
