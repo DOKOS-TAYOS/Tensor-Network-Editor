@@ -21,6 +21,11 @@ export function registerNotesFeature(ctx) {
     };
   }
 
+  function formatNoteColorAlpha(hexColor, alpha) {
+    const { red, green, blue } = ctx.parseHexColor(hexColor);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
 
   function createNote(x, y) {
     const zoom = getCanvasZoom();
@@ -282,7 +287,21 @@ export function registerNotesFeature(ctx) {
       frame.style.height = `${noteSize.height}px`;
       frame.style.transform = `scale(${noteZoom})`;
       frame.style.transformOrigin = "top left";
-      frame.style.borderColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
+      const noteColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
+      frame.style.borderColor = noteColor;
+      frame.style.setProperty("--note-accent-color", noteColor);
+      frame.style.setProperty(
+        "--note-surface-color",
+        formatNoteColorAlpha(ctx.shiftColor(noteColor, -18), 0.96)
+      );
+      frame.style.setProperty(
+        "--note-surface-color-strong",
+        formatNoteColorAlpha(ctx.shiftColor(noteColor, -46), 0.98)
+      );
+      frame.style.setProperty(
+        "--note-header-color",
+        ctx.readableTextColor(ctx.shiftColor(noteColor, -6))
+      );
 
       if (isCollapsed) {
         const collapsedToggle = createNoteCollapseButton(note);
@@ -386,7 +405,7 @@ export function registerNotesFeature(ctx) {
               {
                 selectionIds: [note.id],
                 primaryId: note.id,
-                invalidate: noteInvalidation(),
+                invalidate: noteInvalidation({ overlays: false }),
                 statusMessage: "Updated the note text.",
               }
             );

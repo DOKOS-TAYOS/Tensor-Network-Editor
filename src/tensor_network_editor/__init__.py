@@ -2,6 +2,7 @@
 
 import logging
 
+from ._version import __version__
 from .analysis import analyze_contraction, analyze_spec
 from .api import (
     generate_code,
@@ -40,8 +41,6 @@ if not any(
     isinstance(handler, logging.NullHandler) for handler in PACKAGE_LOGGER.handlers
 ):
     PACKAGE_LOGGER.addHandler(logging.NullHandler())
-
-__version__ = "0.1.2"
 
 __all__ = [
     "CanvasPosition",

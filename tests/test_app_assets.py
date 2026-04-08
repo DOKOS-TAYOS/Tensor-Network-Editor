@@ -61,6 +61,39 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert ">Insert<" in html
 
 
+def test_root_groups_export_actions_and_code_generation_controls_as_requested(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert 'id="export-format-select"' in html
+    assert 'id="export-button"' in html
+    assert 'id="export-py-button"' not in html
+    assert 'id="export-png-button"' not in html
+    assert 'id="export-svg-button"' not in html
+    assert html.index('id="export-format-select"') < html.index('id="export-button"')
+
+    code_pane_index = html.index('id="sidebar-pane-code"')
+    engine_index = html.index('id="engine-select"')
+    collection_index = html.index('id="collection-format-select"')
+    generate_index = html.index('id="generate-button"')
+
+    assert code_pane_index < engine_index < collection_index < generate_index
+
+
+def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert 'id="done-button"' in html
+    assert 'id="cancel-button"' in html
+    assert 'aria-label="Done"' in html
+    assert 'aria-label="Cancel"' in html
+    assert ">Done<" not in html
+    assert ">Cancel<" not in html
+
+
 def test_root_exposes_linear_periodic_toolbar_controls(
     editor_server: EditorServer,
 ) -> None:
@@ -201,6 +234,19 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "min-width: 10.5rem;" not in body
 
 
+def test_css_asset_styles_grouped_export_and_code_generation_controls(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert ".toolbar-export-controls {" in body
+    assert ".toolbar-export-controls select {" in body
+    assert ".toolbar-export-controls button {" in body
+    assert ".code-header-controls {" in body
+    assert ".code-header-controls .code-format-picker {" in body
+    assert ".code-header-row {" in body
+
+
 def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
     editor_server: EditorServer,
 ) -> None:
@@ -235,6 +281,19 @@ def test_note_assets_move_note_editing_into_canvas(
     assert ".canvas-note-color-button {" in css_body
 
 
+def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
+    editor_server: EditorServer,
+) -> None:
+    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "invalidate: noteInvalidation({ overlays: false })" in notes_body
+    assert 'frame.style.setProperty("--note-accent-color"' in notes_body
+    assert "--note-surface-color" in notes_body
+    assert "var(--note-accent-color" in css_body
+    assert "var(--note-surface-color" in css_body
+
+
 def test_interaction_assets_support_latest_contraction_scene_editing(
     editor_server: EditorServer,
 ) -> None:
@@ -255,6 +314,47 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
     assert "const indexNodesInteractive = !readOnlyScene;" in graph_body
     assert "selectable: !readOnlyScene," in graph_body
     assert "ctx.ensureContractionViewSnapshots();" in utilities_body
+
+
+def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
+    editor_server: EditorServer,
+) -> None:
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+
+    assert (
+        'exportFormatSelect: document.getElementById("export-format-select")'
+        in dom_body
+    )
+    assert 'exportButton: document.getElementById("export-button")' in dom_body
+    assert (
+        'exportButton.addEventListener("click", ctx.downloadSelectedExport);'
+        in bootstrap_body
+    )
+    assert "async function downloadSelectedExport()" in interactions_body
+    assert "switch (exportFormatSelect.value)" in interactions_body
+    assert 'case "py":' in interactions_body
+    assert 'case "png":' in interactions_body
+    assert 'case "svg":' in interactions_body
+    assert "await ctx.downloadPythonExport();" in interactions_body
+    assert "ctx.downloadPngExport();" in interactions_body
+    assert "ctx.downloadSvgExport();" in interactions_body
+    assert "exportButton.disabled =" in utilities_body
+
+
+def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_operands(
+    editor_server: EditorServer,
+) -> None:
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
+
+    assert "invalidate: { lookups: true }" in interactions_body
+    assert (
+        "state.spec.tensors.find((tensor) => tensor.id === anchorTensorId)"
+        in contraction_body
+    )
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
@@ -322,7 +422,45 @@ def test_properties_assets_lock_virtual_boundary_tensor_structure(
 
     assert "ctx.isLinearPeriodicBoundaryTensor(tensor)" in body
     assert "renderLinearPeriodicBoundaryTensorProperties" in body
-    assert "managed by For mode" in body
+    assert "managed by For mode" not in body
+    assert "Move this port directly on the canvas to adjust its position." not in body
+
+
+def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
+    editor_server: EditorServer,
+) -> None:
+    history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+
+    assert "ctx.syncCurrentGraphIntoLinearPeriodicChain();" in history_body
+    assert "function syncLinearPeriodicChainInterfaceDimensions(" in utilities_body
+    assert "function getCanonicalLinearPeriodicInterfaceDimensions(" in utilities_body
+    assert "boundaryTensor.indices = resolvedInterfaceDimensions.map(" in utilities_body
+    assert (
+        "syncLinearPeriodicBoundaryTensors(runtimeSpec, interfaceDimensions);"
+        in utilities_body
+    )
+    assert "chain[`${cellName}_cell`] = seedLinearPeriodicCell(" in utilities_body
+    assert "interfaceDimensions" in utilities_body
+
+
+def test_properties_assets_sync_dimensions_across_connected_ports(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/properties.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+
+    assert "properties: isLinearPeriodicMode," in body
+    assert "const currentOwner = ctx.findIndexOwner(index.id);" in body
+    assert "const currentIndex = currentOwner ? currentOwner.index : null;" in body
+    assert "if (!currentIndex) {" in body
+    assert "ctx.syncConnectedIndexDimension(index.id, parsed);" in body
+    assert (
+        "function syncConnectedIndexDimension(indexId, nextDimension) {"
+        in utilities_body
+    )
+    assert "const connectedEdge = findEdgeByIndexId(indexId);" in utilities_body
+    assert "connectedOwner.index.dimension = nextDimension;" in utilities_body
 
 
 def test_planner_assets_expose_total_elements_and_step_spacing(

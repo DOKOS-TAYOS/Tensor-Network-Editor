@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import cast
+
 import tensor_network_editor as tne
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult, diff_specs
 from tensor_network_editor.linting import LintIssue, LintReport, lint_spec
 from tensor_network_editor.templates import build_template_spec, list_template_names
+from tensor_network_editor.types import JSONValue
 from tests.factories import build_sample_spec, build_three_tensor_spec
 
 
@@ -86,10 +89,11 @@ def test_analyze_spec_returns_network_and_contraction_sections() -> None:
     assert report.network.edge_count == 2
     assert report.network.open_index_count == 2
     assert report.contraction is not None
-    assert (
-        report.to_dict()["contraction"]["manual"]["summary"]["total_estimated_flops"]
-        == 60
-    )
+    payload = report.to_dict()
+    contraction_payload = cast(dict[str, JSONValue], payload["contraction"])
+    manual_payload = cast(dict[str, JSONValue], contraction_payload["manual"])
+    summary_payload = cast(dict[str, JSONValue], manual_payload["summary"])
+    assert summary_payload["total_estimated_flops"] == 60
 
 
 def test_diff_specs_compares_entities_by_stable_ids() -> None:

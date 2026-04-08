@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 from unittest.mock import patch
 
 from tensor_network_editor.api import generate_code
+from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
@@ -47,10 +49,12 @@ def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:
             default_engine=EngineName.EINSUM_NUMPY,
         )
     )
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
 
     assert status == 200
-    assert payload["spec"]["network"]["id"] == "network_invalid"
-    assert payload["spec"]["network"]["name"] == "   "
+    assert network_payload["id"] == "network_invalid"
+    assert network_payload["name"] == "   "
 
 
 def test_validate_route_reports_issues_and_echoes_serialized_spec(

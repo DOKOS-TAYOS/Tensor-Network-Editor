@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from math import prod
+from typing import Protocol
 
-from ._analysis import analyze_network
+from ._analysis import NetworkAnalysis, analyze_network
 from ._headless_models import LintIssue, LintReport
 from .models import ContractionStepSpec, GroupSpec, NetworkSpec
+
+
+class _NamedEntity(Protocol):
+    """Protocol for readable entities that expose stable ids and names."""
+
+    id: str
+    name: str
 
 
 def lint_spec(
@@ -39,7 +47,7 @@ def _lint_disconnected_components(spec: NetworkSpec) -> list[LintIssue]:
     if len(tensor_ids) <= 1:
         return []
 
-    adjacency = {tensor_id: set() for tensor_id in tensor_ids}
+    adjacency: dict[str, set[str]] = {tensor_id: set() for tensor_id in tensor_ids}
     valid_tensor_ids = set(tensor_ids)
     for edge in spec.edges:
         if (
@@ -79,7 +87,7 @@ def _lint_disconnected_components(spec: NetworkSpec) -> list[LintIssue]:
     ]
 
 
-def _lint_open_indices(analysis: object) -> list[LintIssue]:
+def _lint_open_indices(analysis: NetworkAnalysis) -> list[LintIssue]:
     """Warn about open indices whose names look like accidental dangling legs."""
     suspicious_names = {
         "i",
@@ -99,8 +107,7 @@ def _lint_open_indices(analysis: object) -> list[LintIssue]:
         "bond",
     }
     issues: list[LintIssue] = []
-    open_indices = getattr(analysis, "open_indices", [])
-    for tensor, index in open_indices:
+    for tensor, index in analysis.open_indices:
         if index.name.strip().lower() not in suspicious_names:
             continue
         issues.append(
@@ -200,9 +207,9 @@ def _lint_names(spec: NetworkSpec) -> list[LintIssue]:
     return issues
 
 
-def _iter_named_entities(spec: NetworkSpec) -> list[tuple[str, object]]:
+def _iter_named_entities(spec: NetworkSpec) -> list[tuple[str, _NamedEntity]]:
     """Return named entities that benefit from readability linting."""
-    entities: list[tuple[str, object]] = []
+    entities: list[tuple[str, _NamedEntity]] = []
     entities.extend((f"tensors.{tensor.id}.name", tensor) for tensor in spec.tensors)
     entities.extend((f"groups.{group.id}.name", group) for group in spec.groups)
     entities.extend((f"edges.{edge.id}.name", edge) for edge in spec.edges)

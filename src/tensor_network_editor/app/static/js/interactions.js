@@ -18,13 +18,11 @@ export function registerInteractions(ctx) {
     generatedCode,
     engineSelect,
     collectionFormatSelect,
+    exportFormatSelect,
     connectButton,
     loadInput,
     undoButton,
     redoButton,
-    exportPyButton,
-    exportPngButton,
-    exportSvgButton,
     templateSelect,
     insertTemplateButton,
     createGroupButton,
@@ -1031,6 +1029,23 @@ export function registerInteractions(ctx) {
     }
   }
 
+  async function downloadSelectedExport() {
+    switch (exportFormatSelect.value) {
+      case "png":
+        ctx.downloadPngExport();
+        break;
+      case "svg":
+        ctx.downloadSvgExport();
+        break;
+      case "py":
+        await ctx.downloadPythonExport();
+        break;
+      default:
+        ctx.setStatus(`Unsupported export format: ${exportFormatSelect.value}`, "error");
+        break;
+    }
+  }
+
   async function insertTemplate() {
     const templateName = templateSelect.value;
     if (!templateName) {
@@ -1052,6 +1067,7 @@ export function registerInteractions(ctx) {
           state.spec.groups.push(...translatedSpec.groups);
         },
         {
+          invalidate: { lookups: true },
           selectionIds: translatedSpec.tensors.map((tensor) => tensor.id),
           primaryId: translatedSpec.tensors.length
             ? translatedSpec.tensors[translatedSpec.tensors.length - 1].id
@@ -1095,6 +1111,7 @@ export function registerInteractions(ctx) {
     saveDesign,
     loadDesignFromFile,
     copyGeneratedCode,
+    downloadSelectedExport,
     downloadPythonExport,
     insertTemplate
   });
