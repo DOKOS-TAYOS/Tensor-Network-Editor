@@ -78,7 +78,7 @@ def test_parse_codegen_request_uses_defaults_when_optional_fields_are_missing(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     request = parse_codegen_request(
-        {"spec": serialized_sample_spec},
+        cast(JsonDict, {"spec": cast(JsonDict, serialized_sample_spec)}),
         default_engine=EngineName.EINSUM_TORCH,
         default_collection_format=TensorCollectionFormat.DICT,
     )
@@ -94,11 +94,14 @@ def test_parse_codegen_request_honors_explicit_engine_and_collection_format(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     request = parse_codegen_request(
-        {
-            "spec": serialized_sample_spec,
-            "engine": EngineName.QUIMB.value,
-            "collection_format": TensorCollectionFormat.MATRIX.value,
-        },
+        cast(
+            JsonDict,
+            {
+                "spec": cast(JsonDict, serialized_sample_spec),
+                "engine": EngineName.QUIMB.value,
+                "collection_format": TensorCollectionFormat.MATRIX.value,
+            },
+        ),
         default_engine=EngineName.EINSUM_NUMPY,
         default_collection_format=TensorCollectionFormat.LIST,
     )
@@ -187,6 +190,6 @@ def test_deserialize_spec_with_issues_skips_validation(
     network_payload["name"] = "   "
     payload["network"] = network_payload
 
-    restored = deserialize_spec_with_issues(payload)
+    restored = deserialize_spec_with_issues(cast(JsonDict, payload))
 
     assert restored.name == "   "

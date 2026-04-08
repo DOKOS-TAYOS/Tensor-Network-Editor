@@ -7,13 +7,23 @@ from tensor_network_editor.models import (
     ContractionStepSpec,
     GroupSpec,
     IndexSpec,
+    NetworkSpec,
     TensorSpec,
 )
 from tests.factories import build_sample_spec, build_three_tensor_spec
 
 
-def lint_codes(spec: object, **kwargs: object) -> set[str]:
-    report = lint_spec(spec, **kwargs)
+def lint_codes(
+    spec: NetworkSpec,
+    *,
+    max_tensor_rank: int = 6,
+    max_tensor_cardinality: int = 4096,
+) -> set[str]:
+    report = lint_spec(
+        spec,
+        max_tensor_rank=max_tensor_rank,
+        max_tensor_cardinality=max_tensor_cardinality,
+    )
     return {issue.code for issue in report.issues}
 
 

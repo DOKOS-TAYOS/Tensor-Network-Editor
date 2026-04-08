@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, TypeAlias
+from typing import TypeAlias, cast
 
 from ..models import (
     CodegenResult,
@@ -20,8 +20,13 @@ from ..serialization import (
     deserialize_spec,
     deserialize_spec_from_python_code,
 )
+from ..types import JSONValue
 
-JsonDict: TypeAlias = dict[str, Any]
+_JsonArray: TypeAlias = list[JSONValue]
+_JsonObject: TypeAlias = dict[str, JSONValue]
+
+JsonDict: TypeAlias = _JsonObject
+JsonList: TypeAlias = _JsonArray
 JsonResponse: TypeAlias = tuple[int, JsonDict]
 
 
@@ -39,12 +44,12 @@ def read_json(body: bytes) -> JsonDict:
     if not body:
         return {}
     try:
-        payload = json.loads(body.decode("utf-8"))
+        payload = cast(object, json.loads(body.decode("utf-8")))
     except json.JSONDecodeError as exc:
         raise ValueError("Request body contains invalid JSON.") from exc
     if not isinstance(payload, dict):
         raise ValueError("Expected a JSON object payload.")
-    return payload
+    return cast(JsonDict, payload)
 
 
 def require_serialized_spec(payload: JsonDict) -> JsonDict:
@@ -109,17 +114,20 @@ def resolve_collection_format(
         ) from exc
 
 
-def serialize_issues(issues: list[ValidationIssue]) -> list[JsonDict]:
+def serialize_issues(issues: list[ValidationIssue]) -> JsonList:
     """Serialize validation issues for JSON responses."""
-    return [
-        {"code": issue.code, "message": issue.message, "path": issue.path}
-        for issue in issues
-    ]
+    return cast(
+        JsonList,
+        [
+            {"code": issue.code, "message": issue.message, "path": issue.path}
+            for issue in issues
+        ],
+    )
 
 
 def ok_response(payload: JsonDict | None = None) -> JsonResponse:
     """Return a standard successful JSON response."""
-    body = {"ok": True}
+    body: JsonDict = {"ok": True}
     if payload is not None:
         body.update(payload)
     return HTTPStatus.OK, body
@@ -158,8 +166,8 @@ def serialize_codegen_result(result: CodegenResult) -> JsonDict:
     return {
         "engine": result.engine.value,
         "code": result.code,
-        "warnings": result.warnings,
-        "artifacts": result.artifacts,
+        "warnings": cast(JSONValue, list(result.warnings)),
+        "artifacts": cast(JSONValue, dict(result.artifacts)),
     }
 
 
@@ -170,4 +178,4 @@ def serialize_editor_result(result: EditorResult) -> JsonDict:
 
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     """Deserialize a spec payload without raising on validation issues."""
-    return deserialize_spec(serialized_spec, validate=False)
+    return deserialize_spec(cast(dict[str, object], serialized_spec), validate=False)

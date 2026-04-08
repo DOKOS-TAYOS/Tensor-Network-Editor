@@ -171,11 +171,19 @@ select {
   margin-left: auto;
 }
 
-.engine-picker {
+.toolbar-export-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--muted);
+  flex-wrap: nowrap;
+}
+
+.toolbar-export-controls select {
+  min-width: 8.5rem;
+}
+
+.toolbar-export-controls button {
+  white-space: nowrap;
 }
 
 .template-parameter-panel {
@@ -381,9 +389,13 @@ select {
   min-height: 140px;
   padding: 0.7rem;
   border-radius: 18px;
-  border: 1px solid rgba(95, 149, 255, 0.65);
+  border: 1px solid var(--note-accent-color, rgba(95, 149, 255, 0.65));
   background:
-    linear-gradient(180deg, rgba(23, 31, 46, 0.98), rgba(17, 23, 35, 0.98));
+    linear-gradient(
+      180deg,
+      var(--note-surface-color, rgba(23, 31, 46, 0.98)),
+      var(--note-surface-color-strong, rgba(17, 23, 35, 0.98))
+    );
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
   box-sizing: border-box;
 }
@@ -411,7 +423,7 @@ select {
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.55rem;
-  color: var(--accent-strong);
+  color: var(--note-header-color, var(--accent-strong));
   font-size: 0.82rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1246,7 +1258,19 @@ button[disabled] {
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: space-between;
+}
+
+.code-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.code-header-controls .code-format-picker {
+  display: inline-flex;
+  align-items: center;
 }
 
 .code-format-picker {

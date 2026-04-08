@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
-from typing import cast
+from typing import Literal, cast
 
 from .._contraction_analysis_types import ContractionAnalysisResult
 from ..analysis import analyze_contraction
@@ -14,6 +14,7 @@ from ..serialization import serialize_spec
 from ..validation import validate_spec
 from ._protocol import (
     JsonDict,
+    JsonResponse,
     bad_request_response,
     deserialize_spec_with_issues,
     deserialize_validation_payload,
@@ -37,12 +38,12 @@ def read_json(body: bytes) -> JsonDict:
     return _read_json(body)
 
 
-def handle_bootstrap(session: EditorSession) -> tuple[int, JsonDict]:
+def handle_bootstrap(session: EditorSession) -> JsonResponse:
     """Return the bootstrap payload used by the browser client."""
-    return HTTPStatus.OK, build_bootstrap_payload(session)
+    return HTTPStatus.OK, cast(JsonDict, build_bootstrap_payload(session))
 
 
-def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Validate a serialized spec or supported Python source payload."""
     del session
     try:
@@ -63,37 +64,39 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
     return ok_response({"issues": [], "spec": serialize_spec_payload(spec)})
 
 
-def handle_generate(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+def handle_generate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Generate preview code for the current editor payload."""
     status, response = _handle_session_codegen_request(
         session=session,
         payload=payload,
         operation="generate",
     )
-    if not response["ok"] and "message" in response:
-        LOGGER.warning("Generate request rejected: %s", response["message"])
+    message = response.get("message")
+    if response.get("ok") is False and isinstance(message, str):
+        LOGGER.warning("Generate request rejected: %s", message)
     return status, response
 
 
-def handle_complete(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+def handle_complete(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Finalize an editor session and return the completion payload."""
     status, response = _handle_session_codegen_request(
         session=session,
         payload=payload,
         operation="complete",
     )
-    if not response["ok"] and "message" in response:
-        LOGGER.warning("Complete request rejected: %s", response["message"])
+    message = response.get("message")
+    if response.get("ok") is False and isinstance(message, str):
+        LOGGER.warning("Complete request rejected: %s", message)
     return status, response
 
 
-def handle_cancel(session: EditorSession) -> tuple[int, JsonDict]:
+def handle_cancel(session: EditorSession) -> JsonResponse:
     """Cancel the current editor session."""
     session.cancel()
     return ok_response()
 
 
-def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, JsonDict]:
+def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Build a template spec from the requested template payload."""
     template_name = payload.get("template")
     if not isinstance(template_name, str) or not template_name.strip():
@@ -111,7 +114,7 @@ def handle_template(session: EditorSession, payload: JsonDict) -> tuple[int, Jso
 
 def handle_analyze_contraction(
     session: EditorSession, payload: JsonDict
-) -> tuple[int, JsonDict]:
+) -> JsonResponse:
     """Analyze contraction information for a validated serialized spec."""
     del session
     try:
@@ -134,17 +137,13 @@ def handle_analyze_contraction(
     return ok_response(_serialize_contraction_analysis_result(result))
 
 
-def _serialize_generate_result(result: object) -> JsonDict:
-    """Serialize a generate-route result and assert its type."""
-    if not isinstance(result, CodegenResult):
-        raise TypeError("Generate handler expected a code generation result.")
+def _serialize_generate_result(result: CodegenResult) -> JsonDict:
+    """Serialize a generate-route code generation result."""
     return serialize_codegen_result(result)
 
 
-def _serialize_complete_result(result: object) -> JsonDict:
-    """Serialize a complete-route result and assert its type."""
-    if not isinstance(result, EditorResult):
-        raise TypeError("Complete handler expected an editor result.")
+def _serialize_complete_result(result: EditorResult) -> JsonDict:
+    """Serialize a complete-route editor result."""
     return serialize_editor_result(result)
 
 
@@ -152,8 +151,8 @@ def _handle_session_codegen_request(
     *,
     session: EditorSession,
     payload: JsonDict,
-    operation: str,
-) -> tuple[int, JsonDict]:
+    operation: Literal["generate", "complete"],
+) -> JsonResponse:
     """Handle shared generate and complete route behavior."""
     try:
         request = parse_codegen_request(
@@ -167,14 +166,14 @@ def _handle_session_codegen_request(
     try:
         if operation == "generate":
             generate_result = session.generate(
-                request.serialized_spec,
+                cast(dict[str, object], request.serialized_spec),
                 request.engine,
                 request.collection_format,
             )
             return ok_response(_serialize_generate_result(generate_result))
         if operation == "complete":
             complete_result = session.complete(
-                request.serialized_spec,
+                cast(dict[str, object], request.serialized_spec),
                 request.engine,
                 request.collection_format,
             )
@@ -192,4 +191,4 @@ def _serialize_contraction_analysis_result(
     result: ContractionAnalysisResult,
 ) -> JsonDict:
     """Serialize a contraction analysis result for the API."""
-    return cast(JsonDict, result.to_dict())
+    return result.to_dict()

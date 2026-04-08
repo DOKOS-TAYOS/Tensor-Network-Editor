@@ -69,10 +69,13 @@ export function registerProperties(ctx) {
   }
 
   function propertyInvalidation(overrides = {}) {
+    const isLinearPeriodicMode =
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
     return {
       graph: false,
       lookups: false,
       analysis: false,
+      properties: isLinearPeriodicMode,
       overlays: false,
       planner: false,
       minimap: false,
@@ -609,7 +612,6 @@ export function registerProperties(ctx) {
                   />
                 </label>
               </div>
-              <p class="property-meta">Move this port directly on the canvas to adjust its position.</p>
             </div>
           </section>
         `
@@ -646,9 +648,6 @@ export function registerProperties(ctx) {
           />
         </label>
       </div>
-      <p class="property-meta">
-        This tensor is managed by For mode. You can move it and recolor its ports, but you cannot rename it, delete it, or change how many ports it has.
-      </p>
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>Ports will appear automatically when this cell exposes free non-virtual indices.</p>"}
       </div>
@@ -1047,17 +1046,29 @@ export function registerProperties(ctx) {
         indexDimensionInput,
         `index:${index.id}:dimension`,
         () => {
+          const currentOwner = ctx.findIndexOwner(index.id);
+          const currentIndex = currentOwner ? currentOwner.index : null;
+          if (!currentIndex) {
+            return;
+          }
           const parsed = Number.parseInt(indexDimensionInput.value, 10);
           if (!Number.isFinite(parsed) || parsed <= 0) {
             ctx.setStatus("Index dimension must be a positive integer.", "error");
             return;
           }
-          if (parsed === index.dimension) {
+          if (parsed === currentIndex.dimension) {
             return;
           }
           ctx.applyDesignChange(
             () => {
-              index.dimension = parsed;
+              const nextOwner = ctx.findIndexOwner(index.id);
+              if (!nextOwner || !nextOwner.index) {
+                return;
+              }
+              nextOwner.index.dimension = parsed;
+              if (typeof ctx.syncConnectedIndexDimension === "function") {
+                ctx.syncConnectedIndexDimension(index.id, parsed);
+              }
             },
             {
               invalidate: propertyInvalidation({

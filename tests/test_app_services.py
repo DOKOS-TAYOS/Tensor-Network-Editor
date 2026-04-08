@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app._services import (
     analyze_serialized_contraction,
     build_bootstrap_payload,
@@ -92,10 +93,13 @@ def test_build_bootstrap_payload_preserves_linear_periodic_chain_specs() -> None
     )
 
     payload = build_bootstrap_payload(session)
-    chain = payload["spec"]["network"]["linear_periodic_chain"]
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
+    chain = cast(JsonDict, network_payload["linear_periodic_chain"])
+    periodic_cell = cast(JsonDict, chain["periodic_cell"])
+    contraction_plan = cast(JsonDict, periodic_cell["contraction_plan"])
+    steps = cast(list[JsonDict], contraction_plan["steps"])
 
     assert payload["schema_version"] == SCHEMA_VERSION
     assert chain["active_cell"] == "periodic"
-    assert chain["periodic_cell"]["contraction_plan"]["steps"][0]["id"] == (
-        "periodic_contract_internal"
-    )
+    assert steps[0]["id"] == "periodic_contract_internal"

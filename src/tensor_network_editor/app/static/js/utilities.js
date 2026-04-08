@@ -26,14 +26,13 @@ export function registerUtilities(ctx) {
     generatedCode,
     engineSelect,
     collectionFormatSelect,
+    exportFormatSelect,
     addNoteButton,
     connectButton,
     loadInput,
     undoButton,
     redoButton,
-    exportPyButton,
-    exportPngButton,
-    exportSvgButton,
+    exportButton,
     toggleLinearPeriodicButton,
     linearPeriodicPreviousCellButton,
     linearPeriodicCellLabel,
@@ -561,12 +560,74 @@ export function registerUtilities(ctx) {
     return owners;
   }
 
-  function syncLinearPeriodicBoundaryTensors(spec = state.spec) {
+  function getBoundaryInterfaceDimensions(
+    graphSection,
+    preferredRole = "next"
+  ) {
+    const boundaryTensors = (Array.isArray(graphSection && graphSection.tensors) ? graphSection.tensors : [])
+      .filter((tensor) => isLinearPeriodicBoundaryTensor(tensor));
+    const preferredTensor = boundaryTensors.find(
+      (tensor) =>
+        tensor.linear_periodic_role === preferredRole &&
+        Array.isArray(tensor.indices) &&
+        tensor.indices.length
+    );
+    const fallbackTensor =
+      preferredTensor ||
+      boundaryTensors.find(
+        (tensor) => Array.isArray(tensor.indices) && tensor.indices.length
+      );
+    return fallbackTensor
+      ? fallbackTensor.indices.map((index) => index.dimension)
+      : [];
+  }
+
+  function getCanonicalLinearPeriodicInterfaceDimensions(spec = state.spec) {
+    const activeCellName = getActiveLinearPeriodicCellName(spec);
+    if (!activeCellName) {
+      return [];
+    }
+    if (activeCellName === "initial") {
+      return getLinearPeriodicCandidateOwners(spec).map(
+        (owner) => owner.index.dimension
+      );
+    }
+    const activePreferredRole = activeCellName === "final" ? "previous" : "next";
+    const activeDimensions = getBoundaryInterfaceDimensions(
+      spec,
+      activePreferredRole
+    );
+    if (activeDimensions.length) {
+      return activeDimensions;
+    }
+    const chain = getLinearPeriodicChain(spec);
+    if (!chain) {
+      return getLinearPeriodicCandidateOwners(spec).map(
+        (owner) => owner.index.dimension
+      );
+    }
+    const initialDimensions = getBoundaryInterfaceDimensions(
+      chain.initial_cell,
+      "next"
+    );
+    return initialDimensions.length
+      ? initialDimensions
+      : getLinearPeriodicCandidateOwners(spec).map(
+          (owner) => owner.index.dimension
+        );
+  }
+
+  function syncLinearPeriodicBoundaryTensors(
+    spec = state.spec,
+    interfaceDimensions = null
+  ) {
     if (!isLinearPeriodicMode(spec)) {
       return;
     }
     ensureActiveLinearPeriodicBoundaryTensors(spec);
-    const candidateOwners = getLinearPeriodicCandidateOwners(spec);
+    const resolvedInterfaceDimensions = Array.isArray(interfaceDimensions)
+      ? interfaceDimensions
+      : getCanonicalLinearPeriodicInterfaceDimensions(spec);
     const boundaryTensors = (Array.isArray(spec.tensors) ? spec.tensors : []).filter((tensor) =>
       isLinearPeriodicBoundaryTensor(tensor)
     );
@@ -574,9 +635,9 @@ export function registerUtilities(ctx) {
       const existingIndices = Array.isArray(boundaryTensor.indices)
         ? boundaryTensor.indices
         : [];
-      const keptIndices = existingIndices.slice(0, candidateOwners.length);
+      const keptIndices = existingIndices.slice(0, resolvedInterfaceDimensions.length);
       const removedIndexIds = new Set(
-        existingIndices.slice(candidateOwners.length).map((index) => index.id)
+        existingIndices.slice(resolvedInterfaceDimensions.length).map((index) => index.id)
       );
       if (removedIndexIds.size) {
         spec.edges = (Array.isArray(spec.edges) ? spec.edges : []).filter(
@@ -585,12 +646,13 @@ export function registerUtilities(ctx) {
             !removedIndexIds.has(edge.right && edge.right.index_id)
         );
       }
-      boundaryTensor.indices = candidateOwners.map((owner, indexPosition) => {
+      boundaryTensor.indices = resolvedInterfaceDimensions.map(
+        (dimension, indexPosition) => {
         const existingIndex = keptIndices[indexPosition];
         return {
           id: existingIndex && existingIndex.id ? existingIndex.id : makeId("index"),
           name: `slot_${indexPosition + 1}`,
-          dimension: owner.index.dimension,
+          dimension,
           offset:
             existingIndex && existingIndex.offset
               ? existingIndex.offset
@@ -600,7 +662,8 @@ export function registerUtilities(ctx) {
               ? existingIndex.metadata
               : {},
         };
-      });
+        }
+      );
       const settings = LINEAR_PERIODIC_BOUNDARY_SETTINGS[boundaryTensor.linear_periodic_role];
       boundaryTensor.name = settings.name;
       boundaryTensor.metadata = isObject(boundaryTensor.metadata)
@@ -614,15 +677,43 @@ export function registerUtilities(ctx) {
     });
   }
 
+  function syncLinearPeriodicChainInterfaceDimensions(spec = state.spec) {
+    const chain = getLinearPeriodicChain(spec);
+    const activeCellName = getActiveLinearPeriodicCellName(spec);
+    if (!chain || !activeCellName) {
+      return spec;
+    }
+    const activeCell = getLinearPeriodicCell(spec, activeCellName);
+    const interfaceDimensions = getCanonicalLinearPeriodicInterfaceDimensions(spec);
+
+    chain[`${activeCellName}_cell`] = buildGraphSectionFromSpec(spec, activeCell);
+
+    LINEAR_PERIODIC_CELL_ORDER.forEach((cellName) => {
+      const cellSpec = normalizeGraphSectionInPlace(
+        deepClone(getLinearPeriodicCell(spec, cellName) || buildEmptyGraphSection())
+      );
+      chain[`${cellName}_cell`] = seedLinearPeriodicCell(
+        cellName,
+        cellSpec,
+        interfaceDimensions
+      );
+    });
+
+    replaceGraphSectionOnSpec(
+      spec,
+      getLinearPeriodicCell(spec, activeCellName) || buildEmptyGraphSection()
+    );
+
+    return spec;
+  }
+
   function syncCurrentGraphIntoLinearPeriodicChain(spec = state.spec) {
     const chain = getLinearPeriodicChain(spec);
     if (!chain) {
       return spec;
     }
     syncLinearPeriodicBoundaryTensors(spec);
-    const activeCellName = getActiveLinearPeriodicCellName(spec);
-    const existingCell = getLinearPeriodicCell(spec, activeCellName);
-    chain[`${activeCellName}_cell`] = buildGraphSectionFromSpec(spec, existingCell);
+    syncLinearPeriodicChainInterfaceDimensions(spec);
     return spec;
   }
 
@@ -666,13 +757,17 @@ export function registerUtilities(ctx) {
     return stripped;
   }
 
-  function seedLinearPeriodicCell(cellName, graphSection) {
+  function seedLinearPeriodicCell(
+    cellName,
+    graphSection,
+    interfaceDimensions = null
+  ) {
     const runtimeSpec = normalizeGraphSectionInPlace(
       deepClone(graphSection || buildEmptyGraphSection())
     );
     runtimeSpec.linear_periodic_chain = { active_cell: cellName };
     ensureActiveLinearPeriodicBoundaryTensors(runtimeSpec);
-    syncLinearPeriodicBoundaryTensors(runtimeSpec);
+    syncLinearPeriodicBoundaryTensors(runtimeSpec, interfaceDimensions);
     return buildGraphSectionFromSpec(runtimeSpec);
   }
 
@@ -1292,6 +1387,25 @@ export function registerUtilities(ctx) {
     );
   }
 
+  function syncConnectedIndexDimension(indexId, nextDimension) {
+    const connectedEdge = findEdgeByIndexId(indexId);
+    if (!connectedEdge) {
+      return;
+    }
+    const connectedIndexId =
+      connectedEdge.left && connectedEdge.left.index_id === indexId
+        ? connectedEdge.right && connectedEdge.right.index_id
+        : connectedEdge.left && connectedEdge.left.index_id;
+    if (!connectedIndexId) {
+      return;
+    }
+    const connectedOwner = findIndexOwner(connectedIndexId);
+    if (!connectedOwner || !connectedOwner.index) {
+      return;
+    }
+    connectedOwner.index.dimension = nextDimension;
+  }
+
   function createTensor(x, y) {
     const tensor = {
       id: makeId("tensor"),
@@ -1696,11 +1810,16 @@ export function registerUtilities(ctx) {
     const unsupportedLinearPeriodicEngine =
       linearPeriodicMode &&
       !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine);
+    const selectedExportFormat = exportFormatSelect ? exportFormatSelect.value : "py";
+    const exportNeedsEngine = selectedExportFormat === "py";
 
     undoButton.disabled = state.undoStack.length === 0;
     redoButton.disabled = state.redoStack.length === 0;
-    exportPyButton.disabled =
-      !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
+    if (exportButton) {
+      exportButton.disabled =
+        !state.spec ||
+        (exportNeedsEngine && (!state.selectedEngine || unsupportedLinearPeriodicEngine));
+    }
     if (generateButton) {
       generateButton.disabled =
         !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
@@ -1957,6 +2076,7 @@ export function registerUtilities(ctx) {
     findIndexOwner,
     resolveConnectableIndexOwner,
     findEdgeByIndexId,
+    syncConnectedIndexDimension,
     resolveBaseEdgeId,
     getLinearPeriodicChain,
     isLinearPeriodicMode,
@@ -1968,6 +2088,7 @@ export function registerUtilities(ctx) {
     syncCurrentGraphIntoLinearPeriodicChain,
     hydrateActiveLinearPeriodicCell,
     stripLinearPeriodicBoundaryTensorsFromGraphSection,
+    syncLinearPeriodicChainInterfaceDimensions,
     buildHistorySnapshotSpec,
     buildSerializedSpec,
     switchLinearPeriodicCell,

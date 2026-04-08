@@ -7,7 +7,9 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol, cast
 
+from ._headless_models import SpecAnalysisReport, SpecDiffResult
 from .analysis import analyze_spec
 from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
 from .diffing import diff_specs
@@ -34,38 +36,25 @@ from .templates import (
 from .validation import validate_spec
 
 
+class _CommandHandler(Protocol):
+    """Callable stored on parsed subcommands."""
+
+    def __call__(self, args: argparse.Namespace) -> int: ...
+
+
+class _CommandNamespace(argparse.Namespace):
+    """Parsed namespace for subcommands that install a handler."""
+
+    handler: _CommandHandler
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the legacy parser used when no subcommand is provided."""
     parser = argparse.ArgumentParser(
         prog="tensor-network-editor",
         description="Launch the local tensor network editor in your browser.",
     )
-    parser.add_argument(
-        "--engine",
-        choices=[engine.value for engine in EngineName],
-        default=EngineName.TENSORNETWORK.value,
-        help="Default target engine shown in the editor.",
-    )
-    parser.add_argument(
-        "--load",
-        type=str,
-        help="Optional path to a saved JSON design to preload.",
-    )
-    parser.add_argument(
-        "--save-code",
-        type=str,
-        help="Optional output path for the generated Python code when the editor is confirmed.",
-    )
-    parser.add_argument(
-        "--print-code",
-        action="store_true",
-        help="Print generated code to stdout when the editor is confirmed.",
-    )
-    parser.add_argument(
-        "--no-browser",
-        action="store_true",
-        help="Start the local server without opening the browser automatically.",
-    )
+    _add_edit_arguments(parser)
     return parser
 
 
@@ -172,7 +161,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if _should_use_legacy_parser(args_list):
             return _handle_edit(build_parser().parse_args(args_list))
-        return _dispatch_command(build_command_parser().parse_args(args_list))
+        parsed_args = cast(
+            _CommandNamespace, build_command_parser().parse_args(args_list)
+        )
+        return _dispatch_command(parsed_args)
     except KeyboardInterrupt:
         return 130
     except SpecValidationError as exc:
@@ -183,12 +175,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
 
-def _dispatch_command(args: argparse.Namespace) -> int:
+def _dispatch_command(args: _CommandNamespace) -> int:
     """Run the command handler stored on the parsed namespace."""
-    handler = getattr(args, "handler", None)
-    if not callable(handler):
-        raise ValueError("Missing command handler.")
-    return int(handler(args))
+    return args.handler(args)
 
 
 def _add_edit_arguments(parser: argparse.ArgumentParser) -> None:
@@ -415,10 +404,10 @@ def _print_lint_result(report: LintReport, *, output_format: str) -> None:
         print(f"- [{issue.severity}:{issue.code}] {issue.message} ({issue.path})")
 
 
-def _print_analysis_text(report: object) -> None:
+def _print_analysis_text(report: SpecAnalysisReport) -> None:
     """Print a compact text summary for analyze results."""
     network = report.network
-    contraction = getattr(report, "contraction", None)
+    contraction = report.contraction
     print(
         "Network:"
         f" tensors={network.tensor_count},"
@@ -433,10 +422,16 @@ def _print_analysis_text(report: object) -> None:
         )
 
 
-def _print_diff_text(result: object) -> None:
+def _print_diff_text(result: SpecDiffResult) -> None:
     """Print a compact text summary for diff results."""
-    for entity_name in ["tensor", "edge", "group", "note", "plan"]:
-        changes = getattr(result, entity_name)
+    changes_by_entity = {
+        "tensor": result.tensor,
+        "edge": result.edge,
+        "group": result.group,
+        "note": result.note,
+        "plan": result.plan,
+    }
+    for entity_name, changes in changes_by_entity.items():
         if not (changes.added or changes.removed or changes.changed):
             continue
         print(

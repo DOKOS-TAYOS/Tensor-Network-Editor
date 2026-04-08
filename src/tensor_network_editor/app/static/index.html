@@ -24,9 +24,14 @@
           <button id="save-button" type="button" class="button-accent-positive">Save</button>
           <button id="load-button" type="button">Load</button>
           <button id="help-button" type="button" class="icon-button toolbar-icon-button" aria-label="Help" title="Help">?</button>
-          <button id="export-py-button" type="button">Export .py</button>
-          <button id="export-png-button" type="button">Export PNG</button>
-          <button id="export-svg-button" type="button">Export SVG</button>
+          <div class="toolbar-export-controls">
+            <select id="export-format-select" aria-label="Export format">
+              <option value="py">Python (.py)</option>
+              <option value="png">PNG</option>
+              <option value="svg">SVG</option>
+            </select>
+            <button id="export-button" type="button">Export</button>
+          </div>
           <div class="toolbar-mode-controls">
             <button id="toggle-linear-periodic-button" type="button">For</button>
             <button
@@ -57,12 +62,28 @@
           />
         </div>
         <div class="toolbar-group toolbar-group-right">
-          <label class="engine-picker" for="engine-select">
-            Engine
-            <select id="engine-select"></select>
-          </label>
-          <button id="done-button" type="button" class="primary">Done</button>
-          <button id="cancel-button" type="button">Cancel</button>
+          <button
+            id="done-button"
+            type="button"
+            class="icon-button toolbar-icon-button button-accent-positive"
+            aria-label="Done"
+            title="Done"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M13.78 4.72a.75.75 0 0 0-1.06-1.06L6.5 9.88 3.28 6.66a.75.75 0 0 0-1.06 1.06l3.75 3.75a.75.75 0 0 0 1.06 0z"/>
+            </svg>
+          </button>
+          <button
+            id="cancel-button"
+            type="button"
+            class="icon-button toolbar-icon-button danger"
+            aria-label="Cancel"
+            title="Cancel"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M4.22 3.16a.75.75 0 0 0-1.06 1.06L6.94 8l-3.78 3.78a.75.75 0 1 0 1.06 1.06L8 9.06l3.78 3.78a.75.75 0 0 0 1.06-1.06L9.06 8l3.78-3.78a.75.75 0 0 0-1.06-1.06L8 6.94z"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -229,9 +250,14 @@
                 <div class="code-header-layout">
                   <h2>Generated Code</h2>
                   <div class="code-header-row">
-                    <label class="code-format-picker" for="collection-format-select">
-                      <select id="collection-format-select"></select>
-                    </label>
+                    <div class="code-header-controls">
+                      <label class="code-format-picker" for="engine-select">
+                        <select id="engine-select" aria-label="Code engine"></select>
+                      </label>
+                      <label class="code-format-picker" for="collection-format-select">
+                        <select id="collection-format-select" aria-label="Collection format"></select>
+                      </label>
+                    </div>
                     <button id="generate-button" type="button" class="button-accent-positive">Generate</button>
                   </div>
                 </div>

@@ -178,7 +178,9 @@ export function registerHistorySelection(ctx) {
     mutator();
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
-    if (typeof ctx.syncLinearPeriodicBoundaryTensors === "function") {
+    if (typeof ctx.syncCurrentGraphIntoLinearPeriodicChain === "function") {
+      ctx.syncCurrentGraphIntoLinearPeriodicChain();
+    } else if (typeof ctx.syncLinearPeriodicBoundaryTensors === "function") {
       ctx.syncLinearPeriodicBoundaryTensors();
     }
     if (typeof ctx.repairContractionPlan === "function") {

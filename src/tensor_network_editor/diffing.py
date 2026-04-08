@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Protocol
 
 from ._headless_models import DiffEntityChanges, SpecDiffResult
 from .models import NetworkSpec
+from .types import JSONValue
+
+
+class _DiffableEntity(Protocol):
+    """Protocol for entities that can be compared by id and serialized payload."""
+
+    id: str
+
+    def to_dict(self) -> dict[str, JSONValue]: ...
 
 
 def diff_specs(before: NetworkSpec, after: NetworkSpec) -> SpecDiffResult:
@@ -20,7 +30,7 @@ def diff_specs(before: NetworkSpec, after: NetworkSpec) -> SpecDiffResult:
 
 
 def _diff_named_entities(
-    before: Iterable[object], after: Iterable[object]
+    before: Iterable[_DiffableEntity], after: Iterable[_DiffableEntity]
 ) -> DiffEntityChanges:
     """Diff two entity collections that expose ``id`` and ``to_dict``."""
     before_by_id = {_entity_id(item): item for item in before}
@@ -58,20 +68,14 @@ def _diff_plan(before: NetworkSpec, after: NetworkSpec) -> DiffEntityChanges:
     return DiffEntityChanges()
 
 
-def _entity_id(entity: object) -> str:
+def _entity_id(entity: _DiffableEntity) -> str:
     """Read the ``id`` attribute from one serializable entity."""
-    entity_id = getattr(entity, "id", None)
-    if not isinstance(entity_id, str):
-        raise TypeError("Expected an entity with a string 'id' attribute.")
-    return entity_id
+    return entity.id
 
 
-def _entity_payload(entity: object) -> object:
+def _entity_payload(entity: _DiffableEntity) -> dict[str, JSONValue]:
     """Serialize one entity for diff comparison."""
-    to_dict = getattr(entity, "to_dict", None)
-    if not callable(to_dict):
-        raise TypeError("Expected an entity with a 'to_dict()' method.")
-    return to_dict()
+    return entity.to_dict()
 
 
 __all__ = ["DiffEntityChanges", "SpecDiffResult", "diff_specs"]

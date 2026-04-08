@@ -100,7 +100,10 @@ export function registerContractionScene(ctx) {
 
   function buildFallbackLayoutForOperand(operand) {
     const anchorTensorId = operand.sourceTensorIds[0];
-    const anchorTensor = ctx.findTensorById(anchorTensorId);
+    const anchorTensor =
+      state.spec && Array.isArray(state.spec.tensors)
+        ? state.spec.tensors.find((tensor) => tensor.id === anchorTensorId) || null
+        : null;
     if (anchorTensor) {
       return {
         position: { x: anchorTensor.position.x, y: anchorTensor.position.y },

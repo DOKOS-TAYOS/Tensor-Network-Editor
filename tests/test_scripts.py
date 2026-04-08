@@ -1,11 +1,33 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
+import types
 from pathlib import Path
 
 import pytest
+
+
+def load_script_module(script_name: str) -> types.ModuleType:
+    script_path = Path.cwd() / "scripts" / script_name
+    spec = importlib.util.spec_from_file_location(
+        script_name.replace(".py", ""), script_path
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def create_checkout_layout(root: Path) -> None:
+    (root / "src" / "tensor_network_editor").mkdir(parents=True, exist_ok=True)
+    (root / "tests").mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        "[project]\nname='tensor-network-editor'\n", encoding="utf-8"
+    )
 
 
 def seed_generated_artifacts(root: Path) -> None:
@@ -84,6 +106,45 @@ def prepare_script_workspace(tmp_path: Path, script_name: str) -> Path:
     shutil.copy2(Path.cwd() / "scripts" / script_name, scripts_dir / script_name)
     seed_generated_artifacts(workspace)
     return workspace
+
+
+def test_run_pyright_locates_checkout_and_shared_venv_roots(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    worktree_root = repo_root / ".worktrees" / "feature"
+    create_checkout_layout(repo_root)
+    create_checkout_layout(worktree_root)
+    python_path = (
+        repo_root / ".venv" / "Scripts" / "python.exe"
+        if os.name == "nt"
+        else repo_root / ".venv" / "bin" / "python"
+    )
+    python_path.parent.mkdir(parents=True, exist_ok=True)
+    python_path.write_text("", encoding="utf-8")
+    module = load_script_module("run_pyright.py")
+
+    assert module.find_checkout_root(worktree_root / "src") == worktree_root
+    assert module.find_shared_venv_root(worktree_root) == repo_root
+    assert module.python_executable(repo_root) == python_path
+
+
+def test_run_pyright_builds_config_for_current_checkout(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    worktree_root = repo_root / ".worktrees" / "feature"
+    create_checkout_layout(repo_root)
+    create_checkout_layout(worktree_root)
+    module = load_script_module("run_pyright.py")
+
+    config = module.build_pyright_config(worktree_root, repo_root)
+
+    assert config == {
+        "venvPath": str(repo_root.resolve()),
+        "venv": ".venv",
+        "include": ["src", "tests"],
+        "extraPaths": ["src", "."],
+        "typeCheckingMode": "standard",
+    }
 
 
 @pytest.mark.skipif(os.name != "nt", reason="clean.bat is a Windows-only helper")
