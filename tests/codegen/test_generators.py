@@ -13,6 +13,7 @@ from tensor_network_editor.models import (
     TensorSpec,
 )
 from tests.factories import (
+    build_linear_periodic_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_without_plan,
@@ -270,6 +271,35 @@ def test_tensornetwork_codegen_uses_edges_list_for_connections() -> None:
     assert "edges_list = []" in result.code
     assert "edges_list.append(tn.connect(" in result.code
     assert "name='bond_x'" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+)
+def test_linear_periodic_codegen_uses_cell_helpers_and_free_n_loop(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+
+    assert "def build_initial_cell(" in result.code
+    assert "def build_periodic_cell(cell_index" in result.code
+    assert "def build_final_cell(" in result.code
+    assert "if n < 2:" in result.code
+    assert "for cell_index in range(1, n - 1):" in result.code
+    assert "connect_cell_interfaces(" in result.code
+    assert "periodic_contract_internal" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.QUIMB, EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+)
+def test_linear_periodic_codegen_rejects_unsupported_engines(
+    engine: EngineName,
+) -> None:
+    with pytest.raises(CodeGenerationError, match="linear periodic"):
+        generate_code(build_linear_periodic_chain_spec(), engine=engine)
 
 
 @pytest.mark.parametrize(

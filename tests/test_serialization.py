@@ -13,7 +13,10 @@ from tensor_network_editor.serialization import (
     serialize_spec,
 )
 from tensor_network_editor.types import JSONValue
-from tests.factories import build_sample_spec_with_view_snapshots
+from tests.factories import (
+    build_linear_periodic_chain_spec,
+    build_sample_spec_with_view_snapshots,
+)
 
 
 def test_serialize_spec_wraps_valid_network_with_schema(
@@ -64,6 +67,20 @@ def test_serialize_spec_preserves_contraction_view_snapshots() -> None:
     assert latest_snapshot["applied_step_count"] == 1
     assert latest_layout["operand_id"] == "step_contract_ab"
     assert latest_size["width"] == 230.0
+
+
+def test_serialize_spec_preserves_linear_periodic_chain_payload() -> None:
+    payload = serialize_spec(build_linear_periodic_chain_spec())
+
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    chain_payload = cast(dict[str, JSONValue], network_payload["linear_periodic_chain"])
+    periodic_cell_payload = cast(dict[str, JSONValue], chain_payload["periodic_cell"])
+    periodic_tensors = cast(list[JSONValue], periodic_cell_payload["tensors"])
+    boundary_tensor = cast(dict[str, JSONValue], periodic_tensors[2])
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert chain_payload["active_cell"] == "periodic"
+    assert boundary_tensor["linear_periodic_role"] == "previous"
 
 
 def test_deserialize_spec_can_skip_validation(
@@ -128,6 +145,30 @@ def test_deserialize_spec_rejects_malformed_network_payload(
         deserialize_spec(payload)
 
 
+def test_deserialize_spec_round_trips_linear_periodic_chain() -> None:
+    restored = deserialize_spec(
+        serialize_spec_payload(build_linear_periodic_chain_spec())
+    )
+
+    assert restored.linear_periodic_chain is not None
+    assert restored.linear_periodic_chain.active_cell.value == "periodic"
+    assert (
+        restored.linear_periodic_chain.initial_cell.tensors[1].linear_periodic_role
+        is not None
+    )
+    assert (
+        restored.linear_periodic_chain.initial_cell.tensors[
+            1
+        ].linear_periodic_role.value
+        == "next"
+    )
+    assert restored.linear_periodic_chain.periodic_cell.contraction_plan is not None
+    assert (
+        restored.linear_periodic_chain.periodic_cell.contraction_plan.steps[0].id
+        == "periodic_contract_internal"
+    )
+
+
 @pytest.mark.parametrize(
     ("field_path", "value"),
     [
@@ -137,6 +178,7 @@ def test_deserialize_spec_rejects_malformed_network_payload(
         ("notes.0.text", 7),
         ("contraction_plan.name", []),
         ("contraction_plan.steps.0.left_operand_id", 9),
+        ("linear_periodic_chain.active_cell", []),
     ],
 )
 def test_deserialize_spec_rejects_non_string_text_fields(
@@ -145,6 +187,8 @@ def test_deserialize_spec_rejects_non_string_text_fields(
     value: object,
 ) -> None:
     payload = deepcopy(serialized_sample_spec)
+    if field_path.startswith("linear_periodic_chain."):
+        payload = serialize_spec_payload(build_linear_periodic_chain_spec())
     current = cast(dict[str, object], payload["network"])
     path_parts = field_path.split(".")
     for path_part in path_parts[:-1]:
@@ -162,3 +206,7 @@ def test_deserialize_spec_rejects_non_string_text_fields(
 
     with pytest.raises(SerializationError, match="malformed network object"):
         deserialize_spec(payload)
+
+
+def serialize_spec_payload(spec: NetworkSpec) -> dict[str, object]:
+    return cast(dict[str, object], serialize_spec(spec))

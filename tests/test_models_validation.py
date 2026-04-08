@@ -17,12 +17,14 @@ from tensor_network_editor.models import (
     EdgeSpec,
     GroupSpec,
     IndexSpec,
+    LinearPeriodicTensorRole,
     NetworkSpec,
     TensorSize,
     TensorSpec,
     ValidationIssue,
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
+from tests.factories import build_linear_periodic_chain_spec
 
 
 def build_valid_spec() -> NetworkSpec:
@@ -173,6 +175,12 @@ def non_serializable_metadata(spec: NetworkSpec) -> None:
     spec.metadata = cast(Any, {"bad": {1, 2, 3}})
 
 
+def mismatched_linear_periodic_boundary(spec: NetworkSpec) -> None:
+    assert spec.linear_periodic_chain is not None
+    final_previous_boundary = spec.linear_periodic_chain.final_cell.tensors[1]
+    final_previous_boundary.indices[0].dimension = 11
+
+
 def test_canvas_note_round_trip_is_serializable() -> None:
     note = CanvasNoteSpec(
         id="note_canvas",
@@ -284,6 +292,20 @@ def test_tensor_shape_uses_index_order() -> None:
     assert spec.tensors[1].shape == (5, 7)
 
 
+def test_tensor_round_trip_preserves_linear_periodic_role() -> None:
+    tensor = TensorSpec(
+        id="boundary_tensor",
+        name="Boundary",
+        linear_periodic_role=LinearPeriodicTensorRole.NEXT,
+        indices=[IndexSpec(id="slot_1", name="slot_1", dimension=3)],
+    )
+
+    payload = tensor.to_dict()
+    restored = TensorSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.linear_periodic_role is LinearPeriodicTensorRole.NEXT
+
+
 def test_open_indices_are_derived_from_unconnected_ports() -> None:
     spec = build_valid_spec()
 
@@ -341,6 +363,10 @@ def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:
     )
 
     assert validate_spec(spec) == []
+
+
+def test_validate_spec_accepts_valid_linear_periodic_chain() -> None:
+    assert validate_spec(build_linear_periodic_chain_spec()) == []
 
 
 def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:
@@ -441,6 +467,11 @@ def test_validate_spec_rejects_duplicate_operand_ids_in_contraction_view_snapsho
         ),
         (mismatched_edge_owner, "endpoint-tensor-mismatch", "edges.edge_shared.left"),
         (non_serializable_metadata, "metadata-not-serializable", "metadata"),
+        (
+            mismatched_linear_periodic_boundary,
+            "linear-periodic-interface-mismatch",
+            "linear_periodic_chain.periodic_cell.next_interface",
+        ),
     ],
 )
 def test_validate_spec_reports_targeted_issue_codes_and_paths(
@@ -448,7 +479,11 @@ def test_validate_spec_reports_targeted_issue_codes_and_paths(
     expected_code: str,
     expected_path: str,
 ) -> None:
-    spec = build_valid_spec()
+    spec = (
+        build_linear_periodic_chain_spec()
+        if expected_code == "linear-periodic-interface-mismatch"
+        else build_valid_spec()
+    )
 
     mutate(spec)
     issue = find_issue(validate_spec(spec), expected_code)

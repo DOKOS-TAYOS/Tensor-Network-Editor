@@ -14,6 +14,10 @@ export function getDomRefs(document) {
     exportPyButton: document.getElementById("export-py-button"),
     exportPngButton: document.getElementById("export-png-button"),
     exportSvgButton: document.getElementById("export-svg-button"),
+    toggleLinearPeriodicButton: document.getElementById("toggle-linear-periodic-button"),
+    linearPeriodicPreviousCellButton: document.getElementById("linear-periodic-previous-cell-button"),
+    linearPeriodicCellLabel: document.getElementById("linear-periodic-cell-label"),
+    linearPeriodicNextCellButton: document.getElementById("linear-periodic-next-cell-button"),
     templateSelect: document.getElementById("template-select"),
     templateParameterPanel: document.getElementById("template-parameter-panel"),
     templateGraphSizeLabel: document.getElementById("template-graph-size-label"),
@@ -44,5 +48,6 @@ export function getDomRefs(document) {
     sidebarPanePlanner: document.getElementById("sidebar-pane-planner"),
     sidebarPaneCode: document.getElementById("sidebar-pane-code"),
     plannerPanel: document.getElementById("planner-panel"),
+    generateButton: document.getElementById("generate-button"),
   };
 }

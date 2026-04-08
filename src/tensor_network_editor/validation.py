@@ -11,6 +11,7 @@ from ._validation_entities import (
     validate_note,
     validate_tensor,
 )
+from ._validation_linear_periodic import validate_linear_periodic_chain
 from .errors import SpecValidationError
 from .models import NetworkSpec, ValidationIssue
 
@@ -47,6 +48,9 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
             tensor_ids=tensor_ids,
             issues=issues,
         )
+
+    if spec.linear_periodic_chain is not None:
+        validate_linear_periodic_chain(spec.linear_periodic_chain, issues=issues)
 
     return issues
 

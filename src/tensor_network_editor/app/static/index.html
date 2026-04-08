@@ -27,6 +27,28 @@
           <button id="export-py-button" type="button">Export .py</button>
           <button id="export-png-button" type="button">Export PNG</button>
           <button id="export-svg-button" type="button">Export SVG</button>
+          <div class="toolbar-mode-controls">
+            <button id="toggle-linear-periodic-button" type="button">For</button>
+            <button
+              id="linear-periodic-previous-cell-button"
+              type="button"
+              aria-label="Previous cell"
+              title="Previous cell"
+            >
+              &lt;
+            </button>
+            <span id="linear-periodic-cell-label" class="toolbar-mode-label" aria-live="polite">
+              Normal
+            </span>
+            <button
+              id="linear-periodic-next-cell-button"
+              type="button"
+              aria-label="Next cell"
+              title="Next cell"
+            >
+              &gt;
+            </button>
+          </div>
           <input
             id="load-input"
             type="file"

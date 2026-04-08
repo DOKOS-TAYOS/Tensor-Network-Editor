@@ -20,6 +20,7 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
+from tensor_network_editor.serialization import SCHEMA_VERSION
 from tests.app_support import request_json
 from tests.factories import build_outer_product_plan_spec, serialize_spec_payload
 
@@ -52,7 +53,7 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     assert payload["collection_formats"] == [
         collection_format.value for collection_format in TensorCollectionFormat
     ]
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == SCHEMA_VERSION
     assert network_payload["id"] == "network_demo"
     assert mps_definition["graph_size_label"] == "Sites"
     assert binary_tree_defaults["graph_size"] == 3

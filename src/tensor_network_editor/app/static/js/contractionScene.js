@@ -12,11 +12,11 @@ export function registerContractionScene(ctx) {
 
   function buildInitialOperands() {
     const edgeByIndexId = {};
-    state.spec.edges.forEach((edge) => {
+    ctx.getContractibleEdges().forEach((edge) => {
       edgeByIndexId[edge.left.index_id] = edge;
       edgeByIndexId[edge.right.index_id] = edge;
     });
-    return state.spec.tensors.map((tensor) => ({
+    return ctx.getContractibleTensors().map((tensor) => ({
       id: tensor.id,
       name: tensor.name,
       isDerived: false,

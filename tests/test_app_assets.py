@@ -61,6 +61,18 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert ">Insert<" in html
 
 
+def test_root_exposes_linear_periodic_toolbar_controls(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert 'id="toggle-linear-periodic-button"' in html
+    assert 'id="linear-periodic-previous-cell-button"' in html
+    assert 'id="linear-periodic-cell-label"' in html
+    assert 'id="linear-periodic-next-cell-button"' in html
+    assert ">For<" in html
+
+
 def test_main_module_is_served_from_static_directory(
     editor_server: EditorServer,
 ) -> None:
@@ -143,6 +155,8 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "toggleMinimapVisibility();" in body
     assert 'if (event.shiftKey && lowerKey === "r") {' in body
     assert "trimContractionPlan(0);" in body
+    assert 'if (lowerKey === "f") {' in body
+    assert "ctx.toggleLinearPeriodicMode();" in body
 
 
 def test_css_asset_exposes_explicit_canvas_layer_ordering(
@@ -286,6 +300,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "function normalizeInvalidations(" in history_body
     assert "structuredClone" in utilities_body
     assert "function ensureSpecLookups()" in utilities_body
+    assert "function toggleLinearPeriodicMode()" in utilities_body
+    assert "function switchLinearPeriodicCell(direction)" in utilities_body
+    assert "linear_periodic_chain" in utilities_body
     assert "tensorById: {}" in state_body
     assert "edgeById: {}" in state_body
     assert "indexOwnerById: {}" in state_body
@@ -296,6 +313,16 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "invalidate: selectionColorInvalidation(selectedEntries)" in properties_body
     assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
     assert "startOffset:" in graph_body
+
+
+def test_properties_assets_lock_virtual_boundary_tensor_structure(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/properties.js")
+
+    assert "ctx.isLinearPeriodicBoundaryTensor(tensor)" in body
+    assert "renderLinearPeriodicBoundaryTensorProperties" in body
+    assert "managed by For mode" in body
 
 
 def test_planner_assets_expose_total_elements_and_step_spacing(
