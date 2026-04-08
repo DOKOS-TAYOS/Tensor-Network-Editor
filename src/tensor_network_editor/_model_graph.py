@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Self, cast
 
 from ._model_contraction import ContractionPlanSpec
@@ -16,6 +17,21 @@ from ._payloads import (
     require_list,
 )
 from .types import JSONValue, MetadataDict
+
+
+class LinearPeriodicCellName(StrEnum):
+    """Named cells available in the linear periodic-chain editor mode."""
+
+    INITIAL = "initial"
+    PERIODIC = "periodic"
+    FINAL = "final"
+
+
+class LinearPeriodicTensorRole(StrEnum):
+    """Special editor-only roles used by virtual boundary tensors."""
+
+    PREVIOUS = "previous"
+    NEXT = "next"
 
 
 @dataclass(slots=True)
@@ -65,6 +81,7 @@ class TensorSpec:
     position: CanvasPosition = field(default_factory=CanvasPosition)
     size: TensorSize = field(default_factory=TensorSize)
     indices: list[IndexSpec] = field(default_factory=list)
+    linear_periodic_role: LinearPeriodicTensorRole | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     @property
@@ -80,6 +97,11 @@ class TensorSpec:
             "position": self.position.to_dict(),
             "size": self.size.to_dict(),
             "indices": [index.to_dict() for index in self.indices],
+            "linear_periodic_role": (
+                self.linear_periodic_role.value
+                if self.linear_periodic_role is not None
+                else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -101,6 +123,10 @@ class TensorSpec:
                 IndexSpec.from_dict(require_dict(index, field_name="index"))
                 for index in indices_payload
             ],
+            linear_periodic_role=_coerce_linear_periodic_tensor_role(
+                payload.get("linear_periodic_role"),
+                field_name="linear_periodic_role",
+            ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),
@@ -235,6 +261,119 @@ class CanvasNoteSpec:
 
 
 @dataclass(slots=True)
+class LinearPeriodicCellSpec:
+    """One editable cell inside the linear periodic-chain editor mode."""
+
+    tensors: list[TensorSpec] = field(default_factory=list)
+    groups: list[GroupSpec] = field(default_factory=list)
+    edges: list[EdgeSpec] = field(default_factory=list)
+    notes: list[CanvasNoteSpec] = field(default_factory=list)
+    contraction_plan: ContractionPlanSpec | None = None
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the cell to a JSON-compatible mapping."""
+        return {
+            "tensors": [tensor.to_dict() for tensor in self.tensors],
+            "groups": [group.to_dict() for group in self.groups],
+            "edges": [edge.to_dict() for edge in self.edges],
+            "notes": [note.to_dict() for note in self.notes],
+            "contraction_plan": (
+                self.contraction_plan.to_dict()
+                if self.contraction_plan is not None
+                else None
+            ),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build a cell from a serialized mapping."""
+        tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
+        groups_payload = require_list(payload.get("groups", []), field_name="groups")
+        edges_payload = require_list(payload.get("edges", []), field_name="edges")
+        notes_payload = require_list(payload.get("notes", []), field_name="notes")
+        contraction_plan_payload = payload.get("contraction_plan")
+        return cls(
+            tensors=[
+                TensorSpec.from_dict(require_dict(tensor, field_name="tensor"))
+                for tensor in tensors_payload
+            ],
+            groups=[
+                GroupSpec.from_dict(require_dict(group, field_name="group"))
+                for group in groups_payload
+            ],
+            edges=[
+                EdgeSpec.from_dict(require_dict(edge, field_name="edge"))
+                for edge in edges_payload
+            ],
+            notes=[
+                CanvasNoteSpec.from_dict(require_dict(note, field_name="note"))
+                for note in notes_payload
+            ],
+            contraction_plan=(
+                ContractionPlanSpec.from_dict(
+                    require_dict(
+                        contraction_plan_payload, field_name="contraction_plan"
+                    )
+                )
+                if contraction_plan_payload is not None
+                else None
+            ),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
+class LinearPeriodicChainSpec:
+    """Typed payload that stores the three-cell linear periodic mode."""
+
+    active_cell: LinearPeriodicCellName = LinearPeriodicCellName.INITIAL
+    initial_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    periodic_cell: LinearPeriodicCellSpec = field(
+        default_factory=LinearPeriodicCellSpec
+    )
+    final_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the linear periodic-chain payload."""
+        return {
+            "active_cell": self.active_cell.value,
+            "initial_cell": self.initial_cell.to_dict(),
+            "periodic_cell": self.periodic_cell.to_dict(),
+            "final_cell": self.final_cell.to_dict(),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> Self:
+        """Build the periodic-chain payload from a serialized mapping."""
+        return cls(
+            active_cell=_coerce_linear_periodic_cell_name(
+                payload.get("active_cell", LinearPeriodicCellName.INITIAL.value),
+                field_name="active_cell",
+            ),
+            initial_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("initial_cell", {}), field_name="initial_cell")
+            ),
+            periodic_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(
+                    payload.get("periodic_cell", {}), field_name="periodic_cell"
+                )
+            ),
+            final_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("final_cell", {}), field_name="final_cell")
+            ),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class NetworkSpec:
     """The root object that stores an abstract tensor-network design."""
 
@@ -245,6 +384,7 @@ class NetworkSpec:
     edges: list[EdgeSpec] = field(default_factory=list)
     notes: list[CanvasNoteSpec] = field(default_factory=list)
     contraction_plan: ContractionPlanSpec | None = None
+    linear_periodic_chain: LinearPeriodicChainSpec | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
@@ -285,6 +425,11 @@ class NetworkSpec:
                 if self.contraction_plan is not None
                 else None
             ),
+            "linear_periodic_chain": (
+                self.linear_periodic_chain.to_dict()
+                if self.linear_periodic_chain is not None
+                else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -296,6 +441,7 @@ class NetworkSpec:
         edges_payload = require_list(payload.get("edges", []), field_name="edges")
         notes_payload = require_list(payload.get("notes", []), field_name="notes")
         contraction_plan_payload = payload.get("contraction_plan")
+        linear_periodic_chain_payload = payload.get("linear_periodic_chain")
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
             name=coerce_string(payload["name"], field_name="name"),
@@ -324,7 +470,47 @@ class NetworkSpec:
                 if contraction_plan_payload is not None
                 else None
             ),
+            linear_periodic_chain=(
+                LinearPeriodicChainSpec.from_dict(
+                    require_dict(
+                        linear_periodic_chain_payload,
+                        field_name="linear_periodic_chain",
+                    )
+                )
+                if linear_periodic_chain_payload is not None
+                else None
+            ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),
         )
+
+
+def _coerce_linear_periodic_cell_name(
+    value: object,
+    *,
+    field_name: str,
+) -> LinearPeriodicCellName:
+    """Coerce a serialized value to a valid linear periodic cell name."""
+    try:
+        return LinearPeriodicCellName(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid linear periodic cell name."
+        ) from exc
+
+
+def _coerce_linear_periodic_tensor_role(
+    value: object,
+    *,
+    field_name: str,
+) -> LinearPeriodicTensorRole | None:
+    """Coerce a serialized value to a valid linear periodic tensor role."""
+    if value is None:
+        return None
+    try:
+        return LinearPeriodicTensorRole(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid linear periodic tensor role."
+        ) from exc

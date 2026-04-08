@@ -13,6 +13,10 @@ from tensor_network_editor.models import (
     EdgeSpec,
     GroupSpec,
     IndexSpec,
+    LinearPeriodicCellName,
+    LinearPeriodicCellSpec,
+    LinearPeriodicChainSpec,
+    LinearPeriodicTensorRole,
     NetworkSpec,
     TensorSize,
     TensorSpec,
@@ -242,6 +246,173 @@ def build_outer_product_plan_spec() -> NetworkSpec:
                     right_operand_id="tensor_b",
                 )
             ],
+        ),
+    )
+
+
+def build_linear_periodic_chain_spec() -> NetworkSpec:
+    initial_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="initial_tensor",
+                name="Initial",
+                position=CanvasPosition(x=100.0, y=140.0),
+                indices=[
+                    IndexSpec(id="initial_phys", name="phys", dimension=2),
+                    IndexSpec(id="initial_bond", name="bond", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="initial_next_boundary",
+                name="Next cell",
+                position=CanvasPosition(x=320.0, y=140.0),
+                linear_periodic_role=LinearPeriodicTensorRole.NEXT,
+                indices=[
+                    IndexSpec(id="initial_next_slot", name="slot_1", dimension=3),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="initial_edge_to_next",
+                name="initial_to_next",
+                left=EdgeEndpointRef(
+                    tensor_id="initial_tensor", index_id="initial_bond"
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="initial_next_boundary", index_id="initial_next_slot"
+                ),
+            )
+        ],
+    )
+    periodic_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="periodic_left_tensor",
+                name="PeriodicLeft",
+                position=CanvasPosition(x=140.0, y=120.0),
+                indices=[
+                    IndexSpec(id="periodic_left_in", name="left", dimension=3),
+                    IndexSpec(id="periodic_left_phys", name="phys_l", dimension=2),
+                    IndexSpec(id="periodic_left_inner", name="inner", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="periodic_right_tensor",
+                name="PeriodicRight",
+                position=CanvasPosition(x=320.0, y=120.0),
+                indices=[
+                    IndexSpec(id="periodic_right_inner", name="inner", dimension=5),
+                    IndexSpec(id="periodic_right_phys", name="phys_r", dimension=2),
+                    IndexSpec(id="periodic_right_out", name="right", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="periodic_previous_boundary",
+                name="Previous cell",
+                position=CanvasPosition(x=20.0, y=120.0),
+                linear_periodic_role=LinearPeriodicTensorRole.PREVIOUS,
+                indices=[
+                    IndexSpec(id="periodic_previous_slot", name="slot_1", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="periodic_next_boundary",
+                name="Next cell",
+                position=CanvasPosition(x=460.0, y=120.0),
+                linear_periodic_role=LinearPeriodicTensorRole.NEXT,
+                indices=[
+                    IndexSpec(id="periodic_next_slot", name="slot_1", dimension=3),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="periodic_edge_from_previous",
+                name="from_previous",
+                left=EdgeEndpointRef(
+                    tensor_id="periodic_previous_boundary",
+                    index_id="periodic_previous_slot",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="periodic_left_tensor", index_id="periodic_left_in"
+                ),
+            ),
+            EdgeSpec(
+                id="periodic_edge_inner",
+                name="inner",
+                left=EdgeEndpointRef(
+                    tensor_id="periodic_left_tensor", index_id="periodic_left_inner"
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="periodic_right_tensor",
+                    index_id="periodic_right_inner",
+                ),
+            ),
+            EdgeSpec(
+                id="periodic_edge_to_next",
+                name="to_next",
+                left=EdgeEndpointRef(
+                    tensor_id="periodic_right_tensor", index_id="periodic_right_out"
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="periodic_next_boundary", index_id="periodic_next_slot"
+                ),
+            ),
+        ],
+        contraction_plan=ContractionPlanSpec(
+            id="periodic_plan",
+            name="Periodic plan",
+            steps=[
+                ContractionStepSpec(
+                    id="periodic_contract_internal",
+                    left_operand_id="periodic_left_tensor",
+                    right_operand_id="periodic_right_tensor",
+                )
+            ],
+        ),
+    )
+    final_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="final_tensor",
+                name="Final",
+                position=CanvasPosition(x=260.0, y=140.0),
+                indices=[
+                    IndexSpec(id="final_bond", name="bond", dimension=3),
+                    IndexSpec(id="final_phys", name="phys", dimension=7),
+                ],
+            ),
+            TensorSpec(
+                id="final_previous_boundary",
+                name="Previous cell",
+                position=CanvasPosition(x=60.0, y=140.0),
+                linear_periodic_role=LinearPeriodicTensorRole.PREVIOUS,
+                indices=[
+                    IndexSpec(id="final_previous_slot", name="slot_1", dimension=3),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="final_edge_from_previous",
+                name="from_previous",
+                left=EdgeEndpointRef(
+                    tensor_id="final_previous_boundary",
+                    index_id="final_previous_slot",
+                ),
+                right=EdgeEndpointRef(tensor_id="final_tensor", index_id="final_bond"),
+            )
+        ],
+    )
+    return NetworkSpec(
+        id="network_linear_periodic",
+        name="linear-periodic-chain",
+        linear_periodic_chain=LinearPeriodicChainSpec(
+            active_cell=LinearPeriodicCellName.PERIODIC,
+            initial_cell=initial_cell,
+            periodic_cell=periodic_cell,
+            final_cell=final_cell,
         ),
     )
 

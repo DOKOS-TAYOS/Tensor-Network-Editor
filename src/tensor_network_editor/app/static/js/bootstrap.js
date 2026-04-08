@@ -26,6 +26,10 @@ export function startEditor(ctx) {
     exportPyButton,
     exportPngButton,
     exportSvgButton,
+    toggleLinearPeriodicButton,
+    linearPeriodicPreviousCellButton,
+    linearPeriodicCellLabel,
+    linearPeriodicNextCellButton,
     templateSelect,
     templateGraphSizeInput,
     templateBondDimensionInput,
@@ -72,6 +76,9 @@ export function startEditor(ctx) {
     state.selectedCollectionFormat = payload.default_collection_format || "list";
     ctx.reconcileTensorOrder();
     ctx.populateEngineOptions(payload.engines);
+    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
+      ctx.enforceLinearPeriodicEngineSupport();
+    }
     ctx.populateCollectionFormatOptions(state.availableCollectionFormats);
     ctx.populateTemplateOptions(state.availableTemplates);
     ctx.syncTemplateParameterControls();
@@ -235,6 +242,7 @@ export function startEditor(ctx) {
     applyShortcutHint("save-button", "Save", "Ctrl/Cmd+S");
     applyShortcutHint("load-button", "Load", "Ctrl/Cmd+L");
     applyShortcutHint("generate-button", "Generate code", "Shift+G");
+    applyShortcutHint("toggle-linear-periodic-button", "For mode", "F");
     applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
     applyShortcutHint("redo-button", "Redo", REDO_SHORTCUT_LABEL);
     applyShortcutHint("help-button", "Help", "?");
@@ -255,6 +263,13 @@ export function startEditor(ctx) {
     exportPyButton.addEventListener("click", ctx.downloadPythonExport);
     exportPngButton.addEventListener("click", ctx.downloadPngExport);
     exportSvgButton.addEventListener("click", ctx.downloadSvgExport);
+    toggleLinearPeriodicButton.addEventListener("click", ctx.toggleLinearPeriodicMode);
+    linearPeriodicPreviousCellButton.addEventListener("click", () => {
+      ctx.switchLinearPeriodicCell(-1);
+    });
+    linearPeriodicNextCellButton.addEventListener("click", () => {
+      ctx.switchLinearPeriodicCell(1);
+    });
     templateSelect.addEventListener("change", ctx.handleTemplateSelectionChange);
     templateGraphSizeInput.addEventListener("change", ctx.handleTemplateParameterInput);
     templateBondDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
@@ -266,6 +281,15 @@ export function startEditor(ctx) {
     helpCloseButton.addEventListener("click", () => ctx.toggleHelpModal(false));
     engineSelect.addEventListener("change", (event) => {
       state.selectedEngine = event.target.value;
+      if (
+        typeof ctx.enforceLinearPeriodicEngineSupport === "function" &&
+        ctx.enforceLinearPeriodicEngineSupport()
+      ) {
+        ctx.setStatus(
+          "For mode currently supports TensorNetwork and TensorKrowch.",
+          "success"
+        );
+      }
     });
     collectionFormatSelect.addEventListener("change", (event) => {
       state.selectedCollectionFormat = event.target.value;

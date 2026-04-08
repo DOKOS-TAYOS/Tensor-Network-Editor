@@ -11,6 +11,9 @@ from tensor_network_editor.app._services import (
 )
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import CodegenResult, EditorResult, NetworkSpec
+from tensor_network_editor.models import EngineName as SessionEngineName
+from tensor_network_editor.serialization import SCHEMA_VERSION
+from tests.factories import build_linear_periodic_chain_spec
 
 
 def test_build_bootstrap_payload_matches_session_contract(
@@ -80,3 +83,19 @@ def test_analyze_serialized_contraction_returns_structured_result(
     result = analyze_serialized_contraction(serialized_sample_spec)
 
     assert result.network_output_shape == (2, 4)
+
+
+def test_build_bootstrap_payload_preserves_linear_periodic_chain_specs() -> None:
+    session = EditorSession(
+        initial_spec=build_linear_periodic_chain_spec(),
+        default_engine=SessionEngineName.TENSORNETWORK,
+    )
+
+    payload = build_bootstrap_payload(session)
+    chain = payload["spec"]["network"]["linear_periodic_chain"]
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert chain["active_cell"] == "periodic"
+    assert chain["periodic_cell"]["contraction_plan"]["steps"][0]["id"] == (
+        "periodic_contract_internal"
+    )

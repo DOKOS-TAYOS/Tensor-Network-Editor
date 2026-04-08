@@ -9,10 +9,14 @@ from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
 from tensor_network_editor.serialization import (
+    SCHEMA_VERSION,
+)
+from tensor_network_editor.serialization import (
     deserialize_spec as deserialize_spec_impl,
 )
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
+    build_linear_periodic_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_with_view_snapshots,
@@ -29,7 +33,7 @@ def test_bootstrap_returns_session_contract(
     assert payload["collection_formats"] == [
         collection_format.value for collection_format in TensorCollectionFormat
     ]
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == SCHEMA_VERSION
     assert payload["spec"]["network"]["id"] == "network_demo"
     assert set(payload["engines"]) == {engine.value for engine in EngineName}
     assert payload["templates"] == list(payload["template_definitions"])
@@ -58,11 +62,16 @@ def test_validate_route_reports_issues_and_echoes_serialized_spec(
     payload = request_json(
         f"{editor_server.base_url}/api/validate",
         method="POST",
-        payload={"spec": {"schema_version": 3, "network": invalid_spec.to_dict()}},
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": invalid_spec.to_dict(),
+            }
+        },
     )
 
     assert payload["ok"] is False
-    assert payload["spec"]["schema_version"] == 3
+    assert payload["spec"]["schema_version"] == SCHEMA_VERSION
     assert payload["spec"]["network"]["id"] == invalid_spec.id
     assert "index-already-connected" in [issue["code"] for issue in payload["issues"]]
 
@@ -75,7 +84,7 @@ def test_validate_route_preserves_contraction_view_snapshots(
         method="POST",
         payload={
             "spec": {
-                "schema_version": 3,
+                "schema_version": SCHEMA_VERSION,
                 "network": build_sample_spec_with_view_snapshots().to_dict(),
             }
         },
@@ -106,12 +115,31 @@ def test_validate_route_accepts_generated_python_code_payload(
 
     assert payload["ok"] is True
     assert payload["issues"] == []
-    assert payload["spec"]["schema_version"] == 3
+    assert payload["spec"]["schema_version"] == SCHEMA_VERSION
     assert payload["spec"]["network"]["name"] == "Imported Python Network"
     assert [tensor["name"] for tensor in payload["spec"]["network"]["tensors"]] == [
         "A",
         "B",
     ]
+
+
+def test_validate_route_rejects_linear_periodic_generated_python_with_clear_message(
+    editor_server: EditorServer,
+) -> None:
+    generated = generate_code(
+        build_linear_periodic_chain_spec(),
+        engine=EngineName.TENSORNETWORK,
+    )
+
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={"python_code": generated.code},
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "linear periodic mode" in payload["message"].lower()
 
 
 def test_validate_route_rejects_invalid_json_with_400(
@@ -147,7 +175,10 @@ def test_validate_route_rejects_legacy_schema_versions(
         f"{editor_server.base_url}/api/validate",
         method="POST",
         payload={
-            "spec": {"schema_version": 2, "network": build_sample_spec().to_dict()}
+            "spec": {
+                "schema_version": SCHEMA_VERSION - 2,
+                "network": build_sample_spec().to_dict(),
+            }
         },
     )
 
@@ -229,7 +260,10 @@ def test_generate_route_returns_validation_issues_for_invalid_spec(
         method="POST",
         payload={
             "engine": EngineName.TENSORNETWORK.value,
-            "spec": {"schema_version": 3, "network": invalid_spec.to_dict()},
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": invalid_spec.to_dict(),
+            },
         },
     )
 
@@ -246,7 +280,7 @@ def test_generate_route_returns_backend_codegen_error_message(
         payload={
             "engine": EngineName.TENSORKROWCH.value,
             "spec": {
-                "schema_version": 3,
+                "schema_version": SCHEMA_VERSION,
                 "network": build_outer_product_plan_spec().to_dict(),
             },
         },
@@ -327,7 +361,10 @@ def test_autolayout_route_is_not_available(editor_server: EditorServer) -> None:
         f"{editor_server.base_url}/api/autolayout",
         method="POST",
         payload={
-            "spec": {"schema_version": 3, "network": build_sample_spec().to_dict()}
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            }
         },
     )
 
@@ -345,7 +382,7 @@ def test_template_route_returns_valid_serialized_spec(
     )
 
     assert payload["ok"] is True
-    assert payload["spec"]["schema_version"] == 3
+    assert payload["spec"]["schema_version"] == SCHEMA_VERSION
     assert payload["spec"]["network"]["name"] == "MPS"
     assert payload["spec"]["network"]["tensors"]
 

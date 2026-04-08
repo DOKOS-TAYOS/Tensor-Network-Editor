@@ -36,7 +36,7 @@ if not any(
 ):
     PACKAGE_LOGGER.addHandler(logging.NullHandler())
 
-__version__ = "0.2.0"
+__version__ = "0.1.2"
 
 __all__ = [
     "CanvasPosition",

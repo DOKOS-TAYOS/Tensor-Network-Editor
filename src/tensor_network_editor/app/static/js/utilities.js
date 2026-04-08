@@ -34,6 +34,10 @@ export function registerUtilities(ctx) {
     exportPyButton,
     exportPngButton,
     exportSvgButton,
+    toggleLinearPeriodicButton,
+    linearPeriodicPreviousCellButton,
+    linearPeriodicCellLabel,
+    linearPeriodicNextCellButton,
     templateSelect,
     templateParameterPanel,
     templateGraphSizeLabel,
@@ -54,6 +58,7 @@ export function registerUtilities(ctx) {
     minimapCanvas,
     sidebar,
     plannerPanel,
+    generateButton,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
   const ENGINE_LABELS = {
@@ -67,6 +72,26 @@ export function registerUtilities(ctx) {
     list: "List",
     matrix: "Matrix",
     dict: "Dictionary",
+  };
+  const LINEAR_PERIODIC_SUPPORTED_ENGINES = new Set([
+    "tensornetwork",
+    "tensorkrowch",
+  ]);
+  const LINEAR_PERIODIC_CELL_ORDER = ["initial", "periodic", "final"];
+  const LINEAR_PERIODIC_CELL_LABELS = {
+    initial: "Initial cell",
+    periodic: "Periodic cell",
+    final: "Final cell",
+  };
+  const LINEAR_PERIODIC_BOUNDARY_SETTINGS = {
+    previous: {
+      name: "Previous cell",
+      color: "#456cbf",
+    },
+    next: {
+      name: "Next cell",
+      color: "#2f9b8f",
+    },
   };
 
   function formatEngineLabel(engineName) {
@@ -86,6 +111,7 @@ export function registerUtilities(ctx) {
       }
       engineSelect.appendChild(option);
     });
+    enforceLinearPeriodicEngineSupport();
   }
 
   function formatCollectionFormatLabel(collectionFormat) {
@@ -95,6 +121,717 @@ export function registerUtilities(ctx) {
     )
       ? COLLECTION_FORMAT_LABELS[collectionFormat]
       : collectionFormat;
+  }
+
+  function buildEmptyGraphSection() {
+    return {
+      tensors: [],
+      groups: [],
+      edges: [],
+      notes: [],
+      contraction_plan: null,
+      metadata: {},
+    };
+  }
+
+  function clearGraphSectionOnSpec(spec) {
+    spec.tensors = [];
+    spec.groups = [];
+    spec.edges = [];
+    spec.notes = [];
+    spec.contraction_plan = null;
+  }
+
+  function buildGraphSectionFromSpec(spec, existingCell = null) {
+    return {
+      tensors: deepClone(Array.isArray(spec && spec.tensors) ? spec.tensors : []),
+      groups: deepClone(Array.isArray(spec && spec.groups) ? spec.groups : []),
+      edges: deepClone(Array.isArray(spec && spec.edges) ? spec.edges : []),
+      notes: deepClone(Array.isArray(spec && spec.notes) ? spec.notes : []),
+      contraction_plan: deepClone(
+        spec && isObject(spec.contraction_plan) ? spec.contraction_plan : null
+      ),
+      metadata: deepClone(
+        existingCell && isObject(existingCell.metadata) ? existingCell.metadata : {}
+      ),
+    };
+  }
+
+  function replaceGraphSectionOnSpec(spec, graphSection) {
+    const nextSection = normalizeGraphSectionInPlace(
+      deepClone(graphSection || buildEmptyGraphSection())
+    );
+    spec.tensors = nextSection.tensors;
+    spec.groups = nextSection.groups;
+    spec.edges = nextSection.edges;
+    spec.notes = nextSection.notes;
+    spec.contraction_plan = nextSection.contraction_plan;
+  }
+
+  function normalizeGraphSectionInPlace(graphSection) {
+    graphSection.metadata = isObject(graphSection.metadata)
+      ? graphSection.metadata
+      : {};
+    graphSection.tensors = Array.isArray(graphSection.tensors)
+      ? graphSection.tensors
+      : [];
+    graphSection.groups = Array.isArray(graphSection.groups)
+      ? graphSection.groups
+      : [];
+    graphSection.edges = Array.isArray(graphSection.edges) ? graphSection.edges : [];
+    graphSection.notes = Array.isArray(graphSection.notes) ? graphSection.notes : [];
+    graphSection.contraction_plan = isObject(graphSection.contraction_plan)
+      ? graphSection.contraction_plan
+      : null;
+
+    graphSection.tensors.forEach((tensor) => {
+      tensor.metadata = isObject(tensor.metadata) ? tensor.metadata : {};
+      tensor.position = {
+        x: asFiniteNumber(tensor.position && tensor.position.x, 120),
+        y: asFiniteNumber(tensor.position && tensor.position.y, 120),
+      };
+      tensor.size = {
+        width: Math.max(
+          MIN_TENSOR_WIDTH,
+          asFiniteNumber(tensor.size && tensor.size.width, TENSOR_WIDTH)
+        ),
+        height: Math.max(
+          MIN_TENSOR_HEIGHT,
+          asFiniteNumber(tensor.size && tensor.size.height, TENSOR_HEIGHT)
+        ),
+      };
+      tensor.linear_periodic_role =
+        tensor.linear_periodic_role === "previous" ||
+        tensor.linear_periodic_role === "next"
+          ? tensor.linear_periodic_role
+          : null;
+      tensor.indices = Array.isArray(tensor.indices) ? tensor.indices : [];
+      tensor.indices.forEach((index, indexPosition) => {
+        index.metadata = isObject(index.metadata) ? index.metadata : {};
+        index.dimension = Math.max(1, Math.round(asFiniteNumber(index.dimension, 2)));
+        index.offset = {
+          x: asFiniteNumber(index.offset && index.offset.x, 0),
+          y: asFiniteNumber(index.offset && index.offset.y, 0),
+        };
+        if (!index.id) {
+          index.id = makeId("index");
+        }
+        if (!index.name) {
+          index.name = nextName(
+            "i",
+            tensor.indices
+              .slice(0, indexPosition)
+              .map((candidate) => candidate.name)
+          );
+        }
+      });
+      if (!tensor.id) {
+        tensor.id = makeId("tensor");
+      }
+      if (!tensor.name) {
+        tensor.name = nextName(
+          "T",
+          graphSection.tensors
+            .slice(0, graphSection.tensors.indexOf(tensor))
+            .map((candidate) => candidate.name)
+        );
+      }
+      ensureTensorIndexOffsets(tensor);
+    });
+
+    graphSection.groups.forEach((group, groupPosition) => {
+      group.metadata = isObject(group.metadata) ? group.metadata : {};
+      group.tensor_ids = Array.isArray(group.tensor_ids)
+        ? group.tensor_ids.map((tensorId) => String(tensorId))
+        : [];
+      if (!group.id) {
+        group.id = makeId("group");
+      }
+      if (!group.name) {
+        group.name = `Group ${groupPosition + 1}`;
+      }
+    });
+
+    graphSection.edges.forEach((edge, edgePosition) => {
+      edge.metadata = isObject(edge.metadata) ? edge.metadata : {};
+      if (!edge.id) {
+        edge.id = makeId("edge");
+      }
+      if (!edge.name) {
+        edge.name = `bond_${edgePosition + 1}`;
+      }
+      edge.left = isObject(edge.left) ? edge.left : {};
+      edge.right = isObject(edge.right) ? edge.right : {};
+      edge.left.tensor_id = String(edge.left.tensor_id || "");
+      edge.left.index_id = String(edge.left.index_id || "");
+      edge.right.tensor_id = String(edge.right.tensor_id || "");
+      edge.right.index_id = String(edge.right.index_id || "");
+    });
+
+    graphSection.notes.forEach((note) => {
+      note.metadata = isObject(note.metadata) ? note.metadata : {};
+      note.position = {
+        x: asFiniteNumber(note.position && note.position.x, 120),
+        y: asFiniteNumber(note.position && note.position.y, 120),
+      };
+      note.size = {
+        width: Math.max(1, asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)),
+        height: Math.max(
+          1,
+          asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)
+        ),
+      };
+      note.text =
+        typeof note.text === "string" && note.text.trim() ? note.text : "Note";
+      if (!note.id) {
+        note.id = makeId("note");
+      }
+    });
+
+    if (graphSection.contraction_plan) {
+      graphSection.contraction_plan.metadata = isObject(
+        graphSection.contraction_plan.metadata
+      )
+        ? graphSection.contraction_plan.metadata
+        : {};
+      graphSection.contraction_plan.steps = Array.isArray(
+        graphSection.contraction_plan.steps
+      )
+        ? graphSection.contraction_plan.steps
+        : [];
+      graphSection.contraction_plan.view_snapshots = Array.isArray(
+        graphSection.contraction_plan.view_snapshots
+      )
+        ? graphSection.contraction_plan.view_snapshots
+        : [];
+      if (!graphSection.contraction_plan.id) {
+        graphSection.contraction_plan.id = makeId("plan");
+      }
+      if (!graphSection.contraction_plan.name) {
+        graphSection.contraction_plan.name = "Manual path";
+      }
+      graphSection.contraction_plan.steps.forEach((step) => {
+        step.metadata = isObject(step.metadata) ? step.metadata : {};
+        if (!step.id) {
+          step.id = makeId("step");
+        }
+        step.left_operand_id = String(step.left_operand_id || "");
+        step.right_operand_id = String(step.right_operand_id || "");
+      });
+      graphSection.contraction_plan.view_snapshots.forEach(
+        (snapshot, snapshotIndex) => {
+          snapshot.applied_step_count = Math.max(
+            0,
+            Math.round(asFiniteNumber(snapshot.applied_step_count, snapshotIndex))
+          );
+          snapshot.operand_layouts = Array.isArray(snapshot.operand_layouts)
+            ? snapshot.operand_layouts
+            : [];
+          snapshot.operand_layouts.forEach((layout) => {
+            layout.operand_id = String(layout.operand_id || "");
+            layout.position = {
+              x: asFiniteNumber(layout.position && layout.position.x, 120),
+              y: asFiniteNumber(layout.position && layout.position.y, 120),
+            };
+            layout.size = {
+              width: Math.max(
+                MIN_TENSOR_WIDTH,
+                asFiniteNumber(layout.size && layout.size.width, TENSOR_WIDTH)
+              ),
+              height: Math.max(
+                MIN_TENSOR_HEIGHT,
+                asFiniteNumber(layout.size && layout.size.height, TENSOR_HEIGHT)
+              ),
+            };
+          });
+        }
+      );
+    }
+
+    return graphSection;
+  }
+
+  function normalizeLinearPeriodicChainInPlace(chain) {
+    chain.metadata = isObject(chain.metadata) ? chain.metadata : {};
+    chain.active_cell = LINEAR_PERIODIC_CELL_ORDER.includes(chain.active_cell)
+      ? chain.active_cell
+      : "initial";
+    chain.initial_cell = normalizeGraphSectionInPlace(
+      deepClone(isObject(chain.initial_cell) ? chain.initial_cell : buildEmptyGraphSection())
+    );
+    chain.periodic_cell = normalizeGraphSectionInPlace(
+      deepClone(
+        isObject(chain.periodic_cell) ? chain.periodic_cell : buildEmptyGraphSection()
+      )
+    );
+    chain.final_cell = normalizeGraphSectionInPlace(
+      deepClone(isObject(chain.final_cell) ? chain.final_cell : buildEmptyGraphSection())
+    );
+    return chain;
+  }
+
+  function getLinearPeriodicChain(spec = state.spec) {
+    return spec && isObject(spec.linear_periodic_chain)
+      ? spec.linear_periodic_chain
+      : null;
+  }
+
+  function isLinearPeriodicMode(spec = state.spec) {
+    return Boolean(getLinearPeriodicChain(spec));
+  }
+
+  function getActiveLinearPeriodicCellName(spec = state.spec) {
+    const chain = getLinearPeriodicChain(spec);
+    return chain ? chain.active_cell : null;
+  }
+
+  function getLinearPeriodicCell(spec = state.spec, cellName = getActiveLinearPeriodicCellName(spec)) {
+    const chain = getLinearPeriodicChain(spec);
+    if (!chain || !cellName) {
+      return null;
+    }
+    return chain[`${cellName}_cell`] || null;
+  }
+
+  function isLinearPeriodicBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next")
+    );
+  }
+
+  function getContractibleTensors(spec = state.spec) {
+    return Array.isArray(spec && spec.tensors)
+      ? spec.tensors.filter((tensor) => !isLinearPeriodicBoundaryTensor(tensor))
+      : [];
+  }
+
+  function getContractibleEdges(spec = state.spec) {
+    const tensorById = Object.fromEntries(
+      (Array.isArray(spec && spec.tensors) ? spec.tensors : []).map((tensor) => [
+        tensor.id,
+        tensor,
+      ])
+    );
+    return Array.isArray(spec && spec.edges)
+      ? spec.edges.filter((edge) => {
+          const leftTensor = tensorById[edge.left && edge.left.tensor_id];
+          const rightTensor = tensorById[edge.right && edge.right.tensor_id];
+          return (
+            leftTensor &&
+            rightTensor &&
+            !isLinearPeriodicBoundaryTensor(leftTensor) &&
+            !isLinearPeriodicBoundaryTensor(rightTensor)
+          );
+        })
+      : [];
+  }
+
+  function getExpectedLinearPeriodicRoles(cellName) {
+    if (cellName === "initial") {
+      return ["next"];
+    }
+    if (cellName === "periodic") {
+      return ["previous", "next"];
+    }
+    if (cellName === "final") {
+      return ["previous"];
+    }
+    return [];
+  }
+
+  function getRealTensorBounds(spec = state.spec) {
+    const tensors = getContractibleTensors(spec);
+    if (!tensors.length) {
+      return {
+        minX: 120,
+        maxX: 320,
+        centerY: 140,
+      };
+    }
+    const leftEdges = tensors.map((tensor) => tensor.position.x - tensorWidth(tensor) / 2);
+    const rightEdges = tensors.map(
+      (tensor) => tensor.position.x + tensorWidth(tensor) / 2
+    );
+    const centersY = tensors.map((tensor) => tensor.position.y);
+    return {
+      minX: Math.min(...leftEdges),
+      maxX: Math.max(...rightEdges),
+      centerY: centersY.reduce((sum, value) => sum + value, 0) / centersY.length,
+    };
+  }
+
+  function positionLinearPeriodicBoundaryTensor(tensor, role, spec = state.spec) {
+    const bounds = getRealTensorBounds(spec);
+    tensor.position = {
+      x: role === "previous" ? bounds.minX - 220 : bounds.maxX + 220,
+      y: bounds.centerY,
+    };
+  }
+
+  function createLinearPeriodicBoundaryTensor(role, spec = state.spec) {
+    const settings = LINEAR_PERIODIC_BOUNDARY_SETTINGS[role];
+    const tensor = {
+      id: makeId("tensor"),
+      name: settings.name,
+      position: { x: 0, y: 0 },
+      size: { width: TENSOR_WIDTH, height: TENSOR_HEIGHT },
+      indices: [],
+      linear_periodic_role: role,
+      metadata: { color: settings.color },
+    };
+    positionLinearPeriodicBoundaryTensor(tensor, role, spec);
+    return tensor;
+  }
+
+  function ensureActiveLinearPeriodicBoundaryTensors(spec = state.spec) {
+    const activeCellName = getActiveLinearPeriodicCellName(spec);
+    if (!activeCellName) {
+      return;
+    }
+    const expectedRoles = new Set(getExpectedLinearPeriodicRoles(activeCellName));
+    const nextTensors = [];
+    const seenRoles = new Set();
+    (Array.isArray(spec.tensors) ? spec.tensors : []).forEach((tensor) => {
+      if (!isLinearPeriodicBoundaryTensor(tensor)) {
+        nextTensors.push(tensor);
+        return;
+      }
+      if (!expectedRoles.has(tensor.linear_periodic_role) || seenRoles.has(tensor.linear_periodic_role)) {
+        return;
+      }
+      const settings = LINEAR_PERIODIC_BOUNDARY_SETTINGS[tensor.linear_periodic_role];
+      tensor.linear_periodic_role = tensor.linear_periodic_role;
+      tensor.name = settings.name;
+      tensor.metadata = isObject(tensor.metadata) ? tensor.metadata : {};
+      tensor.metadata.color = getMetadataColor(tensor.metadata, settings.color);
+      seenRoles.add(tensor.linear_periodic_role);
+      nextTensors.push(tensor);
+    });
+    getExpectedLinearPeriodicRoles(activeCellName).forEach((role) => {
+      if (!seenRoles.has(role)) {
+        nextTensors.push(createLinearPeriodicBoundaryTensor(role, spec));
+      }
+    });
+    spec.tensors = nextTensors;
+    const allowedBoundaryIds = new Set(
+      spec.tensors.filter((tensor) => isLinearPeriodicBoundaryTensor(tensor)).map((tensor) => tensor.id)
+    );
+    spec.edges = (Array.isArray(spec.edges) ? spec.edges : []).filter((edge) => {
+      const touchesBoundary =
+        allowedBoundaryIds.has(edge.left && edge.left.tensor_id) ||
+        allowedBoundaryIds.has(edge.right && edge.right.tensor_id);
+      if (!touchesBoundary) {
+        return true;
+      }
+      return (
+        allowedBoundaryIds.has(edge.left && edge.left.tensor_id) ||
+        allowedBoundaryIds.has(edge.right && edge.right.tensor_id)
+      );
+    });
+  }
+
+  function getLinearPeriodicCandidateOwners(spec = state.spec) {
+    const tensorById = Object.fromEntries(
+      (Array.isArray(spec.tensors) ? spec.tensors : []).map((tensor) => [tensor.id, tensor])
+    );
+    const internallyConnectedIndexIds = new Set();
+    (Array.isArray(spec.edges) ? spec.edges : []).forEach((edge) => {
+      const leftTensor = tensorById[edge.left && edge.left.tensor_id];
+      const rightTensor = tensorById[edge.right && edge.right.tensor_id];
+      if (
+        leftTensor &&
+        rightTensor &&
+        !isLinearPeriodicBoundaryTensor(leftTensor) &&
+        !isLinearPeriodicBoundaryTensor(rightTensor)
+      ) {
+        internallyConnectedIndexIds.add(edge.left.index_id);
+        internallyConnectedIndexIds.add(edge.right.index_id);
+      }
+    });
+    const owners = [];
+    getContractibleTensors(spec).forEach((tensor) => {
+      tensor.indices.forEach((index, indexPosition) => {
+        if (!internallyConnectedIndexIds.has(index.id)) {
+          owners.push({ tensor, index, indexPosition });
+        }
+      });
+    });
+    return owners;
+  }
+
+  function syncLinearPeriodicBoundaryTensors(spec = state.spec) {
+    if (!isLinearPeriodicMode(spec)) {
+      return;
+    }
+    ensureActiveLinearPeriodicBoundaryTensors(spec);
+    const candidateOwners = getLinearPeriodicCandidateOwners(spec);
+    const boundaryTensors = (Array.isArray(spec.tensors) ? spec.tensors : []).filter((tensor) =>
+      isLinearPeriodicBoundaryTensor(tensor)
+    );
+    boundaryTensors.forEach((boundaryTensor) => {
+      const existingIndices = Array.isArray(boundaryTensor.indices)
+        ? boundaryTensor.indices
+        : [];
+      const keptIndices = existingIndices.slice(0, candidateOwners.length);
+      const removedIndexIds = new Set(
+        existingIndices.slice(candidateOwners.length).map((index) => index.id)
+      );
+      if (removedIndexIds.size) {
+        spec.edges = (Array.isArray(spec.edges) ? spec.edges : []).filter(
+          (edge) =>
+            !removedIndexIds.has(edge.left && edge.left.index_id) &&
+            !removedIndexIds.has(edge.right && edge.right.index_id)
+        );
+      }
+      boundaryTensor.indices = candidateOwners.map((owner, indexPosition) => {
+        const existingIndex = keptIndices[indexPosition];
+        return {
+          id: existingIndex && existingIndex.id ? existingIndex.id : makeId("index"),
+          name: `slot_${indexPosition + 1}`,
+          dimension: owner.index.dimension,
+          offset:
+            existingIndex && existingIndex.offset
+              ? existingIndex.offset
+              : defaultIndexOffsetForOrder(indexPosition, boundaryTensor),
+          metadata:
+            existingIndex && isObject(existingIndex.metadata)
+              ? existingIndex.metadata
+              : {},
+        };
+      });
+      const settings = LINEAR_PERIODIC_BOUNDARY_SETTINGS[boundaryTensor.linear_periodic_role];
+      boundaryTensor.name = settings.name;
+      boundaryTensor.metadata = isObject(boundaryTensor.metadata)
+        ? boundaryTensor.metadata
+        : {};
+      boundaryTensor.metadata.color = getMetadataColor(
+        boundaryTensor.metadata,
+        settings.color
+      );
+      ensureTensorIndexOffsets(boundaryTensor);
+    });
+  }
+
+  function syncCurrentGraphIntoLinearPeriodicChain(spec = state.spec) {
+    const chain = getLinearPeriodicChain(spec);
+    if (!chain) {
+      return spec;
+    }
+    syncLinearPeriodicBoundaryTensors(spec);
+    const activeCellName = getActiveLinearPeriodicCellName(spec);
+    const existingCell = getLinearPeriodicCell(spec, activeCellName);
+    chain[`${activeCellName}_cell`] = buildGraphSectionFromSpec(spec, existingCell);
+    return spec;
+  }
+
+  function hydrateActiveLinearPeriodicCell(spec = state.spec) {
+    const chain = getLinearPeriodicChain(spec);
+    if (!chain) {
+      return spec;
+    }
+    chain.active_cell = LINEAR_PERIODIC_CELL_ORDER.includes(chain.active_cell)
+      ? chain.active_cell
+      : "initial";
+    const activeCell = getLinearPeriodicCell(spec, chain.active_cell);
+    replaceGraphSectionOnSpec(spec, activeCell || buildEmptyGraphSection());
+    syncLinearPeriodicBoundaryTensors(spec);
+    return spec;
+  }
+
+  function stripLinearPeriodicBoundaryTensorsFromGraphSection(graphSection) {
+    const stripped = normalizeGraphSectionInPlace(
+      deepClone(graphSection || buildEmptyGraphSection())
+    );
+    const boundaryTensorIds = new Set(
+      stripped.tensors
+        .filter((tensor) => isLinearPeriodicBoundaryTensor(tensor))
+        .map((tensor) => tensor.id)
+    );
+    stripped.tensors = stripped.tensors.filter(
+      (tensor) => !boundaryTensorIds.has(tensor.id)
+    );
+    stripped.edges = stripped.edges.filter(
+      (edge) =>
+        !boundaryTensorIds.has(edge.left && edge.left.tensor_id) &&
+        !boundaryTensorIds.has(edge.right && edge.right.tensor_id)
+    );
+    stripped.groups = stripped.groups
+      .map((group) => ({
+        ...group,
+        tensor_ids: group.tensor_ids.filter((tensorId) => !boundaryTensorIds.has(tensorId)),
+      }))
+      .filter((group) => group.tensor_ids.length > 0);
+    return stripped;
+  }
+
+  function seedLinearPeriodicCell(cellName, graphSection) {
+    const runtimeSpec = normalizeGraphSectionInPlace(
+      deepClone(graphSection || buildEmptyGraphSection())
+    );
+    runtimeSpec.linear_periodic_chain = { active_cell: cellName };
+    ensureActiveLinearPeriodicBoundaryTensors(runtimeSpec);
+    syncLinearPeriodicBoundaryTensors(runtimeSpec);
+    return buildGraphSectionFromSpec(runtimeSpec);
+  }
+
+  function buildHistorySnapshotSpec(spec = state.spec) {
+    const snapshotSpec = deepClone(spec || {});
+    if (isLinearPeriodicMode(snapshotSpec)) {
+      syncCurrentGraphIntoLinearPeriodicChain(snapshotSpec);
+    }
+    return snapshotSpec;
+  }
+
+  function buildSerializedSpec(spec = state.spec) {
+    const serializedSpec = deepClone(spec || {});
+    if (isLinearPeriodicMode(serializedSpec)) {
+      syncCurrentGraphIntoLinearPeriodicChain(serializedSpec);
+      clearGraphSectionOnSpec(serializedSpec);
+    }
+    return serializedSpec;
+  }
+
+  function resetTransientEditorStateForCellSwitch() {
+    state.selectionIds = [];
+    state.primarySelectionId = null;
+    state.selectedElement = null;
+    state.pendingIndexId = null;
+    state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    state.plannerInspectionStepCount = null;
+    state.plannerPreviewMode = null;
+    state.plannerFutureBadgeDisclosure = {};
+    state.activeTensorDrag = null;
+    state.activeIndexDrag = null;
+    state.activeResize = null;
+    state.activeGroupDrag = null;
+    state.noteDragState = null;
+    state.activeNoteResize = null;
+    state.boxSelection = null;
+    state.connectMode = false;
+  }
+
+  function switchLinearPeriodicCell(direction) {
+    if (!isLinearPeriodicMode()) {
+      return;
+    }
+    const activeCellName = getActiveLinearPeriodicCellName();
+    const activeIndex = LINEAR_PERIODIC_CELL_ORDER.indexOf(activeCellName);
+    const nextIndex = clamp(
+      activeIndex + direction,
+      0,
+      LINEAR_PERIODIC_CELL_ORDER.length - 1
+    );
+    if (nextIndex === activeIndex) {
+      return;
+    }
+    syncCurrentGraphIntoLinearPeriodicChain();
+    state.spec.linear_periodic_chain.active_cell =
+      LINEAR_PERIODIC_CELL_ORDER[nextIndex];
+    hydrateActiveLinearPeriodicCell();
+    if (typeof ctx.bumpSpecRevision === "function") {
+      ctx.bumpSpecRevision();
+    }
+    ctx.reconcileTensorOrder();
+    resetTransientEditorStateForCellSwitch();
+    ctx.render();
+    if (typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
+    }
+    ctx.setStatus(
+      `Editing ${LINEAR_PERIODIC_CELL_LABELS[state.spec.linear_periodic_chain.active_cell].toLowerCase()}.`,
+      "success"
+    );
+  }
+
+  function enforceLinearPeriodicEngineSupport() {
+    if (!engineSelect) {
+      return false;
+    }
+    const linearPeriodicMode = isLinearPeriodicMode();
+    Array.from(engineSelect.options).forEach((option) => {
+      option.disabled =
+        linearPeriodicMode &&
+        !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(option.value);
+    });
+    if (
+      linearPeriodicMode &&
+      !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine)
+    ) {
+      state.selectedEngine = "tensornetwork";
+      engineSelect.value = state.selectedEngine;
+      return true;
+    }
+    return false;
+  }
+
+  function toggleLinearPeriodicMode() {
+    if (!state.spec) {
+      return;
+    }
+    if (isLinearPeriodicMode()) {
+      if (
+        !window.confirm(
+          "Leave For mode and keep only the initial cell? The periodic and final cells will be discarded."
+        )
+      ) {
+        return;
+      }
+      syncCurrentGraphIntoLinearPeriodicChain();
+      const plainInitialCell = stripLinearPeriodicBoundaryTensorsFromGraphSection(
+        state.spec.linear_periodic_chain.initial_cell
+      );
+      state.spec.linear_periodic_chain = null;
+      replaceGraphSectionOnSpec(state.spec, plainInitialCell);
+      if (typeof ctx.bumpSpecRevision === "function") {
+        ctx.bumpSpecRevision();
+      }
+      ctx.reconcileTensorOrder();
+      resetTransientEditorStateForCellSwitch();
+      if (typeof ctx.clearGeneratedCodePreview === "function") {
+        ctx.clearGeneratedCodePreview();
+      }
+      ctx.render();
+      if (typeof ctx.refreshContractionAnalysis === "function") {
+        ctx.refreshContractionAnalysis();
+      }
+      ctx.setStatus("For mode disabled. Restored the initial cell as a normal network.", "success");
+      return;
+    }
+
+    const initialCell = seedLinearPeriodicCell("initial", buildGraphSectionFromSpec(state.spec));
+    const periodicCell = seedLinearPeriodicCell("periodic", buildEmptyGraphSection());
+    const finalCell = seedLinearPeriodicCell("final", buildEmptyGraphSection());
+    state.spec.linear_periodic_chain = {
+      active_cell: "initial",
+      initial_cell: initialCell,
+      periodic_cell: periodicCell,
+      final_cell: finalCell,
+      metadata: {},
+    };
+    hydrateActiveLinearPeriodicCell();
+    if (enforceLinearPeriodicEngineSupport()) {
+      ctx.setStatus(
+        "For mode enabled. TensorNetwork is selected because this mode currently supports TensorNetwork and TensorKrowch.",
+        "success"
+      );
+    } else {
+      ctx.setStatus("For mode enabled. You are editing the initial cell.", "success");
+    }
+    if (typeof ctx.bumpSpecRevision === "function") {
+      ctx.bumpSpecRevision();
+    }
+    ctx.reconcileTensorOrder();
+    resetTransientEditorStateForCellSwitch();
+    if (typeof ctx.clearGeneratedCodePreview === "function") {
+      ctx.clearGeneratedCodePreview();
+    }
+    ctx.render();
+    if (typeof ctx.refreshContractionAnalysis === "function") {
+      ctx.refreshContractionAnalysis();
+    }
   }
 
   function populateCollectionFormatOptions(collectionFormats) {
@@ -340,7 +1077,7 @@ export function registerUtilities(ctx) {
     }
     return {
       schema_version: state.schemaVersion,
-      network: state.spec,
+      network: buildSerializedSpec(),
     };
   }
 
@@ -419,7 +1156,7 @@ export function registerUtilities(ctx) {
 
   function removeTensor(tensorId) {
     const tensor = findTensorById(tensorId);
-    if (!tensor) {
+    if (!tensor || isLinearPeriodicBoundaryTensor(tensor)) {
       return;
     }
     const tensorIndexIds = new Set(tensor.indices.map((index) => index.id));
@@ -443,7 +1180,7 @@ export function registerUtilities(ctx) {
 
   function removeIndex(tensorId, indexId) {
     const tensor = findTensorById(tensorId);
-    if (!tensor) {
+    if (!tensor || isLinearPeriodicBoundaryTensor(tensor)) {
       return;
     }
     state.spec.edges = state.spec.edges.filter(
@@ -582,116 +1319,12 @@ export function registerUtilities(ctx) {
   function normalizeSpec(spec) {
     const normalized = deepClone(spec || {});
     normalized.metadata = isObject(normalized.metadata) ? normalized.metadata : {};
-    normalized.tensors = Array.isArray(normalized.tensors) ? normalized.tensors : [];
-    normalized.groups = Array.isArray(normalized.groups) ? normalized.groups : [];
-    normalized.edges = Array.isArray(normalized.edges) ? normalized.edges : [];
-    normalized.notes = Array.isArray(normalized.notes) ? normalized.notes : [];
-    normalized.contraction_plan = isObject(normalized.contraction_plan)
-      ? normalized.contraction_plan
+    normalizeGraphSectionInPlace(normalized);
+    normalized.linear_periodic_chain = isObject(normalized.linear_periodic_chain)
+      ? normalizeLinearPeriodicChainInPlace(normalized.linear_periodic_chain)
       : null;
-
-    normalized.tensors.forEach((tensor) => {
-      tensor.metadata = isObject(tensor.metadata) ? tensor.metadata : {};
-      tensor.position = {
-        x: asFiniteNumber(tensor.position && tensor.position.x, 120),
-        y: asFiniteNumber(tensor.position && tensor.position.y, 120),
-      };
-      tensor.size = {
-        width: Math.max(MIN_TENSOR_WIDTH, asFiniteNumber(tensor.size && tensor.size.width, TENSOR_WIDTH)),
-        height: Math.max(MIN_TENSOR_HEIGHT, asFiniteNumber(tensor.size && tensor.size.height, TENSOR_HEIGHT)),
-      };
-      tensor.indices = Array.isArray(tensor.indices) ? tensor.indices : [];
-      tensor.indices.forEach((index, indexPosition) => {
-        index.metadata = isObject(index.metadata) ? index.metadata : {};
-        index.dimension = Math.max(1, Math.round(asFiniteNumber(index.dimension, 2)));
-        index.offset = {
-          x: asFiniteNumber(index.offset && index.offset.x, 0),
-          y: asFiniteNumber(index.offset && index.offset.y, 0),
-        };
-        if (!index.name) {
-          index.name = nextName("i", tensor.indices.slice(0, indexPosition).map((candidate) => candidate.name));
-        }
-      });
-      ensureTensorIndexOffsets(tensor);
-    });
-
-    normalized.groups.forEach((group, groupPosition) => {
-      group.metadata = isObject(group.metadata) ? group.metadata : {};
-      group.tensor_ids = Array.isArray(group.tensor_ids) ? group.tensor_ids.map((tensorId) => String(tensorId)) : [];
-      if (!group.id) {
-        group.id = makeId("group");
-      }
-      if (!group.name) {
-        group.name = `Group ${groupPosition + 1}`;
-      }
-    });
-
-    normalized.notes.forEach((note) => {
-      note.metadata = isObject(note.metadata) ? note.metadata : {};
-      note.position = {
-        x: asFiniteNumber(note.position && note.position.x, 120),
-        y: asFiniteNumber(note.position && note.position.y, 120),
-      };
-      note.size = {
-        width: Math.max(1, asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)),
-        height: Math.max(1, asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)),
-      };
-      note.text = typeof note.text === "string" && note.text.trim() ? note.text : "Note";
-      if (!note.id) {
-        note.id = makeId("note");
-      }
-    });
-
-    if (normalized.contraction_plan) {
-      normalized.contraction_plan.metadata = isObject(normalized.contraction_plan.metadata)
-        ? normalized.contraction_plan.metadata
-        : {};
-      normalized.contraction_plan.steps = Array.isArray(normalized.contraction_plan.steps)
-        ? normalized.contraction_plan.steps
-        : [];
-      normalized.contraction_plan.view_snapshots = Array.isArray(normalized.contraction_plan.view_snapshots)
-        ? normalized.contraction_plan.view_snapshots
-        : [];
-      if (!normalized.contraction_plan.id) {
-        normalized.contraction_plan.id = makeId("plan");
-      }
-      if (!normalized.contraction_plan.name) {
-        normalized.contraction_plan.name = "Manual path";
-      }
-      normalized.contraction_plan.steps.forEach((step) => {
-        step.metadata = isObject(step.metadata) ? step.metadata : {};
-        if (!step.id) {
-          step.id = makeId("step");
-        }
-        step.left_operand_id = String(step.left_operand_id || "");
-        step.right_operand_id = String(step.right_operand_id || "");
-      });
-      normalized.contraction_plan.view_snapshots.forEach((snapshot, snapshotIndex) => {
-        snapshot.applied_step_count = Math.max(
-          0,
-          Math.round(asFiniteNumber(snapshot.applied_step_count, snapshotIndex))
-        );
-        snapshot.operand_layouts = Array.isArray(snapshot.operand_layouts)
-          ? snapshot.operand_layouts
-          : [];
-        snapshot.operand_layouts.forEach((layout) => {
-          layout.operand_id = String(layout.operand_id || "");
-          layout.position = {
-            x: asFiniteNumber(layout.position && layout.position.x, 120),
-            y: asFiniteNumber(layout.position && layout.position.y, 120),
-          };
-          layout.size = {
-            width: Math.max(
-              MIN_TENSOR_WIDTH,
-              asFiniteNumber(layout.size && layout.size.width, TENSOR_WIDTH)
-            ),
-            height: Math.max(
-              MIN_TENSOR_HEIGHT,
-              asFiniteNumber(layout.size && layout.size.height, TENSOR_HEIGHT)
-            ),
-          };
-        });
-      });
+    if (normalized.linear_periodic_chain) {
+      hydrateActiveLinearPeriodicCell(normalized);
     }
 
     return normalized;
@@ -1057,11 +1690,39 @@ export function registerUtilities(ctx) {
 
 
   function updateToolbarState() {
+    const linearPeriodicMode = isLinearPeriodicMode();
+    const activeLinearPeriodicCell = getActiveLinearPeriodicCellName();
+    enforceLinearPeriodicEngineSupport();
+    const unsupportedLinearPeriodicEngine =
+      linearPeriodicMode &&
+      !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine);
+
     undoButton.disabled = state.undoStack.length === 0;
     redoButton.disabled = state.redoStack.length === 0;
-    exportPyButton.disabled = !state.spec || !state.selectedEngine;
+    exportPyButton.disabled =
+      !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
+    if (generateButton) {
+      generateButton.disabled =
+        !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
+    }
     insertTemplateButton.disabled = !templateSelect.value;
     createGroupButton.disabled = ctx.getSelectedIdsByKind("tensor").length < 2;
+    if (toggleLinearPeriodicButton) {
+      toggleLinearPeriodicButton.classList.toggle("is-active", linearPeriodicMode);
+    }
+    if (linearPeriodicCellLabel) {
+      linearPeriodicCellLabel.textContent = linearPeriodicMode
+        ? LINEAR_PERIODIC_CELL_LABELS[activeLinearPeriodicCell] || "For mode"
+        : "Normal";
+    }
+    if (linearPeriodicPreviousCellButton) {
+      linearPeriodicPreviousCellButton.disabled =
+        !linearPeriodicMode || activeLinearPeriodicCell === "initial";
+    }
+    if (linearPeriodicNextCellButton) {
+      linearPeriodicNextCellButton.disabled =
+        !linearPeriodicMode || activeLinearPeriodicCell === "final";
+    }
   }
 
   function formatIssues(issues) {
@@ -1297,6 +1958,22 @@ export function registerUtilities(ctx) {
     resolveConnectableIndexOwner,
     findEdgeByIndexId,
     resolveBaseEdgeId,
+    getLinearPeriodicChain,
+    isLinearPeriodicMode,
+    getActiveLinearPeriodicCellName,
+    getLinearPeriodicCell,
+    isLinearPeriodicBoundaryTensor,
+    getContractibleTensors,
+    getContractibleEdges,
+    syncCurrentGraphIntoLinearPeriodicChain,
+    hydrateActiveLinearPeriodicCell,
+    stripLinearPeriodicBoundaryTensorsFromGraphSection,
+    buildHistorySnapshotSpec,
+    buildSerializedSpec,
+    switchLinearPeriodicCell,
+    toggleLinearPeriodicMode,
+    syncLinearPeriodicBoundaryTensors,
+    enforceLinearPeriodicEngineSupport,
     createTensor,
     createIndex,
     normalizeSpec,

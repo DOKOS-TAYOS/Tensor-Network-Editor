@@ -108,16 +108,23 @@ export function registerPlannerFeature(ctx) {
     const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
       ? state.spec.contraction_plan.steps
       : [];
-    return buildPlannerOperandState(state.spec.tensors, planSteps);
+    return buildPlannerOperandState(ctx.getContractibleTensors(), planSteps);
   }
 
   function buildStepOrdersByTensorId(steps) {
-    return buildPlannerOperandState(state.spec.tensors, steps || []).stepOrdersByTensorId;
+    return buildPlannerOperandState(
+      ctx.getContractibleTensors(),
+      steps || []
+    ).stepOrdersByTensorId;
   }
 
   function buildPreviewOrderByVisibleTensorId(steps) {
     const visibleTensors =
-      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+      typeof ctx.getVisibleTensors === "function"
+        ? ctx
+            .getVisibleTensors()
+            .filter((tensor) => !ctx.isLinearPeriodicBoundaryTensor(tensor))
+        : ctx.getContractibleTensors();
     const previewOrderByTensorId = Object.fromEntries(
       visibleTensors.map((tensor) => [tensor.id, []])
     );

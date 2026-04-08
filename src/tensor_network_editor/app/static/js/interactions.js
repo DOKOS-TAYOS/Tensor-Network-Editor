@@ -485,6 +485,13 @@ export function registerInteractions(ctx) {
       }
       return;
     }
+    if (lowerKey === "f") {
+      event.preventDefault();
+      if (typeof ctx.toggleLinearPeriodicMode === "function") {
+        ctx.toggleLinearPeriodicMode();
+      }
+      return;
+    }
     if (lowerKey === "n") {
       event.preventDefault();
       addTensorAtCenter();
@@ -539,6 +546,7 @@ export function registerInteractions(ctx) {
         edges: [],
         notes: [],
         contraction_plan: null,
+        linear_periodic_chain: null,
         metadata: {},
       },
       "Started a new empty design. History cleared."
@@ -573,6 +581,9 @@ export function registerInteractions(ctx) {
     state.contractionAnalysis = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
+      ctx.enforceLinearPeriodicEngineSupport();
+    }
     ctx.reconcileTensorOrder();
     ctx.clearHistory();
     ctx.render();
@@ -763,6 +774,16 @@ export function registerInteractions(ctx) {
       ctx.setStatus("Connected indices must have the same dimension.", "error");
       return;
     }
+    if (
+      ctx.isLinearPeriodicBoundaryTensor(left.tensor) &&
+      ctx.isLinearPeriodicBoundaryTensor(located.tensor)
+    ) {
+      ctx.setStatus(
+        "Virtual boundary tensors can only connect to real tensors inside the current cell.",
+        "error"
+      );
+      return;
+    }
 
     const newEdgeId = ctx.makeId("edge");
     state.pendingIndexId = null;
@@ -799,8 +820,10 @@ export function registerInteractions(ctx) {
     const selectedEntries = ctx.getSelectedEntries();
     const hasMutableSelection = selectedEntries.some(
       (entry) =>
-        entry.kind === "tensor" ||
-        entry.kind === "index" ||
+        (entry.kind === "tensor" &&
+          !ctx.isLinearPeriodicBoundaryTensor(entry.tensor)) ||
+        (entry.kind === "index" &&
+          !ctx.isLinearPeriodicBoundaryTensor(entry.located.tensor)) ||
         entry.kind === "edge" ||
         entry.kind === "group" ||
         entry.kind === "note"
@@ -828,12 +851,19 @@ export function registerInteractions(ctx) {
     const selectedNoteIds = new Set(ctx.getSelectedIdsByKind("note"));
 
     selectedTensorIds.forEach((tensorId) => {
-      ctx.removeTensor(tensorId);
+      const tensor = ctx.findTensorById(tensorId);
+      if (!ctx.isLinearPeriodicBoundaryTensor(tensor)) {
+        ctx.removeTensor(tensorId);
+      }
     });
 
     selectedIndexIds.forEach((indexId) => {
       const located = ctx.findIndexOwner(indexId);
-      if (located && !selectedTensorIds.has(located.tensor.id)) {
+      if (
+        located &&
+        !selectedTensorIds.has(located.tensor.id) &&
+        !ctx.isLinearPeriodicBoundaryTensor(located.tensor)
+      ) {
         ctx.removeIndex(located.tensor.id, indexId);
       }
     });

@@ -575,10 +575,161 @@ export function registerProperties(ctx) {
     `;
   }
 
+  function renderLinearPeriodicBoundaryTensorProperties(tensor) {
+    const roleLabel =
+      tensor.linear_periodic_role === "previous"
+        ? "Previous cell"
+        : "Next cell";
+    const indexEditors = tensor.indices
+      .map(
+        (index, indexPosition) => `
+          <section class="planner-section planner-disclosure index-disclosure is-open">
+            <div class="planner-disclosure-body index-disclosure-body">
+              <div class="properties-chip-wrap">
+                <div class="properties-chip">
+                  <span>Port</span>
+                  <strong>${ctx.escapeHtml(index.name)}</strong>
+                </div>
+                <div class="properties-chip">
+                  <span>Dimension</span>
+                  <strong>${index.dimension}</strong>
+                </div>
+              </div>
+              <div class="field-row">
+                <label class="control-inline-color" for="index-color-input-${index.id}">
+                  <input
+                    id="index-color-input-${index.id}"
+                    data-focus-key="index:${index.id}:color"
+                    type="color"
+                    title="Choose tint"
+                    aria-label="Choose tint"
+                    value="${ctx.escapeHtml(
+                      ctx.getMetadataColor(index.metadata, ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id))))
+                    )}"
+                  />
+                </label>
+              </div>
+              <p class="property-meta">Move this port directly on the canvas to adjust its position.</p>
+            </div>
+          </section>
+        `
+      )
+      .join("");
+
+    propertiesPanel.innerHTML = `
+      <div class="properties-summary">
+        <div class="properties-chip">
+          <span>Virtual tensor</span>
+          <strong>${ctx.escapeHtml(roleLabel)}</strong>
+        </div>
+        <div class="properties-chip-wrap">
+          <div class="properties-chip">
+            <span>Ports</span>
+            <strong>${tensor.indices.length}</strong>
+          </div>
+          <div class="properties-chip">
+            <span>Role</span>
+            <strong>${ctx.escapeHtml(tensor.linear_periodic_role || "")}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="button-row">
+        <button id="center-tensor-button" type="button">Center</button>
+        <label class="control-inline-color" for="tensor-color-input">
+          <input
+            id="tensor-color-input"
+            data-focus-key="tensor:${tensor.id}:color"
+            type="color"
+            title="Choose tint"
+            aria-label="Choose tint"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, "#456cbf"))}"
+          />
+        </label>
+      </div>
+      <p class="property-meta">
+        This tensor is managed by For mode. You can move it and recolor its ports, but you cannot rename it, delete it, or change how many ports it has.
+      </p>
+      <div class="properties-list">
+        ${indexEditors || "<p class='property-meta'>Ports will appear automatically when this cell exposes free non-virtual indices.</p>"}
+      </div>
+    `;
+
+    const tensorColorInput = document.getElementById("tensor-color-input");
+    bindImmediateAutosave(
+      tensorColorInput,
+      `tensor:${tensor.id}:color`,
+      () => {
+        const currentColor = ctx.getMetadataColor(tensor.metadata, "#456cbf");
+        if (tensorColorInput.value === currentColor) {
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            tensor.metadata.color = tensorColorInput.value;
+          },
+          {
+            invalidate: propertyInvalidation({ graph: true, minimap: true }),
+            statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
+          }
+        );
+      },
+      "input"
+    );
+    document
+      .getElementById("center-tensor-button")
+      .addEventListener("click", () => {
+        ctx.applyDesignChange(
+          () => {
+            ctx.centerTensor(tensor.id);
+          },
+          {
+            invalidate: propertyInvalidation({
+              graph: true,
+              overlays: true,
+              minimap: true,
+            }),
+            statusMessage: `Centered ${roleLabel.toLowerCase()}.`,
+          }
+        );
+      });
+    tensor.indices.forEach((index) => {
+      const indexColorInput = document.getElementById(
+        `index-color-input-${index.id}`
+      );
+      bindImmediateAutosave(
+        indexColorInput,
+        `index:${index.id}:color`,
+        () => {
+          const currentColor = ctx.getMetadataColor(
+            index.metadata,
+            ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)))
+          );
+          if (indexColorInput.value === currentColor) {
+            return;
+          }
+          ctx.applyDesignChange(
+            () => {
+              index.metadata.color = indexColorInput.value;
+            },
+            {
+              invalidate: propertyInvalidation({ graph: true, minimap: true }),
+              statusMessage: `Updated ${index.name}.`,
+            }
+          );
+        },
+        "input"
+      );
+    });
+  }
+
   function renderTensorProperties(tensorId, options = {}) {
     const tensor = ctx.findTensorById(tensorId);
     if (!tensor) {
       ctx.clearSelection();
+      return;
+    }
+    if (ctx.isLinearPeriodicBoundaryTensor(tensor)) {
+      renderLinearPeriodicBoundaryTensorProperties(tensor);
       return;
     }
 
@@ -1329,6 +1480,7 @@ export function registerProperties(ctx) {
     renderNetworkProperties,
     renderMultiSelectionProperties,
     renderTensorProperties,
+    renderLinearPeriodicBoundaryTensorProperties,
     renderGroupProperties,
     renderEdgeProperties,
     renderContractionIndexProperties,

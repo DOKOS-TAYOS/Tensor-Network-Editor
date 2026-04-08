@@ -6,6 +6,7 @@ from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFor
 from .base import CodeGenerator
 from .einsum_numpy import EinsumNumpyCodeGenerator
 from .einsum_torch import EinsumTorchCodeGenerator
+from .linear_periodic import generate_linear_periodic_code
 from .quimb import QuimbCodeGenerator
 from .tensorkrowch import TensorKrowchCodeGenerator
 from .tensornetwork import TensorNetworkCodeGenerator
@@ -31,4 +32,10 @@ def generate_code(
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
 ) -> CodegenResult:
     """Generate Python code through the registered backend generator."""
+    if spec.linear_periodic_chain is not None:
+        return generate_linear_periodic_code(
+            spec,
+            engine,
+            collection_format=collection_format,
+        )
     return get_generator(engine).generate(spec, collection_format=collection_format)

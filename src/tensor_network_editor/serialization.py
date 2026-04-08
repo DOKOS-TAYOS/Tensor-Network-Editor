@@ -14,7 +14,7 @@ from .models import NetworkSpec
 from .types import JSONValue, StrPath
 from .validation import ensure_valid_spec
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 LOGGER = logging.getLogger(__name__)
 
 
@@ -103,6 +103,10 @@ def deserialize_spec_from_python_code(
     code: str, *, validate: bool = True
 ) -> NetworkSpec:
     """Parse supported generated Python source into a ``NetworkSpec``."""
+    if "# Tensor Network Editor linear periodic mode" in code:
+        raise SerializationError(
+            "Loading generated Python from linear periodic mode is not supported."
+        )
     spec = parse_generated_python_network(code)
     return ensure_valid_spec(spec) if validate else spec
 

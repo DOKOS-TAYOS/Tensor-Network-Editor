@@ -46,7 +46,10 @@ export function registerHistorySelection(ctx) {
 
   function createHistorySnapshot() {
     return {
-      spec: ctx.deepClone(state.spec),
+      spec:
+        typeof ctx.buildHistorySnapshotSpec === "function"
+          ? ctx.buildHistorySnapshotSpec()
+          : ctx.deepClone(state.spec),
       tensorOrder: Array.isArray(state.tensorOrder) ? [...state.tensorOrder] : [],
     };
   }
@@ -69,6 +72,9 @@ export function registerHistorySelection(ctx) {
       ctx.bumpSpecRevision();
     }
     ctx.reconcileTensorOrder();
+    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
+      ctx.enforceLinearPeriodicEngineSupport();
+    }
     state.pendingIndexId = null;
     state.pendingPlannerOperandId = null;
     state.pendingPlannerSelectionId = null;
@@ -172,6 +178,9 @@ export function registerHistorySelection(ctx) {
     mutator();
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    if (typeof ctx.syncLinearPeriodicBoundaryTensors === "function") {
+      ctx.syncLinearPeriodicBoundaryTensors();
+    }
     if (typeof ctx.repairContractionPlan === "function") {
       ctx.repairContractionPlan();
     }
