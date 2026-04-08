@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 from unittest.mock import patch
 
 from tensor_network_editor.api import generate_code
+from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
@@ -47,10 +49,12 @@ def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:
             default_engine=EngineName.EINSUM_NUMPY,
         )
     )
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
 
     assert status == 200
-    assert payload["spec"]["network"]["id"] == "network_invalid"
-    assert payload["spec"]["network"]["name"] == "   "
+    assert network_payload["id"] == "network_invalid"
+    assert network_payload["name"] == "   "
 
 
 def test_validate_route_reports_issues_and_echoes_serialized_spec(
@@ -462,14 +466,19 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert payload["ok"] is True
     assert payload["automatic_strategy"] == "greedy"
     assert payload["network_output_shape"] == [2, 4]
+    assert "automatic_full" in payload
     assert "automatic_future" in payload
     assert "automatic_past" in payload
+    assert "comparisons" in payload
     assert payload["manual"]["status"] == "complete"
     assert payload["manual"]["summary"]["total_estimated_flops"] == 48
     assert payload["manual"]["summary"]["total_estimated_macs"] == 24
     assert payload["manual"]["summary"]["final_shape"] == [2, 4]
     assert payload["manual"]["steps"][0]["estimated_flops"] == 48
     assert payload["manual"]["steps"][0]["estimated_macs"] == 24
+    assert (
+        payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == "float64"
+    )
 
 
 def test_analyze_contraction_route_deserializes_the_spec_once(

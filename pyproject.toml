@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tensor-network-editor"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Interactive local editor for building tensor networks and generating Python code."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,6 +53,9 @@ tensor-network-editor = "tensor_network_editor.cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = {attr = "tensor_network_editor._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

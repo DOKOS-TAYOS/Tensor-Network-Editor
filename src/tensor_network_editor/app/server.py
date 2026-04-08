@@ -6,17 +6,32 @@ import json
 import logging
 import mimetypes
 import threading
+from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlparse
 
 from . import routes
-from ._protocol import internal_server_error_response, not_found_response
+from ._protocol import (
+    JsonDict,
+    JsonResponse,
+    bad_request_response,
+    internal_server_error_response,
+    not_found_response,
+)
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True, frozen=True)
+class _BinaryResponse:
+    """Internal response container for pre-encoded bytes."""
+
+    status: int
+    body: bytes
+    content_type: str
 
 
 class EditorServer:
@@ -72,15 +87,15 @@ class EditorServer:
             def do_GET(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
                 try:
-                    status, response = self._dispatch_get(parsed.path)
+                    response = self._dispatch_get(parsed.path)
                 except Exception:  # pragma: no cover - defensive server guard
                     LOGGER.exception(
                         "Unhandled exception while processing %s %s",
                         self.command,
                         parsed.path,
                     )
-                    status, response = internal_server_error_response()
-                self._write_json(status, response)
+                    response = internal_server_error_response()
+                self._write_response(response)
 
             def do_POST(self) -> None:  # noqa: N802
                 parsed = urlparse(self.path)
@@ -93,25 +108,23 @@ class EditorServer:
                         parsed.path,
                         exc,
                     )
-                    self._write_json(
-                        HTTPStatus.BAD_REQUEST, {"ok": False, "message": str(exc)}
-                    )
+                    self._write_response(bad_request_response(str(exc)))
                     return
                 try:
-                    status, response = self._dispatch_post(parsed.path, payload)
+                    response = self._dispatch_post(parsed.path, payload)
                 except Exception:  # pragma: no cover - defensive server guard
                     LOGGER.exception(
                         "Unhandled exception while processing %s %s",
                         self.command,
                         parsed.path,
                     )
-                    status, response = internal_server_error_response()
-                self._write_json(status, response)
+                    response = internal_server_error_response()
+                self._write_response(response)
 
             def log_message(self, format: str, *args: object) -> None:  # noqa: A003
                 return
 
-            def _dispatch_get(self, path: str) -> tuple[int, dict[str, Any]]:
+            def _dispatch_get(self, path: str) -> JsonResponse | _BinaryResponse:
                 if path == "/api/bootstrap":
                     return routes.handle_bootstrap(session)
                 if path == "/":
@@ -120,9 +133,7 @@ class EditorServer:
                     )
                 return self._static_response(path)
 
-            def _dispatch_post(
-                self, path: str, payload: dict[str, Any]
-            ) -> tuple[int, dict[str, Any]]:
+            def _dispatch_post(self, path: str, payload: JsonDict) -> JsonResponse:
                 if path == "/api/validate":
                     return routes.handle_validate(session, payload)
                 if path == "/api/template":
@@ -137,26 +148,30 @@ class EditorServer:
                     return routes.handle_cancel(session)
                 return not_found_response()
 
-            def _static_response(self, request_path: str) -> tuple[int, dict[str, Any]]:
+            def _static_response(
+                self, request_path: str
+            ) -> JsonResponse | _BinaryResponse:
                 static_path = self._resolve_static_path(request_path)
                 if static_path is None:
                     return not_found_response()
                 body = static_path.read_bytes()
-                return HTTPStatus.OK, {
-                    "__binary_body__": body,
-                    "__content_type__": self._content_type_for_path(static_path),
-                }
+                return _BinaryResponse(
+                    status=HTTPStatus.OK,
+                    body=body,
+                    content_type=self._content_type_for_path(static_path),
+                )
 
             def _index_response(
                 self, path: Path, asset_version: str
-            ) -> tuple[int, dict[str, Any]]:
+            ) -> _BinaryResponse:
                 body_text = path.read_text(encoding="utf-8").replace(
                     "__ASSET_VERSION__", asset_version
                 )
-                return HTTPStatus.OK, {
-                    "__binary_body__": body_text.encode("utf-8"),
-                    "__content_type__": "text/html; charset=utf-8",
-                }
+                return _BinaryResponse(
+                    status=HTTPStatus.OK,
+                    body=body_text.encode("utf-8"),
+                    content_type="text/html; charset=utf-8",
+                )
 
             def _resolve_static_path(self, request_path: str) -> Path | None:
                 static_root = static_dir.resolve()
@@ -186,12 +201,16 @@ class EditorServer:
             def _read_request_body(self) -> bytes:
                 return self.rfile.read(int(self.headers.get("Content-Length", "0")))
 
-            def _write_json(self, status: int, payload: dict[str, Any]) -> None:
-                binary_body = payload.pop("__binary_body__", None)
-                content_type = payload.pop("__content_type__", None)
-                if isinstance(binary_body, bytes) and isinstance(content_type, str):
-                    self._write_bytes(status, binary_body, content_type)
+            def _write_response(self, response: JsonResponse | _BinaryResponse) -> None:
+                if isinstance(response, _BinaryResponse):
+                    self._write_bytes(
+                        response.status, response.body, response.content_type
+                    )
                     return
+                status, payload = response
+                self._write_json(status, payload)
+
+            def _write_json(self, status: int, payload: JsonDict) -> None:
                 body = json.dumps(payload).encode("utf-8")
                 self._write_bytes(status, body, "application/json; charset=utf-8")
 

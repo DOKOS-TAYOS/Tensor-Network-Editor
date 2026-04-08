@@ -18,14 +18,13 @@ export function startEditor(ctx) {
     generatedCode,
     engineSelect,
     collectionFormatSelect,
+    exportFormatSelect,
     addNoteButton,
     connectButton,
     loadInput,
     undoButton,
     redoButton,
-    exportPyButton,
-    exportPngButton,
-    exportSvgButton,
+    exportButton,
     toggleLinearPeriodicButton,
     linearPeriodicPreviousCellButton,
     linearPeriodicCellLabel,
@@ -260,9 +259,10 @@ export function startEditor(ctx) {
     document.getElementById("copy-code-button").addEventListener("click", ctx.copyGeneratedCode);
     undoButton.addEventListener("click", ctx.performUndo);
     redoButton.addEventListener("click", ctx.performRedo);
-    exportPyButton.addEventListener("click", ctx.downloadPythonExport);
-    exportPngButton.addEventListener("click", ctx.downloadPngExport);
-    exportSvgButton.addEventListener("click", ctx.downloadSvgExport);
+    exportButton.addEventListener("click", ctx.downloadSelectedExport);
+    exportFormatSelect.addEventListener("change", () => {
+      ctx.updateToolbarState();
+    });
     toggleLinearPeriodicButton.addEventListener("click", ctx.toggleLinearPeriodicMode);
     linearPeriodicPreviousCellButton.addEventListener("click", () => {
       ctx.switchLinearPeriodicCell(-1);
@@ -290,6 +290,7 @@ export function startEditor(ctx) {
           "success"
         );
       }
+      ctx.updateToolbarState();
     });
     collectionFormatSelect.addEventListener("change", (event) => {
       state.selectedCollectionFormat = event.target.value;
