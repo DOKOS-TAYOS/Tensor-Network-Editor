@@ -4,14 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
-from .._templates import (
-    TemplateParameters,
-    build_template_spec,
-    list_template_names,
-    parse_template_parameters,
-    serialize_template_definitions,
-)
+from .._contraction_analysis_types import ContractionAnalysisResult
+from ..analysis import analyze_contraction
 from ..codegen.registry import generate_code as generate_code_internal
 from ..models import (
     CodegenResult,
@@ -21,6 +15,13 @@ from ..models import (
     TensorCollectionFormat,
 )
 from ..serialization import SCHEMA_VERSION, deserialize_spec
+from ..templates import (
+    TemplateParameters,
+    build_template_spec,
+    list_template_names,
+    parse_template_parameters,
+    serialize_template_definitions,
+)
 
 if TYPE_CHECKING:
     from .session import EditorSession

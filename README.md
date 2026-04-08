@@ -104,6 +104,29 @@ Useful flags:
 - `--print-code` prints the generated code to standard output.
 - `--no-browser` starts the local server without opening the browser automatically.
 
+The legacy no-subcommand mode is still supported, and `edit` is now an explicit
+alias for the same workflow:
+
+```bash
+tensor-network-editor edit --load my_network.json --no-browser
+```
+
+### Headless CLI commands
+
+You can also use the package without opening the editor:
+
+```bash
+tensor-network-editor validate my_network.json
+tensor-network-editor lint my_network.json --fail-on warning
+tensor-network-editor analyze my_network.json --format json
+tensor-network-editor export my_network.json --engine quimb --output generated_network.py
+tensor-network-editor diff before.json after.json --format json
+tensor-network-editor template list --format json
+tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --physical-dimension 2 --format json
+```
+
+For notebooks, scripts, and CI, most subcommands support `--format json`.
+
 ### Launch the editor from Python
 
 ```python
@@ -153,6 +176,13 @@ Main public entry points:
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
 - `load_spec_from_python_code(code) -> NetworkSpec`
+- `validate_spec(spec) -> list[ValidationIssue]`
+- `lint_spec(spec, ...) -> LintReport`
+- `analyze_spec(spec) -> SpecAnalysisReport`
+- `analyze_contraction(spec, ...) -> ContractionAnalysisResult`
+- `diff_specs(before, after) -> SpecDiffResult`
+- `list_template_names() -> list[str]`
+- `build_template_spec(template_name, parameters=...) -> NetworkSpec`
 
 If the `NetworkSpec` includes a saved manual `contraction_plan`, generated code
 now follows that plan directly instead of collapsing everything into one final
@@ -200,7 +230,8 @@ The planner tools help with contraction-order work:
 
 - Manual contraction paths are available directly in the editor.
 - Automatic greedy suggestions are available when the optional `planner` extra is installed.
-- Contraction summaries include useful size and cost estimates such as FLOP, MAC, and intermediate sizes.
+- Headless analysis now exposes manual, auto full, auto future, and auto past summaries.
+- Comparison payloads include FLOP, MAC, peak intermediate size, and estimated peak bytes for the requested dtype.
 - Generated code respects the saved manual plan when one is present.
 
 ## Supported code-generation targets

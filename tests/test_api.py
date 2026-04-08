@@ -62,11 +62,18 @@ def test_package_root_exports_supported_public_api() -> None:
         "TensorSize",
         "TensorSpec",
         "__version__",
+        "analyze_contraction",
+        "analyze_spec",
+        "build_template_spec",
+        "diff_specs",
         "generate_code",
+        "lint_spec",
         "launch_tensor_network_editor",
+        "list_template_names",
         "load_spec",
         "load_spec_from_python_code",
         "save_spec",
+        "validate_spec",
     }
     assert tensor_network_editor.generate_code is generate_code
     assert tensor_network_editor.load_spec is load_spec

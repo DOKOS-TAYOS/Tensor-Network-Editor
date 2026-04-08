@@ -14,6 +14,13 @@ The package exposes these main functions at the top level:
 - `save_spec(spec, path) -> None`
 - `load_spec(path) -> NetworkSpec`
 - `load_spec_from_python_code(code) -> NetworkSpec`
+- `validate_spec(spec) -> list[ValidationIssue]`
+- `lint_spec(spec, ...) -> LintReport`
+- `analyze_spec(spec) -> SpecAnalysisReport`
+- `analyze_contraction(spec, ...) -> ContractionAnalysisResult`
+- `diff_specs(before, after) -> SpecDiffResult`
+- `list_template_names() -> list[str]`
+- `build_template_spec(template_name, parameters=...) -> NetworkSpec`
 
 Main imports:
 
@@ -37,13 +44,59 @@ from tensor_network_editor import (
     TensorCollectionFormat,
     TensorSize,
     TensorSpec,
+    analyze_contraction,
+    analyze_spec,
+    build_template_spec,
+    diff_specs,
     generate_code,
+    lint_spec,
     launch_tensor_network_editor,
+    list_template_names,
     load_spec,
     load_spec_from_python_code,
     save_spec,
+    validate_spec,
 )
 ```
+
+## Headless helpers
+
+Use these helpers when the spec is the artifact you care about and you do not
+need to open the browser editor.
+
+```python
+from tensor_network_editor import (
+    analyze_spec,
+    diff_specs,
+    lint_spec,
+    load_spec,
+    validate_spec,
+)
+
+spec = load_spec("my_network.json")
+
+validation_issues = validate_spec(spec)
+lint_report = lint_spec(spec, max_tensor_rank=8, max_tensor_cardinality=50_000)
+analysis = analyze_spec(spec)
+diff = diff_specs(spec, spec)
+
+print(validation_issues)
+print(lint_report.to_dict())
+print(analysis.to_dict()["network"])
+print(diff.to_dict())
+```
+
+Practical notes:
+
+- `validate_spec(...)` is strict and returns hard issues.
+- `lint_spec(...)` keeps going with softer heuristics such as disconnected
+  components, suspicious open indices, empty groups, large tensors, and manual
+  plan completeness.
+- `analyze_spec(...)` includes structural counts plus contraction analysis.
+- `analyze_contraction(...)` now includes `automatic_full`, `automatic_future`,
+  `automatic_past`, and comparison payloads with byte estimates for a selected
+  dtype.
+- `diff_specs(...)` compares entities by stable ids instead of text diffs.
 
 ## `launch_tensor_network_editor`
 

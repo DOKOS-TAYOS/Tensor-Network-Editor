@@ -12,6 +12,7 @@ from ._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     AutomaticContractionSummary,
     ContractionAnalysisResult,
+    ContractionComparison,
     ContractionStepAnalysis,
     ManualContractionPlanAnalysis,
     ManualContractionSummary,
@@ -27,7 +28,11 @@ from .codegen.common import prepare_network
 from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 
 
-def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
+def analyze_contraction(
+    spec: NetworkSpec,
+    *,
+    memory_dtype: str = "float64",
+) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
     prepared = prepare_network(spec)
     dimension_by_label = build_dimension_by_label(prepared)
@@ -46,6 +51,12 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
         initial_operands=initial_operands,
         initial_axis_names=initial_axis_names,
         dimension_by_label=dimension_by_label,
+    )
+    automatic_full = _analyze_automatic_operands(
+        operand_order=list(initial_operands),
+        operands=initial_operands,
+        dimension_by_label=dimension_by_label,
+        step_id_prefix="auto_full_step_",
     )
     automatic_future = _analyze_future_automatic_plan(
         initial_operands=initial_operands,
@@ -68,8 +79,16 @@ def analyze_contraction(spec: NetworkSpec) -> ContractionAnalysisResult:
     return ContractionAnalysisResult(
         network_output_shape=network_output_shape,
         manual=manual,
+        automatic_full=automatic_full,
         automatic_future=automatic_future,
         automatic_past=automatic_past,
+        comparisons=_build_contraction_comparisons(
+            manual=manual,
+            automatic_full=automatic_full,
+            automatic_future=automatic_future,
+            automatic_past=automatic_past,
+            memory_dtype=memory_dtype,
+        ),
         automatic_strategy="greedy",
         message=message,
     )
@@ -268,6 +287,122 @@ def _build_automatic_summary(
         total_estimated_macs=total_estimated_macs,
         peak_intermediate_size=peak_intermediate_size,
     )
+
+
+def _build_contraction_comparisons(
+    *,
+    manual: ManualContractionPlanAnalysis,
+    automatic_full: AutomaticContractionPlanAnalysis,
+    automatic_future: AutomaticContractionPlanAnalysis,
+    automatic_past: AutomaticContractionPlanAnalysis,
+    memory_dtype: str,
+) -> dict[str, ContractionComparison]:
+    """Build comparison payloads between manual and automatic analyses."""
+    return {
+        "manual_vs_automatic_full": _compare_plan_analyses(
+            baseline_label="manual",
+            baseline_analysis=manual,
+            candidate_label="automatic_full",
+            candidate_analysis=automatic_full,
+            memory_dtype=memory_dtype,
+        ),
+        "manual_remaining_vs_automatic_future": ContractionComparison(
+            status="unavailable",
+            baseline_label="manual_remaining",
+            candidate_label="automatic_future",
+            memory_dtype=memory_dtype,
+            message=(
+                "The saved manual plan does not expose a separate remaining suffix to compare yet."
+            ),
+        ),
+        "manual_subtrees_vs_automatic_past": _compare_plan_analyses(
+            baseline_label="manual_subtrees",
+            baseline_analysis=manual,
+            candidate_label="automatic_past",
+            candidate_analysis=automatic_past,
+            memory_dtype=memory_dtype,
+        ),
+    }
+
+
+def _compare_plan_analyses(
+    *,
+    baseline_label: str,
+    baseline_analysis: ManualContractionPlanAnalysis | AutomaticContractionPlanAnalysis,
+    candidate_label: str,
+    candidate_analysis: ManualContractionPlanAnalysis
+    | AutomaticContractionPlanAnalysis,
+    memory_dtype: str,
+) -> ContractionComparison:
+    """Build deltas between two contraction analyses when both are available."""
+    if baseline_analysis.status == "unavailable":
+        return ContractionComparison(
+            status="unavailable",
+            baseline_label=baseline_label,
+            candidate_label=candidate_label,
+            memory_dtype=memory_dtype,
+            message=baseline_analysis.message,
+        )
+    if candidate_analysis.status == "unavailable":
+        return ContractionComparison(
+            status="unavailable",
+            baseline_label=baseline_label,
+            candidate_label=candidate_label,
+            memory_dtype=memory_dtype,
+            message=candidate_analysis.message,
+        )
+
+    bytes_per_element = _dtype_size_in_bytes(memory_dtype)
+    baseline_peak_size = baseline_analysis.summary.peak_intermediate_size
+    candidate_peak_size = candidate_analysis.summary.peak_intermediate_size
+    baseline_peak_step = _find_peak_step(baseline_analysis.steps)
+    candidate_peak_step = _find_peak_step(candidate_analysis.steps)
+    baseline_peak_bytes = baseline_peak_size * bytes_per_element
+    candidate_peak_bytes = candidate_peak_size * bytes_per_element
+    return ContractionComparison(
+        status="complete",
+        baseline_label=baseline_label,
+        candidate_label=candidate_label,
+        memory_dtype=memory_dtype,
+        baseline_peak_intermediate_bytes=baseline_peak_bytes,
+        candidate_peak_intermediate_bytes=candidate_peak_bytes,
+        delta_total_estimated_flops=(
+            candidate_analysis.summary.total_estimated_flops
+            - baseline_analysis.summary.total_estimated_flops
+        ),
+        delta_total_estimated_macs=(
+            candidate_analysis.summary.total_estimated_macs
+            - baseline_analysis.summary.total_estimated_macs
+        ),
+        delta_peak_intermediate_size=candidate_peak_size - baseline_peak_size,
+        delta_peak_intermediate_bytes=candidate_peak_bytes - baseline_peak_bytes,
+        baseline_peak_step_id=baseline_peak_step.step_id
+        if baseline_peak_step
+        else None,
+        candidate_peak_step_id=candidate_peak_step.step_id
+        if candidate_peak_step
+        else None,
+        baseline_bottleneck_labels=(
+            _build_bottleneck_labels(baseline_peak_step) if baseline_peak_step else ()
+        ),
+        candidate_bottleneck_labels=(
+            _build_bottleneck_labels(candidate_peak_step) if candidate_peak_step else ()
+        ),
+    )
+
+
+def _find_peak_step(
+    steps: list[ContractionStepAnalysis],
+) -> ContractionStepAnalysis | None:
+    """Return the step that creates the largest intermediate tensor."""
+    if not steps:
+        return None
+    return max(steps, key=lambda step: step.intermediate_size)
+
+
+def _build_bottleneck_labels(step: ContractionStepAnalysis) -> tuple[str, ...]:
+    """Return the labels that participate in the peak intermediate step."""
+    return tuple(dict.fromkeys(step.contracted_labels + step.surviving_labels))
 
 
 def _analyze_future_automatic_plan(
@@ -487,6 +622,18 @@ def _unavailable_automatic_analysis(
         ),
         message=message,
     )
+
+
+def _dtype_size_in_bytes(memory_dtype: str) -> int:
+    """Return the element width used for memory estimates."""
+    dtype_sizes = {
+        "float16": 2,
+        "float32": 4,
+        "float64": 8,
+        "complex64": 8,
+        "complex128": 16,
+    }
+    return dtype_sizes.get(memory_dtype, dtype_sizes["float64"])
 
 
 def _product(values: Iterable[int]) -> int:
