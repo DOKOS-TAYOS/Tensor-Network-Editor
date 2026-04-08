@@ -6,7 +6,8 @@ import logging
 from http import HTTPStatus
 from typing import cast
 
-from .._contraction_analysis import ContractionAnalysisResult, analyze_contraction
+from .._contraction_analysis_types import ContractionAnalysisResult
+from ..analysis import analyze_contraction
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
