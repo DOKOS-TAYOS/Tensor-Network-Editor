@@ -84,9 +84,9 @@ class PreparedNetwork:
     open_indices: list[PreparedIndex]
 
 
-def prepare_network(spec: NetworkSpec) -> PreparedNetwork:
+def prepare_network(spec: NetworkSpec, *, validate: bool = True) -> PreparedNetwork:
     """Validate and normalize ``spec`` for backend code generation."""
-    analysis = analyze_network(spec, validate=True)
+    analysis = analyze_network(spec, validate=validate)
     tensor_rows = group_tensors_by_visual_rows(analysis.spec.tensors)
     ordered_tensors = [tensor for tensor_row in tensor_rows for tensor in tensor_row]
     tensor_names = make_unique_identifiers(

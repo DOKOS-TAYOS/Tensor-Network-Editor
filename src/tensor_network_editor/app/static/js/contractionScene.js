@@ -1,5 +1,13 @@
 export function registerContractionScene(ctx) {
   const state = ctx.state;
+  const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID =
+    typeof ctx.getLinearPeriodicReservedOperandId === "function"
+      ? ctx.getLinearPeriodicReservedOperandId("previous")
+      : "__linear_previous__";
+  const LINEAR_PERIODIC_NEXT_OPERAND_ID =
+    typeof ctx.getLinearPeriodicReservedOperandId === "function"
+      ? ctx.getLinearPeriodicReservedOperandId("next")
+      : "__linear_next__";
 
   function getContractionPlan() {
     return state.spec && state.spec.contraction_plan ? state.spec.contraction_plan : null;
@@ -10,13 +18,90 @@ export function registerContractionScene(ctx) {
     return plan && Array.isArray(plan.steps) ? plan.steps : [];
   }
 
+  function isPreviousOperandId(operandId) {
+    return operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
+  }
+
+  function isNextOperandId(operandId) {
+    return operandId === LINEAR_PERIODIC_NEXT_OPERAND_ID;
+  }
+
+  function buildBoundaryOperands() {
+    if (
+      typeof ctx.isLinearPeriodicMode !== "function" ||
+      typeof ctx.getLinearPeriodicReservedOperandIdForTensor !== "function" ||
+      !ctx.isLinearPeriodicMode()
+    ) {
+      return [];
+    }
+    const tensorById = Object.fromEntries(
+      (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : []).map((tensor) => [
+        tensor.id,
+        tensor,
+      ])
+    );
+    const indexOwnerById = {};
+    (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : []).forEach((tensor) => {
+      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
+        indexOwnerById[index.id] = { tensor, index };
+      });
+    });
+    return (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [])
+      .filter((tensor) => ctx.isLinearPeriodicBoundaryTensor(tensor))
+      .map((boundaryTensor) => {
+        const operandId = ctx.getLinearPeriodicReservedOperandIdForTensor(boundaryTensor);
+        if (!operandId) {
+          return null;
+        }
+        const tokens = (Array.isArray(boundaryTensor.indices) ? boundaryTensor.indices : []).map(
+          (boundaryIndex) => {
+            const boundaryEdge = (Array.isArray(state.spec && state.spec.edges) ? state.spec.edges : [])
+              .find(
+                (edge) =>
+                  (edge.left && edge.left.index_id === boundaryIndex.id) ||
+                  (edge.right && edge.right.index_id === boundaryIndex.id)
+              ) || null;
+            const otherIndexId =
+              boundaryEdge && boundaryEdge.left && boundaryEdge.left.index_id === boundaryIndex.id
+                ? boundaryEdge.right && boundaryEdge.right.index_id
+                : boundaryEdge && boundaryEdge.left && boundaryEdge.left.index_id;
+            const otherOwner = otherIndexId ? indexOwnerById[otherIndexId] || null : null;
+            const otherTensor = otherOwner ? tensorById[otherOwner.tensor.id] || null : null;
+            const connectedToRealTensor =
+              otherOwner &&
+              otherTensor &&
+              !ctx.isLinearPeriodicBoundaryTensor(otherTensor);
+            return {
+              key: connectedToRealTensor
+                ? `open:${otherOwner.index.id}`
+                : `boundary:${boundaryTensor.linear_periodic_role}:${boundaryIndex.id}`,
+              name: connectedToRealTensor ? otherOwner.index.name : boundaryIndex.name,
+              dimension: Number(boundaryIndex.dimension) || 1,
+              textColorSeed: boundaryIndex.id,
+              sourceEdgeId: null,
+              sourceIndexId: boundaryIndex.id,
+            };
+          }
+        );
+        return {
+          id: operandId,
+          name: boundaryTensor.name,
+          isDerived: false,
+          linearPeriodicRole: boundaryTensor.linear_periodic_role,
+          sourceTensorIds: [boundaryTensor.id],
+          tokens,
+        };
+      })
+      .filter(Boolean);
+  }
+
   function buildInitialOperands() {
     const edgeByIndexId = {};
     ctx.getContractibleEdges().forEach((edge) => {
       edgeByIndexId[edge.left.index_id] = edge;
       edgeByIndexId[edge.right.index_id] = edge;
     });
-    return ctx.getContractibleTensors().map((tensor) => ({
+    const realOperands = ctx.getContractibleTensors().map((tensor) => ({
       id: tensor.id,
       name: tensor.name,
       isDerived: false,
@@ -33,6 +118,7 @@ export function registerContractionScene(ctx) {
         };
       }),
     }));
+    return [...realOperands, ...buildBoundaryOperands()];
   }
 
   function cloneOperand(operand) {
@@ -40,6 +126,7 @@ export function registerContractionScene(ctx) {
       id: operand.id,
       name: operand.name,
       isDerived: Boolean(operand.isDerived),
+      linearPeriodicRole: operand.linearPeriodicRole || null,
       sourceTensorIds: [...operand.sourceTensorIds],
       tokens: operand.tokens.map((token) => ({ ...token })),
     };
@@ -54,13 +141,20 @@ export function registerContractionScene(ctx) {
     const totalSteps = stepLimit === null ? planSteps.length : Math.max(0, stepLimit);
 
     for (const step of planSteps.slice(0, totalSteps)) {
+      const usesPreviousOperand =
+        isPreviousOperandId(step.left_operand_id) ||
+        isPreviousOperandId(step.right_operand_id);
+      const usesNextOperand =
+        isNextOperandId(step.left_operand_id) ||
+        isNextOperandId(step.right_operand_id);
       const leftIndex = activeOperands.findIndex((operand) => operand.id === step.left_operand_id);
       const rightIndex = activeOperands.findIndex((operand) => operand.id === step.right_operand_id);
       if (
         leftIndex < 0 ||
         rightIndex < 0 ||
         leftIndex === rightIndex ||
-        activeOperands.some((operand) => operand.id === step.id)
+        activeOperands.some((operand) => operand.id === step.id) ||
+        (usesPreviousOperand && usesNextOperand)
       ) {
         break;
       }
@@ -89,6 +183,9 @@ export function registerContractionScene(ctx) {
         activeOperands.splice(index, 1);
       });
       activeOperands.push(resultOperand);
+      if (usesNextOperand) {
+        break;
+      }
     }
 
     return {
@@ -168,6 +265,16 @@ export function registerContractionScene(ctx) {
     };
   }
 
+  function getPreferredStepAnchorOperandId(step) {
+    if (isPreviousOperandId(step.left_operand_id) || isNextOperandId(step.left_operand_id)) {
+      return step.right_operand_id;
+    }
+    if (isPreviousOperandId(step.right_operand_id) || isNextOperandId(step.right_operand_id)) {
+      return step.left_operand_id;
+    }
+    return step.left_operand_id;
+  }
+
   function ensureContractionViewSnapshots() {
     const plan = getContractionPlan();
     if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
@@ -202,8 +309,9 @@ export function registerContractionScene(ctx) {
 
       currentState.activeOperands.forEach((operand) => {
         if (operand.id === step.id) {
+          const anchorOperandId = getPreferredStepAnchorOperandId(step);
           defaultsByOperandId[operand.id] = ctx.deepClone(
-            previousLayouts[step.left_operand_id] || buildFallbackLayoutForOperand(operand)
+            previousLayouts[anchorOperandId] || buildFallbackLayoutForOperand(operand)
           );
           return;
         }
@@ -290,6 +398,7 @@ export function registerContractionScene(ctx) {
         id: operand.id,
         name: operand.name,
         isDerived: Boolean(operand.isDerived),
+        linear_periodic_role: operand.linearPeriodicRole || null,
         sourceTensorIds: [...operand.sourceTensorIds],
         resultCount: operand.sourceTensorIds.length,
         position: {
@@ -539,7 +648,16 @@ export function registerContractionScene(ctx) {
     const nextLayout = nextSnapshot
       ? nextSnapshot.operand_layouts.find((layout) => layout.operand_id === nextStepId)
       : null;
-    const preferredLayout = leftVisibleOperand || rightVisibleOperand || null;
+    const preferredLayout =
+      (isPreviousOperandId(leftOperandId) || isNextOperandId(leftOperandId)
+        ? rightVisibleOperand
+        : leftVisibleOperand) ||
+      (isPreviousOperandId(rightOperandId) || isNextOperandId(rightOperandId)
+        ? leftVisibleOperand
+        : rightVisibleOperand) ||
+      leftVisibleOperand ||
+      rightVisibleOperand ||
+      null;
     if (nextLayout && preferredLayout) {
       nextLayout.position = {
         x: Math.round(preferredLayout.position.x),
@@ -551,7 +669,10 @@ export function registerContractionScene(ctx) {
       };
     } else if (nextLayout && latestSnapshot) {
       const fallbackLayout = latestSnapshot.operand_layouts.find(
-        (layout) => layout.operand_id === leftOperandId
+        (layout) => layout.operand_id === getPreferredStepAnchorOperandId({
+          left_operand_id: leftOperandId,
+          right_operand_id: rightOperandId,
+        })
       );
       if (fallbackLayout) {
         nextLayout.position = { ...fallbackLayout.position };

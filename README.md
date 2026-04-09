@@ -19,6 +19,7 @@ It is meant for research, teaching, and experimentation workflows where you want
 - Tune template size, bond dimension, and physical dimension before inserting them.
 - Add notes and groups so larger diagrams stay easier to understand.
 - Inspect and edit manual contraction paths, with optional automatic suggestions through the planner extra.
+- Build linear periodic `For` chains where each cell can contract internally and optionally pass a selected operand to the next cell.
 - Use the project either as a Python library or from the `tensor-network-editor` CLI.
 
 ## Why it is useful in practice
@@ -240,6 +241,8 @@ The planner tools help with contraction-order work:
 - Headless analysis now exposes manual, auto full, auto future, and auto past summaries.
 - Comparison payloads include FLOP, MAC, peak intermediate size, and estimated peak bytes for the requested dtype.
 - Generated code respects the saved manual plan when one is present.
+- In linear periodic `For` mode, manual plans can use `Previous cell` and `Next cell` as special carry operands between neighboring cells.
+- In those carry plans, `Next cell` must be the last step of the cell. The generated code forwards only that chosen carry operand and preserves any other non-contracted tensors in `remaining_operands`, so the final tensor network may stay partially contracted on purpose.
 
 ## Supported code-generation targets
 

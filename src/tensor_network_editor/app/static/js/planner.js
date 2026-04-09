@@ -2,6 +2,14 @@ export function registerPlannerFeature(ctx) {
   const state = ctx.state;
   const { plannerPanel } = ctx.dom;
   const ANALYSIS_REFRESH_DELAY_MS = 200;
+  const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID =
+    typeof ctx.getLinearPeriodicReservedOperandId === "function"
+      ? ctx.getLinearPeriodicReservedOperandId("previous")
+      : "__linear_previous__";
+  const LINEAR_PERIODIC_NEXT_OPERAND_ID =
+    typeof ctx.getLinearPeriodicReservedOperandId === "function"
+      ? ctx.getLinearPeriodicReservedOperandId("next")
+      : "__linear_next__";
   let contractionAnalysisDebounceId = null;
   let contractionAnalysisRequestPending = false;
   let pendingContractionAnalysisOptions = null;
@@ -31,6 +39,47 @@ export function registerPlannerFeature(ctx) {
     return null;
   }
 
+  function isPreviousPlannerOperandId(operandId) {
+    return operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
+  }
+
+  function isNextPlannerOperandId(operandId) {
+    return operandId === LINEAR_PERIODIC_NEXT_OPERAND_ID;
+  }
+
+  function getPlannerSeedOperands(tensors) {
+    const baseOperands = (Array.isArray(tensors) ? tensors : []).map((tensor) => ({
+      id: tensor.id,
+      sourceTensorIds: [tensor.id],
+      selectionIds: [tensor.id],
+    }));
+    if (
+      typeof ctx.isLinearPeriodicMode !== "function" ||
+      typeof ctx.getLinearPeriodicReservedOperandIdForTensor !== "function" ||
+      !ctx.isLinearPeriodicMode()
+    ) {
+      return baseOperands;
+    }
+    const boundaryOperands = (Array.isArray(state.spec && state.spec.tensors)
+      ? state.spec.tensors
+      : []
+    )
+      .filter((tensor) => ctx.isLinearPeriodicBoundaryTensor(tensor))
+      .map((tensor) => {
+        const reservedOperandId =
+          ctx.getLinearPeriodicReservedOperandIdForTensor(tensor);
+        return reservedOperandId
+          ? {
+              id: reservedOperandId,
+              sourceTensorIds: [tensor.id],
+              selectionIds: [tensor.id, reservedOperandId],
+            }
+          : null;
+      })
+      .filter(Boolean);
+    return [...baseOperands, ...boundaryOperands];
+  }
+
   function buildPlannerOperandState(tensors, steps) {
     const activeOperands = new Map();
     const representativeByTensorId = {};
@@ -40,24 +89,44 @@ export function registerPlannerFeature(ctx) {
     const reservedOperandIds = new Set();
     const stepOrdersByTensorId = {};
 
-    tensors.forEach((tensor) => {
-      const sourceTensorIds = [tensor.id];
-      activeOperands.set(tensor.id, { sourceTensorIds });
-      representativeByTensorId[tensor.id] = tensor.id;
-      representativeByOperandId[tensor.id] = tensor.id;
-      sourceTensorIdsByOperandId[tensor.id] = sourceTensorIds;
-      reservedOperandIds.add(tensor.id);
+    getPlannerSeedOperands(tensors).forEach((operand) => {
+      const sourceTensorIds =
+        Array.isArray(operand.sourceTensorIds) && operand.sourceTensorIds.length
+          ? [...operand.sourceTensorIds]
+          : [operand.id];
+      const selectionIds = [...new Set(
+        Array.isArray(operand.selectionIds) && operand.selectionIds.length
+          ? [operand.id, ...operand.selectionIds]
+          : [operand.id]
+      )];
+      activeOperands.set(operand.id, { sourceTensorIds, selectionIds });
+      representativeByOperandId[operand.id] = operand.id;
+      selectionIds.forEach((selectionId) => {
+        representativeByOperandId[selectionId] = operand.id;
+      });
+      sourceTensorIdsByOperandId[operand.id] = sourceTensorIds;
+      sourceTensorIds.forEach((tensorId) => {
+        representativeByTensorId[tensorId] = operand.id;
+      });
+      reservedOperandIds.add(operand.id);
     });
 
     for (const step of steps) {
       const stepId = getPlannerStepId(step);
+      const usesPreviousOperand =
+        isPreviousPlannerOperandId(step.left_operand_id) ||
+        isPreviousPlannerOperandId(step.right_operand_id);
+      const usesNextOperand =
+        isNextPlannerOperandId(step.left_operand_id) ||
+        isNextPlannerOperandId(step.right_operand_id);
       if (
         !step ||
         !stepId ||
         step.left_operand_id === step.right_operand_id ||
         !activeOperands.has(step.left_operand_id) ||
         !activeOperands.has(step.right_operand_id) ||
-        reservedOperandIds.has(stepId)
+        reservedOperandIds.has(stepId) ||
+        (usesPreviousOperand && usesNextOperand)
       ) {
         break;
       }
@@ -92,6 +161,9 @@ export function registerPlannerFeature(ctx) {
           representativeByOperandId[operandId] = stepId;
         }
       });
+      if (usesNextOperand) {
+        break;
+      }
     }
 
     return {
@@ -243,6 +315,12 @@ export function registerPlannerFeature(ctx) {
     const tensor = ctx.findTensorById(operandId);
     if (tensor) {
       return tensor.name;
+    }
+    if (isPreviousPlannerOperandId(operandId)) {
+      return "Previous cell";
+    }
+    if (isNextPlannerOperandId(operandId)) {
+      return "Next cell";
     }
     const planSteps = state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
       ? state.spec.contraction_plan.steps

@@ -358,6 +358,528 @@ def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_for_mode_reserved_operand_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "for_mode_reserved_operands_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    planner_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "planner.js"
+    )
+    contraction_scene_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "contractionScene.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    planner_runtime_path = tmp_path / "planner.runtime.mjs"
+    contraction_scene_runtime_path = tmp_path / "contractionScene.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    planner_runtime_path.write_text(
+        planner_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    contraction_scene_runtime_path.write_text(
+        contraction_scene_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        function createClassList() {{
+          return {{
+            add() {{}},
+            remove() {{}},
+            toggle() {{}},
+          }};
+        }}
+
+        function createButton() {{
+          return {{
+            disabled: false,
+            classList: createClassList(),
+            addEventListener() {{}},
+          }};
+        }}
+
+        function createPlannerPanel() {{
+          return {{
+            innerHTML: "",
+            querySelectorAll() {{
+              return [];
+            }},
+          }};
+        }}
+
+        function createLinearPeriodicSpec() {{
+          return {{
+            id: "network_linear_periodic_reserved",
+            name: "linear-periodic-reserved",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+            linear_periodic_chain: {{
+              active_cell: "initial",
+              metadata: {{}},
+              initial_cell: {{
+                tensors: [
+                  {{
+                    id: "initial_tensor",
+                    name: "Initial tensor",
+                    position: {{ x: 100, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "initial_phys",
+                        name: "phys",
+                        dimension: 2,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "initial_to_next",
+                        name: "bond",
+                        dimension: 3,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "initial_next_boundary",
+                    name: "Next cell",
+                    position: {{ x: 320, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    linear_periodic_role: "next",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "initial_next_slot_1",
+                        name: "slot_1",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                ],
+                groups: [],
+                edges: [
+                  {{
+                    id: "initial_next_edge",
+                    name: "bond_1",
+                    left: {{
+                      tensor_id: "initial_tensor",
+                      index_id: "initial_to_next",
+                    }},
+                    right: {{
+                      tensor_id: "initial_next_boundary",
+                      index_id: "initial_next_slot_1",
+                    }},
+                    metadata: {{}},
+                  }},
+                ],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+              periodic_cell: {{
+                tensors: [
+                  {{
+                    id: "periodic_tensor",
+                    name: "Periodic tensor",
+                    position: {{ x: 160, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "periodic_from_previous",
+                        name: "prev",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "periodic_to_next",
+                        name: "next",
+                        dimension: 3,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "periodic_phys",
+                        name: "phys",
+                        dimension: 2,
+                        offset: {{ x: 0, y: -24 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "periodic_previous_boundary",
+                    name: "Previous cell",
+                    position: {{ x: -60, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    linear_periodic_role: "previous",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "periodic_previous_slot_1",
+                        name: "slot_1",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "periodic_next_boundary",
+                    name: "Next cell",
+                    position: {{ x: 380, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    linear_periodic_role: "next",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "periodic_next_slot_1",
+                        name: "slot_1",
+                        dimension: 3,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                ],
+                groups: [],
+                edges: [
+                  {{
+                    id: "periodic_previous_edge",
+                    name: "bond_1",
+                    left: {{
+                      tensor_id: "periodic_previous_boundary",
+                      index_id: "periodic_previous_slot_1",
+                    }},
+                    right: {{
+                      tensor_id: "periodic_tensor",
+                      index_id: "periodic_from_previous",
+                    }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "periodic_next_edge",
+                    name: "bond_2",
+                    left: {{
+                      tensor_id: "periodic_tensor",
+                      index_id: "periodic_to_next",
+                    }},
+                    right: {{
+                      tensor_id: "periodic_next_boundary",
+                      index_id: "periodic_next_slot_1",
+                    }},
+                    metadata: {{}},
+                  }},
+                ],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+              final_cell: {{
+                tensors: [
+                  {{
+                    id: "final_tensor",
+                    name: "Final tensor",
+                    position: {{ x: 180, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "final_from_previous",
+                        name: "prev",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "final_phys",
+                        name: "phys",
+                        dimension: 2,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "final_previous_boundary",
+                    name: "Previous cell",
+                    position: {{ x: -40, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    linear_periodic_role: "previous",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "final_previous_slot_1",
+                        name: "slot_1",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                ],
+                groups: [],
+                edges: [
+                  {{
+                    id: "final_previous_edge",
+                    name: "bond_1",
+                    left: {{
+                      tensor_id: "final_previous_boundary",
+                      index_id: "final_previous_slot_1",
+                    }},
+                    right: {{
+                      tensor_id: "final_tensor",
+                      index_id: "final_from_previous",
+                    }},
+                    metadata: {{}},
+                  }},
+                ],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+            }},
+          }};
+        }}
+
+        const [stateModule, utilitiesModule, plannerModule, contractionSceneModule] =
+          await Promise.all([
+            import(pathToFileURL({json.dumps(str(state_runtime_path))}).href),
+            import(pathToFileURL({json.dumps(str(utilities_runtime_path))}).href),
+            import(pathToFileURL({json.dumps(str(planner_runtime_path))}).href),
+            import(pathToFileURL({json.dumps(str(contraction_scene_runtime_path))}).href),
+          ]);
+        const {{ createInitialState }} = stateModule;
+        const {{ registerUtilities }} = utilitiesModule;
+        const {{ registerPlannerFeature }} = plannerModule;
+        const {{ registerContractionScene }} = contractionSceneModule;
+
+        const ctx = {{
+          state: createInitialState(),
+          constants: {{
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 96,
+            MIN_TENSOR_HEIGHT: 60,
+            INDEX_RADIUS: 10,
+            INDEX_PADDING: 6,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 120,
+            NOTE_MIN_WIDTH: 120,
+            NOTE_MIN_HEIGHT: 90,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            DEFAULT_INDEX_SLOTS: [
+              {{ x: -38, y: 0 }},
+              {{ x: 38, y: 0 }},
+              {{ x: 0, y: -24 }},
+              {{ x: 0, y: 24 }},
+            ],
+          }},
+          dom: {{
+            workspace: {{}},
+            statusMessage: {{ textContent: "", classList: createClassList() }},
+            propertiesPanel: {{ innerHTML: "" }},
+            generatedCode: {{ value: "" }},
+            engineSelect: {{ options: [], value: "tensornetwork" }},
+            collectionFormatSelect: {{ options: [], value: "list" }},
+            exportFormatSelect: {{ value: "py" }},
+            addNoteButton: createButton(),
+            connectButton: {{ classList: createClassList() }},
+            loadInput: {{}},
+            undoButton: createButton(),
+            redoButton: createButton(),
+            exportButton: createButton(),
+            toggleLinearPeriodicButton: {{ classList: createClassList() }},
+            linearPeriodicPreviousCellButton: createButton(),
+            linearPeriodicCellLabel: {{ textContent: "" }},
+            linearPeriodicNextCellButton: createButton(),
+            templateSelect: {{ value: "" }},
+            templateParameterPanel: {{ hidden: true }},
+            templateGraphSizeLabel: {{ textContent: "" }},
+            templateGraphSizeInput: {{ value: "2", min: "1" }},
+            templateBondDimensionInput: {{ value: "3", min: "1" }},
+            templatePhysicalDimensionInput: {{ value: "2", min: "1" }},
+            insertTemplateButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: {{ classList: createClassList() }},
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            canvasShell: {{
+              getBoundingClientRect() {{
+                return {{ left: 0, top: 0, width: 1000, height: 800 }};
+              }},
+            }},
+            groupLayer: {{}},
+            resizeLayer: {{}},
+            notesLayer: {{}},
+            selectionBox: {{}},
+            minimapCanvas: {{}},
+            sidebar: {{}},
+            plannerPanel: createPlannerPanel(),
+            generateButton: createButton(),
+          }},
+          apiGet: async () => null,
+          apiPost: async () => null,
+          window: {{
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm: () => true,
+          }},
+          document: {{
+            getElementById() {{
+              return createButton();
+            }},
+            querySelectorAll() {{
+              return [];
+            }},
+          }},
+          cytoscape: null,
+          tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+          tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+          render: () => {{}},
+          renderOverlayDecorations: () => {{}},
+          renderMinimap: () => {{}},
+          renderPlanner: () => {{}},
+          renderSidebarTabs: () => {{}},
+          refreshContractionAnalysis: () => {{}},
+          syncPendingInteractionClasses: () => {{}},
+          setActiveSidebarTab: () => {{}},
+        }};
+
+        registerUtilities(ctx);
+        registerContractionScene(ctx);
+        registerPlannerFeature(ctx);
+
+        ctx.state.selectedEngine = "tensornetwork";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(createLinearPeriodicSpec());
+
+        if (ctx.resolvePlannerOperandId("initial_next_boundary") !== "__linear_next__") {{
+          throw new Error("The initial next boundary did not resolve to the reserved next operand id.");
+        }}
+
+        ctx.applyManualContractionStep("initial_tensor", "__linear_next__");
+        ctx.syncCurrentGraphIntoLinearPeriodicChain();
+        const initialSteps =
+          ctx.state.spec.linear_periodic_chain.initial_cell.contraction_plan.steps;
+        if (initialSteps.length !== 1 || initialSteps[0].right_operand_id !== "__linear_next__") {{
+          throw new Error("The initial cell did not persist the reserved next operand id.");
+        }}
+
+        ctx.switchLinearPeriodicCell(1);
+        if (ctx.resolvePlannerOperandId("periodic_previous_boundary") !== "__linear_previous__") {{
+          throw new Error("The periodic previous boundary did not resolve to the reserved previous operand id.");
+        }}
+        if (ctx.resolvePlannerOperandId("periodic_next_boundary") !== "__linear_next__") {{
+          throw new Error("The periodic next boundary did not resolve to the reserved next operand id.");
+        }}
+
+        ctx.state.spec.contraction_plan = {{
+          id: "periodic_plan",
+          name: "Manual path",
+          steps: [
+            {{
+              id: "periodic_prev_step",
+              left_operand_id: "__linear_previous__",
+              right_operand_id: "periodic_tensor",
+              metadata: {{}},
+            }},
+            {{
+              id: "periodic_carry_step",
+              left_operand_id: "periodic_prev_step",
+              right_operand_id: "__linear_next__",
+              metadata: {{}},
+            }},
+          ],
+          view_snapshots: [],
+          metadata: {{}},
+        }};
+        ctx.repairContractionPlan();
+        const periodicState = ctx.buildContractionOperandState();
+        const periodicOperandIds = periodicState.activeOperands.map((operand) => operand.id);
+        if (periodicState.validSteps.length !== 2) {{
+          throw new Error(`Expected 2 valid periodic steps, received ${{periodicState.validSteps.length}}.`);
+        }}
+        if (!periodicOperandIds.includes("periodic_carry_step")) {{
+          throw new Error("The periodic carry step should remain active after the next contraction.");
+        }}
+        if (periodicOperandIds.includes("__linear_previous__") || periodicOperandIds.includes("__linear_next__")) {{
+          throw new Error("Reserved carry operands should not remain active after the periodic carry plan finishes.");
+        }}
+
+        const snapshots = ctx.ensureContractionViewSnapshots();
+        if (!Array.isArray(snapshots) || snapshots.length !== 3) {{
+          throw new Error(`Expected 3 snapshots for the periodic plan, received ${{snapshots && snapshots.length}}.`);
+        }}
+
+        ctx.syncCurrentGraphIntoLinearPeriodicChain();
+        const periodicSteps =
+          ctx.state.spec.linear_periodic_chain.periodic_cell.contraction_plan.steps;
+        if (
+          periodicSteps.length !== 2 ||
+          periodicSteps[0].left_operand_id !== "__linear_previous__" ||
+          periodicSteps[1].right_operand_id !== "__linear_next__"
+        ) {{
+          throw new Error("The periodic cell did not preserve the reserved carry operands when syncing back into the chain.");
+        }}
+        """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
 def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "engine_order_runtime_regression.mjs"
     utilities_module_path = (
@@ -563,6 +1085,26 @@ def test_for_mode_dimension_updates_keep_working_after_first_change(
 
     assert completed_process.returncode == 0, (
         "The frontend runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_for_mode_reserved_operands_survive_cell_switches_and_scene_updates(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_for_mode_reserved_operand_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The reserved-operand frontend runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

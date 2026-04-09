@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - For mode now keeps repeated index-dimension edits stable across updates, propagates interface dimensions more reliably between initial, periodic, and final cells, and synchronizes connected-port dimensions automatically when one side changes.
+- Linear periodic `For` mode now supports manual `Previous cell` / `Next cell` carry steps even when each cell is only partially contracted; generated code threads the selected carry operand to the next cell and preserves the remaining tensors in the output network.
 - Notes now tint the whole note frame correctly without stealing focus while you type, and template insertion in contraction mode no longer collapses new tensors into one point.
 
 ## [0.2.0] - 2026-04-07

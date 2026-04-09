@@ -13,7 +13,9 @@ from tensor_network_editor.models import (
     TensorSpec,
 )
 from tests.factories import (
+    build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
+    build_linear_periodic_partial_carry_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_without_plan,
@@ -289,6 +291,43 @@ def test_linear_periodic_codegen_uses_cell_helpers_and_free_n_loop(
     assert "for cell_index in range(1, n - 1):" in result.code
     assert "connect_cell_interfaces(" in result.code
     assert "periodic_contract_internal" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+)
+def test_linear_periodic_carry_codegen_threads_previous_operand(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_linear_periodic_carry_chain_spec(), engine=engine)
+
+    assert "def build_initial_cell():" in result.code
+    assert "def build_periodic_cell(cell_index, previous_operand):" in result.code
+    assert "def build_final_cell(previous_operand):" in result.code
+    assert "previous_operand = build_initial_cell()" in result.code
+    assert (
+        "previous_operand = build_periodic_cell(cell_index, previous_operand)"
+        in result.code
+    )
+    assert "result = build_final_cell(previous_operand)" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+)
+def test_linear_periodic_partial_carry_codegen_keeps_next_steps(
+    engine: EngineName,
+) -> None:
+    result = generate_code(
+        build_linear_periodic_partial_carry_chain_spec(),
+        engine=engine,
+    )
+
+    assert "initial_partial_carry" in result.code
+    assert "periodic_partial_carry" in result.code
+    assert "final_from_previous_partial" in result.code
 
 
 @pytest.mark.parametrize(

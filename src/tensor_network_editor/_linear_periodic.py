@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from ._analysis import analyze_network
 from .models import (
     CanvasNoteSpec,
+    ContractionStepSpec,
     GroupSpec,
     IndexSpec,
     LinearPeriodicCellName,
@@ -17,6 +18,15 @@ from .models import (
     TensorSpec,
 )
 
+LINEAR_PERIODIC_PREVIOUS_OPERAND_ID = "__linear_previous__"
+LINEAR_PERIODIC_NEXT_OPERAND_ID = "__linear_next__"
+LINEAR_PERIODIC_RESERVED_OPERAND_IDS = frozenset(
+    {
+        LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+        LINEAR_PERIODIC_NEXT_OPERAND_ID,
+    }
+)
+
 
 @dataclass(slots=True, frozen=True)
 class LinearPeriodicInterfacePort:
@@ -24,6 +34,7 @@ class LinearPeriodicInterfacePort:
 
     boundary_tensor_id: str
     boundary_index_id: str
+    boundary_index_name: str
     dimension: int
     internal_tensor_id: str
     internal_index_id: str
@@ -63,6 +74,7 @@ def build_internal_linear_periodic_cell_network(
     cell: LinearPeriodicCellSpec,
     *,
     cell_name: LinearPeriodicCellName,
+    include_contraction_plan: bool = True,
 ) -> NetworkSpec:
     """Return the cell network without editor-only virtual boundary tensors."""
     real_tensors = [
@@ -114,7 +126,7 @@ def build_internal_linear_periodic_cell_network(
             )
             for note in cell.notes
         ],
-        contraction_plan=cell.contraction_plan,
+        contraction_plan=cell.contraction_plan if include_contraction_plan else None,
         metadata=dict(cell.metadata),
     )
 
@@ -183,6 +195,7 @@ def build_linear_periodic_interface_ports(
             LinearPeriodicInterfacePort(
                 boundary_tensor_id=boundary_tensor.id,
                 boundary_index_id=boundary_index.id,
+                boundary_index_name=boundary_index.name,
                 dimension=boundary_index.dimension,
                 internal_tensor_id=internal_tensor.id,
                 internal_index_id=internal_index.id,
@@ -190,3 +203,35 @@ def build_linear_periodic_interface_ports(
             )
         )
     return tuple(ports)
+
+
+def is_linear_periodic_reserved_operand_id(operand_id: str) -> bool:
+    """Return ``True`` when ``operand_id`` is a reserved carry-mode operand."""
+    return operand_id in LINEAR_PERIODIC_RESERVED_OPERAND_IDS
+
+
+def linear_periodic_step_uses_reserved_operand(
+    step: ContractionStepSpec,
+) -> bool:
+    """Return ``True`` when a step references ``previous`` or ``next``."""
+    return is_linear_periodic_reserved_operand_id(
+        step.left_operand_id
+    ) or is_linear_periodic_reserved_operand_id(step.right_operand_id)
+
+
+def linear_periodic_cell_uses_carry_mode(cell: LinearPeriodicCellSpec) -> bool:
+    """Return ``True`` when a cell plan references carry-mode operands."""
+    if cell.contraction_plan is None:
+        return False
+    return any(
+        linear_periodic_step_uses_reserved_operand(step)
+        for step in cell.contraction_plan.steps
+    )
+
+
+def linear_periodic_chain_uses_carry_mode(chain: LinearPeriodicChainSpec) -> bool:
+    """Return ``True`` when any cell in the chain uses carry-mode operands."""
+    return any(
+        linear_periodic_cell_uses_carry_mode(cell)
+        for _, cell in iter_linear_periodic_cells(chain)
+    )

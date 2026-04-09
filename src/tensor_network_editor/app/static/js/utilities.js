@@ -89,6 +89,12 @@ export function registerUtilities(ctx) {
     periodic: "Periodic cell",
     final: "Final cell",
   };
+  const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID = "__linear_previous__";
+  const LINEAR_PERIODIC_NEXT_OPERAND_ID = "__linear_next__";
+  const LINEAR_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE = {
+    previous: LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+    next: LINEAR_PERIODIC_NEXT_OPERAND_ID,
+  };
   const LINEAR_PERIODIC_BOUNDARY_SETTINGS = {
     previous: {
       name: "Previous cell",
@@ -99,6 +105,22 @@ export function registerUtilities(ctx) {
       color: "#2f9b8f",
     },
   };
+
+  function getLinearPeriodicReservedOperandId(role) {
+    return Object.prototype.hasOwnProperty.call(
+      LINEAR_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE,
+      role
+    )
+      ? LINEAR_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE[role]
+      : null;
+  }
+
+  function isLinearPeriodicReservedOperandId(operandId) {
+    return (
+      operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID ||
+      operandId === LINEAR_PERIODIC_NEXT_OPERAND_ID
+    );
+  }
 
   function formatEngineLabel(engineName) {
     return Object.prototype.hasOwnProperty.call(ENGINE_LABELS, engineName)
@@ -419,12 +441,34 @@ export function registerUtilities(ctx) {
     return chain[`${cellName}_cell`] || null;
   }
 
+  function getLinearPeriodicBoundaryTensorByRole(role, spec = state.spec) {
+    return (Array.isArray(spec && spec.tensors) ? spec.tensors : []).find(
+      (tensor) => tensor.linear_periodic_role === role
+    ) || null;
+  }
+
   function isLinearPeriodicBoundaryTensor(tensor) {
     return Boolean(
       tensor &&
         (tensor.linear_periodic_role === "previous" ||
           tensor.linear_periodic_role === "next")
     );
+  }
+
+  function getLinearPeriodicReservedOperandIdForTensor(
+    tensorOrId,
+    spec = state.spec
+  ) {
+    const tensor =
+      typeof tensorOrId === "string"
+        ? (Array.isArray(spec && spec.tensors) ? spec.tensors : []).find(
+            (candidate) => candidate.id === tensorOrId
+          ) || null
+        : tensorOrId;
+    if (!isLinearPeriodicBoundaryTensor(tensor)) {
+      return null;
+    }
+    return getLinearPeriodicReservedOperandId(tensor.linear_periodic_role);
   }
 
   function getContractibleTensors(spec = state.spec) {
@@ -2109,6 +2153,10 @@ export function registerUtilities(ctx) {
     isLinearPeriodicMode,
     getActiveLinearPeriodicCellName,
     getLinearPeriodicCell,
+    getLinearPeriodicBoundaryTensorByRole,
+    getLinearPeriodicReservedOperandId,
+    isLinearPeriodicReservedOperandId,
+    getLinearPeriodicReservedOperandIdForTensor,
     isLinearPeriodicBoundaryTensor,
     getContractibleTensors,
     getContractibleEdges,

@@ -24,7 +24,11 @@ from tensor_network_editor.models import (
     ValidationIssue,
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
-from tests.factories import build_linear_periodic_chain_spec
+from tests.factories import (
+    build_linear_periodic_carry_chain_spec,
+    build_linear_periodic_chain_spec,
+    build_linear_periodic_partial_carry_chain_spec,
+)
 
 
 def build_valid_spec() -> NetworkSpec:
@@ -367,6 +371,41 @@ def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:
 
 def test_validate_spec_accepts_valid_linear_periodic_chain() -> None:
     assert validate_spec(build_linear_periodic_chain_spec()) == []
+
+
+def test_validate_spec_accepts_valid_linear_periodic_carry_chain() -> None:
+    assert validate_spec(build_linear_periodic_carry_chain_spec()) == []
+
+
+def test_validate_spec_accepts_linear_periodic_partial_carry_chain() -> None:
+    assert validate_spec(build_linear_periodic_partial_carry_chain_spec()) == []
+
+
+def test_validate_spec_rejects_linear_periodic_next_that_is_not_last() -> None:
+    spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    spec.linear_periodic_chain.initial_cell.tensors.append(
+        TensorSpec(
+            id="initial_extra_tensor",
+            name="InitialExtra",
+            position=CanvasPosition(x=220.0, y=240.0),
+            indices=[IndexSpec(id="initial_extra_open", name="free", dimension=11)],
+        )
+    )
+    assert spec.linear_periodic_chain.initial_cell.contraction_plan is not None
+    spec.linear_periodic_chain.initial_cell.contraction_plan.steps.append(
+        ContractionStepSpec(
+            id="initial_after_carry",
+            left_operand_id="initial_carry",
+            right_operand_id="initial_extra_tensor",
+        )
+    )
+
+    issue = find_issue(validate_spec(spec), "linear-periodic-carry-order")
+
+    assert issue.path == (
+        "linear_periodic_chain.initial_cell.contraction_plan.steps.initial_after_carry"
+    )
 
 
 def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:
