@@ -58,7 +58,7 @@ def load_spec_from_python_code(code: str) -> NetworkSpec:
 def launch_tensor_network_editor(
     initial_spec: NetworkSpec | None = None,
     *,
-    default_engine: EngineName = EngineName.TENSORNETWORK,
+    default_engine: EngineName = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",

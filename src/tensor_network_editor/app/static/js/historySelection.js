@@ -187,7 +187,10 @@ export function registerHistorySelection(ctx) {
       ctx.repairContractionPlan();
     }
     ctx.reconcileTensorOrder();
-    if (invalidate.lookups && typeof ctx.bumpSpecRevision === "function") {
+    const shouldRefreshLookups =
+      invalidate.lookups ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode());
+    if (shouldRefreshLookups && typeof ctx.bumpSpecRevision === "function") {
       ctx.bumpSpecRevision();
     }
     commitHistorySnapshot(beforeSnapshot);

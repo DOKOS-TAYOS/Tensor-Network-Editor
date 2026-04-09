@@ -19,7 +19,7 @@ def test_main_uses_expected_defaults() -> None:
     launch_mock.assert_called_once()
     assert launch_mock.call_args.kwargs == {
         "initial_spec": None,
-        "default_engine": EngineName.TENSORNETWORK,
+        "default_engine": EngineName.TENSORKROWCH,
         "open_browser": True,
         "print_code": False,
         "code_path": None,

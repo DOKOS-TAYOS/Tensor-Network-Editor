@@ -185,7 +185,7 @@ def _add_edit_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--engine",
         choices=[engine.value for engine in EngineName],
-        default=EngineName.TENSORNETWORK.value,
+        default=EngineName.TENSORKROWCH.value,
         help="Default target engine shown in the editor.",
     )
     parser.add_argument(

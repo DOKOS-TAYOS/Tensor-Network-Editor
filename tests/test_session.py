@@ -35,6 +35,13 @@ def test_build_blank_network_spec_returns_empty_editor_state() -> None:
     assert spec.notes == []
 
 
+def test_editor_session_defaults_to_tensorkrowch() -> None:
+    session = EditorSession()
+
+    assert session.default_engine is EngineName.TENSORKROWCH
+    assert session.default_collection_format is TensorCollectionFormat.LIST
+
+
 def test_bootstrap_payload_includes_template_parameter_definitions(
     editor_session: EditorSession,
 ) -> None:

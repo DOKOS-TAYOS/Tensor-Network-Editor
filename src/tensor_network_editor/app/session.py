@@ -49,7 +49,7 @@ class EditorSession:
     def __init__(
         self,
         initial_spec: NetworkSpec | None = None,
-        default_engine: EngineName = EngineName.TENSORNETWORK,
+        default_engine: EngineName = EngineName.TENSORKROWCH,
         default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
         *,
         print_code: bool = False,
@@ -139,7 +139,7 @@ def wait_for_editor_result(
 def launch_editor_session(
     initial_spec: NetworkSpec | None = None,
     *,
-    default_engine: EngineName = EngineName.TENSORNETWORK,
+    default_engine: EngineName = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",
