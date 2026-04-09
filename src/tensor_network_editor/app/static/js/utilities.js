@@ -67,6 +67,13 @@ export function registerUtilities(ctx) {
     einsum_numpy: "NumPy einsum",
     einsum_torch: "PyTorch einsum",
   };
+  const ENGINE_DISPLAY_ORDER = [
+    "tensorkrowch",
+    "einsum_torch",
+    "einsum_numpy",
+    "quimb",
+    "tensornetwork",
+  ];
   const COLLECTION_FORMAT_LABELS = {
     list: "List",
     matrix: "Matrix",
@@ -99,9 +106,29 @@ export function registerUtilities(ctx) {
       : engineName;
   }
 
+  function sortEngineNamesForDisplay(engines) {
+    const preferredOrder = new Map(
+      ENGINE_DISPLAY_ORDER.map((engineName, position) => [engineName, position])
+    );
+    return [...engines].sort((leftEngine, rightEngine) => {
+      const leftPriority = preferredOrder.has(leftEngine)
+        ? preferredOrder.get(leftEngine)
+        : Number.MAX_SAFE_INTEGER;
+      const rightPriority = preferredOrder.has(rightEngine)
+        ? preferredOrder.get(rightEngine)
+        : Number.MAX_SAFE_INTEGER;
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+      return formatEngineLabel(leftEngine).localeCompare(
+        formatEngineLabel(rightEngine)
+      );
+    });
+  }
+
   function populateEngineOptions(engines) {
     engineSelect.innerHTML = "";
-    engines.forEach((engineName) => {
+    sortEngineNamesForDisplay(engines).forEach((engineName) => {
       const option = document.createElement("option");
       option.value = engineName;
       option.textContent = formatEngineLabel(engineName);

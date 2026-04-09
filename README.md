@@ -90,8 +90,12 @@ python -m pip install -e ".[dev]"
 Start a local editing session:
 
 ```bash
-tensor-network-editor --engine einsum_numpy
+tensor-network-editor
 ```
+
+This opens the editor with `TensorKrowch` selected by default in the Generate
+Code panel. You can still choose another engine there or pass `--engine` when
+you want a different default for that session.
 
 Open an existing design and write generated code to a file when you confirm the session:
 
@@ -130,9 +134,9 @@ For notebooks, scripts, and CI, most subcommands support `--format json`.
 ### Launch the editor from Python
 
 ```python
-from tensor_network_editor import EngineName, launch_tensor_network_editor
+from tensor_network_editor import launch_tensor_network_editor
 
-result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
+result = launch_tensor_network_editor()
 
 if result is None:
     print("Editor cancelled.")
@@ -143,6 +147,9 @@ else:
 ```
 
 The editor blocks until the user presses `Done` or `Cancel`. On `Done`, it returns the abstract `NetworkSpec` together with the generated code for the selected engine.
+
+If you do not pass `default_engine`, the editor starts with
+`EngineName.TENSORKROWCH`.
 
 ## Use it as a library
 
@@ -238,11 +245,11 @@ The planner tools help with contraction-order work:
 
 Available engine names:
 
-- `tensornetwork`
-- `quimb`
 - `tensorkrowch`
-- `einsum_numpy`
 - `einsum_torch`
+- `einsum_numpy`
+- `quimb`
+- `tensornetwork`
 
 Generated code can organize created tensors in three collection formats:
 

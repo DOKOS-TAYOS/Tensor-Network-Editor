@@ -42,11 +42,15 @@ A typical user session looks like this:
 
 The package currently supports these engine names:
 
-- `tensornetwork`
-- `quimb`
 - `tensorkrowch`
-- `einsum_numpy`
 - `einsum_torch`
+- `einsum_numpy`
+- `quimb`
+- `tensornetwork`
+
+In the editor UI, the Generate Code picker shows them in that same order and
+starts with `TensorKrowch` selected unless you launch the session with a
+different `default_engine`.
 
 ### Simple rule of thumb
 

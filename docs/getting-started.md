@@ -59,8 +59,11 @@ python -m pip install "tensor-network-editor[quimb,planner]"
 The quickest way to try the library is the CLI.
 
 ```bash
-tensor-network-editor --engine einsum_numpy
+tensor-network-editor
 ```
+
+By default, the editor opens with `TensorKrowch` selected in the Generate Code
+panel. You can still override that per session with `--engine`.
 
 What happens next:
 
@@ -86,13 +89,13 @@ tensor-network-editor --load my_network.json --engine quimb --save-code generate
 Print the generated code to the terminal:
 
 ```bash
-tensor-network-editor --engine einsum_numpy --print-code
+tensor-network-editor --print-code
 ```
 
 Start the local server without opening the browser automatically:
 
 ```bash
-tensor-network-editor --engine einsum_numpy --no-browser
+tensor-network-editor --no-browser
 ```
 
 ## 3. Launch the editor from Python
@@ -101,9 +104,9 @@ If you prefer to control the workflow from a script or notebook, use the public
 Python API.
 
 ```python
-from tensor_network_editor import EngineName, launch_tensor_network_editor
+from tensor_network_editor import launch_tensor_network_editor
 
-result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
+result = launch_tensor_network_editor()
 
 if result is None:
     print("Editor cancelled.")
@@ -117,6 +120,7 @@ Important detail:
 
 - when the user cancels the editor, the function returns `None`
 - when the user confirms, it returns an `EditorResult`
+- if you do not pass `default_engine`, the editor starts with `TensorKrowch`
 
 ## 4. Save and reload a network design
 
@@ -181,7 +185,7 @@ In practice, that means:
 
 If you want a simple first session, this is a good path:
 
-1. Start with `einsum_numpy`.
+1. Start with the default `TensorKrowch` engine.
 2. Create a small network with two tensors.
 3. Connect one pair of matching indices.
 4. Press `Done`.

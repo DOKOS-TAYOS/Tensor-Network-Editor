@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The editor and CLI now default the code-generation engine to `tensorkrowch`, and the Generate Code engine picker now shows engines in the order `TensorKrowch`, `PyTorch einsum`, `NumPy einsum`, `Quimb`, `TensorNetwork`.
+- The toolbar keeps export actions grouped behind a single export-format picker plus `Export` button, while the Generate Code panel keeps the engine picker inside the code workflow.
+
+### Fixed
+
+- For mode now keeps repeated index-dimension edits stable across updates, propagates interface dimensions more reliably between initial, periodic, and final cells, and synchronizes connected-port dimensions automatically when one side changes.
+- Notes now tint the whole note frame correctly without stealing focus while you type, and template insertion in contraction mode no longer collapses new tensors into one point.
+
 ## [0.2.0] - 2026-04-07
 
 ### Added
