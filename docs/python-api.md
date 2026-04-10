@@ -16,7 +16,7 @@ The package exposes these main functions at the top level:
 - `load_spec_from_python_code(code) -> NetworkSpec`
 - `validate_spec(spec) -> list[ValidationIssue]`
 - `lint_spec(spec, ...) -> LintReport`
-- `analyze_spec(spec) -> SpecAnalysisReport`
+- `analyze_spec(spec, memory_dtype=...) -> SpecAnalysisReport`
 - `analyze_contraction(spec, ...) -> ContractionAnalysisResult`
 - `diff_specs(before, after) -> SpecDiffResult`
 - `list_template_names() -> list[str]`
@@ -77,7 +77,7 @@ spec = load_spec("my_network.json")
 
 validation_issues = validate_spec(spec)
 lint_report = lint_spec(spec, max_tensor_rank=8, max_tensor_cardinality=50_000)
-analysis = analyze_spec(spec)
+analysis = analyze_spec(spec, memory_dtype="float32")
 diff = diff_specs(spec, spec)
 
 print(validation_issues)
@@ -92,10 +92,12 @@ Practical notes:
 - `lint_spec(...)` keeps going with softer heuristics such as disconnected
   components, suspicious open indices, empty groups, large tensors, and manual
   plan completeness.
-- `analyze_spec(...)` includes structural counts plus contraction analysis.
+- `analyze_spec(..., memory_dtype=...)` includes structural counts plus
+  contraction analysis, and uses the requested dtype when estimating peak
+  memory bytes.
 - `analyze_contraction(...)` now includes `automatic_full`, `automatic_future`,
-  `automatic_past`, and comparison payloads with byte estimates for a selected
-  dtype.
+  `automatic_past`, and comparison payloads with byte estimates, peak steps,
+  and bottleneck labels for a selected dtype.
 - `diff_specs(...)` compares entities by stable ids instead of text diffs.
 
 ## `launch_tensor_network_editor`

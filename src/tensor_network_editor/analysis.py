@@ -5,10 +5,15 @@ from __future__ import annotations
 from ._analysis import analyze_network
 from ._contraction_analysis import analyze_contraction
 from ._headless_models import NetworkSummary, SpecAnalysisReport
+from ._memory_dtypes import DEFAULT_MEMORY_DTYPE
 from .models import NetworkSpec
 
 
-def analyze_spec(spec: NetworkSpec) -> SpecAnalysisReport:
+def analyze_spec(
+    spec: NetworkSpec,
+    *,
+    memory_dtype: str = DEFAULT_MEMORY_DTYPE,
+) -> SpecAnalysisReport:
     """Return a structured summary for ``spec`` and its contraction metadata."""
     network = analyze_network(spec, validate=True)
     return SpecAnalysisReport(
@@ -19,7 +24,7 @@ def analyze_spec(spec: NetworkSpec) -> SpecAnalysisReport:
             note_count=len(network.spec.notes),
             open_index_count=len(network.open_indices),
         ),
-        contraction=analyze_contraction(network.spec),
+        contraction=analyze_contraction(network.spec, memory_dtype=memory_dtype),
     )
 
 

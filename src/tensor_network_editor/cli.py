@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from ._headless_models import SpecAnalysisReport, SpecDiffResult
+from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, SUPPORTED_MEMORY_DTYPES
 from .analysis import analyze_spec
 from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
 from .diffing import diff_specs
@@ -98,7 +99,11 @@ def build_command_parser() -> argparse.ArgumentParser:
         "analyze", help="Analyze structure and contraction metrics for a saved spec."
     )
     analyze_parser.add_argument("path", type=str)
-    analyze_parser.add_argument("--dtype", default="float64")
+    analyze_parser.add_argument(
+        "--dtype",
+        choices=list(SUPPORTED_MEMORY_DTYPES),
+        default=DEFAULT_MEMORY_DTYPE,
+    )
     _add_output_format_argument(analyze_parser)
     analyze_parser.set_defaults(handler=_handle_analyze)
 
@@ -262,7 +267,7 @@ def _handle_lint(args: argparse.Namespace) -> int:
 def _handle_analyze(args: argparse.Namespace) -> int:
     """Analyze structure and contraction metrics for a saved spec."""
     spec = load_spec(args.path)
-    report = analyze_spec(spec)
+    report = analyze_spec(spec, memory_dtype=args.dtype)
     if args.format == "json":
         _print_json(report.to_dict())
     else:
@@ -405,21 +410,158 @@ def _print_lint_result(report: LintReport, *, output_format: str) -> None:
 
 
 def _print_analysis_text(report: SpecAnalysisReport) -> None:
-    """Print a compact text summary for analyze results."""
+    """Print a readable text summary for analyze results."""
     network = report.network
-    contraction = report.contraction
     print(
         "Network:"
         f" tensors={network.tensor_count},"
         f" edges={network.edge_count},"
         f" open_indices={network.open_index_count}"
     )
-    if contraction is not None:
-        print(
-            "Contraction:"
-            f" manual_flops={contraction.manual.summary.total_estimated_flops},"
-            f" auto_strategy={contraction.automatic_strategy}"
-        )
+    contraction = report.contraction
+    if contraction is None:
+        return
+    manual = contraction.manual
+    print(
+        "Manual:"
+        f" status={manual.status},"
+        f" flops={_format_metric(manual.summary.total_estimated_flops)},"
+        f" macs={_format_metric(manual.summary.total_estimated_macs)},"
+        f" peak={_format_metric(manual.summary.peak_intermediate_size)},"
+        f" shape={_format_shape(manual.summary.final_shape)}"
+    )
+    _print_automatic_analysis_text("Automatic full", contraction.automatic_full)
+    _print_automatic_analysis_text("Automatic future", contraction.automatic_future)
+    _print_automatic_analysis_text("Automatic past", contraction.automatic_past)
+    _print_comparison_text(
+        "Manual vs automatic full",
+        contraction.comparisons.get("manual_vs_automatic_full"),
+    )
+    _print_comparison_text(
+        "Manual subtrees vs automatic past",
+        contraction.comparisons.get("manual_subtrees_vs_automatic_past"),
+    )
+
+
+def _print_automatic_analysis_text(label: str, analysis: object) -> None:
+    """Print one automatic analysis summary line."""
+    status = getattr(analysis, "status", "unknown")
+    summary = getattr(analysis, "summary", None)
+    message = getattr(analysis, "message", None)
+    if summary is None:
+        print(f"{label}: status={status}")
+        return
+    line = (
+        f"{label}:"
+        f" status={status},"
+        f" flops={_format_metric(getattr(summary, 'total_estimated_flops', 0))},"
+        f" macs={_format_metric(getattr(summary, 'total_estimated_macs', 0))},"
+        f" peak={_format_metric(getattr(summary, 'peak_intermediate_size', 0))}"
+    )
+    if isinstance(message, str) and message:
+        line += f", note={message}"
+    print(line)
+
+
+def _print_comparison_text(label: str, comparison: object | None) -> None:
+    """Print one contraction comparison in a readable text block."""
+    if comparison is None:
+        return
+    status = getattr(comparison, "status", "unknown")
+    print(f"Comparison {label}:")
+    if status != "complete":
+        message = getattr(comparison, "message", None)
+        if isinstance(message, str) and message:
+            print(f"  Status: {status} ({message})")
+        else:
+            print(f"  Status: {status}")
+        return
+    baseline_label = str(getattr(comparison, "baseline_label", "baseline"))
+    candidate_label = str(getattr(comparison, "candidate_label", "candidate"))
+    memory_dtype = str(getattr(comparison, "memory_dtype", DEFAULT_MEMORY_DTYPE))
+    print(
+        "  FLOP"
+        f" {_describe_delta(getattr(comparison, 'delta_total_estimated_flops', 0))}"
+    )
+    print(
+        f"  MAC {_describe_delta(getattr(comparison, 'delta_total_estimated_macs', 0))}"
+    )
+    print(
+        "  Peak size"
+        f" {_describe_delta(getattr(comparison, 'delta_peak_intermediate_size', 0))}"
+    )
+    print(
+        "  Peak memory"
+        f" {_describe_delta(getattr(comparison, 'delta_peak_intermediate_bytes', 0), unit='bytes')}"
+        f" ({memory_dtype})"
+    )
+    print(
+        "  Peak bytes:"
+        f" {baseline_label}={_format_metric(getattr(comparison, 'baseline_peak_intermediate_bytes', 0))} bytes,"
+        f" {candidate_label}={_format_metric(getattr(comparison, 'candidate_peak_intermediate_bytes', 0))} bytes"
+    )
+    print(
+        "  Peak steps:"
+        f" {baseline_label}={_format_text_value(getattr(comparison, 'baseline_peak_step_id', None))},"
+        f" {candidate_label}={_format_text_value(getattr(comparison, 'candidate_peak_step_id', None))}"
+    )
+    print(
+        "  Bottlenecks:"
+        f" {baseline_label}={_format_label_list(getattr(comparison, 'baseline_bottleneck_labels', ()))}"
+        f" | {candidate_label}={_format_label_list(getattr(comparison, 'candidate_bottleneck_labels', ()))}"
+    )
+
+
+def _coerce_int(value: object) -> int:
+    """Normalize integer-like values used by text summaries."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        return int(value)
+    raise TypeError(f"Expected an integer-like value, got {type(value).__name__}.")
+
+
+def _format_metric(value: object) -> str:
+    """Format a numeric metric with grouping separators."""
+    return f"{_coerce_int(value):,}"
+
+
+def _format_shape(shape: object) -> str:
+    """Format a result shape for text output."""
+    if shape == ():
+        return "scalar"
+    if not isinstance(shape, tuple) or not shape:
+        return "n/a"
+    return " x ".join(str(int(dimension)) for dimension in shape)
+
+
+def _describe_delta(value: object, *, unit: str = "") -> str:
+    """Describe whether one metric went up, down, or stayed unchanged."""
+    normalized_value = _coerce_int(value)
+    if normalized_value == 0:
+        return "is unchanged"
+    direction = "down" if normalized_value < 0 else "up"
+    magnitude = _format_metric(abs(normalized_value))
+    suffix = f" {unit}" if unit else ""
+    return f"{direction} by {magnitude}{suffix}"
+
+
+def _format_text_value(value: object | None) -> str:
+    """Format optional text values for analysis output."""
+    if value is None:
+        return "n/a"
+    return str(value)
+
+
+def _format_label_list(labels: object) -> str:
+    """Format bottleneck labels for analysis output."""
+    if not isinstance(labels, tuple):
+        return "n/a"
+    if not labels:
+        return "none"
+    return ", ".join(str(label) for label in labels)
 
 
 def _print_diff_text(result: SpecDiffResult) -> None:

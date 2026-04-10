@@ -7,7 +7,6 @@ from http import HTTPStatus
 from typing import Literal, cast
 
 from .._contraction_analysis_types import ContractionAnalysisResult
-from ..analysis import analyze_contraction
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
@@ -16,7 +15,6 @@ from ._protocol import (
     JsonDict,
     JsonResponse,
     bad_request_response,
-    deserialize_spec_with_issues,
     deserialize_validation_payload,
     issues_response,
     ok_response,
@@ -27,7 +25,11 @@ from ._protocol import (
     serialize_spec_payload,
 )
 from ._protocol import read_json as _read_json
-from ._services import build_bootstrap_payload, build_template_from_payload
+from ._services import (
+    analyze_serialized_contraction,
+    build_bootstrap_payload,
+    build_template_from_payload,
+)
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
@@ -124,16 +126,15 @@ def handle_analyze_contraction(
         return bad_request_response("Missing 'spec' payload.")
 
     try:
-        spec = deserialize_spec_with_issues(serialized_spec)
+        result = analyze_serialized_contraction(
+            cast(dict[str, object], serialized_spec)
+        )
     except SerializationError as exc:
         LOGGER.warning("Contraction analysis request contained malformed spec: %s", exc)
         return bad_request_response(str(exc))
+    except SpecValidationError as exc:
+        return issues_response(exc.issues)
 
-    issues = validate_spec(spec)
-    if issues:
-        return issues_response(issues)
-
-    result = analyze_contraction(spec)
     return ok_response(_serialize_contraction_analysis_result(result))
 
 

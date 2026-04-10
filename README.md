@@ -123,7 +123,7 @@ You can also use the package without opening the editor:
 ```bash
 tensor-network-editor validate my_network.json
 tensor-network-editor lint my_network.json --fail-on warning
-tensor-network-editor analyze my_network.json --format json
+tensor-network-editor analyze my_network.json --dtype float32 --format json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
 tensor-network-editor diff before.json after.json --format json
 tensor-network-editor template list --format json
@@ -131,6 +131,9 @@ tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --phy
 ```
 
 For notebooks, scripts, and CI, most subcommands support `--format json`.
+`analyze` also accepts `--dtype` so the reported peak-memory byte estimates match
+the element width you care about (`float16`, `float32`, `float64`, `complex64`,
+or `complex128`).
 
 ### Launch the editor from Python
 
@@ -186,7 +189,7 @@ Main public entry points:
 - `load_spec_from_python_code(code) -> NetworkSpec`
 - `validate_spec(spec) -> list[ValidationIssue]`
 - `lint_spec(spec, ...) -> LintReport`
-- `analyze_spec(spec) -> SpecAnalysisReport`
+- `analyze_spec(spec, memory_dtype=...) -> SpecAnalysisReport`
 - `analyze_contraction(spec, ...) -> ContractionAnalysisResult`
 - `diff_specs(before, after) -> SpecDiffResult`
 - `list_template_names() -> list[str]`
@@ -239,7 +242,9 @@ The planner tools help with contraction-order work:
 - Manual contraction paths are available directly in the editor.
 - Automatic greedy suggestions are available when the optional `planner` extra is installed.
 - Headless analysis now exposes manual, auto full, auto future, and auto past summaries.
-- Comparison payloads include FLOP, MAC, peak intermediate size, and estimated peak bytes for the requested dtype.
+- Comparison payloads include FLOP, MAC, peak intermediate size, peak-step bottlenecks, and estimated peak bytes for the requested dtype.
+- The `tensor-network-editor analyze ...` text output now turns those deltas into readable comparisons such as FLOP savings, memory trade-offs, and the step where the peak appears.
+- The planner sidebar now surfaces the same manual-vs-auto comparison summaries instead of hiding them in the raw JSON payload.
 - Generated code respects the saved manual plan when one is present.
 - In linear periodic `For` mode, manual plans can use `Previous cell` and `Next cell` as special carry operands between neighboring cells.
 - In those carry plans, `Next cell` must be the last step of the cell. The generated code forwards only that chosen carry operand and preserves any other non-contracted tensors in `remaining_operands`, so the final tensor network may stay partially contracted on purpose.

@@ -758,3 +758,191 @@ def test_deleting_a_contracted_result_removes_all_nested_base_tensors(
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_comparison_summary_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildComparisonSpec() {
+          return {
+            id: "network_compare",
+            name: "compare",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 80, y: 120 },
+                indices: [
+                  { id: "tensor_a_i", name: "i", dimension: 2, offset: { x: -58, y: -20 }, metadata: {} },
+                  { id: "tensor_a_x", name: "x", dimension: 3, offset: { x: 58, y: -20 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 240, y: 120 },
+                indices: [
+                  { id: "tensor_b_x", name: "x", dimension: 3, offset: { x: -58, y: -20 }, metadata: {} },
+                  { id: "tensor_b_j", name: "j", dimension: 4, offset: { x: 58, y: -20 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [
+              {
+                id: "edge_x",
+                name: "bond_x",
+                left: { tensor_id: "tensor_a", index_id: "tensor_a_x" },
+                right: { tensor_id: "tensor_b", index_id: "tensor_b_x" },
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        ctx.dom.plannerPanel = {
+          innerHTML: "",
+          querySelectorAll() {
+            return [];
+          },
+        };
+        await registerHistory(ctx);
+        await registerPlanner(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildComparisonSpec());
+        ctx.state.contractionAnalysis = {
+          status: "ready",
+          payload: {
+            memory_dtype: "float64",
+            network_output_shape: [2, 4],
+            manual: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 1600,
+                total_estimated_macs: 800,
+                peak_intermediate_size: 100,
+                peak_intermediate_bytes: 800,
+                final_shape: [2, 4],
+              },
+            },
+            automatic_full: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 1224,
+                total_estimated_macs: 612,
+                peak_intermediate_size: 6,
+                peak_intermediate_bytes: 48,
+              },
+            },
+            automatic_future: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 140,
+                total_estimated_macs: 70,
+                peak_intermediate_size: 14,
+                peak_intermediate_bytes: 112,
+              },
+            },
+            automatic_past: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 576,
+                total_estimated_macs: 288,
+                peak_intermediate_size: 12,
+                peak_intermediate_bytes: 96,
+              },
+            },
+            comparisons: {
+              manual_vs_automatic_full: {
+                status: "complete",
+                baseline_label: "manual",
+                candidate_label: "automatic_full",
+                memory_dtype: "float64",
+                baseline_peak_intermediate_bytes: 800,
+                candidate_peak_intermediate_bytes: 48,
+                delta_total_estimated_flops: -376,
+                delta_total_estimated_macs: -188,
+                delta_peak_intermediate_size: -94,
+                delta_peak_intermediate_bytes: -752,
+                baseline_peak_step_id: "step_bcd",
+                candidate_peak_step_id: "auto_full_step_1",
+                baseline_bottleneck_labels: ["x", "y", "z"],
+                candidate_bottleneck_labels: ["i", "j"],
+              },
+              manual_subtrees_vs_automatic_past: {
+                status: "complete",
+                baseline_label: "manual_subtrees",
+                candidate_label: "automatic_past",
+                memory_dtype: "float64",
+                baseline_peak_intermediate_bytes: 192,
+                candidate_peak_intermediate_bytes: 96,
+                delta_total_estimated_flops: -24,
+                delta_total_estimated_macs: -12,
+                delta_peak_intermediate_size: -12,
+                delta_peak_intermediate_bytes: -96,
+                baseline_peak_step_id: "step_ab",
+                candidate_peak_step_id: "step_ab",
+                baseline_bottleneck_labels: ["x", "y"],
+                candidate_bottleneck_labels: ["x"],
+              },
+            },
+            automatic_strategy: "greedy",
+          },
+        };
+        ctx.state.plannerDisclosureState.automaticFuture = true;
+        ctx.state.plannerDisclosureState.automaticPast = true;
+        ctx.state.plannerInspectionStepCount = 0;
+
+        ctx.renderPlanner();
+
+        const html = ctx.dom.plannerPanel.innerHTML;
+        if (!html.includes("Manual vs auto full")) {
+          throw new Error(`Expected Manual vs auto full summary, received: ${html}`);
+        }
+        if (html.includes("Viewing the scene before step 1")) {
+          throw new Error(`The planner should not render the old inspection helper message, received: ${html}`);
+        }
+        if (!html.includes("Auto - Manual")) {
+          throw new Error(`Expected comparison chips to explain the Auto - Manual delta, received: ${html}`);
+        }
+        if (!html.includes(">FLOP</span>") || !html.includes("<strong>-376</strong>")) {
+          throw new Error(`Expected the FLOP comparison chip to render the raw delta, received: ${html}`);
+        }
+        if (!html.includes(">Memory</span>") || !html.includes("<strong>-752 bytes</strong>")) {
+          throw new Error(`Expected the memory comparison chip to render the raw delta, received: ${html}`);
+        }
+        if (!html.includes("Manual subtrees vs auto past")) {
+          throw new Error(`Expected Manual subtrees vs auto past summary, received: ${html}`);
+        }
+        if (!html.includes("<strong>800 bytes</strong>")) {
+          throw new Error(`Expected the manual summary to include peak memory, received: ${html}`);
+        }
+        if (!html.includes("<strong>112 bytes</strong>")) {
+          throw new Error(`Expected the automatic future summary to include peak memory, received: ${html}`);
+        }
+        if (!html.includes("<strong>96 bytes</strong>")) {
+          throw new Error(`Expected the automatic past summary to include peak memory, received: ${html}`);
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner comparison summary regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

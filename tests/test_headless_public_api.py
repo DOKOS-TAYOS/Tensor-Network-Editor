@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import cast
+from unittest.mock import patch
 
 import tensor_network_editor as tne
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
@@ -94,6 +95,31 @@ def test_analyze_spec_returns_network_and_contraction_sections() -> None:
     manual_payload = cast(dict[str, JSONValue], contraction_payload["manual"])
     summary_payload = cast(dict[str, JSONValue], manual_payload["summary"])
     assert summary_payload["total_estimated_flops"] == 60
+
+
+def test_analyze_spec_passes_memory_dtype_to_contraction_analysis() -> None:
+    spec = build_three_tensor_spec()
+
+    with patch(
+        "tensor_network_editor.analysis.analyze_contraction",
+        return_value=None,
+    ) as analyze_mock:
+        report = analyze_spec(spec, memory_dtype="float32")
+
+    assert report.contraction is None
+    analyze_mock.assert_called_once_with(spec, memory_dtype="float32")
+
+
+def test_analyze_spec_defaults_memory_dtype_to_float64() -> None:
+    spec = build_three_tensor_spec()
+
+    with patch(
+        "tensor_network_editor.analysis.analyze_contraction",
+        return_value=None,
+    ) as analyze_mock:
+        analyze_spec(spec)
+
+    analyze_mock.assert_called_once_with(spec, memory_dtype="float64")
 
 
 def test_diff_specs_compares_entities_by_stable_ids() -> None:

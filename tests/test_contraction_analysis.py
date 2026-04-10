@@ -84,6 +84,7 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
 ) -> None:
     result = analyze_contraction(sample_spec)
 
+    assert result.memory_dtype == "float64"
     assert result.network_output_shape == (2, 4)
     assert result.manual.status == "complete"
     assert len(result.manual.steps) == 1
@@ -94,6 +95,7 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.manual.summary.total_estimated_macs == 24
     assert result.manual.summary.final_shape == (2, 4)
     assert result.manual.summary.peak_intermediate_size == 8
+    assert result.manual.summary.peak_intermediate_bytes == 64
     assert result.automatic_future is not None
     assert result.automatic_past is not None
 
@@ -109,6 +111,7 @@ def test_analyze_contraction_marks_incomplete_manual_plan() -> None:
     assert result.manual.summary.total_estimated_macs == 30
     assert result.manual.summary.final_shape == (2, 5)
     assert result.manual.summary.peak_intermediate_size == 10
+    assert result.manual.summary.peak_intermediate_bytes == 80
     assert result.manual.summary.remaining_operand_ids == ("step_ab", "tensor_c")
     assert result.automatic_future.status in {"complete", "unavailable"}
     assert result.automatic_past.status in {"complete", "unavailable"}
@@ -116,6 +119,7 @@ def test_analyze_contraction_marks_incomplete_manual_plan() -> None:
         assert len(result.automatic_future.steps) == 1
         assert result.automatic_future.summary.total_estimated_flops == 140
         assert result.automatic_future.summary.total_estimated_macs == 70
+        assert result.automatic_future.summary.peak_intermediate_bytes == 112
         assert {
             result.automatic_future.steps[0].left_operand_id,
             result.automatic_future.steps[0].right_operand_id,
@@ -161,6 +165,7 @@ def test_analyze_contraction_accepts_multi_step_manual_plan() -> None:
     assert result.manual.summary.total_estimated_flops == 200
     assert result.manual.summary.total_estimated_macs == 100
     assert result.manual.summary.peak_intermediate_size == 14
+    assert result.manual.summary.peak_intermediate_bytes == 112
     assert result.manual.summary.final_shape == (2, 7)
     assert result.manual.summary.remaining_operand_ids == ("step_abc",)
 
@@ -371,10 +376,14 @@ def test_analyze_contraction_peak_bytes_respect_requested_dtype() -> None:
 
     assert float64_comparison.memory_dtype == "float64"
     assert float32_comparison.memory_dtype == "float32"
+    assert float64_result.manual.summary.peak_intermediate_bytes == 800
+    assert float32_result.manual.summary.peak_intermediate_bytes == 400
     if (
         float64_comparison.status == "complete"
         and float32_comparison.status == "complete"
     ):
+        assert float64_result.automatic_full.summary.peak_intermediate_bytes == 48
+        assert float32_result.automatic_full.summary.peak_intermediate_bytes == 24
         assert float64_comparison.baseline_peak_intermediate_bytes == 800
         assert float32_comparison.baseline_peak_intermediate_bytes == 400
         assert float64_comparison.candidate_peak_intermediate_bytes == 48

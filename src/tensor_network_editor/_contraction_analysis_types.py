@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import cast
 
+from ._memory_dtypes import DEFAULT_MEMORY_DTYPE
 from .types import JSONValue
 
 
@@ -51,6 +52,7 @@ class ManualContractionSummary:
     final_shape: tuple[int, ...] | None
     completion_status: str
     remaining_operand_ids: tuple[str, ...] = field(default_factory=tuple)
+    peak_intermediate_bytes: int = 0
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the manual summary to a JSON-compatible mapping."""
@@ -58,6 +60,7 @@ class ManualContractionSummary:
             "total_estimated_flops": self.total_estimated_flops,
             "total_estimated_macs": self.total_estimated_macs,
             "peak_intermediate_size": self.peak_intermediate_size,
+            "peak_intermediate_bytes": self.peak_intermediate_bytes,
             "final_shape": (
                 cast(JSONValue, list(self.final_shape))
                 if self.final_shape is not None
@@ -75,6 +78,7 @@ class AutomaticContractionSummary:
     total_estimated_flops: int
     total_estimated_macs: int
     peak_intermediate_size: int
+    peak_intermediate_bytes: int = 0
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the automatic summary to a JSON-compatible mapping."""
@@ -82,6 +86,7 @@ class AutomaticContractionSummary:
             "total_estimated_flops": self.total_estimated_flops,
             "total_estimated_macs": self.total_estimated_macs,
             "peak_intermediate_size": self.peak_intermediate_size,
+            "peak_intermediate_bytes": self.peak_intermediate_bytes,
         }
 
 
@@ -183,6 +188,7 @@ class ContractionAnalysisResult:
     automatic_full: AutomaticContractionPlanAnalysis
     automatic_future: AutomaticContractionPlanAnalysis
     automatic_past: AutomaticContractionPlanAnalysis
+    memory_dtype: str = DEFAULT_MEMORY_DTYPE
     comparisons: dict[str, ContractionComparison] = field(default_factory=dict)
     automatic_strategy: str = "greedy"
     message: str | None = None
@@ -195,6 +201,7 @@ class ContractionAnalysisResult:
             "automatic_full": self.automatic_full.to_dict(),
             "automatic_future": self.automatic_future.to_dict(),
             "automatic_past": self.automatic_past.to_dict(),
+            "memory_dtype": self.memory_dtype,
             "comparisons": cast(
                 JSONValue,
                 {

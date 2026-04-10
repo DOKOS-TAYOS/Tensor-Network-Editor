@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from .._contraction_analysis_types import ContractionAnalysisResult
 from ..analysis import analyze_contraction
 from ..codegen.registry import generate_code as generate_code_internal
+from ..errors import SpecValidationError
 from ..models import (
     CodegenResult,
     EditorResult,
@@ -22,6 +23,7 @@ from ..templates import (
     parse_template_parameters,
     serialize_template_definitions,
 )
+from ..validation import validate_spec
 
 if TYPE_CHECKING:
     from .session import EditorSession
@@ -106,8 +108,12 @@ def build_template_from_payload(
 def analyze_serialized_contraction(
     serialized_spec: dict[str, object],
 ) -> ContractionAnalysisResult:
-    """Analyze contraction data for a serialized network payload."""
-    return analyze_contraction(deserialize_spec(serialized_spec))
+    """Deserialize, validate, and analyze contraction data for one payload."""
+    spec = deserialize_spec(serialized_spec, validate=False)
+    issues = validate_spec(spec)
+    if issues:
+        raise SpecValidationError(issues)
+    return analyze_contraction(spec)
 
 
 def _resolve_collection_format(

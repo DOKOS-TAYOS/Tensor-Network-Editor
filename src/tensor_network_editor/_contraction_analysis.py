@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from importlib import import_module
 from string import ascii_letters
@@ -24,6 +23,7 @@ from ._contraction_plan import (
     simulate_contraction_plan,
     simulate_contraction_step,
 )
+from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
 from .codegen.common import prepare_network
 from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 
@@ -31,9 +31,10 @@ from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 def analyze_contraction(
     spec: NetworkSpec,
     *,
-    memory_dtype: str = "float64",
+    memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
+    bytes_per_element = dtype_size_in_bytes(memory_dtype)
     prepared = prepare_network(spec)
     dimension_by_label = build_dimension_by_label(prepared)
     initial_operands = build_initial_operand_labels(prepared)
@@ -45,6 +46,7 @@ def analyze_contraction(
         spec=spec,
         initial_operands=initial_operands,
         dimension_by_label=dimension_by_label,
+        bytes_per_element=bytes_per_element,
     )
     manual_operand_state = _build_manual_operand_state(
         spec=spec,
@@ -57,17 +59,20 @@ def analyze_contraction(
         operands=initial_operands,
         dimension_by_label=dimension_by_label,
         step_id_prefix="auto_full_step_",
+        bytes_per_element=bytes_per_element,
     )
     automatic_future = _analyze_future_automatic_plan(
         initial_operands=initial_operands,
         manual_operand_state=manual_operand_state,
         dimension_by_label=dimension_by_label,
+        bytes_per_element=bytes_per_element,
     )
     automatic_past = _analyze_past_automatic_plan(
         spec=spec,
         initial_operands=initial_operands,
         manual_operand_state=manual_operand_state,
         dimension_by_label=dimension_by_label,
+        bytes_per_element=bytes_per_element,
     )
     message = (
         automatic_future.message
@@ -82,6 +87,7 @@ def analyze_contraction(
         automatic_full=automatic_full,
         automatic_future=automatic_future,
         automatic_past=automatic_past,
+        memory_dtype=memory_dtype,
         comparisons=_build_contraction_comparisons(
             manual=manual,
             automatic_full=automatic_full,
@@ -131,6 +137,7 @@ def _analyze_manual_plan(
     spec: NetworkSpec,
     initial_operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
+    bytes_per_element: int,
 ) -> ManualContractionPlanAnalysis:
     """Analyze the saved manual plan, or derive a trivial summary when absent."""
     plan = spec.contraction_plan
@@ -142,6 +149,7 @@ def _analyze_manual_plan(
             total_estimated_macs=0,
             peak_intermediate_size=0,
             dimension_by_label=dimension_by_label,
+            bytes_per_element=bytes_per_element,
         )
         return ManualContractionPlanAnalysis(
             status=summary.completion_status,
@@ -153,6 +161,7 @@ def _analyze_manual_plan(
         steps=plan.steps,
         initial_operands=initial_operands,
         dimension_by_label=dimension_by_label,
+        bytes_per_element=bytes_per_element,
     )
 
 
@@ -161,6 +170,7 @@ def _simulate_plan_steps(
     steps: list[ContractionStepSpec],
     initial_operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
+    bytes_per_element: int,
 ) -> ManualContractionPlanAnalysis:
     """Simulate each saved step and accumulate manual-plan metrics."""
     simulation = simulate_contraction_plan(
@@ -202,6 +212,7 @@ def _simulate_plan_steps(
         total_estimated_macs=total_estimated_macs,
         peak_intermediate_size=peak_intermediate_size,
         dimension_by_label=dimension_by_label,
+        bytes_per_element=bytes_per_element,
         last_result_shape=step_results[-1].result_shape if step_results else None,
     )
     return ManualContractionPlanAnalysis(
@@ -219,6 +230,7 @@ def _build_manual_summary_from_operands(
     total_estimated_macs: int,
     peak_intermediate_size: int,
     dimension_by_label: dict[str, int],
+    bytes_per_element: int,
     last_result_shape: tuple[int, ...] | None = None,
 ) -> ManualContractionSummary:
     """Build the summary payload for the current manual-plan state."""
@@ -235,6 +247,7 @@ def _build_manual_summary_from_operands(
         final_shape=final_shape if status == "complete" or last_result_shape else None,
         completion_status=status,
         remaining_operand_ids=tuple(remaining_operands),
+        peak_intermediate_bytes=peak_intermediate_size * bytes_per_element,
     )
 
 
@@ -280,12 +293,14 @@ def _build_automatic_summary(
     total_estimated_flops: int,
     total_estimated_macs: int,
     peak_intermediate_size: int,
+    bytes_per_element: int,
 ) -> AutomaticContractionSummary:
     """Build a summary payload for automatic path analysis."""
     return AutomaticContractionSummary(
         total_estimated_flops=total_estimated_flops,
         total_estimated_macs=total_estimated_macs,
         peak_intermediate_size=peak_intermediate_size,
+        peak_intermediate_bytes=peak_intermediate_size * bytes_per_element,
     )
 
 
@@ -352,13 +367,12 @@ def _compare_plan_analyses(
             message=candidate_analysis.message,
         )
 
-    bytes_per_element = _dtype_size_in_bytes(memory_dtype)
     baseline_peak_size = baseline_analysis.summary.peak_intermediate_size
     candidate_peak_size = candidate_analysis.summary.peak_intermediate_size
     baseline_peak_step = _find_peak_step(baseline_analysis.steps)
     candidate_peak_step = _find_peak_step(candidate_analysis.steps)
-    baseline_peak_bytes = baseline_peak_size * bytes_per_element
-    candidate_peak_bytes = candidate_peak_size * bytes_per_element
+    baseline_peak_bytes = baseline_analysis.summary.peak_intermediate_bytes
+    candidate_peak_bytes = candidate_analysis.summary.peak_intermediate_bytes
     return ContractionComparison(
         status="complete",
         baseline_label=baseline_label,
@@ -410,6 +424,7 @@ def _analyze_future_automatic_plan(
     initial_operands: dict[str, tuple[str, ...]],
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
+    bytes_per_element: int,
 ) -> AutomaticContractionPlanAnalysis:
     """Analyze the greedy path that continues from the current manual state."""
     del initial_operands
@@ -418,6 +433,7 @@ def _analyze_future_automatic_plan(
         operands=manual_operand_state.remaining_operands,
         dimension_by_label=dimension_by_label,
         step_id_prefix="auto_future_step_",
+        bytes_per_element=bytes_per_element,
     )
 
 
@@ -427,6 +443,7 @@ def _analyze_past_automatic_plan(
     initial_operands: dict[str, tuple[str, ...]],
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
+    bytes_per_element: int,
 ) -> AutomaticContractionPlanAnalysis:
     """Analyze greedy paths for already contracted manual subtrees."""
     del spec
@@ -442,7 +459,8 @@ def _analyze_past_automatic_plan(
     ]
     if not contracted_root_operand_ids:
         return _unavailable_automatic_analysis(
-            "Contract at least one tensor pair to unlock the auto past preview."
+            "Contract at least one tensor pair to unlock the auto past preview.",
+            bytes_per_element=bytes_per_element,
         )
 
     all_steps: list[ContractionStepAnalysis] = []
@@ -462,6 +480,7 @@ def _analyze_past_automatic_plan(
             dimension_by_label=dimension_by_label,
             step_id_prefix=f"{root_operand_id}__auto_past_",
             final_step_id=root_operand_id,
+            bytes_per_element=bytes_per_element,
         )
         if analysis.status == "unavailable":
             return analysis
@@ -479,6 +498,7 @@ def _analyze_past_automatic_plan(
             total_estimated_flops=total_estimated_flops,
             total_estimated_macs=total_estimated_macs,
             peak_intermediate_size=peak_intermediate_size,
+            bytes_per_element=bytes_per_element,
         ),
     )
 
@@ -489,6 +509,7 @@ def _analyze_automatic_operands(
     operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
     step_id_prefix: str,
+    bytes_per_element: int,
     final_step_id: str | None = None,
 ) -> AutomaticContractionPlanAnalysis:
     """Run automatic greedy analysis for the provided operand set."""
@@ -500,6 +521,7 @@ def _analyze_automatic_operands(
                 total_estimated_flops=0,
                 total_estimated_macs=0,
                 peak_intermediate_size=0,
+                bytes_per_element=bytes_per_element,
             ),
         )
 
@@ -510,7 +532,8 @@ def _analyze_automatic_operands(
         )
     except ImportError:
         return _unavailable_automatic_analysis(
-            "Install the planner extra to enable automatic greedy path suggestions."
+            "Install the planner extra to enable automatic greedy path suggestions.",
+            bytes_per_element=bytes_per_element,
         )
 
     label_order: list[str] = []
@@ -520,7 +543,8 @@ def _analyze_automatic_operands(
                 label_order.append(label)
     if len(label_order) > len(ascii_letters):
         return _unavailable_automatic_analysis(
-            "Automatic greedy path analysis currently supports up to 52 distinct labels."
+            "Automatic greedy path analysis currently supports up to 52 distinct labels.",
+            bytes_per_element=bytes_per_element,
         )
 
     symbol_map = {
@@ -554,7 +578,8 @@ def _analyze_automatic_operands(
         )
     except Exception as exc:  # pragma: no cover - optional dependency behavior
         return _unavailable_automatic_analysis(
-            f"Automatic greedy path analysis failed: {exc}"
+            f"Automatic greedy path analysis failed: {exc}",
+            bytes_per_element=bytes_per_element,
         )
 
     remaining_order = list(operand_order)
@@ -568,7 +593,8 @@ def _analyze_automatic_operands(
         indices = tuple(int(value) for value in raw_indices)
         if len(indices) != 2:
             return _unavailable_automatic_analysis(
-                "Automatic greedy path produced a non-pairwise contraction step."
+                "Automatic greedy path produced a non-pairwise contraction step.",
+                bytes_per_element=bytes_per_element,
             )
         left_operand_id = remaining_order[indices[0]]
         right_operand_id = remaining_order[indices[1]]
@@ -604,12 +630,15 @@ def _analyze_automatic_operands(
             total_estimated_flops=total_estimated_flops,
             total_estimated_macs=total_estimated_macs,
             peak_intermediate_size=peak_intermediate_size,
+            bytes_per_element=bytes_per_element,
         ),
     )
 
 
 def _unavailable_automatic_analysis(
     message: str,
+    *,
+    bytes_per_element: int,
 ) -> AutomaticContractionPlanAnalysis:
     """Return a standardized unavailable-analysis payload."""
     return AutomaticContractionPlanAnalysis(
@@ -619,26 +648,7 @@ def _unavailable_automatic_analysis(
             total_estimated_flops=0,
             total_estimated_macs=0,
             peak_intermediate_size=0,
+            bytes_per_element=bytes_per_element,
         ),
         message=message,
     )
-
-
-def _dtype_size_in_bytes(memory_dtype: str) -> int:
-    """Return the element width used for memory estimates."""
-    dtype_sizes = {
-        "float16": 2,
-        "float32": 4,
-        "float64": 8,
-        "complex64": 8,
-        "complex128": 16,
-    }
-    return dtype_sizes.get(memory_dtype, dtype_sizes["float64"])
-
-
-def _product(values: Iterable[int]) -> int:
-    """Return the multiplicative product of ``values``."""
-    result = 1
-    for value in values:
-        result *= int(value)
-    return result

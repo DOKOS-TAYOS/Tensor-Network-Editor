@@ -884,6 +884,102 @@ export function registerPlannerFeature(ctx) {
       : "";
   }
 
+  function getAnalysisMemoryDtype(payload) {
+    if (payload && typeof payload.memory_dtype === "string" && payload.memory_dtype) {
+      return payload.memory_dtype;
+    }
+    return "float64";
+  }
+
+  function getMemoryBytesPerElement(memoryDtype) {
+    switch (memoryDtype) {
+      case "float16":
+        return 2;
+      case "float32":
+        return 4;
+      case "complex64":
+        return 8;
+      case "complex128":
+        return 16;
+      case "float64":
+      default:
+        return 8;
+    }
+  }
+
+  function getPeakMemoryBytes(summary, memoryDtype) {
+    if (!summary || typeof summary !== "object") {
+      return 0;
+    }
+    if (Number.isFinite(Number(summary.peak_intermediate_bytes))) {
+      return Number(summary.peak_intermediate_bytes);
+    }
+    return (
+      Number(summary.peak_intermediate_size || 0) *
+      getMemoryBytesPerElement(memoryDtype)
+    );
+  }
+
+  function formatBytes(value) {
+    return `${formatNumber(value)} bytes`;
+  }
+
+  function formatSignedDelta(value, unit = "") {
+    const numericValue = Number(value || 0);
+    if (!Number.isFinite(numericValue)) {
+      return unit ? `0 ${unit}` : "0";
+    }
+    const prefix = numericValue > 0 ? "+" : numericValue < 0 ? "-" : "";
+    const suffix = unit ? ` ${unit}` : "";
+    return `${prefix}${formatNumber(Math.abs(numericValue))}${suffix}`;
+  }
+
+  function renderComparisonSection(title, comparison) {
+    if (!comparison) {
+      return "";
+    }
+    const status = typeof comparison.status === "string" ? comparison.status : "unknown";
+    if (status !== "complete") {
+      const unavailableMessage =
+        typeof comparison.message === "string" && comparison.message
+          ? comparison.message
+          : "Comparison is not available for the current plan.";
+      return `
+        <section class="planner-section">
+          <h3>${ctx.escapeHtml(title)}</h3>
+          <p class="planner-inline-meta">${ctx.escapeHtml(unavailableMessage)}</p>
+        </section>
+      `;
+    }
+    return `
+      <section class="planner-section">
+        <h3>${ctx.escapeHtml(title)}</h3>
+        ${renderMetricChips([
+          {
+            label: "FLOP",
+            value: formatSignedDelta(comparison.delta_total_estimated_flops),
+            detail: "Auto - Manual",
+          },
+          {
+            label: "MAC",
+            value: formatSignedDelta(comparison.delta_total_estimated_macs),
+            detail: "Auto - Manual",
+          },
+          {
+            label: "Peak",
+            value: formatSignedDelta(comparison.delta_peak_intermediate_size),
+            detail: "Auto - Manual",
+          },
+          {
+            label: "Memory",
+            value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
+            detail: "Auto - Manual",
+          },
+        ])}
+      </section>
+    `;
+  }
+
   function renderAutomaticPreviewSteps(steps) {
     if (!Array.isArray(steps) || !steps.length) {
       return "";
@@ -972,7 +1068,7 @@ export function registerPlannerFeature(ctx) {
     `;
   }
 
-  function renderAutomaticSection(title, disclosureKey, mode, analysis) {
+  function renderAutomaticSection(title, disclosureKey, mode, analysis, memoryDtype) {
     const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
     const canAct = Boolean(analysis && analysis.status !== "unavailable");
     const summary = analysis && analysis.summary ? analysis.summary : {};
@@ -998,6 +1094,11 @@ export function registerPlannerFeature(ctx) {
               { label: "FLOP", value: formatNumber(summary.total_estimated_flops) },
               { label: "MAC", value: formatNumber(summary.total_estimated_macs) },
               { label: "Peak", value: formatNumber(summary.peak_intermediate_size) },
+              {
+                label: "Memory",
+                value: formatBytes(getPeakMemoryBytes(summary, memoryDtype)),
+                detail: memoryDtype,
+              },
             ])}
             ${
               isPreviewing
@@ -1036,7 +1137,7 @@ export function registerPlannerFeature(ctx) {
     `;
   }
 
-  function renderManualSection(manualAnalysis) {
+  function renderManualSection(manualAnalysis, memoryDtype) {
     if (!manualAnalysis) {
       return `<section class="planner-section"><h3>Manual</h3><p class="planner-inline-meta">Waiting for analysis.</p></section>`;
     }
@@ -1048,6 +1149,11 @@ export function registerPlannerFeature(ctx) {
           { label: "FLOP", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
           { label: "MAC", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
           { label: "Peak", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size) },
+          {
+            label: "Memory",
+            value: formatBytes(getPeakMemoryBytes(manualAnalysis.summary, memoryDtype)),
+            detail: memoryDtype,
+          },
           {
             label: "Shape",
             value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape),
@@ -1111,10 +1217,7 @@ export function registerPlannerFeature(ctx) {
       return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(state.contractionAnalysis.message || "Could not analyze contraction paths.")}</p>`;
     }
     const payload = state.contractionAnalysis.payload;
-    const inspectionMeta =
-      Number.isInteger(state.plannerInspectionStepCount)
-        ? `<section class="planner-section"><p class="planner-inline-meta">Viewing the scene before step ${state.plannerInspectionStepCount + 1}. Click that step again to return to the latest contracted view.</p></section>`
-        : "";
+    const memoryDtype = getAnalysisMemoryDtype(payload);
     return `
       <section class="planner-section">
         <p class="planner-network-output-label">Network output shape</p>
@@ -1125,22 +1228,33 @@ export function registerPlannerFeature(ctx) {
             : ""
         }
       </section>
-      ${inspectionMeta}
+      <div class="planner-summary-grid">
+        ${renderComparisonSection(
+          "Manual vs auto full",
+          payload.comparisons && payload.comparisons.manual_vs_automatic_full
+        )}
+        ${renderComparisonSection(
+          "Manual subtrees vs auto past",
+          payload.comparisons && payload.comparisons.manual_subtrees_vs_automatic_past
+        )}
+      </div>
       <div class="planner-summary-grid">
         ${renderAutomaticSection(
           "Auto future",
           "automaticFuture",
           "automaticFuture",
-          payload.automatic_future
+          payload.automatic_future,
+          memoryDtype
         )}
         ${renderAutomaticSection(
           "Auto past",
           "automaticPast",
           "automaticPast",
-          payload.automatic_past
+          payload.automatic_past,
+          memoryDtype
         )}
       </div>
-      ${renderManualSection(payload.manual)}
+      ${renderManualSection(payload.manual, memoryDtype)}
     `;
   }
 

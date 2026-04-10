@@ -4,6 +4,7 @@ import json
 from typing import cast
 from unittest.mock import patch
 
+from tensor_network_editor.analysis import analyze_contraction
 from tensor_network_editor.api import generate_code
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
@@ -466,6 +467,7 @@ def test_analyze_contraction_route_returns_manual_summary(
 
     assert payload["ok"] is True
     assert payload["automatic_strategy"] == "greedy"
+    assert payload["memory_dtype"] == "float64"
     assert payload["network_output_shape"] == [2, 4]
     assert "automatic_full" in payload
     assert "automatic_future" in payload
@@ -474,12 +476,34 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert payload["manual"]["status"] == "complete"
     assert payload["manual"]["summary"]["total_estimated_flops"] == 48
     assert payload["manual"]["summary"]["total_estimated_macs"] == 24
+    assert payload["manual"]["summary"]["peak_intermediate_bytes"] == 64
     assert payload["manual"]["summary"]["final_shape"] == [2, 4]
     assert payload["manual"]["steps"][0]["estimated_flops"] == 48
     assert payload["manual"]["steps"][0]["estimated_macs"] == 24
     assert (
         payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == "float64"
     )
+
+
+def test_analyze_contraction_route_uses_shared_service_helper(
+    editor_server: EditorServer,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    expected_result = analyze_contraction(build_sample_spec())
+
+    with patch(
+        "tensor_network_editor.app.routes.analyze_serialized_contraction",
+        return_value=expected_result,
+        create=True,
+    ) as analyze_mock:
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={"spec": serialized_sample_spec},
+        )
+
+    assert payload["ok"] is True
+    analyze_mock.assert_called_once_with(serialized_sample_spec)
 
 
 def test_analyze_contraction_route_deserializes_the_spec_once(
