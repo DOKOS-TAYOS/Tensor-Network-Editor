@@ -511,6 +511,7 @@ def test_tensorkrowch_incompatible_plan_warns_only_when_generating(
         ctx.state.selectedEngine = "tensorkrowch";
         ctx.state.selectedCollectionFormat = "list";
         ctx.state.spec = ctx.normalizeSpec(buildOuterProductPlanSpec());
+        await registerContractionScene(ctx);
         await registerInteractions(ctx);
 
         ctx.updateToolbarState();
