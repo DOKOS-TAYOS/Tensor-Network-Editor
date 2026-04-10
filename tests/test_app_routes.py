@@ -293,6 +293,7 @@ def test_generate_route_returns_backend_codegen_error_message(
     assert status == 400
     assert payload["ok"] is False
     assert "TensorKrowch" in payload["message"]
+    assert "shared index" in payload["message"].lower()
 
 
 def test_complete_route_stores_result_in_session(

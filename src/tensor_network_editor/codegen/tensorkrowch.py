@@ -122,7 +122,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         )
         if any(step.is_outer_product for step in simulation.steps):
             raise CodeGenerationError(
-                "TensorKrowch cannot emit manual outer product steps with contract_between."
+                "TensorKrowch manual plans cannot include outer product steps; each manual step needs at least one shared index between its operands."
             )
 
         step_result_indexes = {

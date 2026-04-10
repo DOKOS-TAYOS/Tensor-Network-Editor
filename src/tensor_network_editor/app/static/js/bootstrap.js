@@ -281,16 +281,19 @@ export function startEditor(ctx) {
     helpCloseButton.addEventListener("click", () => ctx.toggleHelpModal(false));
     engineSelect.addEventListener("change", (event) => {
       state.selectedEngine = event.target.value;
+      let nextStatusMessage = `Engine set to ${ctx.formatEngineLabel(state.selectedEngine)}.`;
+      let nextStatusKind = "success";
       if (
         typeof ctx.enforceLinearPeriodicEngineSupport === "function" &&
         ctx.enforceLinearPeriodicEngineSupport()
       ) {
-        ctx.setStatus(
-          "For mode currently supports TensorNetwork and TensorKrowch.",
-          "success"
-        );
+        nextStatusMessage = "For mode currently supports TensorNetwork and TensorKrowch.";
+      }
+      if (typeof ctx.renderPlanner === "function") {
+        ctx.renderPlanner();
       }
       ctx.updateToolbarState();
+      ctx.setStatus(nextStatusMessage, nextStatusKind);
     });
     collectionFormatSelect.addEventListener("change", (event) => {
       state.selectedCollectionFormat = event.target.value;

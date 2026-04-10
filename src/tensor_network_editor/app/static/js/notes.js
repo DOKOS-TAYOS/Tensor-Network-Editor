@@ -86,8 +86,14 @@ export function registerNotesFeature(ctx) {
       };
     }
     return {
-      width: Number(note.size && note.size.width) || NOTE_WIDTH,
-      height: Number(note.size && note.size.height) || NOTE_HEIGHT,
+      width: Math.max(
+        NOTE_MIN_WIDTH,
+        Number(note.size && note.size.width) || NOTE_WIDTH
+      ),
+      height: Math.max(
+        NOTE_MIN_HEIGHT,
+        Number(note.size && note.size.height) || NOTE_HEIGHT
+      ),
     };
   }
 

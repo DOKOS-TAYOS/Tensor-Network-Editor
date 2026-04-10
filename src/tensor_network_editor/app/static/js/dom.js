@@ -48,5 +48,6 @@ export function getDomRefs(document) {
     sidebarPaneCode: document.getElementById("sidebar-pane-code"),
     plannerPanel: document.getElementById("planner-panel"),
     generateButton: document.getElementById("generate-button"),
+    codeGenerationWarning: document.getElementById("code-generation-warning"),
   };
 }

@@ -1,5 +1,7 @@
 export function registerContractionScene(ctx) {
   const state = ctx.state;
+  const TENSORKROWCH_MANUAL_PLAN_BASE_MESSAGE =
+    "TensorKrowch manual plans cannot include outer product steps.";
   const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID =
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("previous")
@@ -132,12 +134,30 @@ export function registerContractionScene(ctx) {
     };
   }
 
+  function analyzeOperandPair(leftOperand, rightOperand) {
+    if (!leftOperand || !rightOperand) {
+      return null;
+    }
+    const rightTokenKeys = new Set(rightOperand.tokens.map((token) => token.key));
+    const sharedTokenKeys = [...new Set(
+      leftOperand.tokens
+        .filter((token) => rightTokenKeys.has(token.key))
+        .map((token) => token.key)
+    )];
+    return {
+      sharedTokenKeys,
+      sharedTokenCount: sharedTokenKeys.length,
+      isOuterProduct: sharedTokenKeys.length === 0,
+    };
+  }
+
   function buildContractionOperandState(stepLimit = null, planSteps = getPlanSteps()) {
     const activeOperands = buildInitialOperands();
     const sourceTensorIdsByOperandId = Object.fromEntries(
       activeOperands.map((operand) => [operand.id, [...operand.sourceTensorIds]])
     );
     const validSteps = [];
+    const stepAnalyses = [];
     const totalSteps = stepLimit === null ? planSteps.length : Math.max(0, stepLimit);
 
     for (const step of planSteps.slice(0, totalSteps)) {
@@ -161,9 +181,9 @@ export function registerContractionScene(ctx) {
 
       const leftOperand = cloneOperand(activeOperands[leftIndex]);
       const rightOperand = cloneOperand(activeOperands[rightIndex]);
-      const rightTokenKeys = new Set(rightOperand.tokens.map((token) => token.key));
+      const pairAnalysis = analyzeOperandPair(leftOperand, rightOperand);
       const contractedTokenKeys = new Set(
-        leftOperand.tokens.filter((token) => rightTokenKeys.has(token.key)).map((token) => token.key)
+        pairAnalysis ? pairAnalysis.sharedTokenKeys : []
       );
       const resultOperand = {
         id: step.id,
@@ -176,6 +196,16 @@ export function registerContractionScene(ctx) {
         ].map((token) => ({ ...token })),
       };
 
+      stepAnalyses.push({
+        stepId: step.id,
+        stepNumber: validSteps.length + 1,
+        leftOperandId: step.left_operand_id,
+        rightOperandId: step.right_operand_id,
+        sourceTensorIds: [...resultOperand.sourceTensorIds],
+        sharedTokenKeys: pairAnalysis ? [...pairAnalysis.sharedTokenKeys] : [],
+        sharedTokenCount: pairAnalysis ? pairAnalysis.sharedTokenCount : 0,
+        isOuterProduct: pairAnalysis ? pairAnalysis.isOuterProduct : false,
+      });
       validSteps.push(step);
       sourceTensorIdsByOperandId[step.id] = [...resultOperand.sourceTensorIds];
       const indicesToRemove = [leftIndex, rightIndex].sort((left, right) => right - left);
@@ -192,7 +222,34 @@ export function registerContractionScene(ctx) {
       activeOperands,
       validSteps,
       sourceTensorIdsByOperandId,
+      stepAnalyses,
     };
+  }
+
+  function getTensorKrowchManualPlanIssue() {
+    if (state.selectedEngine !== "tensorkrowch") {
+      return null;
+    }
+    const plan = getContractionPlan();
+    if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
+      return null;
+    }
+    const fullState = buildContractionOperandState();
+    const incompatibleStep = fullState.stepAnalyses.find(
+      (stepAnalysis) => stepAnalysis.isOuterProduct
+    );
+    if (!incompatibleStep) {
+      return null;
+    }
+    return {
+      ...incompatibleStep,
+      message: `${TENSORKROWCH_MANUAL_PLAN_BASE_MESSAGE} Step ${incompatibleStep.stepNumber} has no shared index.`,
+    };
+  }
+
+  function getTensorKrowchManualPlanIssueMessage() {
+    const issue = getTensorKrowchManualPlanIssue();
+    return issue ? issue.message : "";
   }
 
   function buildFallbackLayoutForOperand(operand) {
@@ -685,6 +742,8 @@ export function registerContractionScene(ctx) {
     getContractionPlan,
     getPlanSteps,
     buildContractionOperandState,
+    getTensorKrowchManualPlanIssue,
+    getTensorKrowchManualPlanIssueMessage,
     ensureContractionViewSnapshots,
     getLatestAppliedStepCount,
     getViewedAppliedStepCount,

@@ -411,6 +411,27 @@ export function registerPlannerFeature(ctx) {
     );
   }
 
+  function trimContractionPlanInPlace(stepCount) {
+    const plan = state.spec.contraction_plan;
+    if (!plan) {
+      return false;
+    }
+    if (stepCount <= 0) {
+      state.spec.contraction_plan = null;
+    } else {
+      plan.steps = plan.steps.slice(0, stepCount);
+    }
+    state.plannerPreviewMode = null;
+    state.plannerFutureBadgeDisclosure = {};
+    state.plannerInspectionStepCount =
+      stepCount <= 0
+        ? null
+        : Number.isInteger(state.plannerInspectionStepCount)
+        ? Math.min(state.plannerInspectionStepCount, stepCount - 1)
+        : null;
+    return true;
+  }
+
   function trimContractionPlan(stepCount) {
     const plan = state.spec.contraction_plan;
     if (!plan) {
@@ -426,19 +447,7 @@ export function registerPlannerFeature(ctx) {
     }
     ctx.applyDesignChange(
       () => {
-        if (stepCount <= 0) {
-          state.spec.contraction_plan = null;
-        } else {
-          plan.steps = plan.steps.slice(0, stepCount);
-        }
-        state.plannerPreviewMode = null;
-        state.plannerFutureBadgeDisclosure = {};
-        state.plannerInspectionStepCount =
-          stepCount <= 0
-            ? null
-            : Number.isInteger(state.plannerInspectionStepCount)
-            ? Math.min(state.plannerInspectionStepCount, stepCount - 1)
-            : null;
+        trimContractionPlanInPlace(stepCount);
       },
       {
         statusMessage:
@@ -1216,6 +1225,7 @@ export function registerPlannerFeature(ctx) {
     resolvePlannerOperandId,
     handlePlannerOperandClick,
     trimContractionPlan,
+    trimContractionPlanInPlace,
     togglePlannerMode,
     refreshContractionAnalysis,
     renderPlanner,

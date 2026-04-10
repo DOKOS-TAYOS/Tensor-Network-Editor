@@ -245,7 +245,19 @@ export function registerInteractions(ctx) {
     }
     state.selectedEngine = engineName;
     engineSelect.value = engineName;
-    ctx.setStatus(`Engine set to ${ctx.formatEngineLabel(engineName)}.`);
+    let nextStatusMessage = `Engine set to ${ctx.formatEngineLabel(engineName)}.`;
+    let nextStatusKind = "success";
+    if (
+      typeof ctx.enforceLinearPeriodicEngineSupport === "function" &&
+      ctx.enforceLinearPeriodicEngineSupport()
+    ) {
+      nextStatusMessage = "For mode currently supports TensorNetwork and TensorKrowch.";
+    }
+    if (typeof ctx.renderPlanner === "function") {
+      ctx.renderPlanner();
+    }
+    ctx.updateToolbarState();
+    ctx.setStatus(nextStatusMessage, nextStatusKind);
   }
 
   function toggleAutomaticPreview(mode) {
@@ -822,6 +834,7 @@ export function registerInteractions(ctx) {
           !ctx.isLinearPeriodicBoundaryTensor(entry.tensor)) ||
         (entry.kind === "index" &&
           !ctx.isLinearPeriodicBoundaryTensor(entry.located.tensor)) ||
+        entry.kind === "contraction-tensor" ||
         entry.kind === "edge" ||
         entry.kind === "group" ||
         entry.kind === "note"
@@ -842,7 +855,22 @@ export function registerInteractions(ctx) {
   }
 
   function removeSelectedElements() {
-    const selectedTensorIds = new Set(ctx.getSelectedIdsByKind("tensor"));
+    const selectedEntries = ctx.getSelectedEntries();
+    const contractionTensorSourceIds = [
+      ...new Set(
+        selectedEntries
+          .filter((entry) => entry.kind === "contraction-tensor")
+          .flatMap((entry) =>
+            Array.isArray(entry.tensor && entry.tensor.sourceTensorIds)
+              ? entry.tensor.sourceTensorIds
+              : []
+          )
+      ),
+    ];
+    const selectedTensorIds = new Set([
+      ...ctx.getSelectedIdsByKind("tensor"),
+      ...contractionTensorSourceIds,
+    ]);
     const selectedIndexIds = new Set(ctx.getSelectedIdsByKind("index"));
     const selectedEdgeIds = new Set(ctx.getSelectedIdsByKind("edge"));
     const selectedGroupIds = new Set(ctx.getSelectedIdsByKind("group"));
@@ -889,6 +917,17 @@ export function registerInteractions(ctx) {
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("code");
+    }
+    if (typeof ctx.syncCodeGenerationWarning === "function") {
+      ctx.syncCodeGenerationWarning();
+    }
+    const tensorKrowchPlanIssue =
+      typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
+        ? ctx.getTensorKrowchManualPlanIssueMessage()
+        : "";
+    if (tensorKrowchPlanIssue) {
+      ctx.setStatus(tensorKrowchPlanIssue, "error");
+      return;
     }
     try {
       const payload = await apiPost("/api/generate", {
@@ -1006,6 +1045,17 @@ export function registerInteractions(ctx) {
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("code");
+    }
+    if (typeof ctx.syncCodeGenerationWarning === "function") {
+      ctx.syncCodeGenerationWarning();
+    }
+    const tensorKrowchPlanIssue =
+      typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
+        ? ctx.getTensorKrowchManualPlanIssueMessage()
+        : "";
+    if (tensorKrowchPlanIssue) {
+      ctx.setStatus(tensorKrowchPlanIssue, "error");
+      return;
     }
     try {
       const payload = await apiPost("/api/generate", {

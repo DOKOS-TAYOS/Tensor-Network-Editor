@@ -77,8 +77,15 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     engine_index = html.index('id="engine-select"')
     collection_index = html.index('id="collection-format-select"')
     generate_index = html.index('id="generate-button"')
+    warning_index = html.index('id="code-generation-warning"')
 
-    assert code_pane_index < engine_index < collection_index < generate_index
+    assert (
+        code_pane_index
+        < engine_index
+        < collection_index
+        < generate_index
+        < warning_index
+    )
 
 
 def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
@@ -263,6 +270,16 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert "function getTensorTotalElementCount(" in body
 
 
+def test_contraction_result_properties_expose_a_delete_action(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/properties.js")
+
+    assert 'id="delete-contraction-tensor-button"' in body
+    assert 'aria-label="Delete result"' in body
+    assert "ctx.deleteSelection" in body
+
+
 def test_note_assets_move_note_editing_into_canvas(
     editor_server: EditorServer,
 ) -> None:
@@ -326,6 +343,10 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
 
     assert (
         'exportFormatSelect: document.getElementById("export-format-select")'
+        in dom_body
+    )
+    assert (
+        'codeGenerationWarning: document.getElementById("code-generation-warning")'
         in dom_body
     )
     assert 'exportButton: document.getElementById("export-button")' in dom_body

@@ -534,6 +534,17 @@ export function registerProperties(ctx) {
       <p class="property-meta">
         This tensor is a contracted result shown only in the planner scene, so its structure is read-only here.
       </p>
+      <div class="button-row">
+        <button
+          id="delete-contraction-tensor-button"
+          type="button"
+          class="icon-button index-action-button danger"
+          aria-label="Delete result"
+          title="Delete result"
+        >
+          ${renderTrashIcon()}
+        </button>
+      </div>
       ${
         sourceTensorLabels
           ? `
@@ -545,6 +556,12 @@ export function registerProperties(ctx) {
           : ""
       }
     `;
+
+    document
+      .getElementById("delete-contraction-tensor-button")
+      .addEventListener("click", () => {
+        ctx.deleteSelection();
+      });
   }
 
   function renderContractionIndexProperties(located) {

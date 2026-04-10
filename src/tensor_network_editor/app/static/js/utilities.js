@@ -27,6 +27,7 @@ export function registerUtilities(ctx) {
     engineSelect,
     collectionFormatSelect,
     exportFormatSelect,
+    codeGenerationWarning,
     addNoteButton,
     connectButton,
     loadInput,
@@ -323,9 +324,12 @@ export function registerUtilities(ctx) {
         y: asFiniteNumber(note.position && note.position.y, 120),
       };
       note.size = {
-        width: Math.max(1, asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)),
+        width: Math.max(
+          NOTE_MIN_WIDTH,
+          asFiniteNumber(note.size && note.size.width, NOTE_WIDTH)
+        ),
         height: Math.max(
-          1,
+          NOTE_MIN_HEIGHT,
           asFiniteNumber(note.size && note.size.height, NOTE_HEIGHT)
         ),
       };
@@ -1883,13 +1887,15 @@ export function registerUtilities(ctx) {
       !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine);
     const selectedExportFormat = exportFormatSelect ? exportFormatSelect.value : "py";
     const exportNeedsEngine = selectedExportFormat === "py";
+    syncCodeGenerationWarning();
 
     undoButton.disabled = state.undoStack.length === 0;
     redoButton.disabled = state.redoStack.length === 0;
     if (exportButton) {
       exportButton.disabled =
         !state.spec ||
-        (exportNeedsEngine && (!state.selectedEngine || unsupportedLinearPeriodicEngine));
+        (exportNeedsEngine &&
+          (!state.selectedEngine || unsupportedLinearPeriodicEngine));
     }
     if (generateButton) {
       generateButton.disabled =
@@ -1913,6 +1919,19 @@ export function registerUtilities(ctx) {
       linearPeriodicNextCellButton.disabled =
         !linearPeriodicMode || activeLinearPeriodicCell === "final";
     }
+  }
+
+  function syncCodeGenerationWarning() {
+    if (!codeGenerationWarning) {
+      return;
+    }
+    const warningMessage =
+      typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
+        ? ctx.getTensorKrowchManualPlanIssueMessage()
+        : "";
+    codeGenerationWarning.textContent = warningMessage;
+    codeGenerationWarning.title = warningMessage;
+    codeGenerationWarning.hidden = !warningMessage;
   }
 
   function formatIssues(issues) {
@@ -2197,6 +2216,7 @@ export function registerUtilities(ctx) {
     downloadDataUrl,
     downloadBlob,
     updateToolbarState,
+    syncCodeGenerationWarning,
     formatIssues,
     setStatus,
     sanitizeFilename,
