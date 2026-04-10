@@ -1903,6 +1903,10 @@ export function registerUtilities(ctx) {
   function updateToolbarState() {
     const linearPeriodicMode = isLinearPeriodicMode();
     const activeLinearPeriodicCell = getActiveLinearPeriodicCellName();
+    const selectedTensorIds =
+      typeof ctx.getSelectedIdsByKind === "function"
+        ? ctx.getSelectedIdsByKind("tensor")
+        : [];
     enforceLinearPeriodicEngineSupport();
     const unsupportedLinearPeriodicEngine =
       linearPeriodicMode &&
@@ -1924,7 +1928,7 @@ export function registerUtilities(ctx) {
         !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
     }
     insertTemplateButton.disabled = !templateSelect.value;
-    createGroupButton.disabled = ctx.getSelectedIdsByKind("tensor").length < 2;
+    createGroupButton.disabled = selectedTensorIds.length < 2;
     if (toggleLinearPeriodicButton) {
       toggleLinearPeriodicButton.classList.toggle("is-active", linearPeriodicMode);
     }

@@ -1,6 +1,9 @@
 export function registerPlannerFeature(ctx) {
   const state = ctx.state;
   const { plannerPanel } = ctx.dom;
+  const plannerDocument =
+    ctx.document ||
+    (typeof globalThis.document !== "undefined" ? globalThis.document : null);
   const ANALYSIS_REFRESH_DELAY_MS = 200;
   const setTimer =
     typeof ctx.window?.setTimeout === "function"
@@ -1183,12 +1186,12 @@ export function registerPlannerFeature(ctx) {
       ${renderPlannerAnalysis()}
     `;
 
-    document
-      .getElementById("toggle-planner-mode-button")
-      .addEventListener("click", togglePlannerMode);
-    document
-      .getElementById("planner-reset-button")
-      .addEventListener("click", () => trimContractionPlan(0));
+    plannerDocument
+      ?.getElementById("toggle-planner-mode-button")
+      ?.addEventListener("click", togglePlannerMode);
+    plannerDocument
+      ?.getElementById("planner-reset-button")
+      ?.addEventListener("click", () => trimContractionPlan(0));
     plannerPanel.querySelectorAll("[data-trim-step]").forEach((button) => {
       button.addEventListener("click", () => {
         trimContractionPlan(Number(button.dataset.trimStep));
