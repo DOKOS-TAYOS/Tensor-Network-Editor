@@ -595,14 +595,14 @@ def _validate_linear_periodic_carry_cell(
             )
             continue
 
-        left_state = operand_state_by_id.get(step.left_operand_id)
-        right_state = operand_state_by_id.get(step.right_operand_id)
-        if left_state is None or right_state is None:
+        maybe_left_state = operand_state_by_id.get(step.left_operand_id)
+        maybe_right_state = operand_state_by_id.get(step.right_operand_id)
+        if maybe_left_state is None or maybe_right_state is None:
             continue
         simulation, result_axis_names = _simulate_carry_step(
             step=step,
-            left_state=left_state,
-            right_state=right_state,
+            left_state=maybe_left_state,
+            right_state=maybe_right_state,
             dimension_by_label=dimension_by_label,
         )
         operand_state_by_id.pop(step.left_operand_id, None)
