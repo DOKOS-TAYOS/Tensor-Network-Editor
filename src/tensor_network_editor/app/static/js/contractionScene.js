@@ -151,36 +151,101 @@ export function registerContractionScene(ctx) {
     };
   }
 
-  function buildContractionOperandState(stepLimit = null, planSteps = getPlanSteps()) {
-    const activeOperands = buildInitialOperands();
+  function cloneSourceTensorIdsByOperandId(progression, stepCount) {
+    const sourceTensorIdsByOperandId = {};
+    progression.seedOperandIds.forEach((operandId) => {
+      sourceTensorIdsByOperandId[operandId] = [
+        ...(progression.sourceTensorIdsByOperandId[operandId] || []),
+      ];
+    });
+    progression.validSteps.slice(0, stepCount).forEach((step) => {
+      sourceTensorIdsByOperandId[step.id] = [
+        ...(progression.sourceTensorIdsByOperandId[step.id] || []),
+      ];
+    });
+    return sourceTensorIdsByOperandId;
+  }
+
+  function cloneStepAnalysis(stepAnalysis) {
+    return {
+      ...stepAnalysis,
+      sourceTensorIds: [...stepAnalysis.sourceTensorIds],
+      sharedTokenKeys: [...stepAnalysis.sharedTokenKeys],
+    };
+  }
+
+  function getActiveOperandsFromProgression(progression, stepCount, shouldClone = true) {
+    const normalizedStepCount = Math.max(
+      0,
+      Math.min(progression.validSteps.length, stepCount)
+    );
+    const stage = progression.stages[normalizedStepCount] || progression.stages[0];
+    const activeOperands = Array.isArray(stage.activeOperands)
+      ? stage.activeOperands
+      : stage.activeOperandIds
+          .map((operandId) => progression.operandById.get(operandId))
+          .filter(Boolean);
+    return shouldClone
+      ? activeOperands.map((operand) => cloneOperand(operand))
+      : activeOperands;
+  }
+
+  function buildContractionStateFromProgression(progression, stepCount = null) {
+    const normalizedStepCount =
+      stepCount === null
+        ? progression.validSteps.length
+        : Math.max(0, Math.min(progression.validSteps.length, stepCount));
+    return {
+      activeOperands: getActiveOperandsFromProgression(
+        progression,
+        normalizedStepCount
+      ),
+      validSteps: progression.validSteps.slice(0, normalizedStepCount),
+      sourceTensorIdsByOperandId: cloneSourceTensorIdsByOperandId(
+        progression,
+        normalizedStepCount
+      ),
+      stepAnalyses: progression.stepAnalyses
+        .slice(0, normalizedStepCount)
+        .map((stepAnalysis) => cloneStepAnalysis(stepAnalysis)),
+    };
+  }
+
+  function buildContractionOperandProgression(planSteps = getPlanSteps()) {
+    const seedOperands = buildInitialOperands().map((operand) => cloneOperand(operand));
+    const operandById = new Map(seedOperands.map((operand) => [operand.id, operand]));
+    let activeOperandIds = seedOperands.map((operand) => operand.id);
+    const activeOperandIdSet = new Set(activeOperandIds);
+    const seedOperandIds = [...activeOperandIds];
     const sourceTensorIdsByOperandId = Object.fromEntries(
-      activeOperands.map((operand) => [operand.id, [...operand.sourceTensorIds]])
+      seedOperands.map((operand) => [operand.id, [...operand.sourceTensorIds]])
     );
     const validSteps = [];
     const stepAnalyses = [];
-    const totalSteps = stepLimit === null ? planSteps.length : Math.max(0, stepLimit);
+    const stages = [{ activeOperands: [...seedOperands] }];
 
-    for (const step of planSteps.slice(0, totalSteps)) {
+    for (const step of planSteps) {
       const usesPreviousOperand =
         isPreviousOperandId(step.left_operand_id) ||
         isPreviousOperandId(step.right_operand_id);
       const usesNextOperand =
         isNextOperandId(step.left_operand_id) ||
         isNextOperandId(step.right_operand_id);
-      const leftIndex = activeOperands.findIndex((operand) => operand.id === step.left_operand_id);
-      const rightIndex = activeOperands.findIndex((operand) => operand.id === step.right_operand_id);
       if (
-        leftIndex < 0 ||
-        rightIndex < 0 ||
-        leftIndex === rightIndex ||
-        activeOperands.some((operand) => operand.id === step.id) ||
+        !activeOperandIdSet.has(step.left_operand_id) ||
+        !activeOperandIdSet.has(step.right_operand_id) ||
+        step.left_operand_id === step.right_operand_id ||
+        activeOperandIdSet.has(step.id) ||
         (usesPreviousOperand && usesNextOperand)
       ) {
         break;
       }
 
-      const leftOperand = cloneOperand(activeOperands[leftIndex]);
-      const rightOperand = cloneOperand(activeOperands[rightIndex]);
+      const leftOperand = operandById.get(step.left_operand_id);
+      const rightOperand = operandById.get(step.right_operand_id);
+      if (!leftOperand || !rightOperand) {
+        break;
+      }
       const pairAnalysis = analyzeOperandPair(leftOperand, rightOperand);
       const contractedTokenKeys = new Set(
         pairAnalysis ? pairAnalysis.sharedTokenKeys : []
@@ -208,22 +273,38 @@ export function registerContractionScene(ctx) {
       });
       validSteps.push(step);
       sourceTensorIdsByOperandId[step.id] = [...resultOperand.sourceTensorIds];
-      const indicesToRemove = [leftIndex, rightIndex].sort((left, right) => right - left);
-      indicesToRemove.forEach((index) => {
-        activeOperands.splice(index, 1);
+      operandById.set(step.id, resultOperand);
+      activeOperandIdSet.delete(step.left_operand_id);
+      activeOperandIdSet.delete(step.right_operand_id);
+      activeOperandIdSet.add(step.id);
+      activeOperandIds = activeOperandIds.filter(
+        (operandId) =>
+          operandId !== step.left_operand_id && operandId !== step.right_operand_id
+      );
+      activeOperandIds.push(step.id);
+      stages.push({
+        activeOperands: activeOperandIds
+          .map((operandId) => operandById.get(operandId))
+          .filter(Boolean),
       });
-      activeOperands.push(resultOperand);
       if (usesNextOperand) {
         break;
       }
     }
 
     return {
-      activeOperands,
       validSteps,
-      sourceTensorIdsByOperandId,
       stepAnalyses,
+      sourceTensorIdsByOperandId,
+      seedOperandIds,
+      operandById,
+      stages,
     };
+  }
+
+  function buildContractionOperandState(stepLimit = null, planSteps = getPlanSteps()) {
+    const progression = buildContractionOperandProgression(planSteps);
+    return buildContractionStateFromProgression(progression, stepLimit);
   }
 
   function getTensorKrowchManualPlanIssue() {
@@ -300,12 +381,29 @@ export function registerContractionScene(ctx) {
     );
   }
 
-  function buildSnapshotFromOperands(activeOperands, existingSnapshot, defaultsByOperandId = {}) {
+  function getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId = null) {
+    if (!fallbackLayoutsByOperandId) {
+      return buildFallbackLayoutForOperand(operand);
+    }
+    if (!fallbackLayoutsByOperandId[operand.id]) {
+      fallbackLayoutsByOperandId[operand.id] = buildFallbackLayoutForOperand(operand);
+    }
+    return fallbackLayoutsByOperandId[operand.id];
+  }
+
+  function buildSnapshotFromOperands(
+    activeOperands,
+    existingSnapshot,
+    defaultsByOperandId = {},
+    fallbackLayoutsByOperandId = null
+  ) {
     const existingLayouts = buildSnapshotLayoutMap(existingSnapshot);
     return {
       applied_step_count: Number(existingSnapshot && existingSnapshot.applied_step_count) || 0,
       operand_layouts: activeOperands.map((operand) => {
-        const fallbackLayout = defaultsByOperandId[operand.id] || buildFallbackLayoutForOperand(operand);
+        const fallbackLayout =
+          defaultsByOperandId[operand.id] ||
+          getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId);
         const chosenLayout = existingLayouts[operand.id] || fallbackLayout;
         return {
           operand_id: operand.id,
@@ -332,7 +430,9 @@ export function registerContractionScene(ctx) {
     return step.left_operand_id;
   }
 
-  function ensureContractionViewSnapshots() {
+  function ensureContractionViewSnapshots(
+    progression = buildContractionOperandProgression()
+  ) {
     const plan = getContractionPlan();
     if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
       if (plan) {
@@ -341,47 +441,57 @@ export function registerContractionScene(ctx) {
       return [];
     }
 
-    const fullState = buildContractionOperandState();
-    const validSteps = fullState.validSteps;
+    const validSteps = progression.validSteps;
+    const fallbackLayoutsByOperandId = {};
     const existingSnapshots = new Map(
       (Array.isArray(plan.view_snapshots) ? plan.view_snapshots : [])
         .filter((snapshot) => snapshot && Number.isInteger(snapshot.applied_step_count))
         .map((snapshot) => [snapshot.applied_step_count, snapshot])
     );
 
-    const stageZeroState = buildContractionOperandState(0);
     const nextSnapshots = [
       {
-        ...buildSnapshotFromOperands(stageZeroState.activeOperands, existingSnapshots.get(0)),
+        ...buildSnapshotFromOperands(
+          getActiveOperandsFromProgression(progression, 0, false),
+          existingSnapshots.get(0),
+          {},
+          fallbackLayoutsByOperandId
+        ),
         applied_step_count: 0,
       },
     ];
 
     for (let stepCount = 1; stepCount <= validSteps.length; stepCount += 1) {
-      const previousState = buildContractionOperandState(stepCount - 1);
-      const currentState = buildContractionOperandState(stepCount);
+      const activeOperands = getActiveOperandsFromProgression(
+        progression,
+        stepCount,
+        false
+      );
       const step = validSteps[stepCount - 1];
       const previousLayouts = buildSnapshotLayoutMap(nextSnapshots[stepCount - 1]);
       const defaultsByOperandId = {};
 
-      currentState.activeOperands.forEach((operand) => {
+      activeOperands.forEach((operand) => {
         if (operand.id === step.id) {
           const anchorOperandId = getPreferredStepAnchorOperandId(step);
           defaultsByOperandId[operand.id] = ctx.deepClone(
-            previousLayouts[anchorOperandId] || buildFallbackLayoutForOperand(operand)
+            previousLayouts[anchorOperandId] ||
+              getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId)
           );
           return;
         }
         defaultsByOperandId[operand.id] = ctx.deepClone(
-          previousLayouts[operand.id] || buildFallbackLayoutForOperand(operand)
+          previousLayouts[operand.id] ||
+            getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId)
         );
       });
 
       nextSnapshots.push({
         ...buildSnapshotFromOperands(
-          currentState.activeOperands,
+          activeOperands,
           existingSnapshots.get(stepCount),
-          defaultsByOperandId
+          defaultsByOperandId,
+          fallbackLayoutsByOperandId
         ),
         applied_step_count: stepCount,
       });
@@ -391,12 +501,12 @@ export function registerContractionScene(ctx) {
     return nextSnapshots;
   }
 
-  function getLatestAppliedStepCount() {
-    return buildContractionOperandState().validSteps.length;
+  function getLatestAppliedStepCount(progression = null) {
+    return (progression || buildContractionOperandProgression()).validSteps.length;
   }
 
-  function getViewedAppliedStepCount() {
-    const latestAppliedStepCount = getLatestAppliedStepCount();
+  function getViewedAppliedStepCount(progression = null) {
+    const latestAppliedStepCount = getLatestAppliedStepCount(progression);
     if (!Number.isInteger(state.plannerInspectionStepCount)) {
       return latestAppliedStepCount;
     }
@@ -435,17 +545,33 @@ export function registerContractionScene(ctx) {
     return futureOrdersByOperandId;
   }
 
-  function buildContractionScene(appliedStepCount = getViewedAppliedStepCount()) {
+  function buildContractionScene(appliedStepCount = null) {
     const plan = getContractionPlan();
-    const latestAppliedStepCount = getLatestAppliedStepCount();
+    const progression = buildContractionOperandProgression();
+    const latestAppliedStepCount = getLatestAppliedStepCount(progression);
     if (!plan || latestAppliedStepCount <= 0) {
       return null;
     }
 
-    const normalizedAppliedStepCount = Math.max(0, Math.min(latestAppliedStepCount, appliedStepCount));
-    const fullState = buildContractionOperandState();
-    const stageState = buildContractionOperandState(normalizedAppliedStepCount);
-    const snapshot = getSnapshotForStepCount(normalizedAppliedStepCount);
+    const requestedAppliedStepCount =
+      appliedStepCount === null ? getViewedAppliedStepCount(progression) : appliedStepCount;
+    const normalizedAppliedStepCount = Math.max(
+      0,
+      Math.min(latestAppliedStepCount, requestedAppliedStepCount)
+    );
+    const fullState = buildContractionStateFromProgression(
+      progression,
+      latestAppliedStepCount
+    );
+    const stageState = buildContractionStateFromProgression(
+      progression,
+      normalizedAppliedStepCount
+    );
+    const snapshots = ensureContractionViewSnapshots(progression);
+    const snapshot =
+      snapshots.find(
+        (candidate) => candidate.applied_step_count === normalizedAppliedStepCount
+      ) || null;
     const layoutMap = buildSnapshotLayoutMap(snapshot);
     const operandMap = {};
     const tokenOccurrencesByKey = {};

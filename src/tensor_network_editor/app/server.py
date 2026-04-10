@@ -23,6 +23,7 @@ from ._protocol import (
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
+_SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
 
 
 @dataclass(slots=True, frozen=True)
@@ -54,7 +55,7 @@ class EditorServer:
             )
         )
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
-        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread = threading.Thread(target=self._serve_forever, daemon=True)
 
     @property
     def base_url(self) -> str:
@@ -76,6 +77,10 @@ class EditorServer:
         self._server.server_close()
         self._thread.join(timeout=5)
         LOGGER.info("Editor server stopped")
+
+    def _serve_forever(self) -> None:
+        """Serve requests with a short shutdown polling interval."""
+        self._server.serve_forever(poll_interval=_SERVE_FOREVER_POLL_INTERVAL_SECONDS)
 
     def _build_handler(self) -> type[BaseHTTPRequestHandler]:
         """Build the request-handler class bound to this server instance."""

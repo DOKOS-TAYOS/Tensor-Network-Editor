@@ -946,3 +946,139 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_builds_long_manual_chain_without_repeated_rebuilds(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "contraction_scene_long_chain_performance_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildChainSpec(tensorCount) {
+          const tensors = [];
+          const edges = [];
+          for (let index = 0; index < tensorCount; index += 1) {
+            tensors.push({
+              id: `tensor_${index}`,
+              name: `T${index}`,
+              position: { x: 120 + index * 160, y: 120 },
+              size: { width: 140, height: 84 },
+              indices: [
+                {
+                  id: `tensor_${index}_left`,
+                  name: "left",
+                  dimension: 2,
+                  offset: { x: -38, y: 0 },
+                  metadata: {},
+                },
+                {
+                  id: `tensor_${index}_right`,
+                  name: "right",
+                  dimension: 2,
+                  offset: { x: 38, y: 0 },
+                  metadata: {},
+                },
+              ],
+              metadata: {},
+            });
+            if (index > 0) {
+              edges.push({
+                id: `edge_${index}`,
+                name: `bond_${index}`,
+                left: {
+                  tensor_id: `tensor_${index - 1}`,
+                  index_id: `tensor_${index - 1}_right`,
+                },
+                right: {
+                  tensor_id: `tensor_${index}`,
+                  index_id: `tensor_${index}_left`,
+                },
+                metadata: {},
+              });
+            }
+          }
+
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 1; index < tensorCount; index += 1) {
+            const stepId = `step_${index}`;
+            steps.push({
+              id: stepId,
+              left_operand_id: leftOperandId,
+              right_operand_id: `tensor_${index}`,
+              metadata: {},
+            });
+            leftOperandId = stepId;
+          }
+
+          return {
+            id: "network_long_chain",
+            name: "long-chain",
+            tensors,
+            groups: [],
+            edges,
+            notes: [],
+            contraction_plan: {
+              id: "plan_long_chain",
+              name: "Long chain",
+              steps,
+              view_snapshots: [],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const tensorCount = 80;
+        const ctx = await buildContext();
+        await registerContractionScene(ctx);
+        ctx.state.spec = ctx.normalizeSpec(buildChainSpec(tensorCount));
+
+        let tensorRebuildCount = 0;
+        let edgeRebuildCount = 0;
+        const originalGetContractibleTensors = ctx.getContractibleTensors;
+        const originalGetContractibleEdges = ctx.getContractibleEdges;
+        ctx.getContractibleTensors = (...args) => {
+          tensorRebuildCount += 1;
+          return originalGetContractibleTensors(...args);
+        };
+        ctx.getContractibleEdges = (...args) => {
+          edgeRebuildCount += 1;
+          return originalGetContractibleEdges(...args);
+        };
+
+        const scene = ctx.buildContractionScene();
+        const snapshots = ctx.state.spec.contraction_plan.view_snapshots;
+
+        if (!scene) {
+          throw new Error("Expected a contraction scene for the long manual chain.");
+        }
+        if (scene.validSteps.length !== tensorCount - 1) {
+          throw new Error(`Expected ${tensorCount - 1} valid steps, received ${scene.validSteps.length}.`);
+        }
+        if (scene.tensors.length !== 1) {
+          throw new Error(`Expected one final visible operand, received ${scene.tensors.length}.`);
+        }
+        if (scene.tensors[0].sourceTensorIds.length !== tensorCount) {
+          throw new Error(`Expected the final operand to contain ${tensorCount} source tensors.`);
+        }
+        if (!Array.isArray(snapshots) || snapshots.length !== tensorCount) {
+          throw new Error(`Expected ${tensorCount} snapshots, received ${snapshots && snapshots.length}.`);
+        }
+        if (tensorRebuildCount > 8 || edgeRebuildCount > 8) {
+          throw new Error(
+            `Expected bounded scene rebuilds, received tensors=${tensorRebuildCount}, edges=${edgeRebuildCount}.`
+          );
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The long-chain contraction-scene performance regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

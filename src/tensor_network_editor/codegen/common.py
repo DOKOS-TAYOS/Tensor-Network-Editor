@@ -197,23 +197,26 @@ def group_tensors_by_visual_rows(tensors: list[TensorSpec]) -> list[list[TensorS
     )
 
     rows: list[list[TensorSpec]] = []
+    row_y_totals: list[float] = []
     for tensor in ordered_tensors:
+        tensor_y = tensor.position.y
         if not rows:
             rows.append([tensor])
+            row_y_totals.append(tensor_y)
             continue
 
         current_row = rows[-1]
-        current_row_center = sum(member.position.y for member in current_row) / len(
-            current_row
-        )
-        if abs(tensor.position.y - current_row_center) <= row_tolerance:
+        current_row_center = row_y_totals[-1] / len(current_row)
+        if abs(tensor_y - current_row_center) <= row_tolerance:
             current_row.append(tensor)
-            current_row.sort(
-                key=lambda member: (member.position.x, member.position.y, member.id)
-            )
+            row_y_totals[-1] += tensor_y
             continue
 
         rows.append([tensor])
+        row_y_totals.append(tensor_y)
+
+    for row in rows:
+        row.sort(key=lambda member: (member.position.x, member.position.y, member.id))
 
     return rows
 

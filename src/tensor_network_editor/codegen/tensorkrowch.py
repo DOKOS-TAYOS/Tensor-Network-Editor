@@ -13,6 +13,7 @@ from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFor
 from .base import CodeGenerator
 from .common import (
     PreparedNetwork,
+    PreparedTensor,
     container_name_for_format,
     joined_tensor_display_name,
     prepare_network,
@@ -53,7 +54,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                     tensor.spec.id: (
                         f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
                         f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
-                        f"name={tensor.spec.name!r}, network=network)"
+                        f"name={self.node_name(tensor)!r}, network=network)"
                     )
                     for tensor in prepared.tensors
                 },
@@ -104,6 +105,15 @@ class TensorKrowchCodeGenerator(CodeGenerator):
             )
 
         return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
+
+    @staticmethod
+    def node_name(tensor: PreparedTensor) -> str:
+        """Return a TensorKrowch-safe node name while preserving valid names."""
+        if tensor.spec.name and not any(
+            character.isspace() for character in tensor.spec.name
+        ):
+            return tensor.spec.name
+        return tensor.variable_name
 
     def _render_manual_plan(
         self,

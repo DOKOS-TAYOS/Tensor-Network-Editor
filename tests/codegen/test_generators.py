@@ -84,6 +84,25 @@ def build_empty_spec() -> NetworkSpec:
     return NetworkSpec(id="empty_network", name="empty network")
 
 
+def _import_required_backend(engine: EngineName) -> None:
+    """Skip execution tests when an optional backend is not installed."""
+    if engine is EngineName.TENSORNETWORK:
+        pytest.importorskip("numpy")
+        pytest.importorskip("tensornetwork")
+    elif engine is EngineName.TENSORKROWCH:
+        pytest.importorskip("torch")
+        pytest.importorskip("tensorkrowch")
+
+
+def _execute_generated_code(code: str, *, n: int | None = None) -> dict[str, object]:
+    """Execute generated code in a shared namespace and return that namespace."""
+    namespace: dict[str, object] = {}
+    if n is not None:
+        namespace["n"] = n
+    exec(code, namespace, namespace)
+    return namespace
+
+
 @pytest.mark.parametrize(
     ("engine", "expected_snippets"),
     [
@@ -264,6 +283,27 @@ def test_tensorkrowch_codegen_uses_edges_list_for_connections() -> None:
     assert "tk.connect(" in result.code
 
 
+def test_tensorkrowch_codegen_executes_when_tensor_names_contain_spaces() -> None:
+    _import_required_backend(EngineName.TENSORKROWCH)
+    spec = NetworkSpec(
+        id="space_names",
+        name="space names",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="Tensor A",
+                position=CanvasPosition(x=0.0, y=0.0),
+                indices=[IndexSpec(id="tensor_a_i", name="i", dimension=2)],
+            )
+        ],
+    )
+
+    result = generate_code(spec, engine=EngineName.TENSORKROWCH)
+    namespace = _execute_generated_code(result.code)
+
+    assert "tensors" in namespace
+
+
 def test_tensornetwork_codegen_uses_edges_list_for_connections() -> None:
     result = generate_code(
         build_sample_spec_without_plan(),
@@ -297,37 +337,38 @@ def test_linear_periodic_codegen_uses_cell_helpers_and_free_n_loop(
     "engine",
     [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
 )
-def test_linear_periodic_carry_codegen_threads_previous_operand(
+def test_linear_periodic_codegen_executes_for_supported_backends(
     engine: EngineName,
 ) -> None:
-    result = generate_code(build_linear_periodic_carry_chain_spec(), engine=engine)
+    _import_required_backend(engine)
 
-    assert "def build_initial_cell():" in result.code
-    assert "def build_periodic_cell(cell_index, previous_operand):" in result.code
-    assert "def build_final_cell(previous_operand):" in result.code
-    assert "previous_operand = build_initial_cell()" in result.code
-    assert (
-        "previous_operand = build_periodic_cell(cell_index, previous_operand)"
-        in result.code
-    )
-    assert "result = build_final_cell(previous_operand)" in result.code
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+    namespace = _execute_generated_code(result.code, n=3)
+
+    assert "network_nodes" in namespace
+    assert "open_edges" in namespace
 
 
 @pytest.mark.parametrize(
     "engine",
     [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
 )
-def test_linear_periodic_partial_carry_codegen_keeps_next_steps(
+def test_linear_periodic_carry_codegen_rejects_unsupported_boundary_threading(
     engine: EngineName,
 ) -> None:
-    result = generate_code(
-        build_linear_periodic_partial_carry_chain_spec(),
-        engine=engine,
-    )
+    with pytest.raises(CodeGenerationError, match="carry mode"):
+        generate_code(build_linear_periodic_carry_chain_spec(), engine=engine)
 
-    assert "initial_partial_carry" in result.code
-    assert "periodic_partial_carry" in result.code
-    assert "final_from_previous_partial" in result.code
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+)
+def test_linear_periodic_partial_carry_codegen_rejects_unsupported_boundary_threading(
+    engine: EngineName,
+) -> None:
+    with pytest.raises(CodeGenerationError, match="carry mode"):
+        generate_code(build_linear_periodic_partial_carry_chain_spec(), engine=engine)
 
 
 @pytest.mark.parametrize(

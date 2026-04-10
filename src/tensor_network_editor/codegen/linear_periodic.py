@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, replace
 
 from .._contraction_plan import (
@@ -165,6 +166,12 @@ def generate_linear_periodic_code(
 
     chain = spec.linear_periodic_chain
     uses_carry_mode = linear_periodic_chain_uses_carry_mode(chain)
+    if uses_carry_mode:
+        raise CodeGenerationError(
+            "Linear periodic carry mode code generation is not currently supported "
+            "because carry steps consume the boundary slot needed by the next cell."
+        )
+
     lines = _render_import_lines(engine)
     if not uses_carry_mode:
         lines.extend(_render_connect_helper(engine))
@@ -625,7 +632,7 @@ def _render_carry_boundary_setup(
                 "next_boundary_operand = "
                 f"tk.Node(tensor=torch.zeros({next_shape!r}, dtype=torch.float32), "
                 f"axes_names={next_axis_names!r}, "
-                "name='Next cell', network=network)"
+                "name='next_cell', network=network)"
             )
         lines.append("outgoing_edges = []")
         for port in simulation.outgoing_ports:
@@ -908,7 +915,8 @@ def _render_tensorkrowch_cell_setup(
                 tensor.spec.id: (
                     f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
                     f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
-                    f"name={tensor.spec.name!r}, network=network)"
+                    f"name={TensorKrowchCodeGenerator.node_name(tensor)!r}, "
+                    "network=network)"
                 )
                 for tensor in prepared.tensors
             },
@@ -1024,15 +1032,21 @@ def _build_label_expression_map(
         dimension_by_label=build_dimension_by_label(prepared),
         plan=prepared.spec.contraction_plan,
     )
-    return _build_remaining_label_expression_map(
-        remaining_operand_ids=simulation.remaining_operand_ids,
-        remaining_operand_states={
+    if engine is EngineName.TENSORKROWCH:
+        remaining_operand_states = _build_tensorkrowch_remaining_operand_states(
+            prepared
+        )
+    else:
+        remaining_operand_states = {
             operand_id: _CarryOperandState(
                 labels=simulation.remaining_operands[operand_id],
                 axis_names=simulation.remaining_axis_names[operand_id],
             )
             for operand_id in simulation.remaining_operand_ids
-        },
+        }
+    return _build_remaining_label_expression_map(
+        remaining_operand_ids=simulation.remaining_operand_ids,
+        remaining_operand_states=remaining_operand_states,
         engine=engine,
         base_operand_expressions={
             tensor.spec.id: tensor_collection_reference_by_id(
@@ -1049,6 +1063,74 @@ def _build_label_expression_map(
         },
         latest_result_index=len(simulation.steps) - 1 if simulation.steps else None,
     )
+
+
+def _build_tensorkrowch_remaining_operand_states(
+    prepared: PreparedNetwork,
+) -> dict[str, _CarryOperandState]:
+    """Simulate manual-plan axis names as TensorKrowch keeps them at runtime."""
+    remaining_operand_states = {
+        tensor.spec.id: _CarryOperandState(
+            labels=tuple(index.label for index in tensor.indices),
+            axis_names=tuple(index.spec.name for index in tensor.indices),
+        )
+        for tensor in prepared.tensors
+    }
+    plan = prepared.spec.contraction_plan
+    if plan is None or not plan.steps:
+        return remaining_operand_states
+
+    for step in plan.steps:
+        left_state = remaining_operand_states.pop(step.left_operand_id)
+        right_state = remaining_operand_states.pop(step.right_operand_id)
+        contracted_labels = set(left_state.labels).intersection(right_state.labels)
+        surviving_labels = tuple(
+            label for label in left_state.labels if label not in contracted_labels
+        ) + tuple(
+            label for label in right_state.labels if label not in contracted_labels
+        )
+        surviving_axis_names = tuple(
+            axis_name
+            for label, axis_name in zip(
+                left_state.labels,
+                left_state.axis_names,
+                strict=True,
+            )
+            if label not in contracted_labels
+        ) + tuple(
+            axis_name
+            for label, axis_name in zip(
+                right_state.labels,
+                right_state.axis_names,
+                strict=True,
+            )
+            if label not in contracted_labels
+        )
+        remaining_operand_states = {
+            step.id: _CarryOperandState(
+                labels=surviving_labels,
+                axis_names=_deduplicate_tensorkrowch_axis_names(surviving_axis_names),
+            ),
+            **remaining_operand_states,
+        }
+    return remaining_operand_states
+
+
+def _deduplicate_tensorkrowch_axis_names(
+    axis_names: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Mirror TensorKrowch's suffixing for duplicate surviving axis names."""
+    counts = Counter(axis_names)
+    seen: dict[str, int] = {}
+    resolved_axis_names: list[str] = []
+    for axis_name in axis_names:
+        if counts[axis_name] == 1:
+            resolved_axis_names.append(axis_name)
+            continue
+        suffix = seen.get(axis_name, 0)
+        seen[axis_name] = suffix + 1
+        resolved_axis_names.append(f"{axis_name}_{suffix}")
+    return tuple(resolved_axis_names)
 
 
 def _build_remaining_label_expression_map(

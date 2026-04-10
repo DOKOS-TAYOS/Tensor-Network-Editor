@@ -414,9 +414,10 @@ export function registerGraphRender(ctx) {
       return;
     }
     ctx.reconcileTensorOrder();
-    const elements = buildGraphElements();
-    const visibleTensors =
-      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const contractionScene =
+      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
+    const elements = buildGraphElements(contractionScene);
+    const visibleTensors = contractionScene ? contractionScene.tensors : state.spec.tensors;
     state.cy.batch(() => {
       state.cy.elements().remove();
       state.cy.add(elements);
@@ -446,18 +447,21 @@ export function registerGraphRender(ctx) {
     });
   }
 
-  function buildGraphElements() {
+  function buildGraphElements(contractionScene = null) {
     const tensorElements = [];
     const edgeElements = [];
     const indexElements = [];
     const indexLabelElements = [];
     const connectedIndexIds = new Set();
-    const contractionScene =
-      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
-    const visibleTensors = contractionScene ? contractionScene.tensors : state.spec.tensors;
-    const visibleEdges = contractionScene ? contractionScene.edges : state.spec.edges;
+    const resolvedContractionScene =
+      contractionScene ||
+      (typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null);
+    const visibleTensors = resolvedContractionScene ? resolvedContractionScene.tensors : state.spec.tensors;
+    const visibleEdges = resolvedContractionScene ? resolvedContractionScene.edges : state.spec.edges;
     const readOnlyScene = Boolean(
-      contractionScene && typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage()
+      resolvedContractionScene &&
+        typeof ctx.isInspectingPastStage === "function" &&
+        ctx.isInspectingPastStage()
     );
     const indexNodesInteractive = !readOnlyScene;
 
@@ -467,7 +471,7 @@ export function registerGraphRender(ctx) {
     });
 
     visibleTensors.forEach((tensor) => {
-      if (!contractionScene) {
+      if (!resolvedContractionScene) {
         ctx.ensureTensorIndexOffsets(tensor);
       }
       const tensorRank = ctx.tensorLayerRank(tensor.id);
@@ -497,7 +501,7 @@ export function registerGraphRender(ctx) {
 
       tensor.indices.forEach((index, indexPosition) => {
         const indexColor = ctx.getIndexColor(index, connectedIndexIds.has(index.id));
-        const indexPositionAbsolute = contractionScene
+        const indexPositionAbsolute = resolvedContractionScene
           ? {
               x: tensor.position.x + index.offset.x,
               y: tensor.position.y + index.offset.y,
