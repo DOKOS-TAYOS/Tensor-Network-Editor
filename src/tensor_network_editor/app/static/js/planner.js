@@ -2,6 +2,14 @@ export function registerPlannerFeature(ctx) {
   const state = ctx.state;
   const { plannerPanel } = ctx.dom;
   const ANALYSIS_REFRESH_DELAY_MS = 200;
+  const setTimer =
+    typeof ctx.window?.setTimeout === "function"
+      ? ctx.window.setTimeout.bind(ctx.window)
+      : globalThis.setTimeout.bind(globalThis);
+  const clearTimer =
+    typeof ctx.window?.clearTimeout === "function"
+      ? ctx.window.clearTimeout.bind(ctx.window)
+      : globalThis.clearTimeout.bind(globalThis);
   const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID =
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("previous")
@@ -531,7 +539,7 @@ export function registerPlannerFeature(ctx) {
         pendingContractionAnalysisOptions &&
         contractionAnalysisDebounceId === null
       ) {
-        contractionAnalysisDebounceId = window.setTimeout(
+        contractionAnalysisDebounceId = setTimer(
           flushContractionAnalysisQueue,
           ANALYSIS_REFRESH_DELAY_MS
         );
@@ -549,9 +557,9 @@ export function registerPlannerFeature(ctx) {
         ),
     };
     if (contractionAnalysisDebounceId !== null) {
-      window.clearTimeout(contractionAnalysisDebounceId);
+      clearTimer(contractionAnalysisDebounceId);
     }
-    contractionAnalysisDebounceId = window.setTimeout(
+    contractionAnalysisDebounceId = setTimer(
       flushContractionAnalysisQueue,
       ANALYSIS_REFRESH_DELAY_MS
     );

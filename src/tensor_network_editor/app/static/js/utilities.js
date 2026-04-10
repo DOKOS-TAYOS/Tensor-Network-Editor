@@ -502,6 +502,20 @@ export function registerUtilities(ctx) {
       : [];
   }
 
+  function tensorWidth(tensor) {
+    return Math.max(
+      MIN_TENSOR_WIDTH,
+      asFiniteNumber(tensor && tensor.size && tensor.size.width, TENSOR_WIDTH)
+    );
+  }
+
+  function tensorHeight(tensor) {
+    return Math.max(
+      MIN_TENSOR_HEIGHT,
+      asFiniteNumber(tensor && tensor.size && tensor.size.height, TENSOR_HEIGHT)
+    );
+  }
+
   function getExpectedLinearPeriodicRoles(cellName) {
     if (cellName === "initial") {
       return ["next"];
@@ -1534,8 +1548,8 @@ export function registerUtilities(ctx) {
   }
 
   function defaultIndexOffsetForOrder(indexPosition, tensor) {
-    const scaleX = ctx.tensorWidth(tensor) / TENSOR_WIDTH;
-    const scaleY = ctx.tensorHeight(tensor) / TENSOR_HEIGHT;
+    const scaleX = tensorWidth(tensor) / TENSOR_WIDTH;
+    const scaleY = tensorHeight(tensor) / TENSOR_HEIGHT;
     const slot = DEFAULT_INDEX_SLOTS[indexPosition];
     if (slot) {
       return clampIndexOffset(
@@ -1556,13 +1570,13 @@ export function registerUtilities(ctx) {
     return {
       x: clamp(
         asFiniteNumber(offset.x, 0),
-        -ctx.tensorWidth(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
-        ctx.tensorWidth(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
+        -tensorWidth(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
+        tensorWidth(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
       ),
       y: clamp(
         asFiniteNumber(offset.y, 0),
-        -ctx.tensorHeight(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
-        ctx.tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
+        -tensorHeight(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING,
+        tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING
       ),
     };
   }
@@ -1804,8 +1818,16 @@ export function registerUtilities(ctx) {
       typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
 
     visibleTensors.forEach((tensor) => {
-      expandBounds(bounds, tensor.position.x - ctx.tensorWidth(tensor) / 2, tensor.position.y - ctx.tensorHeight(tensor) / 2);
-      expandBounds(bounds, tensor.position.x + ctx.tensorWidth(tensor) / 2, tensor.position.y + ctx.tensorHeight(tensor) / 2);
+      expandBounds(
+        bounds,
+        tensor.position.x - tensorWidth(tensor) / 2,
+        tensor.position.y - tensorHeight(tensor) / 2
+      );
+      expandBounds(
+        bounds,
+        tensor.position.x + tensorWidth(tensor) / 2,
+        tensor.position.y + tensorHeight(tensor) / 2
+      );
       tensor.indices.forEach((index) => {
         const absolutePosition = indexAbsolutePosition(tensor, index);
         expandBounds(bounds, absolutePosition.x - INDEX_RADIUS, absolutePosition.y - INDEX_RADIUS);
@@ -2191,6 +2213,8 @@ export function registerUtilities(ctx) {
     enforceLinearPeriodicEngineSupport,
     createTensor,
     createIndex,
+    tensorWidth,
+    tensorHeight,
     normalizeSpec,
     ensureTensorIndexOffsets,
     defaultIndexOffsetForOrder,
