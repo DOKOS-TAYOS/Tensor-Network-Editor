@@ -566,6 +566,24 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert (
         payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == "float64"
     )
+    assert (
+        payload["comparisons"]["manual_remaining_vs_automatic_future"]["status"]
+        == "unavailable"
+    )
+    assert (
+        payload["comparisons"]["manual_remaining_vs_automatic_future"]["baseline_label"]
+        == "manual_remaining"
+    )
+    assert (
+        payload["comparisons"]["manual_remaining_vs_automatic_future"][
+            "candidate_label"
+        ]
+        == "automatic_future"
+    )
+    assert (
+        payload["comparisons"]["manual_remaining_vs_automatic_future"]["memory_dtype"]
+        == "float64"
+    )
 
 
 def test_analyze_contraction_route_uses_active_linear_periodic_cell(

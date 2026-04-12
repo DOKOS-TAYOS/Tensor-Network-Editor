@@ -1,12 +1,8 @@
 export function registerOverlaysLayoutTemplates(ctx) {
   const state = ctx.state;
   const {
-    TENSOR_WIDTH,
-    TENSOR_HEIGHT,
     MIN_TENSOR_WIDTH,
     MIN_TENSOR_HEIGHT,
-    INDEX_RADIUS,
-    INDEX_PADDING,
     HISTORY_LIMIT,
     REDO_SHORTCUT_LABEL,
     DEFAULT_INDEX_SLOTS,
@@ -411,7 +407,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
       corner,
       snapshot: ctx.createHistorySnapshot(),
       center: { x: tensor.position.x, y: tensor.position.y },
-      startSize: { width: tensorWidth(tensor), height: tensorHeight(tensor) },
+      startSize: { width: ctx.tensorWidth(tensor), height: ctx.tensorHeight(tensor) },
       startOffsets: Object.fromEntries(
         (Array.isArray(tensor.indices) ? tensor.indices : []).map((index) => [
           index.id,
@@ -507,24 +503,18 @@ export function registerOverlaysLayoutTemplates(ctx) {
     ctx.render();
   }
 
-  function tensorWidth(tensor) {
-    return Math.max(MIN_TENSOR_WIDTH, ctx.asFiniteNumber(tensor.size && tensor.size.width, TENSOR_WIDTH));
-  }
-
-  function tensorHeight(tensor) {
-    return Math.max(MIN_TENSOR_HEIGHT, ctx.asFiniteNumber(tensor.size && tensor.size.height, TENSOR_HEIGHT));
-  }
-
   function tensorScreenRect(tensor) {
+    const tensorWidth = ctx.tensorWidth(tensor);
+    const tensorHeight = ctx.tensorHeight(tensor);
     const topLeft = ctx.worldToCanvasPoint({
-      x: tensor.position.x - tensorWidth(tensor) / 2,
-      y: tensor.position.y - tensorHeight(tensor) / 2,
+      x: tensor.position.x - tensorWidth / 2,
+      y: tensor.position.y - tensorHeight / 2,
     });
     return {
       left: topLeft.x,
       top: topLeft.y,
-      width: tensorWidth(tensor) * state.cy.zoom(),
-      height: tensorHeight(tensor) * state.cy.zoom(),
+      width: tensorWidth * state.cy.zoom(),
+      height: tensorHeight * state.cy.zoom(),
     };
   }
 
@@ -561,12 +551,16 @@ export function registerOverlaysLayoutTemplates(ctx) {
       return null;
     }
     return tensors.reduce(
-      (bounds, tensor) => ({
-        x1: Math.min(bounds.x1, tensor.position.x - tensorWidth(tensor) / 2 - 24),
-        y1: Math.min(bounds.y1, tensor.position.y - tensorHeight(tensor) / 2 - 24),
-        x2: Math.max(bounds.x2, tensor.position.x + tensorWidth(tensor) / 2 + 24),
-        y2: Math.max(bounds.y2, tensor.position.y + tensorHeight(tensor) / 2 + 24),
-      }),
+      (bounds, tensor) => {
+        const tensorWidth = ctx.tensorWidth(tensor);
+        const tensorHeight = ctx.tensorHeight(tensor);
+        return {
+          x1: Math.min(bounds.x1, tensor.position.x - tensorWidth / 2 - 24),
+          y1: Math.min(bounds.y1, tensor.position.y - tensorHeight / 2 - 24),
+          x2: Math.max(bounds.x2, tensor.position.x + tensorWidth / 2 + 24),
+          y2: Math.max(bounds.y2, tensor.position.y + tensorHeight / 2 + 24),
+        };
+      },
       {
         x1: Number.POSITIVE_INFINITY,
         y1: Number.POSITIVE_INFINITY,
@@ -584,8 +578,8 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!tensorElement || !tensorElement.length) {
       return;
     }
-    tensorElement.data("width", tensorWidth(tensor));
-    tensorElement.data("height", tensorHeight(tensor));
+    tensorElement.data("width", ctx.tensorWidth(tensor));
+    tensorElement.data("height", ctx.tensorHeight(tensor));
   }
 
   function uniquifyImportedSpec(spec, prefix) {
@@ -645,8 +639,10 @@ export function registerOverlaysLayoutTemplates(ctx) {
       y2: Number.NEGATIVE_INFINITY,
     };
     spec.tensors.forEach((tensor) => {
-      ctx.expandBounds(bounds, tensor.position.x - tensorWidth(tensor) / 2, tensor.position.y - tensorHeight(tensor) / 2);
-      ctx.expandBounds(bounds, tensor.position.x + tensorWidth(tensor) / 2, tensor.position.y + tensorHeight(tensor) / 2);
+      const tensorWidth = ctx.tensorWidth(tensor);
+      const tensorHeight = ctx.tensorHeight(tensor);
+      ctx.expandBounds(bounds, tensor.position.x - tensorWidth / 2, tensor.position.y - tensorHeight / 2);
+      ctx.expandBounds(bounds, tensor.position.x + tensorWidth / 2, tensor.position.y + tensorHeight / 2);
     });
     return bounds;
   }
@@ -664,8 +660,6 @@ export function registerOverlaysLayoutTemplates(ctx) {
     startTensorResize,
     updateActiveResize,
     finishActiveResize,
-    tensorWidth,
-    tensorHeight,
     tensorScreenRect,
     groupDisplayRect,
     groupWorldBounds,

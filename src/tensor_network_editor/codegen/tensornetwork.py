@@ -14,9 +14,9 @@ from .common import (
     PreparedNetwork,
     container_name_for_format,
     flattened_tensor_collection_expression,
-    joined_tensor_display_name,
     prepare_network,
     render_operand_expression,
+    render_remaining_operands_mapping,
     render_tensor_collection_assignment,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
@@ -175,7 +175,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
 
         final_result_index = len(simulation.steps) - 1 if simulation.steps else None
         lines.extend(
-            self._render_remaining_operands(
+            render_remaining_operands_mapping(
                 operand_ids=simulation.remaining_operand_ids,
                 source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
                 tensor_names_by_id=tensor_names_by_id,
@@ -217,30 +217,3 @@ class TensorNetworkCodeGenerator(CodeGenerator):
             if label not in contracted_labels:
                 output_edges.append(f"{right_expression}[{axis_name!r}]")
         return "[" + ", ".join(output_edges) + "]"
-
-    @staticmethod
-    def _render_remaining_operands(
-        *,
-        operand_ids: tuple[str, ...],
-        source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]],
-        tensor_names_by_id: dict[str, str],
-        base_operand_expressions: dict[str, str],
-        step_result_indexes: dict[str, int],
-        latest_result_index: int | None,
-    ) -> list[str]:
-        """Render the ``remaining_operands`` mapping for partial plans."""
-        lines = ["remaining_operands = {"]
-        for operand_id in operand_ids:
-            operand_expression = render_operand_expression(
-                operand_id,
-                base_operand_expressions=base_operand_expressions,
-                step_result_indexes=step_result_indexes,
-                latest_result_index=latest_result_index,
-            )
-            operand_name = joined_tensor_display_name(
-                source_tensor_ids_by_operand_id[operand_id],
-                tensor_names_by_id,
-            )
-            lines.append(f"    {operand_name!r}: {operand_expression},")
-        lines.append("}")
-        return lines

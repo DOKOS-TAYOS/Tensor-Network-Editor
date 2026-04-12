@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from tensor_network_editor.api import generate_code
+from tensor_network_editor.codegen.common import render_remaining_operands_mapping
 from tensor_network_editor.errors import CodeGenerationError
 from tensor_network_editor.models import (
     CanvasPosition,
@@ -84,6 +85,35 @@ def build_matrix_layout_spec() -> NetworkSpec:
 
 def build_empty_spec() -> NetworkSpec:
     return NetworkSpec(id="empty_network", name="empty network")
+
+
+def test_render_remaining_operands_mapping_renders_joined_display_names() -> None:
+    lines = render_remaining_operands_mapping(
+        operand_ids=("step_ab", "tensor_c"),
+        source_tensor_ids_by_operand_id={
+            "step_ab": ("tensor_a", "tensor_b"),
+            "tensor_c": ("tensor_c",),
+        },
+        tensor_names_by_id={
+            "tensor_a": "A",
+            "tensor_b": "B",
+            "tensor_c": "C",
+        },
+        base_operand_expressions={
+            "tensor_a": "tensors[0]",
+            "tensor_b": "tensors[1]",
+            "tensor_c": "tensors[2]",
+        },
+        step_result_indexes={"step_ab": 0},
+        latest_result_index=0,
+    )
+
+    assert lines == [
+        "remaining_operands = {",
+        "    'A-B': results_list[-1],",
+        "    'C': tensors[2],",
+        "}",
+    ]
 
 
 def _import_required_backend(engine: EngineName) -> None:

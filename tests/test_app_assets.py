@@ -206,6 +206,17 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "ctx.toggleLinearPeriodicMode();" in body
 
 
+def test_overlays_asset_reuses_shared_tensor_size_helpers(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/js/overlaysLayoutTemplates.js")
+
+    assert "ctx.tensorWidth(" in body
+    assert "ctx.tensorHeight(" in body
+    assert "function tensorWidth(tensor)" not in body
+    assert "function tensorHeight(tensor)" not in body
+
+
 def test_css_asset_exposes_explicit_canvas_layer_ordering(
     editor_server: EditorServer,
 ) -> None:

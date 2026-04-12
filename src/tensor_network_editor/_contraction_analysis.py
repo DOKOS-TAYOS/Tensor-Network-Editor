@@ -584,7 +584,7 @@ def _analyze_automatic_operands(
             shapes=True,
             optimize="greedy",
         )
-    except Exception as exc:  # pragma: no cover - optional dependency behavior
+    except ValueError as exc:
         return _unavailable_automatic_analysis(
             f"Automatic greedy path analysis failed: {exc}",
             bytes_per_element=bytes_per_element,

@@ -178,6 +178,79 @@ def test_analyze_contraction_marks_incomplete_manual_plan() -> None:
         } == {"tensor_a", "tensor_b"}
 
 
+def test_analyze_contraction_preserves_placeholder_future_comparison() -> None:
+    result = analyze_contraction(build_three_tensor_spec())
+    comparison = result.comparisons["manual_remaining_vs_automatic_future"]
+
+    assert comparison.status == "unavailable"
+    assert comparison.baseline_label == "manual_remaining"
+    assert comparison.candidate_label == "automatic_future"
+    assert comparison.memory_dtype == "float64"
+    assert (
+        comparison.message
+        == "The saved manual plan does not expose a separate remaining suffix to compare yet."
+    )
+
+
+def test_analyze_contraction_marks_planner_value_errors_as_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakePlannerModule:
+        @staticmethod
+        def contract_path(
+            equation: str,
+            *operand_shapes: tuple[int, ...],
+            shapes: bool,
+            optimize: str,
+        ) -> tuple[tuple[tuple[int, int], ...], object]:
+            del equation, operand_shapes, shapes, optimize
+            raise ValueError("planner shape mismatch")
+
+    def fake_import_module(name: str) -> object:
+        assert name == "opt_einsum"
+        return FakePlannerModule
+
+    monkeypatch.setattr(
+        "tensor_network_editor._contraction_analysis.import_module",
+        fake_import_module,
+    )
+
+    result = analyze_contraction(build_three_tensor_spec())
+
+    assert result.automatic_full.status == "unavailable"
+    assert result.automatic_full.message == (
+        "Automatic greedy path analysis failed: planner shape mismatch"
+    )
+    assert result.comparisons["manual_vs_automatic_full"].status == "unavailable"
+
+
+def test_analyze_contraction_does_not_hide_unexpected_planner_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakePlannerModule:
+        @staticmethod
+        def contract_path(
+            equation: str,
+            *operand_shapes: tuple[int, ...],
+            shapes: bool,
+            optimize: str,
+        ) -> tuple[tuple[tuple[int, int], ...], object]:
+            del equation, operand_shapes, shapes, optimize
+            raise RuntimeError("planner exploded")
+
+    def fake_import_module(name: str) -> object:
+        assert name == "opt_einsum"
+        return FakePlannerModule
+
+    monkeypatch.setattr(
+        "tensor_network_editor._contraction_analysis.import_module",
+        fake_import_module,
+    )
+
+    with pytest.raises(RuntimeError, match="planner exploded"):
+        analyze_contraction(build_three_tensor_spec())
+
+
 def test_analyze_contraction_accepts_multi_step_manual_plan() -> None:
     spec = build_three_tensor_spec()
     spec.contraction_plan = ContractionPlanSpec(

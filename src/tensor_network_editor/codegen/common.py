@@ -274,6 +274,33 @@ def render_operand_expression(
     )
 
 
+def render_remaining_operands_mapping(
+    *,
+    operand_ids: tuple[str, ...],
+    source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]],
+    tensor_names_by_id: dict[str, str],
+    base_operand_expressions: dict[str, str],
+    step_result_indexes: dict[str, int],
+    latest_result_index: int | None,
+) -> list[str]:
+    """Render the ``remaining_operands`` mapping for partial plans."""
+    lines = ["remaining_operands = {"]
+    for operand_id in operand_ids:
+        operand_expression = render_operand_expression(
+            operand_id,
+            base_operand_expressions=base_operand_expressions,
+            step_result_indexes=step_result_indexes,
+            latest_result_index=latest_result_index,
+        )
+        operand_name = joined_tensor_display_name(
+            source_tensor_ids_by_operand_id[operand_id],
+            tensor_names_by_id,
+        )
+        lines.append(f"    {operand_name!r}: {operand_expression},")
+    lines.append("}")
+    return lines
+
+
 def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
     """Return the default container variable name for ``collection_format``."""
     if collection_format is TensorCollectionFormat.MATRIX:
