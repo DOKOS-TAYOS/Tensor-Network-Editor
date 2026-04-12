@@ -204,9 +204,17 @@ Useful ideas:
 
 - each cell can have its own tensors, edges, notes, groups, and contraction
   plan
+- For mode can generate code with `tensornetwork`, `quimb`, `tensorkrowch`,
+  `einsum_numpy`, and `einsum_torch`
 - `Previous cell` and `Next cell` are special carry operands in manual plans
 - `Next cell` must be the last contraction step in a carry plan
 - generated code forwards the chosen carry operand to the next cell
+- `quimb` exports `network_tensors`, `network`, `open_inds`, and `result` when
+  the repeated chain finishes in one contracted object
+- `einsum_numpy` and `einsum_torch` export `result`, plus
+  `remaining_operands` when a carry/manual path leaves extra operands alive
+- `tensorkrowch` still rejects manual outer-product steps, including in For
+  mode
 
 This mode is more specialized than normal free drawing. Start with the regular
 editor workflow unless your network really is a repeated chain.
@@ -231,6 +239,7 @@ editor workflow unless your network really is a repeated chain.
 - The editor does not edit real tensor values.
 - Generated tensors are initialized by generated backend code.
 - TenPy code generation is not included.
+- For mode works with every bundled backend.
 - Manual outer-product steps cannot be exported to `tensorkrowch`.
 
 For common fixes, see [troubleshooting.md](troubleshooting.md).

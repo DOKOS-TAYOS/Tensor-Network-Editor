@@ -504,6 +504,32 @@ def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
     assert "interfaceDimensions" in utilities_body
 
 
+def test_linear_periodic_assets_do_not_force_two_engine_support_message(
+    editor_server: EditorServer,
+) -> None:
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+
+    assert "LINEAR_PERIODIC_SUPPORTED_ENGINES" not in utilities_body
+    assert (
+        "For mode currently supports TensorNetwork and TensorKrowch."
+        not in utilities_body
+    )
+    assert (
+        "For mode currently supports TensorNetwork and TensorKrowch."
+        not in bootstrap_body
+    )
+    assert (
+        "For mode currently supports TensorNetwork and TensorKrowch."
+        not in interactions_body
+    )
+    assert (
+        "TensorNetwork is selected because this mode currently supports "
+        "TensorNetwork and TensorKrowch."
+    ) not in utilities_body
+
+
 def test_properties_assets_sync_dimensions_across_connected_ports(
     editor_server: EditorServer,
 ) -> None:

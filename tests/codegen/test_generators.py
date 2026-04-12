@@ -91,9 +91,16 @@ def _import_required_backend(engine: EngineName) -> None:
     if engine is EngineName.TENSORNETWORK:
         pytest.importorskip("numpy")
         pytest.importorskip("tensornetwork")
+    elif engine is EngineName.QUIMB:
+        pytest.importorskip("numpy")
+        pytest.importorskip("quimb")
     elif engine is EngineName.TENSORKROWCH:
         pytest.importorskip("torch")
         pytest.importorskip("tensorkrowch")
+    elif engine is EngineName.EINSUM_NUMPY:
+        pytest.importorskip("numpy")
+    elif engine is EngineName.EINSUM_TORCH:
+        pytest.importorskip("torch")
 
 
 def _execute_generated_code(code: str, *, n: int | None = None) -> dict[str, object]:
@@ -336,6 +343,25 @@ def test_linear_periodic_codegen_uses_cell_helpers_and_free_n_loop(
 
 
 @pytest.mark.parametrize(
+    ("engine", "expected_snippet"),
+    [
+        (EngineName.QUIMB, "import quimb.tensor as qtn"),
+        (EngineName.EINSUM_NUMPY, "result = np.einsum("),
+        (EngineName.EINSUM_TORCH, "result = torch.einsum("),
+    ],
+)
+def test_linear_periodic_codegen_supports_remaining_backends(
+    engine: EngineName,
+    expected_snippet: str,
+) -> None:
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+
+    assert "if n < 2:" in result.code
+    assert "for cell_index in range(1, n - 1):" in result.code
+    assert expected_snippet in result.code
+
+
+@pytest.mark.parametrize(
     "engine",
     [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
 )
@@ -389,14 +415,174 @@ def test_linear_periodic_carry_codegen_threads_interface_payloads() -> None:
 
 
 @pytest.mark.parametrize(
-    "engine",
-    [EngineName.QUIMB, EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+    ("engine", "expected_names"),
+    [
+        (EngineName.QUIMB, {"network", "open_inds"}),
+        (EngineName.EINSUM_NUMPY, {"result"}),
+        (EngineName.EINSUM_TORCH, {"result"}),
+    ],
 )
-def test_linear_periodic_codegen_rejects_unsupported_engines(
+def test_linear_periodic_codegen_executes_for_remaining_backends(
     engine: EngineName,
+    expected_names: set[str],
 ) -> None:
-    with pytest.raises(CodeGenerationError, match="linear periodic"):
-        generate_code(build_linear_periodic_chain_spec(), engine=engine)
+    _import_required_backend(engine)
+
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+    namespace = _execute_generated_code(result.code, n=3)
+
+    for expected_name in expected_names:
+        assert expected_name in namespace
+
+
+@pytest.mark.parametrize(
+    ("engine", "spec_factory", "expected_snippet"),
+    [
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_carry_chain_spec,
+            "network.contract_between(",
+        ),
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_partial_carry_chain_spec,
+            "network.contract_between(",
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_carry_chain_spec,
+            "results_list.append(np.einsum(",
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_partial_carry_chain_spec,
+            "results_list.append(np.einsum(",
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_carry_chain_spec,
+            "results_list.append(torch.einsum(",
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_partial_carry_chain_spec,
+            "results_list.append(torch.einsum(",
+        ),
+    ],
+)
+def test_linear_periodic_carry_codegen_supports_remaining_backends(
+    engine: EngineName,
+    spec_factory: Callable[[], NetworkSpec],
+    expected_snippet: str,
+) -> None:
+    result = generate_code(spec_factory(), engine=engine)
+
+    assert "previous_payload = build_initial_cell()" in result.code
+    assert expected_snippet in result.code
+
+
+@pytest.mark.parametrize(
+    (
+        "engine",
+        "spec_factory",
+        "expected_names",
+        "expect_non_empty_remaining_operands",
+    ),
+    [
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_carry_chain_spec,
+            {"network", "open_inds", "result"},
+            False,
+        ),
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_partial_carry_chain_spec,
+            {"network", "open_inds", "result"},
+            False,
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_carry_chain_spec,
+            {"result", "remaining_operands"},
+            False,
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_partial_carry_chain_spec,
+            {"result", "remaining_operands"},
+            True,
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_carry_chain_spec,
+            {"result", "remaining_operands"},
+            False,
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_partial_carry_chain_spec,
+            {"result", "remaining_operands"},
+            True,
+        ),
+    ],
+)
+def test_linear_periodic_carry_codegen_executes_for_remaining_backends(
+    engine: EngineName,
+    spec_factory: Callable[[], NetworkSpec],
+    expected_names: set[str],
+    expect_non_empty_remaining_operands: bool,
+) -> None:
+    _import_required_backend(engine)
+
+    result = generate_code(spec_factory(), engine=engine)
+    namespace = _execute_generated_code(result.code, n=3)
+
+    for expected_name in expected_names:
+        assert expected_name in namespace
+    if "remaining_operands" in expected_names:
+        remaining_operands = namespace["remaining_operands"]
+        assert isinstance(remaining_operands, dict)
+        if expect_non_empty_remaining_operands:
+            assert remaining_operands
+
+
+@pytest.mark.parametrize(
+    ("collection_format", "container_name", "expected_snippets"),
+    [
+        (
+            TensorCollectionFormat.LIST,
+            "tensors",
+            ["tensors = []", "tensors.append("],
+        ),
+        (
+            TensorCollectionFormat.MATRIX,
+            "tensor_rows",
+            ["tensor_rows = []", "tensor_rows.append([])", "tensor_rows[0].append("],
+        ),
+        (
+            TensorCollectionFormat.DICT,
+            "tensors_dict",
+            ["tensors_dict = {}", "tensors_dict["],
+        ),
+    ],
+)
+def test_quimb_linear_periodic_codegen_supports_collection_formats(
+    collection_format: TensorCollectionFormat,
+    container_name: str,
+    expected_snippets: list[str],
+) -> None:
+    result = generate_code(
+        build_linear_periodic_chain_spec(),
+        engine=EngineName.QUIMB,
+        collection_format=collection_format,
+    )
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+    assert container_name in result.code
+    assert "def build_initial_cell()" in result.code
+    assert "network_tensors = list(initial_cell['tensors'])" in result.code
 
 
 @pytest.mark.parametrize(

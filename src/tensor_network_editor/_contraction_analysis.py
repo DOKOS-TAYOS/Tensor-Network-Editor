@@ -23,6 +23,7 @@ from ._contraction_plan import (
     simulate_contraction_plan,
     simulate_contraction_step,
 )
+from ._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
 from .codegen.common import prepare_network
 from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
@@ -34,6 +35,15 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
+    if spec.linear_periodic_chain is not None:
+        from .validation import ensure_valid_spec
+
+        validated_spec = ensure_valid_spec(spec)
+        if validated_spec.linear_periodic_chain is not None:
+            spec = linear_periodic_active_cell_as_analysis_network(
+                validated_spec.linear_periodic_chain
+            )
+
     bytes_per_element = dtype_size_in_bytes(memory_dtype)
     prepared = prepare_network(spec)
     dimension_by_label = build_dimension_by_label(prepared)

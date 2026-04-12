@@ -20,6 +20,7 @@ offline use, and generated code you can inspect.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
+- Build repeated chains with For mode and export them with any bundled backend.
 - Inspect manual contraction paths and optional planner suggestions.
 - Get structural analysis with FLOP and MAC cost summaries.
 - Use the package from the CLI or directly from Python.
@@ -118,7 +119,8 @@ print(result.code)
 - Real tensor values are not edited in the visual editor; generated tensors are
   initialized by the generated backend code.
 - TenPy code generation is not included.
-- Manual outer-product steps cannot be exported safely to `tensorkrowch`.
+- For mode works with all bundled backends. Manual outer-product steps still
+  cannot be exported safely to `tensorkrowch`.
 
 ## Project Links
 

@@ -80,10 +80,6 @@ export function registerUtilities(ctx) {
     matrix: "Matrix",
     dict: "Dictionary",
   };
-  const LINEAR_PERIODIC_SUPPORTED_ENGINES = new Set([
-    "tensornetwork",
-    "tensorkrowch",
-  ]);
   const LINEAR_PERIODIC_CELL_ORDER = ["initial", "periodic", "final"];
   const LINEAR_PERIODIC_CELL_LABELS = {
     initial: "Initial cell",
@@ -934,19 +930,11 @@ export function registerUtilities(ctx) {
     if (!engineSelect) {
       return false;
     }
-    const linearPeriodicMode = isLinearPeriodicMode();
-    Array.from(engineSelect.options).forEach((option) => {
-      option.disabled =
-        linearPeriodicMode &&
-        !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(option.value);
-    });
-    if (
-      linearPeriodicMode &&
-      !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine)
-    ) {
-      state.selectedEngine = "tensornetwork";
+    const hasSelectedEngine = Array.from(engineSelect.options).some(
+      (option) => option.value === state.selectedEngine
+    );
+    if (hasSelectedEngine) {
       engineSelect.value = state.selectedEngine;
-      return true;
     }
     return false;
   }
@@ -996,14 +984,8 @@ export function registerUtilities(ctx) {
       metadata: {},
     };
     hydrateActiveLinearPeriodicCell();
-    if (enforceLinearPeriodicEngineSupport()) {
-      ctx.setStatus(
-        "For mode enabled. TensorNetwork is selected because this mode currently supports TensorNetwork and TensorKrowch.",
-        "success"
-      );
-    } else {
-      ctx.setStatus("For mode enabled. You are editing the initial cell.", "success");
-    }
+    enforceLinearPeriodicEngineSupport();
+    ctx.setStatus("For mode enabled. You are editing the initial cell.", "success");
     if (typeof ctx.bumpSpecRevision === "function") {
       ctx.bumpSpecRevision();
     }
@@ -1908,9 +1890,6 @@ export function registerUtilities(ctx) {
         ? ctx.getSelectedIdsByKind("tensor")
         : [];
     enforceLinearPeriodicEngineSupport();
-    const unsupportedLinearPeriodicEngine =
-      linearPeriodicMode &&
-      !LINEAR_PERIODIC_SUPPORTED_ENGINES.has(state.selectedEngine);
     const selectedExportFormat = exportFormatSelect ? exportFormatSelect.value : "py";
     const exportNeedsEngine = selectedExportFormat === "py";
     syncCodeGenerationWarning();
@@ -1919,13 +1898,10 @@ export function registerUtilities(ctx) {
     redoButton.disabled = state.redoStack.length === 0;
     if (exportButton) {
       exportButton.disabled =
-        !state.spec ||
-        (exportNeedsEngine &&
-          (!state.selectedEngine || unsupportedLinearPeriodicEngine));
+        !state.spec || (exportNeedsEngine && !state.selectedEngine);
     }
     if (generateButton) {
-      generateButton.disabled =
-        !state.spec || !state.selectedEngine || unsupportedLinearPeriodicEngine;
+      generateButton.disabled = !state.spec || !state.selectedEngine;
     }
     insertTemplateButton.disabled = !templateSelect.value;
     createGroupButton.disabled = selectedTensorIds.length < 2;

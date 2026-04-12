@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import cast
 from unittest.mock import patch
+
+import pytest
 
 from tensor_network_editor.analysis import analyze_contraction
 from tensor_network_editor.api import generate_code
@@ -21,6 +24,7 @@ from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
     build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
+    build_linear_periodic_partial_carry_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_with_view_snapshots,
@@ -247,24 +251,62 @@ def test_generate_route_returns_linear_periodic_carry_code(
     assert "previous_payload = build_initial_cell()" in payload["code"]
 
 
-def test_generate_route_rejects_linear_periodic_carry_for_unsupported_engine(
+@pytest.mark.parametrize(
+    ("engine", "spec_factory", "expected_snippet"),
+    [
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_chain_spec,
+            "import quimb.tensor as qtn",
+        ),
+        (
+            EngineName.QUIMB,
+            build_linear_periodic_carry_chain_spec,
+            "previous_payload = build_initial_cell()",
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_chain_spec,
+            "result = np.einsum(",
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            build_linear_periodic_carry_chain_spec,
+            "results_list.append(np.einsum(",
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_chain_spec,
+            "result = torch.einsum(",
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            build_linear_periodic_carry_chain_spec,
+            "results_list.append(torch.einsum(",
+        ),
+    ],
+)
+def test_generate_route_accepts_linear_periodic_for_remaining_backends(
     editor_server: EditorServer,
+    engine: EngineName,
+    spec_factory: Callable[[], NetworkSpec],
+    expected_snippet: str,
 ) -> None:
-    status, payload = request_json_with_status(
+    payload = request_json(
         f"{editor_server.base_url}/api/generate",
         method="POST",
         payload={
-            "engine": EngineName.QUIMB.value,
+            "engine": engine.value,
             "spec": {
                 "schema_version": SCHEMA_VERSION,
-                "network": build_linear_periodic_carry_chain_spec().to_dict(),
+                "network": spec_factory().to_dict(),
             },
         },
     )
 
-    assert status == 400
-    assert payload["ok"] is False
-    assert "linear periodic" in payload["message"].lower()
+    assert payload["ok"] is True
+    assert payload["engine"] == engine.value
+    assert expected_snippet in payload["code"]
 
 
 def test_generate_route_rejects_missing_spec_with_400(
@@ -523,6 +565,33 @@ def test_analyze_contraction_route_returns_manual_summary(
     assert payload["manual"]["steps"][0]["estimated_macs"] == 24
     assert (
         payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == "float64"
+    )
+
+
+def test_analyze_contraction_route_uses_active_linear_periodic_cell(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/analyze-contraction",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_linear_periodic_partial_carry_chain_spec().to_dict(),
+            }
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["network_output_shape"] == [11, 19, 13, 29]
+    assert [step["step_id"] for step in payload["manual"]["steps"]] == [
+        "periodic_from_previous_partial",
+        "periodic_partial_carry",
+    ]
+    assert payload["automatic_full"]["status"] in {"complete", "unavailable"}
+    assert payload["automatic_future"]["status"] in {"complete", "unavailable"}
+    assert payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == (
+        "float64"
     )
 
 

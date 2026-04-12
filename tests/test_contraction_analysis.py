@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from tensor_network_editor._contraction_analysis import analyze_contraction
 from tensor_network_editor.models import (
     CanvasPosition,
@@ -8,10 +10,14 @@ from tensor_network_editor.models import (
     EdgeEndpointRef,
     EdgeSpec,
     IndexSpec,
+    LinearPeriodicCellName,
     NetworkSpec,
     TensorSpec,
 )
-from tests.factories import build_three_tensor_spec
+from tests.factories import (
+    build_linear_periodic_partial_carry_chain_spec,
+    build_three_tensor_spec,
+)
 
 
 def build_four_tensor_chain_spec() -> NetworkSpec:
@@ -98,6 +104,43 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.manual.summary.peak_intermediate_bytes == 64
     assert result.automatic_future is not None
     assert result.automatic_past is not None
+
+
+def test_analyze_contraction_uses_active_linear_periodic_cell_plan() -> None:
+    pytest.importorskip("opt_einsum")
+    spec = build_linear_periodic_partial_carry_chain_spec()
+
+    result = analyze_contraction(spec)
+
+    assert result.network_output_shape == (11, 19, 13, 29)
+    assert result.manual.status == "incomplete"
+    assert [step.step_id for step in result.manual.steps] == [
+        "periodic_from_previous_partial",
+        "periodic_partial_carry",
+    ]
+    assert result.manual.summary.remaining_operand_ids == (
+        "periodic_partial_carry",
+        "periodic_from_previous_partial",
+        "periodic_previous_right_tensor",
+        "periodic_next_right_tensor",
+    )
+    assert result.automatic_full.status == "complete"
+    assert result.automatic_full.steps
+    assert result.comparisons["manual_vs_automatic_full"].status == "complete"
+
+
+def test_analyze_contraction_respects_linear_periodic_active_cell() -> None:
+    spec = build_linear_periodic_partial_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    spec.linear_periodic_chain.active_cell = LinearPeriodicCellName.FINAL
+
+    result = analyze_contraction(spec)
+
+    assert result.network_output_shape == (31, 37)
+    assert [step.step_id for step in result.manual.steps] == [
+        "final_from_previous_partial"
+    ]
+    assert result.manual.steps[0].left_operand_id == "__linear_previous__"
 
 
 def test_analyze_contraction_marks_incomplete_manual_plan() -> None:

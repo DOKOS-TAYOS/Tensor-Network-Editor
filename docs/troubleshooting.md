@@ -180,6 +180,10 @@ unavailable until validation issues are fixed.
 
 ## TensorKrowch Rejects a Manual Plan
 
+For mode and normal network exports work with all bundled backends. The main
+backend-specific restriction that still remains is TensorKrowch manual
+outer-product export.
+
 TensorKrowch exports manual plans through `contract_between(...)`. That works
 for ordinary shared-index contractions, but it cannot safely represent manual
 outer-product steps.
@@ -213,4 +217,5 @@ These are current limits, not installation problems:
 - real tensor values are not edited in the visual editor
 - generated tensors are initialized by generated backend code
 - TenPy code generation is not included
+- For mode works with every bundled backend
 - manual outer-product plans cannot be exported to `tensorkrowch`

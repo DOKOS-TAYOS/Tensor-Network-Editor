@@ -8,6 +8,8 @@ from ._analysis import analyze_network
 from .models import (
     CanvasNoteSpec,
     ContractionStepSpec,
+    EdgeEndpointRef,
+    EdgeSpec,
     GroupSpec,
     IndexSpec,
     LinearPeriodicCellName,
@@ -65,6 +67,101 @@ def linear_periodic_cell_as_network(
         groups=list(cell.groups),
         edges=list(cell.edges),
         notes=list(cell.notes),
+        contraction_plan=cell.contraction_plan,
+        metadata=dict(cell.metadata),
+    )
+
+
+def linear_periodic_active_cell_as_analysis_network(
+    chain: LinearPeriodicChainSpec,
+) -> NetworkSpec:
+    """Wrap the active periodic cell as a regular network for path analysis."""
+    cell_by_name = dict(iter_linear_periodic_cells(chain))
+    cell_name = chain.active_cell
+    return linear_periodic_cell_as_analysis_network(
+        cell_by_name[cell_name],
+        cell_name=cell_name,
+    )
+
+
+def linear_periodic_cell_as_analysis_network(
+    cell: LinearPeriodicCellSpec,
+    *,
+    cell_name: LinearPeriodicCellName,
+) -> NetworkSpec:
+    """Return a cell network where virtual boundaries are real operands."""
+    tensor_id_by_original_id = {
+        tensor.id: _analysis_tensor_id(tensor) for tensor in cell.tensors
+    }
+    tensor_ids = set(tensor_id_by_original_id.values())
+    groups = [
+        GroupSpec(
+            id=group.id,
+            name=group.name,
+            tensor_ids=[
+                tensor_id
+                for tensor_id in dict.fromkeys(
+                    tensor_id_by_original_id[tensor_id]
+                    for tensor_id in group.tensor_ids
+                    if tensor_id in tensor_id_by_original_id
+                )
+                if tensor_id in tensor_ids
+            ],
+            metadata=dict(group.metadata),
+        )
+        for group in cell.groups
+    ]
+
+    return NetworkSpec(
+        id=f"linear_periodic_analysis_{cell_name.value}",
+        name=f"linear_periodic_analysis_{cell_name.value}",
+        tensors=[
+            TensorSpec(
+                id=tensor_id_by_original_id[tensor.id],
+                name=tensor.name,
+                position=tensor.position,
+                size=tensor.size,
+                indices=[
+                    IndexSpec(
+                        id=index.id,
+                        name=index.name,
+                        dimension=index.dimension,
+                        offset=index.offset,
+                        metadata=dict(index.metadata),
+                    )
+                    for index in tensor.indices
+                ],
+                linear_periodic_role=None,
+                metadata=dict(tensor.metadata),
+            )
+            for tensor in cell.tensors
+        ],
+        groups=[group for group in groups if group.tensor_ids],
+        edges=[
+            EdgeSpec(
+                id=edge.id,
+                name=edge.name,
+                left=_analysis_edge_endpoint(
+                    edge.left,
+                    tensor_id_by_original_id=tensor_id_by_original_id,
+                ),
+                right=_analysis_edge_endpoint(
+                    edge.right,
+                    tensor_id_by_original_id=tensor_id_by_original_id,
+                ),
+                metadata=dict(edge.metadata),
+            )
+            for edge in cell.edges
+        ],
+        notes=[
+            CanvasNoteSpec(
+                id=note.id,
+                text=note.text,
+                position=note.position,
+                metadata=dict(note.metadata),
+            )
+            for note in cell.notes
+        ],
         contraction_plan=cell.contraction_plan,
         metadata=dict(cell.metadata),
     )
@@ -203,6 +300,27 @@ def build_linear_periodic_interface_ports(
             )
         )
     return tuple(ports)
+
+
+def _analysis_tensor_id(tensor: TensorSpec) -> str:
+    """Return the analysis operand id for a cell tensor."""
+    if tensor.linear_periodic_role is LinearPeriodicTensorRole.PREVIOUS:
+        return LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
+    if tensor.linear_periodic_role is LinearPeriodicTensorRole.NEXT:
+        return LINEAR_PERIODIC_NEXT_OPERAND_ID
+    return tensor.id
+
+
+def _analysis_edge_endpoint(
+    endpoint: EdgeEndpointRef,
+    *,
+    tensor_id_by_original_id: dict[str, str],
+) -> EdgeEndpointRef:
+    """Return an edge endpoint with boundary tensor ids remapped."""
+    return EdgeEndpointRef(
+        tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
+        index_id=endpoint.index_id,
+    )
 
 
 def is_linear_periodic_reserved_operand_id(operand_id: str) -> bool:

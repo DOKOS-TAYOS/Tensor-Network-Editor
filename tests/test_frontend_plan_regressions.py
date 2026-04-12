@@ -555,6 +555,379 @@ def test_tensorkrowch_incompatible_plan_warns_only_when_generating(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+@pytest.mark.parametrize("engine_name", ["quimb", "einsum_numpy", "einsum_torch"])
+def test_for_mode_preserves_new_backend_selection_and_keeps_actions_enabled(
+    tmp_path: Path,
+    engine_name: str,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        f"for_mode_preserves_{engine_name}.mjs",
+        _build_runtime_prelude()
+        + f"""
+        function buildSimpleSpec() {{
+          return {{
+            id: "network_simple",
+            name: "simple",
+            tensors: [
+              {{
+                id: "tensor_a",
+                name: "A",
+                position: {{ x: 120, y: 120 }},
+                indices: [
+                  {{ id: "tensor_a_i", name: "i", dimension: 2, offset: {{ x: -58, y: -20 }}, metadata: {{}} }},
+                  {{ id: "tensor_a_x", name: "x", dimension: 3, offset: {{ x: 58, y: -20 }}, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+              {{
+                id: "tensor_b",
+                name: "B",
+                position: {{ x: 360, y: 120 }},
+                indices: [
+                  {{ id: "tensor_b_x", name: "x", dimension: 3, offset: {{ x: -58, y: -20 }}, metadata: {{}} }},
+                  {{ id: "tensor_b_j", name: "j", dimension: 5, offset: {{ x: 58, y: -20 }}, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+            ],
+            edges: [
+              {{
+                id: "edge_ax_bx",
+                index_ids: ["tensor_a_x", "tensor_b_x"],
+                metadata: {{}},
+              }},
+            ],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }};
+        }}
+
+        const ctx = await buildContext();
+        ctx.state.selectedEngine = {json.dumps(engine_name)};
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.populateEngineOptions([
+          "tensornetwork",
+          "quimb",
+          "tensorkrowch",
+          "einsum_numpy",
+          "einsum_torch",
+        ]);
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleSpec());
+        await registerContractionScene(ctx);
+        await registerInteractions(ctx);
+
+        ctx.toggleLinearPeriodicMode();
+        ctx.updateToolbarState();
+
+        if (ctx.state.selectedEngine !== {json.dumps(engine_name)}) {{
+          throw new Error(
+            `Expected for mode to keep ${engine_name} selected, received ${{ctx.state.selectedEngine}}.`
+          );
+        }}
+        if (ctx.dom.engineSelect.value !== {json.dumps(engine_name)}) {{
+          throw new Error(
+            `Expected the engine picker to keep ${engine_name}, received ${{ctx.dom.engineSelect.value}}.`
+          );
+        }}
+        if (ctx.dom.engineSelect.options.some((option) => option.disabled)) {{
+          throw new Error("For mode should not disable the remaining backend options.");
+        }}
+        if (ctx.dom.generateButton.disabled) {{
+          throw new Error("Generate should stay enabled for supported backends in for mode.");
+        }}
+        if (ctx.dom.exportButton.disabled) {{
+          throw new Error("Export should stay enabled for supported backends in for mode.");
+        }}
+        if (ctx.dom.codeGenerationWarning.hidden !== true) {{
+          throw new Error("No inline warning should be shown for compatible backends in for mode.");
+        }}
+        if (ctx.dom.statusMessage.textContent.includes("TensorNetwork and TensorKrowch")) {{
+          throw new Error(
+            `The old two-backend warning should not appear anymore: ${{ctx.dom.statusMessage.textContent}}`
+          );
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The for-mode backend preservation regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_for_mode_tensorkrowch_generation_surfaces_backend_rejection(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "for_mode_tensorkrowch_generation_error_panel.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildCarryCellSpec() {
+          return {
+            id: "network_linear_periodic_carry",
+            name: "linear-periodic-carry-chain",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            linear_periodic_chain: {
+              active_cell: "periodic",
+              initial_cell: {
+                tensors: [
+                  {
+                    id: "initial_tensor",
+                    name: "Initial",
+                    position: { x: 100, y: 140 },
+                    indices: [
+                      { id: "initial_phys", name: "phys", dimension: 2, metadata: {} },
+                      { id: "initial_bond", name: "bond", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "initial_next_boundary",
+                    name: "Next cell",
+                    position: { x: 320, y: 140 },
+                    linear_periodic_role: "next",
+                    indices: [
+                      { id: "initial_next_slot", name: "slot_1", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                ],
+                groups: [],
+                edges: [
+                  {
+                    id: "initial_edge_to_next",
+                    name: "initial_to_next",
+                    left: { tensor_id: "initial_tensor", index_id: "initial_bond" },
+                    right: { tensor_id: "initial_next_boundary", index_id: "initial_next_slot" },
+                    metadata: {},
+                  },
+                ],
+                notes: [],
+                contraction_plan: {
+                  id: "initial_plan",
+                  name: "Initial carry plan",
+                  steps: [
+                    {
+                      id: "initial_carry",
+                      left_operand_id: "initial_tensor",
+                      right_operand_id: "__linear_next__",
+                      metadata: {},
+                    },
+                  ],
+                  view_snapshots: [],
+                  metadata: {},
+                },
+                metadata: {},
+              },
+              periodic_cell: {
+                tensors: [
+                  {
+                    id: "periodic_left_tensor",
+                    name: "PeriodicLeft",
+                    position: { x: 140, y: 120 },
+                    indices: [
+                      { id: "periodic_left_in", name: "left", dimension: 3, metadata: {} },
+                      { id: "periodic_left_phys", name: "phys_l", dimension: 2, metadata: {} },
+                      { id: "periodic_left_inner", name: "inner", dimension: 5, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "periodic_right_tensor",
+                    name: "PeriodicRight",
+                    position: { x: 320, y: 120 },
+                    indices: [
+                      { id: "periodic_right_inner", name: "inner", dimension: 5, metadata: {} },
+                      { id: "periodic_right_phys", name: "phys_r", dimension: 2, metadata: {} },
+                      { id: "periodic_right_out", name: "right", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "periodic_previous_boundary",
+                    name: "Previous cell",
+                    position: { x: 20, y: 120 },
+                    linear_periodic_role: "previous",
+                    indices: [
+                      { id: "periodic_previous_slot", name: "slot_1", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "periodic_next_boundary",
+                    name: "Next cell",
+                    position: { x: 460, y: 120 },
+                    linear_periodic_role: "next",
+                    indices: [
+                      { id: "periodic_next_slot", name: "slot_1", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                ],
+                groups: [],
+                edges: [
+                  {
+                    id: "periodic_edge_from_previous",
+                    name: "from_previous",
+                    left: { tensor_id: "periodic_previous_boundary", index_id: "periodic_previous_slot" },
+                    right: { tensor_id: "periodic_left_tensor", index_id: "periodic_left_in" },
+                    metadata: {},
+                  },
+                  {
+                    id: "periodic_edge_inner",
+                    name: "inner",
+                    left: { tensor_id: "periodic_left_tensor", index_id: "periodic_left_inner" },
+                    right: { tensor_id: "periodic_right_tensor", index_id: "periodic_right_inner" },
+                    metadata: {},
+                  },
+                  {
+                    id: "periodic_edge_to_next",
+                    name: "to_next",
+                    left: { tensor_id: "periodic_right_tensor", index_id: "periodic_right_out" },
+                    right: { tensor_id: "periodic_next_boundary", index_id: "periodic_next_slot" },
+                    metadata: {},
+                  },
+                ],
+                notes: [],
+                contraction_plan: {
+                  id: "periodic_carry_plan",
+                  name: "Periodic carry plan",
+                  steps: [
+                    {
+                      id: "periodic_from_previous",
+                      left_operand_id: "__linear_previous__",
+                      right_operand_id: "periodic_left_tensor",
+                      metadata: {},
+                    },
+                    {
+                      id: "periodic_contract_full",
+                      left_operand_id: "periodic_from_previous",
+                      right_operand_id: "periodic_right_tensor",
+                      metadata: {},
+                    },
+                    {
+                      id: "periodic_carry",
+                      left_operand_id: "periodic_contract_full",
+                      right_operand_id: "__linear_next__",
+                      metadata: {},
+                    },
+                  ],
+                  view_snapshots: [],
+                  metadata: {},
+                },
+                metadata: {},
+              },
+              final_cell: {
+                tensors: [
+                  {
+                    id: "final_tensor",
+                    name: "Final",
+                    position: { x: 260, y: 140 },
+                    indices: [
+                      { id: "final_bond", name: "bond", dimension: 3, metadata: {} },
+                      { id: "final_phys", name: "phys", dimension: 7, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "final_previous_boundary",
+                    name: "Previous cell",
+                    position: { x: 60, y: 140 },
+                    linear_periodic_role: "previous",
+                    indices: [
+                      { id: "final_previous_slot", name: "slot_1", dimension: 3, metadata: {} },
+                    ],
+                    metadata: {},
+                  },
+                ],
+                groups: [],
+                edges: [
+                  {
+                    id: "final_edge_from_previous",
+                    name: "from_previous",
+                    left: { tensor_id: "final_previous_boundary", index_id: "final_previous_slot" },
+                    right: { tensor_id: "final_tensor", index_id: "final_bond" },
+                    metadata: {},
+                  },
+                ],
+                notes: [],
+                contraction_plan: {
+                  id: "final_plan",
+                  name: "Final carry plan",
+                  steps: [
+                    {
+                      id: "final_contract",
+                      left_operand_id: "__linear_previous__",
+                      right_operand_id: "final_tensor",
+                      metadata: {},
+                    },
+                  ],
+                  view_snapshots: [],
+                  metadata: {},
+                },
+                metadata: {},
+              },
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        const apiPostCalls = [];
+        ctx.apiPost = async (url, payload) => {
+          apiPostCalls.push({ url, payload });
+          return {
+            ok: false,
+            message: "Backend refused TensorKrowch for mode in this regression.",
+          };
+        };
+        ctx.state.selectedEngine = "tensorkrowch";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(buildCarryCellSpec());
+        await registerContractionScene(ctx);
+        await registerInteractions(ctx);
+
+        await ctx.generateCode();
+
+        if (apiPostCalls.length !== 1 || apiPostCalls[0].url !== "/api/generate") {
+          throw new Error(`Expected one generate call, received ${JSON.stringify(apiPostCalls)}.`);
+        }
+        const generatedNetwork = apiPostCalls[0].payload.spec.network;
+        const periodicSteps =
+          generatedNetwork.linear_periodic_chain.periodic_cell.contraction_plan.steps;
+        if (periodicSteps.length !== 3 || periodicSteps[0].left_operand_id !== "__linear_previous__") {
+          throw new Error("The generate payload did not preserve the periodic carry plan.");
+        }
+        if (!ctx.dom.statusMessage.textContent.includes("Backend refused TensorKrowch")) {
+          throw new Error(`Expected the backend error in the status message, received: ${ctx.dom.statusMessage.textContent}`);
+        }
+        if (!ctx.dom.generatedCode.value.includes("Backend refused TensorKrowch")) {
+          throw new Error(`Expected the backend error in the code panel, received: ${ctx.dom.generatedCode.value}`);
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The TensorKrowch for-mode generation error regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_note_sizes_normalize_and_resize_to_the_real_minimum(tmp_path: Path) -> None:
     script_path = _write_runtime_script(
         tmp_path,

@@ -245,19 +245,14 @@ export function registerInteractions(ctx) {
     }
     state.selectedEngine = engineName;
     engineSelect.value = engineName;
-    let nextStatusMessage = `Engine set to ${ctx.formatEngineLabel(engineName)}.`;
-    let nextStatusKind = "success";
-    if (
-      typeof ctx.enforceLinearPeriodicEngineSupport === "function" &&
-      ctx.enforceLinearPeriodicEngineSupport()
-    ) {
-      nextStatusMessage = "For mode currently supports TensorNetwork and TensorKrowch.";
+    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
+      ctx.enforceLinearPeriodicEngineSupport();
     }
     if (typeof ctx.renderPlanner === "function") {
       ctx.renderPlanner();
     }
     ctx.updateToolbarState();
-    ctx.setStatus(nextStatusMessage, nextStatusKind);
+    ctx.setStatus(`Engine set to ${ctx.formatEngineLabel(engineName)}.`, "success");
   }
 
   function toggleAutomaticPreview(mode) {
@@ -911,6 +906,15 @@ export function registerInteractions(ctx) {
     });
   }
 
+  function showCodeGenerationError(message) {
+    const safeMessage = message || "Code generation failed.";
+    state.generatedCode = `Code generation failed:\n${safeMessage}`;
+    if (generatedCode) {
+      generatedCode.value = state.generatedCode;
+    }
+    ctx.setStatus(safeMessage, "error");
+  }
+
   async function generateCode() {
     if (typeof ctx.toggleSidebarCollapsed === "function") {
       ctx.toggleSidebarCollapsed(false);
@@ -936,14 +940,14 @@ export function registerInteractions(ctx) {
         spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
-        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        showCodeGenerationError(payload.message || ctx.formatIssues(payload.issues));
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);
       generatedCode.value = state.generatedCode;
       ctx.setStatus(`Generated ${payload.engine} code.`, "success");
     } catch (error) {
-      ctx.setStatus(`Code generation failed: ${error.message}`, "error");
+      showCodeGenerationError(`Code generation failed: ${error.message}`);
     }
   }
 
@@ -1064,7 +1068,7 @@ export function registerInteractions(ctx) {
         spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
-        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        showCodeGenerationError(payload.message || ctx.formatIssues(payload.issues));
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);
@@ -1075,7 +1079,7 @@ export function registerInteractions(ctx) {
       );
       ctx.setStatus(`Exported ${payload.engine} Python code.`, "success");
     } catch (error) {
-      ctx.setStatus(`Could not export Python code: ${error.message}`, "error");
+      showCodeGenerationError(`Could not export Python code: ${error.message}`);
     }
   }
 
