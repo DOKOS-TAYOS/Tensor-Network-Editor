@@ -260,12 +260,9 @@ def generate_linear_periodic_code(
         LinearPeriodicCellName.FINAL,
     ):
         helper_signature, helper_name = helper_signature_by_cell_name[cell_name]
-        helper_renderer = (
-            _render_carry_cell_helper if uses_carry_mode else _render_cell_helper
-        )
         if uses_carry_mode:
             lines.extend(
-                helper_renderer(
+                _render_carry_cell_helper(
                     chain=chain,
                     cell_name=cell_name,
                     helper_name=helper_name,
@@ -277,7 +274,7 @@ def generate_linear_periodic_code(
             )
         else:
             lines.extend(
-                helper_renderer(
+                _render_cell_helper(
                     chain=chain,
                     cell_name=cell_name,
                     helper_name=helper_name,
@@ -721,12 +718,13 @@ def _simulate_carry_cell(
             real_steps.append(simulated_step)
             continue
 
-        left_state = remaining_operand_states.pop(step.left_operand_id, None)
-        right_state = remaining_operand_states.pop(step.right_operand_id, None)
-        if left_state is None or right_state is None:
+        try:
+            left_state = remaining_operand_states.pop(step.left_operand_id)
+            right_state = remaining_operand_states.pop(step.right_operand_id)
+        except KeyError as exc:
             raise CodeGenerationError(
                 f"Carry step '{step.id}' in cell '{cell_name.value}' references an unavailable operand."
-            )
+            ) from exc
         simulated_step, result_state = _simulate_carry_step(
             step=step,
             left_state=left_state,
