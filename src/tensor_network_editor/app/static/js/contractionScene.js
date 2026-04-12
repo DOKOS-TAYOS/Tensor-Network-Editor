@@ -250,15 +250,22 @@ export function registerContractionScene(ctx) {
       const contractedTokenKeys = new Set(
         pairAnalysis ? pairAnalysis.sharedTokenKeys : []
       );
+      const carrySourceOperand = usesNextOperand
+        ? (isNextOperandId(step.left_operand_id) ? rightOperand : leftOperand)
+        : null;
       const resultOperand = {
         id: step.id,
         name: `Result ${validSteps.length + 1}`,
         isDerived: true,
-        sourceTensorIds: [...new Set([...leftOperand.sourceTensorIds, ...rightOperand.sourceTensorIds])],
-        tokens: [
-          ...leftOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
-          ...rightOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
-        ].map((token) => ({ ...token })),
+        sourceTensorIds: carrySourceOperand
+          ? [...carrySourceOperand.sourceTensorIds]
+          : [...new Set([...leftOperand.sourceTensorIds, ...rightOperand.sourceTensorIds])],
+        tokens: carrySourceOperand
+          ? carrySourceOperand.tokens.map((token) => ({ ...token }))
+          : [
+              ...leftOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
+              ...rightOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
+            ].map((token) => ({ ...token })),
       };
 
       stepAnalyses.push({

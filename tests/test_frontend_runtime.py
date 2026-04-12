@@ -690,6 +690,19 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
           }};
         }}
 
+        function assertSceneHasOperandIndex(scene, operandId, indexName, label) {{
+          if (!scene) {{
+            throw new Error(`${{label}} did not build a visible contraction scene.`);
+          }}
+          const operand = scene.operandMap[operandId];
+          if (!operand) {{
+            throw new Error(`${{label}} did not include operand ${{operandId}}.`);
+          }}
+          if (!operand.indices.some((index) => index.name === indexName)) {{
+            throw new Error(`${{label}} did not keep the ${{indexName}} interface visible.`);
+          }}
+        }}
+
         const [stateModule, utilitiesModule, plannerModule, contractionSceneModule] =
           await Promise.all([
             import(pathToFileURL({json.dumps(str(state_runtime_path))}).href),
@@ -817,6 +830,13 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
         if (initialSteps.length !== 1 || initialSteps[0].right_operand_id !== "__linear_next__") {{
           throw new Error("The initial cell did not persist the reserved next operand id.");
         }}
+        const initialScene = ctx.buildContractionScene();
+        assertSceneHasOperandIndex(
+          initialScene,
+          initialSteps[0].id,
+          "bond",
+          "Initial carry scene"
+        );
 
         ctx.switchLinearPeriodicCell(1);
         if (ctx.resolvePlannerOperandId("periodic_previous_boundary") !== "__linear_previous__") {{
@@ -863,6 +883,16 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
         if (!Array.isArray(snapshots) || snapshots.length !== 3) {{
           throw new Error(`Expected 3 snapshots for the periodic plan, received ${{snapshots && snapshots.length}}.`);
         }}
+        const periodicScene = ctx.buildContractionScene();
+        if (periodicScene.totalStepCount !== 2 || periodicScene.appliedStepCount !== 2) {{
+          throw new Error("The periodic carry scene did not stay on the latest two-step scheme.");
+        }}
+        assertSceneHasOperandIndex(
+          periodicScene,
+          "periodic_carry_step",
+          "next",
+          "Periodic carry scene"
+        );
 
         ctx.syncCurrentGraphIntoLinearPeriodicChain();
         const periodicSteps =
@@ -873,6 +903,42 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
           periodicSteps[1].right_operand_id !== "__linear_next__"
         ) {{
           throw new Error("The periodic cell did not preserve the reserved carry operands when syncing back into the chain.");
+        }}
+
+        ctx.switchLinearPeriodicCell(2);
+        ctx.state.spec.contraction_plan = {{
+          id: "final_plan",
+          name: "Manual path",
+          steps: [
+            {{
+              id: "final_prev_step",
+              left_operand_id: "__linear_previous__",
+              right_operand_id: "final_tensor",
+              metadata: {{}},
+            }},
+          ],
+          view_snapshots: [],
+          metadata: {{}},
+        }};
+        ctx.repairContractionPlan();
+        const finalScene = ctx.buildContractionScene();
+        if (finalScene.totalStepCount !== 1 || finalScene.appliedStepCount !== 1) {{
+          throw new Error("The final carry scene did not expose the one-step scheme.");
+        }}
+        assertSceneHasOperandIndex(
+          finalScene,
+          "final_prev_step",
+          "phys",
+          "Final carry scene"
+        );
+        ctx.syncCurrentGraphIntoLinearPeriodicChain();
+        const finalSteps =
+          ctx.state.spec.linear_periodic_chain.final_cell.contraction_plan.steps;
+        if (
+          finalSteps.length !== 1 ||
+          finalSteps[0].left_operand_id !== "__linear_previous__"
+        ) {{
+          throw new Error("The final cell did not preserve the reserved previous operand when syncing back into the chain.");
         }}
         """
     )
@@ -1070,6 +1136,637 @@ def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_tensor_index_move_properties_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "tensor_index_move_properties_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    history_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "historySelection.js"
+    )
+    properties_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "properties.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    history_runtime_path = tmp_path / "historySelection.runtime.mjs"
+    properties_runtime_path = tmp_path / "properties.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    history_runtime_path.write_text(
+        history_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    properties_runtime_path.write_text(
+        properties_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        function createClassList() {
+          return {
+            add() {},
+            remove() {},
+            toggle() {},
+          };
+        }
+
+        function createFakeElement(id = null, tagName = "div") {
+          return {
+            id,
+            tagName,
+            value: "",
+            textContent: "",
+            selected: false,
+            disabled: false,
+            dataset: {},
+            style: {},
+            classList: createClassList(),
+            listeners: {},
+            addEventListener(eventName, listener) {
+              if (!this.listeners[eventName]) {
+                this.listeners[eventName] = [];
+              }
+              this.listeners[eventName].push(listener);
+            },
+            dispatchEvent(eventName, event = {}) {
+              (this.listeners[eventName] || []).forEach((listener) => {
+                listener({
+                  preventDefault() {},
+                  target: this,
+                  ...event,
+                });
+              });
+            },
+            click() {
+              this.dispatchEvent("click");
+            },
+            focus() {},
+            setAttribute() {},
+            removeAttribute() {},
+            appendChild() {},
+          };
+        }
+
+        function createFakeDocument() {
+          const elements = new Map();
+          const toggleElements = [];
+          return {
+            activeElement: null,
+            toggleElements,
+            registerHtml(html) {
+              elements.clear();
+              toggleElements.length = 0;
+
+              const idPattern = /id="([^"]+)"/g;
+              let idMatch = idPattern.exec(html);
+              while (idMatch) {
+                elements.set(idMatch[1], createFakeElement(idMatch[1]));
+                idMatch = idPattern.exec(html);
+              }
+
+              const togglePattern = /<button[\\s\\S]*?data-index-toggle="([^"]+)"[\\s\\S]*?>/g;
+              let toggleMatch = togglePattern.exec(html);
+              while (toggleMatch) {
+                const element = createFakeElement(null, "button");
+                element.dataset.indexToggle = toggleMatch[1];
+                toggleElements.push(element);
+                toggleMatch = togglePattern.exec(html);
+              }
+            },
+            getElementById(id) {
+              return elements.get(id) || null;
+            },
+            createElement(tagName) {
+              return createFakeElement(null, tagName);
+            },
+            querySelectorAll() {
+              return [];
+            },
+          };
+        }
+
+        function createPropertiesPanel(document) {
+          let html = "";
+          return {
+            get innerHTML() {
+              return html;
+            },
+            set innerHTML(value) {
+              html = value;
+              document.registerHtml(value);
+            },
+            querySelectorAll(selector) {
+              if (selector === "[data-index-toggle]") {
+                return document.toggleElements;
+              }
+              return [];
+            },
+          };
+        }
+
+        function createButton() {
+          return createFakeElement(null, "button");
+        }
+
+        function createSpec() {
+          return {
+            id: "network_index_move",
+            name: "index move regression",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "Tensor",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                metadata: {},
+                indices: [
+                  {
+                    id: "index_a",
+                    name: "A",
+                    dimension: 2,
+                    offset: { x: -38, y: 0 },
+                    metadata: {},
+                  },
+                  {
+                    id: "index_b",
+                    name: "B",
+                    dimension: 3,
+                    offset: { x: 38, y: 0 },
+                    metadata: {},
+                  },
+                  {
+                    id: "index_c",
+                    name: "C",
+                    dimension: 5,
+                    offset: { x: 0, y: -24 },
+                    metadata: {},
+                  },
+                ],
+              },
+            ],
+            edges: [],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        function getToggleChunk(html, indexId) {
+          const token = `data-index-toggle="${indexId}"`;
+          const position = html.indexOf(token);
+          if (position < 0) {
+            throw new Error(`Missing toggle for ${indexId}.`);
+          }
+          return html.slice(Math.max(0, position - 220), position + token.length + 120);
+        }
+
+        function assertToggleState(html, indexId, { open, focused }) {
+          const chunk = getToggleChunk(html, indexId);
+          const isOpen = chunk.includes("index-disclosure-toggle is-open");
+          const isFocused = chunk.includes("is-focused");
+          if (isOpen !== open) {
+            throw new Error(`Expected ${indexId} open=${open}, received ${isOpen}.`);
+          }
+          if (isFocused !== focused) {
+            throw new Error(`Expected ${indexId} focused=${focused}, received ${isFocused}.`);
+          }
+        }
+
+        function assertHtmlOrder(html, firstLabel, secondLabel) {
+          const firstPosition = html.indexOf(firstLabel);
+          const secondPosition = html.indexOf(secondLabel);
+          if (firstPosition < 0 || secondPosition < 0 || firstPosition >= secondPosition) {
+            throw new Error(
+              `Expected ${firstLabel} before ${secondLabel}.\\nHTML:\\n${html}`
+            );
+          }
+        }
+
+        const [stateModule, utilitiesModule, historyModule, propertiesModule] =
+          await Promise.all([
+            import(pathToFileURL(__STATE_PATH__).href),
+            import(pathToFileURL(__UTILITIES_PATH__).href),
+            import(pathToFileURL(__HISTORY_PATH__).href),
+            import(pathToFileURL(__PROPERTIES_PATH__).href),
+          ]);
+        const { createInitialState } = stateModule;
+        const { registerUtilities } = utilitiesModule;
+        const { registerHistorySelection } = historyModule;
+        const { registerProperties } = propertiesModule;
+
+        const document = createFakeDocument();
+        const propertiesPanel = createPropertiesPanel(document);
+        const ctx = {
+          state: createInitialState(),
+          constants: {
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 96,
+            MIN_TENSOR_HEIGHT: 60,
+            INDEX_RADIUS: 10,
+            INDEX_PADDING: 6,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 120,
+            NOTE_MIN_WIDTH: 120,
+            NOTE_MIN_HEIGHT: 90,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            DEFAULT_INDEX_SLOTS: [
+              { x: -38, y: 0 },
+              { x: 38, y: 0 },
+              { x: 0, y: -24 },
+              { x: 0, y: 24 },
+            ],
+          },
+          dom: {
+            workspace: {},
+            statusMessage: { textContent: "", classList: createClassList() },
+            propertiesPanel,
+            generatedCode: { value: "" },
+            engineSelect: { options: [], value: "tensornetwork" },
+            collectionFormatSelect: { options: [], value: "list" },
+            exportFormatSelect: { value: "py" },
+            addNoteButton: createButton(),
+            connectButton: createButton(),
+            loadInput: {},
+            undoButton: createButton(),
+            redoButton: createButton(),
+            exportButton: createButton(),
+            toggleLinearPeriodicButton: createButton(),
+            linearPeriodicPreviousCellButton: createButton(),
+            linearPeriodicCellLabel: { textContent: "" },
+            linearPeriodicNextCellButton: createButton(),
+            templateSelect: { value: "" },
+            templateParameterPanel: { hidden: true },
+            templateGraphSizeLabel: { textContent: "" },
+            templateGraphSizeInput: { value: "2", min: "1" },
+            templateBondDimensionInput: { value: "3", min: "1" },
+            templatePhysicalDimensionInput: { value: "2", min: "1" },
+            insertTemplateButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: { classList: createClassList() },
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            canvasShell: {
+              getBoundingClientRect() {
+                return { left: 0, top: 0, width: 1000, height: 800 };
+              },
+            },
+            groupLayer: {},
+            resizeLayer: {},
+            notesLayer: {},
+            selectionBox: {},
+            minimapCanvas: {},
+            sidebar: {},
+            plannerPanel: {},
+            generateButton: createButton(),
+          },
+          apiGet: async () => null,
+          apiPost: async () => null,
+          window: {
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm: () => true,
+          },
+          document,
+          cytoscape: null,
+          tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+          tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+          renderOverlayDecorations: () => {},
+          renderMinimap: () => {},
+          renderPlanner: () => {},
+          renderSidebarTabs: () => {},
+          refreshContractionAnalysis: () => {},
+          repairContractionPlan: () => {},
+          updateToolbarState: () => {},
+        };
+
+        registerUtilities(ctx);
+        registerHistorySelection(ctx);
+        registerProperties(ctx);
+
+        ctx.captureEditableFocus = () => null;
+        ctx.restoreEditableFocus = () => {};
+        ctx.render = (options = {}) => {
+          const resolvedOptions = {
+            graph: true,
+            properties: true,
+            code: true,
+            toolbar: true,
+            overlays: true,
+            planner: true,
+            sidebarTabs: true,
+            minimap: true,
+            syncSelection: false,
+            ...options,
+          };
+          if (resolvedOptions.properties) {
+            ctx.renderProperties();
+          }
+          if (resolvedOptions.toolbar) {
+            ctx.updateToolbarState();
+          }
+        };
+
+        ctx.state.selectedEngine = "tensornetwork";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(createSpec());
+
+        ctx.setSelection(["index_a"], { primaryId: "index_a" });
+        const initialHtml = ctx.dom.propertiesPanel.innerHTML;
+        assertHtmlOrder(initialHtml, "<strong>1. A</strong>", "<strong>2. B</strong>");
+        assertToggleState(initialHtml, "index_a", { open: true, focused: true });
+        assertToggleState(initialHtml, "index_b", { open: false, focused: false });
+
+        const moveDownButton = document.getElementById("move-index-down-button-index_a");
+        if (!moveDownButton) {
+          throw new Error("The open index editor did not expose the move-down button.");
+        }
+        moveDownButton.click();
+
+        const indexOrder = ctx.state.spec.tensors[0].indices.map((index) => index.id);
+        const expectedOrder = ["index_b", "index_a", "index_c"];
+        if (JSON.stringify(indexOrder) !== JSON.stringify(expectedOrder)) {
+          throw new Error(
+            `Expected model order ${JSON.stringify(expectedOrder)}, received ${JSON.stringify(indexOrder)}.`
+          );
+        }
+
+        const updatedHtml = ctx.dom.propertiesPanel.innerHTML;
+        if (updatedHtml === initialHtml) {
+          throw new Error("The properties panel did not re-render after moving the index.");
+        }
+        assertHtmlOrder(updatedHtml, "<strong>1. B</strong>", "<strong>2. A</strong>");
+        assertToggleState(updatedHtml, "index_b", { open: false, focused: false });
+        assertToggleState(updatedHtml, "index_a", { open: true, focused: true });
+        """
+    )
+    script_body = script_body.replace(
+        "__STATE_PATH__", json.dumps(str(state_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__UTILITIES_PATH__", json.dumps(str(utilities_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__HISTORY_PATH__", json.dumps(str(history_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__PROPERTIES_PATH__", json.dumps(str(properties_runtime_path))
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "sidebar_resize_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    sidebar_tabs_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "sidebarTabs.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    sidebar_tabs_runtime_path = tmp_path / "sidebarTabs.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    sidebar_tabs_runtime_path.write_text(
+        sidebar_tabs_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        function createClassList() {
+          const classes = new Set();
+          return {
+            add(className) {
+              classes.add(className);
+            },
+            remove(className) {
+              classes.delete(className);
+            },
+            toggle(className, force) {
+              const shouldHaveClass = typeof force === "boolean" ? force : !classes.has(className);
+              if (shouldHaveClass) {
+                classes.add(className);
+              } else {
+                classes.delete(className);
+              }
+            },
+            contains(className) {
+              return classes.has(className);
+            },
+          };
+        }
+
+        function createStyle() {
+          const properties = {};
+          return {
+            properties,
+            setProperty(name, value) {
+              properties[name] = value;
+            },
+          };
+        }
+
+        function createElement() {
+          return {
+            hidden: false,
+            innerHTML: "",
+            dataset: {},
+            classList: createClassList(),
+            style: createStyle(),
+            listeners: {},
+            addEventListener(eventName, listener) {
+              this.listeners[eventName] = listener;
+            },
+            setAttribute(name, value) {
+              this[name] = value;
+            },
+            removeAttribute(name) {
+              delete this[name];
+            },
+          };
+        }
+
+        function fire(target, eventName, event = {}) {
+          const listener = target.listeners[eventName];
+          if (!listener) {
+            throw new Error(`Missing ${eventName} listener.`);
+          }
+          listener({
+            clientX: 0,
+            key: "",
+            preventDefault() {},
+            ...event,
+          });
+        }
+
+        const [stateModule, sidebarTabsModule] = await Promise.all([
+          import(pathToFileURL(__STATE_PATH__).href),
+          import(pathToFileURL(__SIDEBAR_TABS_PATH__).href),
+        ]);
+        const { createInitialState } = stateModule;
+        const { registerSidebarTabs } = sidebarTabsModule;
+
+        const windowListeners = {};
+        let canvasResizeCount = 0;
+        let overlayRenderCount = 0;
+        let minimapRenderCount = 0;
+        const ctx = {
+          state: createInitialState(),
+          dom: {
+            workspace: createElement(),
+            sidebar: createElement(),
+            sidebarPanel: createElement(),
+            sidebarResizeHandle: createElement(),
+            sidebarToggleButton: createElement(),
+            sidebarTabSelection: createElement(),
+            sidebarTabPlanner: createElement(),
+            sidebarTabCode: createElement(),
+            sidebarPaneSelection: createElement(),
+            sidebarPanePlanner: createElement(),
+            sidebarPaneCode: createElement(),
+          },
+          window: {
+            innerWidth: 1200,
+            addEventListener(eventName, listener) {
+              windowListeners[eventName] = listener;
+            },
+          },
+          cy: {
+            resize() {
+              canvasResizeCount += 1;
+            },
+          },
+          renderOverlayDecorations() {
+            overlayRenderCount += 1;
+          },
+          renderMinimap() {
+            minimapRenderCount += 1;
+          },
+        };
+
+        registerSidebarTabs(ctx);
+
+        if (ctx.state.sidebarWidth !== 360) {
+          throw new Error(`Expected default sidebar width 360, received ${ctx.state.sidebarWidth}.`);
+        }
+        if (ctx.dom.workspace.style.properties["--sidebar-width"] !== "360px") {
+          throw new Error("The workspace did not receive the initial sidebar width CSS variable.");
+        }
+
+        fire(ctx.dom.sidebarResizeHandle, "mousedown", { clientX: 900 });
+        if (!ctx.state.activeSidebarResize) {
+          throw new Error("Dragging the resize handle did not start sidebar resizing.");
+        }
+        windowListeners.mousemove({ clientX: 800, preventDefault() {} });
+        if (ctx.state.sidebarWidth !== 460) {
+          throw new Error(`Expected dragging left to widen the sidebar to 460, received ${ctx.state.sidebarWidth}.`);
+        }
+        if (ctx.dom.workspace.style.properties["--sidebar-width"] !== "460px") {
+          throw new Error("The workspace sidebar width CSS variable was not updated while dragging.");
+        }
+        if (!canvasResizeCount || !overlayRenderCount || !minimapRenderCount) {
+          throw new Error("Resizing the sidebar should refresh the canvas, overlays, and minimap.");
+        }
+
+        windowListeners.mousemove({ clientX: 1200, preventDefault() {} });
+        if (ctx.state.sidebarWidth !== 280) {
+          throw new Error(`Expected the sidebar width to clamp to 280, received ${ctx.state.sidebarWidth}.`);
+        }
+        windowListeners.mousemove({ clientX: 100, preventDefault() {} });
+        if (ctx.state.sidebarWidth !== 640) {
+          throw new Error(`Expected the sidebar width to clamp to 640, received ${ctx.state.sidebarWidth}.`);
+        }
+        windowListeners.mouseup();
+        if (ctx.state.activeSidebarResize) {
+          throw new Error("Mouseup should stop sidebar resizing.");
+        }
+
+        ctx.toggleSidebarCollapsed(true);
+        ctx.toggleSidebarCollapsed(false);
+        if (ctx.state.sidebarWidth !== 640) {
+          throw new Error("Collapsing and expanding the sidebar should preserve the custom width.");
+        }
+
+        fire(ctx.dom.sidebarResizeHandle, "keydown", { key: "ArrowRight" });
+        if (ctx.state.sidebarWidth !== 616) {
+          throw new Error(`Expected ArrowRight to narrow the sidebar by 24px, received ${ctx.state.sidebarWidth}.`);
+        }
+        fire(ctx.dom.sidebarResizeHandle, "keydown", { key: "ArrowLeft" });
+        if (ctx.state.sidebarWidth !== 640) {
+          throw new Error(`Expected ArrowLeft to widen the sidebar by 24px, received ${ctx.state.sidebarWidth}.`);
+        }
+        """
+    )
+    script_body = script_body.replace(
+        "__STATE_PATH__", json.dumps(str(state_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__SIDEBAR_TABS_PATH__", json.dumps(str(sidebar_tabs_runtime_path))
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_for_mode_dimension_updates_keep_working_after_first_change(
     tmp_path: Path,
@@ -1123,6 +1820,46 @@ def test_engine_picker_uses_the_requested_display_order(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The engine-order runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tensor_index_move_refreshes_properties_menu_order_and_disclosure(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_tensor_index_move_properties_runtime_regression_script(
+        tmp_path
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The tensor-index move properties regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_sidebar_can_be_resized_and_keeps_custom_width(tmp_path: Path) -> None:
+    script_path = _write_sidebar_resize_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The sidebar resize runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

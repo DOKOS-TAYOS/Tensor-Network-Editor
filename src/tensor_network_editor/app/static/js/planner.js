@@ -146,10 +146,15 @@ export function registerPlannerFeature(ctx) {
       if (!leftOperand || !rightOperand) {
         break;
       }
-      const sourceTensorIds = [...new Set([
-        ...leftOperand.sourceTensorIds,
-        ...rightOperand.sourceTensorIds,
-      ])];
+      const carrySourceOperand = usesNextOperand
+        ? (isNextPlannerOperandId(step.left_operand_id) ? rightOperand : leftOperand)
+        : null;
+      const sourceTensorIds = carrySourceOperand
+        ? [...carrySourceOperand.sourceTensorIds]
+        : [...new Set([
+            ...leftOperand.sourceTensorIds,
+            ...rightOperand.sourceTensorIds,
+          ])];
 
       activeOperands.delete(step.left_operand_id);
       activeOperands.delete(step.right_operand_id);
@@ -934,7 +939,7 @@ export function registerPlannerFeature(ctx) {
     return `${prefix}${formatNumber(Math.abs(numericValue))}${suffix}`;
   }
 
-  function renderComparisonSection(title, comparison) {
+  function renderComparisonBody(comparison) {
     if (!comparison) {
       return "";
     }
@@ -944,39 +949,59 @@ export function registerPlannerFeature(ctx) {
         typeof comparison.message === "string" && comparison.message
           ? comparison.message
           : "Comparison is not available for the current plan.";
-      return `
-        <section class="planner-section">
-          <h3>${ctx.escapeHtml(title)}</h3>
-          <p class="planner-inline-meta">${ctx.escapeHtml(unavailableMessage)}</p>
-        </section>
-      `;
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(unavailableMessage)}</p>`;
     }
     return `
-      <section class="planner-section">
-        <h3>${ctx.escapeHtml(title)}</h3>
-        ${renderMetricChips([
-          {
-            label: "FLOP",
-            value: formatSignedDelta(comparison.delta_total_estimated_flops),
-            detail: "Auto - Manual",
-          },
-          {
-            label: "MAC",
-            value: formatSignedDelta(comparison.delta_total_estimated_macs),
-            detail: "Auto - Manual",
-          },
-          {
-            label: "Peak",
-            value: formatSignedDelta(comparison.delta_peak_intermediate_size),
-            detail: "Auto - Manual",
-          },
-          {
-            label: "Memory",
-            value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
-            detail: "Auto - Manual",
-          },
-        ])}
-      </section>
+      ${renderMetricChips([
+        {
+          label: "FLOP",
+          value: formatSignedDelta(comparison.delta_total_estimated_flops),
+          detail: "Auto - Manual",
+        },
+        {
+          label: "MAC",
+          value: formatSignedDelta(comparison.delta_total_estimated_macs),
+          detail: "Auto - Manual",
+        },
+        {
+          label: "Peak",
+          value: formatSignedDelta(comparison.delta_peak_intermediate_size),
+          detail: "Auto - Manual",
+        },
+        {
+          label: "Memory",
+          value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
+          detail: "Auto - Manual",
+        },
+      ])}
+    `;
+  }
+
+  function renderComparisonDisclosure(title, disclosureKey, comparison) {
+    if (!title || !disclosureKey || !comparison) {
+      return "";
+    }
+    const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
+    return `
+      <div class="planner-nested-disclosure">
+        <button
+          type="button"
+          class="planner-disclosure-toggle planner-nested-disclosure-toggle${isOpen ? " is-open" : ""}"
+          data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+        >
+          <span>${ctx.escapeHtml(title)}</span>
+          <strong>${isOpen ? "Hide" : "Show"}</strong>
+        </button>
+        ${
+          isOpen
+            ? `
+              <div class="planner-disclosure-body planner-nested-disclosure-body">
+                ${renderComparisonBody(comparison)}
+              </div>
+            `
+            : ""
+        }
+      </div>
     `;
   }
 
@@ -1068,16 +1093,29 @@ export function registerPlannerFeature(ctx) {
     `;
   }
 
-  function renderAutomaticSection(title, disclosureKey, mode, analysis, memoryDtype) {
+  function renderAutomaticSection(
+    title,
+    disclosureKey,
+    mode,
+    analysis,
+    memoryDtype,
+    options = {}
+  ) {
     const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
-    const canAct = Boolean(analysis && analysis.status !== "unavailable");
+    const hasActions = typeof mode === "string" && mode;
+    const canAct = Boolean(hasActions && analysis && analysis.status !== "unavailable");
     const summary = analysis && analysis.summary ? analysis.summary : {};
-    const isPreviewing = state.plannerPreviewMode === mode;
+    const isPreviewing = hasActions && state.plannerPreviewMode === mode;
     const previewShortcut = mode === "automaticFuture" ? "A" : "Shift+A";
     const acceptShortcut = mode === "automaticFuture" ? "Ctrl+A" : "Ctrl+Shift+A";
     const meta = analysis && analysis.message
       ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`
       : "";
+    const comparisonDisclosure = renderComparisonDisclosure(
+      options.comparisonTitle,
+      options.comparisonDisclosureKey,
+      options.comparison
+    );
     return `
       <section class="planner-section planner-disclosure">
         <button
@@ -1100,6 +1138,7 @@ export function registerPlannerFeature(ctx) {
                 detail: memoryDtype,
               },
             ])}
+            ${comparisonDisclosure}
             ${
               isPreviewing
                 ? `<p class="planner-inline-meta">Preview active.</p>${renderAutomaticPreviewStepList(
@@ -1108,29 +1147,35 @@ export function registerPlannerFeature(ctx) {
                 : ""
             }
             ${meta}
-            <div class="button-row">
-              <button
-                type="button"
-                class="button-accent-cool${isPreviewing ? " is-active" : ""}"
-                data-preview-mode="${ctx.escapeHtml(mode)}"
-                data-shortcut="${ctx.escapeHtml(previewShortcut)}"
-                data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
-                aria-pressed="${isPreviewing}"
-                ${canAct ? "" : " disabled"}
-              >
-                ${isPreviewing ? "Deactivate preview" : "Preview"}
-              </button>
-              <button
-                type="button"
-                class="apply-button"
-                data-accept-mode="${ctx.escapeHtml(mode)}"
-                data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
-                data-shortcut-label="Accept"
-                ${canAct ? "" : " disabled"}
-              >
-                Accept
-              </button>
-            </div>
+            ${
+              hasActions
+                ? `
+                  <div class="button-row">
+                    <button
+                      type="button"
+                      class="button-accent-cool${isPreviewing ? " is-active" : ""}"
+                      data-preview-mode="${ctx.escapeHtml(mode)}"
+                      data-shortcut="${ctx.escapeHtml(previewShortcut)}"
+                      data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
+                      aria-pressed="${isPreviewing}"
+                      ${canAct ? "" : " disabled"}
+                    >
+                      ${isPreviewing ? "Deactivate preview" : "Preview"}
+                    </button>
+                    <button
+                      type="button"
+                      class="apply-button"
+                      data-accept-mode="${ctx.escapeHtml(mode)}"
+                      data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
+                      data-shortcut-label="Accept"
+                      ${canAct ? "" : " disabled"}
+                    >
+                      Accept
+                    </button>
+                  </div>
+                `
+                : ""
+            }
           </div>
         ` : ""}
       </section>
@@ -1229,16 +1274,18 @@ export function registerPlannerFeature(ctx) {
         }
       </section>
       <div class="planner-summary-grid">
-        ${renderComparisonSection(
-          "Manual vs auto full",
-          payload.comparisons && payload.comparisons.manual_vs_automatic_full
+        ${renderAutomaticSection(
+          "Auto full",
+          "automaticFull",
+          null,
+          payload.automatic_full,
+          memoryDtype,
+          {
+            comparisonTitle: "Manual vs auto full",
+            comparisonDisclosureKey: "automaticFullComparison",
+            comparison: payload.comparisons && payload.comparisons.manual_vs_automatic_full,
+          }
         )}
-        ${renderComparisonSection(
-          "Manual subtrees vs auto past",
-          payload.comparisons && payload.comparisons.manual_subtrees_vs_automatic_past
-        )}
-      </div>
-      <div class="planner-summary-grid">
         ${renderAutomaticSection(
           "Auto future",
           "automaticFuture",
@@ -1251,7 +1298,13 @@ export function registerPlannerFeature(ctx) {
           "automaticPast",
           "automaticPast",
           payload.automatic_past,
-          memoryDtype
+          memoryDtype,
+          {
+            comparisonTitle: "Manual contractions vs auto past",
+            comparisonDisclosureKey: "automaticPastComparison",
+            comparison:
+              payload.comparisons && payload.comparisons.manual_subtrees_vs_automatic_past,
+          }
         )}
       </div>
       ${renderManualSection(payload.manual, memoryDtype)}

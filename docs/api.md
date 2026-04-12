@@ -1,0 +1,309 @@
+# Python API
+
+This page describes the public Python API you are most likely to use. For the
+data model fields themselves, see [data-models.md](data-models.md).
+
+## Contents
+
+- [Main Imports](#main-imports)
+- [Launch the Editor](#launch-the-editor)
+- [Generate Code](#generate-code)
+- [Save and Load Designs](#save-and-load-designs)
+- [Validate, Lint, Analyze, and Diff](#validate-lint-analyze-and-diff)
+- [Templates](#templates)
+- [Errors](#errors)
+- [Small Complete Example](#small-complete-example)
+
+## Main Imports
+
+The package exposes the main functions and models at the top level:
+
+```python
+from tensor_network_editor import (
+    CodeGenerationError,
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+    analyze_contraction,
+    analyze_spec,
+    build_template_spec,
+    diff_specs,
+    generate_code,
+    launch_tensor_network_editor,
+    lint_spec,
+    list_template_names,
+    load_spec,
+    load_spec_from_python_code,
+    save_spec,
+    validate_spec,
+)
+```
+
+Most workflows only need a few of these imports.
+
+## Launch the Editor
+
+Use `launch_tensor_network_editor(...)` when you want a local browser editing
+session from Python.
+
+```python
+from tensor_network_editor import EngineName, launch_tensor_network_editor
+
+
+def main() -> None:
+    result = launch_tensor_network_editor(
+        default_engine=EngineName.EINSUM_NUMPY,
+        open_browser=True,
+    )
+
+    if result is None:
+        print("Editor cancelled.")
+        return
+
+    print(result.engine.value)
+    print(result.spec.name)
+    if result.codegen is not None:
+        print(result.codegen.code)
+```
+
+Main parameters:
+
+- `initial_spec`: preload an existing `NetworkSpec`
+- `default_engine`: initial target backend shown in the editor
+- `default_collection_format`: initial tensor collection layout
+- `open_browser`: open the browser automatically
+- `host`: local host address, default `127.0.0.1`
+- `port`: local port, default `0` so the OS chooses one
+- `print_code`: print generated code after confirmation
+- `code_path`: write generated code after confirmation
+
+Return value:
+
+- `None` when the user cancels
+- `EditorResult` when the user confirms
+
+`EditorResult` contains `spec`, `engine`, `codegen`, and `confirmed`.
+
+## Generate Code
+
+Use `generate_code(...)` when you already have a `NetworkSpec`.
+
+```python
+from tensor_network_editor import (
+    EngineName,
+    TensorCollectionFormat,
+    generate_code,
+    load_spec,
+)
+
+
+spec = load_spec("my_network.json")
+result = generate_code(
+    spec,
+    engine=EngineName.QUIMB,
+    collection_format=TensorCollectionFormat.DICT,
+    path="generated_network.py",
+)
+
+print(result.engine.value)
+print(result.code)
+print(result.warnings)
+```
+
+Useful behavior:
+
+- `print_code=True` prints the generated source
+- `path="..."` writes the generated source to a file
+- `collection_format` can be `LIST`, `MATRIX`, or `DICT`
+- a backend-specific export problem raises `CodeGenerationError`
+
+If a saved `contraction_plan` exists, generated code follows that manual plan.
+Complete plans emit a final `result`. Partial plans emit intermediate values
+and a `remaining_operands` mapping.
+
+## Save and Load Designs
+
+Use `save_spec(...)` and `load_spec(...)` for the abstract JSON design.
+
+```python
+from tensor_network_editor import load_spec, save_spec
+
+
+spec = load_spec("my_network.json")
+save_spec(spec, "copy_of_my_network.json")
+```
+
+Important details:
+
+- `save_spec(...)` validates before writing
+- `load_spec(...)` accepts saved JSON designs
+- `load_spec(...)` also accepts supported generated `.py` exports
+- `load_spec_from_python_code(...)` works when generated source is already in
+  memory
+
+Round-trip from generated source:
+
+```python
+from tensor_network_editor import (
+    EngineName,
+    generate_code,
+    load_spec_from_python_code,
+)
+
+
+result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
+round_tripped_spec = load_spec_from_python_code(result.code)
+print(round_tripped_spec.name)
+```
+
+This parser is intentionally limited to source layouts emitted by this package.
+It is not a general Python-to-network importer.
+
+## Validate, Lint, Analyze, and Diff
+
+These helpers are useful in scripts and automated checks.
+
+```python
+from tensor_network_editor import (
+    analyze_spec,
+    diff_specs,
+    lint_spec,
+    load_spec,
+    validate_spec,
+)
+
+
+spec = load_spec("my_network.json")
+
+validation_issues = validate_spec(spec)
+lint_report = lint_spec(spec, max_tensor_rank=8, max_tensor_cardinality=50_000)
+analysis = analyze_spec(spec, memory_dtype="float32")
+diff = diff_specs(spec, spec)
+
+print(validation_issues)
+print(lint_report.to_dict())
+print(analysis.to_dict())
+print(diff.to_dict())
+```
+
+Use:
+
+- `validate_spec(...)` for hard consistency rules
+- `lint_spec(...)` for softer warnings and suggestions
+- `analyze_spec(...)` for structural counts and contraction summaries
+- `analyze_contraction(...)` when you only need contraction analysis
+- `diff_specs(...)` to compare entities by stable ids
+
+Supported memory dtypes for analysis are `float16`, `float32`, `float64`,
+`complex64`, and `complex128`.
+
+## Templates
+
+List built-in templates:
+
+```python
+from tensor_network_editor import list_template_names
+
+
+print(list_template_names())
+```
+
+Build a template spec:
+
+```python
+from tensor_network_editor.templates import build_template_spec, parse_template_parameters
+
+
+parameters = parse_template_parameters(
+    "mps",
+    {
+        "graph_size": 6,
+        "bond_dimension": 4,
+        "physical_dimension": 2,
+    },
+)
+spec = build_template_spec(
+    "mps",
+    parameters=parameters,
+)
+```
+
+Templates are useful when you want a valid starting network without placing
+every tensor manually.
+
+## Errors
+
+Common public errors include:
+
+- `CodeGenerationError`: the requested backend cannot represent the export
+- serialization and validation errors from loading malformed designs
+- normal `ValueError` for unsupported option values
+
+For backend-specific fixes, see [troubleshooting.md](troubleshooting.md).
+
+## Small Complete Example
+
+This example builds a small network by hand and generates NumPy einsum code.
+
+```python
+from tensor_network_editor import (
+    CanvasPosition,
+    EdgeEndpointRef,
+    EdgeSpec,
+    EngineName,
+    IndexSpec,
+    NetworkSpec,
+    TensorSpec,
+    generate_code,
+    save_spec,
+)
+
+
+def main() -> None:
+    spec = NetworkSpec(
+        id="network_demo",
+        name="demo",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=120.0, y=160.0),
+                indices=[
+                    IndexSpec(id="tensor_a_i", name="i", dimension=2),
+                    IndexSpec(id="tensor_a_x", name="x", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=360.0, y=160.0),
+                indices=[
+                    IndexSpec(id="tensor_b_x", name="x", dimension=3),
+                    IndexSpec(id="tensor_b_j", name="j", dimension=4),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="edge_x",
+                name="bond_x",
+                left=EdgeEndpointRef(
+                    tensor_id="tensor_a",
+                    index_id="tensor_a_x",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="tensor_b",
+                    index_id="tensor_b_x",
+                ),
+            )
+        ],
+    )
+
+    save_spec(spec, "demo_network.json")
+    result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
+    print(result.code)
+
+
+if __name__ == "__main__":
+    main()
+```

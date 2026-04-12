@@ -766,6 +766,9 @@ export function registerProperties(ctx) {
               }${focusedIndexId === index.id ? " is-focused" : ""}"
               data-index-toggle="${index.id}"
               aria-expanded="${isOpen}"
+              style="--index-border-color: ${ctx.escapeHtml(
+                ctx.getIndexColor(index, isConnected)
+              )};"
             >
               <span class="index-disclosure-title">
                 <strong>${indexPosition + 1}. ${ctx.escapeHtml(index.name)}</strong>
@@ -1131,6 +1134,7 @@ export function registerProperties(ctx) {
               invalidate: propertyInvalidation({
                 graph: true,
                 lookups: true,
+                properties: true,
               }),
               selectionIds: [index.id],
               primaryId: index.id,
@@ -1149,6 +1153,7 @@ export function registerProperties(ctx) {
               invalidate: propertyInvalidation({
                 graph: true,
                 lookups: true,
+                properties: true,
               }),
               selectionIds: [index.id],
               primaryId: index.id,

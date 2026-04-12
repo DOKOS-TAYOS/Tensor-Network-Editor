@@ -1,54 +1,55 @@
 # Documentation
 
-This folder is the practical documentation for `tensor-network-editor`.
+This folder contains the practical documentation for `tensor-network-editor`.
+The goal is simple: help you find the right page quickly, use the library, and
+avoid reading one huge document from top to bottom.
 
-It is written with a user-first approach: start here if you want to use the
-library, open the visual editor, save tensor-network designs, and generate
-Python code without having to read the whole codebase first.
+## Start Here
 
-## Start here
+- New to the project: read [getting-started.md](getting-started.md).
+- Installing or setting up extras: read [installation.md](installation.md).
+- Using the visual editor regularly: read [user-guide.md](user-guide.md).
+- Calling the package from Python: read [api.md](api.md).
+- Building specs by hand: read [data-models.md](data-models.md).
+- Working from the terminal or CI: read [cli.md](cli.md).
+- Something is not working: read [troubleshooting.md](troubleshooting.md).
 
-- If you want a quick first success, read [getting-started.md](getting-started.md).
-- If you want to understand the normal workflow in the editor, read
-  [user-guide.md](user-guide.md).
-- If you want to use the package directly from Python, read
-  [python-api.md](python-api.md).
-- If something is not working as expected, read
-  [faq-troubleshooting.md](faq-troubleshooting.md).
+## What This Library Does
 
-## What this library gives you
+`tensor-network-editor` lets you:
 
-`tensor-network-editor` is a local-first Python package for:
-
-- building tensor-network diagrams visually in your browser
-- saving them as JSON files
-- loading them back later
-- generating readable Python code for several backends
+- draw tensor-network structures in a local browser editor
+- save those structures as backend-independent JSON
+- reload the same design later
+- generate Python code for several tensor-network backends
+- inspect validation, linting, diff, and analysis results from Python or the CLI
 
 The browser interface is local to your machine. The package starts a local
-server, opens a browser tab, and waits until you confirm or cancel the session.
+server, opens a browser tab by default, and waits until you confirm or cancel
+the session.
 
-The same public API also supports round-tripping supported generated Python
-exports back into a `NetworkSpec`, choosing tensor collection layouts during
-code generation, and preserving manual contraction-scene snapshots inside saved
-plans.
+## Pages By Need
 
-## Typical workflow
+| Need | Read |
+| --- | --- |
+| Install the package quickly | [installation.md](installation.md) |
+| Try the editor for the first time | [getting-started.md](getting-started.md) |
+| Choose a backend or collection format | [user-guide.md](user-guide.md) |
+| Use templates and planner features | [user-guide.md](user-guide.md) |
+| Generate code from Python | [api.md](api.md) |
+| Understand `NetworkSpec` and related models | [data-models.md](data-models.md) |
+| Validate, lint, analyze, export, or diff from the terminal | [cli.md](cli.md) |
+| Fix install, backend, schema, or validation problems | [troubleshooting.md](troubleshooting.md) |
 
-1. Install the package in a virtual environment.
-2. Launch the editor from the CLI or from Python.
-3. Draw or edit your tensor network.
-4. Confirm the session.
-5. Save the abstract design as JSON and optionally generate Python code for a
-   target engine.
-6. Reload the saved JSON or a supported generated Python export later if you
-   want to inspect or regenerate the network.
+## Typical Workflow
 
-## Which page should I read?
+1. Install the package in a `.venv`.
+2. Launch the editor from the CLI or Python.
+3. Draw or load a tensor network.
+4. Save the JSON design.
+5. Generate backend Python code when you need a runnable implementation.
+6. Reopen the JSON later if you want to edit the design or target another
+   backend.
 
-- Choose [getting-started.md](getting-started.md) if you are new to the project.
-- Choose [user-guide.md](user-guide.md) if you already launched the editor and
-  want to understand what the different features are for.
-- Choose [python-api.md](python-api.md) if you prefer to integrate the package
-  into scripts, notebooks, or larger workflows.
-
+The JSON design is usually the durable artifact. Generated Python code is useful
+when you want to run, inspect, or adapt a concrete backend implementation.

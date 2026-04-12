@@ -1,46 +1,59 @@
 # User Guide
 
-This page explains the normal day-to-day workflow with `tensor-network-editor`.
+This guide explains how to use `tensor-network-editor` comfortably after the
+first launch. It focuses on practical workflow, choices, examples, and current
+limits.
 
-It is not a full internal reference. The goal is to help you use the package
-comfortably and understand what the main concepts are for.
+## Contents
 
-## Core idea
+- [Core Idea](#core-idea)
+- [Normal Editor Workflow](#normal-editor-workflow)
+- [Choosing a Backend](#choosing-a-backend)
+- [Choosing a Collection Format](#choosing-a-collection-format)
+- [Templates](#templates)
+- [Saving and Loading](#saving-and-loading)
+- [Manual Contraction Plans](#manual-contraction-plans)
+- [Planner Extra](#planner-extra)
+- [Linear Periodic Mode](#linear-periodic-mode)
+- [Useful Tips](#useful-tips)
+- [Current Limits](#current-limits)
 
-The library separates two things:
+## Core Idea
+
+The package separates two artifacts:
 
 - the abstract tensor-network design, stored as a `NetworkSpec`
-- the generated Python code for a specific backend
+- generated Python code for one target backend
 
-That separation is useful because you can keep one design and generate code for
-different targets later.
+That separation is important. You can keep one JSON design, reopen it later,
+and generate code for another backend without redrawing the network.
 
-## A practical mental model
+It helps to think in these objects:
 
-When you work with the editor, it helps to think in these objects:
+- a tensor is a node on the canvas
+- an index belongs to one tensor and has a dimension
+- an edge connects two indices with matching dimensions
+- a group organizes several tensors visually
+- a note stores text on the canvas
+- a contraction plan stores a manual contraction order
 
-- a **tensor** is a node on the canvas
-- an **index** belongs to a tensor and has a dimension
-- an **edge** connects two indices with matching dimension
-- a **group** helps you organize several tensors visually
-- a **note** stores extra information on the canvas
-- a **contraction plan** describes a manual contraction order
+## Normal Editor Workflow
 
-## Normal workflow in the editor
+A typical session looks like this:
 
-A typical user session looks like this:
-
-1. Launch the editor with a default engine.
+1. Launch the editor with a default backend.
 2. Create tensors and indices.
 3. Connect matching indices.
-4. Add notes or groups if the network becomes larger.
+4. Add groups or notes when the network becomes hard to read.
 5. Optionally inspect or edit the contraction plan.
-6. Confirm the session.
-7. Save the JSON design and, if needed, the generated Python code.
+6. Confirm the session with `Done`.
+7. Save the JSON design and, when useful, generated Python code.
 
-## Choosing a code-generation engine
+The editor is local. Closing the browser tab does not upload data anywhere.
 
-The package currently supports these engine names:
+## Choosing a Backend
+
+Supported engine names are:
 
 - `tensorkrowch`
 - `einsum_torch`
@@ -48,22 +61,47 @@ The package currently supports these engine names:
 - `quimb`
 - `tensornetwork`
 
-In the editor UI, the Generate Code picker shows them in that same order and
-starts with `TensorKrowch` selected unless you launch the session with a
-different `default_engine`.
+Simple rule of thumb:
 
-### Simple rule of thumb
+- choose `einsum_numpy` for lightweight generated NumPy code
+- choose `einsum_torch` for a PyTorch-style workflow
+- choose `quimb`, `tensornetwork`, or `tensorkrowch` when you already use that
+  ecosystem
 
-- Choose `einsum_numpy` if you want lightweight generated code without an extra
-  tensor-network framework.
-- Choose `einsum_torch` if you want the same style but in a PyTorch-based
-  workflow.
-- Choose `quimb`, `tensornetwork`, or `tensorkrowch` if you already work in
-  those ecosystems and want generated code that fits them more naturally.
+The editor starts with `TensorKrowch` selected unless you pass another default
+engine from the CLI or Python API.
+
+Backend extras only help you run generated code in the same environment. The
+editor can still generate source text without those backend libraries installed.
+See [installation.md](installation.md#optional-extras).
+
+## Choosing a Collection Format
+
+Generated code can organize created tensors in three layouts:
+
+- `list`
+- `matrix`
+- `dict`
+
+This only changes how generated Python stores the tensor variables. It does not
+change the abstract network stored in JSON.
+
+Use:
+
+- `list` for a simple ordered container
+- `matrix` when the visual row layout matters
+- `dict` when stable names are more convenient than positions
+
+From Python, pass `TensorCollectionFormat.LIST`,
+`TensorCollectionFormat.MATRIX`, or `TensorCollectionFormat.DICT` to
+`generate_code(...)` or `launch_tensor_network_editor(...)`.
 
 ## Templates
 
-The editor includes built-in layout templates for common tensor-network shapes:
+Templates help you start from common tensor-network shapes instead of placing
+each tensor by hand.
+
+Built-in templates:
 
 - `MPS`
 - `MPO`
@@ -71,9 +109,7 @@ The editor includes built-in layout templates for common tensor-network shapes:
 - `MERA`
 - `Binary Tree`
 
-These templates are useful when you do not want to place every tensor manually.
-
-Template controls let you adjust:
+Template controls include:
 
 - graph size
 - bond dimension
@@ -85,126 +121,116 @@ The graph-size label depends on the selected template:
 - `PEPS` uses `Side length`
 - `MERA` and `Binary Tree` use `Depth`
 
-## Code output layout
+You can also build templates from Python or the CLI. See [api.md](api.md) and
+[cli.md](cli.md#template-commands).
 
-When you generate Python code, the package can organize created tensors in
-three collection formats:
+## Saving and Loading
 
-- `list`
-- `matrix`
-- `dict`
+The JSON design is the durable part of your work. Generated code is a useful
+implementation artifact, but the JSON remains backend-independent.
 
-That choice changes the surrounding container shape, but not the abstract
-tensor network itself. The JSON design remains backend-agnostic and
-collection-format agnostic.
+Practical rule:
 
-## Saving and loading
+- save JSON if you want to reopen, version, compare, or regenerate the network
+- save generated Python if you want to run or adapt a concrete backend script
+- keep both when you want reproducibility and immediately runnable code
 
-The JSON design is the durable part of your work.
+Saved files use a schema wrapper:
 
-This is usually the best way to think about persistence:
+```json
+{
+  "schema_version": 4,
+  "network": {
+    "...": "..."
+  }
+}
+```
 
-- save the JSON if you want to reopen or version the network later
-- save generated Python code if you want to run or adapt a concrete backend
-  implementation
+The package validates saved designs when loading or saving.
 
-Because the JSON is backend-agnostic, you can reopen the same design and
-generate code for a different engine later.
+## Manual Contraction Plans
 
-## Manual contraction plans
-
-The package supports manual contraction plans through `ContractionPlanSpec` and
+Manual contraction plans are stored with `ContractionPlanSpec` and
 `ContractionStepSpec`.
 
-In practical terms:
+In practice:
 
-- a plan is a named sequence of contraction steps
-- each step consumes two operand ids and produces a new intermediate id
-- operand ids must exist and cannot be reused after they have been consumed
+- a plan is a named list of contraction steps
+- each step consumes two operands and creates a new intermediate operand
+- consumed operands cannot be reused by later steps
+- a complete plan ends with one final result
+- a partial plan leaves surviving operands in `remaining_operands`
 
-This is useful when you want explicit control over contraction order instead of
-accepting an automatic heuristic.
+When `generate_code(...)` sees a saved manual plan, generated code follows that
+plan instead of using the backend's usual one-shot export.
 
-When you generate code from a saved design:
+Backend notes:
 
-- if there is no saved `contraction_plan`, the package keeps the usual
-  one-shot backend-specific export
-- if there is a saved `contraction_plan`, the generated code follows those
-  manual steps exactly
-- complete plans emit a final `result`
-- partial plans emit explicit intermediate variables and a
-  `remaining_operands` mapping with the operands that are still alive after the
-  exported prefix
-
-For the `einsum_numpy` and `einsum_torch` engines, partial plans also emit
-`remaining_operand_labels` so the surviving index labels stay easy to inspect.
-
-Manual plans can also store contraction-scene view state:
-
-- `ContractionOperandLayoutSpec` stores one operand position and size
-- `ContractionViewSnapshotSpec` stores a scene snapshot for a given applied step
-  count
-
-These snapshot objects are mainly for the editor UI, but they are part of the
-saved design and survive JSON round trips.
-
-### Backend-specific note for manual plans
-
-- `tensornetwork` exports manual steps with `contract_between(...)`
-- `quimb` exports manual steps with its tensor-network contraction helpers
-- `tensorkrowch` exports manual steps with `contract_between(...)`, but manual
-  outer-product steps are not supported there and are rejected during code
-  generation
+- `tensornetwork` and `quimb` can export step-by-step manual plans, including
+  outer products
 - `einsum_numpy` and `einsum_torch` export one `einsum(...)` call per manual
-  step instead of a single global einsum
+  step
+- `tensorkrowch` exports normal manual contractions, but rejects manual
+  outer-product steps with `CodeGenerationError`
 
-## Planner extra
+Manual plans may also store contraction-scene snapshots. Those snapshots keep
+UI layout state for operands and survive JSON round trips.
 
-If you install the `planner` extra, the editor can also offer automatic greedy
+## Planner Extra
+
+The optional `planner` extra installs `opt_einsum` and enables automatic greedy
 contraction suggestions.
 
 ```bash
 python -m pip install "tensor-network-editor[planner]"
 ```
 
-The planner extra is optional. The library still works without it.
+The planner can compare manual and automatic paths using metrics such as:
 
-## What the package validates for you
+- operation cost
+- peak intermediate size
+- estimated peak bytes for the selected dtype
+- the step where the peak appears
 
-When a network is serialized or loaded, the package validates important parts of
-the design. For example:
+The package still works without the `planner` extra. You only lose automatic
+suggestions.
 
-- names must not be empty
-- tensor sizes must be positive
-- index dimensions must be positive
-- edge endpoints must exist
-- connected indices must have matching dimensions
-- ids must be unique where required
+## Linear Periodic Mode
 
-This helps catch broken or inconsistent network descriptions early.
+Linear periodic mode is for repeated one-dimensional structures with an
+initial cell, a periodic cell, and a final cell.
 
-## Useful limits to know
+Useful ideas:
 
-The current release has some intentional limits:
+- each cell can have its own tensors, edges, notes, groups, and contraction
+  plan
+- `Previous cell` and `Next cell` are special carry operands in manual plans
+- `Next cell` must be the last contraction step in a carry plan
+- generated code forwards the chosen carry operand to the next cell
 
-- hyperedges are not supported
-- real tensor data editing is not supported
-- generated tensors are initialized to zeros
-- TenPy code generation is not part of the current release
+This mode is more specialized than normal free drawing. Start with the regular
+editor workflow unless your network really is a repeated chain.
 
-These are worth keeping in mind before you design a workflow around the package.
+## Useful Tips
 
-## When to use the library directly from Python
+- Keep tensor and index names meaningful. Generated Python is easier to read.
+- Save the JSON design early, not only the generated code.
+- Use groups for larger diagrams so visual organization does not depend only on
+  tensor positions.
+- Use notes to store assumptions, boundary choices, or experiment context.
+- If a backend export fails, try `einsum_numpy` to inspect a simpler generated
+  representation.
+- Run `tensor-network-editor lint my_network.json` when a network loads but
+  looks suspicious.
+- Run `tensor-network-editor analyze my_network.json --dtype float32` when
+  memory estimates should match your intended element width.
 
-The CLI is great for interactive sessions, but direct Python use is often
-better when:
+## Current Limits
 
-- you want to integrate the editor into a larger script
-- you want to save and load designs programmatically
-- you want to generate code in a batch process
-- you want to inspect open indices or tensor maps from the abstract model
-- you want to round-trip supported generated Python source back into a
-  `NetworkSpec`
+- Hyperedges are not supported.
+- The editor does not edit real tensor values.
+- Generated tensors are initialized by generated backend code.
+- TenPy code generation is not included.
+- Manual outer-product steps cannot be exported to `tensorkrowch`.
 
-For that workflow, continue with [python-api.md](python-api.md).
-
+For common fixes, see [troubleshooting.md](troubleshooting.md).

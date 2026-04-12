@@ -254,6 +254,31 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".code-header-row {" in body
 
 
+def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    sidebar_body = request_text(f"{editor_server.base_url}/js/sidebarTabs.js")
+
+    assert 'id="sidebar-resize-handle"' in html
+    assert 'role="separator"' in html
+    assert "--sidebar-width: 360px;" in css_body
+    assert ".sidebar-resize-handle {" in css_body
+    assert (
+        "grid-template-columns: minmax(0, 1fr) minmax(280px, var(--sidebar-width));"
+        in css_body
+    )
+    assert (
+        'sidebarResizeHandle: document.getElementById("sidebar-resize-handle")'
+        in dom_body
+    )
+    assert "function setSidebarWidth(" in sidebar_body
+    assert (
+        'windowRef.addEventListener("mousemove", handleSidebarResizeMove);'
+        in sidebar_body
+    )
+
+
 def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
     editor_server: EditorServer,
 ) -> None:
@@ -268,6 +293,20 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert 'aria-label="Delete note"' in body
     assert "function getSelectionTotalElementCount(" in body
     assert "function getTensorTotalElementCount(" in body
+
+
+def test_index_disclosure_border_uses_the_port_color(
+    editor_server: EditorServer,
+) -> None:
+    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "--index-border-color:" in properties_body
+    assert "ctx.getIndexColor(index, isConnected)" in properties_body
+    assert (
+        "border-color: var(--index-border-color, rgba(76, 92, 120, 0.95));" in css_body
+    )
+    assert "border-color: var(--index-border-color, var(--accent));" in css_body
 
 
 def test_contraction_result_properties_expose_a_delete_action(

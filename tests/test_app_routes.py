@@ -19,6 +19,7 @@ from tensor_network_editor.serialization import (
 )
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
+    build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec,
@@ -224,6 +225,46 @@ def test_generate_route_accepts_collection_format(
     assert payload["ok"] is True
     assert payload["engine"] == EngineName.EINSUM_NUMPY.value
     assert "tensors_dict = {" in payload["code"]
+
+
+def test_generate_route_returns_linear_periodic_carry_code(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/generate",
+        method="POST",
+        payload={
+            "engine": EngineName.TENSORNETWORK.value,
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_linear_periodic_carry_chain_spec().to_dict(),
+            },
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["engine"] == EngineName.TENSORNETWORK.value
+    assert "previous_payload = build_initial_cell()" in payload["code"]
+
+
+def test_generate_route_rejects_linear_periodic_carry_for_unsupported_engine(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/generate",
+        method="POST",
+        payload={
+            "engine": EngineName.QUIMB.value,
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_linear_periodic_carry_chain_spec().to_dict(),
+            },
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "linear periodic" in payload["message"].lower()
 
 
 def test_generate_route_rejects_missing_spec_with_400(

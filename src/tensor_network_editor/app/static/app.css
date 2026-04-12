@@ -14,6 +14,7 @@
   --danger: #ff6e66;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
   --canvas-control-height: 2.5rem;
+  --sidebar-width: 360px;
 }
 
 * {
@@ -232,7 +233,7 @@ select {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, var(--sidebar-width));
   gap: 1rem;
   padding: 1rem;
   overflow: hidden;
@@ -633,6 +634,41 @@ select {
   z-index: 10;
 }
 
+.sidebar-resize-handle {
+  position: absolute;
+  top: 1rem;
+  bottom: 1rem;
+  left: -0.65rem;
+  width: 0.85rem;
+  border-radius: 999px;
+  cursor: ew-resize;
+  z-index: 20;
+}
+
+.sidebar-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: 50%;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(139, 194, 255, 0.24);
+  transform: translateX(-50%);
+  transition: background 0.12s ease, width 0.12s ease;
+}
+
+.sidebar-resize-handle:hover::before,
+.sidebar-resize-handle:focus-visible::before,
+.sidebar.is-resizing .sidebar-resize-handle::before {
+  width: 3px;
+  background: rgba(139, 194, 255, 0.9);
+}
+
+.sidebar.is-collapsed .sidebar-resize-handle {
+  display: none;
+}
+
 .panel-card {
   padding: 1rem;
   overflow: hidden;
@@ -841,6 +877,20 @@ select {
   display: grid;
   gap: 0.7rem;
   margin-top: 0.7rem;
+}
+
+.planner-nested-disclosure {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.planner-nested-disclosure-toggle {
+  padding: 0.55rem 0.7rem;
+  background: rgba(13, 18, 27, 0.9);
+}
+
+.planner-nested-disclosure-body {
+  margin-top: 0;
 }
 
 .planner-icon-button {
@@ -1172,6 +1222,14 @@ button[disabled] {
   padding: 0.7rem;
 }
 
+.index-disclosure-toggle {
+  border-color: var(--index-border-color, rgba(76, 92, 120, 0.95));
+}
+
+.index-disclosure-toggle.is-open {
+  border-color: var(--index-border-color, var(--accent));
+}
+
 .index-disclosure-title {
   display: grid;
   gap: 0.18rem;
@@ -1483,6 +1541,10 @@ button[disabled] {
 
   .sidebar {
     min-height: 340px;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
   }
 
   #canvas {

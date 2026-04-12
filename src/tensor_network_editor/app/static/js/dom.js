@@ -38,6 +38,7 @@ export function getDomRefs(document) {
     minimapCanvas: document.getElementById("minimap"),
     sidebar: document.getElementById("sidebar"),
     sidebarPanel: document.getElementById("sidebar-panel"),
+    sidebarResizeHandle: document.getElementById("sidebar-resize-handle"),
     sidebarToggleButton: document.getElementById("sidebar-toggle-button"),
     sidebarTabs: document.getElementById("sidebar-tabs"),
     sidebarTabSelection: document.getElementById("sidebar-tab-selection"),

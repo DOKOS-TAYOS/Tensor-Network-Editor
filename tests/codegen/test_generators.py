@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from tensor_network_editor.api import generate_code
@@ -353,22 +355,37 @@ def test_linear_periodic_codegen_executes_for_supported_backends(
     "engine",
     [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
 )
-def test_linear_periodic_carry_codegen_rejects_unsupported_boundary_threading(
-    engine: EngineName,
-) -> None:
-    with pytest.raises(CodeGenerationError, match="carry mode"):
-        generate_code(build_linear_periodic_carry_chain_spec(), engine=engine)
-
-
 @pytest.mark.parametrize(
-    "engine",
-    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+    "spec_factory",
+    [
+        build_linear_periodic_carry_chain_spec,
+        build_linear_periodic_partial_carry_chain_spec,
+    ],
 )
-def test_linear_periodic_partial_carry_codegen_rejects_unsupported_boundary_threading(
+def test_linear_periodic_carry_codegen_executes_for_supported_backends(
     engine: EngineName,
+    spec_factory: Callable[[], NetworkSpec],
 ) -> None:
-    with pytest.raises(CodeGenerationError, match="carry mode"):
-        generate_code(build_linear_periodic_partial_carry_chain_spec(), engine=engine)
+    _import_required_backend(engine)
+
+    result = generate_code(spec_factory(), engine=engine)
+    namespace = _execute_generated_code(result.code, n=3)
+
+    assert "network_nodes" in namespace
+    assert "open_edges" in namespace
+    assert "result" in namespace
+
+
+def test_linear_periodic_carry_codegen_threads_interface_payloads() -> None:
+    result = generate_code(
+        build_linear_periodic_carry_chain_spec(),
+        engine=EngineName.TENSORNETWORK,
+    )
+
+    assert "previous_payload = build_initial_cell()" in result.code
+    assert "'operand':" in result.code
+    assert "'outgoing_interface':" in result.code
+    assert "next_boundary_operand" not in result.code
 
 
 @pytest.mark.parametrize(

@@ -903,15 +903,38 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
             automatic_strategy: "greedy",
           },
         };
+        ctx.state.plannerDisclosureState.automaticFull = true;
         ctx.state.plannerDisclosureState.automaticFuture = true;
         ctx.state.plannerDisclosureState.automaticPast = true;
+        ctx.state.plannerDisclosureState.automaticFullComparison = true;
+        ctx.state.plannerDisclosureState.automaticPastComparison = true;
         ctx.state.plannerInspectionStepCount = 0;
 
         ctx.renderPlanner();
 
         const html = ctx.dom.plannerPanel.innerHTML;
-        if (!html.includes("Manual vs auto full")) {
-          throw new Error(`Expected Manual vs auto full summary, received: ${html}`);
+        const autoFullPosition = html.indexOf("Auto full");
+        const manualFullPosition = html.indexOf("Manual vs auto full");
+        const autoFuturePosition = html.indexOf("Auto future");
+        const autoPastPosition = html.indexOf("Auto past");
+        const manualPastPosition = html.indexOf("Manual contractions vs auto past");
+        if (autoFullPosition < 0) {
+          throw new Error(`Expected an Auto full disclosure, received: ${html}`);
+        }
+        if (
+          manualFullPosition < 0 ||
+          !(autoFullPosition < manualFullPosition && manualFullPosition < autoFuturePosition)
+        ) {
+          throw new Error(`Expected Manual vs auto full inside the Auto full disclosure, received: ${html}`);
+        }
+        if (
+          manualPastPosition < 0 ||
+          !(autoPastPosition < manualPastPosition)
+        ) {
+          throw new Error(`Expected the manual comparison inside the Auto past disclosure, received: ${html}`);
+        }
+        if (html.includes("Manual subtrees vs auto past")) {
+          throw new Error(`The planner should not expose the internal "Manual subtrees" label, received: ${html}`);
         }
         if (html.includes("Viewing the scene before step 1")) {
           throw new Error(`The planner should not render the old inspection helper message, received: ${html}`);
@@ -924,9 +947,6 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         }
         if (!html.includes(">Memory</span>") || !html.includes("<strong>-752 bytes</strong>")) {
           throw new Error(`Expected the memory comparison chip to render the raw delta, received: ${html}`);
-        }
-        if (!html.includes("Manual subtrees vs auto past")) {
-          throw new Error(`Expected Manual subtrees vs auto past summary, received: ${html}`);
         }
         if (!html.includes("<strong>800 bytes</strong>")) {
           throw new Error(`Expected the manual summary to include peak memory, received: ${html}`);
