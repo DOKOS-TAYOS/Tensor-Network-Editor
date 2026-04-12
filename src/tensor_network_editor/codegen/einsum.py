@@ -19,7 +19,7 @@ from .common import (
     container_name_for_format,
     joined_tensor_display_name,
     prepare_network,
-    render_results_list_reference,
+    render_operand_expression,
     render_tensor_collection_assignment,
     tensor_collection_reference,
     tensor_display_name_by_id,
@@ -188,13 +188,13 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             lines.append(
                 "results_list.append("
                 + self._render_manual_step_call(
-                    left_expression=self._operand_expression(
+                    left_expression=render_operand_expression(
                         step.left_operand_id,
                         base_operand_expressions=base_operand_expressions,
                         step_result_indexes=step_result_indexes,
                         latest_result_index=latest_result_index,
                     ),
-                    right_expression=self._operand_expression(
+                    right_expression=render_operand_expression(
                         step.right_operand_id,
                         base_operand_expressions=base_operand_expressions,
                         step_result_indexes=step_result_indexes,
@@ -215,7 +215,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         if len(simulation.remaining_operand_ids) > 1:
             lines.append("remaining_operand_labels = {")
             for operand_id in simulation.remaining_operand_ids:
-                operand_expression = self._operand_expression(
+                operand_expression = render_operand_expression(
                     operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=step_result_indexes,
@@ -241,7 +241,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         if len(simulation.remaining_operand_ids) == 1:
             lines.append(
                 "result = "
-                + self._operand_expression(
+                + render_operand_expression(
                     simulation.remaining_operand_ids[0],
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=step_result_indexes,
@@ -299,22 +299,6 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         return [f"label_{label_to_int[label]}" for label in labels]
 
     @staticmethod
-    def _operand_expression(
-        operand_id: str,
-        *,
-        base_operand_expressions: dict[str, str],
-        step_result_indexes: dict[str, int],
-        latest_result_index: int | None,
-    ) -> str:
-        """Resolve an operand id to its generated Python expression."""
-        if operand_id in base_operand_expressions:
-            return base_operand_expressions[operand_id]
-        return render_results_list_reference(
-            step_result_indexes[operand_id],
-            latest_result_index=latest_result_index,
-        )
-
-    @staticmethod
     def _render_remaining_operands(
         *,
         operand_ids: tuple[str, ...],
@@ -327,7 +311,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
-            operand_expression = BaseEinsumCodeGenerator._operand_expression(
+            operand_expression = render_operand_expression(
                 operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=step_result_indexes,

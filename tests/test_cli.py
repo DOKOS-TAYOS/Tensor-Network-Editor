@@ -109,9 +109,18 @@ def build_analysis_report(memory_dtype: str = "float64") -> SpecAnalysisReport:
     )
 
 
-def test_main_uses_expected_defaults() -> None:
+def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     with patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock:
         exit_code = main([])
+
+    assert exit_code == 2
+    launch_mock.assert_not_called()
+    assert "the following arguments are required: command" in capsys.readouterr().err
+
+
+def test_edit_subcommand_uses_expected_defaults() -> None:
+    with patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock:
+        exit_code = main(["edit"])
 
     assert exit_code == 0
     launch_mock.assert_called_once()
@@ -133,6 +142,7 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
     ):
         exit_code = main(
             [
+                "edit",
                 "--engine",
                 EngineName.EINSUM_NUMPY.value,
                 "--load",
@@ -161,13 +171,13 @@ def test_main_returns_130_on_keyboard_interrupt() -> None:
         "tensor_network_editor.cli.launch_tensor_network_editor",
         side_effect=KeyboardInterrupt,
     ) as launch_mock:
-        exit_code = main([])
+        exit_code = main(["edit"])
 
     assert exit_code == 130
     launch_mock.assert_called_once()
 
 
-def test_edit_subcommand_matches_legacy_mode(sample_spec: NetworkSpec) -> None:
+def test_edit_subcommand_loads_initial_spec(sample_spec: NetworkSpec) -> None:
     with (
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec

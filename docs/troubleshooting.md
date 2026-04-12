@@ -24,7 +24,7 @@ The local server may still be running correctly.
 Try:
 
 ```bash
-tensor-network-editor --no-browser
+tensor-network-editor edit --no-browser
 ```
 
 Then open the printed local URL manually.

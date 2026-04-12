@@ -146,7 +146,7 @@ python -c "import tensor_network_editor; print(tensor_network_editor.__version__
 Launch the editor:
 
 ```bash
-tensor-network-editor
+tensor-network-editor edit
 ```
 
 If the browser does not open, see

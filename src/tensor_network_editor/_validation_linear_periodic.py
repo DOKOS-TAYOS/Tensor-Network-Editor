@@ -15,8 +15,10 @@ from ._linear_periodic import (
     LINEAR_PERIODIC_NEXT_OPERAND_ID,
     LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
     LINEAR_PERIODIC_RESERVED_OPERAND_IDS,
-    LinearPeriodicInterfacePort,
     build_internal_linear_periodic_cell_network,
+    build_linear_periodic_interface_axis_names,
+    build_linear_periodic_interface_dimension_by_label,
+    build_linear_periodic_interface_labels,
     build_linear_periodic_interface_ports,
     iter_linear_periodic_cells,
     linear_periodic_boundary_tensors,
@@ -67,40 +69,6 @@ class _CarryOperandState:
 
     labels: tuple[str, ...]
     axis_names: tuple[str, ...]
-
-
-def _build_interface_labels(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-    label_by_index_id: dict[str, str],
-) -> tuple[str, ...]:
-    """Resolve the prepared labels for one boundary interface."""
-    return tuple(
-        label_by_index_id[port.internal_index_id]
-        for port in ports
-        if port.internal_index_id in label_by_index_id
-    )
-
-
-def _build_interface_axis_names(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-) -> tuple[str, ...]:
-    """Expose stable boundary-slot names for carry operands."""
-    return tuple(port.boundary_index_name for port in ports)
-
-
-def _build_interface_dimension_by_label(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-    label_by_index_id: dict[str, str],
-) -> dict[str, int]:
-    """Map each connected interface label to its declared boundary dimension."""
-    return {
-        label_by_index_id[port.internal_index_id]: port.dimension
-        for port in ports
-        if port.internal_index_id in label_by_index_id
-    }
 
 
 def _simulate_carry_step(
@@ -430,11 +398,11 @@ def _validate_linear_periodic_carry_cell(
         cell_name=cell_name,
         role=LinearPeriodicTensorRole.NEXT,
     )
-    incoming_labels = _build_interface_labels(
+    incoming_labels = build_linear_periodic_interface_labels(
         ports=previous_ports,
         label_by_index_id=label_by_index_id,
     )
-    outgoing_labels = _build_interface_labels(
+    outgoing_labels = build_linear_periodic_interface_labels(
         ports=next_ports,
         label_by_index_id=label_by_index_id,
     )
@@ -444,13 +412,13 @@ def _validate_linear_periodic_carry_cell(
         for index in tensor.indices
     }
     dimension_by_label.update(
-        _build_interface_dimension_by_label(
+        build_linear_periodic_interface_dimension_by_label(
             ports=previous_ports,
             label_by_index_id=label_by_index_id,
         )
     )
     dimension_by_label.update(
-        _build_interface_dimension_by_label(
+        build_linear_periodic_interface_dimension_by_label(
             ports=next_ports,
             label_by_index_id=label_by_index_id,
         )
@@ -470,12 +438,12 @@ def _validate_linear_periodic_carry_cell(
     if previous_expected:
         operand_state_by_id[LINEAR_PERIODIC_PREVIOUS_OPERAND_ID] = _CarryOperandState(
             labels=incoming_labels,
-            axis_names=_build_interface_axis_names(ports=previous_ports),
+            axis_names=build_linear_periodic_interface_axis_names(ports=previous_ports),
         )
     if next_expected:
         operand_state_by_id[LINEAR_PERIODIC_NEXT_OPERAND_ID] = _CarryOperandState(
             labels=outgoing_labels,
-            axis_names=_build_interface_axis_names(ports=next_ports),
+            axis_names=build_linear_periodic_interface_axis_names(ports=next_ports),
         )
 
     for step in plan.steps:

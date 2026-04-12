@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -11,8 +10,6 @@ from .models import ContractionPlanSpec, ContractionStepSpec
 
 if TYPE_CHECKING:
     from .codegen.common import PreparedNetwork
-
-_NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
 
 @dataclass(slots=True, frozen=True)
@@ -51,16 +48,6 @@ class SimulatedContractionPlan:
     remaining_operands: dict[str, tuple[str, ...]]
     remaining_axis_names: dict[str, tuple[str, ...]]
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]]
-
-
-def sanitize_python_identifier(value: str, prefix: str) -> str:
-    """Normalize a value into a safe lowercase Python identifier."""
-    collapsed = _NON_IDENTIFIER_PATTERN.sub("_", value.strip()).strip("_").lower()
-    if not collapsed:
-        collapsed = prefix
-    if collapsed[0].isdigit():
-        collapsed = f"{prefix}_{collapsed}"
-    return collapsed
 
 
 def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:

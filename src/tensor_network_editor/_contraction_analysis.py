@@ -101,7 +101,6 @@ def analyze_contraction(
         comparisons=_build_contraction_comparisons(
             manual=manual,
             automatic_full=automatic_full,
-            automatic_future=automatic_future,
             automatic_past=automatic_past,
             memory_dtype=memory_dtype,
         ),
@@ -318,7 +317,6 @@ def _build_contraction_comparisons(
     *,
     manual: ManualContractionPlanAnalysis,
     automatic_full: AutomaticContractionPlanAnalysis,
-    automatic_future: AutomaticContractionPlanAnalysis,
     automatic_past: AutomaticContractionPlanAnalysis,
     memory_dtype: str,
 ) -> dict[str, ContractionComparison]:

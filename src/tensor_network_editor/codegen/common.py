@@ -258,6 +258,22 @@ def render_results_list_reference(
     return f"results_list[{result_index}]"
 
 
+def render_operand_expression(
+    operand_id: str,
+    *,
+    base_operand_expressions: dict[str, str],
+    step_result_indexes: dict[str, int],
+    latest_result_index: int | None,
+) -> str:
+    """Resolve an operand id to its generated Python expression."""
+    if operand_id in base_operand_expressions:
+        return base_operand_expressions[operand_id]
+    return render_results_list_reference(
+        step_result_indexes[operand_id],
+        latest_result_index=latest_result_index,
+    )
+
+
 def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
     """Return the default container variable name for ``collection_format``."""
     if collection_format is TensorCollectionFormat.MATRIX:

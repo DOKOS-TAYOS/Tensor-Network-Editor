@@ -43,6 +43,40 @@ class LinearPeriodicInterfacePort:
     internal_index_name: str
 
 
+def build_linear_periodic_interface_labels(
+    *,
+    ports: tuple[LinearPeriodicInterfacePort, ...],
+    label_by_index_id: dict[str, str],
+) -> tuple[str, ...]:
+    """Resolve prepared labels for connected boundary interface ports."""
+    return tuple(
+        label_by_index_id[port.internal_index_id]
+        for port in ports
+        if port.internal_index_id in label_by_index_id
+    )
+
+
+def build_linear_periodic_interface_axis_names(
+    *,
+    ports: tuple[LinearPeriodicInterfacePort, ...],
+) -> tuple[str, ...]:
+    """Expose stable boundary-slot names for carry operands."""
+    return tuple(port.boundary_index_name for port in ports)
+
+
+def build_linear_periodic_interface_dimension_by_label(
+    *,
+    ports: tuple[LinearPeriodicInterfacePort, ...],
+    label_by_index_id: dict[str, str],
+) -> dict[str, int]:
+    """Map each connected interface label to its boundary dimension."""
+    return {
+        label_by_index_id[port.internal_index_id]: port.dimension
+        for port in ports
+        if port.internal_index_id in label_by_index_id
+    }
+
+
 def iter_linear_periodic_cells(
     chain: LinearPeriodicChainSpec,
 ) -> tuple[tuple[LinearPeriodicCellName, LinearPeriodicCellSpec], ...]:

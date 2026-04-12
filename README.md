@@ -59,13 +59,13 @@ read [docs/installation.md](docs/installation.md).
 Launch the visual editor:
 
 ```bash
-tensor-network-editor
+tensor-network-editor edit
 ```
 
 Open an existing design and save generated code when the session is confirmed:
 
 ```bash
-tensor-network-editor --load my_network.json --engine quimb --save-code generated_network.py
+tensor-network-editor edit --load my_network.json --engine quimb --save-code generated_network.py
 ```
 
 Use the editor from Python:

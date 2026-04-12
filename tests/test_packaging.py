@@ -54,10 +54,10 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
     assert {
         "app/static/*.html",
         "app/static/*.css",
-        "app/static/*.js",
         "app/static/js/*.js",
         "app/static/vendor/*.js",
     } <= package_data
+    assert "app/static/*.js" not in package_data
     assert "include THIRD_PARTY_LICENSES" in manifest_text
     assert third_party_notices.is_file()
     assert third_party_notices.read_text(encoding="utf-8").strip()

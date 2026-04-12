@@ -22,30 +22,25 @@ generation, diffs, and templates.
 Start the local browser editor:
 
 ```bash
-tensor-network-editor
-```
-
-The no-subcommand form launches the editor directly. The explicit `edit`
-subcommand does the same thing:
-
-```bash
 tensor-network-editor edit
 ```
+
+The `edit` subcommand launches the visual editor.
 
 Useful options:
 
 ```bash
-tensor-network-editor --load my_network.json
-tensor-network-editor --engine quimb
-tensor-network-editor --save-code generated_network.py
-tensor-network-editor --print-code
-tensor-network-editor --no-browser
+tensor-network-editor edit --load my_network.json
+tensor-network-editor edit --engine quimb
+tensor-network-editor edit --save-code generated_network.py
+tensor-network-editor edit --print-code
+tensor-network-editor edit --no-browser
 ```
 
 You can combine them:
 
 ```bash
-tensor-network-editor --load my_network.json --engine quimb --save-code generated_network.py
+tensor-network-editor edit --load my_network.json --engine quimb --save-code generated_network.py
 ```
 
 Use `--no-browser` when you want to start the local server but open the printed

@@ -42,7 +42,7 @@ For source installs, development setup, and optional extras, see
 Start a local editor session:
 
 ```bash
-tensor-network-editor
+tensor-network-editor edit
 ```
 
 What happens:
@@ -55,7 +55,7 @@ What happens:
 If your environment cannot open a browser automatically, use:
 
 ```bash
-tensor-network-editor --no-browser
+tensor-network-editor edit --no-browser
 ```
 
 Then open the local URL printed in the terminal.
@@ -78,26 +78,26 @@ everything manually. Templates are explained in [user-guide.md](user-guide.md).
 Open an existing JSON design:
 
 ```bash
-tensor-network-editor --load my_network.json
+tensor-network-editor edit --load my_network.json
 ```
 
 Choose a backend in the editor, or set the initial backend from the command
 line:
 
 ```bash
-tensor-network-editor --load my_network.json --engine quimb
+tensor-network-editor edit --load my_network.json --engine quimb
 ```
 
 Save generated Python code when you confirm the session:
 
 ```bash
-tensor-network-editor --load my_network.json --engine quimb --save-code generated_network.py
+tensor-network-editor edit --load my_network.json --engine quimb --save-code generated_network.py
 ```
 
 You can also print the generated code to the terminal:
 
 ```bash
-tensor-network-editor --print-code
+tensor-network-editor edit --print-code
 ```
 
 The JSON design and the generated Python code serve different purposes:

@@ -24,7 +24,6 @@ from ._protocol import (
     serialize_editor_result,
     serialize_spec_payload,
 )
-from ._protocol import read_json as _read_json
 from ._services import (
     analyze_serialized_contraction,
     build_bootstrap_payload,
@@ -33,11 +32,6 @@ from ._services import (
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
-
-
-def read_json(body: bytes) -> JsonDict:
-    """Parse a request body into a JSON object."""
-    return _read_json(body)
 
 
 def handle_bootstrap(session: EditorSession) -> JsonResponse:

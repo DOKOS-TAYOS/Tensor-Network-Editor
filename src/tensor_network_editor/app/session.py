@@ -165,7 +165,7 @@ def launch_editor_session(
     if threading.current_thread() is threading.main_thread():
         previous_sigint_handler = signal.getsignal(signal.SIGINT)
 
-        def _handle_sigint(signum: int, frame: FrameType | None) -> None:
+        def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
             session.cancel()
             raise KeyboardInterrupt
 

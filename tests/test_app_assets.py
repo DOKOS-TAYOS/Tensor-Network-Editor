@@ -123,6 +123,13 @@ def test_main_module_is_served_from_static_directory(
     assert headers["Content-Type"].startswith("application/javascript")
 
 
+def test_legacy_app_shim_is_not_served(editor_server: EditorServer) -> None:
+    with pytest.raises(HTTPError) as exc_info:
+        urlopen(f"{editor_server.base_url}/app.js", timeout=5)
+
+    assert exc_info.value.code == 404
+
+
 def test_static_server_rejects_parent_directory_traversal(
     editor_server: EditorServer,
 ) -> None:

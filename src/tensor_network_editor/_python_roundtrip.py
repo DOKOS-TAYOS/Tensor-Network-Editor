@@ -10,7 +10,6 @@ from ._python_roundtrip_helpers import (
     default_tensor_name_from_position,
     recover_index_name,
     recover_tensor_name_from_data_variable,
-    sanitize_identifier,
     synthetic_data_variable_name,
 )
 from .errors import SerializationError
@@ -699,11 +698,6 @@ def _recover_index_name(
         data_variable_name=data_variable_name,
         connected_edge_label=connected_edge_label,
     )
-
-
-def _sanitize_identifier(value: str) -> str:
-    """Delegate identifier sanitization to the helper module."""
-    return sanitize_identifier(value)
 
 
 def _build_edge_specs(

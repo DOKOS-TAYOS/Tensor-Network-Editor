@@ -19,6 +19,9 @@ from .._linear_periodic import (
     LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
     LinearPeriodicInterfacePort,
     build_internal_linear_periodic_cell_network,
+    build_linear_periodic_interface_axis_names,
+    build_linear_periodic_interface_dimension_by_label,
+    build_linear_periodic_interface_labels,
     build_linear_periodic_interface_ports,
     linear_periodic_chain_uses_carry_mode,
 )
@@ -39,6 +42,7 @@ from .common import (
     container_name_for_format,
     flattened_tensor_collection_expression,
     prepare_network,
+    render_operand_expression,
     render_results_list_reference,
     render_tensor_collection_assignment,
     tensor_collection_reference_by_id,
@@ -94,40 +98,6 @@ class _CarryPlanSimulation:
     outgoing_labels: tuple[str, ...]
     incoming_ports: tuple[LinearPeriodicInterfacePort, ...]
     outgoing_ports: tuple[LinearPeriodicInterfacePort, ...]
-
-
-def _build_interface_labels(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-    label_by_index_id: dict[str, str],
-) -> tuple[str, ...]:
-    """Resolve prepared labels for the provided interface ports."""
-    return tuple(
-        label_by_index_id[port.internal_index_id]
-        for port in ports
-        if port.internal_index_id in label_by_index_id
-    )
-
-
-def _build_interface_axis_names(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-) -> tuple[str, ...]:
-    """Expose stable slot names for carry-mode boundary operands."""
-    return tuple(port.boundary_index_name for port in ports)
-
-
-def _build_interface_dimensions(
-    *,
-    ports: tuple[LinearPeriodicInterfacePort, ...],
-    label_by_index_id: dict[str, str],
-) -> dict[str, int]:
-    """Map interface labels to the dimensions declared on the boundary tensor."""
-    return {
-        label_by_index_id[port.internal_index_id]: port.dimension
-        for port in ports
-        if port.internal_index_id in label_by_index_id
-    }
 
 
 def _simulate_carry_step(
@@ -547,11 +517,11 @@ def _simulate_carry_cell(
     interface_index_ids = {
         port.internal_index_id for port in (*incoming_ports, *outgoing_ports)
     }
-    incoming_labels = _build_interface_labels(
+    incoming_labels = build_linear_periodic_interface_labels(
         ports=incoming_ports,
         label_by_index_id=label_by_index_id,
     )
-    outgoing_labels = _build_interface_labels(
+    outgoing_labels = build_linear_periodic_interface_labels(
         ports=outgoing_ports,
         label_by_index_id=label_by_index_id,
     )
@@ -575,7 +545,7 @@ def _simulate_carry_cell(
             labels=outgoing_labels,
             axis_names=_axis_names_for_engine(
                 engine,
-                _build_interface_axis_names(ports=outgoing_ports),
+                build_linear_periodic_interface_axis_names(ports=outgoing_ports),
             ),
             dimensions=tuple(port.dimension for port in outgoing_ports),
         )
@@ -583,11 +553,11 @@ def _simulate_carry_cell(
 
     dimension_by_label = {
         **build_dimension_by_label(prepared),
-        **_build_interface_dimensions(
+        **build_linear_periodic_interface_dimension_by_label(
             ports=incoming_ports,
             label_by_index_id=label_by_index_id,
         ),
-        **_build_interface_dimensions(
+        **build_linear_periodic_interface_dimension_by_label(
             ports=outgoing_ports,
             label_by_index_id=label_by_index_id,
         ),
@@ -973,14 +943,12 @@ def _render_carry_plan_lines(
     for step_index, step in enumerate(simulation.real_steps):
         latest_result_index = step_index - 1 if step_index > 0 else None
         left_expression = _operand_expression(
-            engine=engine,
             operand_id=step.left_operand_id,
             base_operand_expressions=base_operand_expressions,
             step_result_indexes=simulation.result_index_by_step_id,
             latest_result_index=latest_result_index,
         )
         right_expression = _operand_expression(
-            engine=engine,
             operand_id=step.right_operand_id,
             base_operand_expressions=base_operand_expressions,
             step_result_indexes=simulation.result_index_by_step_id,
@@ -1021,7 +989,6 @@ def _render_carry_plan_lines(
             if operand_id not in simulation.result_index_by_step_id:
                 continue
             operand_expression = _operand_expression(
-                engine=engine,
                 operand_id=operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -1032,7 +999,6 @@ def _render_carry_plan_lines(
     label_expression_by_label = _build_remaining_label_expression_map(
         remaining_operand_ids=simulation.remaining_operand_ids,
         remaining_operand_states=simulation.remaining_operand_states,
-        engine=engine,
         base_operand_expressions=base_operand_expressions,
         step_result_indexes=simulation.result_index_by_step_id,
         latest_result_index=final_result_index,
@@ -1056,7 +1022,6 @@ def _render_carry_plan_lines(
         )
         for operand_id in local_remaining_operand_ids:
             operand_expression = _operand_expression(
-                engine=engine,
                 operand_id=operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -1068,7 +1033,6 @@ def _render_carry_plan_lines(
 
     if simulation.carry_operand_id is not None:
         carry_expression = _operand_expression(
-            engine=engine,
             operand_id=simulation.carry_operand_id,
             base_operand_expressions=base_operand_expressions,
             step_result_indexes=simulation.result_index_by_step_id,
@@ -1079,7 +1043,6 @@ def _render_carry_plan_lines(
         ]
         outgoing_operand_expressions = [
             _operand_expression(
-                engine=engine,
                 operand_id=operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -1106,7 +1069,6 @@ def _render_carry_plan_lines(
 
     if local_remaining_operand_ids:
         final_expression = _operand_expression(
-            engine=engine,
             operand_id=local_remaining_operand_ids[0],
             base_operand_expressions=base_operand_expressions,
             step_result_indexes=simulation.result_index_by_step_id,
@@ -1381,7 +1343,6 @@ def _build_label_expression_map(
     return _build_remaining_label_expression_map(
         remaining_operand_ids=simulation.remaining_operand_ids,
         remaining_operand_states=remaining_operand_states,
-        engine=engine,
         base_operand_expressions={
             tensor.spec.id: tensor_collection_reference_by_id(
                 prepared,
@@ -1519,7 +1480,6 @@ def _build_remaining_label_expression_map(
     *,
     remaining_operand_ids: tuple[str, ...],
     remaining_operand_states: dict[str, _CarryOperandState],
-    engine: EngineName,
     base_operand_expressions: dict[str, str],
     step_result_indexes: dict[str, int],
     latest_result_index: int | None,
@@ -1531,7 +1491,6 @@ def _build_remaining_label_expression_map(
         if operand_state is None:
             continue
         operand_expression = _operand_expression(
-            engine=engine,
             operand_id=operand_id,
             base_operand_expressions=base_operand_expressions,
             step_result_indexes=step_result_indexes,
@@ -1548,7 +1507,6 @@ def _build_remaining_label_expression_map(
 
 def _operand_expression(
     *,
-    engine: EngineName,
     operand_id: str,
     base_operand_expressions: dict[str, str],
     step_result_indexes: dict[str, int],
@@ -2010,7 +1968,6 @@ def _render_quimb_carry_cell_helper(
             body_lines.append(
                 f'remaining_operands[f"{{cell_key_prefix}}:{operand_id}"] = '
                 + _operand_expression(
-                    engine=EngineName.QUIMB,
                     operand_id=operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
@@ -2023,7 +1980,6 @@ def _render_quimb_carry_cell_helper(
         ]
         outgoing_operand_expressions = [
             _operand_expression(
-                engine=EngineName.QUIMB,
                 operand_id=operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -2040,7 +1996,6 @@ def _render_quimb_carry_cell_helper(
                 "return {",
                 "    'operand': "
                 + _operand_expression(
-                    engine=EngineName.QUIMB,
                     operand_id=simulation.carry_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
@@ -2056,7 +2011,6 @@ def _render_quimb_carry_cell_helper(
         body_lines.append(
             "return "
             + _operand_expression(
-                engine=EngineName.QUIMB,
                 operand_id=local_remaining_operand_ids[0],
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -2264,13 +2218,13 @@ def _render_einsum_carry_cell_helper(
         lines_for_plan.append(
             "results_list.append("
             + generator._render_manual_step_call(
-                left_expression=generator._operand_expression(
+                left_expression=render_operand_expression(
                     step.left_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
                     latest_result_index=latest_result_index,
                 ),
-                right_expression=generator._operand_expression(
+                right_expression=render_operand_expression(
                     step.right_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
@@ -2312,7 +2266,6 @@ def _render_einsum_carry_cell_helper(
             body_lines.append(
                 f'remaining_operands[f"{{cell_key_prefix}}:{operand_id}"] = '
                 + _operand_expression(
-                    engine=engine,
                     operand_id=operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
@@ -2325,7 +2278,6 @@ def _render_einsum_carry_cell_helper(
         ]
         outgoing_operand_expressions = [
             _operand_expression(
-                engine=engine,
                 operand_id=operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -2342,7 +2294,6 @@ def _render_einsum_carry_cell_helper(
                 "return {",
                 "    'operand': "
                 + _operand_expression(
-                    engine=engine,
                     operand_id=simulation.carry_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=simulation.result_index_by_step_id,
@@ -2358,7 +2309,6 @@ def _render_einsum_carry_cell_helper(
         body_lines.append(
             "return "
             + _operand_expression(
-                engine=engine,
                 operand_id=local_remaining_operand_ids[0],
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=simulation.result_index_by_step_id,
@@ -2631,13 +2581,13 @@ def _render_einsum_manual_plan_lines(
         lines.append(
             "results_list.append("
             + generator._render_manual_step_call(
-                left_expression=generator._operand_expression(
+                left_expression=render_operand_expression(
                     step.left_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=step_result_indexes,
                     latest_result_index=latest_result_index,
                 ),
-                right_expression=generator._operand_expression(
+                right_expression=render_operand_expression(
                     step.right_operand_id,
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=step_result_indexes,
@@ -2657,7 +2607,7 @@ def _render_einsum_manual_plan_lines(
     for operand_id in simulation.remaining_operand_ids:
         lines.append(
             "cell_operands.append("
-            + generator._operand_expression(
+            + render_operand_expression(
                 operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=step_result_indexes,

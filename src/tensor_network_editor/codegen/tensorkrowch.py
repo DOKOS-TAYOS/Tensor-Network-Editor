@@ -17,7 +17,7 @@ from .common import (
     container_name_for_format,
     joined_tensor_display_name,
     prepare_network,
-    render_results_list_reference,
+    render_operand_expression,
     render_tensor_collection_assignment,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
@@ -152,13 +152,13 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         lines = ["results_list = []", ""]
         for step_index, step in enumerate(simulation.steps):
             latest_result_index = step_index - 1 if step_index > 0 else None
-            left_expression = self._operand_expression(
+            left_expression = render_operand_expression(
                 step.left_operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=step_result_indexes,
                 latest_result_index=latest_result_index,
             )
-            right_expression = self._operand_expression(
+            right_expression = render_operand_expression(
                 step.right_operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=step_result_indexes,
@@ -185,7 +185,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         if len(simulation.remaining_operand_ids) == 1:
             lines.append(
                 "result = "
-                + self._operand_expression(
+                + render_operand_expression(
                     simulation.remaining_operand_ids[0],
                     base_operand_expressions=base_operand_expressions,
                     step_result_indexes=step_result_indexes,
@@ -193,22 +193,6 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 )
             )
         return lines
-
-    @staticmethod
-    def _operand_expression(
-        operand_id: str,
-        *,
-        base_operand_expressions: dict[str, str],
-        step_result_indexes: dict[str, int],
-        latest_result_index: int | None,
-    ) -> str:
-        """Resolve an operand id to its generated Python expression."""
-        if operand_id in base_operand_expressions:
-            return base_operand_expressions[operand_id]
-        return render_results_list_reference(
-            step_result_indexes[operand_id],
-            latest_result_index=latest_result_index,
-        )
 
     @staticmethod
     def _render_remaining_operands(
@@ -223,7 +207,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         """Render the ``remaining_operands`` mapping for partial plans."""
         lines = ["remaining_operands = {"]
         for operand_id in operand_ids:
-            operand_expression = TensorKrowchCodeGenerator._operand_expression(
+            operand_expression = render_operand_expression(
                 operand_id,
                 base_operand_expressions=base_operand_expressions,
                 step_result_indexes=step_result_indexes,

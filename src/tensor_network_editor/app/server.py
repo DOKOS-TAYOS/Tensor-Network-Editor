@@ -19,6 +19,7 @@ from ._protocol import (
     bad_request_response,
     internal_server_error_response,
     not_found_response,
+    read_json,
 )
 from .session import EditorSession
 
@@ -89,7 +90,7 @@ class EditorServer:
         asset_version = self._asset_version
 
         class RequestHandler(BaseHTTPRequestHandler):
-            def do_GET(self) -> None:  # noqa: N802
+            def do_GET(self) -> None:
                 parsed = urlparse(self.path)
                 try:
                     response = self._dispatch_get(parsed.path)
@@ -102,11 +103,11 @@ class EditorServer:
                     response = internal_server_error_response()
                 self._write_response(response)
 
-            def do_POST(self) -> None:  # noqa: N802
+            def do_POST(self) -> None:
                 parsed = urlparse(self.path)
                 body = self._read_request_body()
                 try:
-                    payload = routes.read_json(body)
+                    payload = read_json(body)
                 except ValueError as exc:
                     LOGGER.warning(
                         "Rejected malformed JSON request for %s: %s",
@@ -126,7 +127,8 @@ class EditorServer:
                     response = internal_server_error_response()
                 self._write_response(response)
 
-            def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+            def log_message(self, format: str, *args: object) -> None:
+                del format, args
                 return
 
             def _dispatch_get(self, path: str) -> JsonResponse | _BinaryResponse:

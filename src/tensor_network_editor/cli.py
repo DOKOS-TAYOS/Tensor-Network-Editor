@@ -49,16 +49,6 @@ class _CommandNamespace(argparse.Namespace):
     handler: _CommandHandler
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the legacy parser used when no subcommand is provided."""
-    parser = argparse.ArgumentParser(
-        prog="tensor-network-editor",
-        description="Launch the local tensor network editor in your browser.",
-    )
-    _add_edit_arguments(parser)
-    return parser
-
-
 def build_command_parser() -> argparse.ArgumentParser:
     """Build the parser used by headless CLI subcommands."""
     parser = argparse.ArgumentParser(
@@ -164,12 +154,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process-friendly exit code."""
     args_list = list(argv) if argv is not None else sys.argv[1:]
     try:
-        if _should_use_legacy_parser(args_list):
-            return _handle_edit(build_parser().parse_args(args_list))
         parsed_args = cast(
             _CommandNamespace, build_command_parser().parse_args(args_list)
         )
         return _dispatch_command(parsed_args)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 2
     except KeyboardInterrupt:
         return 130
     except SpecValidationError as exc:
@@ -224,13 +214,8 @@ def _add_output_format_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _should_use_legacy_parser(args_list: list[str]) -> bool:
-    """Return ``True`` when CLI arguments should launch the editor directly."""
-    return not args_list or args_list[0].startswith("-")
-
-
 def _handle_edit(args: argparse.Namespace) -> int:
-    """Launch the browser editor using the legacy or explicit edit arguments."""
+    """Launch the browser editor using explicit edit arguments."""
     initial_spec = load_spec(args.load) if args.load else None
     launch_tensor_network_editor(
         initial_spec=initial_spec,
