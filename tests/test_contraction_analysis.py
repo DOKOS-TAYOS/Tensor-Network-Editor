@@ -211,7 +211,7 @@ def test_analyze_contraction_marks_planner_value_errors_as_unavailable(
         return FakePlannerModule
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis.import_module",
+        "tensor_network_editor._contraction_analysis_automatic.import_module",
         fake_import_module,
     )
 
@@ -243,7 +243,7 @@ def test_analyze_contraction_does_not_hide_unexpected_planner_errors(
         return FakePlannerModule
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis.import_module",
+        "tensor_network_editor._contraction_analysis_automatic.import_module",
         fake_import_module,
     )
 

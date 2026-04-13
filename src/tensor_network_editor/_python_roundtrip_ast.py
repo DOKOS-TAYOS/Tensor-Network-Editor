@@ -1,0 +1,176 @@
+"""AST parsing helpers for generated-Python roundtrips."""
+
+from __future__ import annotations
+
+import ast
+import re
+
+
+def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
+    """Parse the shape passed to a supported ``zeros(...)`` call."""
+    call_name = _call_name(call.func)
+    if not call_name.endswith(".zeros") and call_name != "zeros":
+        return None
+
+    shape_expression = _keyword_value(call, "shape")
+    if shape_expression is None and call.args:
+        shape_expression = call.args[0]
+    if shape_expression is None:
+        return None
+
+    if isinstance(shape_expression, ast.Constant):
+        shape_value = _literal_int(shape_expression)
+        return (shape_value,) if shape_value is not None else None
+
+    return _literal_int_sequence(shape_expression)
+
+
+def _call_name(expression: ast.expr) -> str:
+    """Return the dotted call name for a simple AST expression."""
+    if isinstance(expression, ast.Name):
+        return expression.id
+    if isinstance(expression, ast.Attribute):
+        parent_name = _call_name(expression.value)
+        return f"{parent_name}.{expression.attr}" if parent_name else expression.attr
+    return ""
+
+
+def _keyword_value(call: ast.Call, keyword_name: str) -> ast.expr | None:
+    """Return the AST value for the named keyword argument, if present."""
+    for keyword in call.keywords:
+        if keyword.arg == keyword_name:
+            return keyword.value
+    return None
+
+
+def _literal_string(expression: ast.expr | None) -> str | None:
+    """Return the literal string value represented by ``expression``."""
+    if (
+        isinstance(expression, ast.Constant)
+        and isinstance(expression.value, str)
+        and not isinstance(expression.value, bool)
+    ):
+        return expression.value
+    return None
+
+
+def _literal_string_sequence(expression: ast.expr | None) -> list[str] | None:
+    """Return a list of literal strings or ``None`` if unsupported."""
+    if not isinstance(expression, (ast.List, ast.Tuple)):
+        return None
+    values: list[str] = []
+    for item in expression.elts:
+        string_value = _literal_string(item)
+        if string_value is None:
+            return None
+        values.append(string_value)
+    return values
+
+
+def _literal_int(expression: ast.expr | None) -> int | None:
+    """Return the literal integer value represented by ``expression``."""
+    if (
+        isinstance(expression, ast.Constant)
+        and isinstance(expression.value, int)
+        and not isinstance(expression.value, bool)
+    ):
+        return expression.value
+    return None
+
+
+def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None:
+    """Return a tuple of literal integers or ``None`` if unsupported."""
+    if not isinstance(expression, (ast.List, ast.Tuple)):
+        return None
+    values: list[int] = []
+    for item in expression.elts:
+        int_value = _literal_int(item)
+        if int_value is None:
+            return None
+        values.append(int_value)
+    return tuple(values)
+
+
+def _parse_tensor_reference(expression: ast.expr) -> str | None:
+    """Parse a tensor reference from supported list, matrix, or dict access."""
+    if not isinstance(expression, ast.Subscript):
+        return None
+
+    if isinstance(expression.value, ast.Name):
+        if expression.value.id == "tensors":
+            index_value = _literal_int(expression.slice)
+            return f"list:{index_value}" if index_value is not None else None
+        if expression.value.id == "tensors_dict":
+            dict_key = _literal_string(expression.slice)
+            return f"dict:{dict_key}" if dict_key is not None else None
+
+    if isinstance(expression.value, ast.Subscript):
+        row_index = _parse_matrix_row_index(expression.value)
+        column_index = _literal_int(expression.slice)
+        if row_index is not None and column_index is not None:
+            return f"matrix:{row_index}:{column_index}"
+
+    return None
+
+
+def _parse_tensor_reference_string(expression: str | None) -> str | None:
+    """Parse a tensor reference from its generated string representation."""
+    if expression is None:
+        return None
+    list_match = re.fullmatch(r"tensors\[(\d+)\]", expression)
+    if list_match is not None:
+        return f"list:{list_match.group(1)}"
+
+    matrix_match = re.fullmatch(r"tensor_rows\[(\d+)\]\[(\d+)\]", expression)
+    if matrix_match is not None:
+        return f"matrix:{matrix_match.group(1)}:{matrix_match.group(2)}"
+
+    dict_match = re.fullmatch(r"""tensors_dict\[(["'])(.+)\1\]""", expression)
+    if dict_match is not None:
+        return f"dict:{dict_match.group(2)}"
+
+    return None
+
+
+def _parse_matrix_row_index(expression: ast.expr) -> int | None:
+    """Parse the row index from a matrix-layout tensor reference."""
+    if (
+        isinstance(expression, ast.Subscript)
+        and isinstance(expression.value, ast.Name)
+        and expression.value.id == "tensor_rows"
+    ):
+        return _literal_int(expression.slice)
+    return None
+
+
+def _parse_list_append_value(statement: ast.stmt, list_name: str) -> ast.expr | None:
+    """Return the appended value for a simple ``list.append(...)`` statement."""
+    if (
+        not isinstance(statement, ast.Expr)
+        or not isinstance(statement.value, ast.Call)
+        or not isinstance(statement.value.func, ast.Attribute)
+        or statement.value.func.attr != "append"
+        or len(statement.value.args) != 1
+        or not isinstance(statement.value.func.value, ast.Name)
+        or statement.value.func.value.id != list_name
+    ):
+        return None
+    return statement.value.args[0]
+
+
+def _parse_index_operand(expression: ast.expr) -> tuple[str, str] | None:
+    """Parse a tensor-index operand like ``tensors[0]['left']``."""
+    if not isinstance(expression, ast.Subscript):
+        return None
+    index_name = _literal_string(expression.slice)
+    tensor_reference = _parse_tensor_reference(expression.value)
+    if tensor_reference is None or index_name is None:
+        return None
+    return tensor_reference, index_name
+
+
+def _extract_name_from_expression(expression: ast.expr | None) -> str | None:
+    """Return the referenced variable name for simple name expressions."""
+    if isinstance(expression, ast.Name):
+        return expression.id
+    return None

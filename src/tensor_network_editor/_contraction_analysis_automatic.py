@@ -1,0 +1,304 @@
+"""Automatic-path helpers for contraction analysis."""
+
+from __future__ import annotations
+
+from importlib import import_module
+from string import ascii_letters
+from typing import Any, cast
+
+from ._contraction_analysis_manual import ManualOperandState
+from ._contraction_analysis_types import (
+    AutomaticContractionPlanAnalysis,
+    AutomaticContractionSummary,
+    ContractionStepAnalysis,
+)
+from ._contraction_plan import simulate_contraction_step
+from .models import ContractionStepSpec, NetworkSpec
+
+
+def _contract_operands(
+    *,
+    step_id: str,
+    left_operand_id: str,
+    right_operand_id: str,
+    left_labels: tuple[str, ...],
+    right_labels: tuple[str, ...],
+    dimension_by_label: dict[str, int],
+) -> ContractionStepAnalysis:
+    """Estimate the metrics for one pairwise contraction."""
+    simulated_step = simulate_contraction_step(
+        step=ContractionStepSpec(
+            id=step_id,
+            left_operand_id=left_operand_id,
+            right_operand_id=right_operand_id,
+        ),
+        left_labels=left_labels,
+        right_labels=right_labels,
+        left_axis_names=left_labels,
+        right_axis_names=right_labels,
+        dimension_by_label=dimension_by_label,
+    )
+    return ContractionStepAnalysis(
+        step_id=simulated_step.step_id,
+        left_operand_id=simulated_step.left_operand_id,
+        right_operand_id=simulated_step.right_operand_id,
+        result_operand_id=simulated_step.step_id,
+        contracted_labels=simulated_step.contracted_labels,
+        surviving_labels=simulated_step.surviving_labels,
+        result_shape=simulated_step.result_shape,
+        result_rank=simulated_step.result_rank,
+        estimated_flops=simulated_step.estimated_flops,
+        estimated_macs=simulated_step.estimated_macs,
+        intermediate_size=simulated_step.intermediate_size,
+    )
+
+
+def _build_automatic_summary(
+    *,
+    total_estimated_flops: int,
+    total_estimated_macs: int,
+    peak_intermediate_size: int,
+    bytes_per_element: int,
+) -> AutomaticContractionSummary:
+    """Build a summary payload for automatic path analysis."""
+    return AutomaticContractionSummary(
+        total_estimated_flops=total_estimated_flops,
+        total_estimated_macs=total_estimated_macs,
+        peak_intermediate_size=peak_intermediate_size,
+        peak_intermediate_bytes=peak_intermediate_size * bytes_per_element,
+    )
+
+
+def _analyze_future_automatic_plan(
+    *,
+    initial_operands: dict[str, tuple[str, ...]],
+    manual_operand_state: ManualOperandState,
+    dimension_by_label: dict[str, int],
+    bytes_per_element: int,
+) -> AutomaticContractionPlanAnalysis:
+    """Analyze the greedy path that continues from the current manual state."""
+    del initial_operands
+    return _analyze_automatic_operands(
+        operand_order=list(manual_operand_state.active_operand_ids),
+        operands=manual_operand_state.remaining_operands,
+        dimension_by_label=dimension_by_label,
+        step_id_prefix="auto_future_step_",
+        bytes_per_element=bytes_per_element,
+    )
+
+
+def _analyze_past_automatic_plan(
+    *,
+    spec: NetworkSpec,
+    initial_operands: dict[str, tuple[str, ...]],
+    manual_operand_state: ManualOperandState,
+    dimension_by_label: dict[str, int],
+    bytes_per_element: int,
+) -> AutomaticContractionPlanAnalysis:
+    """Analyze greedy paths for already contracted manual subtrees."""
+    del spec
+    base_tensor_ids = set(initial_operands)
+    contracted_root_operand_ids = [
+        operand_id
+        for operand_id in manual_operand_state.active_operand_ids
+        if operand_id not in base_tensor_ids
+        and len(
+            manual_operand_state.source_tensor_ids_by_operand_id.get(operand_id, ())
+        )
+        > 1
+    ]
+    if not contracted_root_operand_ids:
+        return _unavailable_automatic_analysis(
+            "Contract at least one tensor pair to unlock the auto past preview.",
+            bytes_per_element=bytes_per_element,
+        )
+
+    all_steps: list[ContractionStepAnalysis] = []
+    total_estimated_flops = 0
+    total_estimated_macs = 0
+    peak_intermediate_size = 0
+
+    for root_operand_id in contracted_root_operand_ids:
+        root_tensor_ids = manual_operand_state.source_tensor_ids_by_operand_id.get(
+            root_operand_id, ()
+        )
+        analysis = _analyze_automatic_operands(
+            operand_order=list(root_tensor_ids),
+            operands={
+                tensor_id: initial_operands[tensor_id] for tensor_id in root_tensor_ids
+            },
+            dimension_by_label=dimension_by_label,
+            step_id_prefix=f"{root_operand_id}__auto_past_",
+            final_step_id=root_operand_id,
+            bytes_per_element=bytes_per_element,
+        )
+        if analysis.status == "unavailable":
+            return analysis
+        all_steps.extend(analysis.steps)
+        total_estimated_flops += analysis.summary.total_estimated_flops
+        total_estimated_macs += analysis.summary.total_estimated_macs
+        peak_intermediate_size = max(
+            peak_intermediate_size, analysis.summary.peak_intermediate_size
+        )
+
+    return AutomaticContractionPlanAnalysis(
+        status="complete",
+        steps=all_steps,
+        summary=_build_automatic_summary(
+            total_estimated_flops=total_estimated_flops,
+            total_estimated_macs=total_estimated_macs,
+            peak_intermediate_size=peak_intermediate_size,
+            bytes_per_element=bytes_per_element,
+        ),
+    )
+
+
+def _analyze_automatic_operands(
+    *,
+    operand_order: list[str],
+    operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+    step_id_prefix: str,
+    bytes_per_element: int,
+    final_step_id: str | None = None,
+) -> AutomaticContractionPlanAnalysis:
+    """Run automatic greedy analysis for the provided operand set."""
+    if len(operand_order) <= 1:
+        return AutomaticContractionPlanAnalysis(
+            status="complete",
+            steps=[],
+            summary=_build_automatic_summary(
+                total_estimated_flops=0,
+                total_estimated_macs=0,
+                peak_intermediate_size=0,
+                bytes_per_element=bytes_per_element,
+            ),
+        )
+
+    try:
+        contract_path = cast(
+            Any,
+            cast(Any, import_module("opt_einsum")).contract_path,
+        )
+    except ImportError:
+        return _unavailable_automatic_analysis(
+            "Install the planner extra to enable automatic greedy path suggestions.",
+            bytes_per_element=bytes_per_element,
+        )
+
+    label_order: list[str] = []
+    for operand_id in operand_order:
+        for label in operands[operand_id]:
+            if label not in label_order:
+                label_order.append(label)
+    if len(label_order) > len(ascii_letters):
+        return _unavailable_automatic_analysis(
+            "Automatic greedy path analysis currently supports up to 52 distinct labels.",
+            bytes_per_element=bytes_per_element,
+        )
+
+    symbol_map = {
+        label: ascii_letters[offset]
+        for offset, label in enumerate(label_order[: len(ascii_letters)])
+    }
+    label_counts = {
+        label: sum(operand_labels.count(label) for operand_labels in operands.values())
+        for label in label_order
+    }
+    output_labels = [label for label in label_order if label_counts[label] == 1]
+    equation = (
+        ",".join(
+            "".join(symbol_map[label] for label in operands[operand_id])
+            for operand_id in operand_order
+        )
+        + "->"
+        + "".join(symbol_map[label] for label in output_labels)
+    )
+    shapes = [
+        tuple(dimension_by_label[label] for label in operands[operand_id])
+        for operand_id in operand_order
+    ]
+
+    try:
+        path, _ = contract_path(
+            equation,
+            *shapes,
+            shapes=True,
+            optimize="greedy",
+        )
+    except ValueError as exc:
+        return _unavailable_automatic_analysis(
+            f"Automatic greedy path analysis failed: {exc}",
+            bytes_per_element=bytes_per_element,
+        )
+
+    remaining_order = list(operand_order)
+    remaining_operands = dict(operands)
+    steps: list[ContractionStepAnalysis] = []
+    total_estimated_flops = 0
+    total_estimated_macs = 0
+    peak_intermediate_size = 0
+
+    for step_index, raw_indices in enumerate(path, start=1):
+        indices = tuple(int(value) for value in raw_indices)
+        if len(indices) != 2:
+            return _unavailable_automatic_analysis(
+                "Automatic greedy path produced a non-pairwise contraction step.",
+                bytes_per_element=bytes_per_element,
+            )
+        left_operand_id = remaining_order[indices[0]]
+        right_operand_id = remaining_order[indices[1]]
+        step_id = (
+            final_step_id
+            if final_step_id is not None and step_index == len(path)
+            else f"{step_id_prefix}{step_index}"
+        )
+        step_result = _contract_operands(
+            step_id=step_id,
+            left_operand_id=left_operand_id,
+            right_operand_id=right_operand_id,
+            left_labels=remaining_operands.pop(left_operand_id),
+            right_labels=remaining_operands.pop(right_operand_id),
+            dimension_by_label=dimension_by_label,
+        )
+        steps.append(step_result)
+        remaining_operands[step_id] = step_result.surviving_labels
+        total_estimated_flops += step_result.estimated_flops
+        total_estimated_macs += step_result.estimated_macs
+        peak_intermediate_size = max(
+            peak_intermediate_size, step_result.intermediate_size
+        )
+        for operand_index in sorted(indices, reverse=True):
+            remaining_order.pop(operand_index)
+        remaining_order.append(step_id)
+
+    status = "complete" if len(remaining_operands) <= 1 else "incomplete"
+    return AutomaticContractionPlanAnalysis(
+        status=status,
+        steps=steps,
+        summary=_build_automatic_summary(
+            total_estimated_flops=total_estimated_flops,
+            total_estimated_macs=total_estimated_macs,
+            peak_intermediate_size=peak_intermediate_size,
+            bytes_per_element=bytes_per_element,
+        ),
+    )
+
+
+def _unavailable_automatic_analysis(
+    message: str,
+    *,
+    bytes_per_element: int,
+) -> AutomaticContractionPlanAnalysis:
+    """Return a standardized unavailable-analysis payload."""
+    return AutomaticContractionPlanAnalysis(
+        status="unavailable",
+        steps=[],
+        summary=_build_automatic_summary(
+            total_estimated_flops=0,
+            total_estimated_macs=0,
+            peak_intermediate_size=0,
+            bytes_per_element=bytes_per_element,
+        ),
+        message=message,
+    )
