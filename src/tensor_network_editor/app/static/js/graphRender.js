@@ -409,61 +409,170 @@ export function registerGraphRender(ctx) {
     }
   }
 
-  function renderGraph() {
-    if (!state.cy || !state.spec) {
+  function cloneGraphElementDescriptor(descriptor) {
+    return {
+      classes: descriptor.classes || "",
+      data: { ...descriptor.data },
+      grabbable: Boolean(descriptor.grabbable),
+      group: descriptor.group,
+      position: descriptor.position
+        ? {
+            x: descriptor.position.x,
+            y: descriptor.position.y,
+          }
+        : null,
+      selectable: descriptor.selectable !== false,
+    };
+  }
+
+  function graphElementDataEqual(leftData = {}, rightData = {}) {
+    const leftKeys = Object.keys(leftData);
+    const rightKeys = Object.keys(rightData);
+    if (leftKeys.length !== rightKeys.length) {
+      return false;
+    }
+    return leftKeys.every((key) => leftData[key] === rightData[key]);
+  }
+
+  function graphElementPositionEqual(leftPosition, rightPosition) {
+    if (!leftPosition || !rightPosition) {
+      return leftPosition === rightPosition;
+    }
+    return leftPosition.x === rightPosition.x && leftPosition.y === rightPosition.y;
+  }
+
+  function graphElementDescriptorsEqual(leftDescriptor, rightDescriptor) {
+    if (!leftDescriptor || !rightDescriptor) {
+      return leftDescriptor === rightDescriptor;
+    }
+    return (
+      leftDescriptor.group === rightDescriptor.group &&
+      leftDescriptor.classes === rightDescriptor.classes &&
+      leftDescriptor.selectable === rightDescriptor.selectable &&
+      leftDescriptor.grabbable === rightDescriptor.grabbable &&
+      graphElementPositionEqual(leftDescriptor.position, rightDescriptor.position) &&
+      graphElementDataEqual(leftDescriptor.data, rightDescriptor.data)
+    );
+  }
+
+  function updateGraphRenderCache(model) {
+    state.graphRenderCyRef = state.cy;
+    state.graphRenderDescriptorById = Object.fromEntries(
+      model.orderedIds.map((elementId) => [
+        elementId,
+        cloneGraphElementDescriptor(model.descriptorsById[elementId]),
+      ])
+    );
+    state.graphRenderDescriptorOrder = [...model.orderedIds];
+    state.graphRenderVisibleSignature = model.visibleSignature;
+    state.graphRenderEphemeralSignature = model.ephemeralSignature;
+    state.graphRenderDescriptorRevision = state.specRevision;
+  }
+
+  function resetGraphRenderCacheForCurrentCy() {
+    state.graphRenderCyRef = state.cy;
+    state.graphRenderDescriptorById = {};
+    state.graphRenderDescriptorOrder = [];
+    state.graphRenderVisibleSignature = null;
+    state.graphRenderEphemeralSignature = null;
+    state.graphRenderDescriptorRevision = -1;
+    state.cySelectionSyncedIds = [];
+    state.pendingInteractionRenderedPlannerSelectionId = null;
+    state.pendingInteractionRenderedIndexId = null;
+  }
+
+  function ensureGraphRenderCacheForCurrentCy() {
+    if (state.graphRenderCyRef === state.cy) {
       return;
     }
-    ctx.reconcileTensorOrder();
-    const contractionScene =
-      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
-    const elements = buildGraphElements(contractionScene);
-    const visibleTensors = contractionScene ? contractionScene.tensors : state.spec.tensors;
-    state.cy.batch(() => {
-      state.cy.elements().remove();
-      state.cy.add(elements);
-    });
-    ctx.applyTensorLayerData();
-    syncPendingInteractionClasses();
-    if (!state.hasFitCanvas) {
-      if (visibleTensors.length) {
-        state.cy.fit(undefined, 40);
-      } else {
-        state.cy.center();
+    resetGraphRenderCacheForCurrentCy();
+  }
+
+  function applyInitialGraphElementModel(model) {
+    if (model.elements.length) {
+      state.cy.add(model.elements);
+    }
+    updateGraphRenderCache(model);
+  }
+
+  function applyGraphElementModelDiff(model) {
+    const previousDescriptorsById = state.graphRenderDescriptorById || {};
+    const nextDescriptorsById = model.descriptorsById;
+    const nextIdSet = new Set(model.orderedIds);
+    const addedDescriptors = [];
+
+    Object.keys(previousDescriptorsById).forEach((elementId) => {
+      if (nextIdSet.has(elementId)) {
+        return;
       }
-      state.hasFitCanvas = true;
+      const element = state.cy.getElementById(elementId);
+      if (element && element.length) {
+        element.remove();
+      }
+    });
+
+    model.orderedIds.forEach((elementId) => {
+      const nextDescriptor = nextDescriptorsById[elementId];
+      const previousDescriptor = previousDescriptorsById[elementId];
+      if (!previousDescriptor) {
+        addedDescriptors.push(nextDescriptor);
+        return;
+      }
+      if (graphElementDescriptorsEqual(previousDescriptor, nextDescriptor)) {
+        return;
+      }
+      const element = state.cy.getElementById(elementId);
+      if (!element || !element.length) {
+        addedDescriptors.push(nextDescriptor);
+        return;
+      }
+      if (!graphElementDataEqual(previousDescriptor.data, nextDescriptor.data)) {
+        element.data(nextDescriptor.data);
+      }
+      if (!graphElementPositionEqual(previousDescriptor.position, nextDescriptor.position)) {
+        element.position(nextDescriptor.position);
+      }
+      if (previousDescriptor.classes !== nextDescriptor.classes) {
+        element.classes(nextDescriptor.classes || "");
+      }
+      if (previousDescriptor.selectable !== nextDescriptor.selectable) {
+        element.selectable(nextDescriptor.selectable);
+      }
+      if (previousDescriptor.grabbable !== nextDescriptor.grabbable) {
+        element.grabbable(nextDescriptor.grabbable);
+      }
+    });
+
+    if (addedDescriptors.length) {
+      state.cy.add(addedDescriptors);
     }
-    ctx.syncCySelection();
+    updateGraphRenderCache(model);
   }
 
-  function syncPendingInteractionClasses() {
-    if (!state.cy) {
-      return;
-    }
-    state.cy.nodes("node[kind = 'tensor']").forEach((node) => {
-      node.toggleClass("planner-pending-tensor", node.id() === state.pendingPlannerSelectionId);
-    });
-    state.cy.nodes("node[kind = 'index']").forEach((node) => {
-      node.toggleClass("planner-pending-index", node.id() === state.pendingIndexId);
-    });
-  }
-
-  function buildGraphElements(contractionScene = null) {
-    const tensorElements = [];
-    const edgeElements = [];
-    const indexElements = [];
-    const indexLabelElements = [];
+  function buildGraphElementModel(contractionScene = null) {
+    const descriptorsById = {};
+    const orderedIds = [];
     const connectedIndexIds = new Set();
     const resolvedContractionScene =
       contractionScene ||
       (typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null);
-    const visibleTensors = resolvedContractionScene ? resolvedContractionScene.tensors : state.spec.tensors;
-    const visibleEdges = resolvedContractionScene ? resolvedContractionScene.edges : state.spec.edges;
+    const visibleTensors = resolvedContractionScene
+      ? resolvedContractionScene.tensors
+      : state.spec.tensors;
+    const visibleEdges = resolvedContractionScene
+      ? resolvedContractionScene.edges
+      : state.spec.edges;
     const readOnlyScene = Boolean(
       resolvedContractionScene &&
         typeof ctx.isInspectingPastStage === "function" &&
         ctx.isInspectingPastStage()
     );
     const indexNodesInteractive = !readOnlyScene;
+
+    function appendDescriptor(descriptor) {
+      orderedIds.push(descriptor.data.id);
+      descriptorsById[descriptor.data.id] = descriptor;
+    }
 
     visibleEdges.forEach((edge) => {
       connectedIndexIds.add(edge.leftIndexId || edge.left.index_id);
@@ -475,11 +584,17 @@ export function registerGraphRender(ctx) {
         ctx.ensureTensorIndexOffsets(tensor);
       }
       const tensorRank = ctx.tensorLayerRank(tensor.id);
-      const anchorTensor = tensor.isDerived && Array.isArray(tensor.sourceTensorIds) && tensor.sourceTensorIds.length
-        ? ctx.findTensorById(tensor.sourceTensorIds[0])
-        : ctx.findTensorById(tensor.id);
-      const tensorColor = ctx.getMetadataColor(anchorTensor ? anchorTensor.metadata : null, "#18212c");
-      tensorElements.push({
+      const anchorTensor =
+        tensor.isDerived &&
+        Array.isArray(tensor.sourceTensorIds) &&
+        tensor.sourceTensorIds.length
+          ? ctx.findTensorById(tensor.sourceTensorIds[0])
+          : ctx.findTensorById(tensor.id);
+      const tensorColor = ctx.getMetadataColor(
+        anchorTensor ? anchorTensor.metadata : null,
+        "#18212c"
+      );
+      appendDescriptor({
         group: "nodes",
         data: {
           id: tensor.id,
@@ -493,7 +608,10 @@ export function registerGraphRender(ctx) {
           textColor: ctx.readableTextColor(tensorColor),
           zIndex: TENSOR_BASE_Z_INDEX + tensorRank,
         },
-        classes: state.pendingPlannerSelectionId === tensor.id ? "planner-pending-tensor" : "",
+        classes:
+          state.pendingPlannerSelectionId === tensor.id
+            ? "planner-pending-tensor"
+            : "",
         position: { x: tensor.position.x, y: tensor.position.y },
         grabbable: !readOnlyScene,
         selectable: true,
@@ -507,7 +625,7 @@ export function registerGraphRender(ctx) {
               y: tensor.position.y + index.offset.y,
             }
           : ctx.indexAbsolutePosition(tensor, index);
-        indexElements.push({
+        appendDescriptor({
           group: "nodes",
           data: {
             id: index.id,
@@ -530,7 +648,7 @@ export function registerGraphRender(ctx) {
           selectable: indexNodesInteractive,
         });
 
-        indexLabelElements.push({
+        appendDescriptor({
           group: "nodes",
           data: {
             id: ctx.indexLabelNodeId(index.id),
@@ -539,6 +657,7 @@ export function registerGraphRender(ctx) {
             textColor: ctx.shiftColor(indexColor, 64),
             zIndex: INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition,
           },
+          classes: "",
           position: ctx.indexLabelPosition(indexPositionAbsolute),
           grabbable: false,
           selectable: false,
@@ -548,7 +667,7 @@ export function registerGraphRender(ctx) {
 
     visibleEdges.forEach((edge) => {
       const edgeColor = ctx.getMetadataColor(edge.metadata, "#8da1c3");
-      edgeElements.push({
+      appendDescriptor({
         group: "edges",
         data: {
           id: edge.id,
@@ -560,11 +679,99 @@ export function registerGraphRender(ctx) {
           textColor: ctx.shiftColor(edgeColor, 72),
           zIndex: EDGE_Z_INDEX,
         },
+        classes: "",
+        position: null,
+        grabbable: false,
         selectable: !readOnlyScene,
       });
     });
 
-    return [...tensorElements, ...edgeElements, ...indexElements, ...indexLabelElements];
+    return {
+      descriptorsById,
+      elements: orderedIds.map((elementId) => descriptorsById[elementId]),
+      ephemeralSignature: [
+        state.pendingPlannerSelectionId || "",
+        state.pendingIndexId || "",
+        readOnlyScene ? "readonly" : "editable",
+      ].join("|"),
+      orderedIds,
+      visibleSignature: orderedIds.join("|"),
+      visibleTensors,
+    };
+  }
+
+  function renderGraph() {
+    if (!state.cy || !state.spec) {
+      return;
+    }
+    ensureGraphRenderCacheForCurrentCy();
+    ctx.reconcileTensorOrder();
+    const contractionScene =
+      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
+    const graphModel = buildGraphElementModel(contractionScene);
+    const hasPreviousRender = state.graphRenderDescriptorOrder.length > 0;
+    state.cy.batch(() => {
+      if (hasPreviousRender) {
+        applyGraphElementModelDiff(graphModel);
+      } else {
+        applyInitialGraphElementModel(graphModel);
+      }
+    });
+    syncPendingInteractionClasses();
+    if (!state.hasFitCanvas) {
+      if (graphModel.visibleTensors.length) {
+        state.cy.fit(undefined, 40);
+      } else {
+        state.cy.center();
+      }
+      state.hasFitCanvas = true;
+    }
+    ctx.syncCySelection();
+  }
+
+  function syncPendingInteractionClasses() {
+    if (!state.cy) {
+      return;
+    }
+    const previousPlannerSelectionId = state.pendingInteractionRenderedPlannerSelectionId;
+    const previousIndexId = state.pendingInteractionRenderedIndexId;
+    const nextPlannerSelectionId = state.pendingPlannerSelectionId || null;
+    const nextIndexId = state.pendingIndexId || null;
+    if (
+      previousPlannerSelectionId === nextPlannerSelectionId &&
+      previousIndexId === nextIndexId
+    ) {
+      return;
+    }
+    state.cy.batch(() => {
+      new Set([previousPlannerSelectionId, nextPlannerSelectionId]).forEach((tensorId) => {
+        if (!tensorId) {
+          return;
+        }
+        const tensorNode = state.cy.getElementById(tensorId);
+        if (tensorNode && tensorNode.length) {
+          tensorNode.toggleClass(
+            "planner-pending-tensor",
+            tensorId === nextPlannerSelectionId
+          );
+        }
+      });
+      new Set([previousIndexId, nextIndexId]).forEach((indexId) => {
+        if (!indexId) {
+          return;
+        }
+        const indexNode = state.cy.getElementById(indexId);
+        if (indexNode && indexNode.length) {
+          indexNode.toggleClass("planner-pending-index", indexId === nextIndexId);
+        }
+      });
+    });
+    state.pendingInteractionRenderedPlannerSelectionId = nextPlannerSelectionId;
+    state.pendingInteractionRenderedIndexId = nextIndexId;
+  }
+
+  function buildGraphElements(contractionScene = null) {
+    return buildGraphElementModel(contractionScene).elements;
   }
 
   function createTensorDragState(anchorId) {

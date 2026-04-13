@@ -384,14 +384,35 @@ export function registerHistorySelection(ctx) {
     if (!state.cy) {
       return;
     }
+    const previousSelectionIds = Array.isArray(state.cySelectionSyncedIds)
+      ? state.cySelectionSyncedIds
+      : [];
+    const nextSelectionIds = Array.isArray(state.selectionIds) ? state.selectionIds : [];
+    const previousSelectionIdSet = new Set(previousSelectionIds);
+    const nextSelectionIdSet = new Set(nextSelectionIds);
     state.cy.batch(() => {
-      state.cy.$(":selected").unselect();
-      state.selectionIds.forEach((selectionId) => {
+      previousSelectionIds.forEach((selectionId) => {
+        if (nextSelectionIdSet.has(selectionId)) {
+          return;
+        }
+        const element = state.cy.getElementById(selectionId);
+        if (element && element.length) {
+          element.unselect();
+        }
+      });
+      nextSelectionIds.forEach((selectionId) => {
+        if (previousSelectionIdSet.has(selectionId)) {
+          return;
+        }
         const element = state.cy.getElementById(selectionId);
         if (element && element.length) {
           element.select();
         }
       });
+    });
+    state.cySelectionSyncedIds = nextSelectionIds.filter((selectionId) => {
+      const element = state.cy.getElementById(selectionId);
+      return Boolean(element && element.length);
     });
     ctx.renderOverlayDecorations();
   }

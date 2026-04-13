@@ -267,22 +267,43 @@ export function createUtilityGeometryBindings({
     };
   }
 
+  function buildTensorRankById(tensorOrder) {
+    return Object.fromEntries(
+      (Array.isArray(tensorOrder) ? tensorOrder : []).map((tensorId, index) => [
+        tensorId,
+        index,
+      ])
+    );
+  }
+
   function reconcileTensorOrder() {
     const tensorIds = state.spec ? state.spec.tensors.map((tensor) => tensor.id) : [];
-    const nextOrder = (Array.isArray(state.tensorOrder) ? state.tensorOrder : []).filter((tensorId) =>
-      tensorIds.includes(tensorId)
-    );
-    tensorIds.forEach((tensorId) => {
-      if (!nextOrder.includes(tensorId)) {
-        nextOrder.push(tensorId);
+    const activeTensorIds = new Set(tensorIds);
+    const nextOrder = [];
+    const seenTensorIds = new Set();
+    (Array.isArray(state.tensorOrder) ? state.tensorOrder : []).forEach((tensorId) => {
+      if (!activeTensorIds.has(tensorId) || seenTensorIds.has(tensorId)) {
+        return;
       }
+      seenTensorIds.add(tensorId);
+      nextOrder.push(tensorId);
+    });
+    tensorIds.forEach((tensorId) => {
+      if (seenTensorIds.has(tensorId)) {
+        return;
+      }
+      seenTensorIds.add(tensorId);
+      nextOrder.push(tensorId);
     });
     state.tensorOrder = nextOrder;
+    state.tensorRankById = buildTensorRankById(nextOrder);
   }
 
   function tensorLayerRank(tensorId) {
-    const index = state.tensorOrder.indexOf(tensorId);
-    return index >= 0 ? index : 0;
+    if (!Object.prototype.hasOwnProperty.call(state.tensorRankById, tensorId)) {
+      reconcileTensorOrder();
+    }
+    return state.tensorRankById[tensorId] ?? 0;
   }
 
   function bringTensorToFront(tensorId) {
@@ -292,6 +313,7 @@ export function createUtilityGeometryBindings({
     reconcileTensorOrder();
     state.tensorOrder = state.tensorOrder.filter((id) => id !== tensorId);
     state.tensorOrder.push(tensorId);
+    state.tensorRankById = buildTensorRankById(state.tensorOrder);
     applyTensorLayerData();
   }
 
@@ -300,10 +322,11 @@ export function createUtilityGeometryBindings({
       return;
     }
     reconcileTensorOrder();
-    state.tensorOrder.forEach((tensorId, tensorRank) => {
+    state.tensorOrder.forEach((tensorId) => {
+      const tensorRank = state.tensorRankById[tensorId] ?? 0;
+      const tensor = runtime.findTensorById(tensorId);
       const tensorElement = state.cy.getElementById(tensorId);
       if (tensorElement && tensorElement.length) {
-        const tensor = runtime.findTensorById(tensorId);
         const tensorColor = tensor
           ? runtime.getMetadataColor(tensor.metadata, "#18212c")
           : "#18212c";
@@ -312,7 +335,6 @@ export function createUtilityGeometryBindings({
         tensorElement.data("borderColor", runtime.shiftColor(tensorColor, 26));
         tensorElement.data("textColor", runtime.readableTextColor(tensorColor));
       }
-      const tensor = runtime.findTensorById(tensorId);
       if (!tensor) {
         return;
       }

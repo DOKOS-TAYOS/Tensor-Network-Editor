@@ -18,6 +18,15 @@ PLANNER_SUPPORT_PATH = (
     / "js"
     / "plannerSupport.js"
 )
+GRAPH_RENDER_PATH = (
+    REPO_ROOT
+    / "src"
+    / "tensor_network_editor"
+    / "app"
+    / "static"
+    / "js"
+    / "graphRender.js"
+)
 
 
 def _write_runtime_script(tmp_path: Path, filename: str, body: str) -> Path:
@@ -109,6 +118,15 @@ def _build_runtime_prelude() -> str:
         / "js"
         / "notes.js"
     )
+    graph_render_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "graphRender.js"
+    )
 
     return f"""
     import {{ pathToFileURL }} from "node:url";
@@ -121,6 +139,7 @@ def _build_runtime_prelude() -> str:
     const contractionSceneModuleUrl = pathToFileURL({json.dumps(str(contraction_scene_path))}).href;
     const interactionsModuleUrl = pathToFileURL({json.dumps(str(interactions_path))}).href;
     const notesModuleUrl = pathToFileURL({json.dumps(str(notes_path))}).href;
+    const graphRenderModuleUrl = pathToFileURL({json.dumps(str(graph_render_path))}).href;
 
     function createClassList() {{
       return {{
@@ -304,6 +323,314 @@ def _build_runtime_prelude() -> str:
       }};
     }}
 
+    function createCyStub() {{
+      const stats = {{
+        addCalls: 0,
+        addIds: [],
+        batchCalls: 0,
+        bulkUnselectCalls: 0,
+        centerCalls: 0,
+        dataSetIds: [],
+        fitCalls: 0,
+        grabbableIds: [],
+        nodeQueryCalls: [],
+        positionSetIds: [],
+        removeAllCalls: 0,
+        removedIds: [],
+        selectableIds: [],
+        selectCalls: [],
+        toggleClassIds: [],
+        unselectCalls: [],
+      }};
+      const elementsById = new Map();
+
+      function recordUnique(entries, value) {{
+        if (!entries.includes(value)) {{
+          entries.push(value);
+        }}
+      }}
+
+      function normalizeClasses(value) {{
+        if (!value) {{
+          return new Set();
+        }}
+        if (Array.isArray(value)) {{
+          return new Set(value.filter(Boolean));
+        }}
+        return new Set(String(value).split(/\\s+/).filter(Boolean));
+      }}
+
+      function createEmptyElement(id = null) {{
+        return {{
+          length: 0,
+          id() {{
+            return id;
+          }},
+          data() {{
+            return undefined;
+          }},
+          position() {{
+            return undefined;
+          }},
+          select() {{
+            return this;
+          }},
+          unselect() {{
+            return this;
+          }},
+          toggleClass() {{
+            return this;
+          }},
+          remove() {{
+            return this;
+          }},
+          selectable() {{
+            return false;
+          }},
+          grabbable() {{
+            return false;
+          }},
+          classes() {{
+            return "";
+          }},
+          hasClass() {{
+            return false;
+          }},
+          snapshot() {{
+            return null;
+          }},
+        }};
+      }}
+
+      function matchesNodeSelector(element, selector = null) {{
+        if (!selector) {{
+          return element.group() === "nodes";
+        }}
+        if (selector === "node[kind = 'tensor']") {{
+          return element.group() === "nodes" && element.data("kind") === "tensor";
+        }}
+        if (selector === "node[kind = 'index']") {{
+          return element.group() === "nodes" && element.data("kind") === "index";
+        }}
+        return element.group() === "nodes";
+      }}
+
+      function isEdgeElement(element) {{
+        return element.group() === "edges";
+      }}
+
+      function createElement(descriptor) {{
+        const elementState = {{
+          classes: normalizeClasses(descriptor.classes),
+          data: {{ ...(descriptor.data || {{}}) }},
+          grabbable: Boolean(descriptor.grabbable),
+          group: descriptor.group,
+          id: descriptor.data.id,
+          position: descriptor.position
+            ? {{ x: descriptor.position.x, y: descriptor.position.y }}
+            : {{ x: 0, y: 0 }},
+          selectable: descriptor.selectable !== false,
+          selected: false,
+        }};
+
+        return {{
+          length: 1,
+          id() {{
+            return elementState.id;
+          }},
+          group() {{
+            return elementState.group;
+          }},
+          data(key, value) {{
+            if (!arguments.length) {{
+              return {{ ...elementState.data }};
+            }}
+            if (arguments.length === 1 && typeof key === "string") {{
+              return elementState.data[key];
+            }}
+            if (arguments.length === 1 && key && typeof key === "object") {{
+              Object.assign(elementState.data, key);
+              recordUnique(stats.dataSetIds, elementState.id);
+              return this;
+            }}
+            elementState.data[key] = value;
+            recordUnique(stats.dataSetIds, elementState.id);
+            return this;
+          }},
+          position(arg, value) {{
+            if (!arguments.length) {{
+              return {{ ...elementState.position }};
+            }}
+            if (arguments.length === 1 && typeof arg === "string") {{
+              return elementState.position[arg];
+            }}
+            if (arguments.length === 1 && arg && typeof arg === "object") {{
+              elementState.position = {{ x: arg.x, y: arg.y }};
+              recordUnique(stats.positionSetIds, elementState.id);
+              return this;
+            }}
+            elementState.position[arg] = value;
+            recordUnique(stats.positionSetIds, elementState.id);
+            return this;
+          }},
+          select() {{
+            if (!elementState.selected) {{
+              elementState.selected = true;
+              stats.selectCalls.push(elementState.id);
+            }}
+            return this;
+          }},
+          unselect() {{
+            if (elementState.selected) {{
+              elementState.selected = false;
+              stats.unselectCalls.push(elementState.id);
+            }}
+            return this;
+          }},
+          toggleClass(className, force) {{
+            const shouldHaveClass =
+              force === undefined
+                ? !elementState.classes.has(className)
+                : Boolean(force);
+            if (shouldHaveClass) {{
+              elementState.classes.add(className);
+            }} else {{
+              elementState.classes.delete(className);
+            }}
+            recordUnique(stats.toggleClassIds, elementState.id);
+            return this;
+          }},
+          remove() {{
+            if (elementsById.has(elementState.id)) {{
+              elementsById.delete(elementState.id);
+              stats.removedIds.push(elementState.id);
+            }}
+            return this;
+          }},
+          selectable(value) {{
+            if (!arguments.length) {{
+              return elementState.selectable;
+            }}
+            elementState.selectable = Boolean(value);
+            recordUnique(stats.selectableIds, elementState.id);
+            return this;
+          }},
+          grabbable(value) {{
+            if (!arguments.length) {{
+              return elementState.grabbable;
+            }}
+            elementState.grabbable = Boolean(value);
+            recordUnique(stats.grabbableIds, elementState.id);
+            return this;
+          }},
+          classes(value) {{
+            if (!arguments.length) {{
+              return [...elementState.classes].sort().join(" ");
+            }}
+            elementState.classes = normalizeClasses(value);
+            recordUnique(stats.toggleClassIds, elementState.id);
+            return this;
+          }},
+          hasClass(className) {{
+            return elementState.classes.has(className);
+          }},
+          snapshot() {{
+            return {{
+              classes: [...elementState.classes].sort(),
+              data: {{ ...elementState.data }},
+              grabbable: elementState.grabbable,
+              id: elementState.id,
+              position: {{ ...elementState.position }},
+              selectable: elementState.selectable,
+              selected: elementState.selected,
+            }};
+          }},
+        }};
+      }}
+
+      function resetStats() {{
+        Object.keys(stats).forEach((key) => {{
+          if (Array.isArray(stats[key])) {{
+            stats[key].length = 0;
+            return;
+          }}
+          stats[key] = 0;
+        }});
+      }}
+
+      const cy = {{
+        add(collection) {{
+          const descriptors = Array.isArray(collection) ? collection : [collection];
+          stats.addCalls += 1;
+          descriptors.forEach((descriptor) => {{
+            stats.addIds.push(descriptor.data.id);
+            elementsById.set(descriptor.data.id, createElement(descriptor));
+          }});
+          return descriptors.map((descriptor) => elementsById.get(descriptor.data.id));
+        }},
+        batch(callback) {{
+          stats.batchCalls += 1;
+          return callback();
+        }},
+        center() {{
+          stats.centerCalls += 1;
+        }},
+        edges() {{
+          return [...elementsById.values()].filter((element) => isEdgeElement(element));
+        }},
+        elements() {{
+          return {{
+            remove() {{
+              stats.removeAllCalls += 1;
+              stats.removedIds.push(...elementsById.keys());
+              elementsById.clear();
+            }},
+          }};
+        }},
+        fit() {{
+          stats.fitCalls += 1;
+        }},
+        getElementById(id) {{
+          return elementsById.get(id) || createEmptyElement(id);
+        }},
+        nodes(selector = null) {{
+          stats.nodeQueryCalls.push(selector);
+          return [...elementsById.values()].filter((element) =>
+            matchesNodeSelector(element, selector)
+          );
+        }},
+        on() {{}},
+        $(selector) {{
+          if (selector !== ":selected") {{
+            return {{
+              unselect() {{}},
+            }};
+          }}
+          return {{
+            unselect() {{
+              stats.bulkUnselectCalls += 1;
+              [...elementsById.values()].forEach((element) => {{
+                element.unselect();
+              }});
+            }},
+          }};
+        }},
+      }};
+
+      return {{
+        cy,
+        getElementIds() {{
+          return [...elementsById.keys()].sort();
+        }},
+        getElementSnapshot(id) {{
+          const element = elementsById.get(id);
+          return element ? element.snapshot() : null;
+        }},
+        resetStats,
+        stats,
+      }};
+    }}
+
     async function buildContext() {{
       const [constantsModule, stateModule, utilitiesModule] = await Promise.all([
         import(constantsModuleUrl),
@@ -362,6 +689,13 @@ def _build_runtime_prelude() -> str:
     async function registerHistory(ctx) {{
       const {{ registerHistorySelection }} = await import(historyModuleUrl);
       registerHistorySelection(ctx);
+    }}
+
+    async function registerGraphRender(ctx) {{
+      const {{ registerGraphRender: registerGraphRenderFeature }} = await import(
+        graphRenderModuleUrl
+      );
+      registerGraphRenderFeature(ctx);
     }}
 
     async function registerPlanner(ctx) {{
@@ -2228,6 +2562,489 @@ def test_automatic_past_preview_keeps_root_group_order_and_earliest_step(
 
     assert completed_process.returncode == 0, (
         "The automatic-past root-group regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_graph_render_reuses_existing_cytoscape_elements_for_stable_graph(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "graph_render_stable_diff_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_graph_render",
+            name: "graph-render",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "bond",
+                left: { tensor_id: "tensor_a", index_id: "tensor_a_right" },
+                right: { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+
+        ctx.renderGraph();
+        if (!cyHarness.getElementIds().includes("tensor_a") || !cyHarness.getElementIds().includes("edge_ab")) {
+          throw new Error(`Expected the first render to populate graph elements, received ${cyHarness.getElementIds()}.`);
+        }
+
+        cyHarness.resetStats();
+        ctx.renderGraph();
+
+        if (cyHarness.stats.removeAllCalls !== 0 || cyHarness.stats.addCalls !== 0) {
+          throw new Error(
+            `Expected the stable graph render to reuse existing Cytoscape elements, received removeAll=${cyHarness.stats.removeAllCalls}, add=${cyHarness.stats.addCalls}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The stable graph render regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_graph_render_updates_existing_elements_in_place_for_visual_edits(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "graph_render_in_place_update_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_graph_update",
+            name: "graph-update",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "bond",
+                left: { tensor_id: "tensor_a", index_id: "tensor_a_right" },
+                right: { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+
+        ctx.renderGraph();
+        cyHarness.resetStats();
+
+        const tensor = ctx.findTensorById("tensor_a");
+        tensor.name = "A*";
+        tensor.metadata.color = "#ff5a5a";
+        tensor.position.x += 48;
+        ctx.bumpSpecRevision();
+        ctx.renderGraph();
+
+        const tensorSnapshot = cyHarness.getElementSnapshot("tensor_a");
+        if (!tensorSnapshot) {
+          throw new Error("Expected tensor_a to stay mounted after the visual edit.");
+        }
+        if (tensorSnapshot.data.label !== "A*" || tensorSnapshot.position.x !== 168) {
+          throw new Error(`Expected tensor_a to update in place, received ${JSON.stringify(tensorSnapshot)}.`);
+        }
+        if (cyHarness.stats.removeAllCalls !== 0 || cyHarness.stats.addCalls !== 0) {
+          throw new Error(
+            `Expected visual edits to update existing elements in place, received removeAll=${cyHarness.stats.removeAllCalls}, add=${cyHarness.stats.addCalls}.`
+          );
+        }
+        if (
+          !cyHarness.stats.dataSetIds.includes("tensor_a") ||
+          !cyHarness.stats.positionSetIds.includes("tensor_a")
+        ) {
+          throw new Error(
+            `Expected tensor_a to receive in-place data and position updates, received data=${cyHarness.stats.dataSetIds}, position=${cyHarness.stats.positionSetIds}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The in-place graph update regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_sync_cy_selection_updates_only_delta_between_old_and_new_selection(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "cy_selection_delta_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_selection_delta",
+            name: "selection-delta",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+        ctx.renderGraph();
+
+        ctx.state.selectionIds = ["tensor_a"];
+        ctx.syncCySelection();
+        cyHarness.resetStats();
+
+        ctx.state.selectionIds = ["tensor_b"];
+        ctx.syncCySelection();
+
+        if (cyHarness.stats.bulkUnselectCalls !== 0) {
+          throw new Error(
+            `Expected Cytoscape selection sync to avoid clearing the whole selection, received bulkUnselect=${cyHarness.stats.bulkUnselectCalls}.`
+          );
+        }
+        if (
+          cyHarness.stats.unselectCalls.join(",") !== "tensor_a" ||
+          cyHarness.stats.selectCalls.join(",") !== "tensor_b"
+        ) {
+          throw new Error(
+            `Expected selection sync to update only the delta, received unselect=${cyHarness.stats.unselectCalls}, select=${cyHarness.stats.selectCalls}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The Cytoscape selection delta regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_pending_interaction_classes_touch_only_previous_and_current_ids(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "pending_interaction_delta_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_pending_delta",
+            name: "pending-delta",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+        ctx.renderGraph();
+
+        ctx.state.pendingPlannerSelectionId = "tensor_a";
+        ctx.state.pendingIndexId = "tensor_a_left";
+        ctx.syncPendingInteractionClasses();
+        cyHarness.resetStats();
+
+        ctx.state.pendingPlannerSelectionId = "tensor_b";
+        ctx.state.pendingIndexId = "tensor_b_left";
+        ctx.syncPendingInteractionClasses();
+
+        const toggledIds = [...cyHarness.stats.toggleClassIds].sort();
+        const expectedIds = ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left"];
+        if (cyHarness.stats.nodeQueryCalls.length !== 0) {
+          throw new Error(
+            `Expected pending classes to avoid full node scans, received selectors=${cyHarness.stats.nodeQueryCalls}.`
+          );
+        }
+        if (JSON.stringify(toggledIds) !== JSON.stringify(expectedIds)) {
+          throw new Error(
+            `Expected pending classes to touch only previous and current ids, received ${JSON.stringify(toggledIds)}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The pending interaction delta regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_render_diffs_visible_elements_without_full_reset(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "contraction_scene_render_diff_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildContractionSpec() {
+          return {
+            id: "network_scene_diff",
+            name: "scene-diff",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 600, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_c_left", name: "left", dimension: 5, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_c_right", name: "right", dimension: 7, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "ab",
+                left: { tensor_id: "tensor_a", index_id: "tensor_a_right" },
+                right: { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                metadata: {},
+              },
+              {
+                id: "edge_bc",
+                name: "bc",
+                left: { tensor_id: "tensor_b", index_id: "tensor_b_right" },
+                right: { tensor_id: "tensor_c", index_id: "tensor_c_left" },
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: {
+              id: "plan_scene_diff",
+              name: "Scene diff",
+              steps: [
+                { id: "step_1", left_operand_id: "tensor_a", right_operand_id: "tensor_b", metadata: {} },
+                { id: "step_2", left_operand_id: "step_1", right_operand_id: "tensor_c", metadata: {} },
+              ],
+              view_snapshots: [],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerContractionScene(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildContractionSpec());
+        ctx.bumpSpecRevision();
+
+        ctx.renderGraph();
+        if (!cyHarness.getElementIds().includes("step_2")) {
+          throw new Error(`Expected the latest contraction scene to expose the final operand, received ${cyHarness.getElementIds()}.`);
+        }
+
+        cyHarness.resetStats();
+        ctx.state.plannerInspectionStepCount = 1;
+        ctx.renderGraph();
+
+        const inspectedIds = cyHarness.getElementIds();
+        if (
+          !inspectedIds.includes("step_1") ||
+          !inspectedIds.includes("tensor_c") ||
+          inspectedIds.includes("step_2")
+        ) {
+          throw new Error(`Expected the inspected scene to expose the intermediate operands, received ${inspectedIds}.`);
+        }
+        if (cyHarness.stats.removeAllCalls !== 0) {
+          throw new Error(
+            `Expected contraction-scene inspection renders to diff visible elements without a full reset, received removeAll=${cyHarness.stats.removeAllCalls}.`
+          );
+        }
+        if (!cyHarness.stats.addCalls && !cyHarness.stats.removedIds.length) {
+          throw new Error("Expected the inspected scene render to apply an actual visible diff.");
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The contraction-scene render diff regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
