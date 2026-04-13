@@ -8,6 +8,7 @@ This page collects common problems, likely causes, and practical fixes.
 - [PowerShell Will Not Activate the Virtual Environment](#powershell-will-not-activate-the-virtual-environment)
 - [The Command Is Not Found](#the-command-is-not-found)
 - [Python Cannot Import the Package](#python-cannot-import-the-package)
+- [Installed Version Does Not Match the Checkout](#installed-version-does-not-match-the-checkout)
 - [Generated Backend Code Does Not Run](#generated-backend-code-does-not-run)
 - [Schema Version Errors](#schema-version-errors)
 - [Validation Errors](#validation-errors)
@@ -92,6 +93,20 @@ In a source checkout, install editable mode for development:
 python -m pip install -e ".[dev]"
 ```
 
+## Installed Version Does Not Match the Checkout
+
+If you are working from a source checkout, the package metadata installed in
+the active `.venv` can lag behind the source tree after a version change.
+
+Refresh the editable install:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+That realigns `importlib.metadata.version("tensor-network-editor")` with
+`tensor_network_editor.__version__`.
+
 ## Generated Backend Code Does Not Run
 
 The editor can generate code for a backend even if that backend package is not
@@ -164,6 +179,10 @@ spec_from_text = load_spec_from_python_code(generated_source)
 
 This is intentionally limited to source produced by this package. It is not a
 general importer for arbitrary Python tensor-network code.
+
+Linear periodic generated Python is not supported by this round-trip parser
+yet, so those exports should be treated as output artifacts rather than a
+reloadable source format.
 
 ## Planner Suggestions Are Unavailable
 

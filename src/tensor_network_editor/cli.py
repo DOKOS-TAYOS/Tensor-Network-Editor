@@ -40,7 +40,9 @@ from .validation import validate_spec
 class _CommandHandler(Protocol):
     """Callable stored on parsed subcommands."""
 
-    def __call__(self, args: argparse.Namespace) -> int: ...
+    def __call__(self, args: argparse.Namespace) -> int:
+        """Run one parsed subcommand and return its process exit code."""
+        ...
 
 
 class _CommandNamespace(argparse.Namespace):
@@ -50,7 +52,11 @@ class _CommandNamespace(argparse.Namespace):
 
 
 def build_command_parser() -> argparse.ArgumentParser:
-    """Build the parser used by headless CLI subcommands."""
+    """Build the parser used by headless CLI subcommands.
+
+    Returns:
+        The fully configured top-level CLI parser.
+    """
     parser = argparse.ArgumentParser(
         prog="tensor-network-editor",
         description="Work with tensor-network specs from scripts, terminals, and pipelines.",
@@ -151,7 +157,15 @@ def build_command_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the CLI and return a process-friendly exit code."""
+    """Run the CLI and return a process-friendly exit code.
+
+    Args:
+        argv: Optional command-line arguments. When omitted, ``sys.argv[1:]`` is
+            used.
+
+    Returns:
+        A shell-friendly exit code.
+    """
     args_list = list(argv) if argv is not None else sys.argv[1:]
     try:
         parsed_args = cast(
@@ -332,7 +346,19 @@ def _parse_template_cli_parameters(
 
 
 def load_spec_for_lint(path: str) -> NetworkSpec:
-    """Load a spec for linting without enforcing hard validation first."""
+    """Load a spec for linting without enforcing hard validation first.
+
+    Args:
+        path: Path to a serialized JSON design or supported generated Python
+            file.
+
+    Returns:
+        The deserialized network specification.
+
+    Raises:
+        SerializationError: If the payload cannot be parsed into a valid spec
+            shape.
+    """
     from ._io import read_utf8_text
 
     source_path = Path(path)

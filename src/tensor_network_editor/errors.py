@@ -27,6 +27,11 @@ class SpecValidationError(TensorNetworkEditorError):
     """Raised when one or more validation issues are found in a network spec."""
 
     def __init__(self, issues: Sequence[ValidationIssue]) -> None:
+        """Build the validation error from a sequence of issues.
+
+        Args:
+            issues: Validation issues collected while checking a specification.
+        """
         self.issues: list[ValidationIssue] = list(issues)
         first_issue = self.issues[0] if self.issues else None
         message = "Network specification is invalid."

@@ -55,6 +55,17 @@ class EditorSession:
         print_code: bool = False,
         code_path: StrPath | None = None,
     ) -> None:
+        """Initialize one mutable editor session.
+
+        Args:
+            initial_spec: Optional network specification to preload.
+            default_engine: Backend initially selected in the editor.
+            default_collection_format: Initial tensor collection layout for
+                generated code.
+            print_code: Whether to print generated code after confirmation.
+            code_path: Optional output path for generated code after
+                confirmation.
+        """
         self.initial_spec = initial_spec or build_blank_network_spec()
         self.default_engine = default_engine
         self.default_collection_format = default_collection_format
@@ -131,7 +142,17 @@ def wait_for_editor_result(
     *,
     poll_interval: float = 0.2,
 ) -> EditorResult | None:
-    """Wait for an editor session result using the session's blocking API."""
+    """Wait for an editor session result using the session's blocking API.
+
+    Args:
+        session: Session-like object that can block until a result is available.
+        poll_interval: Present for API compatibility with older polling-based
+            callers.
+
+    Returns:
+        The final editor result, or ``None`` if the underlying session reports a
+        timeout.
+    """
     del poll_interval
     return session.wait_for_result(timeout=None)
 
@@ -148,7 +169,28 @@ def launch_editor_session(
     code_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
-    """Create the local server, optionally open the browser, and wait for a result."""
+    """Create the local server, optionally open the browser, and wait.
+
+    Args:
+        initial_spec: Optional network specification to preload.
+        default_engine: Backend initially selected in the editor UI.
+        default_collection_format: Initial tensor collection layout for
+            generated code.
+        open_browser: Whether to ask the system browser to open the local URL.
+        host: Local host interface to bind.
+        port: Local port to bind. Use ``0`` for an ephemeral port.
+        print_code: Whether to print generated code after confirmation.
+        code_path: Optional output path for generated code after confirmation.
+        _on_server_ready: Internal callback used by tests once the local URL is
+            available.
+
+    Returns:
+        ``None`` when the session is cancelled, otherwise the confirmed editor
+        result.
+
+    Raises:
+        KeyboardInterrupt: If the session is interrupted from the main thread.
+    """
     from .server import EditorServer
 
     LOGGER.info("Starting editor session")

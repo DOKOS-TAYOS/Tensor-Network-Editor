@@ -120,13 +120,20 @@ python -m pip install -e ".[dev]"
 Useful development checks:
 
 ```bash
-python -m ruff check .
+python -m ruff check . --fix
 python -m ruff format .
 python -m mypy
 python -m pyright
 python -m pytest
 python -m build
 python -m twine check dist/*
+```
+
+If you change package metadata such as the version, rerun the editable install
+in the active `.venv` so the installed metadata stays aligned with the checkout:
+
+```bash
+python -m pip install -e ".[dev]"
 ```
 
 ## Check the Installation

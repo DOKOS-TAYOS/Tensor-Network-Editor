@@ -62,6 +62,9 @@ Launch the visual editor:
 tensor-network-editor edit
 ```
 
+This command starts a local server and waits until you press `Done` or
+`Cancel` in the browser session.
+
 Open an existing design and save generated code when the session is confirmed:
 
 ```bash
@@ -110,7 +113,7 @@ print(result.code)
 - [Python API](docs/api.md): public functions and practical examples.
 - [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges, groups,
   notes, and contraction plans.
-- [CLI](docs/cli.md): terminal commands and headless workflows.
+- [CLI](docs/cli.md): terminal commands, JSON output, and template workflows.
 - [Troubleshooting](docs/troubleshooting.md): common problems and fixes.
 
 ## Current Limits

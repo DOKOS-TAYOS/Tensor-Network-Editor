@@ -197,6 +197,8 @@ Linear periodic mode uses:
 - `LinearPeriodicCellName`
 - `LinearPeriodicTensorRole`
 
+Import these from `tensor_network_editor.models` when you need them directly.
+
 This mode stores an initial cell, periodic cell, and final cell. Each cell can
 have tensors, edges, groups, notes, metadata, and its own contraction plan.
 

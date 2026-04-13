@@ -15,11 +15,21 @@ class _DiffableEntity(Protocol):
 
     id: str
 
-    def to_dict(self) -> dict[str, JSONValue]: ...
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Return the serialized payload used for equality checks."""
+        ...
 
 
 def diff_specs(before: NetworkSpec, after: NetworkSpec) -> SpecDiffResult:
-    """Return a structured diff between two specs based on stable ids."""
+    """Return a structured diff between two specs based on stable ids.
+
+    Args:
+        before: Earlier specification snapshot.
+        after: Later specification snapshot.
+
+    Returns:
+        Entity-level additions, removals, and payload changes grouped by type.
+    """
     return SpecDiffResult(
         tensor=_diff_named_entities(before.tensors, after.tensors),
         edge=_diff_named_entities(before.edges, after.edges),

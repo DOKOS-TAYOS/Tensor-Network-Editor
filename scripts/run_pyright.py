@@ -14,7 +14,19 @@ DEFAULT_TARGETS: Final[tuple[str, ...]] = ("src", "tests")
 
 
 def find_checkout_root(start: Path | None = None) -> Path:
-    """Return the current repository checkout root from ``start`` or the CWD."""
+    """Return the current repository checkout root.
+
+    Args:
+        start: Optional path inside the checkout. When omitted, the current
+            working directory is used.
+
+    Returns:
+        The checkout root that contains ``pyproject.toml``, ``src``, and
+        ``tests``.
+
+    Raises:
+        FileNotFoundError: If no matching checkout root can be found.
+    """
     current = (start or Path.cwd()).resolve()
     for candidate in (current, *current.parents):
         if (
@@ -29,7 +41,18 @@ def find_checkout_root(start: Path | None = None) -> Path:
 
 
 def find_shared_venv_root(checkout_root: Path) -> Path:
-    """Return the nearest ancestor that provides the shared project ``.venv``."""
+    """Return the nearest ancestor that provides the shared project ``.venv``.
+
+    Args:
+        checkout_root: The checkout that should reuse a shared virtual
+            environment.
+
+    Returns:
+        The directory that contains the shared ``.venv`` folder.
+
+    Raises:
+        FileNotFoundError: If no shared virtual environment can be found.
+    """
     for candidate in (checkout_root.resolve(), *checkout_root.resolve().parents):
         if (candidate / ".venv").is_dir():
             return candidate
@@ -37,7 +60,18 @@ def find_shared_venv_root(checkout_root: Path) -> Path:
 
 
 def python_executable(shared_root: Path) -> Path:
-    """Return the Python executable inside the shared virtual environment."""
+    """Return the Python executable inside the shared virtual environment.
+
+    Args:
+        shared_root: Directory that owns the shared ``.venv``.
+
+    Returns:
+        The Python interpreter path for Windows or Linux.
+
+    Raises:
+        FileNotFoundError: If the virtual environment does not expose a Python
+            interpreter in the expected location.
+    """
     venv_root = shared_root / ".venv"
     candidates = (
         venv_root / "Scripts" / "python.exe",
@@ -52,7 +86,16 @@ def python_executable(shared_root: Path) -> Path:
 
 
 def build_pyright_config(checkout_root: Path, shared_root: Path) -> dict[str, object]:
-    """Build a temporary Pyright config for the current checkout."""
+    """Build a temporary Pyright config for the current checkout.
+
+    Args:
+        checkout_root: Current checkout root. Present for API symmetry with the
+            caller.
+        shared_root: Directory that provides the shared virtual environment.
+
+    Returns:
+        A JSON-serializable Pyright configuration dictionary.
+    """
     del checkout_root
     return {
         "venvPath": str(shared_root.resolve()),
@@ -64,7 +107,15 @@ def build_pyright_config(checkout_root: Path, shared_root: Path) -> dict[str, ob
 
 
 def resolve_targets(checkout_root: Path, args: Sequence[str]) -> list[str]:
-    """Resolve CLI targets relative to the current checkout."""
+    """Resolve CLI targets relative to the current checkout.
+
+    Args:
+        checkout_root: Root directory of the active checkout.
+        args: Raw CLI target arguments.
+
+    Returns:
+        A list of absolute paths to pass to Pyright.
+    """
     if not args:
         return [str((checkout_root / target).resolve()) for target in DEFAULT_TARGETS]
     return [str((checkout_root / argument).resolve()) for argument in args]
@@ -75,7 +126,16 @@ def run_pyright(
     shared_root: Path,
     args: Sequence[str],
 ) -> int:
-    """Execute Pyright for the current checkout and return its exit code."""
+    """Execute Pyright for the current checkout.
+
+    Args:
+        checkout_root: Root directory of the active checkout.
+        shared_root: Directory that provides the shared virtual environment.
+        args: Raw CLI target arguments.
+
+    Returns:
+        Pyright's process exit code.
+    """
     config = build_pyright_config(checkout_root, shared_root)
     pyright_python = python_executable(shared_root)
     temp_path: Path | None = None
@@ -110,7 +170,14 @@ def run_pyright(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run Pyright against the current checkout root or a subpath of it."""
+    """Run Pyright against the current checkout root or a subpath of it.
+
+    Args:
+        argv: Optional CLI arguments. When omitted, ``sys.argv[1:]`` is used.
+
+    Returns:
+        Pyright's process exit code.
+    """
     checkout_root = find_checkout_root()
     shared_root = find_shared_venv_root(checkout_root)
     return run_pyright(checkout_root, shared_root, list(argv or sys.argv[1:]))

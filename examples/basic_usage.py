@@ -1,9 +1,12 @@
+"""Launch the local editor and print the confirmed result."""
+
 from __future__ import annotations
 
 from tensor_network_editor import EngineName, launch_tensor_network_editor
 
 
 def main() -> None:
+    """Run a small example session against the NumPy einsum backend."""
     result = launch_tensor_network_editor(default_engine=EngineName.EINSUM_NUMPY)
     if result is None:
         print("Editor cancelled.")

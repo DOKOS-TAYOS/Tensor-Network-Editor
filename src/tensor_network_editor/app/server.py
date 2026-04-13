@@ -42,6 +42,13 @@ class EditorServer:
     def __init__(
         self, session: EditorSession, host: str = "127.0.0.1", port: int = 0
     ) -> None:
+        """Initialize the threaded local editor server.
+
+        Args:
+            session: Shared editor session state served by this HTTP server.
+            host: Local host interface to bind.
+            port: Local port to bind. Use ``0`` for an ephemeral port.
+        """
         self.session = session
         self.host = host
         self.port = port
@@ -90,7 +97,10 @@ class EditorServer:
         asset_version = self._asset_version
 
         class RequestHandler(BaseHTTPRequestHandler):
+            """Serve static editor assets and JSON routes for one session."""
+
             def do_GET(self) -> None:
+                """Handle one HTTP GET request for assets or bootstrap data."""
                 parsed = urlparse(self.path)
                 try:
                     response = self._dispatch_get(parsed.path)
@@ -104,6 +114,7 @@ class EditorServer:
                 self._write_response(response)
 
             def do_POST(self) -> None:
+                """Handle one HTTP POST request for the editor JSON API."""
                 parsed = urlparse(self.path)
                 body = self._read_request_body()
                 try:
@@ -128,6 +139,7 @@ class EditorServer:
                 self._write_response(response)
 
             def log_message(self, format: str, *args: object) -> None:
+                """Suppress default stderr logging for handled HTTP requests."""
                 del format, args
                 return
 

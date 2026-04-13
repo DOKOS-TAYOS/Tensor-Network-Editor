@@ -26,6 +26,8 @@ tensor-network-editor edit
 ```
 
 The `edit` subcommand launches the visual editor.
+The command keeps the local server running until you confirm with `Done` or
+stop the session with `Cancel`.
 
 Useful options:
 
@@ -192,10 +194,12 @@ tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --phy
 Print the built template JSON instead of writing a file:
 
 ```bash
-tensor-network-editor template build peps_2x2 --graph-size 3 --format json
+tensor-network-editor template build peps_2x2 --graph-size 3
 ```
 
 Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, and Binary Tree.
+When `--output` is omitted, `template build` prints the serialized spec JSON to
+standard output.
 
 ## JSON Output
 
@@ -206,8 +210,8 @@ These commands support `--format json`:
 - `analyze`
 - `diff`
 - `template list`
-- `template build`
 
+`template build` already emits JSON when you omit `--output`.
 Use JSON output when another script should consume the result.
 
 ## Exit Codes

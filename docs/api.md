@@ -137,9 +137,10 @@ Important details:
 
 - `save_spec(...)` validates before writing
 - `load_spec(...)` accepts saved JSON designs
-- `load_spec(...)` also accepts supported generated `.py` exports
+- `load_spec(...)` also accepts supported generated `.py` exports from the
+  standard network workflow
 - `load_spec_from_python_code(...)` works when generated source is already in
-  memory
+  memory for the same supported standard exports
 
 Round-trip from generated source:
 
@@ -156,8 +157,9 @@ round_tripped_spec = load_spec_from_python_code(result.code)
 print(round_tripped_spec.name)
 ```
 
-This parser is intentionally limited to source layouts emitted by this package.
-It is not a general Python-to-network importer.
+This parser is intentionally limited to standard source layouts emitted by this
+package. Linear periodic generated Python remains export-only for now, and this
+is still not a general Python-to-network importer.
 
 ## Validate, Lint, Analyze, and Diff
 
@@ -165,6 +167,7 @@ These helpers are useful in scripts and automated checks.
 
 ```python
 from tensor_network_editor import (
+    analyze_contraction,
     analyze_spec,
     diff_specs,
     lint_spec,
@@ -178,11 +181,13 @@ spec = load_spec("my_network.json")
 validation_issues = validate_spec(spec)
 lint_report = lint_spec(spec, max_tensor_rank=8, max_tensor_cardinality=50_000)
 analysis = analyze_spec(spec, memory_dtype="float32")
+contraction = analyze_contraction(spec, memory_dtype="float32")
 diff = diff_specs(spec, spec)
 
 print(validation_issues)
 print(lint_report.to_dict())
 print(analysis.to_dict())
+print(contraction.to_dict())
 print(diff.to_dict())
 ```
 
@@ -227,6 +232,10 @@ spec = build_template_spec(
     parameters=parameters,
 )
 ```
+
+The advanced template helpers live under `tensor_network_editor.templates`.
+The package root only re-exports `build_template_spec(...)` and
+`list_template_names()`.
 
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
