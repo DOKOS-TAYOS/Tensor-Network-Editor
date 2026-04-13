@@ -450,6 +450,19 @@ def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
     assert "var(--note-surface-color" in css_body
 
 
+def test_collapsed_note_assets_make_the_toggle_fill_the_collapsed_note_frame(
+    editor_server: EditorServer,
+) -> None:
+    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert 'collapsedToggle.classList.add("canvas-note-collapsed-toggle")' in notes_body
+    assert ".canvas-note-collapsed-toggle {" in css_body
+    assert "width: 100%;" in css_body
+    assert "min-width: 100%;" in css_body
+    assert "height: 100%;" in css_body
+
+
 def test_interaction_assets_support_latest_contraction_scene_editing(
     editor_server: EditorServer,
 ) -> None:

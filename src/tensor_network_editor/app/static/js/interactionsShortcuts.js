@@ -326,7 +326,6 @@ export function createInteractionShortcutBindings({
     toggleAutomaticPreview,
     acceptAutomaticShortcut,
     toggleSidebarVisibility,
-    toggleMinimapVisibility,
     handleKeydown,
     toggleHelpModal,
     sendCancelBeacon,

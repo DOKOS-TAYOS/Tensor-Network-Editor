@@ -1906,6 +1906,161 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "minimap_shortcut_runtime_regression.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "interactionsShortcuts.js": "interactionsShortcuts.js",
+        "exportMinimap.js": "exportMinimap.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        (tmp_path / target_name).write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, shortcutsModule, exportMinimapModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+                import(new URL("./exportMinimap.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+            const { registerExportMinimap } = exportMinimapModule;
+
+            function createClassList() {
+              const classes = new Set();
+              return {
+                add(name) {
+                  classes.add(name);
+                },
+                remove(name) {
+                  classes.delete(name);
+                },
+                toggle(name, force) {
+                  const shouldHaveClass =
+                    typeof force === "boolean" ? force : !classes.has(name);
+                  if (shouldHaveClass) {
+                    classes.add(name);
+                  } else {
+                    classes.delete(name);
+                  }
+                },
+                contains(name) {
+                  return classes.has(name);
+                },
+              };
+            }
+
+            const minimapShell = { classList: createClassList() };
+            const minimapCanvas = {
+              classList: createClassList(),
+              getContext() {
+                return null;
+              },
+            };
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [],
+              },
+              dom: {
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                generatedCode: {},
+                engineSelect: { options: [], value: "tensornetwork" },
+                connectButton: {},
+                loadInput: { click() {} },
+                undoButton: {},
+                redoButton: {},
+                helpCloseButton: { focus() {} },
+                helpModal: { classList: createClassList() },
+                minimapShell,
+                minimapCanvas,
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                cancelAnimationFrame() {},
+                requestAnimationFrame(callback) {
+                  callback();
+                  return 1;
+                },
+              },
+              document: {
+                activeElement: null,
+              },
+              cytoscape: null,
+              isTextInput() {
+                return false;
+              },
+              setStatus() {},
+              clamp(value, min, max) {
+                return Math.min(max, Math.max(min, value));
+              },
+              computeDesignBounds() {
+                return { x1: 0, y1: 0, x2: 100, y2: 100 };
+              },
+              getVisibleTensors() {
+                return [];
+              },
+              getVisibleEdges() {
+                return [];
+              },
+            };
+
+            registerExportMinimap(ctx);
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state: ctx.state,
+                dom: ctx.dom,
+                runtime: {},
+              })
+            );
+
+            ctx.handleKeydown({
+              key: "M",
+              shiftKey: true,
+              ctrlKey: false,
+              metaKey: false,
+              preventDefault() {},
+              target: null,
+            });
+
+            if (!ctx.state.minimapHidden) {
+              throw new Error("Shift+M should hide the minimap.");
+            }
+            if (!minimapShell.classList.contains("is-hidden")) {
+              throw new Error("Shift+M should hide the minimap shell.");
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_for_mode_dimension_updates_keep_working_after_first_change(
     tmp_path: Path,
@@ -1999,6 +2154,26 @@ def test_sidebar_can_be_resized_and_keeps_custom_width(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The sidebar resize runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_shift_m_hides_the_minimap_without_recursive_shortcut_calls(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_minimap_shortcut_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The minimap shortcut runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

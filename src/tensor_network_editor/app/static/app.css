@@ -475,6 +475,13 @@ select {
   border-radius: 10px;
 }
 
+.canvas-note-collapsed-toggle {
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  border-radius: 14px;
+}
+
 .canvas-note-color-button svg,
 .toggle-note-collapse svg,
 .canvas-note-collapsed-toggle svg {
