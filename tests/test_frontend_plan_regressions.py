@@ -1475,3 +1475,313 @@ def test_contraction_scene_builds_long_manual_chain_without_repeated_rebuilds(
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_reuses_cached_scene_until_revision_changes(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "contraction_scene_cache_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildChainSpec(tensorCount) {
+          const tensors = [];
+          const edges = [];
+          for (let index = 0; index < tensorCount; index += 1) {
+            tensors.push({
+              id: `tensor_${index}`,
+              name: `T${index}`,
+              position: { x: 120 + index * 160, y: 120 },
+              size: { width: 140, height: 84 },
+              indices: [
+                {
+                  id: `tensor_${index}_left`,
+                  name: "left",
+                  dimension: 2,
+                  offset: { x: -38, y: 0 },
+                  metadata: {},
+                },
+                {
+                  id: `tensor_${index}_right`,
+                  name: "right",
+                  dimension: 2,
+                  offset: { x: 38, y: 0 },
+                  metadata: {},
+                },
+              ],
+              metadata: {},
+            });
+            if (index > 0) {
+              edges.push({
+                id: `edge_${index}`,
+                name: `bond_${index}`,
+                left: {
+                  tensor_id: `tensor_${index - 1}`,
+                  index_id: `tensor_${index - 1}_right`,
+                },
+                right: {
+                  tensor_id: `tensor_${index}`,
+                  index_id: `tensor_${index}_left`,
+                },
+                metadata: {},
+              });
+            }
+          }
+
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 1; index < tensorCount; index += 1) {
+            const stepId = `step_${index}`;
+            steps.push({
+              id: stepId,
+              left_operand_id: leftOperandId,
+              right_operand_id: `tensor_${index}`,
+              metadata: {},
+            });
+            leftOperandId = stepId;
+          }
+
+          return {
+            id: "network_long_chain",
+            name: "long-chain",
+            tensors,
+            groups: [],
+            edges,
+            notes: [],
+            contraction_plan: {
+              id: "plan_long_chain",
+              name: "Long chain",
+              steps,
+              view_snapshots: [],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerContractionScene(ctx);
+        ctx.state.spec = ctx.normalizeSpec(buildChainSpec(24));
+        ctx.bumpSpecRevision();
+
+        let tensorBuildCount = 0;
+        let edgeBuildCount = 0;
+        const originalGetContractibleTensors = ctx.getContractibleTensors;
+        const originalGetContractibleEdges = ctx.getContractibleEdges;
+        ctx.getContractibleTensors = (...args) => {
+          tensorBuildCount += 1;
+          return originalGetContractibleTensors(...args);
+        };
+        ctx.getContractibleEdges = (...args) => {
+          edgeBuildCount += 1;
+          return originalGetContractibleEdges(...args);
+        };
+
+        const firstScene = ctx.buildContractionScene();
+        const tensorCountAfterFirstScene = tensorBuildCount;
+        const edgeCountAfterFirstScene = edgeBuildCount;
+        const secondScene = ctx.buildContractionScene();
+        const visibleTensors = ctx.getVisibleTensors();
+        const visibleEdges = ctx.getVisibleEdges();
+        const locatedTensor = ctx.findVisibleTensorById(firstScene.tensors[0].id);
+
+        if (!firstScene || !secondScene || !locatedTensor) {
+          throw new Error("Expected repeated scene lookups to resolve a visible contraction scene.");
+        }
+        if (secondScene !== firstScene) {
+          throw new Error("Expected repeated scene reads to reuse the cached scene object.");
+        }
+        if (visibleTensors !== firstScene.tensors || visibleEdges !== firstScene.edges) {
+          throw new Error("Expected visible tensors and edges to come from the cached scene.");
+        }
+        if (tensorBuildCount !== tensorCountAfterFirstScene || edgeBuildCount !== edgeCountAfterFirstScene) {
+          throw new Error(
+            `Expected repeated latest-scene reads to avoid recomputation, received tensors=${tensorBuildCount}, edges=${edgeBuildCount}.`
+          );
+        }
+
+        ctx.state.plannerInspectionStepCount = 5;
+        const inspectedScene = ctx.buildContractionScene();
+        const tensorCountAfterInspection = tensorBuildCount;
+        const edgeCountAfterInspection = edgeBuildCount;
+        const inspectedSceneAgain = ctx.buildContractionScene();
+        if (!inspectedScene || inspectedScene.appliedStepCount !== 5) {
+          throw new Error("Expected the inspected scene to use the requested step count.");
+        }
+        if (inspectedSceneAgain !== inspectedScene) {
+          throw new Error("Expected repeated inspected-scene reads to reuse the cached object.");
+        }
+        if (tensorBuildCount !== tensorCountAfterInspection || edgeBuildCount !== edgeCountAfterInspection) {
+          throw new Error(
+            `Expected repeated inspected-scene reads to avoid recomputation, received tensors=${tensorBuildCount}, edges=${edgeBuildCount}.`
+          );
+        }
+
+        ctx.state.spec.contraction_plan.steps.pop();
+        ctx.bumpSpecRevision();
+        const rebuiltScene = ctx.buildContractionScene();
+        if (!rebuiltScene) {
+          throw new Error("Expected the scene to rebuild after the spec revision changes.");
+        }
+        if (tensorBuildCount <= tensorCountAfterInspection || edgeBuildCount <= edgeCountAfterInspection) {
+          throw new Error(
+            `Expected a spec revision change to invalidate the scene cache, received tensors=${tensorBuildCount}, edges=${edgeBuildCount}.`
+          );
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The contraction-scene cache regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_operand_state_reuses_cache_until_revision_changes(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_operand_state_cache_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildPlannerSpec(tensorCount) {
+          const tensors = [];
+          const edges = [];
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 0; index < tensorCount; index += 1) {
+            tensors.push({
+              id: `tensor_${index}`,
+              name: `T${index}`,
+              position: { x: 120 + index * 160, y: 120 },
+              size: { width: 140, height: 84 },
+              indices: [
+                {
+                  id: `tensor_${index}_left`,
+                  name: "left",
+                  dimension: 2,
+                  offset: { x: -38, y: 0 },
+                  metadata: {},
+                },
+                {
+                  id: `tensor_${index}_right`,
+                  name: "right",
+                  dimension: 2,
+                  offset: { x: 38, y: 0 },
+                  metadata: {},
+                },
+              ],
+              metadata: {},
+            });
+            if (index > 0) {
+              edges.push({
+                id: `edge_${index}`,
+                name: `bond_${index}`,
+                left: {
+                  tensor_id: `tensor_${index - 1}`,
+                  index_id: `tensor_${index - 1}_right`,
+                },
+                right: {
+                  tensor_id: `tensor_${index}`,
+                  index_id: `tensor_${index}_left`,
+                },
+                metadata: {},
+              });
+            }
+            if (index > 0 && index < tensorCount - 1) {
+              const stepId = `step_${index}`;
+              steps.push({
+                id: stepId,
+                left_operand_id: leftOperandId,
+                right_operand_id: `tensor_${index}`,
+                metadata: {},
+              });
+              leftOperandId = stepId;
+            }
+          }
+
+          return {
+            id: "network_planner_chain",
+            name: "planner-chain",
+            tensors,
+            groups: [],
+            edges,
+            notes: [],
+            contraction_plan: {
+              id: "plan_planner_chain",
+              name: "Planner chain",
+              steps,
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerPlanner(ctx);
+        ctx.state.spec = ctx.normalizeSpec(buildPlannerSpec(9));
+        ctx.bumpSpecRevision();
+
+        let tensorBuildCount = 0;
+        const originalGetContractibleTensors = ctx.getContractibleTensors;
+        ctx.getContractibleTensors = (...args) => {
+          tensorBuildCount += 1;
+          return originalGetContractibleTensors(...args);
+        };
+
+        const firstState = ctx.buildPlannerOperandState();
+        const tensorCountAfterFirstState = tensorBuildCount;
+        const secondState = ctx.buildPlannerOperandState();
+        const remainingOperandIds = ctx.getPlannerRemainingOperandIds();
+        const resolvedOperandId = ctx.resolvePlannerOperandId("tensor_0");
+        const stepOrdersByTensorId = ctx.buildStepOrdersByTensorId(
+          ctx.state.spec.contraction_plan.steps
+        );
+
+        if (!firstState || !secondState) {
+          throw new Error("Expected planner operand state helpers to resolve a state.");
+        }
+        if (firstState !== secondState) {
+          throw new Error("Expected repeated planner-state reads to reuse the cached state object.");
+        }
+        if (!Array.isArray(remainingOperandIds) || remainingOperandIds.length !== 2) {
+          throw new Error(`Expected two remaining planner operands, received ${remainingOperandIds}.`);
+        }
+        if (resolvedOperandId !== "step_7") {
+          throw new Error(`Expected tensor_0 to resolve to the latest derived operand, received ${resolvedOperandId}.`);
+        }
+        if (!Array.isArray(stepOrdersByTensorId.tensor_0) || stepOrdersByTensorId.tensor_0.length !== 7) {
+          throw new Error("Expected planner step orders to stay available for cached state consumers.");
+        }
+        if (tensorBuildCount !== tensorCountAfterFirstState) {
+          throw new Error(
+            `Expected repeated planner-state reads to avoid recomputation, received tensors=${tensorBuildCount}.`
+          );
+        }
+
+        ctx.state.spec.contraction_plan.steps.pop();
+        ctx.bumpSpecRevision();
+        const rebuiltState = ctx.buildPlannerOperandState();
+        if (!rebuiltState || rebuiltState.validSteps.length !== 6) {
+          throw new Error("Expected the planner state to rebuild after the spec revision changes.");
+        }
+        if (tensorBuildCount <= tensorCountAfterFirstState) {
+          throw new Error(
+            `Expected a spec revision change to invalidate the planner cache, received tensors=${tensorBuildCount}.`
+          );
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner operand-state cache regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

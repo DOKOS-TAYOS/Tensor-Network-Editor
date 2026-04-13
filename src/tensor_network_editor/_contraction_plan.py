@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -50,33 +51,62 @@ class SimulatedContractionPlan:
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]]
 
 
+@dataclass(slots=True, frozen=True)
+class PreparedContractionInputs:
+    """Reusable contraction inputs derived from a prepared network."""
+
+    initial_operand_ids: tuple[str, ...]
+    initial_operands: dict[str, tuple[str, ...]]
+    initial_axis_names: dict[str, tuple[str, ...]]
+    dimension_by_label: dict[str, int]
+
+
+def prepare_contraction_inputs(
+    prepared: PreparedNetwork,
+) -> PreparedContractionInputs:
+    """Build reusable contraction inputs from ``prepared`` once."""
+    initial_operand_ids: list[str] = []
+    initial_operands: dict[str, tuple[str, ...]] = {}
+    initial_axis_names: dict[str, tuple[str, ...]] = {}
+    dimension_by_label: dict[str, int] = {}
+
+    for tensor in prepared.tensors:
+        operand_id = tensor.spec.id
+        initial_operand_ids.append(operand_id)
+        operand_labels: list[str] = []
+        axis_names: list[str] = []
+        for index in tensor.indices:
+            operand_labels.append(index.label)
+            axis_names.append(index.spec.name)
+            dimension_by_label[index.label] = index.spec.dimension
+        initial_operands[operand_id] = tuple(operand_labels)
+        initial_axis_names[operand_id] = tuple(axis_names)
+
+    return PreparedContractionInputs(
+        initial_operand_ids=tuple(initial_operand_ids),
+        initial_operands=initial_operands,
+        initial_axis_names=initial_axis_names,
+        dimension_by_label=dimension_by_label,
+    )
+
+
 def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
     """Build a mapping from prepared index labels to their dimensions."""
-    dimension_by_label: dict[str, int] = {}
-    for tensor in prepared.tensors:
-        for index in tensor.indices:
-            dimension_by_label[index.label] = index.spec.dimension
-    return dimension_by_label
+    return prepare_contraction_inputs(prepared).dimension_by_label
 
 
 def build_initial_operand_labels(
     prepared: PreparedNetwork,
 ) -> dict[str, tuple[str, ...]]:
     """Build the starting label tuple for each tensor operand."""
-    return {
-        tensor.spec.id: tuple(index.label for index in tensor.indices)
-        for tensor in prepared.tensors
-    }
+    return prepare_contraction_inputs(prepared).initial_operands
 
 
 def build_initial_operand_axis_names(
     prepared: PreparedNetwork,
 ) -> dict[str, tuple[str, ...]]:
     """Build the starting axis-name tuple for each tensor operand."""
-    return {
-        tensor.spec.id: tuple(index.spec.name for index in tensor.indices)
-        for tensor in prepared.tensors
-    }
+    return prepare_contraction_inputs(prepared).initial_axis_names
 
 
 def simulate_contraction_plan(
@@ -88,8 +118,13 @@ def simulate_contraction_plan(
     plan: ContractionPlanSpec | None,
 ) -> SimulatedContractionPlan:
     """Simulate a full manual contraction plan from the initial operands."""
-    remaining_operands = dict(initial_operands)
-    remaining_axis_names = dict(initial_axis_names)
+    remaining_operands: OrderedDict[str, tuple[str, ...]] = OrderedDict(
+        (operand_id, initial_operands[operand_id]) for operand_id in initial_operand_ids
+    )
+    remaining_axis_names: OrderedDict[str, tuple[str, ...]] = OrderedDict(
+        (operand_id, initial_axis_names[operand_id])
+        for operand_id in initial_operand_ids
+    )
     remaining_operand_ids = list(initial_operand_ids)
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]] = {
         operand_id: (operand_id,) for operand_id in initial_operand_ids
@@ -127,34 +162,23 @@ def simulate_contraction_plan(
         )
         step_results.append(step_result)
 
-        remaining_operands = {
-            step.id: step_result.surviving_labels,
-            **remaining_operands,
-        }
-        remaining_axis_names = {
-            step.id: step_result.result_axis_names,
-            **remaining_axis_names,
-        }
-        source_tensor_ids_by_operand_id = {
-            step.id: tuple(
-                dict.fromkeys(left_source_tensor_ids + right_source_tensor_ids)
-            ),
-            **source_tensor_ids_by_operand_id,
-        }
-        remaining_operand_ids = [
-            step.id,
-            *[
-                operand_id
-                for operand_id in remaining_operand_ids
-                if operand_id not in {step.left_operand_id, step.right_operand_id}
-            ],
-        ]
+        remaining_operands[step.id] = step_result.surviving_labels
+        remaining_operands.move_to_end(step.id, last=False)
+        remaining_axis_names[step.id] = step_result.result_axis_names
+        remaining_axis_names.move_to_end(step.id, last=False)
+        source_tensor_ids_by_operand_id[step.id] = _merge_source_tensor_ids(
+            left_source_tensor_ids,
+            right_source_tensor_ids,
+        )
+        remaining_operand_ids.remove(step.left_operand_id)
+        remaining_operand_ids.remove(step.right_operand_id)
+        remaining_operand_ids.insert(0, step.id)
 
     return SimulatedContractionPlan(
         steps=step_results,
         remaining_operand_ids=tuple(remaining_operand_ids),
-        remaining_operands=remaining_operands,
-        remaining_axis_names=remaining_axis_names,
+        remaining_operands=dict(remaining_operands),
+        remaining_axis_names=dict(remaining_axis_names),
         source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
     )
 
@@ -173,9 +197,10 @@ def simulate_contraction_step(
     contracted_labels = tuple(
         label for label in left_labels if label in right_label_set
     )
+    contracted_label_set = set(contracted_labels)
     surviving_labels = tuple(
-        label for label in left_labels if label not in contracted_labels
-    ) + tuple(label for label in right_labels if label not in contracted_labels)
+        label for label in left_labels if label not in contracted_label_set
+    ) + tuple(label for label in right_labels if label not in contracted_label_set)
     union_labels = tuple(dict.fromkeys(left_labels + right_labels))
     result_shape = tuple(dimension_by_label[label] for label in surviving_labels)
     estimated_macs = _product(dimension_by_label[label] for label in union_labels)
@@ -207,3 +232,18 @@ def _product(values: Iterable[int]) -> int:
     for value in values:
         result *= int(value)
     return result
+
+
+def _merge_source_tensor_ids(
+    left_source_tensor_ids: tuple[str, ...],
+    right_source_tensor_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Merge source-tensor ids while preserving their first-seen order."""
+    merged_source_tensor_ids = list(left_source_tensor_ids)
+    seen_source_tensor_ids = set(left_source_tensor_ids)
+    for tensor_id in right_source_tensor_ids:
+        if tensor_id in seen_source_tensor_ids:
+            continue
+        seen_source_tensor_ids.add(tensor_id)
+        merged_source_tensor_ids.append(tensor_id)
+    return tuple(merged_source_tensor_ids)

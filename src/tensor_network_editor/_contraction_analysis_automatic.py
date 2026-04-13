@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from functools import cache
 from importlib import import_module
 from string import ascii_letters
 from typing import Any, cast
@@ -175,12 +177,8 @@ def _analyze_automatic_operands(
             ),
         )
 
-    try:
-        contract_path = cast(
-            Any,
-            cast(Any, import_module("opt_einsum")).contract_path,
-        )
-    except ImportError:
+    contract_path = _load_contract_path(import_module)
+    if contract_path is None:
         return _unavailable_automatic_analysis(
             "Install the planner extra to enable automatic greedy path suggestions.",
             bytes_per_element=bytes_per_element,
@@ -302,3 +300,17 @@ def _unavailable_automatic_analysis(
         ),
         message=message,
     )
+
+
+@cache
+def _load_contract_path(
+    importer: Callable[[str], Any],
+) -> Any | None:
+    """Resolve ``opt_einsum.contract_path`` once per importer function."""
+    try:
+        return cast(
+            Any,
+            cast(Any, importer("opt_einsum")).contract_path,
+        )
+    except ImportError:
+        return None

@@ -20,6 +20,30 @@ export function registerContractionScene(ctx) {
     return plan && Array.isArray(plan.steps) ? plan.steps : [];
   }
 
+  function invalidateContractionSceneCache() {
+    state.contractionSceneCacheRevision = -1;
+    state.contractionSceneCacheViewRevision = -1;
+    state.contractionSceneCacheProgressionToken = -1;
+    state.contractionSceneCacheByAppliedStepCount = {};
+  }
+
+  function touchContractionViewRevision() {
+    state.contractionSceneViewRevision += 1;
+    invalidateContractionSceneCache();
+  }
+
+  function hasFreshContractibleCollections() {
+    const tensors = Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [];
+    const edges = Array.isArray(state.spec && state.spec.edges) ? state.spec.edges : [];
+    return (
+      state.contractibleCacheRevision === state.specRevision &&
+      state.contractibleCacheTensorRef === tensors &&
+      state.contractibleCacheTensorCount === tensors.length &&
+      state.contractibleCacheEdgeRef === edges &&
+      state.contractibleCacheEdgeCount === edges.length
+    );
+  }
+
   function isPreviousOperandId(operandId) {
     return operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
   }
@@ -36,18 +60,9 @@ export function registerContractionScene(ctx) {
     ) {
       return [];
     }
-    const tensorById = Object.fromEntries(
-      (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : []).map((tensor) => [
-        tensor.id,
-        tensor,
-      ])
-    );
-    const indexOwnerById = {};
-    (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : []).forEach((tensor) => {
-      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
-        indexOwnerById[index.id] = { tensor, index };
-      });
-    });
+    if (typeof ctx.ensureSpecLookups === "function") {
+      ctx.ensureSpecLookups();
+    }
     return (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [])
       .filter((tensor) => ctx.isLinearPeriodicBoundaryTensor(tensor))
       .map((boundaryTensor) => {
@@ -57,22 +72,16 @@ export function registerContractionScene(ctx) {
         }
         const tokens = (Array.isArray(boundaryTensor.indices) ? boundaryTensor.indices : []).map(
           (boundaryIndex) => {
-            const boundaryEdge = (Array.isArray(state.spec && state.spec.edges) ? state.spec.edges : [])
-              .find(
-                (edge) =>
-                  (edge.left && edge.left.index_id === boundaryIndex.id) ||
-                  (edge.right && edge.right.index_id === boundaryIndex.id)
-              ) || null;
+            const boundaryEdge = state.edgeByIndexId[boundaryIndex.id] || null;
             const otherIndexId =
               boundaryEdge && boundaryEdge.left && boundaryEdge.left.index_id === boundaryIndex.id
                 ? boundaryEdge.right && boundaryEdge.right.index_id
                 : boundaryEdge && boundaryEdge.left && boundaryEdge.left.index_id;
-            const otherOwner = otherIndexId ? indexOwnerById[otherIndexId] || null : null;
-            const otherTensor = otherOwner ? tensorById[otherOwner.tensor.id] || null : null;
+            const otherOwner = otherIndexId ? state.indexOwnerById[otherIndexId] || null : null;
             const connectedToRealTensor =
               otherOwner &&
-              otherTensor &&
-              !ctx.isLinearPeriodicBoundaryTensor(otherTensor);
+              otherOwner.tensor &&
+              !ctx.isLinearPeriodicBoundaryTensor(otherOwner.tensor);
             return {
               key: connectedToRealTensor
                 ? `open:${otherOwner.index.id}`
@@ -211,7 +220,7 @@ export function registerContractionScene(ctx) {
     };
   }
 
-  function buildContractionOperandProgression(planSteps = getPlanSteps()) {
+  function buildContractionOperandProgressionUncached(planSteps = getPlanSteps()) {
     const seedOperands = buildInitialOperands().map((operand) => cloneOperand(operand));
     const operandById = new Map(seedOperands.map((operand) => [operand.id, operand]));
     let activeOperandIds = seedOperands.map((operand) => operand.id);
@@ -309,6 +318,35 @@ export function registerContractionScene(ctx) {
     };
   }
 
+  function buildContractionOperandProgression(planSteps = getPlanSteps()) {
+    const currentPlanSteps = getPlanSteps();
+    if (planSteps !== currentPlanSteps) {
+      return buildContractionOperandProgressionUncached(planSteps);
+    }
+
+    const cacheIsFresh =
+      hasFreshContractibleCollections() &&
+      state.contractionProgressionCacheRevision === state.specRevision &&
+      state.contractionProgressionCacheStepsRef === currentPlanSteps &&
+      state.contractionProgressionCacheStepCount === currentPlanSteps.length &&
+      state.contractionProgressionCacheContractibleToken === state.contractibleCacheToken &&
+      state.contractionProgressionCache;
+    if (cacheIsFresh) {
+      return state.contractionProgressionCache;
+    }
+
+    ctx.getContractibleTensors();
+    const contractibleToken = state.contractibleCacheToken;
+    const progression = buildContractionOperandProgressionUncached(currentPlanSteps);
+    state.contractionProgressionCacheRevision = state.specRevision;
+    state.contractionProgressionCacheStepsRef = currentPlanSteps;
+    state.contractionProgressionCacheStepCount = currentPlanSteps.length;
+    state.contractionProgressionCacheContractibleToken = contractibleToken;
+    state.contractionProgressionCache = progression;
+    state.contractionProgressionCacheToken += 1;
+    return progression;
+  }
+
   function buildContractionOperandState(stepLimit = null, planSteps = getPlanSteps()) {
     const progression = buildContractionOperandProgression(planSteps);
     return buildContractionStateFromProgression(progression, stepLimit);
@@ -342,10 +380,10 @@ export function registerContractionScene(ctx) {
 
   function buildFallbackLayoutForOperand(operand) {
     const anchorTensorId = operand.sourceTensorIds[0];
-    const anchorTensor =
-      state.spec && Array.isArray(state.spec.tensors)
-        ? state.spec.tensors.find((tensor) => tensor.id === anchorTensorId) || null
-        : null;
+    if (typeof ctx.ensureSpecLookups === "function") {
+      ctx.ensureSpecLookups();
+    }
+    const anchorTensor = state.tensorById[anchorTensorId] || null;
     if (anchorTensor) {
       return {
         position: { x: anchorTensor.position.x, y: anchorTensor.position.y },
@@ -437,21 +475,65 @@ export function registerContractionScene(ctx) {
     return step.left_operand_id;
   }
 
+  function snapshotsMatchProgression(snapshots, progression) {
+    if (
+      !Array.isArray(snapshots) ||
+      snapshots.length !== progression.validSteps.length + 1
+    ) {
+      return false;
+    }
+
+    for (let stepCount = 0; stepCount < snapshots.length; stepCount += 1) {
+      const snapshot = snapshots[stepCount];
+      if (
+        !snapshot ||
+        snapshot.applied_step_count !== stepCount ||
+        !Array.isArray(snapshot.operand_layouts)
+      ) {
+        return false;
+      }
+      const activeOperands = getActiveOperandsFromProgression(
+        progression,
+        stepCount,
+        false
+      );
+      if (snapshot.operand_layouts.length !== activeOperands.length) {
+        return false;
+      }
+      for (let index = 0; index < activeOperands.length; index += 1) {
+        if (snapshot.operand_layouts[index].operand_id !== activeOperands[index].id) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   function ensureContractionViewSnapshots(
     progression = buildContractionOperandProgression()
   ) {
     const plan = getContractionPlan();
     if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
       if (plan) {
+        const hadSnapshots =
+          Array.isArray(plan.view_snapshots) && plan.view_snapshots.length > 0;
         plan.view_snapshots = [];
+        if (hadSnapshots) {
+          touchContractionViewRevision();
+        }
       }
       return [];
     }
 
     const validSteps = progression.validSteps;
+    const currentSnapshots = Array.isArray(plan.view_snapshots) ? plan.view_snapshots : [];
+    if (snapshotsMatchProgression(currentSnapshots, progression)) {
+      return currentSnapshots;
+    }
     const fallbackLayoutsByOperandId = {};
     const existingSnapshots = new Map(
-      (Array.isArray(plan.view_snapshots) ? plan.view_snapshots : [])
+      currentSnapshots
         .filter((snapshot) => snapshot && Number.isInteger(snapshot.applied_step_count))
         .map((snapshot) => [snapshot.applied_step_count, snapshot])
     );
@@ -505,6 +587,7 @@ export function registerContractionScene(ctx) {
     }
 
     plan.view_snapshots = nextSnapshots;
+    touchContractionViewRevision();
     return nextSnapshots;
   }
 
@@ -530,7 +613,8 @@ export function registerContractionScene(ctx) {
       return null;
     }
     const snapshots = ensureContractionViewSnapshots();
-    return snapshots.find((snapshot) => snapshot.applied_step_count === stepCount) || null;
+    const snapshot = snapshots[stepCount];
+    return snapshot && snapshot.applied_step_count === stepCount ? snapshot : null;
   }
 
   function buildFutureOrdersByOperandId(appliedStepCount, fullState, activeOperands) {
@@ -566,6 +650,27 @@ export function registerContractionScene(ctx) {
       0,
       Math.min(latestAppliedStepCount, requestedAppliedStepCount)
     );
+    const snapshots = ensureContractionViewSnapshots(progression);
+    const progressionToken = state.contractionProgressionCacheToken;
+    const shouldResetSceneCache =
+      state.contractionSceneCacheRevision !== state.specRevision ||
+      state.contractionSceneCacheViewRevision !== state.contractionSceneViewRevision ||
+      state.contractionSceneCacheProgressionToken !== progressionToken;
+    if (shouldResetSceneCache) {
+      state.contractionSceneCacheRevision = state.specRevision;
+      state.contractionSceneCacheViewRevision = state.contractionSceneViewRevision;
+      state.contractionSceneCacheProgressionToken = progressionToken;
+      state.contractionSceneCacheByAppliedStepCount = {};
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(
+        state.contractionSceneCacheByAppliedStepCount,
+        normalizedAppliedStepCount
+      )
+    ) {
+      return state.contractionSceneCacheByAppliedStepCount[normalizedAppliedStepCount];
+    }
+
     const fullState = buildContractionStateFromProgression(
       progression,
       latestAppliedStepCount
@@ -574,14 +679,15 @@ export function registerContractionScene(ctx) {
       progression,
       normalizedAppliedStepCount
     );
-    const snapshots = ensureContractionViewSnapshots(progression);
-    const snapshot =
-      snapshots.find(
-        (candidate) => candidate.applied_step_count === normalizedAppliedStepCount
-      ) || null;
+    const snapshot = snapshots[normalizedAppliedStepCount] || null;
     const layoutMap = buildSnapshotLayoutMap(snapshot);
     const operandMap = {};
     const tokenOccurrencesByKey = {};
+    const edgeMap = {};
+    const edgeIdByBaseEdgeId = {};
+    if (typeof ctx.ensureSpecLookups === "function") {
+      ctx.ensureSpecLookups();
+    }
     const tensors = stageState.activeOperands.map((operand) => {
       const layout = layoutMap[operand.id] || buildFallbackLayoutForOperand(operand);
       const visibleTensor = {
@@ -637,10 +743,8 @@ export function registerContractionScene(ctx) {
               typeof occurrence.token.sourceEdgeId === "string" &&
               occurrence.token.sourceEdgeId
           )?.token.sourceEdgeId || null;
-        const baseEdge = baseEdgeId
-          ? state.spec.edges.find((edge) => edge.id === baseEdgeId) || null
-          : null;
-        return {
+        const baseEdge = baseEdgeId ? state.edgeById[baseEdgeId] || null : null;
+        const visibleEdge = {
           id: `scene-edge:${tokenKey}`,
           key: tokenKey,
           name: baseEdge ? baseEdge.name : occurrences[0].token.name,
@@ -650,14 +754,21 @@ export function registerContractionScene(ctx) {
           leftIndexId: occurrences[0].indexId,
           rightIndexId: occurrences[1].indexId,
         };
+        edgeMap[visibleEdge.id] = visibleEdge;
+        if (baseEdgeId) {
+          edgeIdByBaseEdgeId[baseEdgeId] = visibleEdge.id;
+        }
+        return visibleEdge;
       });
 
-    return {
+    const scene = {
       appliedStepCount: normalizedAppliedStepCount,
       latestAppliedStepCount,
       totalStepCount: fullState.validSteps.length,
       validSteps: fullState.validSteps,
       operandMap,
+      edgeMap,
+      edgeIdByBaseEdgeId,
       tensors,
       edges,
       futureOrdersByOperandId: buildFutureOrdersByOperandId(
@@ -666,6 +777,8 @@ export function registerContractionScene(ctx) {
         stageState.activeOperands
       ),
     };
+    state.contractionSceneCacheByAppliedStepCount[normalizedAppliedStepCount] = scene;
+    return scene;
   }
 
   function isContractionSceneVisible() {
@@ -713,17 +826,25 @@ export function registerContractionScene(ctx) {
   }
 
   function findVisibleEdgeById(edgeId) {
-    return getVisibleEdges().find((edge) => edge.id === edgeId) || null;
+    const scene = buildContractionScene();
+    if (!scene) {
+      if (typeof ctx.ensureSpecLookups === "function") {
+        ctx.ensureSpecLookups();
+      }
+      return state.edgeById[edgeId] || null;
+    }
+    return scene.edgeMap[edgeId] || null;
   }
 
   function findVisibleEdgeSelectionIdByBaseEdgeId(baseEdgeId) {
     if (!baseEdgeId) {
       return null;
     }
-    const visibleEdge = getVisibleEdges().find(
-      (edge) => edge.baseEdgeId === baseEdgeId
-    );
-    return visibleEdge ? visibleEdge.id : baseEdgeId;
+    const scene = buildContractionScene();
+    if (!scene) {
+      return baseEdgeId;
+    }
+    return scene.edgeIdByBaseEdgeId[baseEdgeId] || baseEdgeId;
   }
 
   function canEditCurrentContractionStage() {
@@ -759,6 +880,7 @@ export function registerContractionScene(ctx) {
         height: Math.max(ctx.constants.MIN_TENSOR_HEIGHT, Math.round(updates.size.height)),
       };
     }
+    touchContractionViewRevision();
     return true;
   }
 
@@ -781,6 +903,7 @@ export function registerContractionScene(ctx) {
         height: Math.max(ctx.constants.MIN_TENSOR_HEIGHT, Math.round(nextLayout.size.height)),
       };
     });
+    touchContractionViewRevision();
     return true;
   }
 

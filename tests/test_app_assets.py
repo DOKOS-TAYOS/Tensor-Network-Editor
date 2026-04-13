@@ -538,10 +538,8 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
     contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
 
     assert "invalidate: { lookups: true }" in interactions_body
-    assert (
-        "state.spec.tensors.find((tensor) => tensor.id === anchorTensorId)"
-        in contraction_body
-    )
+    assert "ctx.ensureSpecLookups()" in contraction_body
+    assert "state.tensorById[anchorTensorId] || null" in contraction_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(

@@ -6,9 +6,9 @@ from dataclasses import dataclass, replace
 
 from ._analysis import analyze_network
 from ._contraction_plan import (
+    PreparedContractionInputs,
     SimulatedContractionStep,
-    build_initial_operand_axis_names,
-    build_initial_operand_labels,
+    prepare_contraction_inputs,
     simulate_contraction_step,
 )
 from ._linear_periodic import (
@@ -69,6 +69,19 @@ class _CarryOperandState:
 
     labels: tuple[str, ...]
     axis_names: tuple[str, ...]
+
+
+def _build_carry_operand_state_map(
+    contraction_inputs: PreparedContractionInputs,
+) -> dict[str, _CarryOperandState]:
+    """Build the starting carry-operand states from prepared contraction inputs."""
+    return {
+        operand_id: _CarryOperandState(
+            labels=contraction_inputs.initial_operands[operand_id],
+            axis_names=contraction_inputs.initial_axis_names[operand_id],
+        )
+        for operand_id in contraction_inputs.initial_operand_ids
+    }
 
 
 def _simulate_carry_step(
@@ -406,11 +419,8 @@ def _validate_linear_periodic_carry_cell(
         ports=next_ports,
         label_by_index_id=label_by_index_id,
     )
-    dimension_by_label = {
-        index.label: index.spec.dimension
-        for tensor in prepared.tensors
-        for index in tensor.indices
-    }
+    contraction_inputs = prepare_contraction_inputs(prepared)
+    dimension_by_label = dict(contraction_inputs.dimension_by_label)
     dimension_by_label.update(
         build_linear_periodic_interface_dimension_by_label(
             ports=previous_ports,
@@ -423,18 +433,7 @@ def _validate_linear_periodic_carry_cell(
             label_by_index_id=label_by_index_id,
         )
     )
-    operand_state_by_id: dict[str, _CarryOperandState] = {
-        operand_id: _CarryOperandState(
-            labels=labels,
-            axis_names=axis_names,
-        )
-        for operand_id, labels, axis_names in zip(
-            build_initial_operand_labels(prepared),
-            build_initial_operand_labels(prepared).values(),
-            build_initial_operand_axis_names(prepared).values(),
-            strict=True,
-        )
-    }
+    operand_state_by_id = _build_carry_operand_state_map(contraction_inputs)
     if previous_expected:
         operand_state_by_id[LINEAR_PERIODIC_PREVIOUS_OPERAND_ID] = _CarryOperandState(
             labels=incoming_labels,

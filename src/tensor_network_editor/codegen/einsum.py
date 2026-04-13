@@ -6,9 +6,7 @@ from abc import ABC
 from string import ascii_letters
 
 from .._contraction_plan import (
-    build_dimension_by_label,
-    build_initial_operand_axis_names,
-    build_initial_operand_labels,
+    prepare_contraction_inputs,
     simulate_contraction_plan,
 )
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
@@ -159,12 +157,13 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             label: ascii_letters[offset]
             for offset, label in enumerate(label_order[: len(ascii_letters)])
         }
+        contraction_inputs = prepare_contraction_inputs(prepared)
         label_to_int = {label: offset for offset, label in enumerate(label_order)}
         simulation = simulate_contraction_plan(
-            initial_operand_ids=tuple(tensor.spec.id for tensor in prepared.tensors),
-            initial_operands=build_initial_operand_labels(prepared),
-            initial_axis_names=build_initial_operand_axis_names(prepared),
-            dimension_by_label=build_dimension_by_label(prepared),
+            initial_operand_ids=contraction_inputs.initial_operand_ids,
+            initial_operands=contraction_inputs.initial_operands,
+            initial_axis_names=contraction_inputs.initial_axis_names,
+            dimension_by_label=contraction_inputs.dimension_by_label,
             plan=prepared.spec.contraction_plan,
         )
         step_result_indexes = {

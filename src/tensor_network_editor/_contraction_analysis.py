@@ -9,14 +9,11 @@ from ._contraction_analysis_automatic import (
 )
 from ._contraction_analysis_compare import _build_contraction_comparisons
 from ._contraction_analysis_manual import (
-    _analyze_manual_plan,
-    _build_manual_operand_state,
+    _analyze_manual_plan_and_state,
 )
 from ._contraction_analysis_types import ContractionAnalysisResult
 from ._contraction_plan import (
-    build_dimension_by_label,
-    build_initial_operand_axis_names,
-    build_initial_operand_labels,
+    prepare_contraction_inputs,
 )
 from ._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
@@ -41,42 +38,33 @@ def analyze_contraction(
 
     bytes_per_element = dtype_size_in_bytes(memory_dtype)
     prepared = prepare_network(spec)
-    dimension_by_label = build_dimension_by_label(prepared)
-    initial_operands = build_initial_operand_labels(prepared)
-    initial_axis_names = build_initial_operand_axis_names(prepared)
+    contraction_inputs = prepare_contraction_inputs(prepared)
     network_output_shape = tuple(
         index.spec.dimension for index in prepared.open_indices
     )
-    manual = _analyze_manual_plan(
+    manual, manual_operand_state = _analyze_manual_plan_and_state(
         spec=spec,
-        initial_operands=initial_operands,
-        dimension_by_label=dimension_by_label,
+        contraction_inputs=contraction_inputs,
         bytes_per_element=bytes_per_element,
     )
-    manual_operand_state = _build_manual_operand_state(
-        spec=spec,
-        initial_operands=initial_operands,
-        initial_axis_names=initial_axis_names,
-        dimension_by_label=dimension_by_label,
-    )
     automatic_full = _analyze_automatic_operands(
-        operand_order=list(initial_operands),
-        operands=initial_operands,
-        dimension_by_label=dimension_by_label,
+        operand_order=list(contraction_inputs.initial_operands),
+        operands=contraction_inputs.initial_operands,
+        dimension_by_label=contraction_inputs.dimension_by_label,
         step_id_prefix="auto_full_step_",
         bytes_per_element=bytes_per_element,
     )
     automatic_future = _analyze_future_automatic_plan(
-        initial_operands=initial_operands,
+        initial_operands=contraction_inputs.initial_operands,
         manual_operand_state=manual_operand_state,
-        dimension_by_label=dimension_by_label,
+        dimension_by_label=contraction_inputs.dimension_by_label,
         bytes_per_element=bytes_per_element,
     )
     automatic_past = _analyze_past_automatic_plan(
         spec=spec,
-        initial_operands=initial_operands,
+        initial_operands=contraction_inputs.initial_operands,
         manual_operand_state=manual_operand_state,
-        dimension_by_label=dimension_by_label,
+        dimension_by_label=contraction_inputs.dimension_by_label,
         bytes_per_element=bytes_per_element,
     )
     message = (

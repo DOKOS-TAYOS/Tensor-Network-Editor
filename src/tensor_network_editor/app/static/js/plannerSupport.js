@@ -237,28 +237,68 @@ export function createPlannerSupport({
     return state.spec.contraction_plan;
   }
 
-  function getPlannerOperandState() {
-    const planSteps =
-      state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
-        ? state.spec.contraction_plan.steps
-        : [];
-    const tensors = ctx.getContractibleTensors();
+  function getCurrentPlanSteps() {
+    return state.spec && state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
+      ? state.spec.contraction_plan.steps
+      : [];
+  }
+
+  function hasFreshContractibleCollections() {
+    const tensors = Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [];
+    const edges = Array.isArray(state.spec && state.spec.edges) ? state.spec.edges : [];
+    return (
+      state.contractibleCacheRevision === state.specRevision &&
+      state.contractibleCacheTensorRef === tensors &&
+      state.contractibleCacheTensorCount === tensors.length &&
+      state.contractibleCacheEdgeRef === edges &&
+      state.contractibleCacheEdgeCount === edges.length
+    );
+  }
+
+  function buildSeedOperandsForTensors(tensors) {
+    return buildPlannerSeedOperands({
+      tensors,
+      specTensors: state.spec && state.spec.tensors,
+      isLinearPeriodicMode:
+        typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+      isLinearPeriodicBoundaryTensor: (tensor) => ctx.isLinearPeriodicBoundaryTensor(tensor),
+      getLinearPeriodicReservedOperandIdForTensor: (tensor) =>
+        ctx.getLinearPeriodicReservedOperandIdForTensor(tensor),
+    });
+  }
+
+  function buildPlannerOperandStateForSteps(steps, tensors) {
     return buildPlannerOperandState({
       tensors,
-      steps: planSteps,
-      seedOperands: buildPlannerSeedOperands({
-        tensors,
-        specTensors: state.spec && state.spec.tensors,
-        isLinearPeriodicMode:
-          typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
-        isLinearPeriodicBoundaryTensor: (tensor) =>
-          ctx.isLinearPeriodicBoundaryTensor(tensor),
-        getLinearPeriodicReservedOperandIdForTensor: (tensor) =>
-          ctx.getLinearPeriodicReservedOperandIdForTensor(tensor),
-      }),
+      steps,
+      seedOperands: buildSeedOperandsForTensors(tensors),
       previousOperandId,
       nextOperandId,
     });
+  }
+
+  function getPlannerOperandState() {
+    const planSteps = getCurrentPlanSteps();
+    const cacheIsFresh =
+      hasFreshContractibleCollections() &&
+      state.plannerOperandStateCacheRevision === state.specRevision &&
+      state.plannerOperandStateCacheStepsRef === planSteps &&
+      state.plannerOperandStateCacheStepCount === planSteps.length &&
+      state.plannerOperandStateCacheContractibleToken === state.contractibleCacheToken &&
+      state.plannerOperandStateCache;
+    if (cacheIsFresh) {
+      return state.plannerOperandStateCache;
+    }
+
+    const tensors = ctx.getContractibleTensors();
+    const contractibleToken = state.contractibleCacheToken;
+    const plannerOperandState = buildPlannerOperandStateForSteps(planSteps, tensors);
+    state.plannerOperandStateCacheRevision = state.specRevision;
+    state.plannerOperandStateCacheStepsRef = planSteps;
+    state.plannerOperandStateCacheStepCount = planSteps.length;
+    state.plannerOperandStateCacheContractibleToken = contractibleToken;
+    state.plannerOperandStateCache = plannerOperandState;
+    return plannerOperandState;
   }
 
   function buildStepOrdersByTensorId(steps) {
@@ -266,23 +306,11 @@ export function createPlannerSupport({
   }
 
   function getPlannerOperandStateForSteps(steps) {
-    const tensors = ctx.getContractibleTensors();
-    return buildPlannerOperandState({
-      tensors,
-      steps,
-      seedOperands: buildPlannerSeedOperands({
-        tensors,
-        specTensors: state.spec && state.spec.tensors,
-        isLinearPeriodicMode:
-          typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
-        isLinearPeriodicBoundaryTensor: (tensor) =>
-          ctx.isLinearPeriodicBoundaryTensor(tensor),
-        getLinearPeriodicReservedOperandIdForTensor: (tensor) =>
-          ctx.getLinearPeriodicReservedOperandIdForTensor(tensor),
-      }),
-      previousOperandId,
-      nextOperandId,
-    });
+    const planSteps = getCurrentPlanSteps();
+    if (steps === planSteps) {
+      return getPlannerOperandState();
+    }
+    return buildPlannerOperandStateForSteps(steps, ctx.getContractibleTensors());
   }
 
   function syncPlannerOrderBadges() {

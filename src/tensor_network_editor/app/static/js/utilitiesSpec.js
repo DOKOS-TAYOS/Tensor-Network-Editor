@@ -262,9 +262,36 @@ export function createUtilitySpecBindings({ ctx, state, constants, runtime }) {
     return serializedSpec;
   }
 
+  function resetDerivedStateCaches() {
+    state.contractibleCacheRevision = -1;
+    state.contractibleCacheTensorRef = null;
+    state.contractibleCacheTensorCount = -1;
+    state.contractibleCacheEdgeRef = null;
+    state.contractibleCacheEdgeCount = -1;
+    state.contractibleTensorsCache = [];
+    state.contractibleEdgesCache = [];
+    state.contractibleCacheToken += 1;
+    state.plannerOperandStateCacheRevision = -1;
+    state.plannerOperandStateCacheStepsRef = null;
+    state.plannerOperandStateCacheStepCount = -1;
+    state.plannerOperandStateCacheContractibleToken = -1;
+    state.plannerOperandStateCache = null;
+    state.contractionProgressionCacheRevision = -1;
+    state.contractionProgressionCacheStepsRef = null;
+    state.contractionProgressionCacheStepCount = -1;
+    state.contractionProgressionCacheContractibleToken = -1;
+    state.contractionProgressionCache = null;
+    state.contractionProgressionCacheToken += 1;
+    state.contractionSceneCacheRevision = -1;
+    state.contractionSceneCacheViewRevision = -1;
+    state.contractionSceneCacheProgressionToken = -1;
+    state.contractionSceneCacheByAppliedStepCount = {};
+  }
+
   function bumpSpecRevision() {
     state.specRevision += 1;
     state.lookupRevision = -1;
+    resetDerivedStateCaches();
   }
 
   function ensureSpecLookups() {
@@ -657,6 +684,7 @@ export function createUtilitySpecBindings({ ctx, state, constants, runtime }) {
     normalizeGraphSectionInPlace,
     buildHistorySnapshotSpec,
     buildSerializedSpec,
+    resetDerivedStateCaches,
     bumpSpecRevision,
     ensureSpecLookups,
     serializeCurrentSpec,

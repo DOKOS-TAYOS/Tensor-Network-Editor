@@ -3,6 +3,11 @@ from __future__ import annotations
 import pytest
 
 from tensor_network_editor._contraction_analysis import analyze_contraction
+from tensor_network_editor._contraction_plan import (
+    prepare_contraction_inputs,
+    simulate_contraction_plan,
+)
+from tensor_network_editor.codegen.common import prepare_network
 from tensor_network_editor.models import (
     CanvasPosition,
     ContractionPlanSpec,
@@ -82,6 +87,59 @@ def build_four_tensor_chain_spec() -> NetworkSpec:
                 right=EdgeEndpointRef(tensor_id="tensor_d", index_id="tensor_d_z"),
             ),
         ],
+    )
+
+
+def build_long_tensor_chain_spec(tensor_count: int) -> NetworkSpec:
+    tensors: list[TensorSpec] = []
+    edges: list[EdgeSpec] = []
+    steps: list[ContractionStepSpec] = []
+    for index in range(tensor_count):
+        tensors.append(
+            TensorSpec(
+                id=f"tensor_{index}",
+                name=f"T{index}",
+                position=CanvasPosition(x=80.0 + index * 140.0, y=120.0),
+                indices=[
+                    IndexSpec(id=f"tensor_{index}_left", name="left", dimension=2),
+                    IndexSpec(id=f"tensor_{index}_right", name="right", dimension=2),
+                ],
+            )
+        )
+        if index <= 0:
+            continue
+        edges.append(
+            EdgeSpec(
+                id=f"edge_{index}",
+                name=f"bond_{index}",
+                left=EdgeEndpointRef(
+                    tensor_id=f"tensor_{index - 1}",
+                    index_id=f"tensor_{index - 1}_right",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id=f"tensor_{index}",
+                    index_id=f"tensor_{index}_left",
+                ),
+            )
+        )
+        steps.append(
+            ContractionStepSpec(
+                id=f"step_{index}",
+                left_operand_id="tensor_0" if index == 1 else f"step_{index - 1}",
+                right_operand_id=f"tensor_{index}",
+            )
+        )
+
+    return NetworkSpec(
+        id="network_long_chain",
+        name="long-chain",
+        tensors=tensors,
+        edges=edges,
+        contraction_plan=ContractionPlanSpec(
+            id="plan_long_chain",
+            name="Long chain",
+            steps=steps,
+        ),
     )
 
 
@@ -395,6 +453,73 @@ def test_analyze_contraction_future_is_complete_when_manual_path_is_complete() -
 
     assert result.automatic_future.status == "complete"
     assert result.automatic_future.steps == []
+
+
+def test_analyze_contraction_reuses_one_manual_plan_simulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_chain_complete",
+        name="Chain complete",
+        steps=[
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="tensor_a",
+                right_operand_id="tensor_b",
+            ),
+            ContractionStepSpec(
+                id="step_abc",
+                left_operand_id="step_ab",
+                right_operand_id="tensor_c",
+            ),
+        ],
+    )
+    original_simulate = __import__(
+        "tensor_network_editor._contraction_analysis_manual",
+        fromlist=["simulate_contraction_plan"],
+    ).simulate_contraction_plan
+    call_count = 0
+
+    def counting_simulate_contraction_plan(*args: object, **kwargs: object) -> object:
+        nonlocal call_count
+        call_count += 1
+        return original_simulate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "tensor_network_editor._contraction_analysis_manual.simulate_contraction_plan",
+        counting_simulate_contraction_plan,
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.manual.status == "complete"
+    assert call_count == 1
+
+
+def test_long_manual_chain_preserves_remaining_ids_shapes_and_source_tensors() -> None:
+    spec = build_long_tensor_chain_spec(40)
+    prepared = prepare_network(spec)
+    contraction_inputs = prepare_contraction_inputs(prepared)
+
+    simulation = simulate_contraction_plan(
+        initial_operand_ids=contraction_inputs.initial_operand_ids,
+        initial_operands=contraction_inputs.initial_operands,
+        initial_axis_names=contraction_inputs.initial_axis_names,
+        dimension_by_label=contraction_inputs.dimension_by_label,
+        plan=spec.contraction_plan,
+    )
+    expected_final_labels = (
+        contraction_inputs.initial_operands["tensor_0"][0],
+        contraction_inputs.initial_operands["tensor_39"][1],
+    )
+
+    assert simulation.remaining_operand_ids == ("step_39",)
+    assert simulation.remaining_operands["step_39"] == expected_final_labels
+    assert simulation.steps[-1].result_shape == (2, 2)
+    assert simulation.source_tensor_ids_by_operand_id["step_39"] == tuple(
+        f"tensor_{index}" for index in range(40)
+    )
 
 
 def test_analyze_contraction_reports_full_automatic_plan_and_deltas() -> None:

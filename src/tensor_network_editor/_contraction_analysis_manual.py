@@ -9,7 +9,11 @@ from ._contraction_analysis_types import (
     ManualContractionPlanAnalysis,
     ManualContractionSummary,
 )
-from ._contraction_plan import simulate_contraction_plan
+from ._contraction_plan import (
+    PreparedContractionInputs,
+    SimulatedContractionPlan,
+    simulate_contraction_plan,
+)
 from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
 
 
@@ -30,19 +34,16 @@ def _build_manual_operand_state(
     dimension_by_label: dict[str, int],
 ) -> ManualOperandState:
     """Simulate the saved manual plan and keep its remaining operands."""
-    simulation = simulate_contraction_plan(
-        initial_operand_ids=tuple(initial_operands),
-        initial_operands=initial_operands,
-        initial_axis_names=initial_axis_names,
-        dimension_by_label=dimension_by_label,
-        plan=spec.contraction_plan,
-    )
-
-    return ManualOperandState(
-        active_operand_ids=simulation.remaining_operand_ids,
-        remaining_operands=simulation.remaining_operands,
-        source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
-    )
+    return _analyze_manual_plan_and_state(
+        spec=spec,
+        contraction_inputs=PreparedContractionInputs(
+            initial_operand_ids=tuple(initial_operands),
+            initial_operands=initial_operands,
+            initial_axis_names=initial_axis_names,
+            dimension_by_label=dimension_by_label,
+        ),
+        bytes_per_element=0,
+    )[1]
 
 
 def _analyze_manual_plan(
@@ -53,28 +54,41 @@ def _analyze_manual_plan(
     bytes_per_element: int,
 ) -> ManualContractionPlanAnalysis:
     """Analyze the saved manual plan, or derive a trivial summary when absent."""
-    plan = spec.contraction_plan
-    if plan is None or not plan.steps:
-        summary = _build_manual_summary_from_operands(
-            remaining_operands=initial_operands,
-            status="complete" if len(initial_operands) <= 1 else "incomplete",
-            total_estimated_flops=0,
-            total_estimated_macs=0,
-            peak_intermediate_size=0,
+    return _analyze_manual_plan_and_state(
+        spec=spec,
+        contraction_inputs=PreparedContractionInputs(
+            initial_operand_ids=tuple(initial_operands),
+            initial_operands=initial_operands,
+            initial_axis_names={
+                operand_id: labels for operand_id, labels in initial_operands.items()
+            },
             dimension_by_label=dimension_by_label,
-            bytes_per_element=bytes_per_element,
-        )
-        return ManualContractionPlanAnalysis(
-            status=summary.completion_status,
-            steps=[],
-            summary=summary,
-        )
-
-    return _simulate_plan_steps(
-        steps=plan.steps,
-        initial_operands=initial_operands,
-        dimension_by_label=dimension_by_label,
+        ),
         bytes_per_element=bytes_per_element,
+    )[0]
+
+
+def _analyze_manual_plan_and_state(
+    *,
+    spec: NetworkSpec,
+    contraction_inputs: PreparedContractionInputs,
+    bytes_per_element: int,
+) -> tuple[ManualContractionPlanAnalysis, ManualOperandState]:
+    """Analyze the manual plan and derive its remaining operands from one simulation."""
+    simulation = simulate_contraction_plan(
+        initial_operand_ids=contraction_inputs.initial_operand_ids,
+        initial_operands=contraction_inputs.initial_operands,
+        initial_axis_names=contraction_inputs.initial_axis_names,
+        dimension_by_label=contraction_inputs.dimension_by_label,
+        plan=spec.contraction_plan,
+    )
+    return (
+        _build_manual_analysis_from_simulation(
+            simulation=simulation,
+            dimension_by_label=contraction_inputs.dimension_by_label,
+            bytes_per_element=bytes_per_element,
+        ),
+        _build_manual_operand_state_from_simulation(simulation),
     )
 
 
@@ -86,15 +100,28 @@ def _simulate_plan_steps(
     bytes_per_element: int,
 ) -> ManualContractionPlanAnalysis:
     """Simulate each saved step and accumulate manual-plan metrics."""
-    simulation = simulate_contraction_plan(
-        initial_operand_ids=tuple(initial_operands),
-        initial_operands=initial_operands,
-        initial_axis_names={
-            operand_id: labels for operand_id, labels in initial_operands.items()
-        },
+    return _build_manual_analysis_from_simulation(
+        simulation=simulate_contraction_plan(
+            initial_operand_ids=tuple(initial_operands),
+            initial_operands=initial_operands,
+            initial_axis_names={
+                operand_id: labels for operand_id, labels in initial_operands.items()
+            },
+            dimension_by_label=dimension_by_label,
+            plan=ContractionPlanSpec(steps=steps),
+        ),
         dimension_by_label=dimension_by_label,
-        plan=ContractionPlanSpec(steps=steps),
+        bytes_per_element=bytes_per_element,
     )
+
+
+def _build_manual_analysis_from_simulation(
+    *,
+    simulation: SimulatedContractionPlan,
+    dimension_by_label: dict[str, int],
+    bytes_per_element: int,
+) -> ManualContractionPlanAnalysis:
+    """Build a manual analysis payload from one finished simulation."""
     step_results = [
         ContractionStepAnalysis(
             step_id=step.step_id,
@@ -132,6 +159,17 @@ def _simulate_plan_steps(
         status=status,
         steps=step_results,
         summary=summary,
+    )
+
+
+def _build_manual_operand_state_from_simulation(
+    simulation: SimulatedContractionPlan,
+) -> ManualOperandState:
+    """Build the remaining-manual-operands state from one simulation."""
+    return ManualOperandState(
+        active_operand_ids=simulation.remaining_operand_ids,
+        remaining_operands=simulation.remaining_operands,
+        source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
     )
 
 

@@ -133,31 +133,95 @@ export function createUtilityLinearPeriodicBindings({
     return getLinearPeriodicReservedOperandId(tensor.linear_periodic_role);
   }
 
+  function buildContractibleCollections(spec) {
+    const tensors = Array.isArray(spec && spec.tensors) ? spec.tensors : [];
+    const edges = Array.isArray(spec && spec.edges) ? spec.edges : [];
+    const contractibleTensors = tensors.filter(
+      (tensor) => !isLinearPeriodicBoundaryTensor(tensor)
+    );
+    if (!edges.length || !contractibleTensors.length) {
+      return {
+        tensors: contractibleTensors,
+        edges: [],
+      };
+    }
+
+    let tensorById = {};
+    if (
+      spec === state.spec &&
+      typeof ctx.ensureSpecLookups === "function"
+    ) {
+      ctx.ensureSpecLookups();
+      tensorById = state.tensorById;
+    } else {
+      tensorById = Object.fromEntries(tensors.map((tensor) => [tensor.id, tensor]));
+    }
+
+    return {
+      tensors: contractibleTensors,
+      edges: edges.filter((edge) => {
+        const leftTensor = tensorById[edge.left && edge.left.tensor_id];
+        const rightTensor = tensorById[edge.right && edge.right.tensor_id];
+        return (
+          leftTensor &&
+          rightTensor &&
+          !isLinearPeriodicBoundaryTensor(leftTensor) &&
+          !isLinearPeriodicBoundaryTensor(rightTensor)
+        );
+      }),
+    };
+  }
+
+  function ensureContractibleCollections() {
+    if (!state.spec) {
+      state.contractibleCacheRevision = state.specRevision;
+      state.contractibleCacheTensorRef = null;
+      state.contractibleCacheTensorCount = 0;
+      state.contractibleCacheEdgeRef = null;
+      state.contractibleCacheEdgeCount = 0;
+      state.contractibleTensorsCache = [];
+      state.contractibleEdgesCache = [];
+      state.contractibleCacheToken += 1;
+      return;
+    }
+
+    const tensors = Array.isArray(state.spec.tensors) ? state.spec.tensors : [];
+    const edges = Array.isArray(state.spec.edges) ? state.spec.edges : [];
+    const cacheIsFresh =
+      state.contractibleCacheRevision === state.specRevision &&
+      state.contractibleCacheTensorRef === tensors &&
+      state.contractibleCacheTensorCount === tensors.length &&
+      state.contractibleCacheEdgeRef === edges &&
+      state.contractibleCacheEdgeCount === edges.length;
+    if (cacheIsFresh) {
+      return;
+    }
+
+    const collections = buildContractibleCollections(state.spec);
+    state.contractibleCacheRevision = state.specRevision;
+    state.contractibleCacheTensorRef = tensors;
+    state.contractibleCacheTensorCount = tensors.length;
+    state.contractibleCacheEdgeRef = edges;
+    state.contractibleCacheEdgeCount = edges.length;
+    state.contractibleTensorsCache = collections.tensors;
+    state.contractibleEdgesCache = collections.edges;
+    state.contractibleCacheToken += 1;
+  }
+
   function getContractibleTensors(spec = state.spec) {
-    return Array.isArray(spec && spec.tensors)
-      ? spec.tensors.filter((tensor) => !isLinearPeriodicBoundaryTensor(tensor))
-      : [];
+    if (spec !== state.spec) {
+      return buildContractibleCollections(spec).tensors;
+    }
+    ensureContractibleCollections();
+    return state.contractibleTensorsCache;
   }
 
   function getContractibleEdges(spec = state.spec) {
-    const tensorById = Object.fromEntries(
-      (Array.isArray(spec && spec.tensors) ? spec.tensors : []).map((tensor) => [
-        tensor.id,
-        tensor,
-      ])
-    );
-    return Array.isArray(spec && spec.edges)
-      ? spec.edges.filter((edge) => {
-          const leftTensor = tensorById[edge.left && edge.left.tensor_id];
-          const rightTensor = tensorById[edge.right && edge.right.tensor_id];
-          return (
-            leftTensor &&
-            rightTensor &&
-            !isLinearPeriodicBoundaryTensor(leftTensor) &&
-            !isLinearPeriodicBoundaryTensor(rightTensor)
-          );
-        })
-      : [];
+    if (spec !== state.spec) {
+      return buildContractibleCollections(spec).edges;
+    }
+    ensureContractibleCollections();
+    return state.contractibleEdgesCache;
   }
 
   function getExpectedLinearPeriodicRoles(cellName) {
