@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Major structural refactor across the project (layout, modules, and responsibilities reorganized for clarity and maintainability).
+- Several rounds of performance work: repeated profiling, hot-path optimizations, and follow-up tuning after each pass.
+
 ## [0.2.2] - 2026-04-13
 
 ### Changed
