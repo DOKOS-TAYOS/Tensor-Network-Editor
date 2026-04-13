@@ -23,6 +23,9 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "interactionsEditor.js",
         "interactionsSession.js",
         "interactionsShortcuts.js",
+        "propertiesRenderersOverview.js",
+        "propertiesRenderersTensor.js",
+        "propertiesRenderersEntities.js",
     ]
     for module_name in module_names:
         (tmp_path / module_name).write_text(

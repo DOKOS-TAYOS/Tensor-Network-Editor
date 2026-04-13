@@ -346,25 +346,56 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
 def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
     editor_server: EditorServer,
 ) -> None:
-    renderers_body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+    tensor_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    )
+    entities_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
 
-    assert "Total elements" in renderers_body
-    assert "Delete Selected" not in renderers_body
-    assert "Delete Connection" not in renderers_body
-    assert "Delete Note" not in renderers_body
-    assert 'aria-label="Delete selection"' in renderers_body
-    assert 'aria-label="Delete connection"' in renderers_body
-    assert 'aria-label="Delete note"' in renderers_body
+    combined_body = overview_body + tensor_body + entities_body
+    assert "Total elements" in combined_body
+    assert "Delete Selected" not in combined_body
+    assert "Delete Connection" not in combined_body
+    assert "Delete Note" not in combined_body
+    assert 'aria-label="Delete selection"' in overview_body
+    assert 'aria-label="Delete connection"' in entities_body
+    assert 'aria-label="Delete note"' in entities_body
     assert "function getSelectionTotalElementCount(" in support_body
     assert "function getTensorTotalElementCount(" in support_body
+
+
+def test_properties_renderer_assets_are_split_by_selection_family(
+    editor_server: EditorServer,
+) -> None:
+    facade_body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+    tensor_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    )
+    entities_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
+
+    assert 'from "./propertiesRenderersOverview.js"' in facade_body
+    assert 'from "./propertiesRenderersTensor.js"' in facade_body
+    assert 'from "./propertiesRenderersEntities.js"' in facade_body
+    assert "renderNetworkProperties" in overview_body
+    assert "renderTensorProperties" in tensor_body
+    assert "renderGroupProperties" in entities_body
 
 
 def test_index_disclosure_border_uses_the_port_color(
     editor_server: EditorServer,
 ) -> None:
     properties_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderers.js"
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
     )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
@@ -379,7 +410,7 @@ def test_index_disclosure_border_uses_the_port_color(
 def test_contraction_result_properties_expose_a_delete_action(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
 
     assert 'id="delete-contraction-tensor-button"' in body
     assert 'aria-label="Delete result"' in body
@@ -391,7 +422,7 @@ def test_note_assets_move_note_editing_into_canvas(
 ) -> None:
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     properties_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderers.js"
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
@@ -526,7 +557,7 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     properties_renderers_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderers.js"
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
@@ -559,7 +590,7 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
 def test_properties_assets_lock_virtual_boundary_tensor_structure(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
 
     assert "ctx.isLinearPeriodicBoundaryTensor(tensor)" in body
     assert "renderLinearPeriodicBoundaryTensorProperties" in body
@@ -614,7 +645,7 @@ def test_linear_periodic_assets_do_not_force_two_engine_support_message(
 def test_properties_assets_sync_dimensions_across_connected_ports(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
