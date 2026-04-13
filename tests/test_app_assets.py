@@ -450,17 +450,31 @@ def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
     assert "var(--note-surface-color" in css_body
 
 
-def test_collapsed_note_assets_make_the_toggle_fill_the_collapsed_note_frame(
+def test_collapsed_note_assets_size_the_note_to_the_toggle_dimensions(
     editor_server: EditorServer,
 ) -> None:
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
+    constants_body = request_text(f"{editor_server.base_url}/js/constants.js")
+    collapsed_frame_start = css_body.index(".canvas-note-frame.is-collapsed {")
+    collapsed_toggle_start = css_body.index(".canvas-note-collapsed-toggle {")
+    collapsed_toggle_end = css_body.index(
+        ".canvas-note-color-button svg,",
+        collapsed_toggle_start,
+    )
+    collapsed_frame_block = css_body[collapsed_frame_start:collapsed_toggle_start]
+    collapsed_toggle_block = css_body[collapsed_toggle_start:collapsed_toggle_end]
 
     assert 'collapsedToggle.classList.add("canvas-note-collapsed-toggle")' in notes_body
-    assert ".canvas-note-collapsed-toggle {" in css_body
-    assert "width: 100%;" in css_body
-    assert "min-width: 100%;" in css_body
-    assert "height: 100%;" in css_body
+    assert "NOTE_COLLAPSED_SIZE: 29," in constants_body
+    assert "width: 29px;" in collapsed_frame_block
+    assert "min-width: 29px;" in collapsed_frame_block
+    assert "min-height: 29px;" in collapsed_frame_block
+    assert "height: 29px;" in collapsed_frame_block
+    assert ".canvas-note-collapsed-toggle {" in collapsed_toggle_block
+    assert "width: 100%;" not in collapsed_toggle_block
+    assert "min-width: 100%;" not in collapsed_toggle_block
+    assert "height: 100%;" not in collapsed_toggle_block
 
 
 def test_interaction_assets_support_latest_contraction_scene_editing(
