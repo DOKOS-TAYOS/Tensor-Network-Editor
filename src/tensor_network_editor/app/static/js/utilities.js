@@ -1,3 +1,5 @@
+import { createTemplateOptionHelpers } from "./utilitiesTemplates.js";
+
 export function registerUtilities(ctx) {
   const state = ctx.state;
   const TENSOR_BASE_Z_INDEX = 10;
@@ -61,25 +63,6 @@ export function registerUtilities(ctx) {
     generateButton,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
-  const ENGINE_LABELS = {
-    tensornetwork: "TensorNetwork",
-    quimb: "Quimb",
-    tensorkrowch: "TensorKrowch",
-    einsum_numpy: "NumPy einsum",
-    einsum_torch: "PyTorch einsum",
-  };
-  const ENGINE_DISPLAY_ORDER = [
-    "tensorkrowch",
-    "einsum_torch",
-    "einsum_numpy",
-    "quimb",
-    "tensornetwork",
-  ];
-  const COLLECTION_FORMAT_LABELS = {
-    list: "List",
-    matrix: "Matrix",
-    dict: "Dictionary",
-  };
   const LINEAR_PERIODIC_CELL_ORDER = ["initial", "periodic", "final"];
   const LINEAR_PERIODIC_CELL_LABELS = {
     initial: "Initial cell",
@@ -102,6 +85,35 @@ export function registerUtilities(ctx) {
       color: "#2f9b8f",
     },
   };
+  const templateOptionHelpers = createTemplateOptionHelpers({
+    state,
+    document,
+    engineSelect,
+    collectionFormatSelect,
+    templateSelect,
+    templateParameterPanel,
+    templateGraphSizeLabel,
+    templateGraphSizeInput,
+    templateBondDimensionInput,
+    templatePhysicalDimensionInput,
+    enforceLinearPeriodicEngineSupport,
+    updateToolbarState,
+  });
+  const {
+    populateEngineOptions,
+    formatEngineLabel,
+    formatCollectionFormatLabel,
+    populateCollectionFormatOptions,
+    populateTemplateOptions,
+    formatTemplateLabel,
+    getTemplateDefinition,
+    buildTemplateParameterState,
+    syncTemplateParameterControls,
+    readTemplateParametersFromControls,
+    persistTemplateParametersFromControls,
+    handleTemplateSelectionChange,
+    handleTemplateParameterInput,
+  } = templateOptionHelpers;
 
   function getLinearPeriodicReservedOperandId(role) {
     return Object.prototype.hasOwnProperty.call(
@@ -117,55 +129,6 @@ export function registerUtilities(ctx) {
       operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID ||
       operandId === LINEAR_PERIODIC_NEXT_OPERAND_ID
     );
-  }
-
-  function formatEngineLabel(engineName) {
-    return Object.prototype.hasOwnProperty.call(ENGINE_LABELS, engineName)
-      ? ENGINE_LABELS[engineName]
-      : engineName;
-  }
-
-  function sortEngineNamesForDisplay(engines) {
-    const preferredOrder = new Map(
-      ENGINE_DISPLAY_ORDER.map((engineName, position) => [engineName, position])
-    );
-    return [...engines].sort((leftEngine, rightEngine) => {
-      const leftPriority = preferredOrder.has(leftEngine)
-        ? preferredOrder.get(leftEngine)
-        : Number.MAX_SAFE_INTEGER;
-      const rightPriority = preferredOrder.has(rightEngine)
-        ? preferredOrder.get(rightEngine)
-        : Number.MAX_SAFE_INTEGER;
-      if (leftPriority !== rightPriority) {
-        return leftPriority - rightPriority;
-      }
-      return formatEngineLabel(leftEngine).localeCompare(
-        formatEngineLabel(rightEngine)
-      );
-    });
-  }
-
-  function populateEngineOptions(engines) {
-    engineSelect.innerHTML = "";
-    sortEngineNamesForDisplay(engines).forEach((engineName) => {
-      const option = document.createElement("option");
-      option.value = engineName;
-      option.textContent = formatEngineLabel(engineName);
-      if (engineName === state.selectedEngine) {
-        option.selected = true;
-      }
-      engineSelect.appendChild(option);
-    });
-    enforceLinearPeriodicEngineSupport();
-  }
-
-  function formatCollectionFormatLabel(collectionFormat) {
-    return Object.prototype.hasOwnProperty.call(
-      COLLECTION_FORMAT_LABELS,
-      collectionFormat
-    )
-      ? COLLECTION_FORMAT_LABELS[collectionFormat]
-      : collectionFormat;
   }
 
   function buildEmptyGraphSection() {
@@ -998,174 +961,6 @@ export function registerUtilities(ctx) {
     if (typeof ctx.refreshContractionAnalysis === "function") {
       ctx.refreshContractionAnalysis();
     }
-  }
-
-  function populateCollectionFormatOptions(collectionFormats) {
-    if (!collectionFormatSelect) {
-      return;
-    }
-    collectionFormatSelect.innerHTML = "";
-    collectionFormats.forEach((collectionFormat) => {
-      const option = document.createElement("option");
-      option.value = collectionFormat;
-      option.textContent = formatCollectionFormatLabel(collectionFormat);
-      if (collectionFormat === state.selectedCollectionFormat) {
-        option.selected = true;
-      }
-      collectionFormatSelect.appendChild(option);
-    });
-  }
-
-  function populateTemplateOptions(templateNames) {
-    templateSelect.innerHTML = "";
-    templateNames.forEach((templateName) => {
-      const option = document.createElement("option");
-      option.value = templateName;
-      option.textContent = formatTemplateLabel(templateName);
-      templateSelect.appendChild(option);
-    });
-    if (templateNames.length && !templateSelect.value) {
-      templateSelect.value = templateNames[0];
-    }
-  }
-
-  function formatTemplateLabel(templateName) {
-    const definition = getTemplateDefinition(templateName);
-    if (definition && typeof definition.display_name === "string" && definition.display_name) {
-      return definition.display_name;
-    }
-    return templateName.replaceAll("_", " ");
-  }
-
-  function getTemplateDefinition(templateName = templateSelect.value) {
-    if (!templateName || !state.templateDefinitions || typeof state.templateDefinitions !== "object") {
-      return null;
-    }
-    return state.templateDefinitions[templateName] || null;
-  }
-
-  function buildTemplateParameterState(templateNames, templateDefinitions) {
-    return Object.fromEntries(
-      templateNames.map((templateName) => {
-        const definition = templateDefinitions && templateDefinitions[templateName]
-          ? templateDefinitions[templateName]
-          : null;
-        const defaults = definition && definition.defaults ? definition.defaults : {};
-        return [
-          templateName,
-          {
-            graph_size: sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
-            bond_dimension: sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
-            physical_dimension: sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
-          },
-        ];
-      })
-    );
-  }
-
-  function sanitizeTemplateIntegerValue(value, fallback, minimum) {
-    const numericValue = Number(value);
-    if (!Number.isInteger(numericValue)) {
-      return Math.max(minimum, fallback);
-    }
-    return Math.max(minimum, numericValue);
-  }
-
-  function syncTemplateParameterControls(templateName = templateSelect.value) {
-    if (!templateParameterPanel) {
-      return;
-    }
-    const definition = getTemplateDefinition(templateName);
-    if (!definition) {
-      templateParameterPanel.hidden = true;
-      return;
-    }
-    templateParameterPanel.hidden = false;
-    const minimums = definition.minimums || {};
-    const defaults = definition.defaults || {};
-    const parameters = state.templateParametersByTemplate[templateName]
-      || buildTemplateParameterState([templateName], { [templateName]: definition })[templateName];
-    templateGraphSizeLabel.textContent = `Graph size (${definition.graph_size_label || "Graph size"})`;
-    templateGraphSizeInput.min = String(sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1));
-    templateBondDimensionInput.min = String(sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1));
-    templatePhysicalDimensionInput.min = String(sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1));
-    templateGraphSizeInput.value = String(
-      sanitizeTemplateIntegerValue(
-        parameters.graph_size,
-        sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
-        sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1)
-      )
-    );
-    templateBondDimensionInput.value = String(
-      sanitizeTemplateIntegerValue(
-        parameters.bond_dimension,
-        sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
-        sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1)
-      )
-    );
-    templatePhysicalDimensionInput.value = String(
-      sanitizeTemplateIntegerValue(
-        parameters.physical_dimension,
-        sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
-        sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1)
-      )
-    );
-  }
-
-  function readTemplateParametersFromControls() {
-    const definition = getTemplateDefinition();
-    if (!definition) {
-      return {
-        graph_size: 2,
-        bond_dimension: 3,
-        physical_dimension: 2,
-      };
-    }
-    const minimums = definition.minimums || {};
-    const defaults = definition.defaults || {};
-    const parameters = {
-      graph_size: sanitizeTemplateIntegerValue(
-        templateGraphSizeInput.value,
-        sanitizeTemplateIntegerValue(defaults.graph_size, 2, 2),
-        sanitizeTemplateIntegerValue(minimums.graph_size, 2, 1)
-      ),
-      bond_dimension: sanitizeTemplateIntegerValue(
-        templateBondDimensionInput.value,
-        sanitizeTemplateIntegerValue(defaults.bond_dimension, 3, 1),
-        sanitizeTemplateIntegerValue(minimums.bond_dimension, 1, 1)
-      ),
-      physical_dimension: sanitizeTemplateIntegerValue(
-        templatePhysicalDimensionInput.value,
-        sanitizeTemplateIntegerValue(defaults.physical_dimension, 2, 1),
-        sanitizeTemplateIntegerValue(minimums.physical_dimension, 1, 1)
-      ),
-    };
-    templateGraphSizeInput.value = String(parameters.graph_size);
-    templateBondDimensionInput.value = String(parameters.bond_dimension);
-    templatePhysicalDimensionInput.value = String(parameters.physical_dimension);
-    return parameters;
-  }
-
-  function persistTemplateParametersFromControls() {
-    const templateName = templateSelect.value;
-    if (!templateName) {
-      return null;
-    }
-    const parameters = readTemplateParametersFromControls();
-    state.templateParametersByTemplate[templateName] = { ...parameters };
-    return parameters;
-  }
-
-  function handleTemplateSelectionChange(event) {
-    if (!event || !event.target) {
-      return;
-    }
-    syncTemplateParameterControls(event.target.value);
-    updateToolbarState();
-  }
-
-  function handleTemplateParameterInput() {
-    persistTemplateParametersFromControls();
   }
 
   function bumpSpecRevision() {

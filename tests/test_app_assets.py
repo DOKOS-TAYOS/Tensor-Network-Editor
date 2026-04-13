@@ -157,7 +157,7 @@ def test_static_server_rejects_parent_directory_traversal(
 def test_notes_planner_uses_singular_operation_labels(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/planner.js")
+    body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
 
     assert '"FLOPs"' not in body
     assert '"MACs"' not in body
@@ -170,12 +170,28 @@ def test_notes_and_planner_feature_modules_are_served(
 ) -> None:
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    planner_support_body = request_text(
+        f"{editor_server.base_url}/js/plannerSupport.js"
+    )
+    planner_renderers_body = request_text(
+        f"{editor_server.base_url}/js/plannerRenderers.js"
+    )
     registrar_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_templates_body = request_text(
+        f"{editor_server.base_url}/js/utilitiesTemplates.js"
+    )
 
     assert "registerNotesFeature" in notes_body
     assert "registerPlannerFeature" in planner_body
+    assert 'from "./plannerSupport.js"' in planner_body
+    assert 'from "./plannerRenderers.js"' in planner_body
+    assert "createPlannerSupport" in planner_support_body
+    assert "createPlannerRenderers" in planner_renderers_body
     assert 'from "./notes.js"' in registrar_body
     assert 'from "./planner.js"' in registrar_body
+    assert 'from "./utilitiesTemplates.js"' in utilities_body
+    assert "createTemplateOptionHelpers" in utilities_templates_body
 
 
 def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
@@ -300,23 +316,26 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
 def test_properties_asset_exposes_total_element_summaries_and_icon_delete_controls(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/properties.js")
+    renderers_body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
 
-    assert "Total elements" in body
-    assert "Delete Selected" not in body
-    assert "Delete Connection" not in body
-    assert "Delete Note" not in body
-    assert 'aria-label="Delete selection"' in body
-    assert 'aria-label="Delete connection"' in body
-    assert 'aria-label="Delete note"' in body
-    assert "function getSelectionTotalElementCount(" in body
-    assert "function getTensorTotalElementCount(" in body
+    assert "Total elements" in renderers_body
+    assert "Delete Selected" not in renderers_body
+    assert "Delete Connection" not in renderers_body
+    assert "Delete Note" not in renderers_body
+    assert 'aria-label="Delete selection"' in renderers_body
+    assert 'aria-label="Delete connection"' in renderers_body
+    assert 'aria-label="Delete note"' in renderers_body
+    assert "function getSelectionTotalElementCount(" in support_body
+    assert "function getTensorTotalElementCount(" in support_body
 
 
 def test_index_disclosure_border_uses_the_port_color(
     editor_server: EditorServer,
 ) -> None:
-    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderers.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "--index-border-color:" in properties_body
@@ -330,7 +349,7 @@ def test_index_disclosure_border_uses_the_port_color(
 def test_contraction_result_properties_expose_a_delete_action(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/properties.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
 
     assert 'id="delete-contraction-tensor-button"' in body
     assert 'aria-label="Delete result"' in body
@@ -341,7 +360,9 @@ def test_note_assets_move_note_editing_into_canvas(
     editor_server: EditorServer,
 ) -> None:
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
-    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderers.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'textarea.addEventListener("keydown", (event) => {' in notes_body
@@ -372,7 +393,7 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
     editor_server: EditorServer,
 ) -> None:
     interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
-    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/plannerSupport.js")
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
     utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
 
@@ -439,6 +460,9 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     editor_server: EditorServer,
 ) -> None:
     planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    planner_support_body = request_text(
+        f"{editor_server.base_url}/js/plannerSupport.js"
+    )
     interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
     utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
     minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
@@ -448,7 +472,10 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
 
     assert "function serializeCurrentSpec(options = {})" in utilities_body
     assert "persistViewSnapshots = false" in utilities_body
-    assert "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in planner_body
+    assert (
+        "ctx.serializeCurrentSpec({ persistViewSnapshots: false })"
+        in planner_support_body
+    )
     assert (
         "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in interactions_body
     )
@@ -467,7 +494,10 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
     state_body = request_text(f"{editor_server.base_url}/js/state.js")
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
-    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    properties_renderers_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderers.js"
+    )
     interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
 
@@ -488,7 +518,10 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "return state.noteById[noteId] || null;" in notes_body
     assert "function propertyInvalidation(" in properties_body
     assert "function selectionColorInvalidation(" in properties_body
-    assert "invalidate: selectionColorInvalidation(selectedEntries)" in properties_body
+    assert (
+        "invalidate: selectionColorInvalidation(selectedEntries)"
+        in properties_renderers_body
+    )
     assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
     assert "startOffset:" in graph_body
 
@@ -496,7 +529,7 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
 def test_properties_assets_lock_virtual_boundary_tensor_structure(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/properties.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
 
     assert "ctx.isLinearPeriodicBoundaryTensor(tensor)" in body
     assert "renderLinearPeriodicBoundaryTensorProperties" in body
@@ -551,10 +584,11 @@ def test_linear_periodic_assets_do_not_force_two_engine_support_message(
 def test_properties_assets_sync_dimensions_across_connected_ports(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/properties.js")
+    body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
 
-    assert "properties: isLinearPeriodicMode," in body
+    assert "properties: isLinearPeriodicMode," in support_body
     assert "const currentOwner = ctx.findIndexOwner(index.id);" in body
     assert "const currentIndex = currentOwner ? currentOwner.index : null;" in body
     assert "if (!currentIndex) {" in body
@@ -570,7 +604,7 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
 def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:
-    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "Total elements" in planner_body
