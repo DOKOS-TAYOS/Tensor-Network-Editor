@@ -11,6 +11,26 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    module_names = [
+        "utilitiesBase.js",
+        "utilitiesGeometry.js",
+        "utilitiesLinearPeriodic.js",
+        "utilitiesSpec.js",
+        "utilitiesUi.js",
+        "interactionsCanvas.js",
+        "interactionsEditor.js",
+        "interactionsSession.js",
+        "interactionsShortcuts.js",
+    ]
+    for module_name in module_names:
+        (tmp_path / module_name).write_text(
+            (js_root / module_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+
 def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "for_mode_runtime_regression.mjs"
     state_module_path = (
@@ -64,6 +84,7 @@ def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
         utilities_templates_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    _copy_runtime_editor_support_modules(tmp_path)
     history_runtime_path.write_text(
         history_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -458,6 +479,7 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
         utilities_templates_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    _copy_runtime_editor_support_modules(tmp_path)
     planner_runtime_path.write_text(
         planner_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -1032,6 +1054,7 @@ def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
         utilities_templates_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    _copy_runtime_editor_support_modules(tmp_path)
     script_body = textwrap.dedent(
         f"""
         import {{ pathToFileURL }} from "node:url";
@@ -1292,6 +1315,7 @@ def _write_tensor_index_move_properties_runtime_regression_script(
         utilities_templates_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    _copy_runtime_editor_support_modules(tmp_path)
     history_runtime_path.write_text(
         history_module_path.read_text(encoding="utf-8"),
         encoding="utf-8",
@@ -1972,6 +1996,583 @@ def test_sidebar_can_be_resized_and_keeps_custom_width(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The sidebar resize runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "utility_runtime_contract.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "utilities.runtime.mjs": "utilities.js",
+        "utilitiesTemplates.js": "utilitiesTemplates.js",
+        "utilitiesBase.js": "utilitiesBase.js",
+        "utilitiesGeometry.js": "utilitiesGeometry.js",
+        "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
+        "utilitiesSpec.js": "utilitiesSpec.js",
+        "utilitiesUi.js": "utilitiesUi.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        (tmp_path / target_name).write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            import { pathToFileURL } from "node:url";
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createButton() {
+              return {
+                disabled: false,
+                classList: createClassList(),
+              };
+            }
+
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, utilitiesModule, baseModule, geometryModule, linearPeriodicModule, specModule, uiModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./utilities.runtime.mjs", baseUrl).href),
+                import(new URL("./utilitiesBase.js", baseUrl).href),
+                import(new URL("./utilitiesGeometry.js", baseUrl).href),
+                import(new URL("./utilitiesLinearPeriodic.js", baseUrl).href),
+                import(new URL("./utilitiesSpec.js", baseUrl).href),
+                import(new URL("./utilitiesUi.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { createUtilityBaseBindings } = baseModule;
+            const { createUtilityGeometryBindings } = geometryModule;
+            const { createUtilityLinearPeriodicBindings } = linearPeriodicModule;
+            const { createUtilitySpecBindings } = specModule;
+            const { createUtilityUiBindings } = uiModule;
+
+            const requiredFactories = [
+              createUtilityBaseBindings,
+              createUtilityGeometryBindings,
+              createUtilityLinearPeriodicBindings,
+              createUtilitySpecBindings,
+              createUtilityUiBindings,
+            ];
+            if (requiredFactories.some((candidate) => typeof candidate !== "function")) {
+              throw new Error("One or more utility helper factories were not exported.");
+            }
+
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: {
+                  textContent: "",
+                  classList: createClassList(),
+                },
+                propertiesPanel: { innerHTML: "" },
+                generatedCode: { value: "" },
+                engineSelect: { options: [], value: "tensornetwork" },
+                collectionFormatSelect: { options: [], value: "list" },
+                exportFormatSelect: { value: "py" },
+                addNoteButton: createButton(),
+                connectButton: createButton(),
+                loadInput: {},
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: createButton(),
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: { textContent: "" },
+                linearPeriodicNextCellButton: createButton(),
+                templateSelect: { value: "" },
+                templateParameterPanel: { hidden: true },
+                templateGraphSizeLabel: { textContent: "" },
+                templateGraphSizeInput: { value: "2", min: "1" },
+                templateBondDimensionInput: { value: "3", min: "1" },
+                templatePhysicalDimensionInput: { value: "2", min: "1" },
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                notesLayer: {},
+                selectionBox: {
+                  classList: createClassList(),
+                  style: {},
+                },
+                minimapCanvas: {},
+                sidebar: {},
+                plannerPanel: {},
+                generateButton: createButton(),
+                codeGenerationWarning: {
+                  textContent: "",
+                  title: "",
+                  hidden: true,
+                },
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+              },
+              document: {
+                activeElement: null,
+                createElement() {
+                  return {
+                    value: "",
+                    textContent: "",
+                    selected: false,
+                    appendChild() {},
+                    click() {},
+                  };
+                },
+                querySelectorAll() {
+                  return [];
+                },
+              },
+              cytoscape: null,
+              getSelectedIdsByKind() {
+                return [];
+              },
+              getSelectedEntries() {
+                return [];
+              },
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              refreshContractionAnalysis() {},
+              renderSidebarTabs() {},
+              render() {},
+              repairContractionPlan() {},
+              clearGeneratedCodePreview() {},
+            };
+
+            const runtime = {};
+            const env = {
+              ctx,
+              state: ctx.state,
+              constants: ctx.constants,
+              dom: ctx.dom,
+              runtime,
+            };
+            Object.assign(runtime, createUtilityBaseBindings(env));
+            if (runtime.sanitizeFilename("Tensor Network!") !== "tensor-network") {
+              throw new Error("sanitizeFilename no longer normalizes names as expected.");
+            }
+            Object.assign(runtime, createUtilityGeometryBindings(env));
+            if (runtime.formatColorHex({ red: 1, green: 35, blue: 255 }) !== "#0123ff") {
+              throw new Error("formatColorHex returned an unexpected value.");
+            }
+            Object.assign(runtime, createUtilitySpecBindings(env));
+            Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
+            Object.assign(runtime, createUtilityUiBindings(env));
+            if (
+              runtime.formatIssues([
+                { message: "first" },
+                { message: "second" },
+                { message: "third" },
+                { message: "fourth" },
+              ]) !== "first second third"
+            ) {
+              throw new Error("formatIssues should keep the first three messages.");
+            }
+
+            registerUtilities(ctx);
+            const requiredCtxBindings = [
+              "serializeCurrentSpec",
+              "toggleLinearPeriodicMode",
+              "computeDesignBounds",
+              "setStatus",
+              "sanitizeFilename",
+            ];
+            for (const bindingName of requiredCtxBindings) {
+              if (typeof ctx[bindingName] !== "function") {
+                throw new Error(`registerUtilities did not expose ${bindingName}.`);
+              }
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "interaction_runtime_contract.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "interactions.runtime.mjs": "interactions.js",
+        "interactionsCanvas.js": "interactionsCanvas.js",
+        "interactionsEditor.js": "interactionsEditor.js",
+        "interactionsSession.js": "interactionsSession.js",
+        "interactionsShortcuts.js": "interactionsShortcuts.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        (tmp_path / target_name).write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            import { pathToFileURL } from "node:url";
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createButton() {
+              return {
+                disabled: false,
+                classList: createClassList(),
+                click() {},
+                focus() {},
+              };
+            }
+
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, interactionsModule, canvasModule, editorModule, sessionModule, shortcutsModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactions.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsCanvas.js", baseUrl).href),
+                import(new URL("./interactionsEditor.js", baseUrl).href),
+                import(new URL("./interactionsSession.js", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { registerInteractions } = interactionsModule;
+            const { createInteractionCanvasBindings } = canvasModule;
+            const { createInteractionEditorBindings } = editorModule;
+            const { createInteractionSessionBindings } = sessionModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+
+            const requiredFactories = [
+              createInteractionCanvasBindings,
+              createInteractionEditorBindings,
+              createInteractionSessionBindings,
+              createInteractionShortcutBindings,
+            ];
+            if (requiredFactories.some((candidate) => typeof candidate !== "function")) {
+              throw new Error("One or more interaction helper factories were not exported.");
+            }
+
+            const selectionBox = {
+              classList: createClassList(),
+              style: {},
+            };
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: {
+                  textContent: "",
+                  classList: createClassList(),
+                },
+                propertiesPanel: {},
+                generatedCode: { value: "" },
+                engineSelect: { options: [], value: "tensornetwork" },
+                collectionFormatSelect: { options: [], value: "list" },
+                exportFormatSelect: { value: "py" },
+                connectButton: createButton(),
+                loadInput: createButton(),
+                undoButton: createButton(),
+                redoButton: createButton(),
+                templateSelect: { value: "" },
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                selectionBox,
+                minimapCanvas: {
+                  classList: createClassList(),
+                },
+              },
+              apiGet: async () => null,
+              apiPost: async () => ({
+                ok: true,
+                engine: "tensornetwork",
+                code: "import x\\nresult = 1\\n",
+              }),
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+                close() {},
+              },
+              document: {
+                activeElement: null,
+              },
+              cytoscape: null,
+              clamp: (value, min, max) => Math.min(max, Math.max(min, value)),
+              clientPointToCanvasPoint(clientX, clientY) {
+                return { x: clientX, y: clientY };
+              },
+              normalizedBox(startPoint, currentPoint) {
+                return {
+                  left: Math.min(startPoint.x, currentPoint.x),
+                  top: Math.min(startPoint.y, currentPoint.y),
+                  width: Math.abs(currentPoint.x - startPoint.x),
+                  height: Math.abs(currentPoint.y - startPoint.y),
+                };
+              },
+              boxesIntersect() {
+                return false;
+              },
+              setSelection() {},
+              render() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              updateToolbarState() {},
+              setStatus() {},
+              clearSelection() {},
+              isTextInput() {
+                return false;
+              },
+              stripImportLines(code) {
+                return code.replace(/^import .*\\n/, "");
+              },
+              serializeCurrentSpec() {
+                return {
+                  schema_version: "1.0",
+                  network: {
+                    id: "network_demo",
+                    name: "demo",
+                    tensors: [],
+                    groups: [],
+                    edges: [],
+                    notes: [],
+                    contraction_plan: null,
+                    metadata: {},
+                  },
+                };
+              },
+              formatIssues() {
+                return "bad spec";
+              },
+              sanitizeFilename(value) {
+                return value;
+              },
+              downloadBlob() {},
+              removeNote() {},
+              getSelectedEntries() {
+                return [];
+              },
+              getSelectedIdsByKind() {
+                return [];
+              },
+              findEdgeByIndexId() {
+                return null;
+              },
+              findIndexOwner() {
+                return null;
+              },
+              resolveConnectableIndexOwner() {
+                return null;
+              },
+              isLinearPeriodicBoundaryTensor() {
+                return false;
+              },
+              nextName(prefix) {
+                return prefix;
+              },
+              makeId(prefix) {
+                return `${prefix}_1`;
+              },
+              removeTensor() {},
+              removeIndex() {},
+              removeEdge() {},
+              findEdgeById() {
+                return null;
+              },
+              findTensorById() {
+                return null;
+              },
+              tensorWidth() {
+                return 140;
+              },
+              tensorHeight() {
+                return 84;
+              },
+              createTensor(x, y) {
+                return {
+                  id: "tensor_1",
+                  name: "T1",
+                  position: { x, y },
+                  size: { width: 140, height: 84 },
+                  indices: [],
+                  metadata: {},
+                };
+              },
+              applyDesignChange(mutator) {
+                mutator();
+              },
+              bringTensorToFront() {},
+              reconcileTensorOrder() {},
+              normalizeSpec(spec) {
+                return spec;
+              },
+              syncCodeGenerationWarning() {},
+              persistTemplateParametersFromControls() {
+                return {};
+              },
+              uniquifyImportedSpec(spec) {
+                return spec;
+              },
+              translateImportedSpec(spec) {
+                return spec;
+              },
+            };
+
+            const runtime = {};
+            const env = {
+              ctx,
+              state: ctx.state,
+              constants: ctx.constants,
+              dom: ctx.dom,
+              runtime,
+            };
+            Object.assign(runtime, createInteractionCanvasBindings(env));
+            runtime.startBoxSelection({ clientX: 10, clientY: 20, shiftKey: false });
+            if (!ctx.state.boxSelection || ctx.state.boxSelection.start.x !== 10) {
+              throw new Error("Canvas bindings no longer seed box selection correctly.");
+            }
+            Object.assign(runtime, createInteractionShortcutBindings(env));
+            Object.assign(runtime, createInteractionEditorBindings(env));
+            Object.assign(runtime, createInteractionSessionBindings(env));
+
+            registerInteractions(ctx);
+            const requiredCtxBindings = [
+              "handleCanvasWheel",
+              "handleKeydown",
+              "toggleConnectMode",
+              "generateCode",
+              "insertTemplate",
+            ];
+            for (const bindingName of requiredCtxBindings) {
+              if (typeof ctx[bindingName] !== "function") {
+                throw new Error(`registerInteractions did not expose ${bindingName}.`);
+              }
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_runtime_utility_helper_modules_preserve_facade_contract(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_utility_runtime_contract_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The utility helper contract runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_runtime_interaction_helper_modules_preserve_facade_contract(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_interaction_runtime_contract_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The interaction helper contract runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

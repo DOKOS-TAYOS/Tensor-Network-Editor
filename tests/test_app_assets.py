@@ -10,6 +10,36 @@ from tensor_network_editor.app.server import EditorServer
 from tests.app_support import request_text, request_with_headers
 
 
+def request_runtime_bundle(editor_server: EditorServer, *relative_paths: str) -> str:
+    return "\n".join(
+        request_text(f"{editor_server.base_url}/{relative_path}")
+        for relative_path in relative_paths
+    )
+
+
+def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
+    return request_runtime_bundle(
+        editor_server,
+        "js/utilities.js",
+        "js/utilitiesBase.js",
+        "js/utilitiesGeometry.js",
+        "js/utilitiesLinearPeriodic.js",
+        "js/utilitiesSpec.js",
+        "js/utilitiesUi.js",
+    )
+
+
+def request_interactions_runtime_bundle(editor_server: EditorServer) -> str:
+    return request_runtime_bundle(
+        editor_server,
+        "js/interactions.js",
+        "js/interactionsCanvas.js",
+        "js/interactionsEditor.js",
+        "js/interactionsSession.js",
+        "js/interactionsShortcuts.js",
+    )
+
+
 def test_root_serves_editor_shell_with_versioned_module_entry(
     editor_server: EditorServer,
 ) -> None:
@@ -206,7 +236,7 @@ def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
 def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    body = request_interactions_runtime_bundle(editor_server)
 
     assert "ctx.isTextInput(event.target) || ctx.isTextInput(activeElement)" in body
     assert 'if (hasModifier && lowerKey === "y") {' in body
@@ -392,10 +422,10 @@ def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
 def test_interaction_assets_support_latest_contraction_scene_editing(
     editor_server: EditorServer,
 ) -> None:
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
     planner_body = request_text(f"{editor_server.base_url}/js/plannerSupport.js")
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert (
         "Connect mode is only available in the base tensor view."
@@ -416,8 +446,8 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
 ) -> None:
     bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
     dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
+    utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert (
         'exportFormatSelect: document.getElementById("export-format-select")'
@@ -446,7 +476,7 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
 def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_operands(
     editor_server: EditorServer,
 ) -> None:
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
     contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
 
     assert "invalidate: { lookups: true }" in interactions_body
@@ -463,8 +493,8 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     planner_support_body = request_text(
         f"{editor_server.base_url}/js/plannerSupport.js"
     )
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
+    utilities_body = request_utilities_runtime_bundle(editor_server)
     minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
     overlays_body = request_text(
         f"{editor_server.base_url}/js/overlaysLayoutTemplates.js"
@@ -491,14 +521,14 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     editor_server: EditorServer,
 ) -> None:
     history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
     state_body = request_text(f"{editor_server.base_url}/js/state.js")
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     properties_renderers_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderers.js"
     )
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
 
     assert (
@@ -541,7 +571,7 @@ def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
     editor_server: EditorServer,
 ) -> None:
     history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "ctx.syncCurrentGraphIntoLinearPeriodicChain();" in history_body
     assert "function syncLinearPeriodicChainInterfaceDimensions(" in utilities_body
@@ -558,9 +588,9 @@ def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
 def test_linear_periodic_assets_do_not_force_two_engine_support_message(
     editor_server: EditorServer,
 ) -> None:
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
     bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
 
     assert "LINEAR_PERIODIC_SUPPORTED_ENGINES" not in utilities_body
     assert (
@@ -586,7 +616,7 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "properties: isLinearPeriodicMode," in support_body
     assert "const currentOwner = ctx.findIndexOwner(index.id);" in body
@@ -618,7 +648,7 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     editor_server: EditorServer,
 ) -> None:
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "const TENSOR_BASE_Z_INDEX = 10;" in graph_body
     assert "const EDGE_Z_INDEX = 100;" in graph_body
