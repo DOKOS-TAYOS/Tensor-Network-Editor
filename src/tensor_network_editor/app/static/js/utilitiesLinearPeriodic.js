@@ -335,14 +335,17 @@ export function createUtilityLinearPeriodicBindings({
   }
 
   function getLinearPeriodicCandidateOwners(spec = state.spec) {
-    const tensorById = Object.fromEntries(
-      (Array.isArray(spec.tensors) ? spec.tensors : []).map((tensor) => [
-        tensor.id,
-        tensor,
-      ])
-    );
+    const isActiveSpec = spec === state.spec;
+    const tensors = Array.isArray(spec && spec.tensors) ? spec.tensors : [];
+    const edges = Array.isArray(spec && spec.edges) ? spec.edges : [];
+    if (isActiveSpec && typeof ctx.ensureSpecLookups === "function") {
+      ctx.ensureSpecLookups();
+    }
+    const tensorById = isActiveSpec
+      ? state.tensorById
+      : Object.fromEntries(tensors.map((tensor) => [tensor.id, tensor]));
     const internallyConnectedIndexIds = new Set();
-    (Array.isArray(spec.edges) ? spec.edges : []).forEach((edge) => {
+    edges.forEach((edge) => {
       const leftTensor = tensorById[edge.left && edge.left.tensor_id];
       const rightTensor = tensorById[edge.right && edge.right.tensor_id];
       if (

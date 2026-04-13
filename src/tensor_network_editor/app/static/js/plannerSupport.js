@@ -43,6 +43,13 @@ export function buildPlannerSeedOperands({
   return [...baseOperands, ...boundaryOperands];
 }
 
+function buildPlannerResultSelectionIds(stepId, leftOperand, rightOperand, carrySourceOperand) {
+  const mergedSelectionIds = carrySourceOperand
+    ? carrySourceOperand.selectionIds
+    : [...leftOperand.selectionIds, ...rightOperand.selectionIds];
+  return [...new Set([stepId, ...(Array.isArray(mergedSelectionIds) ? mergedSelectionIds : [])])];
+}
+
 export function buildPlannerOperandState({
   tensors,
   steps,
@@ -111,13 +118,19 @@ export function buildPlannerOperandState({
         ? rightOperand
         : leftOperand
       : null;
+    const selectionIds = buildPlannerResultSelectionIds(
+      stepId,
+      leftOperand,
+      rightOperand,
+      carrySourceOperand
+    );
     const sourceTensorIds = carrySourceOperand
       ? [...carrySourceOperand.sourceTensorIds]
       : [...new Set([...leftOperand.sourceTensorIds, ...rightOperand.sourceTensorIds])];
 
     activeOperands.delete(step.left_operand_id);
     activeOperands.delete(step.right_operand_id);
-    activeOperands.set(stepId, { sourceTensorIds });
+    activeOperands.set(stepId, { sourceTensorIds, selectionIds });
     reservedOperandIds.add(stepId);
     validSteps.push(step);
     sourceTensorIdsByOperandId[stepId] = sourceTensorIds;
@@ -130,11 +143,8 @@ export function buildPlannerOperandState({
       }
       stepOrdersByTensorId[tensorId].push(validSteps.length);
     });
-    Object.keys(sourceTensorIdsByOperandId).forEach((operandId) => {
-      const operandSourceTensorIds = sourceTensorIdsByOperandId[operandId] || [];
-      if (operandSourceTensorIds.some((tensorId) => sourceTensorIds.includes(tensorId))) {
-        representativeByOperandId[operandId] = stepId;
-      }
+    selectionIds.forEach((selectionId) => {
+      representativeByOperandId[selectionId] = stepId;
     });
     if (usesNextOperand) {
       break;
@@ -157,12 +167,20 @@ export function buildPreviewOrderByVisibleTensorId(visibleTensors, steps) {
     visibleTensors.map((tensor) => [tensor.id, []])
   );
   const sourceTensorIdsByOperandId = {};
+  const visibleTensorIdsBySourceTensorId = {};
 
   visibleTensors.forEach((tensor) => {
-    sourceTensorIdsByOperandId[tensor.id] =
+    const sourceTensorIds =
       Array.isArray(tensor.sourceTensorIds) && tensor.sourceTensorIds.length
         ? [...tensor.sourceTensorIds]
         : [tensor.id];
+    sourceTensorIdsByOperandId[tensor.id] = sourceTensorIds;
+    sourceTensorIds.forEach((sourceTensorId) => {
+      if (!Array.isArray(visibleTensorIdsBySourceTensorId[sourceTensorId])) {
+        visibleTensorIdsBySourceTensorId[sourceTensorId] = [];
+      }
+      visibleTensorIdsBySourceTensorId[sourceTensorId].push(tensor.id);
+    });
   });
 
   (Array.isArray(steps) ? steps : []).forEach((step, index) => {
@@ -175,13 +193,14 @@ export function buildPreviewOrderByVisibleTensorId(visibleTensors, steps) {
     const resultSourceTensorIds = [...new Set([...leftSourceTensorIds, ...rightSourceTensorIds])];
     sourceTensorIdsByOperandId[step.result_operand_id] = resultSourceTensorIds;
 
-    visibleTensors.forEach((tensor) => {
-      const visibleSourceTensorIds = sourceTensorIdsByOperandId[tensor.id] || [tensor.id];
-      if (
-        resultSourceTensorIds.some((tensorId) => visibleSourceTensorIds.includes(tensorId))
-      ) {
-        previewOrderByTensorId[tensor.id].push(index + 1);
-      }
+    const affectedVisibleTensorIds = new Set();
+    resultSourceTensorIds.forEach((sourceTensorId) => {
+      (visibleTensorIdsBySourceTensorId[sourceTensorId] || []).forEach((visibleTensorId) => {
+        affectedVisibleTensorIds.add(visibleTensorId);
+      });
+    });
+    affectedVisibleTensorIds.forEach((visibleTensorId) => {
+      previewOrderByTensorId[visibleTensorId].push(index + 1);
     });
   });
 
@@ -659,6 +678,7 @@ export function createPlannerSupport({
         ? state.spec.contraction_plan.steps
         : [];
     const sourceTensorIdsByOperandId = plannerOperandState.sourceTensorIdsByOperandId || {};
+    const stepOrdersByTensorId = plannerOperandState.stepOrdersByTensorId || {};
     const stepOrderById = Object.fromEntries(
       planSteps.map((step, index) => [step.id, index + 1])
     );
@@ -672,20 +692,19 @@ export function createPlannerSupport({
           : step.result_operand_id.split("__auto_past_")[0];
       if (!groups[rootId]) {
         const rootSourceTensorIds = sourceTensorIdsByOperandId[rootId] || [];
-        const earliestStepCount = planSteps.reduce((minimum, candidate, index) => {
-          const candidateSourceTensorIds = sourceTensorIdsByOperandId[candidate.id] || [];
-          const belongsToRoot =
-            rootSourceTensorIds.length &&
-            candidateSourceTensorIds.every((tensorId) => rootSourceTensorIds.includes(tensorId));
-          if (!belongsToRoot) {
+        const earliestStepOrder = rootSourceTensorIds.reduce((minimum, tensorId) => {
+          const tensorStepOrders = stepOrdersByTensorId[tensorId];
+          if (!Array.isArray(tensorStepOrders) || !tensorStepOrders.length) {
             return minimum;
           }
-          return Math.min(minimum, index);
+          return Math.min(minimum, tensorStepOrders[0]);
         }, Number.POSITIVE_INFINITY);
         groups[rootId] = {
           rootId,
           steps: [],
-          earliestStepCount: Number.isFinite(earliestStepCount) ? earliestStepCount : 0,
+          earliestStepCount: Number.isFinite(earliestStepOrder)
+            ? earliestStepOrder - 1
+            : 0,
           originalStepOrder: stepOrderById[rootId] || 0,
         };
       }

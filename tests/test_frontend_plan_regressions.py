@@ -9,6 +9,15 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PLANNER_SUPPORT_PATH = (
+    REPO_ROOT
+    / "src"
+    / "tensor_network_editor"
+    / "app"
+    / "static"
+    / "js"
+    / "plannerSupport.js"
+)
 
 
 def _write_runtime_script(tmp_path: Path, filename: str, body: str) -> Path:
@@ -1782,6 +1791,443 @@ def test_planner_operand_state_reuses_cache_until_revision_changes(
 
     assert completed_process.returncode == 0, (
         "The planner operand-state cache regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_first_build_limits_membership_scans(tmp_path: Path) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_first_build_membership_regression.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const plannerSupportModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SUPPORT_PATH))}).href;
+        const {{ buildPlannerOperandState, buildPlannerSeedOperands }} = await import(
+          plannerSupportModuleUrl
+        );
+
+        function buildPlannerData(tensorCount) {{
+          const tensors = [];
+          const specTensors = [];
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 0; index < tensorCount; index += 1) {{
+            const tensor = {{
+              id: `tensor_${{index}}`,
+              linear_periodic_role: null,
+            }};
+            tensors.push(tensor);
+            specTensors.push(tensor);
+            if (index > 0 && index < tensorCount - 1) {{
+              const stepId = `step_${{index}}`;
+              steps.push({{
+                id: stepId,
+                left_operand_id: leftOperandId,
+                right_operand_id: `tensor_${{index}}`,
+                metadata: {{}},
+              }});
+              leftOperandId = stepId;
+            }}
+          }}
+          return {{ tensors, specTensors, steps }};
+        }}
+
+        const {{ tensors, specTensors, steps }} = buildPlannerData(80);
+        const seedOperands = buildPlannerSeedOperands({{
+          tensors,
+          specTensors,
+          isLinearPeriodicMode: false,
+          isLinearPeriodicBoundaryTensor: () => false,
+          getLinearPeriodicReservedOperandIdForTensor: () => null,
+        }});
+
+        let someCallCount = 0;
+        const originalSome = Array.prototype.some;
+        Array.prototype.some = function (...args) {{
+          someCallCount += 1;
+          return originalSome.apply(this, args);
+        }};
+
+        try {{
+          const plannerOperandState = buildPlannerOperandState({{
+            tensors,
+            steps,
+            seedOperands,
+            previousOperandId: "__linear_previous__",
+            nextOperandId: "__linear_next__",
+          }});
+
+          if (plannerOperandState.validSteps.length !== 78) {{
+            throw new Error(
+              `Expected 78 valid planner steps, received ${{plannerOperandState.validSteps.length}}.`
+            );
+          }}
+          if (plannerOperandState.activeOperandIds.length !== 2) {{
+            throw new Error(
+              `Expected two remaining planner operands, received ${{plannerOperandState.activeOperandIds}}.`
+            );
+          }}
+          if (plannerOperandState.representativeByOperandId.tensor_0 !== "step_78") {{
+            throw new Error(
+              `Expected tensor_0 to resolve to step_78, received ${{plannerOperandState.representativeByOperandId.tensor_0}}.`
+            );
+          }}
+          if (
+            !Array.isArray(plannerOperandState.stepOrdersByTensorId.tensor_0) ||
+            plannerOperandState.stepOrdersByTensorId.tensor_0.length !== 78
+          ) {{
+            throw new Error("Expected tensor_0 to keep all planner step orders.");
+          }}
+          if (someCallCount > 200) {{
+            throw new Error(
+              `Expected the first planner build to avoid quadratic membership scans, received some()=${{someCallCount}}.`
+            );
+          }}
+        }} finally {{
+          Array.prototype.some = originalSome;
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner first-build membership regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_preview_orders_stay_stable_without_visible_tensor_quadratic_scans(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_preview_order_regression.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const plannerSupportModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SUPPORT_PATH))}).href;
+        const {{ buildPreviewOrderByVisibleTensorId }} = await import(plannerSupportModuleUrl);
+
+        function buildVisibleTensors(tensorCount) {{
+          return Array.from({{ length: tensorCount }}, (_, index) => ({{
+            id: `tensor_${{index}}`,
+            sourceTensorIds: [`tensor_${{index}}`],
+          }}));
+        }}
+
+        function buildAutomaticSteps(tensorCount) {{
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 1; index < tensorCount; index += 1) {{
+            const resultOperandId = `step_${{index}}`;
+            steps.push({{
+              left_operand_id: leftOperandId,
+              right_operand_id: `tensor_${{index}}`,
+              result_operand_id: resultOperandId,
+            }});
+            leftOperandId = resultOperandId;
+          }}
+          return steps;
+        }}
+
+        const visibleTensors = buildVisibleTensors(80);
+        const steps = buildAutomaticSteps(80);
+
+        let someCallCount = 0;
+        const originalSome = Array.prototype.some;
+        Array.prototype.some = function (...args) {{
+          someCallCount += 1;
+          return originalSome.apply(this, args);
+        }};
+
+        try {{
+          const previewOrderByTensorId = buildPreviewOrderByVisibleTensorId(
+            visibleTensors,
+            steps
+          );
+
+          if (
+            !Array.isArray(previewOrderByTensorId.tensor_0) ||
+            previewOrderByTensorId.tensor_0.length !== 79 ||
+            previewOrderByTensorId.tensor_0[0] !== 1 ||
+            previewOrderByTensorId.tensor_0.at(-1) !== 79
+          ) {{
+            throw new Error(
+              `Expected tensor_0 preview orders to span the whole chain, received ${{previewOrderByTensorId.tensor_0}}.`
+            );
+          }}
+          if (
+            !Array.isArray(previewOrderByTensorId.tensor_40) ||
+            previewOrderByTensorId.tensor_40.length !== 40 ||
+            previewOrderByTensorId.tensor_40[0] !== 40 ||
+            previewOrderByTensorId.tensor_40.at(-1) !== 79
+          ) {{
+            throw new Error(
+              `Expected tensor_40 preview orders to begin at step 40, received ${{previewOrderByTensorId.tensor_40}}.`
+            );
+          }}
+          if (
+            !Array.isArray(previewOrderByTensorId.tensor_79) ||
+            previewOrderByTensorId.tensor_79.length !== 1 ||
+            previewOrderByTensorId.tensor_79[0] !== 79
+          ) {{
+            throw new Error(
+              `Expected tensor_79 preview orders to contain only the final step, received ${{previewOrderByTensorId.tensor_79}}.`
+            );
+          }}
+          if (someCallCount > 500) {{
+            throw new Error(
+              `Expected preview-order calculation to avoid scanning every visible tensor on each step, received some()=${{someCallCount}}.`
+            );
+          }}
+        }} finally {{
+          Array.prototype.some = originalSome;
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner preview-order regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_first_build_limits_layout_map_rebuilds(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "contraction_scene_first_build_layout_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildChainSpec(tensorCount) {
+          const tensors = [];
+          const edges = [];
+          for (let index = 0; index < tensorCount; index += 1) {
+            tensors.push({
+              id: `tensor_${index}`,
+              name: `T${index}`,
+              position: { x: 120 + index * 160, y: 120 },
+              size: { width: 140, height: 84 },
+              indices: [
+                {
+                  id: `tensor_${index}_left`,
+                  name: "left",
+                  dimension: 2,
+                  offset: { x: -38, y: 0 },
+                  metadata: {},
+                },
+                {
+                  id: `tensor_${index}_right`,
+                  name: "right",
+                  dimension: 2,
+                  offset: { x: 38, y: 0 },
+                  metadata: {},
+                },
+              ],
+              metadata: {},
+            });
+            if (index > 0) {
+              edges.push({
+                id: `edge_${index}`,
+                name: `bond_${index}`,
+                left: {
+                  tensor_id: `tensor_${index - 1}`,
+                  index_id: `tensor_${index - 1}_right`,
+                },
+                right: {
+                  tensor_id: `tensor_${index}`,
+                  index_id: `tensor_${index}_left`,
+                },
+                metadata: {},
+              });
+            }
+          }
+
+          const steps = [];
+          let leftOperandId = "tensor_0";
+          for (let index = 1; index < tensorCount; index += 1) {
+            const stepId = `step_${index}`;
+            steps.push({
+              id: stepId,
+              left_operand_id: leftOperandId,
+              right_operand_id: `tensor_${index}`,
+              metadata: {},
+            });
+            leftOperandId = stepId;
+          }
+
+          return {
+            id: "network_long_chain",
+            name: "long-chain",
+            tensors,
+            groups: [],
+            edges,
+            notes: [],
+            contraction_plan: {
+              id: "plan_long_chain",
+              name: "Long chain",
+              steps,
+              view_snapshots: [],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerContractionScene(ctx);
+        ctx.state.spec = ctx.normalizeSpec(buildChainSpec(80));
+        ctx.bumpSpecRevision();
+
+        let asFiniteNumberCount = 0;
+        const originalAsFiniteNumber = ctx.asFiniteNumber;
+        ctx.asFiniteNumber = (...args) => {
+          asFiniteNumberCount += 1;
+          return originalAsFiniteNumber(...args);
+        };
+
+        const scene = ctx.buildContractionScene();
+        if (!scene) {
+          throw new Error("Expected a contraction scene for the long manual chain.");
+        }
+        if (scene.validSteps.length !== 79) {
+          throw new Error(`Expected 79 valid steps, received ${scene.validSteps.length}.`);
+        }
+        if (!Array.isArray(ctx.state.spec.contraction_plan.view_snapshots) || ctx.state.spec.contraction_plan.view_snapshots.length !== 80) {
+          throw new Error(
+            `Expected 80 view snapshots, received ${ctx.state.spec.contraction_plan.view_snapshots && ctx.state.spec.contraction_plan.view_snapshots.length}.`
+          );
+        }
+        if (asFiniteNumberCount > 1000) {
+          throw new Error(
+            `Expected the first scene build to avoid rebuilding every prior layout map, received asFiniteNumber=${asFiniteNumberCount}.`
+          );
+        }
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The contraction-scene first-build layout regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_automatic_past_preview_keeps_root_group_order_and_earliest_step(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "automatic_past_root_group_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildTensor(id, xPosition) {
+          return {
+            id,
+            name: id.toUpperCase(),
+            position: { x: xPosition, y: 120 },
+            indices: [],
+            metadata: {},
+          };
+        }
+
+        function buildSpec() {
+          return {
+            id: "network_auto_past",
+            name: "auto-past",
+            tensors: [
+              buildTensor("tensor_a", 80),
+              buildTensor("tensor_b", 180),
+              buildTensor("tensor_c", 280),
+              buildTensor("tensor_d", 380),
+              buildTensor("tensor_e", 480),
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: {
+              id: "plan_auto_past",
+              name: "Auto past",
+              steps: [
+                { id: "step_ab", left_operand_id: "tensor_a", right_operand_id: "tensor_b", metadata: {} },
+                { id: "step_abc", left_operand_id: "step_ab", right_operand_id: "tensor_c", metadata: {} },
+                { id: "step_de", left_operand_id: "tensor_d", right_operand_id: "tensor_e", metadata: {} },
+                { id: "step_root", left_operand_id: "step_abc", right_operand_id: "step_de", metadata: {} },
+              ],
+              view_snapshots: [],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerContractionScene(ctx);
+        await registerPlanner(ctx);
+        await registerHistory(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildSpec());
+        ctx.bumpSpecRevision();
+        ctx.state.contractionAnalysis = {
+          status: "ready",
+          payload: {
+            automatic_past: {
+              status: "complete",
+              steps: [
+                {
+                  left_operand_id: "tensor_a",
+                  right_operand_id: "tensor_c",
+                  result_operand_id: "step_abc__auto_past_1",
+                },
+                {
+                  left_operand_id: "step_abc__auto_past_1",
+                  right_operand_id: "tensor_b",
+                  result_operand_id: "step_abc",
+                },
+                {
+                  left_operand_id: "tensor_d",
+                  right_operand_id: "tensor_e",
+                  result_operand_id: "step_de",
+                },
+              ],
+            },
+          },
+        };
+
+        ctx.startAutomaticPreview("automaticPast");
+
+        if (ctx.state.plannerInspectionStepCount !== 0) {
+          throw new Error(
+            `Expected auto past preview to start from the first affected manual step, received ${ctx.state.plannerInspectionStepCount}.`
+          );
+        }
+
+        ctx.acceptAutomaticPlan("automaticPast");
+
+        const stepIds = ctx.state.spec.contraction_plan.steps.map((step) => step.id);
+        if (stepIds.at(-1) !== "step_root") {
+          throw new Error(`Expected the root contraction to remain last, received ${stepIds}.`);
+        }
+        if (stepIds.indexOf("step_abc") >= stepIds.indexOf("step_de")) {
+          throw new Error(`Expected the rewritten auto-past roots to preserve manual root order, received ${stepIds}.`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The automatic-past root-group regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
