@@ -409,10 +409,10 @@ select {
 }
 
 .canvas-note-frame.is-collapsed {
-  width: 29px;
-  min-width: 29px;
-  min-height: 29px;
-  height: 29px;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  height: 36px;
   padding: 0;
   border-radius: 10px;
   display: flex;
