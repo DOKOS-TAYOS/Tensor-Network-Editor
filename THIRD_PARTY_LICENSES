@@ -1,14 +1,28 @@
-Bundled third-party assets
-==========================
+Bundled third-party assets and notices
+======================================
 
-This distribution bundles the following third-party asset in
-`src/tensor_network_editor/app/static/vendor/`:
+This distribution bundles third-party frontend assets inside
+`src/tensor_network_editor/app/static/vendor/`.
+
+Optional pip-installed dependencies are not bundled into this source
+distribution or wheel. When users install extras such as `quimb`,
+`tensornetwork`, `tensorkrowch`, `opt_einsum`, or `pywebview`, those packages
+remain covered by their own licenses and notices.
 
 1. Cytoscape.js
+   - Bundled file:
+     `src/tensor_network_editor/app/static/vendor/cytoscape.min.js`
+   - Version: 3.30.2
    - Project: https://js.cytoscape.org/
+   - Upstream repository: https://github.com/cytoscape/cytoscape.js
    - Copyright:
      Copyright (c) 2016-2024, The Cytoscape Consortium.
    - License: MIT License
+   - Notice handling:
+     The vendored minified file preserves the upstream MIT notice and bundled
+     upstream MIT notices for embedded helper code.
+
+The following MIT License text applies to Cytoscape.js:
 
 MIT License
 

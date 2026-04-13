@@ -8,6 +8,11 @@ from pathlib import Path
 
 import pytest
 
+from tensor_network_editor.templates import (
+    build_template_spec,
+    parse_template_parameters,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLANNER_SUPPORT_PATH = (
     REPO_ROOT
@@ -606,10 +611,22 @@ def _build_runtime_prelude() -> str:
               unselect() {{}},
             }};
           }}
+          const selectedElements = [...elementsById.values()].filter(
+            (element) => element.snapshot() && element.snapshot().selected
+          );
           return {{
+            forEach(callback) {{
+              selectedElements.forEach(callback);
+            }},
+            map(callback) {{
+              return selectedElements.map(callback);
+            }},
+            get length() {{
+              return selectedElements.length;
+            }},
             unselect() {{
               stats.bulkUnselectCalls += 1;
-              [...elementsById.values()].forEach((element) => {{
+              selectedElements.forEach((element) => {{
                 element.unselect();
               }});
             }},
@@ -998,6 +1015,250 @@ def test_for_mode_preserves_new_backend_selection_and_keeps_actions_enabled(
 
     assert completed_process.returncode == 0, (
         "The for-mode backend preservation regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_for_mode_template_insertion_recomputes_open_interface_from_current_spec(
+    tmp_path: Path,
+) -> None:
+    template_parameters = parse_template_parameters(
+        "mps",
+        {
+            "graph_size": 4,
+            "bond_dimension": 3,
+            "physical_dimension": 2,
+        },
+    )
+    mps_template_payload = build_template_spec("mps", template_parameters).to_dict()
+    script_path = _write_runtime_script(
+        tmp_path,
+        "for_mode_template_insertion_open_interface_regression.mjs",
+        _build_runtime_prelude()
+        + f"""
+        const mpsTemplate = {json.dumps(mps_template_payload)};
+
+        function buildBoundaryOnlyInitialSpec() {{
+          return {{
+            id: "network_boundary_only_initial",
+            name: "boundary-only-initial",
+            tensors: [
+              {{
+                id: "seed_next_boundary",
+                name: "Next cell",
+                position: {{ x: 320, y: 140 }},
+                linear_periodic_role: "next",
+                indices: [
+                  {{ id: "seed_slot_1", name: "slot_1", dimension: 3, metadata: {{}} }},
+                  {{ id: "seed_slot_2", name: "slot_2", dimension: 3, metadata: {{}} }},
+                  {{ id: "seed_slot_3", name: "slot_3", dimension: 3, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+            ],
+            edges: [],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            linear_periodic_chain: {{
+              active_cell: "initial",
+              initial_cell: {{
+                tensors: [],
+                edges: [],
+                groups: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+              periodic_cell: {{
+                tensors: [],
+                edges: [],
+                groups: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+              final_cell: {{
+                tensors: [],
+                edges: [],
+                groups: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {{}},
+              }},
+              metadata: {{}},
+            }},
+            metadata: {{}},
+          }};
+        }}
+
+        function buildThreeOpenTensorSpec() {{
+          return {{
+            id: "network_three_open_tensors",
+            name: "three-open-tensors",
+            tensors: [
+              {{
+                id: "seed_a",
+                name: "SeedA",
+                position: {{ x: 80, y: 140 }},
+                indices: [
+                  {{ id: "seed_a_open", name: "a", dimension: 3, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+              {{
+                id: "seed_b",
+                name: "SeedB",
+                position: {{ x: 220, y: 140 }},
+                indices: [
+                  {{ id: "seed_b_open", name: "b", dimension: 5, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+              {{
+                id: "seed_c",
+                name: "SeedC",
+                position: {{ x: 360, y: 140 }},
+                indices: [
+                  {{ id: "seed_c_open", name: "c", dimension: 7, metadata: {{}} }},
+                ],
+                metadata: {{}},
+              }},
+            ],
+            edges: [],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }};
+        }}
+
+        function insertTemplateThroughDesignChange(ctx, templateSpec) {{
+          const normalizedTemplate = ctx.normalizeSpec(templateSpec);
+          ctx.ensureSpecLookups();
+          ctx.applyDesignChange(
+            () => {{
+              ctx.state.spec.tensors.push(...normalizedTemplate.tensors);
+              ctx.state.spec.edges.push(...normalizedTemplate.edges);
+              ctx.state.spec.groups.push(...normalizedTemplate.groups);
+            }},
+            {{
+              invalidate: {{ lookups: true }},
+            }}
+          );
+          const nextBoundary = ctx.state.spec.tensors.find(
+            (tensor) => tensor.linear_periodic_role === "next"
+          );
+          return nextBoundary ? nextBoundary.indices.length : null;
+        }}
+
+        const boundaryOnlyContext = await buildContext();
+        await registerHistory(boundaryOnlyContext);
+        boundaryOnlyContext.state.selectedEngine = "tensornetwork";
+        boundaryOnlyContext.state.selectedCollectionFormat = "list";
+        boundaryOnlyContext.state.spec = boundaryOnlyContext.normalizeSpec(
+          buildBoundaryOnlyInitialSpec()
+        );
+        const boundaryOnlySlotCount = insertTemplateThroughDesignChange(
+          boundaryOnlyContext,
+          mpsTemplate
+        );
+        if (boundaryOnlySlotCount !== 4) {{
+          throw new Error(
+            `Expected the seeded initial boundary to rebuild to 4 open slots, received ${{boundaryOnlySlotCount}}.`
+          );
+        }}
+
+        const existingOpenContext = await buildContext();
+        await registerHistory(existingOpenContext);
+        existingOpenContext.state.selectedEngine = "tensornetwork";
+        existingOpenContext.state.selectedCollectionFormat = "list";
+        existingOpenContext.state.spec = existingOpenContext.normalizeSpec(
+          buildThreeOpenTensorSpec()
+        );
+        existingOpenContext.toggleLinearPeriodicMode();
+        const existingOpenSlotCount = insertTemplateThroughDesignChange(
+          existingOpenContext,
+          mpsTemplate
+        );
+        if (existingOpenSlotCount !== 7) {{
+          throw new Error(
+            `Expected the interface to keep the 3 existing open slots plus 4 new ones, received ${{existingOpenSlotCount}}.`
+          );
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The for-mode template insertion interface regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_for_mode_switching_back_to_initial_preserves_interface_slot_count(
+    tmp_path: Path,
+) -> None:
+    template_parameters = parse_template_parameters(
+        "mps",
+        {
+            "graph_size": 4,
+            "bond_dimension": 3,
+            "physical_dimension": 2,
+        },
+    )
+    mps_template_payload = build_template_spec("mps", template_parameters).to_dict()
+    script_path = _write_runtime_script(
+        tmp_path,
+        "for_mode_switch_back_initial_interface_regression.mjs",
+        _build_runtime_prelude()
+        + f"""
+        const initialSpec = {json.dumps(mps_template_payload)};
+
+        function getNextBoundarySlotCount(ctx) {{
+          const nextBoundary = ctx.state.spec.tensors.find(
+            (tensor) => tensor.linear_periodic_role === "next"
+          );
+          return nextBoundary ? nextBoundary.indices.length : null;
+        }}
+
+        const ctx = await buildContext();
+        ctx.state.selectedEngine = "tensornetwork";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(initialSpec);
+
+        ctx.toggleLinearPeriodicMode();
+        if (getNextBoundarySlotCount(ctx) !== 4) {{
+          throw new Error(
+            `Expected the initial For-mode boundary to start with 4 slots, received ${{getNextBoundarySlotCount(ctx)}}.`
+          );
+        }}
+
+        ctx.ensureSpecLookups();
+        ctx.switchLinearPeriodicCell(1);
+        if (getNextBoundarySlotCount(ctx) !== 4) {{
+          throw new Error(
+            `Expected the periodic cell to keep the inherited 4-slot interface, received ${{getNextBoundarySlotCount(ctx)}}.`
+          );
+        }}
+
+        ctx.ensureSpecLookups();
+        ctx.switchLinearPeriodicCell(-1);
+        if (getNextBoundarySlotCount(ctx) !== 4) {{
+          throw new Error(
+            `Expected returning to the initial cell to preserve 4 slots, received ${{getNextBoundarySlotCount(ctx)}}.`
+          );
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The For-mode switch-back interface regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -2920,6 +3181,163 @@ def test_pending_interaction_classes_touch_only_previous_and_current_ids(
 
     assert completed_process.returncode == 0, (
         "The pending interaction delta regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_bring_tensor_to_front_does_not_reposition_unrelated_ports(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "bring_tensor_to_front_layer_only_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_layer_only",
+            name: "layer-only",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+        ctx.renderGraph();
+
+        cyHarness.resetStats();
+        ctx.bringTensorToFront("tensor_b");
+
+        if (cyHarness.stats.positionSetIds.length !== 0) {
+          throw new Error(
+            `Expected bringTensorToFront() to update only layer data, received position updates for ${cyHarness.stats.positionSetIds}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The bring-to-front layer-only regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_sync_cy_selection_clears_stray_cytoscape_selection_by_delta(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "cy_selection_stray_delta_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_selection_stray_delta",
+            name: "selection-stray-delta",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+        ctx.renderGraph();
+
+        cyHarness.cy.getElementById("tensor_a_right").select();
+        cyHarness.resetStats();
+        ctx.state.selectionIds = ["tensor_b"];
+        ctx.state.cySelectionSyncedIds = [];
+        ctx.syncCySelection();
+
+        if (cyHarness.stats.bulkUnselectCalls !== 0) {
+          throw new Error(
+            `Expected stray Cytoscape selection cleanup to avoid a bulk clear, received bulkUnselect=${cyHarness.stats.bulkUnselectCalls}.`
+          );
+        }
+        if (
+          cyHarness.stats.unselectCalls.join(",") !== "tensor_a_right" ||
+          cyHarness.stats.selectCalls.join(",") !== "tensor_b"
+        ) {
+          throw new Error(
+            `Expected selection sync to clear stray selections by delta, received unselect=${cyHarness.stats.unselectCalls}, select=${cyHarness.stats.selectCalls}.`
+          );
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The stray Cytoscape selection delta regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

@@ -324,36 +324,19 @@ export function createUtilityGeometryBindings({
     reconcileTensorOrder();
     state.tensorOrder.forEach((tensorId) => {
       const tensorRank = state.tensorRankById[tensorId] ?? 0;
-      const tensor = runtime.findTensorById(tensorId);
       const tensorElement = state.cy.getElementById(tensorId);
       if (tensorElement && tensorElement.length) {
-        const tensorColor = tensor
-          ? runtime.getMetadataColor(tensor.metadata, "#18212c")
-          : "#18212c";
         tensorElement.data("zIndex", TENSOR_BASE_Z_INDEX + tensorRank);
-        tensorElement.data("backgroundColor", tensorColor);
-        tensorElement.data("borderColor", runtime.shiftColor(tensorColor, 26));
-        tensorElement.data("textColor", runtime.readableTextColor(tensorColor));
       }
+      const tensor = runtime.findTensorById(tensorId);
       if (!tensor) {
         return;
       }
       tensor.indices.forEach((index, indexPosition) => {
-        const absolutePosition = indexAbsolutePosition(tensor, index);
         const indexElement = state.cy.getElementById(index.id);
         if (indexElement && indexElement.length) {
-          const indexColor = runtime.getIndexColor(
-            index,
-            Boolean(runtime.findEdgeByIndexId(index.id))
-          );
           indexElement.data("zIndex", PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
-          indexElement.data("orderLabel", String(indexPosition + 1));
-          indexElement.data("backgroundColor", indexColor);
-          indexElement.data("borderColor", runtime.shiftColor(indexColor, 34));
-          indexElement.data("textColor", runtime.readableTextColor(indexColor));
-          indexElement.position(absolutePosition);
         }
-        syncIndexLabelNodePosition(index, absolutePosition);
         const labelElement = state.cy.getElementById(runtime.indexLabelNodeId(index.id));
         if (labelElement && labelElement.length) {
           labelElement.data("zIndex", INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
@@ -361,11 +344,7 @@ export function createUtilityGeometryBindings({
       });
     });
     state.cy.edges().forEach((edgeElement) => {
-      const edge = runtime.findEdgeById(edgeElement.id());
-      const edgeColor = edge ? runtime.getMetadataColor(edge.metadata, "#8da1c3") : "#8da1c3";
       edgeElement.data("zIndex", EDGE_Z_INDEX);
-      edgeElement.data("lineColor", edgeColor);
-      edgeElement.data("textColor", runtime.shiftColor(edgeColor, 72));
     });
   }
 

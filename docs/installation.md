@@ -45,6 +45,11 @@ python -m pip install tensor-network-editor
 After activation, `python` and `pip` should point to the virtual environment.
 That keeps project dependencies separate from the rest of your machine.
 
+The published source distribution and wheel include `LICENSE` and
+`THIRD_PARTY_LICENSES`. `THIRD_PARTY_LICENSES` documents bundled assets shipped
+inside this package. Optional extras installed from PyPI are not vendored into
+this package and keep their own upstream licenses.
+
 ## Optional Extras
 
 Install extras only when you need them.

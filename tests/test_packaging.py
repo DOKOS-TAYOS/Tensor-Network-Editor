@@ -63,6 +63,19 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
     assert third_party_notices.read_text(encoding="utf-8").strip()
 
 
+def test_third_party_notices_describe_bundled_asset_scope() -> None:
+    third_party_text = (Path.cwd() / "THIRD_PARTY_LICENSES").read_text(encoding="utf-8")
+    readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
+
+    assert "Cytoscape.js" in third_party_text
+    assert "Version: 3.30.2" in third_party_text
+    assert "src/tensor_network_editor/app/static/vendor/cytoscape.min.js" in (
+        third_party_text
+    )
+    assert "Optional pip-installed dependencies are not bundled" in third_party_text
+    assert "THIRD_PARTY_LICENSES" in readme_text
+
+
 def test_readme_uses_singular_operation_cost_labels() -> None:
     readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
 

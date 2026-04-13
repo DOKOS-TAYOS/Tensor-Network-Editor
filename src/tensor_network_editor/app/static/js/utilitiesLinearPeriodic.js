@@ -537,6 +537,16 @@ export function createUtilityLinearPeriodicBindings({
     return spec;
   }
 
+  function invalidateActiveLinearPeriodicLookups(spec = state.spec) {
+    if (spec !== state.spec) {
+      return;
+    }
+    state.lookupRevision = -1;
+    if (typeof ctx.resetDerivedStateCaches === "function") {
+      ctx.resetDerivedStateCaches();
+    }
+  }
+
   function hydrateActiveLinearPeriodicCell(spec = state.spec) {
     const chain = getLinearPeriodicChain(spec);
     if (!chain) {
@@ -550,6 +560,7 @@ export function createUtilityLinearPeriodicBindings({
       spec,
       activeCell || runtime.buildEmptyGraphSection()
     );
+    invalidateActiveLinearPeriodicLookups(spec);
     syncLinearPeriodicBoundaryTensors(spec);
     return spec;
   }

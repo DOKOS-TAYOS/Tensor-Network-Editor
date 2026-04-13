@@ -176,6 +176,15 @@ export function registerHistorySelection(ctx) {
         : null;
     const previousSelectionIds = [...state.selectionIds];
     mutator();
+    const shouldRefreshLookups =
+      invalidate.lookups ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode());
+    if (shouldRefreshLookups) {
+      state.lookupRevision = -1;
+      if (typeof ctx.resetDerivedStateCaches === "function") {
+        ctx.resetDerivedStateCaches();
+      }
+    }
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
     if (typeof ctx.syncCurrentGraphIntoLinearPeriodicChain === "function") {
@@ -187,9 +196,6 @@ export function registerHistorySelection(ctx) {
       ctx.repairContractionPlan();
     }
     ctx.reconcileTensorOrder();
-    const shouldRefreshLookups =
-      invalidate.lookups ||
-      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode());
     if (shouldRefreshLookups && typeof ctx.bumpSpecRevision === "function") {
       ctx.bumpSpecRevision();
     }
@@ -384,9 +390,18 @@ export function registerHistorySelection(ctx) {
     if (!state.cy) {
       return;
     }
-    const previousSelectionIds = Array.isArray(state.cySelectionSyncedIds)
-      ? state.cySelectionSyncedIds
-      : [];
+    const actualSelectedElements = state.cy.$(":selected");
+    const previousSelectionIds = [];
+    if (actualSelectedElements && typeof actualSelectedElements.forEach === "function") {
+      actualSelectedElements.forEach((element) => {
+        const elementId = typeof element.id === "function" ? element.id() : null;
+        if (elementId && !previousSelectionIds.includes(elementId)) {
+          previousSelectionIds.push(elementId);
+        }
+      });
+    } else if (Array.isArray(state.cySelectionSyncedIds)) {
+      previousSelectionIds.push(...state.cySelectionSyncedIds);
+    }
     const nextSelectionIds = Array.isArray(state.selectionIds) ? state.selectionIds : [];
     const previousSelectionIdSet = new Set(previousSelectionIds);
     const nextSelectionIdSet = new Set(nextSelectionIds);
