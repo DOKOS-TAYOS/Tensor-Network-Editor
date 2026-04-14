@@ -67,6 +67,11 @@ export function startEditor(ctx) {
     state.templateDefinitions = payload.template_definitions && typeof payload.template_definitions === "object"
       ? { ...payload.template_definitions }
       : {};
+    state.annotationDefinitions =
+      payload.annotation_definitions &&
+      typeof payload.annotation_definitions === "object"
+        ? { ...payload.annotation_definitions }
+        : {};
     state.templateParametersByTemplate = ctx.buildTemplateParameterState(
       state.availableTemplates,
       state.templateDefinitions

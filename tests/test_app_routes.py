@@ -46,6 +46,9 @@ def test_bootstrap_returns_session_contract(
     assert set(payload["engines"]) == {engine.value for engine in EngineName}
     assert payload["templates"] == list(payload["template_definitions"])
     assert payload["template_definitions"]["mps"]["graph_size_label"] == "Sites"
+    assert list(payload["annotation_definitions"]) == ["tensor", "index"]
+    assert payload["annotation_definitions"]["tensor"][0]["key"] == "role"
+    assert payload["annotation_definitions"]["index"][0]["key"] == "leg_kind"
 
 
 def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:

@@ -415,6 +415,41 @@ def test_properties_assets_expose_tags_and_custom_metadata_editors(
     assert "propertyInvalidation(ctx);" in support_body
 
 
+def test_properties_assets_expose_guided_annotation_editors_for_tensor_and_index(
+    editor_server: EditorServer,
+) -> None:
+    tensor_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    )
+    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+
+    assert "buildSuggestedAnnotationsMarkup({" in tensor_body
+    assert "tensorAnnotationInputId(key)" in tensor_body
+    assert "indexAnnotationInputId(index.id, key)" in tensor_body
+    assert "Suggested annotations" in support_body
+    assert "function buildSuggestedAnnotationsMarkup(" in support_body
+    assert "function bindSuggestedAnnotationEditors(" in support_body
+
+
+def test_metadata_filter_assets_expose_persistent_panel_and_highlight_hooks(
+    editor_server: EditorServer,
+) -> None:
+    html_body = request_text(f"{editor_server.base_url}/")
+    main_body = request_text(f"{editor_server.base_url}/js/main.js")
+    filter_body = request_text(f"{editor_server.base_url}/js/metadataFilters.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+
+    assert 'id="metadata-filters-panel"' in html_body
+    assert 'from "./metadataFilters.js"' in main_body
+    assert "registerMetadataFilters(context);" in main_body
+    assert "function renderMetadataFilters(" in filter_body
+    assert "function getMetadataFilterHighlight(" in filter_body
+    assert "metadata-filter-dim" in graph_body
+    assert "getMetadataFilterEntityState" in graph_body
+    assert "getMetadataFilterEntityState" in minimap_body
+
+
 def test_properties_renderer_assets_are_split_by_selection_family(
     editor_server: EditorServer,
 ) -> None:

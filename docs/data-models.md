@@ -52,6 +52,16 @@ It stores:
 is `metadata.tags`, which should be a small list of strings on network, tensor,
 index, edge, group, or note entities.
 
+For tensors and indices, the editor also understands a small guided convention
+inside the existing `metadata` mapping. This is a documented convention, not a
+new saved-file schema:
+
+- tensor keys: `role`, `state`, `provenance`, `symmetry`
+- index keys: `leg_kind`, `symmetry`, `observable`
+
+These values stay free-form text. You can still keep any extra keys you want in
+the same `metadata` object.
+
 Useful helper methods:
 
 - `tensor_map()`: map tensor ids to tensors
@@ -97,6 +107,16 @@ above, it is `(2, 3)`.
 Each tensor also stores canvas `position`, visual `size`, optional metadata,
 and an optional linear-periodic role used by the specialized periodic editor
 mode.
+
+In the editor sidebar, tensor and index properties expose:
+
+- `Tags` for `metadata.tags`
+- `Suggested annotations` for the guided keys above
+- `Custom metadata (JSON)` for the remaining free-form keys
+
+The guided fields and the JSON editor both write into `metadata`, but the JSON
+editor hides the guided keys so you do not edit the same value in two places.
+Leaving a guided field empty removes that key from `metadata`.
 
 ## EdgeSpec
 
@@ -242,8 +262,11 @@ headless output.
 - Let `save_spec(...)` validate before writing JSON.
 - Use `open_indices()` when you want to inspect dangling legs.
 - Use `metadata` for your own small annotations, not for core connectivity.
-- Prefer `metadata.tags` for quick labels such as physical legs, symmetries,
-  tensor roles, or provenance.
+- Prefer `metadata.tags` for quick labels that you want to reuse in filters.
+- Prefer guided tensor keys like `role`, `state`, `provenance`, and `symmetry`
+  when they fit what you want to describe.
+- Prefer guided index keys like `leg_kind`, `symmetry`, and `observable` for
+  leg semantics.
 - Keep free-form metadata reasonably small so the editor stays responsive.
 - Prefer JSON as the long-term design artifact and generated code as the
   backend-specific artifact.

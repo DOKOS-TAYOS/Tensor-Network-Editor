@@ -48,6 +48,7 @@ export function getDomRefs(document) {
     sidebarPaneSelection: document.getElementById("sidebar-pane-selection"),
     sidebarPanePlanner: document.getElementById("sidebar-pane-planner"),
     sidebarPaneCode: document.getElementById("sidebar-pane-code"),
+    metadataFiltersPanel: document.getElementById("metadata-filters-panel"),
     plannerPanel: document.getElementById("planner-panel"),
     generateButton: document.getElementById("generate-button"),
     codeGenerationWarning: document.getElementById("code-generation-warning"),

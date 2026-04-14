@@ -29,6 +29,14 @@ def test_build_bootstrap_payload_matches_session_contract(
     assert payload["templates"] == list(
         cast(dict[str, object], payload["template_definitions"])
     )
+    annotation_definitions = cast(
+        dict[str, list[dict[str, object]]], payload["annotation_definitions"]
+    )
+    assert list(annotation_definitions) == ["tensor", "index"]
+    assert annotation_definitions["tensor"][0]["key"] == "role"
+    assert annotation_definitions["tensor"][0]["label"] == "Tensor role"
+    assert annotation_definitions["index"][0]["key"] == "leg_kind"
+    assert annotation_definitions["index"][0]["label"] == "Leg kind"
 
 
 def test_generate_session_request_matches_session_generate(

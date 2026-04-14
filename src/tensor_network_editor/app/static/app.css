@@ -85,6 +85,16 @@ button.button-accent-cool[aria-pressed="true"] {
   color: var(--accent-ice);
 }
 
+.button-quiet {
+  padding: 0.4rem 0.7rem;
+  color: var(--muted);
+  background: rgba(14, 20, 30, 0.84);
+}
+
+.button-quiet:hover {
+  color: var(--ink);
+}
+
 .button-accent-positive,
 .apply-button {
   color: var(--positive);
@@ -759,6 +769,11 @@ select {
   flex-direction: column;
 }
 
+.metadata-filters-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .properties-panel {
   display: grid;
   gap: 0.85rem;
@@ -1127,6 +1142,14 @@ select {
   font-size: 0.92rem;
 }
 
+.properties-section-heading {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .button-row {
   display: flex;
   gap: 0.6rem;
@@ -1139,6 +1162,13 @@ button[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+input[disabled],
+select[disabled],
+textarea[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .is-hidden {
@@ -1304,6 +1334,41 @@ button[disabled] {
 
 .properties-chip-wrap .properties-chip {
   min-width: 110px;
+}
+
+.metadata-filters-card,
+.suggested-annotations {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  border-radius: 18px;
+  background: rgba(14, 20, 30, 0.84);
+}
+
+.metadata-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.metadata-filters-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.suggested-annotation-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.annotation-chip {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(20, 32, 46, 0.96);
+  color: var(--accent-ice);
 }
 
 .code-header {

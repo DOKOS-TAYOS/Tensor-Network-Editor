@@ -18,6 +18,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "utilitiesGeometry.js",
         "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js",
+        "utilitiesTemplates.js",
         "utilitiesUi.js",
         "interactionsCanvas.js",
         "interactionsEditor.js",
@@ -2502,6 +2503,30 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
 
         ctx.state.selectedEngine = "tensornetwork";
         ctx.state.selectedCollectionFormat = "list";
+        ctx.state.annotationDefinitions = {
+          tensor: [
+            {
+              key: "role",
+              label: "Tensor role",
+              placeholder: "observable",
+              suggestions: ["state", "operator", "observable"],
+            },
+            {
+              key: "state",
+              label: "State",
+              placeholder: "ground",
+              suggestions: ["ground", "excited"],
+            },
+          ],
+          index: [
+            {
+              key: "leg_kind",
+              label: "Leg kind",
+              placeholder: "physical",
+              suggestions: ["physical", "logical"],
+            },
+          ],
+        };
         ctx.state.spec = ctx.normalizeSpec(createSpec());
         ctx.renderProperties();
 
@@ -2542,9 +2567,26 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         renderCalls.length = 0;
         graphRenderCount = 0;
         minimapRenderCount = 0;
+        commitField(document.getElementById("tensor-annotation-role-input"), "observable");
+        const tensorMetadataAfterGuidedEdit = ctx.state.spec.tensors[0].metadata;
+        if (tensorMetadataAfterGuidedEdit.role !== "observable") {
+          throw new Error(`Expected the guided tensor role to update, received ${JSON.stringify(tensorMetadataAfterGuidedEdit)}.`);
+        }
+        if (document.getElementById("tensor-custom-metadata-input").value.includes('"role"')) {
+          throw new Error("The custom metadata editor should hide guided tensor annotations.");
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
         commitField(
           document.getElementById("tensor-custom-metadata-input"),
-          '{"role":"observable","color":"#ffffff","tags":["ignored"]}'
+          '{"source":"imported","color":"#ffffff","tags":["ignored"]}'
         );
         const tensorMetadataAfterCustomEdit = ctx.state.spec.tensors[0].metadata;
         if (tensorMetadataAfterCustomEdit.color !== "#123456") {
@@ -2557,10 +2599,10 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           throw new Error("The advanced metadata editor should preserve tags edited in the dedicated field.");
         }
         if (tensorMetadataAfterCustomEdit.role !== "observable") {
-          throw new Error("The advanced metadata editor did not apply the custom metadata payload.");
+          throw new Error("The advanced metadata editor should preserve guided tensor annotations.");
         }
-        if (Object.prototype.hasOwnProperty.call(tensorMetadataAfterCustomEdit, "source")) {
-          throw new Error("The advanced metadata editor should replace the custom metadata object rather than append to it.");
+        if (tensorMetadataAfterCustomEdit.source !== "imported") {
+          throw new Error("The advanced metadata editor did not apply the custom metadata payload.");
         }
         assertLastRenderDidNotInvalidateGraph(
           renderCalls,
@@ -2570,14 +2612,27 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
 
         ctx.performUndo();
         const tensorMetadataAfterUndo = ctx.state.spec.tensors[0].metadata;
-        if (tensorMetadataAfterUndo.source !== "sim" || tensorMetadataAfterUndo.role !== undefined) {
+        if (tensorMetadataAfterUndo.source !== "sim" || tensorMetadataAfterUndo.role !== "observable") {
           throw new Error(`Undo should restore the previous tensor custom metadata, received ${JSON.stringify(tensorMetadataAfterUndo)}.`);
         }
         ctx.performRedo();
         const tensorMetadataAfterRedo = ctx.state.spec.tensors[0].metadata;
-        if (tensorMetadataAfterRedo.role !== "observable" || Object.prototype.hasOwnProperty.call(tensorMetadataAfterRedo, "source")) {
+        if (tensorMetadataAfterRedo.role !== "observable" || tensorMetadataAfterRedo.source !== "imported") {
           throw new Error(`Redo should restore the advanced metadata edit, received ${JSON.stringify(tensorMetadataAfterRedo)}.`);
         }
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        document.getElementById("tensor-annotation-role-suggestion-operator").click();
+        if (ctx.state.spec.tensors[0].metadata.role !== "operator") {
+          throw new Error("Clicking a guided tensor suggestion should update the selected value.");
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
 
         ctx.setSelection(["index_a"], { primaryId: "index_a" });
         const indexTagsInput = document.getElementById("index-tags-input-index_a");
@@ -2597,6 +2652,29 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           () => graphRenderCount,
           () => minimapRenderCount
         );
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(
+          document.getElementById("index-annotation-leg_kind-input-index_a"),
+          "logical"
+        );
+        if (ctx.state.spec.tensors[0].indices[0].metadata.leg_kind !== "logical") {
+          throw new Error("Expected the guided index leg kind to update.");
+        }
+        if (
+          document
+            .getElementById("index-custom-metadata-input-index_a")
+            .value.includes('"leg_kind"')
+        ) {
+          throw new Error("The custom metadata editor should hide guided index annotations.");
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
         """
     )
     script_body = script_body.replace(
@@ -2610,6 +2688,413 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
     )
     script_body = script_body.replace(
         "__PROPERTIES_PATH__", json.dumps(str(properties_runtime_path))
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "metadata_filter_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    metadata_filters_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "metadataFilters.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    metadata_filters_runtime_path = tmp_path / "metadataFilters.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _copy_runtime_editor_support_modules(tmp_path)
+    metadata_filters_runtime_path.write_text(
+        metadata_filters_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        function createClassList() {
+          return {
+            add() {},
+            remove() {},
+            toggle() {},
+          };
+        }
+
+        function createFakeElement(id = null, tagName = "div") {
+          return {
+            id,
+            tagName: String(tagName || "div").toUpperCase(),
+            value: "",
+            textContent: "",
+            dataset: {},
+            disabled: false,
+            classList: createClassList(),
+            style: {},
+            listeners: {},
+            addEventListener(eventName, listener) {
+              if (!this.listeners[eventName]) {
+                this.listeners[eventName] = [];
+              }
+              this.listeners[eventName].push(listener);
+            },
+            dispatchEvent(eventName, event = {}) {
+              (this.listeners[eventName] || []).forEach((listener) => {
+                listener({
+                  preventDefault() {},
+                  target: this,
+                  ...event,
+                });
+              });
+            },
+            click() {
+              this.dispatchEvent("click");
+            },
+            setAttribute() {},
+            removeAttribute() {},
+            appendChild() {},
+          };
+        }
+
+        function createFakeDocument() {
+          const elements = new Map();
+          return {
+            registerHtml(html) {
+              elements.clear();
+              const tagPattern = /<(input|select|button)[^>]*id="([^"]+)"[^>]*>/g;
+              let tagMatch = tagPattern.exec(html);
+              while (tagMatch) {
+                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                tagMatch = tagPattern.exec(html);
+              }
+            },
+            getElementById(id) {
+              return elements.get(id) || null;
+            },
+            createElement(tagName) {
+              return createFakeElement(null, tagName);
+            },
+          };
+        }
+
+        function createPanel(document) {
+          let html = "";
+          return {
+            get innerHTML() {
+              return html;
+            },
+            set innerHTML(value) {
+              html = value;
+              document.registerHtml(value);
+            },
+          };
+        }
+
+        function createButton() {
+          return createFakeElement(null, "button");
+        }
+
+        function createSpec() {
+          return {
+            id: "network_filter_regression",
+            name: "filter regression",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "Tensor A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                metadata: {
+                  tags: ["block"],
+                  role: "state",
+                },
+                indices: [
+                  {
+                    id: "index_a",
+                    name: "phys",
+                    dimension: 2,
+                    offset: { x: -38, y: 0 },
+                    metadata: { leg_kind: "physical" },
+                  },
+                  {
+                    id: "index_b",
+                    name: "bond",
+                    dimension: 3,
+                    offset: { x: 38, y: 0 },
+                    metadata: { leg_kind: "physical" },
+                  },
+                ],
+              },
+              {
+                id: "tensor_b",
+                name: "Tensor B",
+                position: { x: 320, y: 120 },
+                size: { width: 140, height: 84 },
+                metadata: {
+                  tags: ["environment"],
+                  role: "operator",
+                },
+                indices: [
+                  {
+                    id: "index_c",
+                    name: "bond",
+                    dimension: 3,
+                    offset: { x: -38, y: 0 },
+                    metadata: { leg_kind: "logical" },
+                  },
+                ],
+              },
+            ],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "bond_ab",
+                left: { tensor_id: "tensor_a", index_id: "index_b" },
+                right: { tensor_id: "tensor_b", index_id: "index_c" },
+                metadata: {},
+              },
+            ],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        function commitInput(element, nextValue) {
+          if (!element) {
+            throw new Error("Missing filter input.");
+          }
+          element.value = nextValue;
+          element.dispatchEvent("input");
+          element.dispatchEvent("blur");
+        }
+
+        function commitSelect(element, nextValue) {
+          if (!element) {
+            throw new Error("Missing filter select.");
+          }
+          element.value = nextValue;
+          element.dispatchEvent("change");
+        }
+
+        const [stateModule, utilitiesModule, metadataFiltersModule] =
+          await Promise.all([
+            import(pathToFileURL(__STATE_PATH__).href),
+            import(pathToFileURL(__UTILITIES_PATH__).href),
+            import(pathToFileURL(__METADATA_FILTERS_PATH__).href),
+          ]);
+        const { createInitialState } = stateModule;
+        const { registerUtilities } = utilitiesModule;
+        const { registerMetadataFilters } = metadataFiltersModule;
+
+        const document = createFakeDocument();
+        const metadataFiltersPanel = createPanel(document);
+        const renderCalls = [];
+        const ctx = {
+          state: createInitialState(),
+          constants: {
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 96,
+            MIN_TENSOR_HEIGHT: 60,
+            INDEX_RADIUS: 10,
+            INDEX_PADDING: 6,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 120,
+            NOTE_MIN_WIDTH: 120,
+            NOTE_MIN_HEIGHT: 90,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            DEFAULT_INDEX_SLOTS: [
+              { x: -38, y: 0 },
+              { x: 38, y: 0 },
+              { x: 0, y: -24 },
+              { x: 0, y: 24 },
+            ],
+          },
+          dom: {
+            workspace: {},
+            canvasShell: {
+              getBoundingClientRect() {
+                return { left: 0, top: 0, width: 1000, height: 800 };
+              },
+            },
+            metadataFiltersPanel,
+            propertiesPanel: createPanel(document),
+            statusMessage: { textContent: "", classList: createClassList() },
+            engineSelect: { options: [], value: "tensornetwork" },
+            collectionFormatSelect: { options: [], value: "list" },
+            exportFormatSelect: { value: "py" },
+            addNoteButton: createButton(),
+            connectButton: createButton(),
+            loadInput: {},
+            undoButton: createButton(),
+            redoButton: createButton(),
+            exportButton: createButton(),
+            toggleLinearPeriodicButton: createButton(),
+            linearPeriodicPreviousCellButton: createButton(),
+            linearPeriodicCellLabel: { textContent: "" },
+            linearPeriodicNextCellButton: createButton(),
+            templateSelect: { value: "" },
+            templateParameterPanel: { hidden: true },
+            templateGraphSizeLabel: { textContent: "" },
+            templateGraphSizeInput: { value: "2", min: "1" },
+            templateBondDimensionInput: { value: "3", min: "1" },
+            templatePhysicalDimensionInput: { value: "2", min: "1" },
+            insertTemplateButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: { classList: createClassList() },
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            groupLayer: {},
+            resizeLayer: {},
+            notesLayer: {},
+            selectionBox: {},
+            minimapCanvas: {},
+            sidebar: {},
+            plannerPanel: {},
+            generateButton: createButton(),
+          },
+          apiGet: async () => null,
+          apiPost: async () => null,
+          window: {
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+          },
+          document,
+          cytoscape: null,
+        };
+
+        registerUtilities(ctx);
+        registerMetadataFilters(ctx);
+
+        ctx.render = (options = {}) => {
+          renderCalls.push(options);
+        };
+
+        ctx.state.annotationDefinitions = {
+          tensor: [
+            {
+              key: "role",
+              label: "Tensor role",
+              placeholder: "observable",
+              suggestions: ["state", "operator"],
+            },
+          ],
+          index: [
+            {
+              key: "leg_kind",
+              label: "Leg kind",
+              placeholder: "physical",
+              suggestions: ["physical", "logical"],
+            },
+          ],
+        };
+        ctx.state.spec = ctx.normalizeSpec(createSpec());
+        ctx.state.selectionIds = ["tensor_b"];
+        ctx.state.primarySelectionId = "tensor_b";
+
+        const originalSpec = JSON.stringify(ctx.state.spec);
+        const originalSelection = JSON.stringify(ctx.state.selectionIds);
+        const originalSpecRevision = ctx.state.specRevision;
+        const originalUndoLength = ctx.state.undoStack.length;
+
+        ctx.renderMetadataFilters();
+        if (!document.getElementById("metadata-filter-scope-select")) {
+          throw new Error("Expected the metadata filter panel to render.");
+        }
+
+        commitInput(document.getElementById("metadata-filter-tag-input"), "block");
+        if (ctx.state.metadataFilters.tag !== "block") {
+          throw new Error(`Expected the tensor tag filter to update, received ${JSON.stringify(ctx.state.metadataFilters)}.`);
+        }
+        if (JSON.stringify(ctx.state.spec) !== originalSpec) {
+          throw new Error("Applying metadata filters should not mutate the spec.");
+        }
+        if (JSON.stringify(ctx.state.selectionIds) !== originalSelection) {
+          throw new Error("Applying metadata filters should not change the selection.");
+        }
+        if (ctx.state.specRevision !== originalSpecRevision || ctx.state.undoStack.length !== originalUndoLength) {
+          throw new Error("Metadata filters should not participate in spec history.");
+        }
+        const tensorHighlight = ctx.getMetadataFilterHighlight();
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_a", tensorHighlight) !== "match") {
+          throw new Error("Expected tensor_a to match the tensor metadata filter.");
+        }
+        if (ctx.getMetadataFilterEntityState("index", "index_a", tensorHighlight) !== "match") {
+          throw new Error("Expected index_a to stay bright with its matched tensor.");
+        }
+        if (ctx.getMetadataFilterEntityState("edge", "edge_ab", tensorHighlight) !== "dim") {
+          throw new Error("Expected edge_ab to dim when only one tensor matches.");
+        }
+        if (!renderCalls.length) {
+          throw new Error("Changing filters should trigger a lightweight render.");
+        }
+
+        document.getElementById("clear-metadata-filters-button").click();
+        if (ctx.getMetadataFilterHighlight() !== null) {
+          throw new Error("Clearing metadata filters should reset the highlight state.");
+        }
+
+        commitSelect(document.getElementById("metadata-filter-scope-select"), "index");
+        commitSelect(document.getElementById("metadata-filter-key-select"), "leg_kind");
+        commitInput(document.getElementById("metadata-filter-value-input"), "physical");
+        const indexHighlight = ctx.getMetadataFilterHighlight();
+        if (ctx.getMetadataFilterEntityState("index", "index_a", indexHighlight) !== "match") {
+          throw new Error("Expected index_a to match the guided index filter.");
+        }
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_a", indexHighlight) !== "context") {
+          throw new Error("Expected tensor_a to remain as context for a matched index.");
+        }
+        if (ctx.getMetadataFilterEntityState("edge", "edge_ab", indexHighlight) !== "match") {
+          throw new Error("Expected the incident edge to stay bright for a matched index.");
+        }
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_b", indexHighlight) !== "dim") {
+          throw new Error("Expected non-matching tensors to dim under the index filter.");
+        }
+        """
+    )
+    script_body = script_body.replace(
+        "__STATE_PATH__", json.dumps(str(state_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__UTILITIES_PATH__", json.dumps(str(utilities_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__METADATA_FILTERS_PATH__", json.dumps(str(metadata_filters_runtime_path))
     )
     script_path.write_text(script_body, encoding="utf-8")
     return script_path
@@ -2748,6 +3233,26 @@ def test_metadata_properties_edits_preserve_reserved_keys_and_skip_graph_rerende
 
     assert completed_process.returncode == 0, (
         "The metadata-properties frontend runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_metadata_filters_are_local_and_classify_entities_for_highlighting(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_metadata_filter_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The metadata-filter frontend runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

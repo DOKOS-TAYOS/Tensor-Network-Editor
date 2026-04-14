@@ -111,6 +111,34 @@ export function registerExportMinimap(ctx) {
     renderMinimap();
   }
 
+  function getMetadataFilterAlpha(entityKind, entityId, highlight = null) {
+    if (typeof ctx.getMetadataFilterEntityState !== "function") {
+      return 1;
+    }
+    const entityState = ctx.getMetadataFilterEntityState(
+      entityKind,
+      entityId,
+      highlight
+    );
+    if (entityState === "context") {
+      return 0.62;
+    }
+    if (entityState === "dim") {
+      return 0.22;
+    }
+    return 1;
+  }
+
+  function withContextAlpha(context, alpha, draw) {
+    const previousAlpha = context.globalAlpha;
+    context.globalAlpha = previousAlpha * alpha;
+    try {
+      draw();
+    } finally {
+      context.globalAlpha = previousAlpha;
+    }
+  }
+
   function renderMinimapNow() {
     renderMinimapVisibility();
     if (state.minimapHidden) {
@@ -131,6 +159,10 @@ export function registerExportMinimap(ctx) {
       typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
     const visibleEdges =
       typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
+    const metadataFilterHighlight =
+      typeof ctx.getMetadataFilterHighlight === "function"
+        ? ctx.getMetadataFilterHighlight()
+        : null;
 
     if (!state.spec || !visibleTensors.length) {
       context.fillStyle = "#95a3b8";
@@ -167,43 +199,61 @@ export function registerExportMinimap(ctx) {
       if (!left || !right) {
         return;
       }
-      const source = ctx.indexAbsolutePosition(left.tensor, left.index);
-      const target = ctx.indexAbsolutePosition(right.tensor, right.index);
-      const curve = ctx.buildQuadraticCurve(source, target);
-      context.beginPath();
-      context.strokeStyle = state.selectionIds.includes(edge.id) ? "#8bc2ff" : ctx.getMetadataColor(edge.metadata, "#8da1c3");
-      context.lineWidth = 3 / scale;
-      context.moveTo(source.x - worldBounds.x1, source.y - worldBounds.y1);
-      context.quadraticCurveTo(
-        curve.control.x - worldBounds.x1,
-        curve.control.y - worldBounds.y1,
-        target.x - worldBounds.x1,
-        target.y - worldBounds.y1
+      withContextAlpha(
+        context,
+        getMetadataFilterAlpha("edge", edge.id, metadataFilterHighlight),
+        () => {
+          const source = ctx.indexAbsolutePosition(left.tensor, left.index);
+          const target = ctx.indexAbsolutePosition(right.tensor, right.index);
+          const curve = ctx.buildQuadraticCurve(source, target);
+          context.beginPath();
+          context.strokeStyle = state.selectionIds.includes(edge.id) ? "#8bc2ff" : ctx.getMetadataColor(edge.metadata, "#8da1c3");
+          context.lineWidth = 3 / scale;
+          context.moveTo(source.x - worldBounds.x1, source.y - worldBounds.y1);
+          context.quadraticCurveTo(
+            curve.control.x - worldBounds.x1,
+            curve.control.y - worldBounds.y1,
+            target.x - worldBounds.x1,
+            target.y - worldBounds.y1
+          );
+          context.stroke();
+        }
       );
-      context.stroke();
     });
 
     visibleTensors.forEach((tensor) => {
-      const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
-      const left = tensor.position.x - ctx.tensorWidth(tensor) / 2 - worldBounds.x1;
-      const top = tensor.position.y - ctx.tensorHeight(tensor) / 2 - worldBounds.y1;
-      ctx.drawRoundRectPath(context, left, top, ctx.tensorWidth(tensor), ctx.tensorHeight(tensor), 22);
-      context.fillStyle = tensorColor;
-      context.fill();
-      context.lineWidth = (state.selectionIds.includes(tensor.id) ? 3 : 2) / scale;
-      context.strokeStyle = state.selectionIds.includes(tensor.id) ? "#8bc2ff" : ctx.shiftColor(tensorColor, 26);
-      context.stroke();
+      withContextAlpha(
+        context,
+        getMetadataFilterAlpha("tensor", tensor.id, metadataFilterHighlight),
+        () => {
+          const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
+          const left = tensor.position.x - ctx.tensorWidth(tensor) / 2 - worldBounds.x1;
+          const top = tensor.position.y - ctx.tensorHeight(tensor) / 2 - worldBounds.y1;
+          ctx.drawRoundRectPath(context, left, top, ctx.tensorWidth(tensor), ctx.tensorHeight(tensor), 22);
+          context.fillStyle = tensorColor;
+          context.fill();
+          context.lineWidth = (state.selectionIds.includes(tensor.id) ? 3 : 2) / scale;
+          context.strokeStyle = state.selectionIds.includes(tensor.id) ? "#8bc2ff" : ctx.shiftColor(tensorColor, 26);
+          context.stroke();
+        }
+      );
 
       tensor.indices.forEach((index) => {
-        const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
-        const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
-        context.beginPath();
-        context.fillStyle = indexColor;
-        context.strokeStyle = state.selectionIds.includes(index.id) ? "#8bc2ff" : ctx.shiftColor(indexColor, 34);
-        context.lineWidth = (state.selectionIds.includes(index.id) ? 3 : 1.5) / scale;
-        context.arc(absolutePosition.x - worldBounds.x1, absolutePosition.y - worldBounds.y1, INDEX_RADIUS, 0, Math.PI * 2);
-        context.fill();
-        context.stroke();
+        withContextAlpha(
+          context,
+          getMetadataFilterAlpha("index", index.id, metadataFilterHighlight),
+          () => {
+            const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
+            const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
+            context.beginPath();
+            context.fillStyle = indexColor;
+            context.strokeStyle = state.selectionIds.includes(index.id) ? "#8bc2ff" : ctx.shiftColor(indexColor, 34);
+            context.lineWidth = (state.selectionIds.includes(index.id) ? 3 : 1.5) / scale;
+            context.arc(absolutePosition.x - worldBounds.x1, absolutePosition.y - worldBounds.y1, INDEX_RADIUS, 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+          }
+        );
       });
     });
 

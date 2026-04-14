@@ -173,6 +173,20 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: ".metadata-filter-context",
+          style: {
+            opacity: 0.62,
+            "text-opacity": 0.82,
+          },
+        },
+        {
+          selector: ".metadata-filter-dim",
+          style: {
+            opacity: 0.22,
+            "text-opacity": 0.38,
+          },
+        },
+        {
           selector: "node[kind = 'tensor']:selected",
           style: {
             "border-color": "#8bc2ff",
@@ -384,6 +398,9 @@ export function registerGraphRender(ctx) {
       ctx.syncCySelection();
     }
     if (resolvedOptions.properties) {
+      if (typeof ctx.renderMetadataFilters === "function") {
+        ctx.renderMetadataFilters();
+      }
       ctx.renderProperties();
     }
     if (resolvedOptions.code) {
@@ -569,10 +586,39 @@ export function registerGraphRender(ctx) {
         ctx.isInspectingPastStage()
     );
     const indexNodesInteractive = !readOnlyScene;
+    const metadataFilterHighlight =
+      typeof ctx.getMetadataFilterHighlight === "function"
+        ? ctx.getMetadataFilterHighlight()
+        : null;
 
     function appendDescriptor(descriptor) {
       orderedIds.push(descriptor.data.id);
       descriptorsById[descriptor.data.id] = descriptor;
+    }
+
+    function joinClasses(...classNames) {
+      return classNames.filter(Boolean).join(" ");
+    }
+
+    function getMetadataFilterClass(entityKind, entityId) {
+      if (
+        !metadataFilterHighlight ||
+        typeof ctx.getMetadataFilterEntityState !== "function"
+      ) {
+        return "";
+      }
+      const entityState = ctx.getMetadataFilterEntityState(
+        entityKind,
+        entityId,
+        metadataFilterHighlight
+      );
+      if (entityState === "context") {
+        return "metadata-filter-context";
+      }
+      if (entityState === "dim") {
+        return "metadata-filter-dim";
+      }
+      return "";
     }
 
     visibleEdges.forEach((edge) => {
@@ -609,10 +655,12 @@ export function registerGraphRender(ctx) {
           textColor: ctx.readableTextColor(tensorColor),
           zIndex: TENSOR_BASE_Z_INDEX + tensorRank,
         },
-        classes:
+        classes: joinClasses(
           state.pendingPlannerSelectionId === tensor.id
             ? "planner-pending-tensor"
             : "",
+          getMetadataFilterClass("tensor", tensor.id)
+        ),
         position: { x: tensor.position.x, y: tensor.position.y },
         grabbable: !readOnlyScene,
         selectable: true,
@@ -641,6 +689,7 @@ export function registerGraphRender(ctx) {
           classes: [
             connectedIndexIds.has(index.id) ? "index-connected" : "index-open",
             state.pendingIndexId === index.id ? "planner-pending-index" : "",
+            getMetadataFilterClass("index", index.id),
           ]
             .filter(Boolean)
             .join(" "),
@@ -658,7 +707,7 @@ export function registerGraphRender(ctx) {
             textColor: ctx.shiftColor(indexColor, 64),
             zIndex: INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition,
           },
-          classes: "",
+          classes: getMetadataFilterClass("index", index.id),
           position: ctx.indexLabelPosition(indexPositionAbsolute),
           grabbable: false,
           selectable: false,
@@ -680,7 +729,7 @@ export function registerGraphRender(ctx) {
           textColor: ctx.shiftColor(edgeColor, 72),
           zIndex: EDGE_Z_INDEX,
         },
-        classes: "",
+        classes: getMetadataFilterClass("edge", edge.id),
         position: null,
         grabbable: false,
         selectable: !readOnlyScene,

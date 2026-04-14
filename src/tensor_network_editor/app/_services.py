@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._annotation_catalog import serialize_annotation_definitions
 from .._contraction_analysis_types import ContractionAnalysisResult
 from ..analysis import analyze_contraction
 from ..codegen.registry import generate_code as generate_code_internal
@@ -41,6 +42,7 @@ def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
         "schema_version": SCHEMA_VERSION,
         "templates": list_template_names(),
         "template_definitions": serialize_template_definitions(),
+        "annotation_definitions": serialize_annotation_definitions(),
         "spec": {
             "schema_version": SCHEMA_VERSION,
             "network": session.initial_spec.to_dict(),

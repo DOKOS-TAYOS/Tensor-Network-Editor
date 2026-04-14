@@ -205,12 +205,59 @@ export function createPropertiesSupport({ ctx, state, window }) {
   }
 
   function getReservedMetadata(target) {
+    return getProtectedMetadata(target);
+  }
+
+  function getAnnotationDefinitions(annotationScope) {
+    const scopedDefinitions =
+      annotationScope &&
+      state.annotationDefinitions &&
+      Array.isArray(state.annotationDefinitions[annotationScope])
+        ? state.annotationDefinitions[annotationScope]
+        : [];
+    return scopedDefinitions
+      .filter(
+        (definition) =>
+          ctx.isObject(definition) &&
+          typeof definition.key === "string" &&
+          definition.key.trim() &&
+          typeof definition.label === "string"
+      )
+      .map((definition) => ({
+        key: definition.key.trim(),
+        label: definition.label,
+        placeholder:
+          typeof definition.placeholder === "string"
+            ? definition.placeholder
+            : "",
+        suggestions: Array.isArray(definition.suggestions)
+          ? definition.suggestions.filter(
+              (suggestion) =>
+                typeof suggestion === "string" && suggestion.trim()
+            )
+          : [],
+      }));
+  }
+
+  function getGuidedAnnotationKeys(annotationScope) {
+    return new Set(
+      getAnnotationDefinitions(annotationScope).map((definition) => definition.key)
+    );
+  }
+
+  function getProtectedMetadata(target, annotationScope = null) {
     const metadata = normalizeMetadataTarget(target);
     if (!metadata) {
       return {};
     }
     const reserved = {};
+    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     RESERVED_METADATA_KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(metadata, key)) {
+        reserved[key] = ctx.deepClone(metadata[key]);
+      }
+    });
+    guidedAnnotationKeys.forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(metadata, key)) {
         reserved[key] = ctx.deepClone(metadata[key]);
       }
@@ -218,14 +265,18 @@ export function createPropertiesSupport({ ctx, state, window }) {
     return reserved;
   }
 
-  function getCustomMetadata(target) {
+  function getCustomMetadata(target, annotationScope = null) {
     const metadata = normalizeMetadataTarget(target);
     if (!metadata) {
       return {};
     }
     const customMetadata = {};
+    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     Object.keys(metadata).forEach((key) => {
-      if (!RESERVED_METADATA_KEYS.has(key)) {
+      if (
+        !RESERVED_METADATA_KEYS.has(key) &&
+        !guidedAnnotationKeys.has(key)
+      ) {
         customMetadata[key] = ctx.deepClone(metadata[key]);
       }
     });
@@ -257,14 +308,33 @@ export function createPropertiesSupport({ ctx, state, window }) {
     return tags;
   }
 
-  function formatCustomMetadataValue(target) {
-    const customMetadata = getCustomMetadata(target);
+  function formatAnnotationValue(target, key) {
+    const metadata = normalizeMetadataTarget(target);
+    if (!metadata || !Object.prototype.hasOwnProperty.call(metadata, key)) {
+      return "";
+    }
+    const value = metadata[key];
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    return "";
+  }
+
+  function normalizeAnnotationValue(rawValue) {
+    return String(rawValue || "").trim();
+  }
+
+  function formatCustomMetadataValue(target, annotationScope = null) {
+    const customMetadata = getCustomMetadata(target, annotationScope);
     return Object.keys(customMetadata).length
       ? JSON.stringify(customMetadata, null, 2)
       : "";
   }
 
-  function parseCustomMetadataValue(rawValue) {
+  function parseCustomMetadataValue(rawValue, annotationScope = null) {
     if (!String(rawValue || "").trim()) {
       return {};
     }
@@ -278,8 +348,12 @@ export function createPropertiesSupport({ ctx, state, window }) {
       throw new Error("Custom metadata must be a JSON object.");
     }
     const sanitizedMetadata = {};
+    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     Object.keys(parsedValue).forEach((key) => {
-      if (!RESERVED_METADATA_KEYS.has(key)) {
+      if (
+        !RESERVED_METADATA_KEYS.has(key) &&
+        !guidedAnnotationKeys.has(key)
+      ) {
         sanitizedMetadata[key] = parsedValue[key];
       }
     });
@@ -296,6 +370,8 @@ export function createPropertiesSupport({ ctx, state, window }) {
     customMetadataInputId,
     customMetadataFocusKey,
     target,
+    annotationScope = null,
+    suggestedAnnotationsMarkup = "",
   }) {
     return `
       <div class="field-group">
@@ -307,6 +383,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
           placeholder="physical, observable, left-leg"
         />
       </div>
+      ${suggestedAnnotationsMarkup}
       <div class="field-group">
         <label for="${customMetadataInputId}">Custom metadata (JSON)</label>
         <textarea
@@ -314,8 +391,71 @@ export function createPropertiesSupport({ ctx, state, window }) {
           data-focus-key="${customMetadataFocusKey}"
           rows="5"
           placeholder='{"role": "physical"}'
-        >${ctx.escapeHtml(formatCustomMetadataValue(target))}</textarea>
+        >${ctx.escapeHtml(
+          formatCustomMetadataValue(target, annotationScope)
+        )}</textarea>
       </div>
+    `;
+  }
+
+  function buildSuggestedAnnotationsMarkup({
+    annotationScope,
+    target,
+    inputIdForKey,
+    focusKeyForKey,
+    suggestionButtonIdForValue,
+  }) {
+    const definitions = getAnnotationDefinitions(annotationScope);
+    if (!definitions.length) {
+      return "";
+    }
+    return `
+      <section class="suggested-annotations">
+        <div class="properties-section-heading">Suggested annotations</div>
+        ${definitions
+          .map(
+            (definition) => `
+              <div class="field-group">
+                <label for="${inputIdForKey(definition.key)}">${ctx.escapeHtml(
+                  definition.label
+                )}</label>
+                <input
+                  id="${inputIdForKey(definition.key)}"
+                  data-focus-key="${focusKeyForKey(definition.key)}"
+                  value="${ctx.escapeHtml(
+                    formatAnnotationValue(target, definition.key)
+                  )}"
+                  placeholder="${ctx.escapeHtml(definition.placeholder)}"
+                />
+                ${
+                  definition.suggestions.length
+                    ? `
+                      <div class="suggested-annotation-chips">
+                        ${definition.suggestions
+                          .map(
+                            (suggestion) => `
+                              <button
+                                id="${suggestionButtonIdForValue(
+                                  definition.key,
+                                  suggestion
+                                )}"
+                                type="button"
+                                class="annotation-chip"
+                              >
+                                ${ctx.escapeHtml(suggestion)}
+                              </button>
+                            `
+                          )
+                          .join("")}
+                      </div>
+                    `
+                    : ""
+                }
+              </div>
+            `
+          )
+          .join("")}
+      </section>
     `;
   }
 
@@ -327,6 +467,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
     customMetadataFieldKey,
     statusMessage,
     invalidate = null,
+    annotationScope = null,
   }) {
     const metadataInvalidation =
       invalidate || propertyInvalidation(ctx);
@@ -340,8 +481,8 @@ export function createPropertiesSupport({ ctx, state, window }) {
       }
       ctx.applyDesignChange(
         () => {
-          const reservedMetadata = getReservedMetadata(target);
-          const customMetadata = getCustomMetadata(target);
+          const reservedMetadata = getProtectedMetadata(target, annotationScope);
+          const customMetadata = getCustomMetadata(target, annotationScope);
           target.metadata = {
             ...reservedMetadata,
             ...customMetadata,
@@ -359,7 +500,10 @@ export function createPropertiesSupport({ ctx, state, window }) {
       );
       tagsInput.value = formatTagsValue(target);
       if (customMetadataInput) {
-        customMetadataInput.value = formatCustomMetadataValue(target);
+        customMetadataInput.value = formatCustomMetadataValue(
+          target,
+          annotationScope
+        );
       }
     });
 
@@ -369,20 +513,26 @@ export function createPropertiesSupport({ ctx, state, window }) {
       () => {
         let nextCustomMetadata;
         try {
-          nextCustomMetadata = parseCustomMetadataValue(customMetadataInput.value);
+          nextCustomMetadata = parseCustomMetadataValue(
+            customMetadataInput.value,
+            annotationScope
+          );
         } catch (error) {
           ctx.setStatus(error.message, "error");
           return;
         }
-        const currentCustomMetadata = getCustomMetadata(target);
+        const currentCustomMetadata = getCustomMetadata(target, annotationScope);
         if (metadataValuesEqual(currentCustomMetadata, nextCustomMetadata)) {
-          customMetadataInput.value = formatCustomMetadataValue(target);
+          customMetadataInput.value = formatCustomMetadataValue(
+            target,
+            annotationScope
+          );
           return;
         }
         ctx.applyDesignChange(
           () => {
             target.metadata = {
-              ...getReservedMetadata(target),
+              ...getProtectedMetadata(target, annotationScope),
               ...nextCustomMetadata,
             };
           },
@@ -391,13 +541,107 @@ export function createPropertiesSupport({ ctx, state, window }) {
             statusMessage,
           }
         );
-        customMetadataInput.value = formatCustomMetadataValue(target);
+        customMetadataInput.value = formatCustomMetadataValue(
+          target,
+          annotationScope
+        );
         if (tagsInput) {
           tagsInput.value = formatTagsValue(target);
         }
       },
       { commitOnEnter: false }
     );
+  }
+
+  function bindSuggestedAnnotationEditors({
+    target,
+    annotationScope,
+    inputForKey,
+    fieldKeyForKey,
+    suggestionButtonForValue,
+    customMetadataInput = null,
+    statusMessage,
+    invalidate = null,
+  }) {
+    const definitions = getAnnotationDefinitions(annotationScope);
+    if (!definitions.length) {
+      return;
+    }
+    const metadataInvalidation = invalidate || propertyInvalidation(ctx);
+
+    definitions.forEach((definition) => {
+      const input = inputForKey(definition.key);
+      if (!input) {
+        return;
+      }
+
+      const commitAnnotationValue = (
+        rawValue = input.value,
+        options = {}
+      ) => {
+        const nextValue = normalizeAnnotationValue(rawValue);
+        const currentValue = normalizeAnnotationValue(
+          formatAnnotationValue(target, definition.key)
+        );
+        if (currentValue === nextValue) {
+          input.value = formatAnnotationValue(target, definition.key);
+          if (customMetadataInput) {
+            customMetadataInput.value = formatCustomMetadataValue(
+              target,
+              annotationScope
+            );
+          }
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            const metadata = normalizeMetadataTarget(target);
+            if (!metadata) {
+              return;
+            }
+            if (nextValue) {
+              metadata[definition.key] = nextValue;
+            } else {
+              delete metadata[definition.key];
+            }
+          },
+          {
+            invalidate: metadataInvalidation,
+            statusMessage,
+            ...options,
+          }
+        );
+        input.value = formatAnnotationValue(target, definition.key);
+        if (customMetadataInput) {
+          customMetadataInput.value = formatCustomMetadataValue(
+            target,
+            annotationScope
+          );
+        }
+      };
+
+      bindDebouncedAutosave(
+        input,
+        fieldKeyForKey(definition.key),
+        () => commitAnnotationValue()
+      );
+
+      definition.suggestions.forEach((suggestion) => {
+        const suggestionButton = suggestionButtonForValue(
+          definition.key,
+          suggestion
+        );
+        if (!suggestionButton) {
+          return;
+        }
+        suggestionButton.addEventListener("click", () => {
+          input.value = suggestion;
+          commitAutosave(fieldKeyForKey(definition.key), () =>
+            commitAnnotationValue(suggestion)
+          );
+        });
+      });
+    });
   }
 
   function tensorDisclosureState(tensorId) {
@@ -458,7 +702,9 @@ export function createPropertiesSupport({ ctx, state, window }) {
     bindDebouncedAutosave,
     bindImmediateAutosave,
     buildMetadataEditorMarkup,
+    buildSuggestedAnnotationsMarkup,
     bindMetadataEditors,
+    bindSuggestedAnnotationEditors,
     propertyInvalidation: (overrides = {}) =>
       propertyInvalidation(ctx, overrides),
     selectionColorInvalidation: (selectedEntries) =>

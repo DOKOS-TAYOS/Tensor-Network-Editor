@@ -8,7 +8,9 @@ export function createTensorPropertiesRenderers({
     bindDebouncedAutosave,
     bindImmediateAutosave,
     bindMetadataEditors,
+    bindSuggestedAnnotationEditors,
     buildMetadataEditorMarkup,
+    buildSuggestedAnnotationsMarkup,
     propertyInvalidation,
     renderTrashIcon,
     getTensorTotalElementCount,
@@ -17,6 +19,34 @@ export function createTensorPropertiesRenderers({
     isTensorIndexDisclosureOpen,
     toggleTensorIndexDisclosure,
   } = support;
+
+  function tensorAnnotationInputId(key) {
+    return `tensor-annotation-${key}-input`;
+  }
+
+  function tensorAnnotationFocusKey(tensorId, key) {
+    return `tensor:${tensorId}:annotation:${key}`;
+  }
+
+  function tensorAnnotationSuggestionButtonId(key, suggestion) {
+    return `tensor-annotation-${key}-suggestion-${ctx.sanitizeFilename(
+      suggestion
+    )}`;
+  }
+
+  function indexAnnotationInputId(indexId, key) {
+    return `index-annotation-${key}-input-${indexId}`;
+  }
+
+  function indexAnnotationFocusKey(indexId, key) {
+    return `index:${indexId}:annotation:${key}`;
+  }
+
+  function indexAnnotationSuggestionButtonId(indexId, key, suggestion) {
+    return `index-annotation-${key}-suggestion-${ctx.sanitizeFilename(
+      suggestion
+    )}-${indexId}`;
+  }
 
   function renderContractionTensorProperties(tensor) {
     const sourceTensorLabels = Array.isArray(tensor.sourceTensorIds)
@@ -157,6 +187,20 @@ export function createTensorPropertiesRenderers({
                 customMetadataInputId: `index-custom-metadata-input-${index.id}`,
                 customMetadataFocusKey: `index:${index.id}:custom-metadata`,
                 target: index,
+                annotationScope: "index",
+                suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
+                  annotationScope: "index",
+                  target: index,
+                  inputIdForKey: (key) => indexAnnotationInputId(index.id, key),
+                  focusKeyForKey: (key) =>
+                    indexAnnotationFocusKey(index.id, key),
+                  suggestionButtonIdForValue: (key, suggestion) =>
+                    indexAnnotationSuggestionButtonId(
+                      index.id,
+                      key,
+                      suggestion
+                    ),
+                }),
               })}
             </div>
           </section>
@@ -200,6 +244,15 @@ export function createTensorPropertiesRenderers({
         customMetadataInputId: "tensor-custom-metadata-input",
         customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
         target: tensor,
+        annotationScope: "tensor",
+        suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
+          annotationScope: "tensor",
+          target: tensor,
+          inputIdForKey: (key) => tensorAnnotationInputId(key),
+          focusKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
+          suggestionButtonIdForValue: (key, suggestion) =>
+            tensorAnnotationSuggestionButtonId(key, suggestion),
+        }),
       })}
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>Ports will appear automatically when this cell exposes free non-virtual indices.</p>"}
@@ -256,6 +309,20 @@ export function createTensorPropertiesRenderers({
       customMetadataFieldKey: `tensor:${tensor.id}:custom-metadata`,
       statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
       invalidate: propertyInvalidation(),
+      annotationScope: "tensor",
+    });
+    bindSuggestedAnnotationEditors({
+      target: tensor,
+      annotationScope: "tensor",
+      inputForKey: (key) => document.getElementById(tensorAnnotationInputId(key)),
+      fieldKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
+      suggestionButtonForValue: (key, suggestion) =>
+        document.getElementById(
+          tensorAnnotationSuggestionButtonId(key, suggestion)
+        ),
+      customMetadataInput: tensorCustomMetadataInput,
+      statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
+      invalidate: propertyInvalidation(),
     });
     tensor.indices.forEach((index) => {
       const indexColorInput = document.getElementById(
@@ -296,6 +363,21 @@ export function createTensorPropertiesRenderers({
         tagsFieldKey: `index:${index.id}:tags`,
         customMetadataInput: indexCustomMetadataInput,
         customMetadataFieldKey: `index:${index.id}:custom-metadata`,
+        statusMessage: `Updated ${index.name}.`,
+        invalidate: propertyInvalidation(),
+        annotationScope: "index",
+      });
+      bindSuggestedAnnotationEditors({
+        target: index,
+        annotationScope: "index",
+        inputForKey: (key) =>
+          document.getElementById(indexAnnotationInputId(index.id, key)),
+        fieldKeyForKey: (key) => indexAnnotationFocusKey(index.id, key),
+        suggestionButtonForValue: (key, suggestion) =>
+          document.getElementById(
+            indexAnnotationSuggestionButtonId(index.id, key, suggestion)
+          ),
+        customMetadataInput: indexCustomMetadataInput,
         statusMessage: `Updated ${index.name}.`,
         invalidate: propertyInvalidation(),
       });
@@ -419,6 +501,21 @@ export function createTensorPropertiesRenderers({
                       customMetadataInputId: `index-custom-metadata-input-${index.id}`,
                       customMetadataFocusKey: `index:${index.id}:custom-metadata`,
                       target: index,
+                      annotationScope: "index",
+                      suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
+                        annotationScope: "index",
+                        target: index,
+                        inputIdForKey: (key) =>
+                          indexAnnotationInputId(index.id, key),
+                        focusKeyForKey: (key) =>
+                          indexAnnotationFocusKey(index.id, key),
+                        suggestionButtonIdForValue: (key, suggestion) =>
+                          indexAnnotationSuggestionButtonId(
+                            index.id,
+                            key,
+                            suggestion
+                          ),
+                      }),
                     })}
                   </div>
                 `
@@ -485,6 +582,15 @@ export function createTensorPropertiesRenderers({
         customMetadataInputId: "tensor-custom-metadata-input",
         customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
         target: tensor,
+        annotationScope: "tensor",
+        suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
+          annotationScope: "tensor",
+          target: tensor,
+          inputIdForKey: (key) => tensorAnnotationInputId(key),
+          focusKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
+          suggestionButtonIdForValue: (key, suggestion) =>
+            tensorAnnotationSuggestionButtonId(key, suggestion),
+        }),
       })}
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>This tensor has no indices yet.</p>"}
@@ -549,6 +655,20 @@ export function createTensorPropertiesRenderers({
       tagsFieldKey: `tensor:${tensor.id}:tags`,
       customMetadataInput: tensorCustomMetadataInput,
       customMetadataFieldKey: `tensor:${tensor.id}:custom-metadata`,
+      statusMessage: `Updated tensor ${tensor.name}.`,
+      invalidate: propertyInvalidation(),
+      annotationScope: "tensor",
+    });
+    bindSuggestedAnnotationEditors({
+      target: tensor,
+      annotationScope: "tensor",
+      inputForKey: (key) => document.getElementById(tensorAnnotationInputId(key)),
+      fieldKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
+      suggestionButtonForValue: (key, suggestion) =>
+        document.getElementById(
+          tensorAnnotationSuggestionButtonId(key, suggestion)
+        ),
+      customMetadataInput: tensorCustomMetadataInput,
       statusMessage: `Updated tensor ${tensor.name}.`,
       invalidate: propertyInvalidation(),
     });
@@ -726,6 +846,21 @@ export function createTensorPropertiesRenderers({
         tagsFieldKey: `index:${index.id}:tags`,
         customMetadataInput: indexCustomMetadataInput,
         customMetadataFieldKey: `index:${index.id}:custom-metadata`,
+        statusMessage: `Updated index ${index.name}.`,
+        invalidate: propertyInvalidation(),
+        annotationScope: "index",
+      });
+      bindSuggestedAnnotationEditors({
+        target: index,
+        annotationScope: "index",
+        inputForKey: (key) =>
+          document.getElementById(indexAnnotationInputId(index.id, key)),
+        fieldKeyForKey: (key) => indexAnnotationFocusKey(index.id, key),
+        suggestionButtonForValue: (key, suggestion) =>
+          document.getElementById(
+            indexAnnotationSuggestionButtonId(index.id, key, suggestion)
+          ),
+        customMetadataInput: indexCustomMetadataInput,
         statusMessage: `Updated index ${index.name}.`,
         invalidate: propertyInvalidation(),
       });

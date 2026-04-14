@@ -11,6 +11,7 @@ limits.
 - [Choosing a Backend](#choosing-a-backend)
 - [Choosing a Collection Format](#choosing-a-collection-format)
 - [Templates](#templates)
+- [Metadata and Filters](#metadata-and-filters)
 - [Saving and Loading](#saving-and-loading)
 - [Manual Contraction Plans](#manual-contraction-plans)
 - [Planner Extra](#planner-extra)
@@ -123,6 +124,40 @@ The graph-size label depends on the selected template:
 
 You can also build templates from Python or the CLI. See [api.md](api.md) and
 [cli.md](cli.md#template-commands).
+
+## Metadata and Filters
+
+The editor now exposes metadata in three layers instead of leaving everything
+inside raw JSON:
+
+- `Tags` writes `metadata.tags`
+- `Suggested annotations` writes a small guided set of tensor or index keys
+- `Custom metadata (JSON)` keeps the rest of your free-form metadata
+
+The guided keys are:
+
+- tensor: `role`, `state`, `provenance`, `symmetry`
+- index: `leg_kind`, `symmetry`, `observable`
+
+These are still plain text annotations, not locked enums. The editor offers
+suggestions to get you started, but you can type any value that fits your
+workflow. Clearing a guided field removes that key.
+
+The JSON editor remains available for everything else. To avoid duplicate
+editing surfaces, it hides the guided keys and `metadata.tags` while those
+dedicated controls are present.
+
+The Selection tab also includes `Metadata filters`. They are meant for visual
+inspection, not structural edits:
+
+- choose `Tensor` or `Index` scope
+- filter by tag
+- optionally filter by one guided key plus value
+- use `Clear` to return to the normal view
+
+Filters only change emphasis on the canvas and the minimap. They do not hide
+elements, change the current selection, modify saved metadata, or enter
+undo/redo history. The filter state is local to the current session.
 
 ## Saving and Loading
 
