@@ -320,6 +320,11 @@ def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
 
 def render_code_sections(*sections: CodeSection) -> str:
     """Render titled sections into one formatted Python source string."""
+    return "\n".join(render_code_section_lines(*sections)).strip() + "\n"
+
+
+def render_code_section_lines(*sections: CodeSection) -> list[str]:
+    """Render titled sections into formatted Python source lines."""
     rendered_lines: list[str] = []
     for section in sections:
         section_lines = _trim_blank_lines(section.lines)
@@ -330,7 +335,7 @@ def render_code_sections(*sections: CodeSection) -> str:
         if section.title:
             rendered_lines.append(f"# {section.title}")
         rendered_lines.extend(section_lines)
-    return "\n".join(rendered_lines).strip() + "\n"
+    return rendered_lines
 
 
 def render_tensor_collection_initialization(

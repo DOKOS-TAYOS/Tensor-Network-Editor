@@ -34,13 +34,18 @@ from ._linear_periodic_shared import (
     _CarryPlanSimulation,
     _cell_from_chain,
     _RenderedCellHelper,
+    render_linear_periodic_helper,
+    render_linear_periodic_script,
+    render_linear_periodic_shared_helpers,
 )
 from .common import (
+    CodeSection,
     PreparedNetwork,
     container_name_for_format,
     flattened_tensor_collection_expression,
     prepare_network,
     render_tensor_collection_assignment,
+    render_tensor_collection_initialization,
     tensor_collection_reference_by_id,
 )
 from .tensorkrowch import TensorKrowchCodeGenerator
@@ -55,9 +60,11 @@ def generate_graph_linear_periodic_code(
     uses_carry_mode: bool,
 ) -> CodegenResult:
     """Generate linear-periodic code for TensorNetwork and TensorKrowch backends."""
-    lines = _render_import_lines(engine)
-    if not uses_carry_mode:
-        lines.extend(_render_connect_helper(engine))
+    import_lines = _render_import_lines(engine)
+    shared_helper_lines = _render_shared_helper_lines(
+        engine=engine,
+        uses_carry_mode=uses_carry_mode,
+    )
 
     carry_simulation_by_cell_name: dict[
         LinearPeriodicCellName, _CarryPlanSimulation
@@ -69,53 +76,69 @@ def generate_graph_linear_periodic_code(
         )
 
     helper_signature_by_cell_name = {
-        LinearPeriodicCellName.INITIAL: (
-            "" if uses_carry_mode else "",
-            "build_initial_cell",
-        ),
+        LinearPeriodicCellName.INITIAL: ("", "build_initial_cell"),
         LinearPeriodicCellName.PERIODIC: (
-            "cell_index, previous_payload" if uses_carry_mode else "cell_index",
+            (
+                "cell_index: int, previous_payload: dict[str, object]"
+                if uses_carry_mode
+                else "cell_index: int"
+            ),
             "build_periodic_cell",
         ),
         LinearPeriodicCellName.FINAL: (
-            "previous_payload" if uses_carry_mode else "",
+            "previous_payload: dict[str, object]" if uses_carry_mode else "",
             "build_final_cell",
         ),
     }
-    for cell_name in (
-        LinearPeriodicCellName.INITIAL,
-        LinearPeriodicCellName.PERIODIC,
-        LinearPeriodicCellName.FINAL,
-    ):
+    main_loop_lines, output_lines = _render_main_flow_lines(
+        uses_carry_mode=uses_carry_mode
+    )
+
+    def _render_one_cell(cell_name: LinearPeriodicCellName) -> list[str]:
         helper_signature, helper_name = helper_signature_by_cell_name[cell_name]
         if uses_carry_mode:
-            lines.extend(
-                _render_carry_cell_helper(
-                    chain=chain,
-                    cell_name=cell_name,
-                    helper_name=helper_name,
-                    helper_signature=helper_signature,
-                    engine=engine,
-                    collection_format=collection_format,
-                    simulation=carry_simulation_by_cell_name[cell_name],
-                ).lines
-            )
-        else:
-            lines.extend(
-                _render_cell_helper(
-                    chain=chain,
-                    cell_name=cell_name,
-                    helper_name=helper_name,
-                    helper_signature=helper_signature,
-                    engine=engine,
-                    collection_format=collection_format,
-                ).lines
-            )
-        if cell_name is not LinearPeriodicCellName.FINAL:
-            lines.append("")
+            return _render_carry_cell_helper(
+                chain=chain,
+                cell_name=cell_name,
+                helper_name=helper_name,
+                helper_signature=helper_signature,
+                engine=engine,
+                collection_format=collection_format,
+                simulation=carry_simulation_by_cell_name[cell_name],
+            ).lines
+        return _render_cell_helper(
+            chain=chain,
+            cell_name=cell_name,
+            helper_name=helper_name,
+            helper_signature=helper_signature,
+            engine=engine,
+            collection_format=collection_format,
+        ).lines
 
-    lines.extend(_render_main_flow_lines(uses_carry_mode=uses_carry_mode))
-    return CodegenResult(engine=engine, code="\n".join(lines).strip() + "\n")
+    return CodegenResult(
+        engine=engine,
+        code=render_linear_periodic_script(
+            import_lines=import_lines,
+            shared_helper_lines=shared_helper_lines,
+            initial_cell_lines=_render_one_cell(LinearPeriodicCellName.INITIAL),
+            periodic_cell_lines=_render_one_cell(LinearPeriodicCellName.PERIODIC),
+            final_cell_lines=_render_one_cell(LinearPeriodicCellName.FINAL),
+            main_loop_lines=main_loop_lines,
+            output_lines=output_lines,
+        ),
+    )
+
+
+def _render_shared_helper_lines(
+    *,
+    engine: EngineName,
+    uses_carry_mode: bool,
+) -> list[str]:
+    """Render shared top-level helpers for graph backends."""
+    extra_lines: list[str] = []
+    if not uses_carry_mode:
+        extra_lines = _render_connect_helper(engine)
+    return render_linear_periodic_shared_helpers(extra_lines=extra_lines)
 
 
 def _render_import_lines(engine: EngineName) -> list[str]:
@@ -144,48 +167,48 @@ def _render_connect_helper(engine: EngineName) -> list[str]:
     return _render_tensorkrowch_connect_helper()
 
 
-def _render_main_flow_lines(*, uses_carry_mode: bool) -> list[str]:
+def _render_main_flow_lines(*, uses_carry_mode: bool) -> tuple[list[str], list[str]]:
     """Render the outer free-``n`` orchestration block."""
     if uses_carry_mode:
-        return [
-            "",
-            "if n < 2:",
-            "    raise ValueError('n must be at least 2 for a linear periodic chain.')",
-            "",
-            "remaining_operands = {}",
-            "open_edges = []",
-            "",
-            "previous_payload = build_initial_cell()",
+        return (
+            [
+                "validate_chain_length(n)",
+                "remaining_operands = {}",
+                "open_edges = []",
+                "",
+                "previous_payload = build_initial_cell()",
+                "",
+                "for cell_index in range(1, n - 1):",
+                "    previous_payload = build_periodic_cell(cell_index, previous_payload)",
+            ],
+            [
+                "result = build_final_cell(previous_payload)",
+                "network_nodes = list(remaining_operands.values())",
+            ],
+        )
+    return (
+        [
+            "validate_chain_length(n)",
+            "initial_cell = build_initial_cell()",
+            "network_nodes = list(initial_cell['nodes'])",
+            "open_edges = list(initial_cell['open_edges'])",
+            "previous_interface = list(initial_cell['outgoing_interface'])",
             "",
             "for cell_index in range(1, n - 1):",
-            "    previous_payload = build_periodic_cell(cell_index, previous_payload)",
-            "",
-            "result = build_final_cell(previous_payload)",
-            "network_nodes = list(remaining_operands.values())",
-        ]
-    return [
-        "",
-        "if n < 2:",
-        "    raise ValueError('n must be at least 2 for a linear periodic chain.')",
-        "",
-        "initial_cell = build_initial_cell()",
-        "network_nodes = list(initial_cell['nodes'])",
-        "open_edges = list(initial_cell['open_edges'])",
-        "previous_interface = list(initial_cell['outgoing_interface'])",
-        "",
-        "for cell_index in range(1, n - 1):",
-        "    periodic_cell = build_periodic_cell(cell_index)",
-        "    connect_cell_interfaces(previous_interface, periodic_cell['incoming_interface'])",
-        "    network_nodes.extend(periodic_cell['nodes'])",
-        "    open_edges.extend(periodic_cell['open_edges'])",
-        "    previous_interface = list(periodic_cell['outgoing_interface'])",
-        "",
-        "final_cell = build_final_cell()",
-        "connect_cell_interfaces(previous_interface, final_cell['incoming_interface'])",
-        "network_nodes.extend(final_cell['nodes'])",
-        "open_edges.extend(final_cell['open_edges'])",
-        "result = network_nodes[0] if len(network_nodes) == 1 else None",
-    ]
+            "    periodic_cell = build_periodic_cell(cell_index)",
+            "    connect_cell_interfaces(previous_interface, periodic_cell['incoming_interface'])",
+            "    network_nodes.extend(periodic_cell['nodes'])",
+            "    open_edges.extend(periodic_cell['open_edges'])",
+            "    previous_interface = list(periodic_cell['outgoing_interface'])",
+        ],
+        [
+            "final_cell = build_final_cell()",
+            "connect_cell_interfaces(previous_interface, final_cell['incoming_interface'])",
+            "network_nodes.extend(final_cell['nodes'])",
+            "open_edges.extend(final_cell['open_edges'])",
+            "result = network_nodes[0] if len(network_nodes) == 1 else None",
+        ],
+    )
 
 
 def _render_tensornetwork_connect_helper() -> list[str]:
@@ -247,9 +270,11 @@ def _render_cell_helper(
     interface_index_ids = {
         port.internal_index_id for port in (*incoming_ports, *outgoing_ports)
     }
-
-    helper_lines = [f"def {helper_name}({helper_signature}):"]
-    body_lines = _render_cell_body(
+    (
+        tensor_collection_lines,
+        tensor_construction_lines,
+        network_connection_lines,
+    ) = _render_cell_setup_sections(
         prepared=prepared,
         engine=engine,
         collection_format=collection_format,
@@ -276,11 +301,38 @@ def _render_cell_helper(
         for index in prepared.open_indices
         if index.spec.id not in interface_index_ids
     ]
+    output_lines: list[str]
+    if (
+        prepared.spec.contraction_plan is not None
+        and prepared.spec.contraction_plan.steps
+    ):
+        generator = (
+            TensorNetworkCodeGenerator()
+            if engine is EngineName.TENSORNETWORK
+            else TensorKrowchCodeGenerator()
+        )
+        contraction_lines, output_lines = generator._render_manual_plan(
+            prepared=prepared,
+            collection_format=collection_format,
+            collection_name=collection_name,
+        )
+        if engine is EngineName.TENSORKROWCH:
+            output_lines.append("network_nodes = list(remaining_operands.values())")
+    else:
+        contraction_lines = [
+            "network_nodes = "
+            + flattened_tensor_collection_expression(collection_format, collection_name)
+        ]
+        output_lines = []
 
-    body_lines.append("incoming_interface = [" + ", ".join(incoming_expressions) + "]")
-    body_lines.append("outgoing_interface = [" + ", ".join(outgoing_expressions) + "]")
-    body_lines.append("open_edges = [" + ", ".join(open_edge_expressions) + "]")
-    body_lines.extend(
+    output_lines.append(
+        "incoming_interface = [" + ", ".join(incoming_expressions) + "]"
+    )
+    output_lines.append(
+        "outgoing_interface = [" + ", ".join(outgoing_expressions) + "]"
+    )
+    output_lines.append("open_edges = [" + ", ".join(open_edge_expressions) + "]")
+    output_lines.extend(
         [
             "return {",
             "    'nodes': network_nodes,",
@@ -290,9 +342,27 @@ def _render_cell_helper(
             "}",
         ]
     )
-
-    helper_lines.extend([f"    {line}" if line else "" for line in body_lines])
-    return _RenderedCellHelper(lines=helper_lines)
+    sections = [
+        CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+        CodeSection(title="Tensor construction", lines=tensor_construction_lines),
+        CodeSection(title="Network connections", lines=network_connection_lines),
+    ]
+    if (
+        prepared.spec.contraction_plan is not None
+        and prepared.spec.contraction_plan.steps
+    ):
+        sections.append(
+            CodeSection(title="Manual contraction", lines=contraction_lines)
+        )
+    else:
+        sections.append(CodeSection(title="Cell assembly", lines=contraction_lines))
+    sections.append(CodeSection(title="Outputs", lines=output_lines))
+    return render_linear_periodic_helper(
+        helper_name=helper_name,
+        helper_signature=helper_signature,
+        return_annotation="dict[str, object]",
+        sections=sections,
+    )
 
 
 def _render_carry_cell_helper(
@@ -308,32 +378,42 @@ def _render_carry_cell_helper(
     """Render one carry-mode helper that threads ``previous_operand``."""
     del chain
     collection_name = container_name_for_format(collection_format)
-    helper_lines = [f"def {helper_name}({helper_signature}):"]
-    body_lines = _render_cell_setup(
+    (
+        tensor_collection_lines,
+        tensor_construction_lines,
+        network_connection_lines,
+    ) = _render_cell_setup_sections(
         prepared=simulation.prepared,
         engine=engine,
         collection_format=collection_format,
         collection_name=collection_name,
     )
-    body_lines.extend(
-        _render_carry_boundary_setup(
-            simulation=simulation,
-            engine=engine,
-            collection_format=collection_format,
-            collection_name=collection_name,
-        )
+    previous_interface_lines = _render_carry_boundary_setup(
+        simulation=simulation,
+        engine=engine,
+        collection_format=collection_format,
+        collection_name=collection_name,
     )
-    body_lines.extend(
-        _render_carry_plan_lines(
-            simulation=simulation,
-            cell_name=cell_name,
-            engine=engine,
-            collection_format=collection_format,
-            collection_name=collection_name,
-        )
+    contraction_lines, output_lines = _render_carry_plan_lines(
+        simulation=simulation,
+        cell_name=cell_name,
+        engine=engine,
+        collection_format=collection_format,
+        collection_name=collection_name,
     )
-    helper_lines.extend([f"    {line}" if line else "" for line in body_lines])
-    return _RenderedCellHelper(lines=helper_lines)
+    return render_linear_periodic_helper(
+        helper_name=helper_name,
+        helper_signature=helper_signature,
+        return_annotation="dict[str, object] | object | None",
+        sections=[
+            CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+            CodeSection(title="Tensor construction", lines=tensor_construction_lines),
+            CodeSection(title="Network connections", lines=network_connection_lines),
+            CodeSection(title="Previous interface", lines=previous_interface_lines),
+            CodeSection(title="Manual contraction", lines=contraction_lines),
+            CodeSection(title="Outputs", lines=output_lines),
+        ],
+    )
 
 
 def _render_carry_boundary_setup(
@@ -398,7 +478,7 @@ def _render_carry_plan_lines(
     engine: EngineName,
     collection_format: TensorCollectionFormat,
     collection_name: str,
-) -> list[str]:
+) -> tuple[list[str], list[str]]:
     """Render all carry-mode contractions and helper epilogue lines."""
     if engine is EngineName.TENSORKROWCH and any(
         step.is_outer_product for step in simulation.real_steps
@@ -421,7 +501,7 @@ def _render_carry_plan_lines(
             "previous_operand"
         )
 
-    lines = ["results_list = []", ""]
+    contraction_lines: list[str] = []
     for step_index, step in enumerate(simulation.real_steps):
         latest_result_index = step_index - 1 if step_index > 0 else None
         left_expression = _operand_expression(
@@ -436,7 +516,9 @@ def _render_carry_plan_lines(
             step_result_indexes=simulation.result_index_by_step_id,
             latest_result_index=latest_result_index,
         )
-        lines.append(f"# Manual step {step.step_id}")
+        if not contraction_lines:
+            contraction_lines.extend(["results_list = []", ""])
+        contraction_lines.append(f"# Manual step {step.step_id}")
         if engine is EngineName.TENSORNETWORK:
             output_edge_order = TensorNetworkCodeGenerator._build_output_edge_order(
                 left_expression=left_expression,
@@ -447,7 +529,7 @@ def _render_carry_plan_lines(
                 right_axis_names=step.right_axis_names,
                 contracted_labels=step.contracted_labels,
             )
-            lines.append(
+            contraction_lines.append(
                 "results_list.append(tn.contract_between("
                 f"{left_expression}, "
                 f"{right_expression}, "
@@ -457,15 +539,16 @@ def _render_carry_plan_lines(
                 f"axis_names={list(step.result_axis_names)!r}))"
             )
         else:
-            lines.append(
+            contraction_lines.append(
                 "results_list.append(tk.contract_between("
                 f"{left_expression}, {right_expression}))"
             )
-        lines.append("")
+        contraction_lines.append("")
 
     final_result_index = (
         len(simulation.real_steps) - 1 if simulation.real_steps else None
     )
+    output_lines: list[str] = []
     if engine is EngineName.TENSORKROWCH and simulation.outgoing_interface_operand_ids:
         for operand_id in dict.fromkeys(simulation.outgoing_interface_operand_ids):
             if operand_id not in simulation.result_index_by_step_id:
@@ -476,7 +559,7 @@ def _render_carry_plan_lines(
                 step_result_indexes=simulation.result_index_by_step_id,
                 latest_result_index=final_result_index,
             )
-            lines.append(f"{operand_expression}.reattach_edges()")
+            output_lines.append(f"{operand_expression}.reattach_edges()")
 
     label_expression_by_label = _build_remaining_label_expression_map(
         remaining_operand_ids=simulation.remaining_operand_ids,
@@ -491,7 +574,9 @@ def _render_carry_plan_lines(
         if label in label_expression_by_label
     ]
     if local_open_expressions:
-        lines.append("open_edges.extend([" + ", ".join(local_open_expressions) + "])")
+        output_lines.append(
+            "open_edges.extend([" + ", ".join(local_open_expressions) + "])"
+        )
 
     local_remaining_operand_ids = [
         operand_id
@@ -499,7 +584,7 @@ def _render_carry_plan_lines(
         if operand_id != simulation.carry_operand_id
     ]
     if local_remaining_operand_ids:
-        lines.append(
+        output_lines.append(
             "cell_key_prefix = " + _carry_cell_key_prefix_expression(cell_name)
         )
         for operand_id in local_remaining_operand_ids:
@@ -509,7 +594,7 @@ def _render_carry_plan_lines(
                 step_result_indexes=simulation.result_index_by_step_id,
                 latest_result_index=final_result_index,
             )
-            lines.append(
+            output_lines.append(
                 f'remaining_operands[f"{{cell_key_prefix}}:{operand_id}"] = {operand_expression}'
             )
 
@@ -532,13 +617,13 @@ def _render_carry_plan_lines(
             )
             for operand_id in simulation.outgoing_interface_operand_ids
         ]
-        lines.append(
+        output_lines.append(
             "outgoing_interface = [" + ", ".join(outgoing_interface_expressions) + "]"
         )
-        lines.append(
+        output_lines.append(
             "outgoing_operands = [" + ", ".join(outgoing_operand_expressions) + "]"
         )
-        lines.extend(
+        output_lines.extend(
             [
                 "return {",
                 f"    'operand': {carry_expression},",
@@ -547,7 +632,7 @@ def _render_carry_plan_lines(
                 "}",
             ]
         )
-        return lines
+        return contraction_lines, output_lines
 
     if local_remaining_operand_ids:
         final_expression = _operand_expression(
@@ -556,81 +641,61 @@ def _render_carry_plan_lines(
             step_result_indexes=simulation.result_index_by_step_id,
             latest_result_index=final_result_index,
         )
-        lines.append(f"return {final_expression}")
+        output_lines.append(f"return {final_expression}")
     else:
-        lines.append("return None")
-    return lines
+        output_lines.append("return None")
+    return contraction_lines, output_lines
 
 
-def _render_cell_setup(
+def _render_cell_setup_sections(
     *,
     prepared: PreparedNetwork,
     engine: EngineName,
     collection_format: TensorCollectionFormat,
     collection_name: str,
-) -> list[str]:
-    """Render tensor creation plus real intra-cell edge connections."""
+) -> tuple[list[str], list[str], list[str]]:
+    """Render collection, tensor construction, and edge sections for one backend."""
     if engine is EngineName.TENSORNETWORK:
-        return _render_tensornetwork_cell_setup(
+        return _render_tensornetwork_cell_setup_sections(
             prepared=prepared,
             collection_format=collection_format,
             collection_name=collection_name,
         )
-    return _render_tensorkrowch_cell_setup(
+    return _render_tensorkrowch_cell_setup_sections(
         prepared=prepared,
         collection_format=collection_format,
         collection_name=collection_name,
     )
 
 
-def _render_cell_body(
+def _render_tensornetwork_cell_setup_sections(
     *,
     prepared: PreparedNetwork,
-    engine: EngineName,
     collection_format: TensorCollectionFormat,
     collection_name: str,
-) -> list[str]:
-    """Render the body of one cell helper for the requested backend."""
-    if engine is EngineName.TENSORNETWORK:
-        return _render_tensornetwork_cell_body(
-            prepared=prepared,
-            collection_format=collection_format,
-            collection_name=collection_name,
-        )
-    return _render_tensorkrowch_cell_body(
-        prepared=prepared,
-        collection_format=collection_format,
+) -> tuple[list[str], list[str], list[str]]:
+    """Render tensor collection and edge sections for ``tensornetwork``."""
+    tensor_collection_lines = render_tensor_collection_initialization(
+        collection_name,
+        collection_format,
+    )
+    tensor_construction_lines = render_tensor_collection_assignment(
         collection_name=collection_name,
+        collection_format=collection_format,
+        prepared=prepared,
+        tensor_value_by_id={
+            tensor.spec.id: (
+                f"tn.Node(np.zeros({tensor.spec.shape!r}, dtype=float), "
+                f"name={tensor.spec.name!r}, "
+                f"axis_names={[index.spec.name for index in tensor.indices]!r})"
+            )
+            for tensor in prepared.tensors
+        },
+        include_initialization=False,
     )
-
-
-def _render_tensornetwork_cell_setup(
-    *,
-    prepared: PreparedNetwork,
-    collection_format: TensorCollectionFormat,
-    collection_name: str,
-) -> list[str]:
-    """Render tensor creation and edge wiring for ``tensornetwork``."""
-    lines: list[str] = []
-    lines.extend(
-        render_tensor_collection_assignment(
-            collection_name=collection_name,
-            collection_format=collection_format,
-            prepared=prepared,
-            tensor_value_by_id={
-                tensor.spec.id: (
-                    f"tn.Node(np.zeros({tensor.spec.shape!r}, dtype=float), "
-                    f"name={tensor.spec.name!r}, "
-                    f"axis_names={[index.spec.name for index in tensor.indices]!r})"
-                )
-                for tensor in prepared.tensors
-            },
-        )
-    )
-    lines.append("")
-
+    network_connection_lines: list[str] = []
     if prepared.edges:
-        lines.append("edges_list = []")
+        network_connection_lines.append("edges_list = []")
         for edge in prepared.edges:
             left_tensor = tensor_collection_reference_by_id(
                 prepared,
@@ -644,44 +709,44 @@ def _render_tensornetwork_cell_setup(
                 collection_format,
                 collection_name,
             )
-            lines.append(
+            network_connection_lines.append(
                 "edges_list.append(tn.connect("
                 f"{left_tensor}[{edge.left.spec.name!r}], "
                 f"{right_tensor}[{edge.right.spec.name!r}], "
                 f"name={edge.spec.name!r}))"
             )
-        lines.append("")
-    return lines
+    return tensor_collection_lines, tensor_construction_lines, network_connection_lines
 
 
-def _render_tensorkrowch_cell_setup(
+def _render_tensorkrowch_cell_setup_sections(
     *,
     prepared: PreparedNetwork,
     collection_format: TensorCollectionFormat,
     collection_name: str,
-) -> list[str]:
-    """Render tensor creation and edge wiring for ``tensorkrowch``."""
-    lines: list[str] = []
-    lines.extend(
-        render_tensor_collection_assignment(
-            collection_name=collection_name,
-            collection_format=collection_format,
-            prepared=prepared,
-            tensor_value_by_id={
-                tensor.spec.id: (
-                    f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
-                    f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
-                    f"name={TensorKrowchCodeGenerator.node_name(tensor)!r}, "
-                    "network=network)"
-                )
-                for tensor in prepared.tensors
-            },
-        )
+) -> tuple[list[str], list[str], list[str]]:
+    """Render tensor collection and edge sections for ``tensorkrowch``."""
+    tensor_collection_lines = render_tensor_collection_initialization(
+        collection_name,
+        collection_format,
     )
-    lines.append("")
-
+    tensor_construction_lines = render_tensor_collection_assignment(
+        collection_name=collection_name,
+        collection_format=collection_format,
+        prepared=prepared,
+        tensor_value_by_id={
+            tensor.spec.id: (
+                f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
+                f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
+                f"name={TensorKrowchCodeGenerator.node_name(tensor)!r}, "
+                "network=network)"
+            )
+            for tensor in prepared.tensors
+        },
+        include_initialization=False,
+    )
+    network_connection_lines: list[str] = []
     if prepared.edges:
-        lines.append("edges_list = []")
+        network_connection_lines.append("edges_list = []")
         for edge in prepared.edges:
             left_tensor = tensor_collection_reference_by_id(
                 prepared,
@@ -703,82 +768,14 @@ def _render_tensorkrowch_cell_setup(
                 EngineName.TENSORKROWCH,
                 edge.right.spec.name,
             )
-            lines.append(f"# {edge.spec.name}")
-            lines.append(
+            network_connection_lines.append(f"# {edge.spec.name}")
+            network_connection_lines.append(
                 "edges_list.append(("
                 f"{edge.spec.name!r}, "
                 f"tk.connect({left_tensor}[{left_axis_name!r}], {right_tensor}[{right_axis_name!r}])"
                 "))"
             )
-        lines.append("")
-    return lines
-
-
-def _render_tensornetwork_cell_body(
-    *,
-    prepared: PreparedNetwork,
-    collection_format: TensorCollectionFormat,
-    collection_name: str,
-) -> list[str]:
-    """Render a periodic-cell helper body for ``tensornetwork``."""
-    generator = TensorNetworkCodeGenerator()
-    lines = _render_tensornetwork_cell_setup(
-        prepared=prepared,
-        collection_format=collection_format,
-        collection_name=collection_name,
-    )
-
-    if (
-        prepared.spec.contraction_plan is not None
-        and prepared.spec.contraction_plan.steps
-    ):
-        lines.extend(
-            generator._render_manual_plan(
-                prepared=prepared,
-                collection_format=collection_format,
-                collection_name=collection_name,
-            )
-        )
-    else:
-        lines.append(
-            "network_nodes = "
-            + flattened_tensor_collection_expression(collection_format, collection_name)
-        )
-    return lines
-
-
-def _render_tensorkrowch_cell_body(
-    *,
-    prepared: PreparedNetwork,
-    collection_format: TensorCollectionFormat,
-    collection_name: str,
-) -> list[str]:
-    """Render a periodic-cell helper body for ``tensorkrowch``."""
-    generator = TensorKrowchCodeGenerator()
-    lines = _render_tensorkrowch_cell_setup(
-        prepared=prepared,
-        collection_format=collection_format,
-        collection_name=collection_name,
-    )
-
-    if (
-        prepared.spec.contraction_plan is not None
-        and prepared.spec.contraction_plan.steps
-    ):
-        lines.extend(
-            generator._render_manual_plan(
-                prepared=prepared,
-                collection_format=collection_format,
-                collection_name=collection_name,
-            )
-        )
-        lines.append("network_nodes = list(remaining_operands.values())")
-    else:
-        lines.append(
-            "network_nodes = "
-            + flattened_tensor_collection_expression(collection_format, collection_name)
-        )
-    return lines
+    return tensor_collection_lines, tensor_construction_lines, network_connection_lines
 
 
 def _build_label_expression_map(

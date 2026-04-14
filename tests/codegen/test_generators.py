@@ -390,6 +390,60 @@ def test_linear_periodic_codegen_uses_cell_helpers_and_free_n_loop(
     assert "periodic_contract_internal" in result.code
 
 
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_linear_periodic_codegen_labels_shared_for_sections(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+
+    assert "# Shared helpers" in result.code
+    assert "# Initial cell" in result.code
+    assert "# Periodic cell" in result.code
+    assert "# Final cell" in result.code
+    assert "# Main loop" in result.code
+    assert "# Tensor collection" in result.code
+    assert "# Tensor construction" in result.code
+    assert "# Outputs" in result.code
+    assert result.code.index("# Shared helpers") < result.code.index("# Initial cell")
+    assert result.code.index("# Initial cell") < result.code.index("# Periodic cell")
+    assert result.code.index("# Periodic cell") < result.code.index("# Final cell")
+    assert result.code.index("# Final cell") < result.code.index("# Main loop")
+    assert "def build_initial_cell() -> " in result.code
+    assert "def build_periodic_cell(" in result.code
+    assert ") -> " in result.code
+    assert "def build_final_cell(" in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_linear_periodic_carry_codegen_labels_shared_for_sections(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_linear_periodic_carry_chain_spec(), engine=engine)
+
+    assert "# Shared helpers" in result.code
+    assert "# Initial cell" in result.code
+    assert "# Periodic cell" in result.code
+    assert "# Final cell" in result.code
+    assert "# Main loop" in result.code
+    assert "# Tensor collection" in result.code
+    assert "# Tensor construction" in result.code
+    assert "# Previous interface" in result.code
+    assert "# Manual contraction" in result.code
+    assert "# Outputs" in result.code
+    assert "def build_initial_cell() -> " in result.code
+    assert "previous_payload: dict[str, object]" in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_linear_periodic_codegen_does_not_stringify_manual_blocks(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_linear_periodic_chain_spec(), engine=engine)
+
+    assert "['results_list = []'" not in result.code
+    assert "['remaining_operands = {" not in result.code
+
+
 @pytest.mark.parametrize(
     ("engine", "expected_snippet"),
     [
@@ -631,6 +685,44 @@ def test_quimb_linear_periodic_codegen_supports_collection_formats(
     assert container_name in result.code
     assert "def build_initial_cell()" in result.code
     assert "network_tensors = list(initial_cell['tensors'])" in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+@pytest.mark.parametrize(
+    ("collection_format", "container_name", "expected_snippets"),
+    [
+        (
+            TensorCollectionFormat.LIST,
+            "tensors",
+            ["tensors = []", "tensors.append("],
+        ),
+        (
+            TensorCollectionFormat.MATRIX,
+            "tensor_rows",
+            ["tensor_rows = []", "tensor_rows.append([])"],
+        ),
+        (
+            TensorCollectionFormat.DICT,
+            "tensors_dict",
+            ["tensors_dict = {}", "tensors_dict["],
+        ),
+    ],
+)
+def test_linear_periodic_codegen_supports_all_collection_formats(
+    engine: EngineName,
+    collection_format: TensorCollectionFormat,
+    container_name: str,
+    expected_snippets: list[str],
+) -> None:
+    result = generate_code(
+        build_linear_periodic_chain_spec(),
+        engine=engine,
+        collection_format=collection_format,
+    )
+
+    assert container_name in result.code
+    for snippet in expected_snippets:
+        assert snippet in result.code
 
 
 @pytest.mark.parametrize(
