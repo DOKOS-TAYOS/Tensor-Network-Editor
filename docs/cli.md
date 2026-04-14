@@ -12,6 +12,7 @@ generation, diffs, and templates.
 - [Lint](#lint)
 - [Analyze](#analyze)
 - [Export](#export)
+- [Canonicalize](#canonicalize)
 - [Diff](#diff)
 - [Template Commands](#template-commands)
 - [JSON Output](#json-output)
@@ -57,6 +58,7 @@ tensor-network-editor validate my_network.json
 tensor-network-editor lint my_network.json
 tensor-network-editor analyze my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
+tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
 tensor-network-editor template list
 tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --physical-dimension 2
@@ -161,6 +163,30 @@ Supported collection formats:
 
 If `--output` is omitted, generated code is printed to standard output.
 
+## Canonicalize
+
+Canonicalize a spec for cleaner Git history and stable JSON ordering:
+
+```bash
+tensor-network-editor canonicalize my_network.json
+```
+
+Write the canonicalized JSON to a file:
+
+```bash
+tensor-network-editor canonicalize my_network.json --output my_network.canonical.json
+```
+
+Rewrite ids deterministically in canonical order:
+
+```bash
+tensor-network-editor canonicalize my_network.json --deterministic-ids
+```
+
+Canonicalization preserves semantics, keeps existing ids by default, preserves
+manual contraction step order, normalizes `metadata.tags`, and sorts the main
+graph entities deterministically.
+
 ## Diff
 
 Compare two specs by stable entity ids:
@@ -175,7 +201,16 @@ JSON output is often easiest to consume:
 tensor-network-editor diff before.json after.json --format json
 ```
 
-The diff groups changes by tensor, edge, group, note, and plan.
+Request the richer semantic diff:
+
+```bash
+tensor-network-editor diff before.json after.json --semantic
+tensor-network-editor diff before.json after.json --semantic --format json
+```
+
+The basic diff groups changes by tensor, edge, group, note, and plan. The
+semantic diff reports field-level tensor, index, edge, group, note, plan, and
+step changes, plus step reordering and opaque `linear_periodic_chain` changes.
 
 ## Template Commands
 
@@ -212,6 +247,7 @@ These commands support `--format json`:
 - `template list`
 
 `template build` already emits JSON when you omit `--output`.
+`canonicalize` already emits canonical JSON when you omit `--output`.
 Use JSON output when another script should consume the result.
 
 ## Exit Codes

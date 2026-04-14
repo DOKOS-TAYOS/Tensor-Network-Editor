@@ -4,8 +4,19 @@ from typing import cast
 from unittest.mock import patch
 
 import tensor_network_editor as tne
+from tensor_network_editor._headless_models import (
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
+)
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
-from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult, diff_specs
+from tensor_network_editor.canonicalization import canonicalize_spec
+from tensor_network_editor.diffing import (
+    DiffEntityChanges,
+    SpecDiffResult,
+    diff_specs,
+    semantic_diff_specs,
+)
 from tensor_network_editor.linting import LintIssue, LintReport, lint_spec
 from tensor_network_editor.templates import build_template_spec, list_template_names
 from tensor_network_editor.types import JSONValue
@@ -15,8 +26,10 @@ from tests.factories import build_sample_spec, build_three_tensor_spec
 def test_package_root_exports_headless_entry_points() -> None:
     assert tne.analyze_spec is analyze_spec
     assert tne.analyze_contraction is analyze_contraction
+    assert tne.canonicalize_spec is canonicalize_spec
     assert tne.lint_spec is lint_spec
     assert tne.diff_specs is diff_specs
+    assert tne.semantic_diff_specs is semantic_diff_specs
     assert tne.build_template_spec is build_template_spec
     assert tne.list_template_names is list_template_names
 
@@ -80,6 +93,44 @@ def test_spec_diff_result_serializes_entity_changes() -> None:
             "removed": [],
             "changed": [],
         },
+    }
+
+
+def test_semantic_spec_diff_result_serializes_entries() -> None:
+    result = SemanticSpecDiffResult(
+        entries=[
+            SemanticDiffEntry(
+                entity_type="tensor",
+                entity_id="tensor_a",
+                change_type="changed",
+                summary="Tensor changed.",
+                field_changes=[
+                    SemanticFieldChange(
+                        path="metadata.tags",
+                        before=["alpha"],
+                        after=["alpha", "beta"],
+                    )
+                ],
+            )
+        ]
+    )
+
+    assert result.to_dict() == {
+        "entries": [
+            {
+                "entity_type": "tensor",
+                "entity_id": "tensor_a",
+                "change_type": "changed",
+                "summary": "Tensor changed.",
+                "field_changes": [
+                    {
+                        "path": "metadata.tags",
+                        "before": ["alpha"],
+                        "after": ["alpha", "beta"],
+                    }
+                ],
+            }
+        ]
     }
 
 

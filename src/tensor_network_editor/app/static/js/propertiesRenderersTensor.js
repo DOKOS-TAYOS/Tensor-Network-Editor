@@ -7,6 +7,8 @@ export function createTensorPropertiesRenderers({
   const {
     bindDebouncedAutosave,
     bindImmediateAutosave,
+    bindMetadataEditors,
+    buildMetadataEditorMarkup,
     propertyInvalidation,
     renderTrashIcon,
     getTensorTotalElementCount,
@@ -149,6 +151,13 @@ export function createTensorPropertiesRenderers({
                   />
                 </label>
               </div>
+              ${buildMetadataEditorMarkup({
+                tagsInputId: `index-tags-input-${index.id}`,
+                tagsFocusKey: `index:${index.id}:tags`,
+                customMetadataInputId: `index-custom-metadata-input-${index.id}`,
+                customMetadataFocusKey: `index:${index.id}:custom-metadata`,
+                target: index,
+              })}
             </div>
           </section>
         `
@@ -185,12 +194,23 @@ export function createTensorPropertiesRenderers({
           />
         </label>
       </div>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "tensor-tags-input",
+        tagsFocusKey: `tensor:${tensor.id}:tags`,
+        customMetadataInputId: "tensor-custom-metadata-input",
+        customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
+        target: tensor,
+      })}
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>Ports will appear automatically when this cell exposes free non-virtual indices.</p>"}
       </div>
     `;
 
     const tensorColorInput = document.getElementById("tensor-color-input");
+    const tensorTagsInput = document.getElementById("tensor-tags-input");
+    const tensorCustomMetadataInput = document.getElementById(
+      "tensor-custom-metadata-input"
+    );
     bindImmediateAutosave(
       tensorColorInput,
       `tensor:${tensor.id}:color`,
@@ -228,9 +248,24 @@ export function createTensorPropertiesRenderers({
           }
         );
       });
+    bindMetadataEditors({
+      target: tensor,
+      tagsInput: tensorTagsInput,
+      tagsFieldKey: `tensor:${tensor.id}:tags`,
+      customMetadataInput: tensorCustomMetadataInput,
+      customMetadataFieldKey: `tensor:${tensor.id}:custom-metadata`,
+      statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
+      invalidate: propertyInvalidation(),
+    });
     tensor.indices.forEach((index) => {
       const indexColorInput = document.getElementById(
         `index-color-input-${index.id}`
+      );
+      const indexTagsInput = document.getElementById(
+        `index-tags-input-${index.id}`
+      );
+      const indexCustomMetadataInput = document.getElementById(
+        `index-custom-metadata-input-${index.id}`
       );
       bindImmediateAutosave(
         indexColorInput,
@@ -255,6 +290,15 @@ export function createTensorPropertiesRenderers({
         },
         "input"
       );
+      bindMetadataEditors({
+        target: index,
+        tagsInput: indexTagsInput,
+        tagsFieldKey: `index:${index.id}:tags`,
+        customMetadataInput: indexCustomMetadataInput,
+        customMetadataFieldKey: `index:${index.id}:custom-metadata`,
+        statusMessage: `Updated ${index.name}.`,
+        invalidate: propertyInvalidation(),
+      });
     });
   }
 
@@ -369,6 +413,13 @@ export function createTensorPropertiesRenderers({
                         ${renderTrashIcon()}
                       </button>
                     </div>
+                    ${buildMetadataEditorMarkup({
+                      tagsInputId: `index-tags-input-${index.id}`,
+                      tagsFocusKey: `index:${index.id}:tags`,
+                      customMetadataInputId: `index-custom-metadata-input-${index.id}`,
+                      customMetadataFocusKey: `index:${index.id}:custom-metadata`,
+                      target: index,
+                    })}
                   </div>
                 `
                 : ""
@@ -428,6 +479,13 @@ export function createTensorPropertiesRenderers({
           ${renderTrashIcon()}
         </button>
       </div>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "tensor-tags-input",
+        tagsFocusKey: `tensor:${tensor.id}:tags`,
+        customMetadataInputId: "tensor-custom-metadata-input",
+        customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
+        target: tensor,
+      })}
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>This tensor has no indices yet.</p>"}
       </div>
@@ -435,6 +493,10 @@ export function createTensorPropertiesRenderers({
 
     const tensorNameInput = document.getElementById("tensor-name-input");
     const tensorColorInput = document.getElementById("tensor-color-input");
+    const tensorTagsInput = document.getElementById("tensor-tags-input");
+    const tensorCustomMetadataInput = document.getElementById(
+      "tensor-custom-metadata-input"
+    );
 
     bindDebouncedAutosave(
       tensorNameInput,
@@ -481,6 +543,15 @@ export function createTensorPropertiesRenderers({
       },
       "input"
     );
+    bindMetadataEditors({
+      target: tensor,
+      tagsInput: tensorTagsInput,
+      tagsFieldKey: `tensor:${tensor.id}:tags`,
+      customMetadataInput: tensorCustomMetadataInput,
+      customMetadataFieldKey: `tensor:${tensor.id}:custom-metadata`,
+      statusMessage: `Updated tensor ${tensor.name}.`,
+      invalidate: propertyInvalidation(),
+    });
 
     document.getElementById("add-index-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -541,6 +612,12 @@ export function createTensorPropertiesRenderers({
       );
       const indexColorInput = document.getElementById(
         `index-color-input-${index.id}`
+      );
+      const indexTagsInput = document.getElementById(
+        `index-tags-input-${index.id}`
+      );
+      const indexCustomMetadataInput = document.getElementById(
+        `index-custom-metadata-input-${index.id}`
       );
       const moveIndexUpButton = document.getElementById(
         `move-index-up-button-${index.id}`
@@ -643,6 +720,15 @@ export function createTensorPropertiesRenderers({
         },
         "input"
       );
+      bindMetadataEditors({
+        target: index,
+        tagsInput: indexTagsInput,
+        tagsFieldKey: `index:${index.id}:tags`,
+        customMetadataInput: indexCustomMetadataInput,
+        customMetadataFieldKey: `index:${index.id}:custom-metadata`,
+        statusMessage: `Updated index ${index.name}.`,
+        invalidate: propertyInvalidation(),
+      });
 
       if (moveIndexUpButton) {
         moveIndexUpButton.addEventListener("click", () => {

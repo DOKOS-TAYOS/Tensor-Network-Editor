@@ -18,6 +18,7 @@ from .common import (
     container_name_for_format,
     prepare_network,
     render_code_sections,
+    render_manual_step_comment,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
@@ -194,7 +195,13 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         contraction_lines = ["results_list = []", ""]
         for step_index, step in enumerate(simulation.steps):
             latest_result_index = step_index - 1 if step_index > 0 else None
-            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
+                render_manual_step_comment(
+                    step.step_id,
+                    step.left_operand_id,
+                    step.right_operand_id,
+                )
+            )
             contraction_lines.append(
                 "results_list.append("
                 + self._render_manual_step_call(

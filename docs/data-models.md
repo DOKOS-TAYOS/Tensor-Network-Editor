@@ -48,6 +48,10 @@ It stores:
 - `linear_periodic_chain`
 - `metadata`
 
+`metadata` is the place for lightweight annotations. The stable tag convention
+is `metadata.tags`, which should be a small list of strings on network, tensor,
+index, edge, group, or note entities.
+
 Useful helper methods:
 
 - `tensor_map()`: map tensor ids to tensors
@@ -188,6 +192,10 @@ View snapshots preserve contraction-scene layout state:
 Snapshots are mainly for the editor UI. They are still part of the saved design
 and round-trip through JSON.
 
+When you re-import supported generated Python, manual contraction steps can be
+recovered, but `view_snapshots` are reset because generated code does not carry
+editor layout state.
+
 ## Linear Periodic Models
 
 Linear periodic mode uses:
@@ -221,6 +229,8 @@ Important result models:
 - `LintReport`: returned by `lint_spec(...)`
 - `SpecAnalysisReport`: returned by `analyze_spec(...)`
 - `SpecDiffResult`: returned by `diff_specs(...)`
+- `SemanticFieldChange`, `SemanticDiffEntry`, `SemanticSpecDiffResult`:
+  returned by `semantic_diff_specs(...)`
 
 Most result models provide `to_dict()` when they are intended for structured
 headless output.
@@ -232,5 +242,8 @@ headless output.
 - Let `save_spec(...)` validate before writing JSON.
 - Use `open_indices()` when you want to inspect dangling legs.
 - Use `metadata` for your own small annotations, not for core connectivity.
+- Prefer `metadata.tags` for quick labels such as physical legs, symmetries,
+  tensor roles, or provenance.
+- Keep free-form metadata reasonably small so the editor stays responsive.
 - Prefer JSON as the long-term design artifact and generated code as the
   backend-specific artifact.

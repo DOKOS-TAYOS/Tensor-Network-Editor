@@ -22,6 +22,7 @@ from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollecti
 from tests.factories import (
     build_outer_product_plan_spec,
     build_sample_spec_with_view_snapshots,
+    build_three_tensor_complete_plan_spec,
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
 )
@@ -65,6 +66,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "analyze_contraction",
         "analyze_spec",
         "build_template_spec",
+        "canonicalize_spec",
         "diff_specs",
         "generate_code",
         "lint_spec",
@@ -73,6 +75,10 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_spec",
         "load_spec_from_python_code",
         "save_spec",
+        "SemanticDiffEntry",
+        "SemanticFieldChange",
+        "SemanticSpecDiffResult",
+        "semantic_diff_specs",
         "validate_spec",
     }
     assert tensor_network_editor.generate_code is generate_code
@@ -218,11 +224,8 @@ def test_load_spec_from_python_code_round_trips_generated_source(
     assert loaded_spec.contraction_plan is None
 
 
-@pytest.mark.parametrize(
-    "engine",
-    [EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
-)
-def test_load_spec_from_python_code_round_trips_stepwise_manual_einsum(
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_round_trips_manual_plan_steps(
     engine: EngineName,
 ) -> None:
     sample_spec = build_three_tensor_spec()
@@ -233,7 +236,46 @@ def test_load_spec_from_python_code_round_trips_stepwise_manual_einsum(
     assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
     assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5), (5, 7)]
     assert len(loaded_spec.edges) == 2
-    assert loaded_spec.contraction_plan is None
+    assert loaded_spec.contraction_plan is not None
+    assert loaded_spec.contraction_plan.id == "imported_contraction_plan"
+    assert loaded_spec.contraction_plan.name == "Imported manual contraction path"
+    assert loaded_spec.contraction_plan.view_snapshots == []
+    assert [step.id for step in loaded_spec.contraction_plan.steps] == ["step_ab"]
+    assert loaded_spec.contraction_plan.steps[0].left_operand_id == "tensor_a"
+    assert loaded_spec.contraction_plan.steps[0].right_operand_id == "tensor_b"
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_round_trips_chained_manual_plan_steps(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_complete_plan_spec()
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.contraction_plan is not None
+    assert [step.id for step in loaded_spec.contraction_plan.steps] == [
+        "step_ab",
+        "step_abc",
+    ]
+    assert loaded_spec.contraction_plan.steps[1].left_operand_id == "step_ab"
+    assert loaded_spec.contraction_plan.steps[1].right_operand_id == "tensor_c"
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_rejects_malformed_manual_step_markup(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_three_tensor_spec(), engine=engine)
+    malformed_code = result.code.replace(
+        "# Manual step step_ab",
+        "# Manual step step_ab | left=tensor_a",
+        1,
+    )
+
+    with pytest.raises(SerializationError, match="manual step"):
+        load_spec_from_python_code(malformed_code)
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

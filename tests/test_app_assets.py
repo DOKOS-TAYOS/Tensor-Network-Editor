@@ -390,6 +390,31 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert "function getTensorTotalElementCount(" in support_body
 
 
+def test_properties_assets_expose_tags_and_custom_metadata_editors(
+    editor_server: EditorServer,
+) -> None:
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+    tensor_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    )
+    entities_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
+    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+
+    combined_body = overview_body + tensor_body + entities_body
+    assert "Tags" in combined_body
+    assert "Custom metadata (JSON)" in support_body
+    assert (
+        'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
+        in support_body
+    )
+    assert "function bindMetadataEditors(" in support_body
+    assert "propertyInvalidation(ctx);" in support_body
+
+
 def test_properties_renderer_assets_are_split_by_selection_family(
     editor_server: EditorServer,
 ) -> None:

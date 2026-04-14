@@ -16,6 +16,7 @@ from .common import (
     container_name_for_format,
     prepare_network,
     render_code_sections,
+    render_manual_step_comment,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
@@ -178,7 +179,13 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 step_result_indexes=step_result_indexes,
                 latest_result_index=latest_result_index,
             )
-            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
+                render_manual_step_comment(
+                    step.step_id,
+                    step.left_operand_id,
+                    step.right_operand_id,
+                )
+            )
             contraction_lines.append(
                 "results_list.append(tk.contract_between("
                 f"{left_expression}, {right_expression}))"

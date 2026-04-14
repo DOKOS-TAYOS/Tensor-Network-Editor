@@ -9,11 +9,17 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol, cast
 
-from ._headless_models import SpecAnalysisReport, SpecDiffResult
+from ._headless_models import (
+    SemanticDiffEntry,
+    SemanticSpecDiffResult,
+    SpecAnalysisReport,
+    SpecDiffResult,
+)
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, SUPPORTED_MEMORY_DTYPES
 from .analysis import analyze_spec
 from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
-from .diffing import diff_specs
+from .canonicalization import canonicalize_spec
+from .diffing import diff_specs, semantic_diff_specs
 from .errors import (
     CodeGenerationError,
     PackageIOError,
@@ -127,8 +133,26 @@ def build_command_parser() -> argparse.ArgumentParser:
     )
     diff_parser.add_argument("before", type=str)
     diff_parser.add_argument("after", type=str)
+    diff_parser.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Report field-level semantic changes instead of id-level summaries.",
+    )
     _add_output_format_argument(diff_parser)
     diff_parser.set_defaults(handler=_handle_diff)
+
+    canonicalize_parser = subparsers.add_parser(
+        "canonicalize",
+        help="Canonicalize a saved spec with stable ordering and optional deterministic ids.",
+    )
+    canonicalize_parser.add_argument("path", type=str)
+    canonicalize_parser.add_argument("--output", type=str)
+    canonicalize_parser.add_argument(
+        "--deterministic-ids",
+        action="store_true",
+        help="Rewrite ids deterministically in canonical order.",
+    )
+    canonicalize_parser.set_defaults(handler=_handle_canonicalize)
 
     template_parser = subparsers.add_parser(
         "template", help="Inspect or build the built-in template catalog."
@@ -293,11 +317,30 @@ def _handle_diff(args: argparse.Namespace) -> int:
     """Compare two specs and print the resulting structured diff."""
     before = load_spec(args.before)
     after = load_spec(args.after)
+    if args.semantic:
+        result = semantic_diff_specs(before, after)
+        if args.format == "json":
+            _print_json(result.to_dict())
+        else:
+            _print_semantic_diff_text(result)
+        return 0
     result = diff_specs(before, after)
     if args.format == "json":
         _print_json(result.to_dict())
     else:
         _print_diff_text(result)
+    return 0
+
+
+def _handle_canonicalize(args: argparse.Namespace) -> int:
+    """Canonicalize a spec and print or save the normalized result."""
+    spec = load_spec(args.path)
+    canonical_spec = canonicalize_spec(spec, deterministic_ids=args.deterministic_ids)
+    if args.output is not None:
+        save_spec(canonical_spec, args.output)
+        print(f"Wrote canonical spec to {args.output}")
+        return 0
+    _print_json(serialize_spec(canonical_spec))
     return 0
 
 
@@ -593,3 +636,34 @@ def _print_diff_text(result: SpecDiffResult) -> None:
             f" removed={len(changes.removed)},"
             f" changed={len(changes.changed)}"
         )
+
+
+def _print_semantic_diff_text(result: SemanticSpecDiffResult) -> None:
+    """Print semantic diff entries grouped by entity type."""
+    if not result.entries:
+        print("No semantic changes found.")
+        return
+    grouped_entries: dict[str, list[SemanticDiffEntry]] = {}
+    for entry in result.entries:
+        grouped_entries.setdefault(entry.entity_type, []).append(entry)
+    for entity_type in (
+        "tensor",
+        "index",
+        "edge",
+        "group",
+        "note",
+        "plan",
+        "step",
+        "linear_periodic_chain",
+    ):
+        entries = grouped_entries.get(entity_type)
+        if not entries:
+            continue
+        print(f"{entity_type}:")
+        for entry in entries:
+            print(f"- {entry.entity_id} [{entry.change_type}] {entry.summary}")
+            for field_change in entry.field_changes:
+                print(
+                    f"  {field_change.path}: "
+                    f"{json.dumps(field_change.before)} -> {json.dumps(field_change.after)}"
+                )

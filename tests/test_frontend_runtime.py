@@ -2061,6 +2061,560 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "metadata_properties_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    utilities_templates_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesTemplates.js"
+    )
+    history_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "historySelection.js"
+    )
+    properties_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "properties.js"
+    )
+    properties_support_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "propertiesSupport.js"
+    )
+    properties_renderers_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "propertiesRenderers.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
+    history_runtime_path = tmp_path / "historySelection.runtime.mjs"
+    properties_runtime_path = tmp_path / "properties.runtime.mjs"
+    properties_support_runtime_path = tmp_path / "propertiesSupport.js"
+    properties_renderers_runtime_path = tmp_path / "propertiesRenderers.js"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_templates_runtime_path.write_text(
+        utilities_templates_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _copy_runtime_editor_support_modules(tmp_path)
+    history_runtime_path.write_text(
+        history_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    properties_runtime_path.write_text(
+        properties_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    properties_support_runtime_path.write_text(
+        properties_support_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    properties_renderers_runtime_path.write_text(
+        properties_renderers_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        function createClassList() {
+          return {
+            add() {},
+            remove() {},
+            toggle() {},
+          };
+        }
+
+        function createFakeElement(id = null, tagName = "div") {
+          return {
+            id,
+            tagName: String(tagName || "div").toUpperCase(),
+            value: "",
+            textContent: "",
+            dataset: {},
+            disabled: false,
+            classList: createClassList(),
+            style: {},
+            listeners: {},
+            addEventListener(eventName, listener) {
+              if (!this.listeners[eventName]) {
+                this.listeners[eventName] = [];
+              }
+              this.listeners[eventName].push(listener);
+            },
+            dispatchEvent(eventName, event = {}) {
+              (this.listeners[eventName] || []).forEach((listener) => {
+                listener({
+                  preventDefault() {},
+                  target: this,
+                  ...event,
+                });
+              });
+            },
+            click() {
+              this.dispatchEvent("click");
+            },
+            focus() {},
+            setAttribute() {},
+            removeAttribute() {},
+            appendChild() {},
+          };
+        }
+
+        function createFakeDocument() {
+          const elements = new Map();
+          const toggleElements = [];
+          return {
+            activeElement: null,
+            toggleElements,
+            registerHtml(html) {
+              elements.clear();
+              toggleElements.length = 0;
+
+              const tagPattern = /<(input|textarea|button)[^>]*id="([^"]+)"[^>]*>/g;
+              let tagMatch = tagPattern.exec(html);
+              while (tagMatch) {
+                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                tagMatch = tagPattern.exec(html);
+              }
+
+              const togglePattern = /<button[\\s\\S]*?data-index-toggle="([^"]+)"[\\s\\S]*?>/g;
+              let toggleMatch = togglePattern.exec(html);
+              while (toggleMatch) {
+                const element = createFakeElement(null, "button");
+                element.dataset.indexToggle = toggleMatch[1];
+                toggleElements.push(element);
+                toggleMatch = togglePattern.exec(html);
+              }
+            },
+            getElementById(id) {
+              return elements.get(id) || null;
+            },
+            createElement(tagName) {
+              return createFakeElement(null, tagName);
+            },
+            querySelectorAll() {
+              return [];
+            },
+          };
+        }
+
+        function createPropertiesPanel(document) {
+          let html = "";
+          return {
+            get innerHTML() {
+              return html;
+            },
+            set innerHTML(value) {
+              html = value;
+              document.registerHtml(value);
+            },
+            querySelectorAll(selector) {
+              if (selector === "[data-index-toggle]") {
+                return document.toggleElements;
+              }
+              return [];
+            },
+          };
+        }
+
+        function createButton() {
+          return createFakeElement(null, "button");
+        }
+
+        function createSpec() {
+          return {
+            id: "network_metadata_regression",
+            name: "metadata regression",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "Tensor A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                metadata: {
+                  color: "#123456",
+                  collapsed: true,
+                  tags: ["seed"],
+                  source: "sim",
+                },
+                indices: [
+                  {
+                    id: "index_a",
+                    name: "left",
+                    dimension: 2,
+                    offset: { x: -38, y: 0 },
+                    metadata: {},
+                  },
+                  {
+                    id: "index_b",
+                    name: "right",
+                    dimension: 3,
+                    offset: { x: 38, y: 0 },
+                    metadata: {},
+                  },
+                ],
+              },
+            ],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "bond_ab",
+                left: { tensor_id: "tensor_a", index_id: "index_a" },
+                right: { tensor_id: "tensor_a", index_id: "index_b" },
+                metadata: {},
+              },
+            ],
+            groups: [
+              {
+                id: "group_a",
+                name: "Group A",
+                tensor_ids: ["tensor_a"],
+                metadata: {},
+              },
+            ],
+            notes: [
+              {
+                id: "note_a",
+                text: "check metadata",
+                position: { x: 40, y: 40 },
+                size: { width: 220, height: 120 },
+                metadata: {},
+              },
+            ],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        function commitField(element, nextValue) {
+          if (!element) {
+            throw new Error("Missing editable field.");
+          }
+          element.value = nextValue;
+          element.dispatchEvent("input");
+          element.dispatchEvent("blur");
+        }
+
+        function assertLastRenderDidNotInvalidateGraph(renderCalls, graphCount, minimapCount) {
+          const lastRender = renderCalls[renderCalls.length - 1];
+          if (!lastRender) {
+            throw new Error("Expected a render call after committing metadata.");
+          }
+          if (lastRender.graph || lastRender.minimap) {
+            throw new Error(
+              `Expected metadata edits to avoid graph/minimap invalidation, received ${JSON.stringify(lastRender)}.`
+            );
+          }
+          if (graphCount() !== 0 || minimapCount() !== 0) {
+            throw new Error(
+              `Expected no graph/minimap render work, received graph=${graphCount()} minimap=${minimapCount()}.`
+            );
+          }
+        }
+
+        const [stateModule, utilitiesModule, historyModule, propertiesModule] =
+          await Promise.all([
+            import(pathToFileURL(__STATE_PATH__).href),
+            import(pathToFileURL(__UTILITIES_PATH__).href),
+            import(pathToFileURL(__HISTORY_PATH__).href),
+            import(pathToFileURL(__PROPERTIES_PATH__).href),
+          ]);
+        const { createInitialState } = stateModule;
+        const { registerUtilities } = utilitiesModule;
+        const { registerHistorySelection } = historyModule;
+        const { registerProperties } = propertiesModule;
+
+        const document = createFakeDocument();
+        const propertiesPanel = createPropertiesPanel(document);
+        const renderCalls = [];
+        let graphRenderCount = 0;
+        let minimapRenderCount = 0;
+        const ctx = {
+          state: createInitialState(),
+          constants: {
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 96,
+            MIN_TENSOR_HEIGHT: 60,
+            INDEX_RADIUS: 10,
+            INDEX_PADDING: 6,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 120,
+            NOTE_MIN_WIDTH: 120,
+            NOTE_MIN_HEIGHT: 90,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            DEFAULT_INDEX_SLOTS: [
+              { x: -38, y: 0 },
+              { x: 38, y: 0 },
+              { x: 0, y: -24 },
+              { x: 0, y: 24 },
+            ],
+          },
+          dom: {
+            workspace: {},
+            statusMessage: { textContent: "", classList: createClassList() },
+            propertiesPanel,
+            generatedCode: { value: "" },
+            engineSelect: { options: [], value: "tensornetwork" },
+            collectionFormatSelect: { options: [], value: "list" },
+            exportFormatSelect: { value: "py" },
+            addNoteButton: createButton(),
+            connectButton: createButton(),
+            loadInput: {},
+            undoButton: createButton(),
+            redoButton: createButton(),
+            exportButton: createButton(),
+            toggleLinearPeriodicButton: createButton(),
+            linearPeriodicPreviousCellButton: createButton(),
+            linearPeriodicCellLabel: { textContent: "" },
+            linearPeriodicNextCellButton: createButton(),
+            templateSelect: { value: "" },
+            templateParameterPanel: { hidden: true },
+            templateGraphSizeLabel: { textContent: "" },
+            templateGraphSizeInput: { value: "2", min: "1" },
+            templateBondDimensionInput: { value: "3", min: "1" },
+            templatePhysicalDimensionInput: { value: "2", min: "1" },
+            insertTemplateButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: { classList: createClassList() },
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            canvasShell: {
+              getBoundingClientRect() {
+                return { left: 0, top: 0, width: 1000, height: 800 };
+              },
+            },
+            groupLayer: {},
+            resizeLayer: {},
+            notesLayer: {},
+            selectionBox: {},
+            minimapCanvas: {},
+            sidebar: {},
+            plannerPanel: {},
+            generateButton: createButton(),
+          },
+          apiGet: async () => null,
+          apiPost: async () => null,
+          window: {
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm: () => true,
+          },
+          document,
+          cytoscape: null,
+          tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+          tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+          renderOverlayDecorations: () => {},
+          renderMinimap: () => {
+            minimapRenderCount += 1;
+          },
+          renderPlanner: () => {},
+          renderSidebarTabs: () => {},
+          refreshContractionAnalysis: () => {},
+          repairContractionPlan: () => {},
+          updateToolbarState: () => {},
+        };
+
+        registerUtilities(ctx);
+        registerHistorySelection(ctx);
+        registerProperties(ctx);
+
+        ctx.captureEditableFocus = () => null;
+        ctx.restoreEditableFocus = () => {};
+        ctx.render = (options = {}) => {
+          const resolvedOptions = {
+            graph: true,
+            properties: true,
+            code: true,
+            toolbar: true,
+            overlays: true,
+            planner: true,
+            sidebarTabs: true,
+            minimap: true,
+            syncSelection: false,
+            ...options,
+          };
+          renderCalls.push(resolvedOptions);
+          if (resolvedOptions.graph) {
+            graphRenderCount += 1;
+          }
+          if (resolvedOptions.properties) {
+            ctx.renderProperties();
+          }
+          if (resolvedOptions.minimap) {
+            ctx.renderMinimap();
+          }
+        };
+
+        ctx.state.selectedEngine = "tensornetwork";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(createSpec());
+        ctx.renderProperties();
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(document.getElementById("network-tags-input"), "physical, observable, physical");
+        if (JSON.stringify(ctx.state.spec.metadata.tags) !== JSON.stringify(["physical", "observable"])) {
+          throw new Error(`Expected normalised network tags, received ${JSON.stringify(ctx.state.spec.metadata.tags)}.`);
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        ctx.setSelection(["tensor_a"], { primaryId: "tensor_a" });
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(document.getElementById("tensor-tags-input"), "alpha, beta, alpha");
+        const tensorMetadataAfterTags = ctx.state.spec.tensors[0].metadata;
+        if (JSON.stringify(tensorMetadataAfterTags.tags) !== JSON.stringify(["alpha", "beta"])) {
+          throw new Error(`Expected tensor tags to be updated, received ${JSON.stringify(tensorMetadataAfterTags.tags)}.`);
+        }
+        if (tensorMetadataAfterTags.color !== "#123456" || tensorMetadataAfterTags.collapsed !== true) {
+          throw new Error("Reserved tensor metadata keys were not preserved after editing tags.");
+        }
+        if (tensorMetadataAfterTags.source !== "sim") {
+          throw new Error("Custom tensor metadata should survive a tags-only edit.");
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(
+          document.getElementById("tensor-custom-metadata-input"),
+          '{"role":"observable","color":"#ffffff","tags":["ignored"]}'
+        );
+        const tensorMetadataAfterCustomEdit = ctx.state.spec.tensors[0].metadata;
+        if (tensorMetadataAfterCustomEdit.color !== "#123456") {
+          throw new Error("The advanced metadata editor should preserve the existing reserved color.");
+        }
+        if (tensorMetadataAfterCustomEdit.collapsed !== true) {
+          throw new Error("The advanced metadata editor should preserve the reserved collapsed flag.");
+        }
+        if (JSON.stringify(tensorMetadataAfterCustomEdit.tags) !== JSON.stringify(["alpha", "beta"])) {
+          throw new Error("The advanced metadata editor should preserve tags edited in the dedicated field.");
+        }
+        if (tensorMetadataAfterCustomEdit.role !== "observable") {
+          throw new Error("The advanced metadata editor did not apply the custom metadata payload.");
+        }
+        if (Object.prototype.hasOwnProperty.call(tensorMetadataAfterCustomEdit, "source")) {
+          throw new Error("The advanced metadata editor should replace the custom metadata object rather than append to it.");
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        ctx.performUndo();
+        const tensorMetadataAfterUndo = ctx.state.spec.tensors[0].metadata;
+        if (tensorMetadataAfterUndo.source !== "sim" || tensorMetadataAfterUndo.role !== undefined) {
+          throw new Error(`Undo should restore the previous tensor custom metadata, received ${JSON.stringify(tensorMetadataAfterUndo)}.`);
+        }
+        ctx.performRedo();
+        const tensorMetadataAfterRedo = ctx.state.spec.tensors[0].metadata;
+        if (tensorMetadataAfterRedo.role !== "observable" || Object.prototype.hasOwnProperty.call(tensorMetadataAfterRedo, "source")) {
+          throw new Error(`Redo should restore the advanced metadata edit, received ${JSON.stringify(tensorMetadataAfterRedo)}.`);
+        }
+
+        ctx.setSelection(["index_a"], { primaryId: "index_a" });
+        const indexTagsInput = document.getElementById("index-tags-input-index_a");
+        if (!indexTagsInput) {
+          throw new Error("Selecting an index should expose the tags field in the properties sidebar.");
+        }
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(indexTagsInput, "left-leg, physical");
+        const indexMetadata = ctx.state.spec.tensors[0].indices[0].metadata;
+        if (JSON.stringify(indexMetadata.tags) !== JSON.stringify(["left-leg", "physical"])) {
+          throw new Error(`Expected index tags to update, received ${JSON.stringify(indexMetadata.tags)}.`);
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+        """
+    )
+    script_body = script_body.replace(
+        "__STATE_PATH__", json.dumps(str(state_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__UTILITIES_PATH__", json.dumps(str(utilities_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__HISTORY_PATH__", json.dumps(str(history_runtime_path))
+    )
+    script_body = script_body.replace(
+        "__PROPERTIES_PATH__", json.dumps(str(properties_runtime_path))
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_for_mode_dimension_updates_keep_working_after_first_change(
     tmp_path: Path,
@@ -2174,6 +2728,26 @@ def test_shift_m_hides_the_minimap_without_recursive_shortcut_calls(
 
     assert completed_process.returncode == 0, (
         "The minimap shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_metadata_properties_edits_preserve_reserved_keys_and_skip_graph_rerenders(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_metadata_properties_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The metadata-properties frontend runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

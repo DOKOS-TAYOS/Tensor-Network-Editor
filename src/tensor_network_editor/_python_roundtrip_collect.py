@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 
 from ._python_roundtrip_ast import (
     _call_name,
@@ -13,17 +14,26 @@ from ._python_roundtrip_ast import (
     _parse_index_operand,
     _parse_list_append_value,
     _parse_matrix_row_index,
+    _parse_operand_tag_string,
+    _parse_results_list_reference,
     _parse_tensor_reference,
     _parse_tensor_reference_string,
     _parse_zeros_shape,
 )
 from ._python_roundtrip_build import (
     _default_tensor_name_from_position,
+    _ManualStepComment,
     _parse_tensor_expression,
     _ParsedTensor,
     _PendingEdge,
+    _PendingManualStep,
 )
 from .errors import SerializationError
+
+_MANUAL_STEP_COMMENT_PATTERN = re.compile(
+    r"^\s*# Manual step (?P<step_id>\S+) \| left=(?P<left_operand_id>\S+) \| "
+    r"right=(?P<right_operand_id>\S+)\s*$"
+)
 
 
 def _collect_data_shape(
@@ -270,3 +280,187 @@ def _collect_remaining_einsum_labels(
         labels = _literal_string_sequence(value)
         if reference is not None and labels is not None:
             remaining_einsum_labels_by_reference[reference] = labels
+
+
+def _collect_manual_step_comments(code: str) -> dict[int, _ManualStepComment]:
+    """Collect structured manual-step comments keyed by their next statement."""
+    comments_by_statement_line: dict[int, _ManualStepComment] = {}
+    source_lines = code.splitlines()
+    for line_number, line in enumerate(source_lines, start=1):
+        if not line.lstrip().startswith("# Manual step"):
+            continue
+        match = _MANUAL_STEP_COMMENT_PATTERN.match(line)
+        if match is None:
+            raise SerializationError(
+                "Generated Python manual step comment is malformed."
+            )
+        next_line_number = line_number + 1
+        while next_line_number <= len(source_lines):
+            candidate = source_lines[next_line_number - 1].strip()
+            if candidate:
+                break
+            next_line_number += 1
+        if next_line_number > len(source_lines):
+            raise SerializationError(
+                "Generated Python manual step comment must precede a statement."
+            )
+        comments_by_statement_line[next_line_number] = _ManualStepComment(
+            step_id=match.group("step_id"),
+            left_operand_id=match.group("left_operand_id"),
+            right_operand_id=match.group("right_operand_id"),
+        )
+    return comments_by_statement_line
+
+
+def _collect_manual_step(
+    *,
+    statement: ast.stmt,
+    manual_step_comments_by_statement_line: dict[int, _ManualStepComment],
+    pending_manual_steps: list[_PendingManualStep],
+    step_ids_by_results_list_index: list[str],
+    preferred_tensor_ids_by_reference: dict[str, str],
+) -> None:
+    """Collect one manual step from supported generated-Python statements."""
+    statement_line_number = getattr(statement, "lineno", None)
+    if statement_line_number is None:
+        return
+    comment = manual_step_comments_by_statement_line.get(statement_line_number)
+    if comment is None:
+        return
+
+    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+        raise SerializationError(
+            "Generated Python manual step comment must precede a supported step statement."
+        )
+
+    call = statement.value
+    appended_value = _parse_list_append_value(statement, "results_list")
+    if isinstance(appended_value, ast.Call):
+        appended_call_name = _call_name(appended_value.func)
+        if appended_call_name.endswith(".einsum") or appended_call_name == "einsum":
+            if len(appended_value.args) < 3:
+                raise SerializationError(
+                    "Generated Python manual step call is missing einsum operands."
+                )
+            _resolve_manual_operand_id(
+                expression=appended_value.args[1],
+                expected_operand_id=comment.left_operand_id,
+                step_ids_by_results_list_index=step_ids_by_results_list_index,
+                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+            )
+            _resolve_manual_operand_id(
+                expression=appended_value.args[2],
+                expected_operand_id=comment.right_operand_id,
+                step_ids_by_results_list_index=step_ids_by_results_list_index,
+                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+            )
+            pending_manual_steps.append(
+                _PendingManualStep(
+                    step_id=comment.step_id,
+                    left_operand_id=comment.left_operand_id,
+                    right_operand_id=comment.right_operand_id,
+                )
+            )
+            step_ids_by_results_list_index.append(comment.step_id)
+            return
+        if (
+            appended_call_name.endswith(".contract_between")
+            or appended_call_name == "contract_between"
+        ):
+            if len(appended_value.args) < 2:
+                raise SerializationError(
+                    "Generated Python manual step call is missing contraction operands."
+                )
+            _resolve_manual_operand_id(
+                expression=appended_value.args[0],
+                expected_operand_id=comment.left_operand_id,
+                step_ids_by_results_list_index=step_ids_by_results_list_index,
+                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+            )
+            _resolve_manual_operand_id(
+                expression=appended_value.args[1],
+                expected_operand_id=comment.right_operand_id,
+                step_ids_by_results_list_index=step_ids_by_results_list_index,
+                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+            )
+            pending_manual_steps.append(
+                _PendingManualStep(
+                    step_id=comment.step_id,
+                    left_operand_id=comment.left_operand_id,
+                    right_operand_id=comment.right_operand_id,
+                )
+            )
+            step_ids_by_results_list_index.append(comment.step_id)
+            return
+
+    call_name = _call_name(call.func)
+    if call_name.endswith(".contract_between") or call_name == "contract_between":
+        if len(call.args) < 2:
+            raise SerializationError(
+                "Generated Python manual step call is missing contraction operands."
+            )
+        left_operand_id = _parse_operand_tag_string(_literal_string(call.args[0]))
+        right_operand_id = _parse_operand_tag_string(_literal_string(call.args[1]))
+        if (
+            left_operand_id != comment.left_operand_id
+            or right_operand_id != comment.right_operand_id
+        ):
+            raise SerializationError(
+                "Generated Python manual step operands conflict with their markup."
+            )
+        pending_manual_steps.append(
+            _PendingManualStep(
+                step_id=comment.step_id,
+                left_operand_id=comment.left_operand_id,
+                right_operand_id=comment.right_operand_id,
+            )
+        )
+        step_ids_by_results_list_index.append(comment.step_id)
+        return
+
+    raise SerializationError(
+        "Generated Python manual step comment must precede a supported step statement."
+    )
+
+
+def _resolve_manual_operand_id(
+    *,
+    expression: ast.expr,
+    expected_operand_id: str,
+    step_ids_by_results_list_index: list[str],
+    preferred_tensor_ids_by_reference: dict[str, str],
+) -> str:
+    """Resolve one manual-step operand reference and validate it."""
+    tensor_reference = _parse_tensor_reference(expression)
+    if tensor_reference is not None:
+        recovered_tensor_id = preferred_tensor_ids_by_reference.get(tensor_reference)
+        if recovered_tensor_id is None:
+            preferred_tensor_ids_by_reference[tensor_reference] = expected_operand_id
+            return expected_operand_id
+        if recovered_tensor_id != expected_operand_id:
+            raise SerializationError(
+                "Generated Python manual step markup conflicts with tensor references."
+            )
+        return recovered_tensor_id
+
+    results_list_index = _parse_results_list_reference(expression)
+    if results_list_index is not None:
+        normalized_index = results_list_index
+        if normalized_index < 0:
+            normalized_index += len(step_ids_by_results_list_index)
+        if normalized_index < 0 or normalized_index >= len(
+            step_ids_by_results_list_index
+        ):
+            raise SerializationError(
+                "Generated Python manual step references an unknown intermediate result."
+            )
+        recovered_step_id = step_ids_by_results_list_index[normalized_index]
+        if recovered_step_id != expected_operand_id:
+            raise SerializationError(
+                "Generated Python manual step markup conflicts with step-result references."
+            )
+        return recovered_step_id
+
+    raise SerializationError(
+        "Generated Python manual step uses an unsupported operand reference."
+    )

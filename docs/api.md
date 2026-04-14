@@ -9,7 +9,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Launch the Editor](#launch-the-editor)
 - [Generate Code](#generate-code)
 - [Save and Load Designs](#save-and-load-designs)
-- [Validate, Lint, Analyze, and Diff](#validate-lint-analyze-and-diff)
+- [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
 - [Templates](#templates)
 - [Errors](#errors)
 - [Small Complete Example](#small-complete-example)
@@ -23,10 +23,14 @@ from tensor_network_editor import (
     CodeGenerationError,
     EngineName,
     NetworkSpec,
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
     TensorCollectionFormat,
     analyze_contraction,
     analyze_spec,
     build_template_spec,
+    canonicalize_spec,
     diff_specs,
     generate_code,
     launch_tensor_network_editor,
@@ -35,6 +39,7 @@ from tensor_network_editor import (
     load_spec,
     load_spec_from_python_code,
     save_spec,
+    semantic_diff_specs,
     validate_spec,
 )
 ```
@@ -158,10 +163,13 @@ print(round_tripped_spec.name)
 ```
 
 This parser is intentionally limited to standard source layouts emitted by this
-package. Linear periodic generated Python remains export-only for now, and this
-is still not a general Python-to-network importer.
+package. For supported standard exports, manual contraction steps now round-trip
+back into `ContractionPlanSpec.steps`. Editor-only `view_snapshots` are still
+reset to an empty list because generated Python does not carry scene layout.
+Linear periodic generated Python remains export-only for now, and this is still
+not a general Python-to-network importer.
 
-## Validate, Lint, Analyze, and Diff
+## Validate, Lint, Analyze, Canonicalize, and Diff
 
 These helpers are useful in scripts and automated checks.
 
@@ -169,9 +177,11 @@ These helpers are useful in scripts and automated checks.
 from tensor_network_editor import (
     analyze_contraction,
     analyze_spec,
+    canonicalize_spec,
     diff_specs,
     lint_spec,
     load_spec,
+    semantic_diff_specs,
     validate_spec,
 )
 
@@ -182,13 +192,16 @@ validation_issues = validate_spec(spec)
 lint_report = lint_spec(spec, max_tensor_rank=8, max_tensor_cardinality=50_000)
 analysis = analyze_spec(spec, memory_dtype="float32")
 contraction = analyze_contraction(spec, memory_dtype="float32")
+canonical_spec = canonicalize_spec(spec, deterministic_ids=False)
 diff = diff_specs(spec, spec)
+semantic_diff = semantic_diff_specs(spec, canonical_spec)
 
 print(validation_issues)
 print(lint_report.to_dict())
 print(analysis.to_dict())
 print(contraction.to_dict())
 print(diff.to_dict())
+print(semantic_diff.to_dict())
 ```
 
 Use:
@@ -197,7 +210,11 @@ Use:
 - `lint_spec(...)` for softer warnings and suggestions
 - `analyze_spec(...)` for structural counts and contraction summaries
 - `analyze_contraction(...)` when you only need contraction analysis
+- `canonicalize_spec(...)` for stable ordering, recursive metadata key ordering,
+  normalized `metadata.tags`, and optional deterministic ids
 - `diff_specs(...)` to compare entities by stable ids
+- `semantic_diff_specs(...)` to report field-level tensor/index/edge/plan/step
+  changes after the same normalization used by canonicalization
 
 Supported memory dtypes for analysis are `float16`, `float32`, `float64`,
 `complex64`, and `complex128`.

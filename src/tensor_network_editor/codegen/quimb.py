@@ -16,6 +16,7 @@ from .common import (
     joined_tensor_display_name,
     prepare_network,
     render_code_sections,
+    render_manual_step_comment,
     render_results_list_reference,
     render_tensor_collection_assignment,
     render_tensor_collection_initialization,
@@ -133,7 +134,13 @@ class QuimbCodeGenerator(CodeGenerator):
             left_tag = self._operand_tag(step.left_operand_id)
             right_tag = self._operand_tag(step.right_operand_id)
             step_tag = self._operand_tag(step.step_id)
-            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
+                render_manual_step_comment(
+                    step.step_id,
+                    step.left_operand_id,
+                    step.right_operand_id,
+                )
+            )
             contraction_lines.append(
                 f"network.contract_between({left_tag!r}, {right_tag!r})"
             )

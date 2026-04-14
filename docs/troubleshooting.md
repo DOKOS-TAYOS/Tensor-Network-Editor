@@ -180,6 +180,10 @@ spec_from_text = load_spec_from_python_code(generated_source)
 This is intentionally limited to source produced by this package. It is not a
 general importer for arbitrary Python tensor-network code.
 
+For supported standard exports, saved manual contraction steps are recovered on
+round-trip. Editor-only contraction `view_snapshots` are still dropped because
+the generated source does not encode that layout state.
+
 Linear periodic generated Python is not supported by this round-trip parser
 yet, so those exports should be treated as output artifacts rather than a
 reloadable source format.

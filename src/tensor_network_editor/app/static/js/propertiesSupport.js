@@ -1,4 +1,5 @@
 const AUTOSAVE_DELAY_MS = 300;
+const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
 
 export function propertyInvalidation(ctx, overrides = {}) {
   const isLinearPeriodicMode =
@@ -195,6 +196,210 @@ export function createPropertiesSupport({ ctx, state, window }) {
     });
   }
 
+  function normalizeMetadataTarget(target) {
+    if (!target || !ctx.isObject(target)) {
+      return null;
+    }
+    target.metadata = ctx.isObject(target.metadata) ? target.metadata : {};
+    return target.metadata;
+  }
+
+  function getReservedMetadata(target) {
+    const metadata = normalizeMetadataTarget(target);
+    if (!metadata) {
+      return {};
+    }
+    const reserved = {};
+    RESERVED_METADATA_KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(metadata, key)) {
+        reserved[key] = ctx.deepClone(metadata[key]);
+      }
+    });
+    return reserved;
+  }
+
+  function getCustomMetadata(target) {
+    const metadata = normalizeMetadataTarget(target);
+    if (!metadata) {
+      return {};
+    }
+    const customMetadata = {};
+    Object.keys(metadata).forEach((key) => {
+      if (!RESERVED_METADATA_KEYS.has(key)) {
+        customMetadata[key] = ctx.deepClone(metadata[key]);
+      }
+    });
+    return customMetadata;
+  }
+
+  function formatTagsValue(target) {
+    const metadata = normalizeMetadataTarget(target);
+    const tags = Array.isArray(metadata && metadata.tags)
+      ? metadata.tags.filter((tag) => typeof tag === "string" && tag.trim())
+      : [];
+    return tags.join(", ");
+  }
+
+  function normalizeTagsValue(rawValue) {
+    const tags = [];
+    const seenTags = new Set();
+    String(rawValue || "")
+      .split(",")
+      .map((candidate) => candidate.trim())
+      .filter(Boolean)
+      .forEach((tag) => {
+        if (seenTags.has(tag)) {
+          return;
+        }
+        seenTags.add(tag);
+        tags.push(tag);
+      });
+    return tags;
+  }
+
+  function formatCustomMetadataValue(target) {
+    const customMetadata = getCustomMetadata(target);
+    return Object.keys(customMetadata).length
+      ? JSON.stringify(customMetadata, null, 2)
+      : "";
+  }
+
+  function parseCustomMetadataValue(rawValue) {
+    if (!String(rawValue || "").trim()) {
+      return {};
+    }
+    let parsedValue;
+    try {
+      parsedValue = JSON.parse(rawValue);
+    } catch (error) {
+      throw new Error("Custom metadata must be valid JSON.");
+    }
+    if (!ctx.isObject(parsedValue)) {
+      throw new Error("Custom metadata must be a JSON object.");
+    }
+    const sanitizedMetadata = {};
+    Object.keys(parsedValue).forEach((key) => {
+      if (!RESERVED_METADATA_KEYS.has(key)) {
+        sanitizedMetadata[key] = parsedValue[key];
+      }
+    });
+    return sanitizedMetadata;
+  }
+
+  function metadataValuesEqual(leftValue, rightValue) {
+    return JSON.stringify(leftValue) === JSON.stringify(rightValue);
+  }
+
+  function buildMetadataEditorMarkup({
+    tagsInputId,
+    tagsFocusKey,
+    customMetadataInputId,
+    customMetadataFocusKey,
+    target,
+  }) {
+    return `
+      <div class="field-group">
+        <label for="${tagsInputId}">Tags</label>
+        <input
+          id="${tagsInputId}"
+          data-focus-key="${tagsFocusKey}"
+          value="${ctx.escapeHtml(formatTagsValue(target))}"
+          placeholder="physical, observable, left-leg"
+        />
+      </div>
+      <div class="field-group">
+        <label for="${customMetadataInputId}">Custom metadata (JSON)</label>
+        <textarea
+          id="${customMetadataInputId}"
+          data-focus-key="${customMetadataFocusKey}"
+          rows="5"
+          placeholder='{"role": "physical"}'
+        >${ctx.escapeHtml(formatCustomMetadataValue(target))}</textarea>
+      </div>
+    `;
+  }
+
+  function bindMetadataEditors({
+    target,
+    tagsInput,
+    tagsFieldKey,
+    customMetadataInput,
+    customMetadataFieldKey,
+    statusMessage,
+    invalidate = null,
+  }) {
+    const metadataInvalidation =
+      invalidate || propertyInvalidation(ctx);
+
+    bindDebouncedAutosave(tagsInput, tagsFieldKey, () => {
+      const nextTags = normalizeTagsValue(tagsInput.value);
+      const currentTags = normalizeTagsValue(formatTagsValue(target));
+      if (metadataValuesEqual(currentTags, nextTags)) {
+        tagsInput.value = nextTags.join(", ");
+        return;
+      }
+      ctx.applyDesignChange(
+        () => {
+          const reservedMetadata = getReservedMetadata(target);
+          const customMetadata = getCustomMetadata(target);
+          target.metadata = {
+            ...reservedMetadata,
+            ...customMetadata,
+          };
+          if (nextTags.length) {
+            target.metadata.tags = nextTags;
+          } else {
+            delete target.metadata.tags;
+          }
+        },
+        {
+          invalidate: metadataInvalidation,
+          statusMessage,
+        }
+      );
+      tagsInput.value = formatTagsValue(target);
+      if (customMetadataInput) {
+        customMetadataInput.value = formatCustomMetadataValue(target);
+      }
+    });
+
+    bindDebouncedAutosave(
+      customMetadataInput,
+      customMetadataFieldKey,
+      () => {
+        let nextCustomMetadata;
+        try {
+          nextCustomMetadata = parseCustomMetadataValue(customMetadataInput.value);
+        } catch (error) {
+          ctx.setStatus(error.message, "error");
+          return;
+        }
+        const currentCustomMetadata = getCustomMetadata(target);
+        if (metadataValuesEqual(currentCustomMetadata, nextCustomMetadata)) {
+          customMetadataInput.value = formatCustomMetadataValue(target);
+          return;
+        }
+        ctx.applyDesignChange(
+          () => {
+            target.metadata = {
+              ...getReservedMetadata(target),
+              ...nextCustomMetadata,
+            };
+          },
+          {
+            invalidate: metadataInvalidation,
+            statusMessage,
+          }
+        );
+        customMetadataInput.value = formatCustomMetadataValue(target);
+        if (tagsInput) {
+          tagsInput.value = formatTagsValue(target);
+        }
+      },
+      { commitOnEnter: false }
+    );
+  }
+
   function tensorDisclosureState(tensorId) {
     if (!state.tensorIndexDisclosureState[tensorId]) {
       state.tensorIndexDisclosureState[tensorId] = {};
@@ -252,6 +457,8 @@ export function createPropertiesSupport({ ctx, state, window }) {
   return {
     bindDebouncedAutosave,
     bindImmediateAutosave,
+    buildMetadataEditorMarkup,
+    bindMetadataEditors,
     propertyInvalidation: (overrides = {}) =>
       propertyInvalidation(ctx, overrides),
     selectionColorInvalidation: (selectedEntries) =>

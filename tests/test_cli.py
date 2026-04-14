@@ -13,7 +13,13 @@ from tensor_network_editor._contraction_analysis_types import (
     ManualContractionPlanAnalysis,
     ManualContractionSummary,
 )
-from tensor_network_editor._headless_models import NetworkSummary, SpecAnalysisReport
+from tensor_network_editor._headless_models import (
+    NetworkSummary,
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
+    SpecAnalysisReport,
+)
 from tensor_network_editor.cli import main
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
@@ -352,6 +358,91 @@ def test_diff_subcommand_prints_json(
     assert load_mock.call_count == 2
     payload = json.loads(capsys.readouterr().out)
     assert payload["tensor"]["changed"] == ["tensor_a"]
+
+
+def test_diff_subcommand_prints_semantic_json(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec",
+            side_effect=[sample_spec, sample_spec],
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.semantic_diff_specs",
+            return_value=SemanticSpecDiffResult(
+                entries=[
+                    SemanticDiffEntry(
+                        entity_type="tensor",
+                        entity_id="tensor_a",
+                        change_type="changed",
+                        summary="Tensor changed.",
+                        field_changes=[
+                            SemanticFieldChange(
+                                path="name",
+                                before="A",
+                                after="A prime",
+                            )
+                        ],
+                    )
+                ]
+            ),
+        ),
+    ):
+        exit_code = main(
+            [
+                "diff",
+                "before.json",
+                "after.json",
+                "--semantic",
+                "--format",
+                "json",
+            ]
+        )
+
+    assert exit_code == 0
+    assert load_mock.call_count == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["entries"] == [
+        {
+            "entity_type": "tensor",
+            "entity_id": "tensor_a",
+            "change_type": "changed",
+            "summary": "Tensor changed.",
+            "field_changes": [{"path": "name", "before": "A", "after": "A prime"}],
+        }
+    ]
+
+
+def test_canonicalize_subcommand_writes_output(
+    sample_spec: NetworkSpec,
+) -> None:
+    canonical_spec = NetworkSpec(id="network_001", name=sample_spec.name)
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.canonicalize_spec",
+            return_value=canonical_spec,
+        ) as canonicalize_mock,
+        patch("tensor_network_editor.cli.save_spec") as save_mock,
+    ):
+        exit_code = main(
+            [
+                "canonicalize",
+                "before.json",
+                "--output",
+                "canonical.json",
+                "--deterministic-ids",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("before.json")
+    canonicalize_mock.assert_called_once_with(sample_spec, deterministic_ids=True)
+    save_mock.assert_called_once_with(canonical_spec, "canonical.json")
 
 
 def test_template_list_subcommand_prints_json(

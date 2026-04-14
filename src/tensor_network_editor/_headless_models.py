@@ -87,6 +87,57 @@ class SpecDiffResult:
 
 
 @dataclass(slots=True, frozen=True)
+class SemanticFieldChange:
+    """One field-level semantic change detected for one entity."""
+
+    path: str
+    before: JSONValue
+    after: JSONValue
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the field change to a JSON-compatible mapping."""
+        return {
+            "path": self.path,
+            "before": self.before,
+            "after": self.after,
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class SemanticDiffEntry:
+    """One semantic change entry for a specific spec entity."""
+
+    entity_type: str
+    entity_id: str
+    change_type: str
+    summary: str
+    field_changes: list[SemanticFieldChange] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the semantic diff entry to a JSON-compatible mapping."""
+        return {
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "change_type": self.change_type,
+            "summary": self.summary,
+            "field_changes": cast(
+                JSONValue, [change.to_dict() for change in self.field_changes]
+            ),
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class SemanticSpecDiffResult:
+    """Ordered semantic diff entries across the network specification."""
+
+    entries: list[SemanticDiffEntry] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the semantic diff result to a JSON-compatible mapping."""
+        return {"entries": cast(JSONValue, [entry.to_dict() for entry in self.entries])}
+
+
+@dataclass(slots=True, frozen=True)
 class NetworkSummary:
     """Basic structural counts derived from a network spec."""
 

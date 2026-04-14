@@ -11,7 +11,14 @@ from .api import (
     load_spec_from_python_code,
     save_spec,
 )
-from .diffing import diff_specs
+from .canonicalization import canonicalize_spec
+from .diffing import (
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
+    diff_specs,
+    semantic_diff_specs,
+)
 from .errors import CodeGenerationError
 from .linting import lint_spec
 from .models import (
@@ -65,6 +72,7 @@ __all__ = [
     "analyze_contraction",
     "analyze_spec",
     "build_template_spec",
+    "canonicalize_spec",
     "diff_specs",
     "generate_code",
     "lint_spec",
@@ -73,5 +81,9 @@ __all__ = [
     "load_spec",
     "load_spec_from_python_code",
     "save_spec",
+    "SemanticDiffEntry",
+    "SemanticFieldChange",
+    "SemanticSpecDiffResult",
+    "semantic_diff_specs",
     "validate_spec",
 ]

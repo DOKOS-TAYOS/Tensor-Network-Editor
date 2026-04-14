@@ -15,6 +15,7 @@ from .common import (
     flattened_tensor_collection_expression,
     prepare_network,
     render_code_sections,
+    render_manual_step_comment,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
@@ -174,7 +175,13 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                 right_axis_names=step.right_axis_names,
                 contracted_labels=step.contracted_labels,
             )
-            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
+                render_manual_step_comment(
+                    step.step_id,
+                    step.left_operand_id,
+                    step.right_operand_id,
+                )
+            )
             contraction_lines.append(
                 "results_list.append(tn.contract_between("
                 f"{left_expression}, "

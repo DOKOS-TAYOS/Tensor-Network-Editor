@@ -309,6 +309,17 @@ def render_remaining_operands_mapping(
     return lines
 
 
+def render_manual_step_comment(
+    step_id: str,
+    left_operand_id: str,
+    right_operand_id: str,
+) -> str:
+    """Render a structured manual-step comment for round-trip parsing."""
+    return (
+        f"# Manual step {step_id} | left={left_operand_id} | right={right_operand_id}"
+    )
+
+
 def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
     """Return the default container variable name for ``collection_format``."""
     if collection_format is TensorCollectionFormat.MATRIX:

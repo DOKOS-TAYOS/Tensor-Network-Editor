@@ -78,6 +78,22 @@ def _literal_int(expression: ast.expr | None) -> int | None:
     return None
 
 
+def _literal_signed_int(expression: ast.expr | None) -> int | None:
+    """Return a literal signed integer value represented by ``expression``."""
+    literal_value = _literal_int(expression)
+    if literal_value is not None:
+        return literal_value
+    if (
+        isinstance(expression, ast.UnaryOp)
+        and isinstance(expression.op, ast.USub)
+        and isinstance(expression.operand, ast.Constant)
+        and isinstance(expression.operand.value, int)
+        and not isinstance(expression.operand.value, bool)
+    ):
+        return -int(expression.operand.value)
+    return None
+
+
 def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None:
     """Return a tuple of literal integers or ``None`` if unsupported."""
     if not isinstance(expression, (ast.List, ast.Tuple)):
@@ -143,6 +159,17 @@ def _parse_matrix_row_index(expression: ast.expr) -> int | None:
     return None
 
 
+def _parse_results_list_reference(expression: ast.expr) -> int | None:
+    """Parse a supported ``results_list[...]`` reference."""
+    if (
+        isinstance(expression, ast.Subscript)
+        and isinstance(expression.value, ast.Name)
+        and expression.value.id == "results_list"
+    ):
+        return _literal_signed_int(expression.slice)
+    return None
+
+
 def _parse_list_append_value(statement: ast.stmt, list_name: str) -> ast.expr | None:
     """Return the appended value for a simple ``list.append(...)`` statement."""
     if (
@@ -174,3 +201,10 @@ def _extract_name_from_expression(expression: ast.expr | None) -> str | None:
     if isinstance(expression, ast.Name):
         return expression.id
     return None
+
+
+def _parse_operand_tag_string(value: str | None) -> str | None:
+    """Parse one ``__tne_operand_*`` marker and return the operand id."""
+    if value is None or not value.startswith("__tne_operand_"):
+        return None
+    return value.removeprefix("__tne_operand_")

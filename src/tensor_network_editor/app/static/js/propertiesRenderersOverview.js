@@ -8,6 +8,8 @@ export function createOverviewPropertiesRenderers({
   const {
     bindDebouncedAutosave,
     bindImmediateAutosave,
+    bindMetadataEditors,
+    buildMetadataEditorMarkup,
     propertyInvalidation,
     selectionColorInvalidation,
     renderTrashIcon,
@@ -41,9 +43,20 @@ export function createOverviewPropertiesRenderers({
         <span>Notes</span>
         <strong>${Array.isArray(state.spec.notes) ? state.spec.notes.length : 0}</strong>
       </div>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "network-tags-input",
+        tagsFocusKey: "network:tags",
+        customMetadataInputId: "network-custom-metadata-input",
+        customMetadataFocusKey: "network:custom-metadata",
+        target: state.spec,
+      })}
     `;
 
     const networkNameInput = document.getElementById("network-name-input");
+    const networkTagsInput = document.getElementById("network-tags-input");
+    const networkCustomMetadataInput = document.getElementById(
+      "network-custom-metadata-input"
+    );
     bindDebouncedAutosave(networkNameInput, "network:name", () => {
       const proposedName = networkNameInput.value.trim();
       if (!proposedName) {
@@ -62,6 +75,15 @@ export function createOverviewPropertiesRenderers({
           statusMessage: "Updated design name.",
         }
       );
+    });
+    bindMetadataEditors({
+      target: state.spec,
+      tagsInput: networkTagsInput,
+      tagsFieldKey: "network:tags",
+      customMetadataInput: networkCustomMetadataInput,
+      customMetadataFieldKey: "network:custom-metadata",
+      statusMessage: "Updated design metadata.",
+      invalidate: propertyInvalidation(),
     });
   }
 

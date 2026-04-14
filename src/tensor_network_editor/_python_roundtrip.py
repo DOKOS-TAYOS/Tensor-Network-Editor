@@ -14,6 +14,8 @@ from ._python_roundtrip_build import (
 from ._python_roundtrip_collect import (
     _collect_data_shape,
     _collect_einsum_labels,
+    _collect_manual_step,
+    _collect_manual_step_comments,
     _collect_pending_edge,
     _collect_remaining_einsum_labels,
     _collect_tensor,
@@ -34,8 +36,12 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
     tensor_rows: list[list[str]] = []
     tensor_order: list[str] = []
     pending_edges: list[_PendingEdge] = []
+    pending_manual_steps = []
     einsum_labels_by_reference: dict[str, list[str]] = {}
     remaining_einsum_labels_by_reference: dict[str, list[str]] = {}
+    manual_step_comments_by_statement_line = _collect_manual_step_comments(code)
+    preferred_tensor_ids_by_reference: dict[str, str] = {}
+    step_ids_by_results_list_index: list[str] = []
     saw_supported_tensor_collection = False
 
     for statement in module.body:
@@ -52,6 +58,13 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
         _collect_einsum_labels(statement, einsum_labels_by_reference)
         _collect_remaining_einsum_labels(
             statement, remaining_einsum_labels_by_reference
+        )
+        _collect_manual_step(
+            statement=statement,
+            manual_step_comments_by_statement_line=manual_step_comments_by_statement_line,
+            pending_manual_steps=pending_manual_steps,
+            step_ids_by_results_list_index=step_ids_by_results_list_index,
+            preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
         )
 
     if not tensor_order:
@@ -82,4 +95,6 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
         tensors_by_reference=tensors_by_reference,
         tensor_rows=tensor_rows or [tensor_order],
         edge_specs=edge_specs,
+        pending_manual_steps=pending_manual_steps,
+        preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
     )

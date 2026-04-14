@@ -11,6 +11,7 @@ from ._python_roundtrip_ast import (
     _keyword_value,
     _literal_string,
     _literal_string_sequence,
+    _parse_operand_tag_string,
     _parse_zeros_shape,
 )
 from ._python_roundtrip_helpers import (
@@ -22,6 +23,8 @@ from ._python_roundtrip_helpers import (
 from .errors import SerializationError
 from .models import (
     CanvasPosition,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EdgeEndpointRef,
     EdgeSpec,
     IndexSpec,
@@ -40,6 +43,7 @@ class _ParsedTensor:
     shape: tuple[int, ...]
     name: str
     index_labels: list[str] | None
+    operand_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -51,6 +55,24 @@ class _PendingEdge:
     left_index_name: str
     right_reference: str
     right_index_name: str
+
+
+@dataclass(slots=True, frozen=True)
+class _ManualStepComment:
+    """Structured metadata parsed from a generated manual-step comment."""
+
+    step_id: str
+    left_operand_id: str
+    right_operand_id: str
+
+
+@dataclass(slots=True)
+class _PendingManualStep:
+    """One reconstructed manual contraction step recovered from Python."""
+
+    step_id: str
+    left_operand_id: str
+    right_operand_id: str
 
 
 def _parse_tensor_expression(
@@ -161,6 +183,7 @@ def _parse_tensor_expression(
                 )
             ),
             index_labels=inds,
+            operand_id=_parse_operand_tag_string(tags[1] if len(tags) > 1 else None),
         )
 
     raise SerializationError(
@@ -301,11 +324,14 @@ def _build_network_spec(
     tensors_by_reference: dict[str, _ParsedTensor],
     tensor_rows: list[list[str]],
     edge_specs: list[tuple[str, int, str, int, str]],
+    pending_manual_steps: list[_PendingManualStep] | None = None,
+    preferred_tensor_ids_by_reference: dict[str, str] | None = None,
 ) -> NetworkSpec:
     """Convert parsed tensors and edges into a reconstructed ``NetworkSpec``."""
     tensor_specs: list[TensorSpec] = []
     tensor_id_by_reference: dict[str, str] = {}
     index_id_by_reference_and_position: dict[tuple[str, int], str] = {}
+    used_tensor_ids: set[str] = set()
     edge_labels: dict[tuple[str, int], str] = {}
     for (
         left_reference,
@@ -325,8 +351,21 @@ def _build_network_spec(
                 raise SerializationError(
                     "Generated Python code is missing tensor labels required to rebuild the network."
                 )
-            tensor_id = f"tensor_{tensor_counter}"
-            tensor_counter += 1
+            preferred_tensor_id = None
+            if preferred_tensor_ids_by_reference is not None:
+                preferred_tensor_id = preferred_tensor_ids_by_reference.get(reference)
+            if preferred_tensor_id is None:
+                preferred_tensor_id = parsed_tensor.operand_id
+            if preferred_tensor_id is not None:
+                tensor_id = preferred_tensor_id
+            else:
+                tensor_id = f"tensor_{tensor_counter}"
+                tensor_counter += 1
+            if tensor_id in used_tensor_ids:
+                raise SerializationError(
+                    "Generated Python code recovers duplicate tensor operand ids."
+                )
+            used_tensor_ids.add(tensor_id)
             tensor_id_by_reference[reference] = tensor_id
             index_specs: list[IndexSpec] = []
             for index_position, label in enumerate(parsed_tensor.index_labels):
@@ -387,6 +426,23 @@ def _build_network_spec(
         ) in enumerate(edge_specs)
     ]
 
+    contraction_plan = None
+    if pending_manual_steps:
+        contraction_plan = ContractionPlanSpec(
+            id="imported_contraction_plan",
+            name="Imported manual contraction path",
+            steps=[
+                ContractionStepSpec(
+                    id=step.step_id,
+                    left_operand_id=step.left_operand_id,
+                    right_operand_id=step.right_operand_id,
+                )
+                for step in pending_manual_steps
+            ],
+            view_snapshots=[],
+            metadata={},
+        )
+
     return NetworkSpec(
         id="imported_python_network",
         name="Imported Python Network",
@@ -394,7 +450,7 @@ def _build_network_spec(
         edges=edges,
         groups=[],
         notes=[],
-        contraction_plan=None,
+        contraction_plan=contraction_plan,
     )
 
 

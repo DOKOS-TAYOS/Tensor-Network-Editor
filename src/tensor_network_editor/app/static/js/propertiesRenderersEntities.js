@@ -8,6 +8,8 @@ export function createEntityPropertiesRenderers({
   const {
     bindDebouncedAutosave,
     bindImmediateAutosave,
+    bindMetadataEditors,
+    buildMetadataEditorMarkup,
     propertyInvalidation,
     renderTrashIcon,
     getTotalElementCountForTensorIds,
@@ -73,10 +75,21 @@ export function createEntityPropertiesRenderers({
         </button>
       </div>
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "group-tags-input",
+        tagsFocusKey: `group:${group.id}:tags`,
+        customMetadataInputId: "group-custom-metadata-input",
+        customMetadataFocusKey: `group:${group.id}:custom-metadata`,
+        target: group,
+      })}
     `;
 
     const groupNameInput = document.getElementById("group-name-input");
     const groupColorInput = document.getElementById("group-color-input");
+    const groupTagsInput = document.getElementById("group-tags-input");
+    const groupCustomMetadataInput = document.getElementById(
+      "group-custom-metadata-input"
+    );
 
     bindDebouncedAutosave(groupNameInput, `group:${group.id}:name`, () => {
       const proposedName = groupNameInput.value.trim();
@@ -118,6 +131,15 @@ export function createEntityPropertiesRenderers({
     );
     document.getElementById("toggle-group-button").addEventListener("click", () => {
       ctx.toggleGroupCollapse(group.id);
+    });
+    bindMetadataEditors({
+      target: group,
+      tagsInput: groupTagsInput,
+      tagsFieldKey: `group:${group.id}:tags`,
+      customMetadataInput: groupCustomMetadataInput,
+      customMetadataFieldKey: `group:${group.id}:custom-metadata`,
+      statusMessage: `Updated group ${group.name}.`,
+      invalidate: propertyInvalidation({ overlays: false }),
     });
     document.getElementById("delete-group-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -174,10 +196,21 @@ export function createEntityPropertiesRenderers({
           ${renderTrashIcon()}
         </button>
       </div>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "edge-tags-input",
+        tagsFocusKey: `edge:${edge.id}:tags`,
+        customMetadataInputId: "edge-custom-metadata-input",
+        customMetadataFocusKey: `edge:${edge.id}:custom-metadata`,
+        target: edge,
+      })}
     `;
 
     const edgeNameInput = document.getElementById("edge-name-input");
     const edgeColorInput = document.getElementById("edge-color-input");
+    const edgeTagsInput = document.getElementById("edge-tags-input");
+    const edgeCustomMetadataInput = document.getElementById(
+      "edge-custom-metadata-input"
+    );
 
     bindDebouncedAutosave(edgeNameInput, `edge:${edge.id}:name`, () => {
       const proposedName = edgeNameInput.value.trim();
@@ -220,6 +253,15 @@ export function createEntityPropertiesRenderers({
       },
       "input"
     );
+    bindMetadataEditors({
+      target: edge,
+      tagsInput: edgeTagsInput,
+      tagsFieldKey: `edge:${edge.id}:tags`,
+      customMetadataInput: edgeCustomMetadataInput,
+      customMetadataFieldKey: `edge:${edge.id}:custom-metadata`,
+      statusMessage: `Updated connection ${edge.name}.`,
+      invalidate: propertyInvalidation({ graph: false, minimap: false }),
+    });
 
     document.getElementById("delete-edge-button").addEventListener("click", () => {
       ctx.applyDesignChange(
@@ -272,10 +314,21 @@ export function createEntityPropertiesRenderers({
         </button>
       </div>
       <p class="property-meta">Move the note from its title bar directly on the canvas.</p>
+      ${buildMetadataEditorMarkup({
+        tagsInputId: "note-tags-input",
+        tagsFocusKey: `note:${note.id}:tags`,
+        customMetadataInputId: "note-custom-metadata-input",
+        customMetadataFocusKey: `note:${note.id}:custom-metadata`,
+        target: note,
+      })}
     `;
 
     const noteTextInput = document.getElementById("note-text-input");
     const noteColorInput = document.getElementById("note-color-input");
+    const noteTagsInput = document.getElementById("note-tags-input");
+    const noteCustomMetadataInput = document.getElementById(
+      "note-custom-metadata-input"
+    );
 
     bindDebouncedAutosave(
       noteTextInput,
@@ -323,6 +376,15 @@ export function createEntityPropertiesRenderers({
       },
       "input"
     );
+    bindMetadataEditors({
+      target: note,
+      tagsInput: noteTagsInput,
+      tagsFieldKey: `note:${note.id}:tags`,
+      customMetadataInput: noteCustomMetadataInput,
+      customMetadataFieldKey: `note:${note.id}:custom-metadata`,
+      statusMessage: "Updated the note.",
+      invalidate: propertyInvalidation({ overlays: false }),
+    });
 
     document.getElementById("delete-note-button").addEventListener("click", () => {
       ctx.applyDesignChange(
