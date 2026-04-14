@@ -118,7 +118,11 @@ export function registerHistorySelection(ctx) {
   function clearGeneratedCodePreview() {
     const hadGeneratedCode = Boolean(state.generatedCode && state.generatedCode.trim());
     state.generatedCode = "";
-    generatedCode.value = "";
+    if (typeof ctx.renderGeneratedCodePreview === "function") {
+      ctx.renderGeneratedCodePreview("");
+    } else {
+      generatedCode.value = "";
+    }
     return hadGeneratedCode;
   }
 

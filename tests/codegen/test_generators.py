@@ -270,6 +270,19 @@ def test_generate_code_does_not_emit_roundtrip_metadata() -> None:
     assert "_data =" not in result.code
 
 
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_generate_code_labels_shared_normal_sections(engine: EngineName) -> None:
+    result = generate_code(build_sample_spec_without_plan(), engine=engine)
+
+    assert "# Tensor collection" in result.code
+    assert "# Tensor construction" in result.code
+    assert "# Outputs" in result.code
+    assert result.code.index("# Tensor collection") < result.code.index(
+        "# Tensor construction"
+    )
+    assert result.code.index("# Tensor construction") < result.code.index("# Outputs")
+
+
 @pytest.mark.parametrize(
     ("engine", "expected_snippet"),
     [
@@ -286,8 +299,13 @@ def test_generate_code_respects_manual_plan_steps(
 ) -> None:
     result = generate_code(build_sample_spec(), engine=engine)
 
+    assert "# Manual contraction" in result.code
     assert expected_snippet in result.code
     assert "results_list = []" in result.code
+    assert result.code.index("# Manual contraction") < result.code.index(
+        "results_list = []"
+    )
+    assert result.code.index("results_list = []") < result.code.index("# Outputs")
     assert "remaining_operands = {" in result.code
     assert "'A-B': results_list[-1]" in result.code
     assert "result = results_list[-1]" in result.code

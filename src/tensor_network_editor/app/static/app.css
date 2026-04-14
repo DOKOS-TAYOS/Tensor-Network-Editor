@@ -1405,16 +1405,72 @@ button[disabled] {
   backdrop-filter: blur(4px);
 }
 
-#generated-code {
+.code-preview-shell {
   width: 100%;
-  flex: 1;
-  min-height: 0;
   height: 100%;
-  resize: none;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  border-radius: 8px;
+  background: rgba(10, 15, 24, 0.92);
+}
+
+.code-preview {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
   font-family: "Cascadia Code", "Consolas", monospace;
   font-size: 0.92rem;
   line-height: 1.45;
-  padding-top: 3.4rem;
+  white-space: pre;
+  padding: 3.4rem 1rem 1rem;
+  color: #dce7f9;
+}
+
+.code-preview .token.comment,
+.code-preview .token.prolog,
+.code-preview .token.doctype,
+.code-preview .token.cdata {
+  color: #7f8ca3;
+}
+
+.code-preview .token.keyword {
+  color: #7dcfff;
+}
+
+.code-preview .token.function {
+  color: #ffd580;
+}
+
+.code-preview .token.class-name,
+.code-preview .token.builtin {
+  color: #ffb86c;
+}
+
+.code-preview .token.string {
+  color: #a6e3a1;
+}
+
+.code-preview .token.number,
+.code-preview .token.boolean,
+.code-preview .token.constant {
+  color: #f5a97f;
+}
+
+.code-preview .token.operator,
+.code-preview .token.punctuation {
+  color: #c6d3e6;
+}
+
+.code-preview .token.decorator,
+.code-preview .token.important {
+  color: #f38ba8;
+}
+
+.code-raw-source {
+  display: none;
 }
 
 .status-error {

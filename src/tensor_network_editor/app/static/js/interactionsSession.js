@@ -2,17 +2,36 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   const {
     exportFormatSelect,
     generatedCode,
+    generatedCodeView,
     loadInput,
     templateSelect,
   } = dom;
   const { apiPost, document, window } = ctx;
 
+  function syncGeneratedCodePreview(code) {
+    if (typeof ctx.renderGeneratedCodePreview === "function") {
+      ctx.renderGeneratedCodePreview(code);
+      return;
+    }
+    const renderedCode = typeof code === "string" ? code : "";
+    if (generatedCode) {
+      generatedCode.value = renderedCode;
+    }
+    if (!generatedCodeView) {
+      return;
+    }
+    generatedCodeView.textContent = renderedCode;
+    const prism =
+      window && typeof window === "object" ? window.Prism : null;
+    if (prism && typeof prism.highlightElement === "function") {
+      prism.highlightElement(generatedCodeView);
+    }
+  }
+
   function showCodeGenerationError(message) {
     const safeMessage = message || "Code generation failed.";
     state.generatedCode = `Code generation failed:\n${safeMessage}`;
-    if (generatedCode) {
-      generatedCode.value = state.generatedCode;
-    }
+    syncGeneratedCodePreview(state.generatedCode);
     ctx.setStatus(safeMessage, "error");
   }
 
@@ -45,7 +64,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);
-      generatedCode.value = state.generatedCode;
+      syncGeneratedCodePreview(state.generatedCode);
       ctx.setStatus(`Generated ${payload.engine} code.`, "success");
     } catch (error) {
       showCodeGenerationError(`Code generation failed: ${error.message}`);
@@ -176,7 +195,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
         return;
       }
       state.generatedCode = ctx.stripImportLines(payload.code);
-      generatedCode.value = state.generatedCode;
+      syncGeneratedCodePreview(state.generatedCode);
       ctx.downloadBlob(
         `${ctx.sanitizeFilename(state.spec.name || "tensor-network")}-${ctx.sanitizeFilename(state.selectedEngine || "engine")}.py`,
         new Blob([payload.code], { type: "text/x-python;charset=utf-8" })

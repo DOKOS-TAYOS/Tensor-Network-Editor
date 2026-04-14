@@ -116,6 +116,10 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
         < generate_index
         < warning_index
     )
+    assert 'id="generated-code-view"' in html
+    assert 'id="generated-code"' in html
+    assert "/vendor/prism-core.min.js?v=" in html
+    assert "/vendor/prism-python.min.js?v=" in html
 
 
 def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
@@ -233,6 +237,20 @@ def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
     assert headers["Content-Type"].startswith("application/javascript")
 
 
+def test_prism_vendor_assets_are_served_locally(editor_server: EditorServer) -> None:
+    core_body, core_headers = request_with_headers(
+        f"{editor_server.base_url}/vendor/prism-core.min.js"
+    )
+    python_body, python_headers = request_with_headers(
+        f"{editor_server.base_url}/vendor/prism-python.min.js"
+    )
+
+    assert "Prism" in core_body
+    assert "python" in python_body
+    assert core_headers["Content-Type"].startswith("application/javascript")
+    assert python_headers["Content-Type"].startswith("application/javascript")
+
+
 def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     editor_server: EditorServer,
 ) -> None:
@@ -316,6 +334,9 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
     assert ".code-header-row {" in body
+    assert ".code-preview {" in body
+    assert ".code-preview .token.keyword {" in body
+    assert ".code-preview .token.function {" in body
 
 
 def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> None:

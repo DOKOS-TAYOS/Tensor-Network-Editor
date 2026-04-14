@@ -2279,6 +2279,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 },
                 propertiesPanel: { innerHTML: "" },
                 generatedCode: { value: "" },
+                generatedCodeView: { textContent: "", dataset: {} },
                 engineSelect: { options: [], value: "tensornetwork" },
                 collectionFormatSelect: { options: [], value: "list" },
                 exportFormatSelect: { value: "py" },
@@ -2402,6 +2403,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               "serializeCurrentSpec",
               "toggleLinearPeriodicMode",
               "computeDesignBounds",
+              "renderGeneratedCodePreview",
               "setStatus",
               "sanitizeFilename",
             ];
@@ -2514,6 +2516,7 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                 },
                 propertiesPanel: {},
                 generatedCode: { value: "" },
+                generatedCodeView: { textContent: "", dataset: {} },
                 engineSelect: { options: [], value: "tensornetwork" },
                 collectionFormatSelect: { options: [], value: "list" },
                 exportFormatSelect: { value: "py" },
@@ -2549,6 +2552,11 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               window: {
                 structuredClone: globalThis.structuredClone,
                 crypto: globalThis.crypto,
+                Prism: {
+                  highlightElement(element) {
+                    element.dataset.highlighted = "true";
+                  },
+                },
                 setTimeout,
                 clearTimeout,
                 confirm: () => true,
@@ -2708,6 +2716,17 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               if (typeof ctx[bindingName] !== "function") {
                 throw new Error(`registerInteractions did not expose ${bindingName}.`);
               }
+            }
+
+            await ctx.generateCode();
+            if (ctx.dom.generatedCode.value.trim() !== "result = 1") {
+              throw new Error(`Generated code text was not stripped as expected: ${ctx.dom.generatedCode.value}`);
+            }
+            if (ctx.dom.generatedCodeView.textContent.trim() !== "result = 1") {
+              throw new Error(`Generated code preview did not receive the stripped source: ${ctx.dom.generatedCodeView.textContent}`);
+            }
+            if (ctx.dom.generatedCodeView.dataset.highlighted !== "true") {
+              throw new Error("Generated code preview was not highlighted through Prism.");
             }
             """
         ),

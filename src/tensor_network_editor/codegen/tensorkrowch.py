@@ -10,13 +10,16 @@ from ..errors import CodeGenerationError
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    CodeSection,
     PreparedNetwork,
     PreparedTensor,
     container_name_for_format,
     prepare_network,
+    render_code_sections,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
+    render_tensor_collection_initialization,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
 )
@@ -35,33 +38,29 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         """Generate ``tensorkrowch`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
-        lines = [
-            "import torch",
-            "import tensorkrowch as tk",
-            "",
-            "network = tk.TensorNetwork()",
-            "",
-        ]
-
-        lines.extend(
-            render_tensor_collection_assignment(
-                collection_name=collection_name,
-                collection_format=collection_format,
-                prepared=prepared,
-                tensor_value_by_id={
-                    tensor.spec.id: (
-                        f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
-                        f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
-                        f"name={self.node_name(tensor)!r}, network=network)"
-                    )
-                    for tensor in prepared.tensors
-                },
-            )
+        tensor_collection_lines = render_tensor_collection_initialization(
+            collection_name,
+            collection_format,
         )
-        lines.append("")
+        network_setup_lines = ["network = tk.TensorNetwork()"]
+        tensor_construction_lines = render_tensor_collection_assignment(
+            collection_name=collection_name,
+            collection_format=collection_format,
+            prepared=prepared,
+            tensor_value_by_id={
+                tensor.spec.id: (
+                    f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
+                    f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
+                    f"name={self.node_name(tensor)!r}, network=network)"
+                )
+                for tensor in prepared.tensors
+            },
+            include_initialization=False,
+        )
 
+        connection_lines: list[str] = []
         if prepared.edges:
-            lines.append("edges_list = []")
+            connection_lines.append("edges_list = []")
             for edge in prepared.edges:
                 left_tensor = tensor_collection_reference_by_id(
                     prepared,
@@ -75,24 +74,23 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                     collection_format,
                     collection_name,
                 )
-                lines.append(f"# {edge.spec.name}")
-                lines.append(
+                connection_lines.append(f"# Edge {edge.spec.name}")
+                connection_lines.append(
                     "edges_list.append(("
                     f"{edge.spec.name!r}, "
                     f"tk.connect({left_tensor}[{edge.left.spec.name!r}], {right_tensor}[{edge.right.spec.name!r}])"
                     "))"
                 )
-            lines.append("")
+
         if spec.contraction_plan is not None and spec.contraction_plan.steps:
-            lines.extend(
-                self._render_manual_plan(
-                    prepared=prepared,
-                    collection_format=collection_format,
-                    collection_name=collection_name,
-                )
+            contraction_lines, output_lines = self._render_manual_plan(
+                prepared=prepared,
+                collection_format=collection_format,
+                collection_name=collection_name,
             )
         else:
-            lines.append(
+            contraction_lines = []
+            output_lines = [
                 "open_edges = ("
                 + ", ".join(
                     f"{tensor_collection_reference_by_id(prepared, index.tensor.id, collection_format, collection_name)}[{index.spec.name!r}]"
@@ -100,9 +98,26 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 )
                 + ("," if prepared.open_indices else "")
                 + ")"
-            )
+            ]
 
-        return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
+        return CodegenResult(
+            engine=self.engine,
+            code=render_code_sections(
+                CodeSection(
+                    title=None,
+                    lines=["import torch", "import tensorkrowch as tk"],
+                ),
+                CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(title="Network setup", lines=network_setup_lines),
+                CodeSection(
+                    title="Tensor construction",
+                    lines=tensor_construction_lines,
+                ),
+                CodeSection(title="Network connections", lines=connection_lines),
+                CodeSection(title="Manual contraction", lines=contraction_lines),
+                CodeSection(title="Outputs", lines=output_lines),
+            ),
+        )
 
     @staticmethod
     def node_name(tensor: PreparedTensor) -> str:
@@ -119,7 +134,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
         prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Render a saved manual plan, rejecting unsupported outer products."""
         contraction_inputs = prepare_contraction_inputs(prepared)
         simulation = simulate_contraction_plan(
@@ -148,7 +163,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
             for tensor in prepared.tensors
         }
         tensor_names_by_id = tensor_display_name_by_id(prepared)
-        lines = ["results_list = []", ""]
+        contraction_lines = ["results_list = []", ""]
         for step_index, step in enumerate(simulation.steps):
             latest_result_index = step_index - 1 if step_index > 0 else None
             left_expression = render_operand_expression(
@@ -163,26 +178,24 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 step_result_indexes=step_result_indexes,
                 latest_result_index=latest_result_index,
             )
-            lines.append(f"# Manual step {step.step_id}")
-            lines.append(
+            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
                 "results_list.append(tk.contract_between("
                 f"{left_expression}, {right_expression}))"
             )
-            lines.append("")
+            contraction_lines.append("")
 
         final_result_index = len(simulation.steps) - 1 if simulation.steps else None
-        lines.extend(
-            render_remaining_operands_mapping(
-                operand_ids=simulation.remaining_operand_ids,
-                source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
-                tensor_names_by_id=tensor_names_by_id,
-                base_operand_expressions=base_operand_expressions,
-                step_result_indexes=step_result_indexes,
-                latest_result_index=final_result_index,
-            )
+        output_lines = render_remaining_operands_mapping(
+            operand_ids=simulation.remaining_operand_ids,
+            source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
+            tensor_names_by_id=tensor_names_by_id,
+            base_operand_expressions=base_operand_expressions,
+            step_result_indexes=step_result_indexes,
+            latest_result_index=final_result_index,
         )
         if len(simulation.remaining_operand_ids) == 1:
-            lines.append(
+            output_lines.append(
                 "result = "
                 + render_operand_expression(
                     simulation.remaining_operand_ids[0],
@@ -191,4 +204,4 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                     latest_result_index=final_result_index,
                 )
             )
-        return lines
+        return contraction_lines, output_lines

@@ -2,6 +2,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   const {
     statusMessage,
     exportFormatSelect,
+    generatedCode,
+    generatedCodeView,
     codeGenerationWarning,
     undoButton,
     redoButton,
@@ -21,6 +23,22 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     periodic: "Periodic cell",
     final: "Final cell",
   };
+
+  function renderGeneratedCodePreview(code = state.generatedCode) {
+    const renderedCode = typeof code === "string" ? code : "";
+    if (generatedCode) {
+      generatedCode.value = renderedCode;
+    }
+    if (!generatedCodeView) {
+      return;
+    }
+    generatedCodeView.textContent = renderedCode;
+    const prism =
+      ctx.window && typeof ctx.window === "object" ? ctx.window.Prism : null;
+    if (prism && typeof prism.highlightElement === "function") {
+      prism.highlightElement(generatedCodeView);
+    }
+  }
 
   function syncCodeGenerationWarning() {
     if (!codeGenerationWarning) {
@@ -100,6 +118,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   }
 
   return {
+    renderGeneratedCodePreview,
     updateToolbarState,
     syncCodeGenerationWarning,
     formatIssues,

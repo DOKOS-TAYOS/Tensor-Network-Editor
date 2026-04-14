@@ -18,7 +18,6 @@ export function registerGraphRender(ctx) {
   const {
     statusMessage,
     propertiesPanel,
-    generatedCode,
     engineSelect,
     connectButton,
     loadInput,
@@ -388,7 +387,9 @@ export function registerGraphRender(ctx) {
       ctx.renderProperties();
     }
     if (resolvedOptions.code) {
-      generatedCode.value = state.generatedCode;
+      if (typeof ctx.renderGeneratedCodePreview === "function") {
+        ctx.renderGeneratedCodePreview(state.generatedCode);
+      }
     }
     connectButton.classList.toggle("is-active", state.connectMode);
     helpModal.classList.toggle("is-hidden", !state.isHelpOpen);

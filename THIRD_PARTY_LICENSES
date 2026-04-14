@@ -22,7 +22,21 @@ remain covered by their own licenses and notices.
      The vendored minified file preserves the upstream MIT notice and bundled
      upstream MIT notices for embedded helper code.
 
-The following MIT License text applies to Cytoscape.js:
+2. PrismJS
+   - Bundled files:
+     `src/tensor_network_editor/app/static/vendor/prism-core.min.js`
+     `src/tensor_network_editor/app/static/vendor/prism-python.min.js`
+   - Version: 1.29.0
+   - Project: https://prismjs.com/
+   - Upstream repository: https://github.com/PrismJS/prism
+   - Copyright:
+     Copyright (C) 2012-2024 Lea Verou and Prism contributors.
+   - License: MIT License
+   - Notice handling:
+     The vendored minified files are distributed under the upstream MIT
+     license.
+
+The following MIT License text applies to Cytoscape.js and PrismJS:
 
 MIT License
 

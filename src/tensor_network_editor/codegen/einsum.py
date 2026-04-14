@@ -12,13 +12,16 @@ from .._contraction_plan import (
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    CodeSection,
     PreparedNetwork,
     PreparedTensor,
     container_name_for_format,
     prepare_network,
+    render_code_sections,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
+    render_tensor_collection_initialization,
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
@@ -41,46 +44,52 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         """Generate einsum-based Python code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
-
-        lines = [
-            self.import_line,
-            "",
-        ]
-
-        lines.extend(
-            render_tensor_collection_assignment(
-                collection_name=collection_name,
-                collection_format=collection_format,
-                prepared=prepared,
-                tensor_value_by_id={
-                    tensor.spec.id: (
-                        f"{self.module_alias}.zeros({tensor.spec.shape!r}"
-                        f"{self.zero_initializer_suffix})"
-                    )
-                    for tensor in prepared.tensors
-                },
-            )
+        tensor_collection_lines = render_tensor_collection_initialization(
+            collection_name,
+            collection_format,
         )
-        lines.append("")
+        tensor_construction_lines = render_tensor_collection_assignment(
+            collection_name=collection_name,
+            collection_format=collection_format,
+            prepared=prepared,
+            tensor_value_by_id={
+                tensor.spec.id: (
+                    f"{self.module_alias}.zeros({tensor.spec.shape!r}"
+                    f"{self.zero_initializer_suffix})"
+                )
+                for tensor in prepared.tensors
+            },
+            include_initialization=False,
+        )
 
         if spec.contraction_plan is not None and spec.contraction_plan.steps:
-            lines.extend(
-                self._render_manual_plan(
-                    prepared=prepared,
-                    collection_format=collection_format,
-                    collection_name=collection_name,
-                )
+            contraction_lines, output_lines = self._render_manual_plan(
+                prepared=prepared,
+                collection_format=collection_format,
+                collection_name=collection_name,
             )
+            contraction_title = "Manual contraction"
         else:
-            lines.extend(
-                self._render_full_network_einsum(
-                    prepared=prepared,
-                    collection_format=collection_format,
-                    collection_name=collection_name,
-                )
+            contraction_lines, output_lines = self._render_full_network_einsum(
+                prepared=prepared,
+                collection_format=collection_format,
+                collection_name=collection_name,
             )
+            contraction_title = "Contraction"
 
-        return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
+        return CodegenResult(
+            engine=self.engine,
+            code=render_code_sections(
+                CodeSection(title=None, lines=[self.import_line]),
+                CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(
+                    title="Tensor construction",
+                    lines=tensor_construction_lines,
+                ),
+                CodeSection(title=contraction_title, lines=contraction_lines),
+                CodeSection(title="Outputs", lines=output_lines),
+            ),
+        )
 
     def _render_full_network_einsum(
         self,
@@ -88,13 +97,13 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Render a single einsum call for the full network."""
         if not prepared.tensors:
-            return [
-                "# Empty network contracts to the scalar identity.",
-                f"result = {self.empty_network_expression}",
-            ]
+            return (
+                ["# Empty network contracts to the scalar identity."],
+                [f"result = {self.empty_network_expression}"],
+            )
 
         label_order: list[str] = []
         for tensor in prepared.tensors:
@@ -120,10 +129,10 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 tensor_collection_reference(tensor, collection_format, collection_name)
                 for tensor in prepared.tensors
             )
-            return [
-                f"# Einsum equation: {equation}",
-                f"result = {self.module_alias}.einsum({equation!r}, {operand_names})",
-            ]
+            return (
+                [f"# Einsum equation: {equation}"],
+                [f"result = {self.module_alias}.einsum({equation!r}, {operand_names})"],
+            )
 
         sublist_args: list[str] = []
         for tensor in prepared.tensors:
@@ -134,10 +143,12 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 str([label_to_int[index.label] for index in tensor.indices])
             )
         sublist_args.append(str([label_to_int[label] for label in output_labels]))
-        return [
-            "# Einsum uses the integer-sublist form because the network uses many labels.",
-            f"result = {self.module_alias}.einsum(" + ", ".join(sublist_args) + ")",
-        ]
+        return (
+            [
+                "# Einsum uses the integer-sublist form because the network uses many labels.",
+            ],
+            [f"result = {self.module_alias}.einsum(" + ", ".join(sublist_args) + ")"],
+        )
 
     def _render_manual_plan(
         self,
@@ -145,7 +156,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Render step-by-step einsum calls for a saved manual plan."""
         label_order: list[str] = []
         for tensor in prepared.tensors:
@@ -180,11 +191,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         }
         tensor_names_by_id = tensor_display_name_by_id(prepared)
 
-        lines = ["results_list = []", ""]
+        contraction_lines = ["results_list = []", ""]
         for step_index, step in enumerate(simulation.steps):
             latest_result_index = step_index - 1 if step_index > 0 else None
-            lines.append(f"# Manual step {step.step_id}")
-            lines.append(
+            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
                 "results_list.append("
                 + self._render_manual_step_call(
                     left_expression=render_operand_expression(
@@ -208,11 +219,12 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 )
                 + ")"
             )
-            lines.append("")
+            contraction_lines.append("")
 
         final_result_index = len(simulation.steps) - 1 if simulation.steps else None
+        output_lines: list[str] = []
         if len(simulation.remaining_operand_ids) > 1:
-            lines.append("remaining_operand_labels = {")
+            output_lines.append("remaining_operand_labels = {")
             for operand_id in simulation.remaining_operand_ids:
                 operand_expression = render_operand_expression(
                     operand_id,
@@ -220,14 +232,14 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                     step_result_indexes=step_result_indexes,
                     latest_result_index=final_result_index,
                 )
-                lines.append(
+                output_lines.append(
                     f"    {operand_expression!r}: "
                     f"{self._render_remaining_label_sequence(simulation.remaining_operands[operand_id], use_string_labels=use_string_labels, symbol_map=symbol_map, label_to_int=label_to_int)!r},"
                 )
-            lines.append("}")
-            lines.append("")
+            output_lines.append("}")
+            output_lines.append("")
 
-        lines.extend(
+        output_lines.extend(
             render_remaining_operands_mapping(
                 operand_ids=simulation.remaining_operand_ids,
                 source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
@@ -238,7 +250,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             )
         )
         if len(simulation.remaining_operand_ids) == 1:
-            lines.append(
+            output_lines.append(
                 "result = "
                 + render_operand_expression(
                     simulation.remaining_operand_ids[0],
@@ -247,7 +259,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                     latest_result_index=final_result_index,
                 )
             )
-        return lines
+        return contraction_lines, output_lines
 
     def _render_manual_step_call(
         self,

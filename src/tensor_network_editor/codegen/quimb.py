@@ -9,13 +9,16 @@ from .._contraction_plan import (
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    CodeSection,
     PreparedNetwork,
     container_name_for_format,
     flattened_tensor_collection_expression,
     joined_tensor_display_name,
     prepare_network,
+    render_code_sections,
     render_results_list_reference,
     render_tensor_collection_assignment,
+    render_tensor_collection_initialization,
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
@@ -34,51 +37,66 @@ class QuimbCodeGenerator(CodeGenerator):
         """Generate ``quimb`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
-        lines = [
-            "import numpy as np",
-            "import quimb.tensor as qtn",
-            "",
+        tensor_collection_lines = render_tensor_collection_initialization(
+            collection_name,
+            collection_format,
+        )
+        tensor_construction_lines = render_tensor_collection_assignment(
+            collection_name=collection_name,
+            collection_format=collection_format,
+            prepared=prepared,
+            tensor_value_by_id={
+                tensor.spec.id: (
+                    f"qtn.Tensor(data=np.zeros({tensor.spec.shape!r}, dtype=float), "
+                    f"inds={tuple(index.label for index in tensor.indices)!r}, "
+                    f"tags={(tensor.spec.name, self._operand_tag(tensor.spec.id))!r})"
+                )
+                for tensor in prepared.tensors
+            },
+            include_initialization=False,
+        )
+        network_setup_lines = [
+            "network_tensors = "
+            + flattened_tensor_collection_expression(
+                collection_format, collection_name
+            ),
+            "network = qtn.TensorNetwork(network_tensors)",
         ]
 
-        lines.extend(
-            render_tensor_collection_assignment(
-                collection_name=collection_name,
-                collection_format=collection_format,
-                prepared=prepared,
-                tensor_value_by_id={
-                    tensor.spec.id: (
-                        f"qtn.Tensor(data=np.zeros({tensor.spec.shape!r}, dtype=float), "
-                        f"inds={tuple(index.label for index in tensor.indices)!r}, "
-                        f"tags={(tensor.spec.name, self._operand_tag(tensor.spec.id))!r})"
-                    )
-                    for tensor in prepared.tensors
-                },
-            )
-        )
-        lines.append("")
-        lines.append(
-            "network_tensors = "
-            + flattened_tensor_collection_expression(collection_format, collection_name)
-        )
-        lines.append("network = qtn.TensorNetwork(network_tensors)")
         if spec.contraction_plan is not None and spec.contraction_plan.steps:
-            lines.extend(
-                self._render_manual_plan(
-                    prepared=prepared,
-                    collection_format=collection_format,
-                    collection_name=collection_name,
-                )
+            contraction_lines, output_lines = self._render_manual_plan(
+                prepared=prepared,
+                collection_format=collection_format,
+                collection_name=collection_name,
             )
         elif prepared.open_indices:
-            lines.append(
+            contraction_lines = []
+            output_lines = [
                 "open_inds = ("
                 + ", ".join(repr(index.label) for index in prepared.open_indices)
                 + ",)"
-            )
+            ]
         else:
-            lines.append("open_inds = ()")
+            contraction_lines = []
+            output_lines = ["open_inds = ()"]
 
-        return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
+        return CodegenResult(
+            engine=self.engine,
+            code=render_code_sections(
+                CodeSection(
+                    title=None,
+                    lines=["import numpy as np", "import quimb.tensor as qtn"],
+                ),
+                CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(
+                    title="Tensor construction",
+                    lines=tensor_construction_lines,
+                ),
+                CodeSection(title="Network setup", lines=network_setup_lines),
+                CodeSection(title="Manual contraction", lines=contraction_lines),
+                CodeSection(title="Outputs", lines=output_lines),
+            ),
+        )
 
     def _render_manual_plan(
         self,
@@ -86,7 +104,7 @@ class QuimbCodeGenerator(CodeGenerator):
         prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Render a saved manual contraction plan against one ``TensorNetwork``."""
         contraction_inputs = prepare_contraction_inputs(prepared)
         simulation = simulate_contraction_plan(
@@ -110,30 +128,30 @@ class QuimbCodeGenerator(CodeGenerator):
         }
         tensor_names_by_id = tensor_display_name_by_id(prepared)
 
-        lines = ["results_list = []", ""]
+        contraction_lines = ["results_list = []", ""]
         for step in simulation.steps:
             left_tag = self._operand_tag(step.left_operand_id)
             right_tag = self._operand_tag(step.right_operand_id)
             step_tag = self._operand_tag(step.step_id)
-            lines.append(f"# Manual step {step.step_id}")
-            lines.append(f"network.contract_between({left_tag!r}, {right_tag!r})")
-            lines.append(f"network[{left_tag!r}].add_tag({step_tag!r})")
-            lines.append(f"results_list.append(network[{step_tag!r}])")
-            lines.append("")
+            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
+                f"network.contract_between({left_tag!r}, {right_tag!r})"
+            )
+            contraction_lines.append(f"network[{left_tag!r}].add_tag({step_tag!r})")
+            contraction_lines.append(f"results_list.append(network[{step_tag!r}])")
+            contraction_lines.append("")
 
         final_result_index = len(simulation.steps) - 1 if simulation.steps else None
-        lines.extend(
-            self._render_remaining_operands(
-                operand_ids=simulation.remaining_operand_ids,
-                source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
-                tensor_names_by_id=tensor_names_by_id,
-                base_operand_expressions=base_operand_expressions,
-                step_result_indexes=step_result_indexes,
-                latest_result_index=final_result_index,
-            )
+        output_lines = self._render_remaining_operands(
+            operand_ids=simulation.remaining_operand_ids,
+            source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
+            tensor_names_by_id=tensor_names_by_id,
+            base_operand_expressions=base_operand_expressions,
+            step_result_indexes=step_result_indexes,
+            latest_result_index=final_result_index,
         )
         if len(simulation.remaining_operand_ids) == 1:
-            lines.append(
+            output_lines.append(
                 "result = "
                 + self._operand_expression(
                     simulation.remaining_operand_ids[0],
@@ -142,8 +160,8 @@ class QuimbCodeGenerator(CodeGenerator):
                     latest_result_index=final_result_index,
                 )
             )
-            lines.append("open_inds = tuple(result.inds)")
-        return lines
+            output_lines.append("open_inds = tuple(result.inds)")
+        return contraction_lines, output_lines
 
     @staticmethod
     def _operand_tag(operand_id: str) -> str:

@@ -84,6 +84,14 @@ class PreparedNetwork:
     open_indices: list[PreparedIndex]
 
 
+@dataclass(slots=True)
+class CodeSection:
+    """One titled section in a generated code listing."""
+
+    title: str | None
+    lines: list[str]
+
+
 def prepare_network(spec: NetworkSpec, *, validate: bool = True) -> PreparedNetwork:
     """Validate and normalize ``spec`` for backend code generation."""
     analysis = analyze_network(spec, validate=validate)
@@ -310,6 +318,31 @@ def container_name_for_format(collection_format: TensorCollectionFormat) -> str:
     return "tensors"
 
 
+def render_code_sections(*sections: CodeSection) -> str:
+    """Render titled sections into one formatted Python source string."""
+    rendered_lines: list[str] = []
+    for section in sections:
+        section_lines = _trim_blank_lines(section.lines)
+        if not section_lines:
+            continue
+        if rendered_lines:
+            rendered_lines.append("")
+        if section.title:
+            rendered_lines.append(f"# {section.title}")
+        rendered_lines.extend(section_lines)
+    return "\n".join(rendered_lines).strip() + "\n"
+
+
+def render_tensor_collection_initialization(
+    collection_name: str,
+    collection_format: TensorCollectionFormat,
+) -> list[str]:
+    """Render the container initialization for the chosen collection format."""
+    if collection_format is TensorCollectionFormat.DICT:
+        return [f"{collection_name} = {{}}"]
+    return [f"{collection_name} = []"]
+
+
 def tensor_collection_reference(
     tensor: PreparedTensor,
     collection_format: TensorCollectionFormat,
@@ -361,14 +394,20 @@ def render_tensor_collection_assignment(
     collection_format: TensorCollectionFormat,
     prepared: PreparedNetwork,
     tensor_value_by_id: dict[str, str],
+    *,
+    include_initialization: bool = True,
 ) -> list[str]:
     """Render assignment lines for the requested tensor collection layout."""
     if collection_format is TensorCollectionFormat.MATRIX:
-        lines = [f"{collection_name} = []"]
+        lines = (
+            render_tensor_collection_initialization(collection_name, collection_format)
+            if include_initialization
+            else []
+        )
         for row_index, tensor_row in enumerate(prepared.tensor_rows):
             lines.append(f"{collection_name}.append([])")
             for tensor in tensor_row:
-                lines.append(f"# Tensor {tensor.spec.name}")
+                lines.append(f"# Tensor {_tensor_display_name(tensor)}")
                 lines.append(
                     f"{collection_name}[{row_index}].append("
                     f"{tensor_value_by_id[tensor.spec.id]})"
@@ -376,17 +415,41 @@ def render_tensor_collection_assignment(
         return lines
 
     if collection_format is TensorCollectionFormat.DICT:
-        lines = [f"{collection_name} = {{}}"]
+        lines = (
+            render_tensor_collection_initialization(collection_name, collection_format)
+            if include_initialization
+            else []
+        )
         for tensor in prepared.tensors:
-            lines.append(f"# Tensor {tensor.spec.name}")
+            lines.append(f"# Tensor {_tensor_display_name(tensor)}")
             lines.append(
                 f"{collection_name}[{tensor.variable_name!r}] = "
                 f"{tensor_value_by_id[tensor.spec.id]}"
             )
         return lines
 
-    lines = [f"{collection_name} = []"]
+    lines = (
+        render_tensor_collection_initialization(collection_name, collection_format)
+        if include_initialization
+        else []
+    )
     for tensor in prepared.tensors:
-        lines.append(f"# Tensor {tensor.spec.name}")
+        lines.append(f"# Tensor {_tensor_display_name(tensor)}")
         lines.append(f"{collection_name}.append({tensor_value_by_id[tensor.spec.id]})")
     return lines
+
+
+def _tensor_display_name(tensor: PreparedTensor) -> str:
+    """Return the readable tensor label used in generated comments."""
+    return tensor.spec.name or tensor.variable_name
+
+
+def _trim_blank_lines(lines: list[str]) -> list[str]:
+    """Trim blank lines at the edges of one rendered section."""
+    start = 0
+    end = len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return lines[start:end]

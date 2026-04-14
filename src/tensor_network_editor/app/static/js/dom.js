@@ -4,6 +4,7 @@ export function getDomRefs(document) {
     statusMessage: document.getElementById("status-message"),
     propertiesPanel: document.getElementById("properties-panel"),
     generatedCode: document.getElementById("generated-code"),
+    generatedCodeView: document.getElementById("generated-code-view"),
     engineSelect: document.getElementById("engine-select"),
     collectionFormatSelect: document.getElementById("collection-format-select"),
     exportFormatSelect: document.getElementById("export-format-select"),

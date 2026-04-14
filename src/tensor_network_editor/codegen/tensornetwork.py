@@ -9,13 +9,16 @@ from .._contraction_plan import (
 from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
 from .base import CodeGenerator
 from .common import (
+    CodeSection,
     PreparedNetwork,
     container_name_for_format,
     flattened_tensor_collection_expression,
     prepare_network,
+    render_code_sections,
     render_operand_expression,
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
+    render_tensor_collection_initialization,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
 )
@@ -34,31 +37,28 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         """Generate ``tensornetwork`` code for ``spec``."""
         prepared = prepare_network(spec)
         collection_name = container_name_for_format(collection_format)
-        lines = [
-            "import numpy as np",
-            "import tensornetwork as tn",
-            "",
-        ]
-
-        lines.extend(
-            render_tensor_collection_assignment(
-                collection_name=collection_name,
-                collection_format=collection_format,
-                prepared=prepared,
-                tensor_value_by_id={
-                    tensor.spec.id: (
-                        f"tn.Node(np.zeros({tensor.spec.shape!r}, dtype=float), "
-                        f"name={tensor.spec.name!r}, "
-                        f"axis_names={[index.spec.name for index in tensor.indices]!r})"
-                    )
-                    for tensor in prepared.tensors
-                },
-            )
+        tensor_collection_lines = render_tensor_collection_initialization(
+            collection_name,
+            collection_format,
         )
-        lines.append("")
+        tensor_construction_lines = render_tensor_collection_assignment(
+            collection_name=collection_name,
+            collection_format=collection_format,
+            prepared=prepared,
+            tensor_value_by_id={
+                tensor.spec.id: (
+                    f"tn.Node(np.zeros({tensor.spec.shape!r}, dtype=float), "
+                    f"name={tensor.spec.name!r}, "
+                    f"axis_names={[index.spec.name for index in tensor.indices]!r})"
+                )
+                for tensor in prepared.tensors
+            },
+            include_initialization=False,
+        )
 
+        connection_lines: list[str] = []
         if prepared.edges:
-            lines.append("edges_list = []")
+            connection_lines.append("edges_list = []")
             for edge in prepared.edges:
                 left_tensor = tensor_collection_reference_by_id(
                     prepared,
@@ -72,38 +72,52 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                     collection_format,
                     collection_name,
                 )
-                lines.append(
+                connection_lines.append(f"# Edge {edge.spec.name}")
+                connection_lines.append(
                     "edges_list.append(tn.connect("
                     f"{left_tensor}[{edge.left.spec.name!r}], "
                     f"{right_tensor}[{edge.right.spec.name!r}], "
                     f"name={edge.spec.name!r}))"
                 )
-            lines.append("")
+
         if spec.contraction_plan is not None and spec.contraction_plan.steps:
-            lines.extend(
-                self._render_manual_plan(
-                    prepared=prepared,
-                    collection_format=collection_format,
-                    collection_name=collection_name,
-                )
+            contraction_lines, output_lines = self._render_manual_plan(
+                prepared=prepared,
+                collection_format=collection_format,
+                collection_name=collection_name,
             )
         else:
-            lines.append(
+            contraction_lines = []
+            output_lines = [
                 "network_nodes = "
                 + flattened_tensor_collection_expression(
                     collection_format, collection_name
-                )
-            )
-            lines.append(
+                ),
                 "open_edges = ["
                 + ", ".join(
                     f"{tensor_collection_reference_by_id(prepared, index.tensor.id, collection_format, collection_name)}[{index.spec.name!r}]"
                     for index in prepared.open_indices
                 )
-                + "]"
-            )
+                + "]",
+            ]
 
-        return CodegenResult(engine=self.engine, code="\n".join(lines).strip() + "\n")
+        return CodegenResult(
+            engine=self.engine,
+            code=render_code_sections(
+                CodeSection(
+                    title=None,
+                    lines=["import numpy as np", "import tensornetwork as tn"],
+                ),
+                CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(
+                    title="Tensor construction",
+                    lines=tensor_construction_lines,
+                ),
+                CodeSection(title="Network connections", lines=connection_lines),
+                CodeSection(title="Manual contraction", lines=contraction_lines),
+                CodeSection(title="Outputs", lines=output_lines),
+            ),
+        )
 
     def _render_manual_plan(
         self,
@@ -111,7 +125,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         prepared: PreparedNetwork,
         collection_format: TensorCollectionFormat,
         collection_name: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Render a saved manual contraction plan using ``tn.contract_between``."""
         contraction_inputs = prepare_contraction_inputs(prepared)
         simulation = simulate_contraction_plan(
@@ -136,7 +150,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
         }
         tensor_names_by_id = tensor_display_name_by_id(prepared)
 
-        lines = ["results_list = []", ""]
+        contraction_lines = ["results_list = []", ""]
         for step_index, step in enumerate(simulation.steps):
             latest_result_index = step_index - 1 if step_index > 0 else None
             left_expression = render_operand_expression(
@@ -160,8 +174,8 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                 right_axis_names=step.right_axis_names,
                 contracted_labels=step.contracted_labels,
             )
-            lines.append(f"# Manual step {step.step_id}")
-            lines.append(
+            contraction_lines.append(f"# Manual step {step.step_id}")
+            contraction_lines.append(
                 "results_list.append(tn.contract_between("
                 f"{left_expression}, "
                 f"{right_expression}, "
@@ -170,22 +184,20 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                 f"output_edge_order={output_edge_order}, "
                 f"axis_names={list(step.result_axis_names)!r}))"
             )
-            lines.append("")
+            contraction_lines.append("")
 
         final_result_index = len(simulation.steps) - 1 if simulation.steps else None
-        lines.extend(
-            render_remaining_operands_mapping(
-                operand_ids=simulation.remaining_operand_ids,
-                source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
-                tensor_names_by_id=tensor_names_by_id,
-                base_operand_expressions=base_operand_expressions,
-                step_result_indexes=step_result_indexes,
-                latest_result_index=final_result_index,
-            )
+        output_lines = render_remaining_operands_mapping(
+            operand_ids=simulation.remaining_operand_ids,
+            source_tensor_ids_by_operand_id=simulation.source_tensor_ids_by_operand_id,
+            tensor_names_by_id=tensor_names_by_id,
+            base_operand_expressions=base_operand_expressions,
+            step_result_indexes=step_result_indexes,
+            latest_result_index=final_result_index,
         )
-        lines.append("network_nodes = list(remaining_operands.values())")
+        output_lines.append("network_nodes = list(remaining_operands.values())")
         if len(simulation.remaining_operand_ids) == 1:
-            lines.append(
+            output_lines.append(
                 "result = "
                 + render_operand_expression(
                     simulation.remaining_operand_ids[0],
@@ -194,7 +206,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                     latest_result_index=final_result_index,
                 )
             )
-        return lines
+        return contraction_lines, output_lines
 
     @staticmethod
     def _build_output_edge_order(
