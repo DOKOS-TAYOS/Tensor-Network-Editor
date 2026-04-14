@@ -194,7 +194,7 @@ def _semantic_diff_named_entities(
                     entity_type=entity_type,
                     entity_id=entity_id,
                     change_type="changed",
-                    summary=_summary_for_entity(entity_type, "changed"),
+                    summary=_summary_for_changed_entry(entity_type, field_changes),
                     field_changes=field_changes,
                 )
             )
@@ -261,7 +261,7 @@ def _semantic_diff_plan(
                     entity_type="plan",
                     entity_id=after.id,
                     change_type="changed",
-                    summary=_summary_for_entity("plan", "changed"),
+                    summary=_summary_for_changed_entry("plan", field_changes),
                     field_changes=field_changes,
                 )
             )
@@ -540,6 +540,39 @@ def _summary_for_entity(entity_type: str, change_type: str) -> str:
         "linear_periodic_chain": "Linear periodic chain",
     }.get(entity_type, entity_type.replace("_", " ").title())
     return f"{label} {change_type}."
+
+
+def _summary_for_changed_entry(
+    entity_type: str,
+    field_changes: list[SemanticFieldChange],
+) -> str:
+    """Return a changed-entry summary that names the affected fields."""
+    label = {
+        "tensor": "Tensor",
+        "index": "Index",
+        "edge": "Edge",
+        "group": "Group",
+        "note": "Note",
+        "plan": "Contraction plan",
+        "step": "Contraction step",
+        "linear_periodic_chain": "Linear periodic chain",
+    }.get(entity_type, entity_type.replace("_", " ").title())
+    field_names = ", ".join(
+        _unique_field_paths(field_change.path for field_change in field_changes)
+    )
+    return f"{label} fields changed: {field_names}."
+
+
+def _unique_field_paths(paths: Iterable[str]) -> list[str]:
+    """Return field paths in first-seen order without duplicates."""
+    ordered_paths: list[str] = []
+    seen_paths: set[str] = set()
+    for path in paths:
+        if path in seen_paths:
+            continue
+        seen_paths.add(path)
+        ordered_paths.append(path)
+    return ordered_paths
 
 
 def _entity_id(entity: _DiffableEntity) -> str:

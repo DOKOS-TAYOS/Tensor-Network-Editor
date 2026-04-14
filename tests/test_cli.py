@@ -415,6 +415,44 @@ def test_diff_subcommand_prints_semantic_json(
     ]
 
 
+def test_diff_subcommand_prints_semantic_text(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec",
+            side_effect=[sample_spec, sample_spec],
+        ),
+        patch(
+            "tensor_network_editor.cli.semantic_diff_specs",
+            return_value=SemanticSpecDiffResult(
+                entries=[
+                    SemanticDiffEntry(
+                        entity_type="tensor",
+                        entity_id="tensor_a",
+                        change_type="changed",
+                        summary="Tensor fields changed: name.",
+                        field_changes=[
+                            SemanticFieldChange(
+                                path="name",
+                                before="A",
+                                after="A prime",
+                            )
+                        ],
+                    )
+                ]
+            ),
+        ),
+    ):
+        exit_code = main(["diff", "before.json", "after.json", "--semantic"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == (
+        'Tensors:\n- tensor_a: Tensor fields changed: name.\n  name: "A" -> "A prime"\n'
+    )
+
+
 def test_canonicalize_subcommand_writes_output(
     sample_spec: NetworkSpec,
 ) -> None:

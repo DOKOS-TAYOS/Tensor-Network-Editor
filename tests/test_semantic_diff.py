@@ -41,13 +41,13 @@ def test_semantic_diff_specs_reports_tensor_and_index_field_changes() -> None:
     entries = _entries_by_key(result)
 
     tensor_entry = entries[("tensor", "tensor_a", "changed")]
-    assert tensor_entry.summary == "Tensor changed."
+    assert tensor_entry.summary == "Tensor fields changed: name."
     assert _field_changes_by_path(tensor_entry) == {
         "name": ("A", "A prime"),
     }
 
     index_entry = entries[("index", "tensor_a_i", "changed")]
-    assert index_entry.summary == "Index changed."
+    assert index_entry.summary == "Index fields changed: dimension, metadata.tags."
     assert _field_changes_by_path(index_entry) == {
         "dimension": (2, 5),
         "metadata.tags": (None, ["alpha", "beta"]),
@@ -69,13 +69,16 @@ def test_semantic_diff_specs_reports_edge_and_step_changes() -> None:
     entries = _entries_by_key(result)
 
     edge_entry = entries[("edge", "edge_x", "changed")]
-    assert edge_entry.summary == "Edge changed."
+    assert edge_entry.summary == "Edge fields changed: left.index_id."
     assert _field_changes_by_path(edge_entry) == {
         "left.index_id": ("tensor_a_x", "tensor_a_i"),
     }
 
     step_entry = entries[("step", "step_ab", "changed")]
-    assert step_entry.summary == "Contraction step changed."
+    assert (
+        step_entry.summary
+        == "Contraction step fields changed: metadata.tags, right_operand_id."
+    )
     assert _field_changes_by_path(step_entry) == {
         "right_operand_id": ("tensor_b", "tensor_c"),
         "metadata.tags": (None, ["debug", "future"]),
@@ -94,6 +97,12 @@ def test_semantic_diff_specs_reports_step_additions_and_plan_reordering() -> Non
 
     result = semantic_diff_specs(before, after)
     entries = _entries_by_key(result)
+
+    changed_plan_entry = entries[("plan", "plan_chain", "changed")]
+    assert changed_plan_entry.summary == "Contraction plan fields changed: name."
+    assert _field_changes_by_path(changed_plan_entry) == {
+        "name": ("Chain path", "Complete chain path"),
+    }
 
     added_step_entry = entries[("step", "step_abc", "added")]
     assert added_step_entry.summary == "Contraction step added."

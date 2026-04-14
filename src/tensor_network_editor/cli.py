@@ -659,11 +659,25 @@ def _print_semantic_diff_text(result: SemanticSpecDiffResult) -> None:
         entries = grouped_entries.get(entity_type)
         if not entries:
             continue
-        print(f"{entity_type}:")
+        print(f"{_semantic_entity_heading(entity_type)}:")
         for entry in entries:
-            print(f"- {entry.entity_id} [{entry.change_type}] {entry.summary}")
+            print(f"- {entry.entity_id}: {entry.summary}")
             for field_change in entry.field_changes:
                 print(
                     f"  {field_change.path}: "
                     f"{json.dumps(field_change.before)} -> {json.dumps(field_change.after)}"
                 )
+
+
+def _semantic_entity_heading(entity_type: str) -> str:
+    """Return the display heading for one semantic diff entity group."""
+    return {
+        "tensor": "Tensors",
+        "index": "Indices",
+        "edge": "Edges",
+        "group": "Groups",
+        "note": "Notes",
+        "plan": "Contraction Plans",
+        "step": "Contraction Steps",
+        "linear_periodic_chain": "Linear Periodic Chain",
+    }.get(entity_type, entity_type.replace("_", " ").title())
