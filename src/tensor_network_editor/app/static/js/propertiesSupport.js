@@ -372,8 +372,10 @@ export function createPropertiesSupport({ ctx, state, window }) {
     target,
     annotationScope = null,
     suggestedAnnotationsMarkup = "",
+    collapsible = false,
+    summaryLabel = "Metadata",
   }) {
-    return `
+    const metadataEditorMarkup = `
       <div class="field-group">
         <label for="${tagsInputId}">Tags</label>
         <input
@@ -395,6 +397,19 @@ export function createPropertiesSupport({ ctx, state, window }) {
           formatCustomMetadataValue(target, annotationScope)
         )}</textarea>
       </div>
+    `;
+    if (!collapsible) {
+      return metadataEditorMarkup;
+    }
+    return `
+      <details class="metadata-editor-disclosure properties-disclosure">
+        <summary class="properties-disclosure-summary">${ctx.escapeHtml(
+          summaryLabel
+        )}</summary>
+        <div class="properties-disclosure-body metadata-editor-disclosure-body">
+          ${metadataEditorMarkup}
+        </div>
+      </details>
     `;
   }
 

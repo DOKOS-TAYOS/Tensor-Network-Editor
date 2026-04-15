@@ -188,6 +188,7 @@ export function createTensorPropertiesRenderers({
                 customMetadataFocusKey: `index:${index.id}:custom-metadata`,
                 target: index,
                 annotationScope: "index",
+                collapsible: true,
                 suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
                   annotationScope: "index",
                   target: index,
@@ -245,6 +246,7 @@ export function createTensorPropertiesRenderers({
         customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
         target: tensor,
         annotationScope: "tensor",
+        collapsible: true,
         suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
           annotationScope: "tensor",
           target: tensor,
@@ -502,6 +504,7 @@ export function createTensorPropertiesRenderers({
                       customMetadataFocusKey: `index:${index.id}:custom-metadata`,
                       target: index,
                       annotationScope: "index",
+                      collapsible: true,
                       suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
                         annotationScope: "index",
                         target: index,
@@ -583,6 +586,7 @@ export function createTensorPropertiesRenderers({
         customMetadataFocusKey: `tensor:${tensor.id}:custom-metadata`,
         target: tensor,
         annotationScope: "tensor",
+        collapsible: true,
         suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
           annotationScope: "tensor",
           target: tensor,

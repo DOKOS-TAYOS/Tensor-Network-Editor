@@ -166,11 +166,21 @@
                     <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
                   </label>
                 </div>
-                <button id="insert-template-button" type="button" class="button-accent-insert">Insert</button>
-                <button id="insert-subnetwork-button" type="button">Insert Subnetwork</button>
-                <button id="rename-template-button" type="button">Rename Template</button>
-                <button id="delete-template-button" type="button">Delete Template</button>
-                <button id="reflow-imported-button" type="button">Reflow Imported</button>
+                <button id="insert-template-button" type="button" class="button-accent-insert">+</button>
+                <button id="insert-subnetwork-button" type="button">+ subnetwork</button>
+                <button id="rename-template-button" type="button">Rename</button>
+                <button
+                  id="delete-template-button"
+                  type="button"
+                  class="icon-button danger"
+                  aria-label="Delete template"
+                  title="Delete template"
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+                  </svg>
+                </button>
+                <button id="reflow-imported-button" type="button">Reflow</button>
                 <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
               </div>
             </div>
@@ -254,8 +264,8 @@
               aria-labelledby="sidebar-tab-selection"
             >
               <h2>Selection</h2>
-              <div id="metadata-filters-panel" class="metadata-filters-panel"></div>
               <div id="properties-panel" class="properties-panel"></div>
+              <div id="metadata-filters-panel" class="metadata-filters-panel"></div>
             </section>
 
             <section

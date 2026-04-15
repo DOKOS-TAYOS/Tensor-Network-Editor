@@ -237,6 +237,7 @@ export function createEntityPropertiesRenderers({
         customMetadataInputId: "edge-custom-metadata-input",
         customMetadataFocusKey: `edge:${edge.id}:custom-metadata`,
         target: edge,
+        collapsible: true,
       })}
     `;
 

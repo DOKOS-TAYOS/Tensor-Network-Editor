@@ -2545,6 +2545,12 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         );
 
         ctx.setSelection(["tensor_a"], { primaryId: "tensor_a" });
+        if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
+          throw new Error("Selecting a tensor should render the metadata disclosure.");
+        }
+        if (propertiesPanel.innerHTML.includes("<details open")) {
+          throw new Error("Tensor metadata disclosures should be collapsed by default.");
+        }
         renderCalls.length = 0;
         graphRenderCount = 0;
         minimapRenderCount = 0;
@@ -2636,6 +2642,9 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         );
 
         ctx.setSelection(["index_a"], { primaryId: "index_a" });
+        if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
+          throw new Error("Selecting an index should keep metadata inside a disclosure.");
+        }
         const indexTagsInput = document.getElementById("index-tags-input-index_a");
         if (!indexTagsInput) {
           throw new Error("Selecting an index should expose the tags field in the properties sidebar.");
@@ -2676,6 +2685,11 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           () => graphRenderCount,
           () => minimapRenderCount
         );
+
+        ctx.setSelection(["edge_ab"], { primaryId: "edge_ab" });
+        if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
+          throw new Error("Selecting a connection should render the metadata disclosure.");
+        }
         """
     )
     script_body = script_body.replace(
@@ -3036,6 +3050,12 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         ctx.renderMetadataFilters();
         if (!document.getElementById("metadata-filter-scope-select")) {
           throw new Error("Expected the metadata filter panel to render.");
+        }
+        if (!metadataFiltersPanel.innerHTML.includes(">Metadata filters</summary>")) {
+          throw new Error("Metadata filters should render inside a disclosure.");
+        }
+        if (metadataFiltersPanel.innerHTML.includes("<details open")) {
+          throw new Error("Metadata filters should be collapsed by default.");
         }
 
         commitInput(document.getElementById("metadata-filter-tag-input"), "block");

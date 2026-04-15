@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -89,7 +90,7 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert add_index < delete_index < undo_index < redo_index
     assert redo_index < connect_index < group_index < note_index
     assert note_index < template_index < insert_template_index
-    assert ">Insert<" in html
+    assert ">+<" in html
 
 
 def test_root_groups_export_actions_and_code_generation_controls_as_requested(
@@ -408,6 +409,8 @@ def test_properties_assets_expose_tags_and_custom_metadata_editors(
     combined_body = overview_body + tensor_body + entities_body
     assert "Tags" in combined_body
     assert "Custom metadata (JSON)" in support_body
+    assert "metadata-editor-disclosure" in support_body
+    assert 'summaryLabel = "Metadata"' in support_body
     assert (
         'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
         in support_body
@@ -442,9 +445,14 @@ def test_metadata_filter_assets_expose_persistent_panel_and_highlight_hooks(
     minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
 
     assert 'id="metadata-filters-panel"' in html_body
+    assert html_body.index('id="properties-panel"') < html_body.index(
+        'id="metadata-filters-panel"'
+    )
     assert 'from "./metadataFilters.js"' in main_body
     assert "registerMetadataFilters(context);" in main_body
     assert "function renderMetadataFilters(" in filter_body
+    assert "metadata-filters-disclosure" in filter_body
+    assert ">Metadata filters</summary>" in filter_body
     assert "function getMetadataFilterHighlight(" in filter_body
     assert "metadata-filter-dim" in graph_body
     assert "getMetadataFilterEntityState" in graph_body
@@ -679,9 +687,26 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_ui_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
 
+    assert re.search(
+        r'<button id="insert-template-button"[^>]*>\s*\+\s*</button>',
+        html,
+    )
+    assert re.search(
+        r'<button id="insert-subnetwork-button"[^>]*>\s*\+ subnetwork\s*</button>',
+        html,
+    )
+    assert re.search(
+        r'<button id="rename-template-button"[^>]*>\s*Rename\s*</button>',
+        html,
+    )
+    assert re.search(
+        r'<button id="reflow-imported-button"[^>]*>\s*Reflow\s*</button>',
+        html,
+    )
     assert 'id="rename-template-button"' in html
     assert 'id="delete-template-button"' in html
     assert 'id="template-catalog-warning"' in html
+    assert 'aria-label="Delete template"' in html
     assert (
         'renameTemplateButton: document.getElementById("rename-template-button")'
         in dom_body

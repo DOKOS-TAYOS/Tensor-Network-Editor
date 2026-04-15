@@ -242,7 +242,7 @@ export function startEditor(ctx) {
 
   function attachToolbarHandlers() {
     applyShortcutHint("add-tensor-button", "Add tensor", "N");
-    applyShortcutHint("insert-template-button", "Insert", "T");
+    applyShortcutHint("insert-template-button", "Insert template", "T");
     applyShortcutHint("create-group-button", "Group", "G");
     applyShortcutHint("add-note-button", "Add note", "P");
     applyShortcutHint("connect-button", "Connect", "C");

@@ -262,68 +262,75 @@ export function registerMetadataFilters(ctx) {
           ) || { placeholder: "" }
         ).placeholder
       : "";
+    const keepDisclosureOpen =
+      /<details[^>]*\sopen\b/i.test(metadataFiltersPanel.innerHTML) ||
+      isMetadataFilterActive(filters);
 
     metadataFiltersPanel.innerHTML = `
-      <section class="metadata-filters-card">
-        <div class="metadata-filters-header">
-          <h3>Metadata filters</h3>
-          <button
-            id="clear-metadata-filters-button"
-            type="button"
-            class="button-quiet"
-          >
-            Clear
-          </button>
+      <details class="metadata-filters-card metadata-filters-disclosure"${
+        keepDisclosureOpen ? " open" : ""
+      }>
+        <summary class="properties-disclosure-summary">Metadata filters</summary>
+        <div class="properties-disclosure-body metadata-filters-body">
+          <div class="metadata-filters-header">
+            <button
+              id="clear-metadata-filters-button"
+              type="button"
+              class="button-quiet"
+            >
+              Clear
+            </button>
+          </div>
+          <div class="field-group">
+            <label for="metadata-filter-scope-select">Scope</label>
+            <select id="metadata-filter-scope-select">
+              <option value="tensor"${
+                filters.scope === "tensor" ? " selected" : ""
+              }>Tensor</option>
+              <option value="index"${
+                filters.scope === "index" ? " selected" : ""
+              }>Index</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="metadata-filter-tag-input">Tag</label>
+            <input
+              id="metadata-filter-tag-input"
+              value="${ctx.escapeHtml(filters.tag)}"
+              placeholder="physical"
+            />
+          </div>
+          <div class="field-group">
+            <label for="metadata-filter-key-select">Suggested annotation</label>
+            <select id="metadata-filter-key-select">
+              <option value="">Any guided field</option>
+              ${annotationDefinitions
+                .map(
+                  (definition) => `
+                    <option value="${ctx.escapeHtml(definition.key)}"${
+                      filters.annotationKey === definition.key ? " selected" : ""
+                    }>
+                      ${ctx.escapeHtml(definition.label)}
+                    </option>
+                  `
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="metadata-filter-value-input">Annotation value</label>
+            <input
+              id="metadata-filter-value-input"
+              value="${ctx.escapeHtml(filters.annotationValue)}"
+              placeholder="${ctx.escapeHtml(annotationValuePlaceholder)}"
+              ${filters.annotationKey ? "" : "disabled"}
+            />
+          </div>
+          <p class="property-meta">
+            Matching elements stay bright and the rest fade.
+          </p>
         </div>
-        <div class="field-group">
-          <label for="metadata-filter-scope-select">Scope</label>
-          <select id="metadata-filter-scope-select">
-            <option value="tensor"${
-              filters.scope === "tensor" ? " selected" : ""
-            }>Tensor</option>
-            <option value="index"${
-              filters.scope === "index" ? " selected" : ""
-            }>Index</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label for="metadata-filter-tag-input">Tag</label>
-          <input
-            id="metadata-filter-tag-input"
-            value="${ctx.escapeHtml(filters.tag)}"
-            placeholder="physical"
-          />
-        </div>
-        <div class="field-group">
-          <label for="metadata-filter-key-select">Suggested annotation</label>
-          <select id="metadata-filter-key-select">
-            <option value="">Any guided field</option>
-            ${annotationDefinitions
-              .map(
-                (definition) => `
-                  <option value="${ctx.escapeHtml(definition.key)}"${
-                    filters.annotationKey === definition.key ? " selected" : ""
-                  }>
-                    ${ctx.escapeHtml(definition.label)}
-                  </option>
-                `
-              )
-              .join("")}
-          </select>
-        </div>
-        <div class="field-group">
-          <label for="metadata-filter-value-input">Annotation value</label>
-          <input
-            id="metadata-filter-value-input"
-            value="${ctx.escapeHtml(filters.annotationValue)}"
-            placeholder="${ctx.escapeHtml(annotationValuePlaceholder)}"
-            ${filters.annotationKey ? "" : "disabled"}
-          />
-        </div>
-        <p class="property-meta">
-          Matching elements stay bright and the rest fade.
-        </p>
-      </section>
+      </details>
     `;
 
     const scopeSelect = document.getElementById("metadata-filter-scope-select");
