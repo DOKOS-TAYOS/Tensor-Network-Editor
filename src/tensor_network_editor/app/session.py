@@ -203,18 +203,20 @@ def launch_editor_session(
     )
     server = EditorServer(session=session, host=host, port=port)
     previous_sigint_handler: SignalHandler | int | None = None
+    server_started = False
 
-    if threading.current_thread() is threading.main_thread():
-        previous_sigint_handler = signal.getsignal(signal.SIGINT)
-
-        def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
-            session.cancel()
-            raise KeyboardInterrupt
-
-        signal.signal(signal.SIGINT, _handle_sigint)
-
-    server.start()
     try:
+        if threading.current_thread() is threading.main_thread():
+            previous_sigint_handler = signal.getsignal(signal.SIGINT)
+
+            def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+                session.cancel()
+                raise KeyboardInterrupt
+
+            signal.signal(signal.SIGINT, _handle_sigint)
+
+        server.start()
+        server_started = True
         if _on_server_ready is not None:
             _on_server_ready(server.base_url)
         if open_browser:
@@ -232,6 +234,7 @@ def launch_editor_session(
         session.cancel()
         raise
     finally:
-        server.stop()
         if previous_sigint_handler is not None:
             signal.signal(signal.SIGINT, previous_sigint_handler)
+        if server_started:
+            server.stop()

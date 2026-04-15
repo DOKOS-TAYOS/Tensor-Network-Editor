@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -34,7 +35,6 @@ from .serialization import (
     serialize_spec,
 )
 from .templates import (
-    TemplateParameters,
     build_template_spec,
     list_template_names,
     parse_template_parameters,
@@ -346,10 +346,10 @@ def _handle_canonicalize(args: argparse.Namespace) -> int:
 
 def _handle_template_list(args: argparse.Namespace) -> int:
     """Print the built-in template definitions."""
+    definitions = serialize_template_definitions()
     if args.format == "json":
-        _print_json(serialize_template_definitions())
+        _print_json(definitions)
     else:
-        definitions = serialize_template_definitions()
         for template_name in list_template_names():
             definition = definitions[template_name]
             print(f"{template_name}: {definition['display_name']}")
@@ -367,7 +367,7 @@ def _handle_template_build(args: argparse.Namespace) -> int:
         }.items()
         if value is not None
     }
-    parameters = _parse_template_cli_parameters(
+    parameters = parse_template_parameters(
         args.template_name,
         raw_parameters if raw_parameters else None,
     )
@@ -378,14 +378,6 @@ def _handle_template_build(args: argparse.Namespace) -> int:
         return 0
     _print_json(serialize_spec(spec))
     return 0
-
-
-def _parse_template_cli_parameters(
-    template_name: str,
-    raw_parameters: dict[str, int] | None,
-) -> TemplateParameters:
-    """Parse CLI template parameters using the public template helper."""
-    return parse_template_parameters(template_name, raw_parameters)
 
 
 def load_spec_for_lint(path: str) -> NetworkSpec:
@@ -571,15 +563,32 @@ def _coerce_int(value: object) -> int:
     if isinstance(value, int):
         return value
     if isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(
+                f"Expected an integer-like value, got non-integer float {value}."
+            )
         return int(value)
     if isinstance(value, str):
-        return int(value)
+        normalized_value = value.strip()
+        if not normalized_value:
+            raise ValueError("Expected an integer-like string, got an empty string.")
+        if re.fullmatch(r"[+-]?\d+", normalized_value) is None:
+            raise ValueError(
+                f"Expected an integer-like string, got {value!r}."
+            )
+        return int(normalized_value)
     raise TypeError(f"Expected an integer-like value, got {type(value).__name__}.")
 
 
 def _format_metric(value: object) -> str:
     """Format a numeric metric with grouping separators."""
-    return f"{_coerce_int(value):,}"
+    try:
+        normalized_value = _coerce_int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid integer metric value {value!r}: {exc}"
+        ) from exc
+    return f"{normalized_value:,}"
 
 
 def _format_shape(shape: object) -> str:
@@ -593,7 +602,12 @@ def _format_shape(shape: object) -> str:
 
 def _describe_delta(value: object, *, unit: str = "") -> str:
     """Describe whether one metric went up, down, or stayed unchanged."""
-    normalized_value = _coerce_int(value)
+    try:
+        normalized_value = _coerce_int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid integer delta value {value!r}: {exc}"
+        ) from exc
     if normalized_value == 0:
         return "is unchanged"
     direction = "down" if normalized_value < 0 else "up"

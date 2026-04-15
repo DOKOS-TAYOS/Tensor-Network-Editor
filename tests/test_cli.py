@@ -20,7 +20,7 @@ from tensor_network_editor._headless_models import (
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
-from tensor_network_editor.cli import main
+from tensor_network_editor.cli import _coerce_int, main
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
@@ -309,6 +309,45 @@ def test_analyze_subcommand_text_output_includes_comparison_details(
     assert "Bottlenecks: manual=x, y, z | automatic_full=i, j" in output
 
 
+def test_coerce_int_accepts_integer_like_float() -> None:
+    assert _coerce_int(42.0) == 42
+
+
+def test_coerce_int_rejects_non_integer_float() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Expected an integer-like value, got non-integer float 3.5.",
+    ):
+        _coerce_int(3.5)
+
+
+def test_coerce_int_rejects_non_integer_string() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"Expected an integer-like string, got '12\.4'\.",
+    ):
+        _coerce_int("12.4")
+
+
+def test_analyze_subcommand_reports_integer_metric_errors(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report = build_analysis_report()
+    report.contraction.manual.summary.total_estimated_flops = 1.5
+    with (
+        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
+        patch("tensor_network_editor.cli.analyze_spec", return_value=report),
+    ):
+        exit_code = main(["analyze", "saved-network.json"])
+
+    assert exit_code == 2
+    assert (
+        "Invalid integer metric value 1.5: Expected an integer-like value, got non-integer float 1.5."
+        in capsys.readouterr().out
+    )
+
+
 def test_export_subcommand_calls_generate_code_with_requested_output(
     sample_spec: NetworkSpec,
 ) -> None:
@@ -483,14 +522,34 @@ def test_canonicalize_subcommand_writes_output(
     save_mock.assert_called_once_with(canonical_spec, "canonical.json")
 
 
-def test_template_list_subcommand_prints_json(
+def test_template_list_subcommand_preserves_json_and_text_output_formats(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code = main(["template", "list", "--format", "json"])
+    definitions = {
+        "mps": {"display_name": "Matrix Product State"},
+        "mera": {"display_name": "MERA"},
+    }
+    with (
+        patch(
+            "tensor_network_editor.cli.serialize_template_definitions",
+            return_value=definitions,
+        ) as definitions_mock,
+        patch(
+            "tensor_network_editor.cli.list_template_names",
+            return_value=["mps", "mera"],
+        ),
+    ):
+        json_exit_code = main(["template", "list", "--format", "json"])
+        json_payload = json.loads(capsys.readouterr().out)
 
-    assert exit_code == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert list(payload) == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+        text_exit_code = main(["template", "list", "--format", "text"])
+        text_output = capsys.readouterr().out
+
+    assert json_exit_code == 0
+    assert json_payload == definitions
+    assert text_exit_code == 0
+    assert text_output == "mps: Matrix Product State\nmera: MERA\n"
+    assert definitions_mock.call_count == 2
 
 
 def test_template_build_subcommand_prints_json_when_no_output(

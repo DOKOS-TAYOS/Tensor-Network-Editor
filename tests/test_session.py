@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import signal
 import threading
 from pathlib import Path
 from queue import Queue
@@ -231,3 +232,48 @@ def test_launch_tensor_network_editor_returns_none_on_cancel(
     thread.join(timeout=5)
     assert not thread.is_alive()
     assert result_queue.get(timeout=1) is None
+
+
+def test_launch_editor_session_start_failure_restores_sigint_and_does_not_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    previous_handler = signal.default_int_handler
+    installed_handlers: list[object] = []
+
+    def fake_getsignal(sig: signal.Signals) -> object:
+        assert sig is signal.SIGINT
+        return previous_handler
+
+    def fake_signal(sig: signal.Signals, handler: object) -> object:
+        assert sig is signal.SIGINT
+        installed_handlers.append(handler)
+        return handler
+
+    class FailingEditorServer:
+        stop_calls = 0
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+
+        def start(self) -> None:
+            raise RuntimeError("boom")
+
+        def stop(self) -> None:
+            type(self).stop_calls += 1
+
+    monkeypatch.setattr(signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(signal, "signal", fake_signal)
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FailingEditorServer,
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        session_module.launch_editor_session(open_browser=False)
+
+    assert len(installed_handlers) == 2
+    assert callable(installed_handlers[0])
+    assert installed_handlers[1] is previous_handler
+    assert FailingEditorServer.stop_calls == 0
