@@ -86,8 +86,12 @@ class EditorSession:
         self.default_collection_format = default_collection_format
         self.print_code = print_code
         self.code_path = code_path
+        global_template_names = set(list_template_names())
         self._project_template_catalog: ProjectTemplateCatalog = (
-            load_project_template_catalog(template_catalog_path)
+            load_project_template_catalog(
+                template_catalog_path,
+                reserved_names=global_template_names,
+            )
         )
         self.template_catalog_path = self._project_template_catalog.path
         self._finished_event = threading.Event()
@@ -178,6 +182,7 @@ class EditorSession:
         self._project_template_catalog = delete_project_template(
             self.template_catalog_path,
             template_name,
+            reserved_names=set(self.list_global_template_names()),
         )
 
     def bootstrap_payload(self) -> dict[str, object]:

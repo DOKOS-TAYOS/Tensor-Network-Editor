@@ -910,6 +910,87 @@ def test_template_delete_route_deletes_project_template_and_keeps_selection_stab
     ]
 
 
+def test_template_delete_route_selects_next_surviving_project_template(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        for template_name, tensor_ids in (
+            ("project_first", ["tensor_a"]),
+            ("project_middle", ["tensor_a", "tensor_b"]),
+            ("project_last", ["tensor_b"]),
+        ):
+            request_json(
+                f"{server.base_url}/api/template/promote",
+                method="POST",
+                payload={
+                    "spec": {
+                        "schema_version": SCHEMA_VERSION,
+                        "network": build_sample_spec().to_dict(),
+                    },
+                    "tensor_ids": tensor_ids,
+                    "template_name": template_name,
+                },
+            )
+        payload = request_json(
+            f"{server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "project_middle"},
+        )
+    finally:
+        server.stop()
+
+    assert payload["ok"] is True
+    assert payload["selected_template"] == "project_last"
+    assert payload["templates"][:2] == ["project_first", "project_last"]
+
+
+def test_template_delete_route_falls_back_to_first_global_template_when_project_is_empty(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "project_pair",
+            },
+        )
+        payload = request_json(
+            f"{server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "project_pair"},
+        )
+    finally:
+        server.stop()
+
+    assert payload["ok"] is True
+    assert payload["selected_template"] == "mps"
+    assert payload["templates"][0] == "mps"
+
+
 def test_template_delete_route_rejects_global_and_missing_templates(
     tmp_path: Path,
 ) -> None:

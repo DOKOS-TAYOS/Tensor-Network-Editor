@@ -278,6 +278,84 @@ def test_project_template_catalog_entries_do_not_leak_between_sessions(
     )
 
 
+def test_project_template_catalog_skips_names_that_collide_with_global_templates(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    promoted_spec = build_sample_spec()
+    promoted_spec.name = "Shadow MPS"
+    promoted_spec.notes = []
+    promoted_spec.contraction_plan = None
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "templates": [
+                    {
+                        "name": "mps",
+                        "display_name": "Shadow MPS",
+                        "spec": serialize_spec(promoted_spec),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+
+    assert payload["templates"].count("mps") == 1
+    assert payload["template_definitions"]["mps"]["display_name"] == "MPS"
+    assert payload["template_definitions"]["mps"]["source"] == "global"
+    assert payload["template_catalog_warnings"]
+    assert "global template" in payload["template_catalog_warnings"][0]
+
+
+def test_project_template_catalog_rewrites_away_global_name_collisions_on_save(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    colliding_spec = build_sample_spec()
+    colliding_spec.name = "Shadow MPS"
+    colliding_spec.notes = []
+    colliding_spec.contraction_plan = None
+    valid_spec = build_sample_spec()
+    valid_spec.id = "project_pair"
+    valid_spec.name = "Project Pair"
+    valid_spec.notes = []
+    valid_spec.contraction_plan = None
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "templates": [
+                    {
+                        "name": "mps",
+                        "display_name": "Shadow MPS",
+                        "spec": serialize_spec(colliding_spec),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    append_project_template(catalog_path, "project_pair", valid_spec)
+    persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+
+    assert [entry["name"] for entry in persisted_payload["templates"]] == [
+        "project_pair"
+    ]
+    assert payload["templates"][0] == "project_pair"
+    assert payload["templates"].count("mps") == 1
+    assert payload["template_catalog_warnings"] == []
+
+
 def test_project_template_catalog_entries_can_be_renamed_preserving_order(
     tmp_path: Path,
 ) -> None:

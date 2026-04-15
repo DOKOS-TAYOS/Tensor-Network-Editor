@@ -13,6 +13,7 @@ from ._template_catalog import (
     TemplateDefinition,
     _validate_template_name,
     build_static_template_definition,
+    list_template_names,
 )
 from .errors import PackageIOError, SerializationError
 from .models import NetworkSpec
@@ -76,8 +77,11 @@ def derive_project_template_display_name(template_name: str) -> str:
 
 def load_project_template_catalog(
     template_catalog_path: StrPath | None = None,
+    *,
+    reserved_names: set[str] | None = None,
 ) -> ProjectTemplateCatalog:
     """Load the project-local static template catalog from disk."""
+    effective_reserved_names = _resolve_reserved_names(reserved_names)
     catalog_path = resolve_project_template_catalog_path(template_catalog_path)
     if not catalog_path.exists():
         return ProjectTemplateCatalog(path=catalog_path, entries={}, warnings=[])
@@ -144,6 +148,11 @@ def load_project_template_catalog(
         except (SerializationError, ValueError) as exc:
             warnings.append(f"Skipped project template entry #{index + 1}: {exc}")
             continue
+        if entry.name in effective_reserved_names:
+            warnings.append(
+                f"Skipped project template '{entry.name}' because it collides with a global template."
+            )
+            continue
         if entry.name in entries:
             warnings.append(f"Skipped duplicated project template '{entry.name}'.")
             continue
@@ -165,19 +174,26 @@ def append_project_template(
     reserved_names: set[str] | None = None,
 ) -> ProjectTemplateCatalog:
     """Append one new project-local template and persist the catalog."""
-    catalog = load_project_template_catalog(template_catalog_path)
+    effective_reserved_names = _resolve_reserved_names(reserved_names)
+    catalog = load_project_template_catalog(
+        template_catalog_path,
+        reserved_names=effective_reserved_names,
+    )
     normalized_name = _validate_template_name(template_name)
     _validate_project_template_destination(
         catalog.entries,
         normalized_name,
-        reserved_names=reserved_names,
+        reserved_names=effective_reserved_names,
         overwrite=overwrite,
     )
     entry = _build_project_template_entry(normalized_name, spec)
     next_entries = dict(catalog.entries)
     next_entries[normalized_name] = entry
     save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(catalog.path)
+    return load_project_template_catalog(
+        catalog.path,
+        reserved_names=effective_reserved_names,
+    )
 
 
 def rename_project_template(
@@ -189,7 +205,11 @@ def rename_project_template(
     reserved_names: set[str] | None = None,
 ) -> ProjectTemplateCatalog:
     """Rename one persisted project-local template and reload the catalog."""
-    catalog = load_project_template_catalog(template_catalog_path)
+    effective_reserved_names = _resolve_reserved_names(reserved_names)
+    catalog = load_project_template_catalog(
+        template_catalog_path,
+        reserved_names=effective_reserved_names,
+    )
     normalized_name = _validate_template_name(template_name)
     normalized_new_name = _validate_template_name(new_template_name)
     if normalized_name not in catalog.entries:
@@ -198,7 +218,7 @@ def rename_project_template(
         _validate_project_template_destination(
             catalog.entries,
             normalized_new_name,
-            reserved_names=reserved_names,
+            reserved_names=effective_reserved_names,
             overwrite=overwrite,
         )
 
@@ -220,15 +240,24 @@ def rename_project_template(
             continue
         next_entries[entry_name] = entry
     save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(catalog.path)
+    return load_project_template_catalog(
+        catalog.path,
+        reserved_names=effective_reserved_names,
+    )
 
 
 def delete_project_template(
     template_catalog_path: StrPath | None,
     template_name: str,
+    *,
+    reserved_names: set[str] | None = None,
 ) -> ProjectTemplateCatalog:
     """Delete one persisted project-local template and reload the catalog."""
-    catalog = load_project_template_catalog(template_catalog_path)
+    effective_reserved_names = _resolve_reserved_names(reserved_names)
+    catalog = load_project_template_catalog(
+        template_catalog_path,
+        reserved_names=effective_reserved_names,
+    )
     normalized_name = _validate_template_name(template_name)
     if normalized_name not in catalog.entries:
         raise ValueError(f"Unknown project template '{normalized_name}'.")
@@ -238,7 +267,10 @@ def delete_project_template(
         if entry_name != normalized_name
     }
     save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(catalog.path)
+    return load_project_template_catalog(
+        catalog.path,
+        reserved_names=effective_reserved_names,
+    )
 
 
 def save_project_template_catalog(
@@ -314,3 +346,10 @@ def _validate_project_template_destination(
         )
     if template_name in entries and not overwrite:
         raise ValueError(f"Template '{template_name}' is already registered.")
+
+
+def _resolve_reserved_names(reserved_names: set[str] | None) -> set[str]:
+    """Resolve the template names reserved by the global catalog."""
+    if reserved_names is not None:
+        return set(reserved_names)
+    return set(list_template_names())

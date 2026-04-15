@@ -702,6 +702,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         'deleteTemplateButton.addEventListener("click", ctx.deleteSelectedTemplate);'
         in bootstrap_body
     )
+    assert (
+        "templateCatalogWarnings: payload.template_catalog_warnings" in bootstrap_body
+    )
+    assert 'ctx.setStatus(state.templateCatalogWarnings[0], "error");' in bootstrap_body
     assert '"/api/template/rename"' in interactions_body
     assert '"/api/template/delete"' in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_body

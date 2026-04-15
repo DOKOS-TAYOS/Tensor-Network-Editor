@@ -210,11 +210,15 @@ def delete_session_project_template(
         raise ValueError(
             f"Template '{template_name}' is registered globally and cannot be deleted."
         )
+    previous_project_template_names = list(session.project_template_entries)
+    deleted_template_index = previous_project_template_names.index(template_name)
     session.delete_project_template(template_name)
     selected_template = None
     remaining_project_templates = list(session.project_template_entries)
     if remaining_project_templates:
-        selected_template = remaining_project_templates[0]
+        selected_template = remaining_project_templates[
+            min(deleted_template_index, len(remaining_project_templates) - 1)
+        ]
     else:
         available_templates = session.list_available_template_names()
         if available_templates:
