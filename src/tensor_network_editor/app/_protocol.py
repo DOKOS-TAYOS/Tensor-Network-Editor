@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from typing import TypeAlias, cast
 
+from ..codegen.registry import engine_name_to_text, resolve_registered_engine
 from ..models import (
     CodegenResult,
     EditorResult,
-    EngineName,
+    EngineIdentifier,
     NetworkSpec,
     TensorCollectionFormat,
     ValidationIssue,
@@ -35,7 +36,7 @@ class CodegenRequest:
     """Normalized payload for generate and complete API requests."""
 
     serialized_spec: JsonDict
-    engine: EngineName
+    engine: EngineIdentifier
     collection_format: TensorCollectionFormat
 
 
@@ -78,7 +79,7 @@ def deserialize_validation_payload(payload: JsonDict) -> NetworkSpec:
 def parse_codegen_request(
     payload: JsonDict,
     *,
-    default_engine: EngineName,
+    default_engine: EngineIdentifier,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
 ) -> CodegenRequest:
     """Normalize a generate or complete request payload."""
@@ -89,13 +90,13 @@ def parse_codegen_request(
     )
 
 
-def resolve_engine(payload: JsonDict, default_engine: EngineName) -> EngineName:
+def resolve_engine(
+    payload: JsonDict,
+    default_engine: EngineIdentifier,
+) -> EngineIdentifier:
     """Resolve the requested engine from a JSON payload."""
-    engine_value = payload.get("engine", default_engine.value)
-    try:
-        return EngineName(str(engine_value))
-    except ValueError as exc:
-        raise ValueError(f"Unsupported engine '{engine_value}'.") from exc
+    engine_value = payload.get("engine", engine_name_to_text(default_engine))
+    return resolve_registered_engine(str(engine_value))
 
 
 def resolve_collection_format(
@@ -164,7 +165,7 @@ def serialize_spec_payload(spec: NetworkSpec) -> JsonDict:
 def serialize_codegen_result(result: CodegenResult) -> JsonDict:
     """Serialize a code-generation result for the API."""
     return {
-        "engine": result.engine.value,
+        "engine": engine_name_to_text(result.engine),
         "code": result.code,
         "warnings": cast(JSONValue, list(result.warnings)),
         "artifacts": cast(JSONValue, dict(result.artifacts)),
@@ -173,7 +174,10 @@ def serialize_codegen_result(result: CodegenResult) -> JsonDict:
 
 def serialize_editor_result(result: EditorResult) -> JsonDict:
     """Serialize the final editor result for the API."""
-    return {"engine": result.engine.value, "confirmed": result.confirmed}
+    return {
+        "engine": engine_name_to_text(result.engine),
+        "confirmed": result.confirmed,
+    }
 
 
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:

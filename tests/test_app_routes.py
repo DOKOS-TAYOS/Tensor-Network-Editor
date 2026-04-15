@@ -541,6 +541,135 @@ def test_template_route_rejects_invalid_template_parameters(
     assert "graph_size" in payload["message"]
 
 
+def test_subnetwork_extract_route_returns_serialized_fragment(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/subnetwork/extract",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            },
+            "tensor_ids": ["tensor_a", "tensor_b"],
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["spec"]["network"]["notes"] == []
+    assert payload["spec"]["network"]["contraction_plan"] is None
+    assert [tensor["id"] for tensor in payload["spec"]["network"]["tensors"]] == [
+        "tensor_a",
+        "tensor_b",
+    ]
+    assert [edge["id"] for edge in payload["spec"]["network"]["edges"]] == ["edge_x"]
+    assert [group["id"] for group in payload["spec"]["network"]["groups"]] == [
+        "group_demo"
+    ]
+
+
+def test_subnetwork_extract_route_rejects_invalid_selection_payload(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/subnetwork/extract",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            },
+            "tensor_ids": [],
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "tensor_ids" in payload["message"]
+
+
+def test_subnetwork_extract_route_rejects_linear_periodic_mode(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/subnetwork/extract",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_linear_periodic_chain_spec().to_dict(),
+            },
+            "tensor_ids": ["periodic_left_tensor"],
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "normal graph mode" in payload["message"]
+
+
+def test_subnetwork_prepare_insert_route_remaps_ids_and_centers_fragment(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/subnetwork/prepare-insert",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            },
+            "target_center": {"x": 500.0, "y": 420.0},
+        },
+    )
+
+    tensors = payload["spec"]["network"]["tensors"]
+    tensor_ids = {tensor["id"] for tensor in tensors}
+    left = min(
+        tensor["position"]["x"] - tensor["size"]["width"] / 2 for tensor in tensors
+    )
+    right = max(
+        tensor["position"]["x"] + tensor["size"]["width"] / 2 for tensor in tensors
+    )
+    top = min(
+        tensor["position"]["y"] - tensor["size"]["height"] / 2 for tensor in tensors
+    )
+    bottom = max(
+        tensor["position"]["y"] + tensor["size"]["height"] / 2 for tensor in tensors
+    )
+
+    assert payload["ok"] is True
+    assert tensor_ids.isdisjoint({"tensor_a", "tensor_b"})
+    assert payload["spec"]["network"]["notes"] == []
+    assert payload["spec"]["network"]["contraction_plan"] is None
+    assert (
+        payload["spec"]["network"]["groups"][0]["tensor_ids"] == list(tensor_ids)
+        or set(payload["spec"]["network"]["groups"][0]["tensor_ids"]) == tensor_ids
+    )
+    assert (left + right) / 2 == pytest.approx(500.0)
+    assert (top + bottom) / 2 == pytest.approx(420.0)
+
+
+def test_subnetwork_prepare_insert_route_rejects_missing_target_center(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/subnetwork/prepare-insert",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            }
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "target_center" in payload["message"]
+
+
 def test_analyze_contraction_route_returns_manual_summary(
     editor_server: EditorServer,
     serialized_sample_spec: dict[str, object],

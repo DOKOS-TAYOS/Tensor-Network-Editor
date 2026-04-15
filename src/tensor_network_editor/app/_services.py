@@ -7,16 +7,27 @@ from typing import TYPE_CHECKING
 from .._annotation_catalog import serialize_annotation_definitions
 from .._contraction_analysis_types import ContractionAnalysisResult
 from ..analysis import analyze_contraction
-from ..codegen.registry import generate_code as generate_code_internal
+from ..codegen.registry import (
+    engine_name_to_text,
+    list_generator_names,
+)
+from ..codegen.registry import (
+    generate_code as generate_code_internal,
+)
 from ..errors import SpecValidationError
 from ..models import (
+    CanvasPosition,
     CodegenResult,
     EditorResult,
-    EngineName,
+    EngineIdentifier,
     NetworkSpec,
     TensorCollectionFormat,
 )
 from ..serialization import SCHEMA_VERSION, deserialize_spec
+from ..subnetworks import (
+    extract_subnetwork_spec,
+    prepare_subnetwork_for_insertion,
+)
 from ..templates import (
     TemplateParameters,
     build_template_spec,
@@ -33,8 +44,8 @@ if TYPE_CHECKING:
 def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
     """Build the initial payload used to bootstrap the browser client."""
     return {
-        "default_engine": session.default_engine.value,
-        "engines": [engine.value for engine in EngineName],
+        "default_engine": engine_name_to_text(session.default_engine),
+        "engines": list_generator_names(),
         "default_collection_format": session.default_collection_format.value,
         "collection_formats": [
             collection_format.value for collection_format in TensorCollectionFormat
@@ -53,7 +64,7 @@ def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
 def generate_session_request(
     session: EditorSession,
     serialized_spec: dict[str, object],
-    engine: EngineName,
+    engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
 ) -> CodegenResult:
     """Generate preview code for one editor request."""
@@ -68,7 +79,7 @@ def generate_session_request(
 def complete_session_request(
     session: EditorSession,
     serialized_spec: dict[str, object],
-    engine: EngineName,
+    engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
 ) -> EditorResult:
     """Finalize a session request and optionally print or save generated code."""
@@ -116,6 +127,26 @@ def analyze_serialized_contraction(
     if issues:
         raise SpecValidationError(issues)
     return analyze_contraction(spec)
+
+
+def extract_serialized_subnetwork(
+    serialized_spec: dict[str, object],
+    *,
+    tensor_ids: list[str],
+) -> NetworkSpec:
+    """Deserialize one payload and extract its selected tensor fragment."""
+    spec = deserialize_spec(serialized_spec, validate=False)
+    return extract_subnetwork_spec(spec, tensor_ids=tensor_ids)
+
+
+def prepare_serialized_subnetwork_for_insertion(
+    serialized_spec: dict[str, object],
+    *,
+    target_center: CanvasPosition,
+) -> NetworkSpec:
+    """Deserialize one payload and prepare it for editor insertion."""
+    spec = deserialize_spec(serialized_spec, validate=False)
+    return prepare_subnetwork_for_insertion(spec, target_center=target_center)
 
 
 def _resolve_collection_format(

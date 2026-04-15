@@ -22,6 +22,7 @@ export function startEditor(ctx) {
     addNoteButton,
     connectButton,
     loadInput,
+    subnetworkLoadInput,
     undoButton,
     redoButton,
     exportButton,
@@ -34,6 +35,7 @@ export function startEditor(ctx) {
     templateBondDimensionInput,
     templatePhysicalDimensionInput,
     insertTemplateButton,
+    insertSubnetworkButton,
     createGroupButton,
     helpButton,
     helpModal,
@@ -280,6 +282,7 @@ export function startEditor(ctx) {
     templateBondDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
     templatePhysicalDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
     insertTemplateButton.addEventListener("click", ctx.insertTemplate);
+    insertSubnetworkButton.addEventListener("click", ctx.openSubnetworkPicker);
     createGroupButton.addEventListener("click", ctx.createGroupFromSelection);
     helpButton.addEventListener("click", () => ctx.toggleHelpModal(true));
     helpBackdrop.addEventListener("click", () => ctx.toggleHelpModal(false));
@@ -302,6 +305,7 @@ export function startEditor(ctx) {
       state.selectedCollectionFormat = event.target.value;
     });
     loadInput.addEventListener("change", ctx.loadDesignFromFile);
+    subnetworkLoadInput.addEventListener("change", ctx.loadSubnetworkFromFile);
     window.addEventListener("keydown", ctx.handleKeydown);
     window.addEventListener("beforeunload", ctx.sendCancelBeacon);
     window.addEventListener("pagehide", ctx.sendCancelBeacon);

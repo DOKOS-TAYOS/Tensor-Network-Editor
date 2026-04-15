@@ -157,6 +157,10 @@ class EditorServer:
                     return routes.handle_validate(session, payload)
                 if path == "/api/template":
                     return routes.handle_template(session, payload)
+                if path == "/api/subnetwork/extract":
+                    return routes.handle_subnetwork_extract(session, payload)
+                if path == "/api/subnetwork/prepare-insert":
+                    return routes.handle_subnetwork_prepare_insert(session, payload)
                 if path == "/api/generate":
                     return routes.handle_generate(session, payload)
                 if path == "/api/analyze-contraction":

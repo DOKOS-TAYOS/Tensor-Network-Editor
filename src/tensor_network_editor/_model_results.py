@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 from .types import MetadataDict
 
@@ -39,11 +39,14 @@ class TensorCollectionFormat(StrEnum):
     DICT = "dict"
 
 
+EngineIdentifier: TypeAlias = EngineName | str
+
+
 @dataclass(slots=True)
 class CodegenResult:
     """Generated Python code together with metadata about the export."""
 
-    engine: EngineName
+    engine: EngineIdentifier
     code: str
     warnings: list[str] = field(default_factory=list)
     artifacts: MetadataDict = field(default_factory=dict)
@@ -54,6 +57,6 @@ class EditorResult:
     """Final result returned when an editor session finishes."""
 
     spec: NetworkSpec
-    engine: EngineName
+    engine: EngineIdentifier
     codegen: CodegenResult | None = None
     confirmed: bool = False

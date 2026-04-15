@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
+from ..models import (
+    CodegenResult,
+    EngineIdentifier,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 
 
 class CodeGenerator(ABC):
     """Abstract interface implemented by backend-specific code generators."""
 
-    engine: EngineName
+    engine: EngineIdentifier
 
     @abstractmethod
     def generate(

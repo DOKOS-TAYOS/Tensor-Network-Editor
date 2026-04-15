@@ -12,6 +12,7 @@ from .api import (
     save_spec,
 )
 from .canonicalization import canonicalize_spec
+from .codegen.registry import list_generator_names, register_generator
 from .diffing import (
     SemanticDiffEntry,
     SemanticFieldChange,
@@ -40,7 +41,11 @@ from .models import (
     TensorSize,
     TensorSpec,
 )
-from .templates import build_template_spec, list_template_names
+from .templates import (
+    build_template_spec,
+    list_template_names,
+    register_template,
+)
 from .validation import validate_spec
 
 PACKAGE_LOGGER = logging.getLogger(__name__)
@@ -76,10 +81,13 @@ __all__ = [
     "diff_specs",
     "generate_code",
     "lint_spec",
+    "list_generator_names",
     "launch_tensor_network_editor",
     "list_template_names",
     "load_spec",
     "load_spec_from_python_code",
+    "register_generator",
+    "register_template",
     "save_spec",
     "SemanticDiffEntry",
     "SemanticFieldChange",

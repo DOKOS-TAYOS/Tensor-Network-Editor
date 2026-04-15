@@ -1,8 +1,15 @@
-"""Catalog metadata for the built-in network templates."""
+"""Catalog metadata for the built-in and registered network templates."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .models import NetworkSpec
 
 
 @dataclass(frozen=True)
@@ -96,26 +103,91 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
         ),
     ),
 }
-TEMPLATE_NAMES = list(TEMPLATE_DEFINITIONS)
+
+_TEMPLATE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+_REGISTERED_TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {}
+_REGISTERED_TEMPLATE_BUILDERS: dict[
+    str, Callable[[TemplateParameters], NetworkSpec]
+] = {}
+
+
+def _ensure_template_registry_seeded() -> None:
+    """Load the built-in template registrations on first use."""
+    if _REGISTERED_TEMPLATE_DEFINITIONS:
+        return
+    from ._template_builders import register_builtin_templates
+
+    register_builtin_templates()
+
+
+def _validate_template_name(template_name: str) -> str:
+    """Validate and normalize one template registration name."""
+    normalized_name = str(template_name).strip()
+    if not _TEMPLATE_NAME_PATTERN.fullmatch(normalized_name):
+        raise ValueError(
+            "Template names must start with a lowercase letter and contain only lowercase letters, digits, and underscores."
+        )
+    return normalized_name
+
+
+def register_template(
+    template_name: str,
+    definition: TemplateDefinition,
+    builder: Callable[[TemplateParameters], NetworkSpec],
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Register one template definition and its builder."""
+    normalized_name = _validate_template_name(template_name)
+    if definition.name != normalized_name:
+        raise ValueError(
+            f"Template definition name '{definition.name}' does not match registration name '{normalized_name}'."
+        )
+    if normalized_name in _REGISTERED_TEMPLATE_DEFINITIONS and not overwrite:
+        raise ValueError(f"Template '{normalized_name}' is already registered.")
+    _REGISTERED_TEMPLATE_DEFINITIONS[normalized_name] = definition
+    _REGISTERED_TEMPLATE_BUILDERS[normalized_name] = builder
+
+
+def get_template_builder(
+    template_name: str,
+) -> Callable[[TemplateParameters], NetworkSpec]:
+    """Return the registered builder callable for ``template_name``."""
+    try:
+        normalized_name = _validate_template_name(template_name)
+    except ValueError as exc:
+        raise ValueError(f"Unknown template '{template_name}'.") from exc
+    _ensure_template_registry_seeded()
+    try:
+        return _REGISTERED_TEMPLATE_BUILDERS[normalized_name]
+    except KeyError as exc:
+        raise ValueError(f"Unknown template '{template_name}'.") from exc
 
 
 def list_template_names() -> list[str]:
     """Return the public template names in display order."""
-    return list(TEMPLATE_NAMES)
+    _ensure_template_registry_seeded()
+    return list(_REGISTERED_TEMPLATE_DEFINITIONS)
 
 
 def serialize_template_definitions() -> dict[str, dict[str, object]]:
     """Serialize all template definitions for the browser bootstrap payload."""
+    _ensure_template_registry_seeded()
     return {
         template_name: definition.to_dict()
-        for template_name, definition in TEMPLATE_DEFINITIONS.items()
+        for template_name, definition in _REGISTERED_TEMPLATE_DEFINITIONS.items()
     }
 
 
 def get_template_definition(template_name: str) -> TemplateDefinition:
     """Return the catalog entry for ``template_name``."""
     try:
-        return TEMPLATE_DEFINITIONS[template_name]
+        normalized_name = _validate_template_name(template_name)
+    except ValueError as exc:
+        raise ValueError(f"Unknown template '{template_name}'.") from exc
+    _ensure_template_registry_seeded()
+    try:
+        return _REGISTERED_TEMPLATE_DEFINITIONS[normalized_name]
     except KeyError as exc:
         raise ValueError(f"Unknown template '{template_name}'.") from exc
 
@@ -160,3 +232,12 @@ def validate_template_parameters(
             minimum=definition.minimum_physical_dimension,
         ),
     )
+
+
+def _reset_template_registry_for_tests() -> None:
+    """Reset the live template registry to its built-in state."""
+    _REGISTERED_TEMPLATE_DEFINITIONS.clear()
+    _REGISTERED_TEMPLATE_BUILDERS.clear()
+    from ._template_builders import register_builtin_templates
+
+    register_builtin_templates()

@@ -16,6 +16,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     module_names = [
         "utilitiesBase.js",
         "utilitiesGeometry.js",
+        "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js",
         "utilitiesTemplates.js",
@@ -3267,6 +3268,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "utilitiesTemplates.js": "utilitiesTemplates.js",
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
+        "utilitiesLayout.js": "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js": "utilitiesSpec.js",
         "utilitiesUi.js": "utilitiesUi.js",
@@ -3298,12 +3300,13 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             }
 
             const baseUrl = new URL("./", import.meta.url);
-            const [stateModule, utilitiesModule, baseModule, geometryModule, linearPeriodicModule, specModule, uiModule] =
+            const [stateModule, utilitiesModule, baseModule, geometryModule, layoutModule, linearPeriodicModule, specModule, uiModule] =
               await Promise.all([
                 import(new URL("./state.runtime.mjs", baseUrl).href),
                 import(new URL("./utilities.runtime.mjs", baseUrl).href),
                 import(new URL("./utilitiesBase.js", baseUrl).href),
                 import(new URL("./utilitiesGeometry.js", baseUrl).href),
+                import(new URL("./utilitiesLayout.js", baseUrl).href),
                 import(new URL("./utilitiesLinearPeriodic.js", baseUrl).href),
                 import(new URL("./utilitiesSpec.js", baseUrl).href),
                 import(new URL("./utilitiesUi.js", baseUrl).href),
@@ -3313,6 +3316,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             const { registerUtilities } = utilitiesModule;
             const { createUtilityBaseBindings } = baseModule;
             const { createUtilityGeometryBindings } = geometryModule;
+            const { createUtilityLayoutBindings } = layoutModule;
             const { createUtilityLinearPeriodicBindings } = linearPeriodicModule;
             const { createUtilitySpecBindings } = specModule;
             const { createUtilityUiBindings } = uiModule;
@@ -3320,6 +3324,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             const requiredFactories = [
               createUtilityBaseBindings,
               createUtilityGeometryBindings,
+              createUtilityLayoutBindings,
               createUtilityLinearPeriodicBindings,
               createUtilitySpecBindings,
               createUtilityUiBindings,
@@ -3379,6 +3384,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 templateBondDimensionInput: { value: "3", min: "1" },
                 templatePhysicalDimensionInput: { value: "2", min: "1" },
                 insertTemplateButton: createButton(),
+                insertSubnetworkButton: createButton(),
                 createGroupButton: createButton(),
                 helpButton: createButton(),
                 helpModal: { classList: createClassList() },
@@ -3404,6 +3410,10 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                   textContent: "",
                   title: "",
                   hidden: true,
+                },
+                subnetworkLoadInput: {
+                  value: "",
+                  click() {},
                 },
               },
               apiGet: async () => null,
@@ -3463,6 +3473,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (runtime.formatColorHex({ red: 1, green: 35, blue: 255 }) !== "#0123ff") {
               throw new Error("formatColorHex returned an unexpected value.");
             }
+            Object.assign(runtime, createUtilityLayoutBindings(env));
             Object.assign(runtime, createUtilitySpecBindings(env));
             Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
             Object.assign(runtime, createUtilityUiBindings(env));
@@ -3605,6 +3616,7 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                 redoButton: createButton(),
                 templateSelect: { value: "" },
                 insertTemplateButton: createButton(),
+                insertSubnetworkButton: createButton(),
                 createGroupButton: createButton(),
                 helpButton: createButton(),
                 helpModal: { classList: createClassList() },
@@ -3620,6 +3632,10 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                 selectionBox,
                 minimapCanvas: {
                   classList: createClassList(),
+                },
+                subnetworkLoadInput: {
+                  value: "",
+                  click() {},
                 },
               },
               apiGet: async () => null,
@@ -3790,6 +3806,8 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               "toggleConnectMode",
               "generateCode",
               "insertTemplate",
+              "openSubnetworkPicker",
+              "loadSubnetworkFromFile",
             ];
             for (const bindingName of requiredCtxBindings) {
               if (typeof ctx[bindingName] !== "function") {
@@ -3849,6 +3867,355 @@ def test_runtime_interaction_helper_modules_preserve_facade_contract(
 
     assert completed_process.returncode == 0, (
         "The interaction helper contract runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "layout_subnetwork_runtime_regression.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "utilities.runtime.mjs": "utilities.js",
+        "historySelection.runtime.mjs": "historySelection.js",
+        "interactionsSession.js": "interactionsSession.js",
+        "utilitiesTemplates.js": "utilitiesTemplates.js",
+        "utilitiesBase.js": "utilitiesBase.js",
+        "utilitiesGeometry.js": "utilitiesGeometry.js",
+        "utilitiesLayout.js": "utilitiesLayout.js",
+        "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
+        "utilitiesSpec.js": "utilitiesSpec.js",
+        "utilitiesUi.js": "utilitiesUi.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        (tmp_path / target_name).write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            import { pathToFileURL } from "node:url";
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createButton() {
+              return {
+                disabled: false,
+                classList: createClassList(),
+                click() {},
+                addEventListener() {},
+              };
+            }
+
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, utilitiesModule, historyModule, sessionModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./utilities.runtime.mjs", baseUrl).href),
+                import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsSession.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { registerHistorySelection } = historyModule;
+            const { createInteractionSessionBindings } = sessionModule;
+
+            const apiCalls = [];
+
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 180,
+                TENSOR_HEIGHT: 108,
+                MIN_TENSOR_WIDTH: 140,
+                MIN_TENSOR_HEIGHT: 84,
+                INDEX_RADIUS: 15,
+                INDEX_PADDING: 8,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 152,
+                NOTE_MIN_WIDTH: 176,
+                NOTE_MIN_HEIGHT: 152,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                GRID_SNAP_SIZE: 20,
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -58, y: -20 },
+                  { x: 58, y: -20 },
+                  { x: -58, y: 20 },
+                  { x: 58, y: 20 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: {
+                  textContent: "",
+                  classList: createClassList(),
+                },
+                propertiesPanel: { innerHTML: "" },
+                generatedCode: { value: "" },
+                generatedCodeView: { textContent: "", dataset: {} },
+                engineSelect: { options: [], value: "tensornetwork" },
+                collectionFormatSelect: { options: [], value: "list" },
+                exportFormatSelect: { value: "py" },
+                addNoteButton: createButton(),
+                connectButton: createButton(),
+                loadInput: { value: "", click() {}, addEventListener() {} },
+                subnetworkLoadInput: {
+                  value: "",
+                  click() {},
+                  addEventListener() {},
+                },
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: createButton(),
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: { textContent: "" },
+                linearPeriodicNextCellButton: createButton(),
+                templateSelect: { value: "" },
+                templateParameterPanel: { hidden: true },
+                templateGraphSizeLabel: { textContent: "" },
+                templateGraphSizeInput: { value: "2", min: "1" },
+                templateBondDimensionInput: { value: "3", min: "1" },
+                templatePhysicalDimensionInput: { value: "2", min: "1" },
+                insertTemplateButton: createButton(),
+                insertSubnetworkButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                  addEventListener() {},
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                notesLayer: {},
+                selectionBox: {
+                  classList: createClassList(),
+                  style: {},
+                },
+                minimapCanvas: {
+                  classList: createClassList(),
+                  addEventListener() {},
+                },
+                sidebar: {},
+                plannerPanel: {},
+                generateButton: createButton(),
+                codeGenerationWarning: {
+                  textContent: "",
+                  title: "",
+                  hidden: true,
+                },
+              },
+              apiGet: async () => null,
+              apiPost: async (path, payload) => {
+                apiCalls.push({ path, payload });
+                if (path === "/api/subnetwork/extract") {
+                  return {
+                    ok: true,
+                    spec: {
+                      schema_version: "1.0",
+                      network: {
+                        id: "fragment_network",
+                        name: "Fragment",
+                        tensors: [
+                          {
+                            id: "fragment_tensor",
+                            name: "Fragment",
+                            position: { x: 240, y: 220 },
+                            size: { width: 180, height: 108 },
+                            indices: [],
+                            metadata: {},
+                          },
+                        ],
+                        groups: [],
+                        edges: [],
+                        notes: [],
+                        contraction_plan: null,
+                        metadata: {},
+                      },
+                    },
+                  };
+                }
+                throw new Error(`Unexpected API path: ${path}`);
+              },
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+                Prism: null,
+              },
+              document: {
+                activeElement: null,
+                createElement() {
+                  return {
+                    href: "",
+                    download: "",
+                    click() {},
+                    appendChild() {},
+                  };
+                },
+                querySelectorAll() {
+                  return [];
+                },
+              },
+              cytoscape: null,
+              render() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              renderSidebarTabs() {},
+              refreshContractionAnalysis() {},
+              repairContractionPlan() {},
+            };
+
+            registerUtilities(ctx);
+            registerHistorySelection(ctx);
+            const env = {
+              ctx,
+              state: ctx.state,
+              dom: ctx.dom,
+            };
+            Object.assign(ctx, createInteractionSessionBindings(env));
+
+            ctx.state.spec = ctx.normalizeSpec({
+              id: "network_demo",
+              name: "demo",
+              tensors: [
+                {
+                  id: "tensor_a",
+                  name: "A",
+                  position: { x: 83, y: 101 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+                {
+                  id: "tensor_b",
+                  name: "B",
+                  position: { x: 247, y: 162 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+                {
+                  id: "tensor_c",
+                  name: "C",
+                  position: { x: 431, y: 227 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+              ],
+              groups: [],
+              edges: [],
+              notes: [],
+              contraction_plan: null,
+              linear_periodic_chain: null,
+              metadata: {},
+            });
+            ctx.state.selectionIds = ["tensor_a", "tensor_b", "tensor_c"];
+            ctx.state.primarySelectionId = "tensor_c";
+
+            ctx.alignSelectedTensors("left");
+            const leftEdges = ctx.state.spec.tensors.map((tensor) => tensor.position.x - tensor.size.width / 2);
+            if (!leftEdges.every((value) => value === leftEdges[0])) {
+              throw new Error(`Expected aligned left edges, received ${leftEdges.join(", ")}`);
+            }
+            if (ctx.state.selectionIds.join(",") !== "tensor_a,tensor_b,tensor_c") {
+              throw new Error("Alignment should preserve the tensor selection.");
+            }
+
+            ctx.state.spec.tensors[0].position.x = 100;
+            ctx.state.spec.tensors[1].position.x = 260;
+            ctx.state.spec.tensors[2].position.x = 460;
+            ctx.distributeSelectedTensors("horizontal");
+            const centers = ctx.state.spec.tensors.map((tensor) => tensor.position.x);
+            const spacing = centers[1] - centers[0];
+            if (Math.abs((centers[2] - centers[1]) - spacing) > 1e-9) {
+              throw new Error(`Expected even horizontal spacing, received ${centers.join(", ")}`);
+            }
+
+            ctx.snapSelectedTensorsToGrid();
+            if (!ctx.state.spec.tensors.every((tensor) => tensor.position.x % 20 === 0 && tensor.position.y % 20 === 0)) {
+              throw new Error("Snap to grid should move every selected tensor onto the 20px grid.");
+            }
+            if (ctx.state.undoStack.length < 3) {
+              throw new Error(`Expected layout actions to create undo history, received ${ctx.state.undoStack.length} snapshots.`);
+            }
+
+            await ctx.exportSelectedSubnetwork();
+            if (!apiCalls.some((call) => call.path === "/api/subnetwork/extract")) {
+              throw new Error("Selection export did not call the extract subnetwork API.");
+            }
+
+            ctx.insertPreparedSubnetwork(
+              {
+                id: "prepared_fragment",
+                name: "Prepared fragment",
+                tensors: [
+                  {
+                    id: "prepared_tensor",
+                    name: "Prepared",
+                    position: { x: 520, y: 340 },
+                    size: { width: 180, height: 108 },
+                    indices: [],
+                    metadata: {},
+                  },
+                ],
+                groups: [],
+                edges: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {},
+              },
+              "Prepared fragment"
+            );
+            if (!ctx.state.spec.tensors.some((tensor) => tensor.id === "prepared_tensor")) {
+              throw new Error("Prepared subnetwork insertion did not append the new tensor.");
+            }
+            if (ctx.state.selectionIds.join(",") !== "prepared_tensor") {
+              throw new Error(`Prepared subnetwork insertion should select the new tensors, received ${ctx.state.selectionIds.join(",")}.`);
+            }
+            if (!/Inserted Prepared fragment/.test(ctx.dom.statusMessage.textContent)) {
+              throw new Error("Prepared subnetwork insertion did not report a success status.");
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_layout_and_subnetwork_runtime_regression(tmp_path: Path) -> None:
+    script_path = _write_layout_subnetwork_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The layout and subnetwork runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

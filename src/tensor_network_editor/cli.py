@@ -573,9 +573,7 @@ def _coerce_int(value: object) -> int:
         if not normalized_value:
             raise ValueError("Expected an integer-like string, got an empty string.")
         if re.fullmatch(r"[+-]?\d+", normalized_value) is None:
-            raise ValueError(
-                f"Expected an integer-like string, got {value!r}."
-            )
+            raise ValueError(f"Expected an integer-like string, got {value!r}.")
         return int(normalized_value)
     raise TypeError(f"Expected an integer-like value, got {type(value).__name__}.")
 
@@ -585,9 +583,7 @@ def _format_metric(value: object) -> str:
     try:
         normalized_value = _coerce_int(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"Invalid integer metric value {value!r}: {exc}"
-        ) from exc
+        raise ValueError(f"Invalid integer metric value {value!r}: {exc}") from exc
     return f"{normalized_value:,}"
 
 
@@ -605,9 +601,7 @@ def _describe_delta(value: object, *, unit: str = "") -> str:
     try:
         normalized_value = _coerce_int(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"Invalid integer delta value {value!r}: {exc}"
-        ) from exc
+        raise ValueError(f"Invalid integer delta value {value!r}: {exc}") from exc
     if normalized_value == 0:
         return "is unchanged"
     direction = "down" if normalized_value < 0 else "up"

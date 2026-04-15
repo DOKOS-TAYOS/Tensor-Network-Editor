@@ -24,6 +24,8 @@ export function createEntityPropertiesRenderers({
     }
     const groupColor = ctx.getMetadataColor(group.metadata, "#61a8ff");
     const isCollapsed = Boolean(group.metadata && group.metadata.collapsed);
+    const linearPeriodicMode =
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
     const totalElementCount = getTotalElementCountForTensorIds(
       Array.isArray(group.tensor_ids) ? group.tensor_ids : []
     );
@@ -63,6 +65,13 @@ export function createEntityPropertiesRenderers({
             value="${ctx.escapeHtml(groupColor)}"
           />
         </label>
+        <button
+          id="extract-group-button"
+          type="button"
+          ${linearPeriodicMode ? "disabled" : ""}
+        >
+          Extract Group
+        </button>
         <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
         <button
           id="delete-group-button"
@@ -74,6 +83,11 @@ export function createEntityPropertiesRenderers({
           ${renderTrashIcon()}
         </button>
       </div>
+      ${
+        linearPeriodicMode
+          ? '<p class="property-meta">Subnetwork export is not available in For mode yet.</p>'
+          : ""
+      }
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
       ${buildMetadataEditorMarkup({
         tagsInputId: "group-tags-input",
@@ -132,6 +146,12 @@ export function createEntityPropertiesRenderers({
     document.getElementById("toggle-group-button").addEventListener("click", () => {
       ctx.toggleGroupCollapse(group.id);
     });
+    const extractGroupButton = document.getElementById("extract-group-button");
+    if (extractGroupButton) {
+      extractGroupButton.addEventListener("click", () => {
+        ctx.exportGroupSubnetwork(group.id);
+      });
+    }
     bindMetadataEditors({
       target: group,
       tagsInput: groupTagsInput,

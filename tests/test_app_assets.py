@@ -23,6 +23,7 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utilities.js",
         "js/utilitiesBase.js",
         "js/utilitiesGeometry.js",
+        "js/utilitiesLayout.js",
         "js/utilitiesLinearPeriodic.js",
         "js/utilitiesSpec.js",
         "js/utilitiesUi.js",
@@ -621,6 +622,65 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
     assert "invalidate: { lookups: true }" in interactions_body
     assert "ctx.ensureSpecLookups()" in contraction_body
     assert "state.tensorById[anchorTensorId] || null" in contraction_body
+
+
+def test_subnetwork_assets_expose_import_export_controls_and_routes(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+    entities_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
+
+    assert 'id="insert-subnetwork-button"' in html
+    assert 'id="subnetwork-load-input"' in html
+    assert (
+        'insertSubnetworkButton: document.getElementById("insert-subnetwork-button")'
+        in dom_body
+    )
+    assert (
+        'subnetworkLoadInput: document.getElementById("subnetwork-load-input")'
+        in dom_body
+    )
+    assert (
+        'insertSubnetworkButton.addEventListener("click", ctx.openSubnetworkPicker);'
+        in bootstrap_body
+    )
+    assert (
+        'subnetworkLoadInput.addEventListener("change", ctx.loadSubnetworkFromFile);'
+        in bootstrap_body
+    )
+    assert '"/api/subnetwork/extract"' in interactions_body
+    assert '"/api/subnetwork/prepare-insert"' in interactions_body
+    assert 'id="extract-selection-button"' in overview_body
+    assert 'id="extract-group-button"' in entities_body
+
+
+def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
+    editor_server: EditorServer,
+) -> None:
+    utilities_body = request_utilities_runtime_bundle(editor_server)
+    utilities_module_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    layout_body = request_text(f"{editor_server.base_url}/js/utilitiesLayout.js")
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+
+    assert 'from "./utilitiesLayout.js"' in utilities_module_body
+    assert "createUtilityLayoutBindings" in layout_body
+    assert "function alignSelectedTensors(" in layout_body
+    assert "function distributeSelectedTensors(" in layout_body
+    assert "function snapSelectedTensorsToGrid(" in layout_body
+    assert "GRID_SNAP_SIZE" in utilities_body
+    assert 'id="align-selection-left-button"' in overview_body
+    assert 'id="distribute-selection-horizontal-button"' in overview_body
+    assert 'id="snap-selection-button"' in overview_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(

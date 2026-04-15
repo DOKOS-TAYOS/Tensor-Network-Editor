@@ -60,6 +60,12 @@
             accept="application/json,.json,.py,text/x-python,text/plain"
             hidden
           />
+          <input
+            id="subnetwork-load-input"
+            type="file"
+            accept="application/json,.json"
+            hidden
+          />
         </div>
         <div class="toolbar-group toolbar-group-right">
           <button
@@ -149,6 +155,7 @@
                   </label>
                 </div>
                 <button id="insert-template-button" type="button" class="button-accent-insert">Insert</button>
+                <button id="insert-subnetwork-button" type="button">Insert Subnetwork</button>
               </div>
             </div>
           </div>
@@ -342,10 +349,12 @@
             <h3>Organize and edit</h3>
             <ul>
               <li>Templates insert ready-to-edit network layouts with the expected open legs and bond structure.</li>
+              <li>Use <strong>Extract Selection</strong> or <strong>Extract Group</strong> to save a reusable JSON fragment, then use <strong>Insert Subnetwork</strong> to bring it back with fresh ids.</li>
               <li>Use <strong>Graph size</strong>, <strong>Bond dimension</strong>, and <strong>Physical dimension</strong> before inserting a template.</li>
               <li><strong>Graph size</strong> means sites for MPS and MPO, side length for PEPS, and depth for MERA or Binary Tree.</li>
               <li>Choose the code engine that fits your workflow, including <strong>NumPy einsum</strong> and <strong>PyTorch einsum</strong>.</li>
               <li>Drag one selected tensor to move all selected tensors together.</li>
+              <li>Use the Selection panel to align, distribute, or snap selected tensors to the grid.</li>
               <li>Use the multi-selection panel to recolor or delete everything selected.</li>
               <li>If only tensors are selected, you can add one default index to each tensor.</li>
               <li>Resize tensors from the corner handles directly on the canvas.</li>

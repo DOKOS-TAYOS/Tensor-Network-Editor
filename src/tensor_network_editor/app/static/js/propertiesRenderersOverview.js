@@ -109,6 +109,8 @@ export function createOverviewPropertiesRenderers({
     ).length;
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
+    const linearPeriodicMode =
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
     const batchColor = ctx.getBatchColorValue(selectedEntries);
     const totalElementCount = getSelectionTotalElementCount(selectedEntries);
 
@@ -176,6 +178,55 @@ export function createOverviewPropertiesRenderers({
           ${renderTrashIcon()}
         </button>
       </div>
+      ${
+        tensorsOnly
+          ? `
+            <div class="properties-section-heading">Layout</div>
+            <div class="button-row">
+              <button id="align-selection-left-button" type="button">Left</button>
+              <button id="align-selection-center-button" type="button">Center</button>
+              <button id="align-selection-right-button" type="button">Right</button>
+            </div>
+            <div class="button-row">
+              <button id="align-selection-top-button" type="button">Top</button>
+              <button id="align-selection-middle-button" type="button">Middle</button>
+              <button id="align-selection-bottom-button" type="button">Bottom</button>
+            </div>
+            <div class="button-row">
+              <button
+                id="distribute-selection-horizontal-button"
+                type="button"
+                ${baseTensorCount < 3 ? "disabled" : ""}
+              >
+                Distribute Horizontally
+              </button>
+              <button
+                id="distribute-selection-vertical-button"
+                type="button"
+                ${baseTensorCount < 3 ? "disabled" : ""}
+              >
+                Distribute Vertically
+              </button>
+              <button id="snap-selection-button" type="button">Snap to Grid</button>
+            </div>
+            <div class="properties-section-heading">Subnetwork</div>
+            <div class="button-row">
+              <button
+                id="extract-selection-button"
+                type="button"
+                ${linearPeriodicMode ? "disabled" : ""}
+              >
+                Extract Selection
+              </button>
+            </div>
+            ${
+              linearPeriodicMode
+                ? '<p class="property-meta">Subnetwork export is not available in For mode yet.</p>'
+                : ""
+            }
+          `
+          : ""
+      }
       <p class="property-meta">
         Drag any selected tensor to move the selected tensor group together.
       </p>
@@ -227,6 +278,57 @@ export function createOverviewPropertiesRenderers({
     document
       .getElementById("delete-selection-button")
       .addEventListener("click", ctx.deleteSelection);
+
+    if (tensorsOnly) {
+      document
+        .getElementById("align-selection-left-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("left"));
+      document
+        .getElementById("align-selection-center-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("center"));
+      document
+        .getElementById("align-selection-right-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("right"));
+      document
+        .getElementById("align-selection-top-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("top"));
+      document
+        .getElementById("align-selection-middle-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("middle"));
+      document
+        .getElementById("align-selection-bottom-button")
+        .addEventListener("click", () => ctx.alignSelectedTensors("bottom"));
+
+      const distributeHorizontalButton = document.getElementById(
+        "distribute-selection-horizontal-button"
+      );
+      if (distributeHorizontalButton) {
+        distributeHorizontalButton.addEventListener("click", () =>
+          ctx.distributeSelectedTensors("horizontal")
+        );
+      }
+      const distributeVerticalButton = document.getElementById(
+        "distribute-selection-vertical-button"
+      );
+      if (distributeVerticalButton) {
+        distributeVerticalButton.addEventListener("click", () =>
+          ctx.distributeSelectedTensors("vertical")
+        );
+      }
+      document
+        .getElementById("snap-selection-button")
+        .addEventListener("click", ctx.snapSelectedTensorsToGrid);
+
+      const extractSelectionButton = document.getElementById(
+        "extract-selection-button"
+      );
+      if (extractSelectionButton) {
+        extractSelectionButton.addEventListener(
+          "click",
+          ctx.exportSelectedSubnetwork
+        );
+      }
+    }
   }
 
   return {

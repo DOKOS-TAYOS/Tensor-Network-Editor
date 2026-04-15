@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from ._template_catalog import (
     TEMPLATE_DEFINITIONS,
     TemplateParameters,
+    get_template_builder,
     get_template_definition,
+    register_template,
     validate_template_parameters,
 )
 from .models import (
@@ -37,21 +37,11 @@ def build_template(
     template_name: str, parameters: TemplateParameters | None = None
 ) -> NetworkSpec:
     """Build and validate the named built-in template."""
-    builders: dict[str, Callable[[TemplateParameters], NetworkSpec]] = {
-        "mps": _build_mps_template,
-        "mpo": _build_mpo_template,
-        "peps_2x2": _build_peps_template,
-        "mera": _build_mera_template,
-        "binary_tree": _build_binary_tree_template,
-    }
     resolved_parameters = validate_template_parameters(
         template_name,
         parameters or get_template_definition(template_name).defaults,
     )
-    try:
-        builder = builders[template_name]
-    except KeyError as exc:
-        raise ValueError(f"Unknown template '{template_name}'.") from exc
+    builder = get_template_builder(template_name)
     return ensure_valid_spec(builder(resolved_parameters))
 
 
@@ -663,4 +653,38 @@ def _make_edge(
             tensor_id=right_tensor.id,
             index_id=f"{right_tensor.id}_{right_index_suffix}",
         ),
+    )
+
+
+def register_builtin_templates() -> None:
+    """Register the built-in templates in their stable display order."""
+    register_template(
+        "mps",
+        TEMPLATE_DEFINITIONS["mps"],
+        _build_mps_template,
+        overwrite=True,
+    )
+    register_template(
+        "mpo",
+        TEMPLATE_DEFINITIONS["mpo"],
+        _build_mpo_template,
+        overwrite=True,
+    )
+    register_template(
+        "peps_2x2",
+        TEMPLATE_DEFINITIONS["peps_2x2"],
+        _build_peps_template,
+        overwrite=True,
+    )
+    register_template(
+        "mera",
+        TEMPLATE_DEFINITIONS["mera"],
+        _build_mera_template,
+        overwrite=True,
+    )
+    register_template(
+        "binary_tree",
+        TEMPLATE_DEFINITIONS["binary_tree"],
+        _build_binary_tree_template,
+        overwrite=True,
     )

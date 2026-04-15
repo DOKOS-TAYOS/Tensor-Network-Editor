@@ -7,6 +7,7 @@ from ._templates import (
     build_template_spec,
     list_template_names,
     parse_template_parameters,
+    register_template,
     serialize_template_definitions,
 )
 
@@ -16,5 +17,6 @@ __all__ = [
     "build_template_spec",
     "list_template_names",
     "parse_template_parameters",
+    "register_template",
     "serialize_template_definitions",
 ]

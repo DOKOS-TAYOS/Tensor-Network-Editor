@@ -25,6 +25,7 @@ from ._model_graph import (
 from ._model_results import (
     CodegenResult,
     EditorResult,
+    EngineIdentifier,
     EngineName,
     TensorCollectionFormat,
     ValidationIssue,
@@ -48,6 +49,7 @@ __all__ = [
     "ContractionViewSnapshotSpec",
     "ContractionPlanSpec",
     "ValidationIssue",
+    "EngineIdentifier",
     "EngineName",
     "TensorCollectionFormat",
     "CodegenResult",

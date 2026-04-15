@@ -4,6 +4,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     generatedCode,
     generatedCodeView,
     loadInput,
+    subnetworkLoadInput,
     templateSelect,
   } = dom;
   const { apiPost, document, window } = ctx;
@@ -152,6 +153,149 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     reader.readAsText(file, "utf-8");
   }
 
+  function openSubnetworkPicker() {
+    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+      ctx.setStatus(
+        "Subnetwork insertion is only available in normal graph mode.",
+        "error"
+      );
+      return;
+    }
+    if (subnetworkLoadInput) {
+      subnetworkLoadInput.click();
+    }
+  }
+
+  function insertPreparedSubnetwork(preparedSpec, label = null) {
+    const normalizedSpec = ctx.normalizeSpec(preparedSpec);
+    ctx.applyDesignChange(
+      () => {
+        state.spec.tensors.push(...normalizedSpec.tensors);
+        state.spec.edges.push(...normalizedSpec.edges);
+        state.spec.groups.push(...normalizedSpec.groups);
+        normalizedSpec.tensors.forEach((tensor) => {
+          ctx.bringTensorToFront(tensor.id);
+        });
+      },
+      {
+        invalidate: { lookups: true },
+        selectionIds: normalizedSpec.tensors.map((tensor) => tensor.id),
+        primaryId: normalizedSpec.tensors.length
+          ? normalizedSpec.tensors[normalizedSpec.tensors.length - 1].id
+          : null,
+        statusMessage: `Inserted ${label || normalizedSpec.name || "subnetwork"}.`,
+      }
+    );
+  }
+
+  async function exportSubnetworkByTensorIds(tensorIds, label = "subnetwork") {
+    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+      ctx.setStatus(
+        "Subnetwork export is only available in normal graph mode.",
+        "error"
+      );
+      return;
+    }
+    if (!Array.isArray(tensorIds) || !tensorIds.length) {
+      ctx.setStatus("Select one or more tensors to extract a subnetwork.");
+      return;
+    }
+    try {
+      const payload = await apiPost("/api/subnetwork/extract", {
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
+        tensor_ids: tensorIds,
+      });
+      if (!payload.ok) {
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        return;
+      }
+      ctx.downloadBlob(
+        `${ctx.sanitizeFilename(label || payload.spec.network.name || "subnetwork")}.json`,
+        new Blob([JSON.stringify(payload.spec, null, 2)], {
+          type: "application/json;charset=utf-8",
+        })
+      );
+      ctx.setStatus(
+        `Saved ${payload.spec.network.name || "subnetwork"} as JSON.`,
+        "success"
+      );
+    } catch (error) {
+      ctx.setStatus(`Could not export the subnetwork: ${error.message}`, "error");
+    }
+  }
+
+  async function exportSelectedSubnetwork() {
+    await exportSubnetworkByTensorIds(
+      typeof ctx.getSelectedIdsByKind === "function"
+        ? ctx.getSelectedIdsByKind("tensor")
+        : [],
+      "subnetwork"
+    );
+  }
+
+  async function exportGroupSubnetwork(groupId) {
+    const group = typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+    if (!group || !Array.isArray(group.tensor_ids) || !group.tensor_ids.length) {
+      ctx.setStatus("This group does not contain any tensors to extract.", "error");
+      return;
+    }
+    await exportSubnetworkByTensorIds(group.tensor_ids, group.name || "group");
+  }
+
+  function loadSubnetworkFromFile(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+      ctx.setStatus(
+        "Subnetwork insertion is only available in normal graph mode.",
+        "error"
+      );
+      if (subnetworkLoadInput) {
+        subnetworkLoadInput.value = "";
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const fileText = typeof reader.result === "string" ? reader.result : "";
+        const parsed = JSON.parse(fileText);
+        const serializedSpec =
+          parsed && typeof parsed === "object" && parsed.network
+            ? parsed
+            : {
+                schema_version: state.schemaVersion,
+                network: parsed,
+              };
+        const response = await apiPost("/api/subnetwork/prepare-insert", {
+          spec: serializedSpec,
+          target_center: ctx.suggestTensorPosition(ctx.viewportCenterPosition()),
+        });
+        if (!response.ok) {
+          ctx.setStatus(
+            response.message || ctx.formatIssues(response.issues),
+            "error"
+          );
+          return;
+        }
+        insertPreparedSubnetwork(
+          response.spec.network,
+          response.spec.network.name || file.name
+        );
+      } catch (error) {
+        ctx.setStatus(`Could not insert ${file.name}: ${error.message}`, "error");
+      } finally {
+        if (subnetworkLoadInput) {
+          subnetworkLoadInput.value = "";
+        }
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
   async function copyGeneratedCode() {
     const codeToCopy = ctx.stripImportLines(generatedCode.value);
     if (!codeToCopy.trim()) {
@@ -273,6 +417,11 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     copyGeneratedCode,
     downloadSelectedExport,
     downloadPythonExport,
+    openSubnetworkPicker,
+    exportSelectedSubnetwork,
+    exportGroupSubnetwork,
+    insertPreparedSubnetwork,
+    loadSubnetworkFromFile,
     insertTemplate,
   };
 }

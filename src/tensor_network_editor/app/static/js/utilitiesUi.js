@@ -14,6 +14,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     linearPeriodicNextCellButton,
     templateSelect,
     insertTemplateButton,
+    insertSubnetworkButton,
     createGroupButton,
     generateButton,
   } = dom;
@@ -74,6 +75,12 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       generateButton.disabled = !state.spec || !state.selectedEngine;
     }
     insertTemplateButton.disabled = !templateSelect.value;
+    if (insertSubnetworkButton) {
+      insertSubnetworkButton.disabled = linearPeriodicMode;
+      insertSubnetworkButton.title = linearPeriodicMode
+        ? "Available only in normal graph mode."
+        : "Insert a saved subnetwork JSON fragment.";
+    }
     createGroupButton.disabled = selectedTensorIds.length < 2;
     if (toggleLinearPeriodicButton) {
       toggleLinearPeriodicButton.classList.toggle("is-active", linearPeriodicMode);

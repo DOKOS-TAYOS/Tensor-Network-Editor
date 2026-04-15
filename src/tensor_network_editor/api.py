@@ -6,10 +6,12 @@ import logging
 from collections.abc import Callable
 
 from ._io import write_utf8_text
+from .codegen.registry import engine_name_to_text
 from .codegen.registry import generate_code as _generate_code
 from .models import (
     CodegenResult,
     EditorResult,
+    EngineIdentifier,
     EngineName,
     NetworkSpec,
     TensorCollectionFormat,
@@ -24,7 +26,7 @@ LOGGER = logging.getLogger(__name__)
 
 def generate_code(
     spec: NetworkSpec,
-    engine: EngineName,
+    engine: EngineIdentifier,
     *,
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     print_code: bool = False,
@@ -42,7 +44,11 @@ def generate_code(
     Returns:
         The generated code bundle, including warnings and backend artifacts.
     """
-    LOGGER.info("Generating %s code for network '%s'", engine.value, spec.name)
+    LOGGER.info(
+        "Generating %s code for network '%s'",
+        engine_name_to_text(engine),
+        spec.name,
+    )
     result = _generate_code(spec, engine, collection_format=collection_format)
     if print_code:
         print(result.code)
@@ -89,7 +95,7 @@ def load_spec_from_python_code(code: str) -> NetworkSpec:
 def launch_tensor_network_editor(
     initial_spec: NetworkSpec | None = None,
     *,
-    default_engine: EngineName = EngineName.TENSORKROWCH,
+    default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",
@@ -124,7 +130,8 @@ def launch_tensor_network_editor(
     from .app.session import launch_editor_session
 
     LOGGER.info(
-        "Launching tensor network editor with engine '%s'", default_engine.value
+        "Launching tensor network editor with engine '%s'",
+        engine_name_to_text(default_engine),
     )
     return launch_editor_session(
         initial_spec=initial_spec,

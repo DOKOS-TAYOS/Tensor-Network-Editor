@@ -9,6 +9,7 @@ from ._template_catalog import (
     get_template_definition,
     list_template_names,
     parse_template_integer,
+    register_template,
     serialize_template_definitions,
     validate_template_parameters,
 )
@@ -63,5 +64,6 @@ __all__ = [
     "build_template_spec",
     "list_template_names",
     "parse_template_parameters",
+    "register_template",
     "serialize_template_definitions",
 ]

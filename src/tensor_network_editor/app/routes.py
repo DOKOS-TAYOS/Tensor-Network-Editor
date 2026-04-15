@@ -7,8 +7,9 @@ from http import HTTPStatus
 from typing import Literal, cast
 
 from .._contraction_analysis_types import ContractionAnalysisResult
+from .._payloads import require_dict, require_list
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
-from ..models import CodegenResult, EditorResult
+from ..models import CanvasPosition, CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec
 from ._protocol import (
@@ -28,6 +29,8 @@ from ._services import (
     analyze_serialized_contraction,
     build_bootstrap_payload,
     build_template_from_payload,
+    extract_serialized_subnetwork,
+    prepare_serialized_subnetwork_for_insertion,
 )
 from .session import EditorSession
 
@@ -132,6 +135,36 @@ def handle_analyze_contraction(
     return ok_response(_serialize_contraction_analysis_result(result))
 
 
+def handle_subnetwork_extract(
+    session: EditorSession, payload: JsonDict
+) -> JsonResponse:
+    """Extract a reusable subnetwork fragment from the current graph."""
+    del session
+    try:
+        spec = extract_serialized_subnetwork(
+            cast(dict[str, object], require_serialized_spec(payload)),
+            tensor_ids=_parse_tensor_ids(payload),
+        )
+    except (SerializationError, TypeError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response({"spec": serialize_spec(spec)})
+
+
+def handle_subnetwork_prepare_insert(
+    session: EditorSession, payload: JsonDict
+) -> JsonResponse:
+    """Prepare one saved fragment for insertion into the current design."""
+    del session
+    try:
+        spec = prepare_serialized_subnetwork_for_insertion(
+            cast(dict[str, object], require_serialized_spec(payload)),
+            target_center=_parse_target_center(payload),
+        )
+    except (SerializationError, TypeError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response({"spec": serialize_spec(spec)})
+
+
 def _serialize_generate_result(result: CodegenResult) -> JsonDict:
     """Serialize a generate-route code generation result."""
     return serialize_codegen_result(result)
@@ -187,3 +220,29 @@ def _serialize_contraction_analysis_result(
 ) -> JsonDict:
     """Serialize a contraction analysis result for the API."""
     return result.to_dict()
+
+
+def _parse_tensor_ids(payload: JsonDict) -> list[str]:
+    """Parse the selected tensor ids from one JSON route payload."""
+    raw_tensor_ids = require_list(
+        payload.get("tensor_ids"),
+        field_name="tensor_ids",
+    )
+    tensor_ids = []
+    for raw_tensor_id in raw_tensor_ids:
+        if not isinstance(raw_tensor_id, str) or not raw_tensor_id.strip():
+            raise ValueError("'tensor_ids' must be a non-empty list of tensor ids.")
+        tensor_ids.append(raw_tensor_id)
+    if not tensor_ids:
+        raise ValueError("'tensor_ids' must be a non-empty list of tensor ids.")
+    return tensor_ids
+
+
+def _parse_target_center(payload: JsonDict) -> CanvasPosition:
+    """Parse the insertion target center from one JSON route payload."""
+    try:
+        return CanvasPosition.from_dict(
+            require_dict(payload.get("target_center"), field_name="target_center")
+        )
+    except TypeError as exc:
+        raise ValueError(str(exc)) from exc

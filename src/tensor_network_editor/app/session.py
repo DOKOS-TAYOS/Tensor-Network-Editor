@@ -11,9 +11,11 @@ from types import FrameType
 from typing import Any, Protocol
 
 from .._templates import TemplateParameters
+from ..codegen.registry import engine_name_to_text
 from ..models import (
     CodegenResult,
     EditorResult,
+    EngineIdentifier,
     EngineName,
     NetworkSpec,
     TensorCollectionFormat,
@@ -49,7 +51,7 @@ class EditorSession:
     def __init__(
         self,
         initial_spec: NetworkSpec | None = None,
-        default_engine: EngineName = EngineName.TENSORKROWCH,
+        default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
         default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
         *,
         print_code: bool = False,
@@ -82,11 +84,14 @@ class EditorSession:
     def generate(
         self,
         serialized_spec: dict[str, object],
-        engine: EngineName,
+        engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
         """Generate preview code without finalizing the session."""
-        LOGGER.debug("Generating preview code for engine '%s'", engine.value)
+        LOGGER.debug(
+            "Generating preview code for engine '%s'",
+            engine_name_to_text(engine),
+        )
         return generate_session_request(
             self,
             serialized_spec,
@@ -97,11 +102,14 @@ class EditorSession:
     def complete(
         self,
         serialized_spec: dict[str, object],
-        engine: EngineName,
+        engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
         """Finalize the session and store the resulting editor output."""
-        LOGGER.info("Completing editor session with engine '%s'", engine.value)
+        LOGGER.info(
+            "Completing editor session with engine '%s'",
+            engine_name_to_text(engine),
+        )
         result = complete_session_request(
             self,
             serialized_spec,
@@ -160,7 +168,7 @@ def wait_for_editor_result(
 def launch_editor_session(
     initial_spec: NetworkSpec | None = None,
     *,
-    default_engine: EngineName = EngineName.TENSORKROWCH,
+    default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     open_browser: bool = True,
     host: str = "127.0.0.1",
