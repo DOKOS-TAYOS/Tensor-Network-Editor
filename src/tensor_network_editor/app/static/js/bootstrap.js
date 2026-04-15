@@ -36,6 +36,9 @@ export function startEditor(ctx) {
     templatePhysicalDimensionInput,
     insertTemplateButton,
     insertSubnetworkButton,
+    renameTemplateButton,
+    deleteTemplateButton,
+    reflowImportedButton,
     createGroupButton,
     helpButton,
     helpModal,
@@ -62,22 +65,19 @@ export function startEditor(ctx) {
     const payload = await apiGet("/api/bootstrap");
     state.spec = ctx.normalizeSpec(payload.spec.network);
     state.schemaVersion = payload.schema_version;
-    state.availableTemplates = Array.isArray(payload.templates) ? [...payload.templates] : [];
     state.availableCollectionFormats = Array.isArray(payload.collection_formats)
       ? [...payload.collection_formats]
       : ["list"];
-    state.templateDefinitions = payload.template_definitions && typeof payload.template_definitions === "object"
-      ? { ...payload.template_definitions }
-      : {};
+    ctx.applyTemplateCatalogPayload({
+      templateNames: payload.templates,
+      templateDefinitions: payload.template_definitions,
+      templateCatalogWarnings: payload.template_catalog_warnings,
+    });
     state.annotationDefinitions =
       payload.annotation_definitions &&
       typeof payload.annotation_definitions === "object"
         ? { ...payload.annotation_definitions }
         : {};
-    state.templateParametersByTemplate = ctx.buildTemplateParameterState(
-      state.availableTemplates,
-      state.templateDefinitions
-    );
     state.selectedEngine = payload.default_engine;
     state.selectedCollectionFormat = payload.default_collection_format || "list";
     ctx.reconcileTensorOrder();
@@ -86,18 +86,20 @@ export function startEditor(ctx) {
       ctx.enforceLinearPeriodicEngineSupport();
     }
     ctx.populateCollectionFormatOptions(state.availableCollectionFormats);
-    ctx.populateTemplateOptions(state.availableTemplates);
-    ctx.syncTemplateParameterControls();
     ctx.initGraph();
     ctx.clearHistory();
     ctx.render();
     if (typeof ctx.refreshContractionAnalysis === "function") {
       ctx.refreshContractionAnalysis();
     }
-    ctx.setStatus(
-      "Editor ready. Drag the canvas to move, use Ctrl+wheel to zoom, use the wheel to pan, and right drag to box-select.",
-      "success"
-    );
+    if (state.templateCatalogWarnings.length) {
+      ctx.setStatus(state.templateCatalogWarnings[0], "error");
+    } else {
+      ctx.setStatus(
+        "Editor ready. Drag the canvas to move, use Ctrl+wheel to zoom, use the wheel to pan, and right drag to box-select.",
+        "success"
+      );
+    }
   }
 
   function applyShortcutHint(buttonId, label, shortcut) {
@@ -283,6 +285,11 @@ export function startEditor(ctx) {
     templatePhysicalDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
     insertTemplateButton.addEventListener("click", ctx.insertTemplate);
     insertSubnetworkButton.addEventListener("click", ctx.openSubnetworkPicker);
+    renameTemplateButton.addEventListener("click", ctx.renameSelectedTemplate);
+    deleteTemplateButton.addEventListener("click", ctx.deleteSelectedTemplate);
+    if (reflowImportedButton) {
+      reflowImportedButton.addEventListener("click", ctx.reflowLastImportedTensors);
+    }
     createGroupButton.addEventListener("click", ctx.createGroupFromSelection);
     helpButton.addEventListener("click", () => ctx.toggleHelpModal(true));
     helpBackdrop.addEventListener("click", () => ctx.toggleHelpModal(false));

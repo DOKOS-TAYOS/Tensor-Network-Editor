@@ -29,6 +29,7 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
     }
     state.schemaVersion = schemaVersion;
     state.generatedCode = "";
+    state.lastImportedTensorIds = [];
     state.activeSidebarTab = "selection";
     state.selectionIds = [];
     state.primarySelectionId = null;
@@ -48,6 +49,9 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
     state.noteDragState = null;
     state.activeNoteResize = null;
     state.contractionAnalysis = null;
+    state.templateCatalogWarnings = Array.isArray(state.templateCatalogWarnings)
+      ? [...state.templateCatalogWarnings]
+      : [];
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
     if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {

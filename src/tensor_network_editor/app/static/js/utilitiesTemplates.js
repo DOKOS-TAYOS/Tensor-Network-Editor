@@ -118,15 +118,25 @@ export function createTemplateOptionHelpers({
   collectionFormatSelect,
   templateSelect,
   templateParameterPanel,
+  templateGraphSizeField,
   templateGraphSizeLabel,
   templateGraphSizeInput,
+  templateBondDimensionField,
   templateBondDimensionInput,
+  templatePhysicalDimensionField,
   templatePhysicalDimensionInput,
   enforceLinearPeriodicEngineSupport,
   updateToolbarState,
 }) {
   function getStateTemplateDefinition(templateName = templateSelect.value) {
     return getTemplateDefinition(state.templateDefinitions, templateName);
+  }
+
+  function getTemplateSource(templateName = templateSelect.value) {
+    const definition = getStateTemplateDefinition(templateName);
+    return definition && typeof definition.source === "string"
+      ? definition.source
+      : "global";
   }
 
   function populateEngineOptions(engines) {
@@ -175,6 +185,54 @@ export function createTemplateOptionHelpers({
     }
   }
 
+  function applyTemplateCatalogPayload({
+    templateNames,
+    templateDefinitions,
+    selectedTemplate = null,
+    templateCatalogWarnings = [],
+  }) {
+    const nextTemplateNames = Array.isArray(templateNames) ? [...templateNames] : [];
+    const nextTemplateDefinitions =
+      templateDefinitions && typeof templateDefinitions === "object"
+        ? { ...templateDefinitions }
+        : {};
+    const previousParameters = state.templateParametersByTemplate || {};
+    const nextParameters = buildTemplateParameterState(
+      nextTemplateNames,
+      nextTemplateDefinitions
+    );
+    nextTemplateNames.forEach((templateName) => {
+      if (previousParameters[templateName]) {
+        nextParameters[templateName] = {
+          ...nextParameters[templateName],
+          ...previousParameters[templateName],
+        };
+      }
+    });
+    state.availableTemplates = nextTemplateNames;
+    state.templateDefinitions = nextTemplateDefinitions;
+    state.templateCatalogWarnings = Array.isArray(templateCatalogWarnings)
+      ? [...templateCatalogWarnings]
+      : [];
+    state.templateParametersByTemplate = nextParameters;
+    const currentTemplateValue = templateSelect.value;
+    populateTemplateOptions(nextTemplateNames);
+    if (
+      selectedTemplate &&
+      nextTemplateNames.includes(selectedTemplate)
+    ) {
+      templateSelect.value = selectedTemplate;
+    } else if (nextTemplateNames.includes(currentTemplateValue)) {
+      templateSelect.value = currentTemplateValue;
+    } else if (nextTemplateNames.length) {
+      templateSelect.value = nextTemplateNames[0];
+    } else {
+      templateSelect.value = "";
+    }
+    syncTemplateParameterControls(templateSelect.value);
+    updateToolbarState();
+  }
+
   function syncTemplateParameterControls(templateName = templateSelect.value) {
     if (!templateParameterPanel) {
       return;
@@ -185,6 +243,19 @@ export function createTemplateOptionHelpers({
       return;
     }
     templateParameterPanel.hidden = false;
+    const supportsParameters = definition.supports_parameters !== false;
+    if (templateGraphSizeField) {
+      templateGraphSizeField.hidden = !supportsParameters;
+    }
+    if (templateBondDimensionField) {
+      templateBondDimensionField.hidden = !supportsParameters;
+    }
+    if (templatePhysicalDimensionField) {
+      templatePhysicalDimensionField.hidden = !supportsParameters;
+    }
+    if (!supportsParameters) {
+      return;
+    }
     const minimums = definition.minimums || {};
     const defaults = definition.defaults || {};
     const parameters =
@@ -234,6 +305,18 @@ export function createTemplateOptionHelpers({
         graph_size: 2,
         bond_dimension: 3,
         physical_dimension: 2,
+      };
+    }
+    if (definition.supports_parameters === false) {
+      const defaults = definition.defaults || {};
+      return {
+        graph_size: sanitizeTemplateIntegerValue(defaults.graph_size, 1, 1),
+        bond_dimension: sanitizeTemplateIntegerValue(defaults.bond_dimension, 1, 1),
+        physical_dimension: sanitizeTemplateIntegerValue(
+          defaults.physical_dimension,
+          1,
+          1
+        ),
       };
     }
     const minimums = definition.minimums || {};
@@ -292,8 +375,10 @@ export function createTemplateOptionHelpers({
     formatTemplateLabel: (templateName) =>
       formatTemplateLabel(templateName, state.templateDefinitions),
     getTemplateDefinition: getStateTemplateDefinition,
+    getTemplateSource,
     buildTemplateParameterState: (templateNames, templateDefinitions) =>
       buildTemplateParameterState(templateNames, templateDefinitions),
+    applyTemplateCatalogPayload,
     syncTemplateParameterControls,
     readTemplateParametersFromControls,
     persistTemplateParametersFromControls,

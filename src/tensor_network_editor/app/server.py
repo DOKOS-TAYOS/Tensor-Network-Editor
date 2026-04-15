@@ -157,6 +157,12 @@ class EditorServer:
                     return routes.handle_validate(session, payload)
                 if path == "/api/template":
                     return routes.handle_template(session, payload)
+                if path == "/api/template/promote":
+                    return routes.handle_template_promote(session, payload)
+                if path == "/api/template/rename":
+                    return routes.handle_template_rename(session, payload)
+                if path == "/api/template/delete":
+                    return routes.handle_template_delete(session, payload)
                 if path == "/api/subnetwork/extract":
                     return routes.handle_subnetwork_extract(session, payload)
                 if path == "/api/subnetwork/prepare-insert":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
@@ -46,6 +47,7 @@ def test_bootstrap_returns_session_contract(
     assert set(payload["engines"]) == {engine.value for engine in EngineName}
     assert payload["templates"] == list(payload["template_definitions"])
     assert payload["template_definitions"]["mps"]["graph_size_label"] == "Sites"
+    assert payload["template_definitions"]["mps"]["source"] == "global"
     assert list(payload["annotation_definitions"]) == ["tensor", "index"]
     assert payload["annotation_definitions"]["tensor"][0]["key"] == "role"
     assert payload["annotation_definitions"]["index"][0]["key"] == "leg_kind"
@@ -539,6 +541,442 @@ def test_template_route_rejects_invalid_template_parameters(
     assert status == 400
     assert payload["ok"] is False
     assert "graph_size" in payload["message"]
+
+
+def test_template_promote_route_persists_project_template_catalog(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        payload = request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "project_pair",
+            },
+        )
+    finally:
+        server.stop()
+
+    persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    reloaded_server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    reloaded_server.start()
+    try:
+        bootstrap_payload = request_json(f"{reloaded_server.base_url}/api/bootstrap")
+    finally:
+        reloaded_server.stop()
+
+    assert payload["ok"] is True
+    assert payload["selected_template"] == "project_pair"
+    assert payload["templates"][0] == "project_pair"
+    assert (
+        payload["template_definitions"]["project_pair"]["supports_parameters"] is False
+    )
+    assert payload["template_definitions"]["project_pair"]["source"] == "project"
+    assert payload["template_catalog_warnings"] == []
+    assert persisted_payload["templates"][0]["name"] == "project_pair"
+    assert persisted_payload["templates"][0]["spec"]["network"]["notes"] == []
+    assert (
+        persisted_payload["templates"][0]["spec"]["network"]["contraction_plan"] is None
+    )
+    assert bootstrap_payload["templates"][0] == "project_pair"
+
+
+def test_template_promote_route_rejects_invalid_template_name(
+    tmp_path: Path,
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=tmp_path
+            / ".tensor-network-editor"
+            / "templates.json",
+        )
+    )
+    server.start()
+    try:
+        status, payload = request_json_with_status(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "Bad Name",
+            },
+        )
+    finally:
+        server.stop()
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "lowercase letter" in payload["message"]
+
+
+def test_template_promote_route_rejects_duplicate_template_name(
+    tmp_path: Path,
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=tmp_path
+            / ".tensor-network-editor"
+            / "templates.json",
+        )
+    )
+    server.start()
+    try:
+        first_payload = {
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            },
+            "tensor_ids": ["tensor_a", "tensor_b"],
+            "template_name": "project_pair",
+        }
+        first_response = request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload=first_payload,
+        )
+        status, payload = request_json_with_status(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload=first_payload,
+        )
+    finally:
+        server.stop()
+
+    assert first_response["ok"] is True
+    assert status == 400
+    assert payload["ok"] is False
+    assert "already registered" in payload["message"]
+
+
+def test_template_promote_route_allows_overwrite_for_project_templates(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        first_payload = {
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_sample_spec().to_dict(),
+            },
+            "tensor_ids": ["tensor_a", "tensor_b"],
+            "template_name": "project_pair",
+        }
+        first_response = request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload=first_payload,
+        )
+        overwritten_response = request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                **first_payload,
+                "tensor_ids": ["tensor_a"],
+                "overwrite": True,
+            },
+        )
+    finally:
+        server.stop()
+
+    persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert first_response["ok"] is True
+    assert overwritten_response["ok"] is True
+    assert overwritten_response["selected_template"] == "project_pair"
+    assert persisted_payload["templates"][0]["name"] == "project_pair"
+    assert [
+        tensor["id"]
+        for tensor in persisted_payload["templates"][0]["spec"]["network"]["tensors"]
+    ] == ["tensor_a"]
+
+
+def test_template_promote_route_rejects_overwrite_of_global_template_name(
+    tmp_path: Path,
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=tmp_path
+            / ".tensor-network-editor"
+            / "templates.json",
+        )
+    )
+    server.start()
+    try:
+        status, payload = request_json_with_status(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "mps",
+                "overwrite": True,
+            },
+        )
+    finally:
+        server.stop()
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "global" in payload["message"]
+
+
+def test_template_rename_route_renames_project_template_and_updates_selection(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "project_pair",
+            },
+        )
+        payload = request_json(
+            f"{server.base_url}/api/template/rename",
+            method="POST",
+            payload={
+                "template_name": "project_pair",
+                "new_template_name": "renamed_pair",
+            },
+        )
+    finally:
+        server.stop()
+
+    persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert payload["ok"] is True
+    assert payload["selected_template"] == "renamed_pair"
+    assert payload["templates"][0] == "renamed_pair"
+    assert payload["template_definitions"]["renamed_pair"]["source"] == "project"
+    assert persisted_payload["templates"][0]["name"] == "renamed_pair"
+    assert persisted_payload["templates"][0]["display_name"] == "Renamed Pair"
+    assert (
+        persisted_payload["templates"][0]["spec"]["network"]["name"] == "Renamed Pair"
+    )
+
+
+def test_template_rename_route_rejects_global_duplicate_and_missing_template(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        request_json(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "project_pair",
+            },
+        )
+        global_status, global_payload = request_json_with_status(
+            f"{server.base_url}/api/template/rename",
+            method="POST",
+            payload={
+                "template_name": "project_pair",
+                "new_template_name": "mps",
+            },
+        )
+        missing_status, missing_payload = request_json_with_status(
+            f"{server.base_url}/api/template/rename",
+            method="POST",
+            payload={
+                "template_name": "missing_template",
+                "new_template_name": "renamed_pair",
+            },
+        )
+    finally:
+        server.stop()
+
+    assert global_status == 400
+    assert global_payload["ok"] is False
+    assert "global" in global_payload["message"]
+    assert missing_status == 400
+    assert missing_payload["ok"] is False
+    assert "missing_template" in missing_payload["message"]
+
+
+def test_template_delete_route_deletes_project_template_and_keeps_selection_stable(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        for template_name, tensor_ids in (
+            ("project_pair", ["tensor_a", "tensor_b"]),
+            ("project_single", ["tensor_a"]),
+        ):
+            request_json(
+                f"{server.base_url}/api/template/promote",
+                method="POST",
+                payload={
+                    "spec": {
+                        "schema_version": SCHEMA_VERSION,
+                        "network": build_sample_spec().to_dict(),
+                    },
+                    "tensor_ids": tensor_ids,
+                    "template_name": template_name,
+                },
+            )
+        payload = request_json(
+            f"{server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "project_pair"},
+        )
+    finally:
+        server.stop()
+
+    persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert payload["ok"] is True
+    assert payload["selected_template"] == "project_single"
+    assert payload["templates"][0] == "project_single"
+    assert "project_pair" not in payload["templates"]
+    assert [entry["name"] for entry in persisted_payload["templates"]] == [
+        "project_single"
+    ]
+
+
+def test_template_delete_route_rejects_global_and_missing_templates(
+    tmp_path: Path,
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=tmp_path
+            / ".tensor-network-editor"
+            / "templates.json",
+        )
+    )
+    server.start()
+    try:
+        global_status, global_payload = request_json_with_status(
+            f"{server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "mps"},
+        )
+        missing_status, missing_payload = request_json_with_status(
+            f"{server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "missing_template"},
+        )
+    finally:
+        server.stop()
+
+    assert global_status == 400
+    assert global_payload["ok"] is False
+    assert "global" in global_payload["message"]
+    assert missing_status == 400
+    assert missing_payload["ok"] is False
+    assert "missing_template" in missing_payload["message"]
+
+
+def test_template_promote_route_rejects_linear_periodic_mode(
+    tmp_path: Path,
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_linear_periodic_chain_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=tmp_path
+            / ".tensor-network-editor"
+            / "templates.json",
+        )
+    )
+    server.start()
+    try:
+        status, payload = request_json_with_status(
+            f"{server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_linear_periodic_chain_spec().to_dict(),
+                },
+                "tensor_ids": ["periodic_left_tensor"],
+                "template_name": "periodic_fragment",
+            },
+        )
+    finally:
+        server.stop()
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "normal graph mode" in payload["message"]
 
 
 def test_subnetwork_extract_route_returns_serialized_fragment(

@@ -277,3 +277,30 @@ def test_launch_editor_session_start_failure_restores_sigint_and_does_not_stop(
     assert callable(installed_handlers[0])
     assert installed_handlers[1] is previous_handler
     assert FailingEditorServer.stop_calls == 0
+
+
+def test_launch_tensor_network_editor_passes_template_catalog_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_launch_editor_session(*args: object, **kwargs: object) -> None:
+        del args
+        captured_kwargs.update(kwargs)
+        return None
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.session.launch_editor_session",
+        fake_launch_editor_session,
+    )
+
+    result = launch_tensor_network_editor(
+        open_browser=False,
+        template_catalog_path=tmp_path / ".tensor-network-editor" / "templates.json",
+    )
+
+    assert result is None
+    assert captured_kwargs["template_catalog_path"] == (
+        tmp_path / ".tensor-network-editor" / "templates.json"
+    )

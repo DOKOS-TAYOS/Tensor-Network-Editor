@@ -76,6 +76,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_spec",
         "load_spec_from_python_code",
         "register_generator",
+        "register_static_template",
         "register_template",
         "save_spec",
         "SemanticDiffEntry",

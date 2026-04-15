@@ -9,6 +9,7 @@ from ._template_catalog import (
     get_template_definition,
     list_template_names,
     parse_template_integer,
+    register_static_template,
     register_template,
     serialize_template_definitions,
     validate_template_parameters,
@@ -21,6 +22,8 @@ def parse_template_parameters(
 ) -> TemplateParameters:
     """Parse raw template parameters using the defaults for ``template_name``."""
     definition = get_template_definition(template_name)
+    if not definition.supports_parameters:
+        return definition.defaults
     defaults = definition.defaults
     if raw_parameters is None:
         return defaults
@@ -63,6 +66,7 @@ __all__ = [
     "TemplateParameters",
     "build_template_spec",
     "list_template_names",
+    "register_static_template",
     "parse_template_parameters",
     "register_template",
     "serialize_template_definitions",

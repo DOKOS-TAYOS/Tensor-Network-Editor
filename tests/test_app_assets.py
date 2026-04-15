@@ -639,9 +639,14 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     )
 
     assert 'id="insert-subnetwork-button"' in html
+    assert 'id="reflow-imported-button"' in html
     assert 'id="subnetwork-load-input"' in html
     assert (
         'insertSubnetworkButton: document.getElementById("insert-subnetwork-button")'
+        in dom_body
+    )
+    assert (
+        'reflowImportedButton: document.getElementById("reflow-imported-button")'
         in dom_body
     )
     assert (
@@ -658,8 +663,48 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     )
     assert '"/api/subnetwork/extract"' in interactions_body
     assert '"/api/subnetwork/prepare-insert"' in interactions_body
+    assert '"/api/template/promote"' in interactions_body
     assert 'id="extract-selection-button"' in overview_body
+    assert 'id="promote-selection-template-button"' in overview_body
     assert 'id="extract-group-button"' in entities_body
+    assert 'id="promote-group-template-button"' in entities_body
+
+
+def test_template_management_assets_expose_toolbar_controls_and_routes(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    interactions_body = request_interactions_runtime_bundle(editor_server)
+    utilities_ui_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
+
+    assert 'id="rename-template-button"' in html
+    assert 'id="delete-template-button"' in html
+    assert 'id="template-catalog-warning"' in html
+    assert (
+        'renameTemplateButton: document.getElementById("rename-template-button")'
+        in dom_body
+    )
+    assert (
+        'deleteTemplateButton: document.getElementById("delete-template-button")'
+        in dom_body
+    )
+    assert (
+        'templateCatalogWarning: document.getElementById("template-catalog-warning")'
+        in dom_body
+    )
+    assert (
+        'renameTemplateButton.addEventListener("click", ctx.renameSelectedTemplate);'
+        in bootstrap_body
+    )
+    assert (
+        'deleteTemplateButton.addEventListener("click", ctx.deleteSelectedTemplate);'
+        in bootstrap_body
+    )
+    assert '"/api/template/rename"' in interactions_body
+    assert '"/api/template/delete"' in interactions_body
+    assert "function syncTemplateCatalogWarning()" in utilities_ui_body
 
 
 def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
@@ -675,10 +720,15 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     assert 'from "./utilitiesLayout.js"' in utilities_module_body
     assert "createUtilityLayoutBindings" in layout_body
     assert "function alignSelectedTensors(" in layout_body
+    assert "function arrangeSelectedTensors(" in layout_body
     assert "function distributeSelectedTensors(" in layout_body
     assert "function snapSelectedTensorsToGrid(" in layout_body
+    assert "function reflowLastImportedTensors(" in layout_body
     assert "GRID_SNAP_SIZE" in utilities_body
     assert 'id="align-selection-left-button"' in overview_body
+    assert 'id="arrange-selection-chain-button"' in overview_body
+    assert 'id="arrange-selection-tree-button"' in overview_body
+    assert 'id="arrange-selection-grid-button"' in overview_body
     assert 'id="distribute-selection-horizontal-button"' in overview_body
     assert 'id="snap-selection-button"' in overview_body
 

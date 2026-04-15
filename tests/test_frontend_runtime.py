@@ -3916,6 +3916,26 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               };
             }
 
+            function createSelect(value = "") {
+              return {
+                value,
+                options: [],
+                innerHTML: "",
+                appendChild(option) {
+                  this.options.push(option);
+                  if (option && option.selected) {
+                    this.value = option.value;
+                  }
+                },
+                addEventListener() {},
+              };
+            }
+
+            function createPromptQueue(values) {
+              const queue = [...values];
+              return () => (queue.length ? queue.shift() : null);
+            }
+
             const baseUrl = new URL("./", import.meta.url);
             const [stateModule, utilitiesModule, historyModule, sessionModule] =
               await Promise.all([
@@ -3964,9 +3984,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 propertiesPanel: { innerHTML: "" },
                 generatedCode: { value: "" },
                 generatedCodeView: { textContent: "", dataset: {} },
-                engineSelect: { options: [], value: "tensornetwork" },
-                collectionFormatSelect: { options: [], value: "list" },
-                exportFormatSelect: { value: "py" },
+                engineSelect: createSelect("tensornetwork"),
+                collectionFormatSelect: createSelect("list"),
+                exportFormatSelect: createSelect("py"),
                 addNoteButton: createButton(),
                 connectButton: createButton(),
                 loadInput: { value: "", click() {}, addEventListener() {} },
@@ -3982,7 +4002,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 linearPeriodicPreviousCellButton: createButton(),
                 linearPeriodicCellLabel: { textContent: "" },
                 linearPeriodicNextCellButton: createButton(),
-                templateSelect: { value: "" },
+                templateSelect: createSelect(""),
                 templateParameterPanel: { hidden: true },
                 templateGraphSizeLabel: { textContent: "" },
                 templateGraphSizeInput: { value: "2", min: "1" },
@@ -3990,6 +4010,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 templatePhysicalDimensionInput: { value: "2", min: "1" },
                 insertTemplateButton: createButton(),
                 insertSubnetworkButton: createButton(),
+                reflowImportedButton: createButton(),
                 createGroupButton: createButton(),
                 helpButton: createButton(),
                 helpModal: { classList: createClassList() },
@@ -4051,6 +4072,119 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                     },
                   };
                 }
+                if (path === "/api/template/promote") {
+                  return {
+                    ok: true,
+                    templates: ["selection_fragment", "mps"],
+                    template_definitions: {
+                      selection_fragment: {
+                        display_name: "Selection Fragment",
+                        graph_size_label: "Tensors",
+                        defaults: {
+                          graph_size: 3,
+                          bond_dimension: 1,
+                          physical_dimension: 1,
+                        },
+                        minimums: {
+                          graph_size: 1,
+                          bond_dimension: 1,
+                          physical_dimension: 1,
+                        },
+                        supports_parameters: false,
+                      },
+                      mps: {
+                        display_name: "MPS",
+                        graph_size_label: "Sites",
+                        defaults: {
+                          graph_size: 4,
+                          bond_dimension: 3,
+                          physical_dimension: 2,
+                        },
+                        minimums: {
+                          graph_size: 2,
+                          bond_dimension: 1,
+                          physical_dimension: 1,
+                        },
+                        supports_parameters: true,
+                      },
+                    },
+                    selected_template: "selection_fragment",
+                    template_catalog_warnings: [],
+                  };
+                }
+                if (path === "/api/template") {
+                  return {
+                    ok: true,
+                    spec: {
+                      schema_version: "1.0",
+                      network: {
+                        id: "template_selection_fragment",
+                        name: "Selection Fragment",
+                        tensors: [
+                          {
+                            id: "template_tensor_a",
+                            name: "TA",
+                            position: { x: 620, y: 480 },
+                            size: { width: 180, height: 108 },
+                            indices: [
+                              {
+                                id: "template_tensor_a_x",
+                                name: "x",
+                                dimension: 3,
+                                offset: { x: 0, y: 0 },
+                                metadata: {},
+                              },
+                            ],
+                            metadata: {},
+                          },
+                          {
+                            id: "template_tensor_b",
+                            name: "TB",
+                            position: { x: 760, y: 360 },
+                            size: { width: 180, height: 108 },
+                            indices: [
+                              {
+                                id: "template_tensor_b_x",
+                                name: "x",
+                                dimension: 3,
+                                offset: { x: 0, y: 0 },
+                                metadata: {},
+                              },
+                            ],
+                            metadata: {},
+                          },
+                          {
+                            id: "template_tensor_c",
+                            name: "TC",
+                            position: { x: 900, y: 500 },
+                            size: { width: 180, height: 108 },
+                            indices: [],
+                            metadata: {},
+                          },
+                        ],
+                        groups: [],
+                        edges: [
+                          {
+                            id: "template_edge_ab",
+                            name: "bond_ab",
+                            left: {
+                              tensor_id: "template_tensor_a",
+                              index_id: "template_tensor_a_x",
+                            },
+                            right: {
+                              tensor_id: "template_tensor_b",
+                              index_id: "template_tensor_b_x",
+                            },
+                            metadata: {},
+                          },
+                        ],
+                        notes: [],
+                        contraction_plan: null,
+                        metadata: {},
+                      },
+                    },
+                  };
+                }
                 throw new Error(`Unexpected API path: ${path}`);
               },
               window: {
@@ -4059,6 +4193,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 setTimeout,
                 clearTimeout,
                 confirm: () => true,
+                prompt: createPromptQueue(["selection_fragment"]),
                 Prism: null,
               },
               document: {
@@ -4093,6 +4228,33 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               dom: ctx.dom,
             };
             Object.assign(ctx, createInteractionSessionBindings(env));
+            ctx.uniquifyImportedSpec = (spec) => ctx.normalizeSpec(spec);
+            ctx.translateImportedSpec = (spec) => ctx.normalizeSpec(spec);
+            ctx.viewportCenterPosition = () => ({ x: 500, y: 400 });
+            ctx.suggestTensorPosition = (center) => center;
+            ctx.state.availableTemplates = ["mps"];
+            ctx.state.templateDefinitions = {
+              mps: {
+                display_name: "MPS",
+                graph_size_label: "Sites",
+                defaults: {
+                  graph_size: 4,
+                  bond_dimension: 3,
+                  physical_dimension: 2,
+                },
+                minimums: {
+                  graph_size: 2,
+                  bond_dimension: 1,
+                  physical_dimension: 1,
+                },
+                supports_parameters: true,
+              },
+            };
+            ctx.state.templateParametersByTemplate = ctx.buildTemplateParameterState(
+              ctx.state.availableTemplates,
+              ctx.state.templateDefinitions
+            );
+            ctx.dom.templateSelect.value = "mps";
 
             ctx.state.spec = ctx.normalizeSpec({
               id: "network_demo",
@@ -4103,7 +4265,15 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                   name: "A",
                   position: { x: 83, y: 101 },
                   size: { width: 180, height: 108 },
-                  indices: [],
+                  indices: [
+                    {
+                      id: "tensor_a_x",
+                      name: "x",
+                      dimension: 3,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                  ],
                   metadata: {},
                 },
                 {
@@ -4111,7 +4281,22 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                   name: "B",
                   position: { x: 247, y: 162 },
                   size: { width: 180, height: 108 },
-                  indices: [],
+                  indices: [
+                    {
+                      id: "tensor_b_x",
+                      name: "x",
+                      dimension: 3,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                    {
+                      id: "tensor_b_y",
+                      name: "y",
+                      dimension: 5,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                  ],
                   metadata: {},
                 },
                 {
@@ -4119,12 +4304,35 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                   name: "C",
                   position: { x: 431, y: 227 },
                   size: { width: 180, height: 108 },
-                  indices: [],
+                  indices: [
+                    {
+                      id: "tensor_c_y",
+                      name: "y",
+                      dimension: 5,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                  ],
                   metadata: {},
                 },
               ],
               groups: [],
-              edges: [],
+              edges: [
+                {
+                  id: "edge_ab",
+                  name: "bond_ab",
+                  left: { tensor_id: "tensor_a", index_id: "tensor_a_x" },
+                  right: { tensor_id: "tensor_b", index_id: "tensor_b_x" },
+                  metadata: {},
+                },
+                {
+                  id: "edge_bc",
+                  name: "bond_bc",
+                  left: { tensor_id: "tensor_b", index_id: "tensor_b_y" },
+                  right: { tensor_id: "tensor_c", index_id: "tensor_c_y" },
+                  metadata: {},
+                },
+              ],
               notes: [],
               contraction_plan: null,
               linear_periodic_chain: null,
@@ -4160,9 +4368,63 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               throw new Error(`Expected layout actions to create undo history, received ${ctx.state.undoStack.length} snapshots.`);
             }
 
+            ctx.state.spec.tensors[0].position = { x: 80, y: 140 };
+            ctx.state.spec.tensors[1].position = { x: 260, y: 240 };
+            ctx.state.spec.tensors[2].position = { x: 420, y: 120 };
+            ctx.arrangeSelectedTensors("chain");
+            const chainYPositions = ctx.state.spec.tensors.map((tensor) => tensor.position.y);
+            if (!chainYPositions.every((value) => value === chainYPositions[0])) {
+              throw new Error(`Arrange Chain should align centers horizontally, received ${chainYPositions.join(", ")}.`);
+            }
+
+            ctx.state.primarySelectionId = "tensor_b";
+            ctx.arrangeSelectedTensors("tree");
+            const tensorB = ctx.findTensorById("tensor_b");
+            const tensorA = ctx.findTensorById("tensor_a");
+            const tensorC = ctx.findTensorById("tensor_c");
+            if (!(tensorB.position.y < tensorA.position.y && tensorB.position.y < tensorC.position.y)) {
+              throw new Error("Arrange Tree should place the primary tensor above the remaining path tensors.");
+            }
+
+            ctx.applyDesignChange(
+              () => {
+                ctx.state.spec.tensors.push({
+                  id: "tensor_d",
+                  name: "D",
+                  position: { x: 540, y: 360 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                });
+              },
+              {
+                selectionIds: ["tensor_a", "tensor_b", "tensor_c", "tensor_d"],
+                primaryId: "tensor_d",
+                statusMessage: "Added tensor D for grid testing.",
+              }
+            );
+            ctx.arrangeSelectedTensors("grid");
+            const gridSelection = ctx.state.selectionIds.map((tensorId) => ctx.findTensorById(tensorId));
+            const uniqueGridXs = new Set(gridSelection.map((tensor) => tensor.position.x));
+            const uniqueGridYs = new Set(gridSelection.map((tensor) => tensor.position.y));
+            if (!(uniqueGridXs.size === 2 && uniqueGridYs.size === 2)) {
+              throw new Error("Arrange Grid should place four tensors on a 2x2 grid.");
+            }
+
             await ctx.exportSelectedSubnetwork();
             if (!apiCalls.some((call) => call.path === "/api/subnetwork/extract")) {
               throw new Error("Selection export did not call the extract subnetwork API.");
+            }
+
+            await ctx.promoteSelectedSubnetworkToTemplate();
+            if (!apiCalls.some((call) => call.path === "/api/template/promote")) {
+              throw new Error("Promote Selection to Template did not call the promote template API.");
+            }
+            if (!ctx.state.availableTemplates.includes("selection_fragment")) {
+              throw new Error("Promoted template was not added to the available template list.");
+            }
+            if (ctx.dom.templateSelect.value !== "selection_fragment") {
+              throw new Error(`Expected promoted template to become selected, received ${ctx.dom.templateSelect.value}.`);
             }
 
             ctx.insertPreparedSubnetwork(
@@ -4196,6 +4458,25 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             if (!/Inserted Prepared fragment/.test(ctx.dom.statusMessage.textContent)) {
               throw new Error("Prepared subnetwork insertion did not report a success status.");
             }
+            if (ctx.state.lastImportedTensorIds.join(",") !== "prepared_tensor") {
+              throw new Error(`Prepared subnetwork insertion should track the imported tensor ids, received ${ctx.state.lastImportedTensorIds.join(",")}.`);
+            }
+
+            await ctx.insertTemplate();
+            const importedTemplateIds = [...ctx.state.lastImportedTensorIds];
+            if (importedTemplateIds.length !== 3) {
+              throw new Error(`Expected template insertion to track three imported tensors, received ${importedTemplateIds.join(",")}.`);
+            }
+            if (ctx.state.selectionIds.join(",") !== importedTemplateIds.join(",")) {
+              throw new Error("Template insertion should select the imported tensors.");
+            }
+
+            ctx.reflowLastImportedTensors();
+            const reflowedTemplateTensors = importedTemplateIds.map((tensorId) => ctx.findTensorById(tensorId));
+            const reflowedTemplateYs = reflowedTemplateTensors.map((tensor) => tensor.position.y);
+            if (!reflowedTemplateYs.every((value) => value === reflowedTemplateYs[0])) {
+              throw new Error("Reflow Imported should arrange the imported path tensors into a horizontal chain.");
+            }
             """
         ),
         encoding="utf-8",
@@ -4216,6 +4497,566 @@ def test_layout_and_subnetwork_runtime_regression(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The layout and subnetwork runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_template_catalog_management_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "template_catalog_management_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    history_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "historySelection.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    history_runtime_path = tmp_path / "historySelection.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _copy_runtime_editor_support_modules(tmp_path)
+    history_runtime_path.write_text(
+        history_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        function createClassList() {
+          return {
+            add() {},
+            remove() {},
+            toggle() {},
+          };
+        }
+
+        function createButton() {
+          return {
+            disabled: false,
+            title: "",
+            classList: createClassList(),
+            addEventListener() {},
+          };
+        }
+
+        function createSelect(value) {
+          return {
+            value,
+            options: [],
+            innerHTML: "",
+            appendChild(option) {
+              this.options.push(option);
+              if (option && option.selected) {
+                this.value = option.value;
+              }
+            },
+            addEventListener() {},
+          };
+        }
+
+        function createPromptQueue(values) {
+          const queue = [...values];
+          return () => (queue.length ? queue.shift() : null);
+        }
+
+        const baseUrl = new URL("./", import.meta.url);
+        const [stateModule, utilitiesModule, historyModule, sessionModule] =
+          await Promise.all([
+            import(new URL("./state.runtime.mjs", baseUrl).href),
+            import(new URL("./utilities.runtime.mjs", baseUrl).href),
+            import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+            import(new URL("./interactionsSession.js", baseUrl).href),
+          ]);
+
+        const { createInitialState } = stateModule;
+        const { registerUtilities } = utilitiesModule;
+        const { registerHistorySelection } = historyModule;
+        const { createInteractionSessionBindings } = sessionModule;
+
+        const apiCalls = [];
+        const confirmMessages = [];
+        let deleteResponseUsed = false;
+
+        const ctx = {
+          state: createInitialState(),
+          constants: {
+            TENSOR_WIDTH: 180,
+            TENSOR_HEIGHT: 108,
+            MIN_TENSOR_WIDTH: 140,
+            MIN_TENSOR_HEIGHT: 84,
+            INDEX_RADIUS: 15,
+            INDEX_PADDING: 8,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 152,
+            NOTE_MIN_WIDTH: 176,
+            NOTE_MIN_HEIGHT: 152,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            GRID_SNAP_SIZE: 20,
+            DEFAULT_INDEX_SLOTS: [
+              { x: -58, y: -20 },
+              { x: 58, y: -20 },
+              { x: -58, y: 20 },
+              { x: 58, y: 20 },
+            ],
+          },
+          dom: {
+            workspace: {},
+            statusMessage: {
+              textContent: "",
+              classList: createClassList(),
+            },
+            propertiesPanel: { innerHTML: "" },
+            generatedCode: { value: "" },
+            generatedCodeView: { textContent: "", dataset: {} },
+            engineSelect: createSelect("tensornetwork"),
+            collectionFormatSelect: createSelect("list"),
+            exportFormatSelect: createSelect("py"),
+            addNoteButton: createButton(),
+            connectButton: createButton(),
+            loadInput: { value: "", click() {}, addEventListener() {} },
+            subnetworkLoadInput: { value: "", click() {}, addEventListener() {} },
+            undoButton: createButton(),
+            redoButton: createButton(),
+            exportButton: createButton(),
+            toggleLinearPeriodicButton: createButton(),
+            linearPeriodicPreviousCellButton: createButton(),
+            linearPeriodicCellLabel: { textContent: "" },
+            linearPeriodicNextCellButton: createButton(),
+            templateSelect: createSelect(""),
+            templateParameterPanel: { hidden: true },
+            templateGraphSizeField: { hidden: false },
+            templateGraphSizeLabel: { textContent: "" },
+            templateGraphSizeInput: { value: "2", min: "1" },
+            templateBondDimensionField: { hidden: false },
+            templateBondDimensionInput: { value: "3", min: "1" },
+            templatePhysicalDimensionField: { hidden: false },
+            templatePhysicalDimensionInput: { value: "2", min: "1" },
+            insertTemplateButton: createButton(),
+            insertSubnetworkButton: createButton(),
+            renameTemplateButton: createButton(),
+            deleteTemplateButton: createButton(),
+            templateCatalogWarning: {
+              hidden: true,
+              textContent: "",
+              title: "",
+            },
+            reflowImportedButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: { classList: createClassList() },
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            canvasShell: {
+              getBoundingClientRect() {
+                return { left: 0, top: 0, width: 1000, height: 800 };
+              },
+              addEventListener() {},
+            },
+            groupLayer: {},
+            resizeLayer: {},
+            notesLayer: {},
+            selectionBox: {
+              classList: createClassList(),
+              style: {},
+            },
+            minimapCanvas: {
+              classList: createClassList(),
+              addEventListener() {},
+            },
+            sidebar: {},
+            plannerPanel: {},
+            generateButton: createButton(),
+            codeGenerationWarning: {
+              textContent: "",
+              title: "",
+              hidden: true,
+            },
+          },
+          apiGet: async () => null,
+          apiPost: async (path, payload) => {
+            apiCalls.push({ path, payload });
+            if (path === "/api/template/promote") {
+              return {
+                ok: true,
+                templates: ["project_fragment", "mps"],
+                template_definitions: {
+                  project_fragment: {
+                    display_name: "Project Fragment",
+                    graph_size_label: "Tensors",
+                    defaults: {
+                      graph_size: 2,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    minimums: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: false,
+                    source: "project",
+                  },
+                  mps: {
+                    display_name: "MPS",
+                    graph_size_label: "Sites",
+                    defaults: {
+                      graph_size: 4,
+                      bond_dimension: 3,
+                      physical_dimension: 2,
+                    },
+                    minimums: {
+                      graph_size: 2,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: true,
+                    source: "global",
+                  },
+                },
+                selected_template: "project_fragment",
+                template_catalog_warnings: [],
+              };
+            }
+            if (path === "/api/template/rename") {
+              return {
+                ok: true,
+                templates: ["renamed_fragment", "project_second", "mps"],
+                template_definitions: {
+                  renamed_fragment: {
+                    display_name: "Renamed Fragment",
+                    graph_size_label: "Tensors",
+                    defaults: {
+                      graph_size: 2,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    minimums: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: false,
+                    source: "project",
+                  },
+                  project_second: {
+                    display_name: "Project Second",
+                    graph_size_label: "Tensors",
+                    defaults: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    minimums: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: false,
+                    source: "project",
+                  },
+                  mps: {
+                    display_name: "MPS",
+                    graph_size_label: "Sites",
+                    defaults: {
+                      graph_size: 4,
+                      bond_dimension: 3,
+                      physical_dimension: 2,
+                    },
+                    minimums: {
+                      graph_size: 2,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: true,
+                    source: "global",
+                  },
+                },
+                selected_template: "renamed_fragment",
+                template_catalog_warnings: [],
+              };
+            }
+            if (path === "/api/template/delete") {
+              deleteResponseUsed = true;
+              return {
+                ok: true,
+                templates: ["project_second", "mps"],
+                template_definitions: {
+                  project_second: {
+                    display_name: "Project Second",
+                    graph_size_label: "Tensors",
+                    defaults: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    minimums: {
+                      graph_size: 1,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: false,
+                    source: "project",
+                  },
+                  mps: {
+                    display_name: "MPS",
+                    graph_size_label: "Sites",
+                    defaults: {
+                      graph_size: 4,
+                      bond_dimension: 3,
+                      physical_dimension: 2,
+                    },
+                    minimums: {
+                      graph_size: 2,
+                      bond_dimension: 1,
+                      physical_dimension: 1,
+                    },
+                    supports_parameters: true,
+                    source: "global",
+                  },
+                },
+                selected_template: "project_second",
+                template_catalog_warnings: [],
+              };
+            }
+            throw new Error(`Unexpected API path: ${path}`);
+          },
+          window: {
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm(message) {
+              confirmMessages.push(message);
+              return true;
+            },
+            prompt: createPromptQueue([]),
+            Prism: null,
+          },
+          document: {
+            activeElement: null,
+            createElement() {
+              return {
+                href: "",
+                download: "",
+                click() {},
+                appendChild() {},
+              };
+            },
+            querySelectorAll() {
+              return [];
+            },
+          },
+          cytoscape: null,
+          render() {},
+          renderOverlayDecorations() {},
+          renderMinimap() {},
+          renderPlanner() {},
+          renderSidebarTabs() {},
+          refreshContractionAnalysis() {},
+          repairContractionPlan() {},
+        };
+
+        registerUtilities(ctx);
+        registerHistorySelection(ctx);
+        Object.assign(
+          ctx,
+          createInteractionSessionBindings({
+            ctx,
+            state: ctx.state,
+            dom: ctx.dom,
+          })
+        );
+
+        ctx.state.spec = ctx.normalizeSpec({
+          id: "network_demo",
+          name: "demo",
+          tensors: [
+            {
+              id: "tensor_a",
+              name: "A",
+              position: { x: 120, y: 160 },
+              size: { width: 180, height: 108 },
+              indices: [],
+              metadata: {},
+            },
+            {
+              id: "tensor_b",
+              name: "B",
+              position: { x: 320, y: 160 },
+              size: { width: 180, height: 108 },
+              indices: [],
+              metadata: {},
+            },
+          ],
+          groups: [],
+          edges: [],
+          notes: [],
+          contraction_plan: null,
+          linear_periodic_chain: null,
+          metadata: {},
+        });
+        ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+        ctx.state.primarySelectionId = "tensor_b";
+
+        ctx.applyTemplateCatalogPayload({
+          templateNames: ["project_fragment", "mps"],
+          templateDefinitions: {
+            project_fragment: {
+              display_name: "Project Fragment",
+              graph_size_label: "Tensors",
+              defaults: {
+                graph_size: 2,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              },
+              minimums: {
+                graph_size: 1,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              },
+              supports_parameters: false,
+              source: "project",
+            },
+            mps: {
+              display_name: "MPS",
+              graph_size_label: "Sites",
+              defaults: {
+                graph_size: 4,
+                bond_dimension: 3,
+                physical_dimension: 2,
+              },
+              minimums: {
+                graph_size: 2,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              },
+              supports_parameters: true,
+              source: "global",
+            },
+          },
+          selectedTemplate: "mps",
+          templateCatalogWarnings: ["First warning", "Second warning"],
+        });
+
+        if (ctx.dom.templateCatalogWarning.hidden) {
+          throw new Error("Template catalog warning should be visible when warnings are present.");
+        }
+        if (!ctx.dom.templateCatalogWarning.textContent.includes("First warning")) {
+          throw new Error(`Expected the first template warning to be shown, received ${ctx.dom.templateCatalogWarning.textContent}.`);
+        }
+        if (!ctx.dom.templateCatalogWarning.title.includes("Second warning")) {
+          throw new Error("Template catalog warning title should include the full warning list.");
+        }
+        if (!ctx.dom.renameTemplateButton.disabled || !ctx.dom.deleteTemplateButton.disabled) {
+          throw new Error("Rename/Delete should stay disabled for globally registered templates.");
+        }
+
+        ctx.dom.templateSelect.value = "project_fragment";
+        ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
+        if (ctx.dom.renameTemplateButton.disabled || ctx.dom.deleteTemplateButton.disabled) {
+          throw new Error("Rename/Delete should be enabled for project-local templates.");
+        }
+
+        ctx.window.prompt = createPromptQueue(["project_fragment"]);
+        await ctx.promoteSelectedSubnetworkToTemplate();
+        const overwritePromoteCall = apiCalls.findLast((call) => call.path === "/api/template/promote");
+        if (!overwritePromoteCall || overwritePromoteCall.payload.overwrite !== true) {
+          throw new Error("Promoting over an existing project template should resend the API request with overwrite=true.");
+        }
+        if (!confirmMessages.length) {
+          throw new Error("Overwriting a project template should require user confirmation.");
+        }
+
+        const promoteCallCount = apiCalls.filter((call) => call.path === "/api/template/promote").length;
+        ctx.window.prompt = createPromptQueue(["mps"]);
+        await ctx.promoteSelectedSubnetworkToTemplate();
+        const promoteCallCountAfterGlobal = apiCalls.filter((call) => call.path === "/api/template/promote").length;
+        if (promoteCallCountAfterGlobal !== promoteCallCount) {
+          throw new Error("Promoting over a global template should be blocked before the API call.");
+        }
+        if (!ctx.dom.statusMessage.textContent.includes("global")) {
+          throw new Error(`Expected a global-template error message, received ${ctx.dom.statusMessage.textContent}.`);
+        }
+
+        ctx.dom.templateSelect.value = "project_fragment";
+        ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
+        ctx.window.prompt = createPromptQueue(["renamed_fragment"]);
+        await ctx.renameSelectedTemplate();
+        const renameCall = apiCalls.find((call) => call.path === "/api/template/rename");
+        if (!renameCall || renameCall.payload.new_template_name !== "renamed_fragment") {
+          throw new Error("Rename Template should call the rename API with the requested new name.");
+        }
+        if (!ctx.state.availableTemplates.includes("renamed_fragment")) {
+          throw new Error("Rename Template should update the available template list.");
+        }
+        if (ctx.dom.templateSelect.value !== "renamed_fragment") {
+          throw new Error(`Expected the renamed template to stay selected, received ${ctx.dom.templateSelect.value}.`);
+        }
+
+        await ctx.deleteSelectedTemplate();
+        if (!deleteResponseUsed) {
+          throw new Error("Delete Template should call the delete API.");
+        }
+        if (ctx.dom.templateSelect.value !== "project_second") {
+          throw new Error(`Expected delete to fall back to the next project template, received ${ctx.dom.templateSelect.value}.`);
+        }
+        if (ctx.dom.templateCatalogWarning.hidden !== true) {
+          throw new Error("Template catalog warning should hide once the catalog reloads without warnings.");
+        }
+        if (ctx.state.templateDefinitions.project_second.source !== "project") {
+          throw new Error("Project-local template metadata should preserve source='project' after updates.");
+        }
+        """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_template_catalog_management_runtime_regression(tmp_path: Path) -> None:
+    script_path = _write_template_catalog_management_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The template catalog management runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

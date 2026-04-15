@@ -31,9 +31,7 @@ from ..subnetworks import (
 from ..templates import (
     TemplateParameters,
     build_template_spec,
-    list_template_names,
     parse_template_parameters,
-    serialize_template_definitions,
 )
 from ..validation import validate_spec
 
@@ -51,8 +49,7 @@ def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
             collection_format.value for collection_format in TensorCollectionFormat
         ],
         "schema_version": SCHEMA_VERSION,
-        "templates": list_template_names(),
-        "template_definitions": serialize_template_definitions(),
+        **build_template_catalog_payload(session),
         "annotation_definitions": serialize_annotation_definitions(),
         "spec": {
             "schema_version": SCHEMA_VERSION,
@@ -110,7 +107,8 @@ def build_template_from_payload(
     raw_parameters: object | None = None,
 ) -> NetworkSpec:
     """Build a validated template spec from raw API payload values."""
-    del session
+    if session.has_project_template(template_name):
+        return session.build_project_template(template_name)
     parameters: TemplateParameters | None = parse_template_parameters(
         template_name,
         raw_parameters,
@@ -147,6 +145,100 @@ def prepare_serialized_subnetwork_for_insertion(
     """Deserialize one payload and prepare it for editor insertion."""
     spec = deserialize_spec(serialized_spec, validate=False)
     return prepare_subnetwork_for_insertion(spec, target_center=target_center)
+
+
+def promote_serialized_subnetwork_to_template(
+    session: EditorSession,
+    serialized_spec: dict[str, object],
+    *,
+    tensor_ids: list[str],
+    template_name: str,
+    overwrite: bool = False,
+) -> dict[str, object]:
+    """Extract one fragment and persist it as a project-local static template."""
+    spec = deserialize_spec(serialized_spec, validate=False)
+    promoted_spec = extract_subnetwork_spec(
+        spec,
+        tensor_ids=tensor_ids,
+    )
+    promoted_spec.name = session.build_project_template_display_name(template_name)
+    session.save_project_template(
+        template_name,
+        promoted_spec,
+        overwrite=overwrite,
+    )
+    return build_template_catalog_payload(
+        session,
+        selected_template=template_name,
+    )
+
+
+def rename_session_project_template(
+    session: EditorSession,
+    *,
+    template_name: str,
+    new_template_name: str,
+    overwrite: bool = False,
+) -> dict[str, object]:
+    """Rename one project-local template and return the refreshed catalog."""
+    if session.has_global_template(template_name) and not session.has_project_template(
+        template_name
+    ):
+        raise ValueError(
+            f"Template '{template_name}' is registered globally and cannot be renamed."
+        )
+    session.rename_project_template(
+        template_name,
+        new_template_name,
+        overwrite=overwrite,
+    )
+    return build_template_catalog_payload(
+        session,
+        selected_template=new_template_name,
+    )
+
+
+def delete_session_project_template(
+    session: EditorSession,
+    *,
+    template_name: str,
+) -> dict[str, object]:
+    """Delete one project-local template and return the refreshed catalog."""
+    if session.has_global_template(template_name) and not session.has_project_template(
+        template_name
+    ):
+        raise ValueError(
+            f"Template '{template_name}' is registered globally and cannot be deleted."
+        )
+    session.delete_project_template(template_name)
+    selected_template = None
+    remaining_project_templates = list(session.project_template_entries)
+    if remaining_project_templates:
+        selected_template = remaining_project_templates[0]
+    else:
+        available_templates = session.list_available_template_names()
+        if available_templates:
+            selected_template = available_templates[0]
+    return build_template_catalog_payload(
+        session,
+        selected_template=selected_template,
+    )
+
+
+def build_template_catalog_payload(
+    session: EditorSession,
+    *,
+    selected_template: str | None = None,
+) -> dict[str, object]:
+    """Build the merged session template catalog payload for the editor."""
+    payload: dict[str, object] = {
+        "templates": session.list_available_template_names(),
+        "template_definitions": session.serialize_available_template_definitions(),
+        "template_catalog_warnings": session.template_catalog_warnings,
+    }
+    if selected_template is not None:
+        payload["selected_template"] = selected_template
+    return payload
 
 
 def _resolve_collection_format(

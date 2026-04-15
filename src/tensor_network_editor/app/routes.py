@@ -29,8 +29,11 @@ from ._services import (
     analyze_serialized_contraction,
     build_bootstrap_payload,
     build_template_from_payload,
+    delete_session_project_template,
     extract_serialized_subnetwork,
     prepare_serialized_subnetwork_for_insertion,
+    promote_serialized_subnetwork_to_template,
+    rename_session_project_template,
 )
 from .session import EditorSession
 
@@ -109,6 +112,59 @@ def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
     except ValueError as exc:
         return bad_request_response(str(exc))
     return ok_response({"spec": serialize_spec(spec)})
+
+
+def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Promote a selected subnetwork fragment to the project template catalog."""
+    template_name = payload.get("template_name")
+    if not isinstance(template_name, str) or not template_name.strip():
+        return bad_request_response("Missing 'template_name' payload.")
+    try:
+        catalog_payload = promote_serialized_subnetwork_to_template(
+            session,
+            cast(dict[str, object], require_serialized_spec(payload)),
+            tensor_ids=_parse_tensor_ids(payload),
+            template_name=template_name,
+            overwrite=_parse_overwrite(payload),
+        )
+    except (SerializationError, TypeError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response(cast(JsonDict, catalog_payload))
+
+
+def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Rename one project-local template entry."""
+    template_name = payload.get("template_name")
+    if not isinstance(template_name, str) or not template_name.strip():
+        return bad_request_response("Missing 'template_name' payload.")
+    new_template_name = payload.get("new_template_name")
+    if not isinstance(new_template_name, str) or not new_template_name.strip():
+        return bad_request_response("Missing 'new_template_name' payload.")
+    try:
+        catalog_payload = rename_session_project_template(
+            session,
+            template_name=template_name,
+            new_template_name=new_template_name,
+            overwrite=_parse_overwrite(payload),
+        )
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+    return ok_response(cast(JsonDict, catalog_payload))
+
+
+def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Delete one project-local template entry."""
+    template_name = payload.get("template_name")
+    if not isinstance(template_name, str) or not template_name.strip():
+        return bad_request_response("Missing 'template_name' payload.")
+    try:
+        catalog_payload = delete_session_project_template(
+            session,
+            template_name=template_name,
+        )
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+    return ok_response(cast(JsonDict, catalog_payload))
 
 
 def handle_analyze_contraction(
@@ -246,3 +302,11 @@ def _parse_target_center(payload: JsonDict) -> CanvasPosition:
         )
     except TypeError as exc:
         raise ValueError(str(exc)) from exc
+
+
+def _parse_overwrite(payload: JsonDict) -> bool:
+    """Parse one optional overwrite flag from a JSON route payload."""
+    raw_overwrite = payload.get("overwrite", False)
+    if not isinstance(raw_overwrite, bool):
+        raise ValueError("'overwrite' must be a boolean when provided.")
+    return raw_overwrite

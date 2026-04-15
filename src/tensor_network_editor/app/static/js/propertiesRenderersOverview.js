@@ -193,6 +193,11 @@ export function createOverviewPropertiesRenderers({
               <button id="align-selection-bottom-button" type="button">Bottom</button>
             </div>
             <div class="button-row">
+              <button id="arrange-selection-chain-button" type="button">Arrange Chain</button>
+              <button id="arrange-selection-tree-button" type="button">Arrange Tree</button>
+              <button id="arrange-selection-grid-button" type="button">Arrange Grid</button>
+            </div>
+            <div class="button-row">
               <button
                 id="distribute-selection-horizontal-button"
                 type="button"
@@ -218,10 +223,17 @@ export function createOverviewPropertiesRenderers({
               >
                 Extract Selection
               </button>
+              <button
+                id="promote-selection-template-button"
+                type="button"
+                ${linearPeriodicMode ? "disabled" : ""}
+              >
+                Promote Selection to Template
+              </button>
             </div>
             ${
               linearPeriodicMode
-                ? '<p class="property-meta">Subnetwork export is not available in For mode yet.</p>'
+                ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
                 : ""
             }
           `
@@ -298,6 +310,15 @@ export function createOverviewPropertiesRenderers({
       document
         .getElementById("align-selection-bottom-button")
         .addEventListener("click", () => ctx.alignSelectedTensors("bottom"));
+      document
+        .getElementById("arrange-selection-chain-button")
+        .addEventListener("click", () => ctx.arrangeSelectedTensors("chain"));
+      document
+        .getElementById("arrange-selection-tree-button")
+        .addEventListener("click", () => ctx.arrangeSelectedTensors("tree"));
+      document
+        .getElementById("arrange-selection-grid-button")
+        .addEventListener("click", () => ctx.arrangeSelectedTensors("grid"));
 
       const distributeHorizontalButton = document.getElementById(
         "distribute-selection-horizontal-button"
@@ -326,6 +347,15 @@ export function createOverviewPropertiesRenderers({
         extractSelectionButton.addEventListener(
           "click",
           ctx.exportSelectedSubnetwork
+        );
+      }
+      const promoteSelectionTemplateButton = document.getElementById(
+        "promote-selection-template-button"
+      );
+      if (promoteSelectionTemplateButton) {
+        promoteSelectionTemplateButton.addEventListener(
+          "click",
+          ctx.promoteSelectedSubnetworkToTemplate
         );
       }
     }

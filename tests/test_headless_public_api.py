@@ -18,7 +18,11 @@ from tensor_network_editor.diffing import (
     semantic_diff_specs,
 )
 from tensor_network_editor.linting import LintIssue, LintReport, lint_spec
-from tensor_network_editor.templates import build_template_spec, list_template_names
+from tensor_network_editor.templates import (
+    build_template_spec,
+    list_template_names,
+    register_static_template,
+)
 from tensor_network_editor.types import JSONValue
 from tests.factories import build_sample_spec, build_three_tensor_spec
 
@@ -32,6 +36,7 @@ def test_package_root_exports_headless_entry_points() -> None:
     assert tne.semantic_diff_specs is semantic_diff_specs
     assert tne.build_template_spec is build_template_spec
     assert tne.list_template_names is list_template_names
+    assert tne.register_static_template is register_static_template
 
 
 def test_lint_models_preserve_public_payload_shape() -> None:

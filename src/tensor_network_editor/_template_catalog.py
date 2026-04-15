@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -32,6 +32,8 @@ class TemplateDefinition:
     minimum_graph_size: int = 2
     minimum_bond_dimension: int = 1
     minimum_physical_dimension: int = 1
+    supports_parameters: bool = True
+    source: Literal["project", "global"] = "global"
 
     def to_dict(self) -> dict[str, object]:
         """Serialize the template definition for frontend bootstrap payloads."""
@@ -48,6 +50,8 @@ class TemplateDefinition:
                 "bond_dimension": self.minimum_bond_dimension,
                 "physical_dimension": self.minimum_physical_dimension,
             },
+            "supports_parameters": self.supports_parameters,
+            "source": self.source,
         }
 
 
@@ -147,6 +151,60 @@ def register_template(
         raise ValueError(f"Template '{normalized_name}' is already registered.")
     _REGISTERED_TEMPLATE_DEFINITIONS[normalized_name] = definition
     _REGISTERED_TEMPLATE_BUILDERS[normalized_name] = builder
+
+
+def build_static_template_definition(
+    template_name: str,
+    display_name: str,
+    spec: NetworkSpec,
+    *,
+    source: Literal["project", "global"] = "global",
+) -> TemplateDefinition:
+    """Build one non-parametric template definition for a fixed spec."""
+    return TemplateDefinition(
+        name=template_name,
+        display_name=display_name.strip(),
+        graph_size_label="Tensors",
+        defaults=TemplateParameters(
+            graph_size=max(1, len(spec.tensors)),
+            bond_dimension=1,
+            physical_dimension=1,
+        ),
+        minimum_graph_size=1,
+        supports_parameters=False,
+        source=source,
+    )
+
+
+def register_static_template(
+    template_name: str,
+    display_name: str,
+    spec: NetworkSpec,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Register one fixed ``NetworkSpec`` as a reusable static template."""
+    from copy import deepcopy
+
+    from .validation import ensure_valid_spec
+
+    normalized_name = _validate_template_name(template_name)
+    normalized_spec = ensure_valid_spec(deepcopy(spec))
+    definition = build_static_template_definition(
+        normalized_name,
+        display_name,
+        normalized_spec,
+    )
+
+    def build_static_template(_parameters: TemplateParameters) -> NetworkSpec:
+        return deepcopy(normalized_spec)
+
+    register_template(
+        normalized_name,
+        definition,
+        build_static_template,
+        overwrite=overwrite,
+    )
 
 
 def get_template_builder(

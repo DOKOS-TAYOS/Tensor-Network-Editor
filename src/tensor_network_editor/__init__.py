@@ -44,6 +44,7 @@ from .models import (
 from .templates import (
     build_template_spec,
     list_template_names,
+    register_static_template,
     register_template,
 )
 from .validation import validate_spec
@@ -87,6 +88,7 @@ __all__ = [
     "load_spec",
     "load_spec_from_python_code",
     "register_generator",
+    "register_static_template",
     "register_template",
     "save_spec",
     "SemanticDiffEntry",

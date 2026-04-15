@@ -7,9 +7,18 @@ import signal
 import threading
 import webbrowser
 from collections.abc import Callable
+from copy import deepcopy
 from types import FrameType
 from typing import Any, Protocol
 
+from .._project_templates import (
+    ProjectTemplateCatalog,
+    append_project_template,
+    delete_project_template,
+    derive_project_template_display_name,
+    load_project_template_catalog,
+    rename_project_template,
+)
 from .._templates import TemplateParameters
 from ..codegen.registry import engine_name_to_text
 from ..models import (
@@ -20,6 +29,7 @@ from ..models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
+from ..templates import list_template_names, serialize_template_definitions
 from ..types import StrPath
 from ._services import (
     build_bootstrap_payload,
@@ -56,6 +66,7 @@ class EditorSession:
         *,
         print_code: bool = False,
         code_path: StrPath | None = None,
+        template_catalog_path: StrPath | None = None,
     ) -> None:
         """Initialize one mutable editor session.
 
@@ -67,15 +78,107 @@ class EditorSession:
             print_code: Whether to print generated code after confirmation.
             code_path: Optional output path for generated code after
                 confirmation.
+            template_catalog_path: Optional per-project static template catalog
+                path.
         """
         self.initial_spec = initial_spec or build_blank_network_spec()
         self.default_engine = default_engine
         self.default_collection_format = default_collection_format
         self.print_code = print_code
         self.code_path = code_path
+        self._project_template_catalog: ProjectTemplateCatalog = (
+            load_project_template_catalog(template_catalog_path)
+        )
+        self.template_catalog_path = self._project_template_catalog.path
         self._finished_event = threading.Event()
         self._result: EditorResult | None = None
         self._lock = threading.Lock()
+
+    @property
+    def project_template_entries(self) -> dict[str, object]:
+        """Return the project-local static template entries keyed by name."""
+        return self._project_template_catalog.entries
+
+    @property
+    def template_catalog_warnings(self) -> list[str]:
+        """Return any warnings raised while loading the local template catalog."""
+        return list(self._project_template_catalog.warnings)
+
+    def list_available_template_names(self) -> list[str]:
+        """Return the merged project-local and globally registered templates."""
+        return list(self._project_template_catalog.entries) + list_template_names()
+
+    def list_global_template_names(self) -> list[str]:
+        """Return the globally registered template names only."""
+        return list_template_names()
+
+    def serialize_available_template_definitions(self) -> dict[str, dict[str, object]]:
+        """Return serialized template definitions for the current session."""
+        definitions = {
+            template_name: entry.definition.to_dict()
+            for template_name, entry in self._project_template_catalog.entries.items()
+        }
+        definitions.update(serialize_template_definitions())
+        return definitions
+
+    def has_project_template(self, template_name: str) -> bool:
+        """Return whether the session exposes a project-local template name."""
+        return template_name in self._project_template_catalog.entries
+
+    def has_global_template(self, template_name: str) -> bool:
+        """Return whether the session exposes a globally registered template."""
+        return template_name in list_template_names()
+
+    def build_project_template(self, template_name: str) -> NetworkSpec:
+        """Build a copied project-local template spec for insertion."""
+        try:
+            entry = self._project_template_catalog.entries[template_name]
+        except KeyError as exc:
+            raise ValueError(f"Unknown template '{template_name}'.") from exc
+        return deepcopy(entry.spec)
+
+    def build_project_template_display_name(self, template_name: str) -> str:
+        """Return the derived display name used for one promoted template."""
+        return derive_project_template_display_name(template_name)
+
+    def save_project_template(
+        self,
+        template_name: str,
+        spec: NetworkSpec,
+        *,
+        overwrite: bool = False,
+    ) -> None:
+        """Persist one new project-local static template and reload the catalog."""
+        self._project_template_catalog = append_project_template(
+            self.template_catalog_path,
+            template_name,
+            spec,
+            overwrite=overwrite,
+            reserved_names=set(self.list_global_template_names()),
+        )
+
+    def rename_project_template(
+        self,
+        template_name: str,
+        new_template_name: str,
+        *,
+        overwrite: bool = False,
+    ) -> None:
+        """Rename one project-local static template and reload the catalog."""
+        self._project_template_catalog = rename_project_template(
+            self.template_catalog_path,
+            template_name,
+            new_template_name,
+            overwrite=overwrite,
+            reserved_names=set(self.list_global_template_names()),
+        )
+
+    def delete_project_template(self, template_name: str) -> None:
+        """Delete one project-local static template and reload the catalog."""
+        self._project_template_catalog = delete_project_template(
+            self.template_catalog_path,
+            template_name,
+        )
 
     def bootstrap_payload(self) -> dict[str, object]:
         """Return the bootstrap payload consumed by the browser client."""
@@ -175,6 +278,7 @@ def launch_editor_session(
     port: int = 0,
     print_code: bool = False,
     code_path: StrPath | None = None,
+    template_catalog_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
     """Create the local server, optionally open the browser, and wait.
@@ -189,6 +293,8 @@ def launch_editor_session(
         port: Local port to bind. Use ``0`` for an ephemeral port.
         print_code: Whether to print generated code after confirmation.
         code_path: Optional output path for generated code after confirmation.
+        template_catalog_path: Optional per-project static template catalog
+            path.
         _on_server_ready: Internal callback used by tests once the local URL is
             available.
 
@@ -208,6 +314,7 @@ def launch_editor_session(
         default_collection_format=default_collection_format,
         print_code=print_code,
         code_path=code_path,
+        template_catalog_path=template_catalog_path,
     )
     server = EditorServer(session=session, host=host, port=port)
     previous_sigint_handler: SignalHandler | int | None = None

@@ -72,6 +72,13 @@ export function createEntityPropertiesRenderers({
         >
           Extract Group
         </button>
+        <button
+          id="promote-group-template-button"
+          type="button"
+          ${linearPeriodicMode ? "disabled" : ""}
+        >
+          Promote Group to Template
+        </button>
         <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
         <button
           id="delete-group-button"
@@ -85,7 +92,7 @@ export function createEntityPropertiesRenderers({
       </div>
       ${
         linearPeriodicMode
-          ? '<p class="property-meta">Subnetwork export is not available in For mode yet.</p>'
+          ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
           : ""
       }
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>
@@ -150,6 +157,14 @@ export function createEntityPropertiesRenderers({
     if (extractGroupButton) {
       extractGroupButton.addEventListener("click", () => {
         ctx.exportGroupSubnetwork(group.id);
+      });
+    }
+    const promoteGroupTemplateButton = document.getElementById(
+      "promote-group-template-button"
+    );
+    if (promoteGroupTemplateButton) {
+      promoteGroupTemplateButton.addEventListener("click", () => {
+        ctx.promoteGroupToTemplate(group.id);
       });
     }
     bindMetadataEditors({

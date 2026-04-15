@@ -37,9 +37,14 @@ def build_template(
     template_name: str, parameters: TemplateParameters | None = None
 ) -> NetworkSpec:
     """Build and validate the named built-in template."""
-    resolved_parameters = validate_template_parameters(
-        template_name,
-        parameters or get_template_definition(template_name).defaults,
+    definition = get_template_definition(template_name)
+    resolved_parameters = (
+        validate_template_parameters(
+            template_name,
+            parameters or definition.defaults,
+        )
+        if definition.supports_parameters
+        else definition.defaults
     )
     builder = get_template_builder(template_name)
     return ensure_valid_spec(builder(resolved_parameters))

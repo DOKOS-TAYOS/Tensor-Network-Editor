@@ -141,21 +141,37 @@
                     <span class="template-parameter-title">Template</span>
                     <select id="template-select"></select>
                   </label>
-                  <label class="template-parameter-field template-number-field" for="template-graph-size-input">
+                  <label
+                    id="template-graph-size-field"
+                    class="template-parameter-field template-number-field"
+                    for="template-graph-size-input"
+                  >
                     <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
                     <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
                   </label>
-                  <label class="template-parameter-field template-number-field" for="template-bond-dimension-input">
+                  <label
+                    id="template-bond-dimension-field"
+                    class="template-parameter-field template-number-field"
+                    for="template-bond-dimension-input"
+                  >
                     <span class="template-parameter-title">Bond dimension</span>
                     <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
                   </label>
-                  <label class="template-parameter-field template-number-field" for="template-physical-dimension-input">
+                  <label
+                    id="template-physical-dimension-field"
+                    class="template-parameter-field template-number-field"
+                    for="template-physical-dimension-input"
+                  >
                     <span class="template-parameter-title">Physical dimension</span>
                     <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
                   </label>
                 </div>
                 <button id="insert-template-button" type="button" class="button-accent-insert">Insert</button>
                 <button id="insert-subnetwork-button" type="button">Insert Subnetwork</button>
+                <button id="rename-template-button" type="button">Rename Template</button>
+                <button id="delete-template-button" type="button">Delete Template</button>
+                <button id="reflow-imported-button" type="button">Reflow Imported</button>
+                <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
               </div>
             </div>
           </div>

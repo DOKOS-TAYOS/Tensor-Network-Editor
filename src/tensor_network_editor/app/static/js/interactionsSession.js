@@ -166,6 +166,78 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     }
   }
 
+  function applyTemplateCatalogUpdate(
+    payload,
+    successMessage = "Updated the template catalog."
+  ) {
+    ctx.applyTemplateCatalogPayload({
+      templateNames: payload.templates,
+      templateDefinitions: payload.template_definitions,
+      selectedTemplate:
+        typeof payload.selected_template === "string"
+          ? payload.selected_template
+          : null,
+      templateCatalogWarnings: payload.template_catalog_warnings,
+    });
+    if (
+      Array.isArray(payload.template_catalog_warnings) &&
+      payload.template_catalog_warnings.length
+    ) {
+      ctx.setStatus(payload.template_catalog_warnings[0], "error");
+      return;
+    }
+    ctx.setStatus(successMessage, "success");
+  }
+
+  function requestTemplateName(defaultTemplateName = "fragment_template") {
+    const proposedName =
+      window && typeof window.prompt === "function"
+        ? window.prompt(
+            "Choose a template name using lowercase letters, digits, and underscores.",
+            defaultTemplateName
+          )
+        : defaultTemplateName;
+    if (typeof proposedName !== "string") {
+      return null;
+    }
+    const normalizedName = proposedName.trim();
+    return normalizedName || null;
+  }
+
+  function getTemplateDefinition(templateName) {
+    return typeof ctx.getTemplateDefinition === "function"
+      ? ctx.getTemplateDefinition(templateName)
+      : null;
+  }
+
+  function confirmTemplateOverwrite(templateName, operationLabel) {
+    if (!window || typeof window.confirm !== "function") {
+      return true;
+    }
+    return window.confirm(
+      `${operationLabel} '${ctx.formatTemplateLabel(templateName)}'? This replaces the existing project template.`
+    );
+  }
+
+  function resolveTemplateOverwriteDecision(templateName, operationLabel) {
+    const existingDefinition = getTemplateDefinition(templateName);
+    if (!existingDefinition) {
+      return { overwrite: false };
+    }
+    if (existingDefinition.source === "global") {
+      ctx.setStatus(
+        `Template '${templateName}' is registered globally and cannot be replaced.`,
+        "error"
+      );
+      return null;
+    }
+    if (!confirmTemplateOverwrite(templateName, operationLabel)) {
+      ctx.setStatus(`${operationLabel} cancelled.`);
+      return null;
+    }
+    return { overwrite: true };
+  }
+
   function insertPreparedSubnetwork(preparedSpec, label = null) {
     const normalizedSpec = ctx.normalizeSpec(preparedSpec);
     ctx.applyDesignChange(
@@ -176,6 +248,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
         normalizedSpec.tensors.forEach((tensor) => {
           ctx.bringTensorToFront(tensor.id);
         });
+        state.lastImportedTensorIds = normalizedSpec.tensors.map(
+          (tensor) => tensor.id
+        );
       },
       {
         invalidate: { lookups: true },
@@ -240,6 +315,168 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       return;
     }
     await exportSubnetworkByTensorIds(group.tensor_ids, group.name || "group");
+  }
+
+  async function promoteSubnetworkByTensorIds(
+    tensorIds,
+    defaultTemplateName = "fragment_template"
+  ) {
+    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+      ctx.setStatus(
+        "Template promotion is only available in normal graph mode.",
+        "error"
+      );
+      return;
+    }
+    if (!Array.isArray(tensorIds) || !tensorIds.length) {
+      ctx.setStatus("Select one or more tensors to promote as a template.");
+      return;
+    }
+    const templateName = requestTemplateName(defaultTemplateName);
+    if (!templateName) {
+      ctx.setStatus("Template promotion cancelled.");
+      return;
+    }
+    const overwriteDecision = resolveTemplateOverwriteDecision(
+      templateName,
+      "Replace template"
+    );
+    if (overwriteDecision === null) {
+      return;
+    }
+    try {
+      const payload = await apiPost("/api/template/promote", {
+        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
+        tensor_ids: tensorIds,
+        template_name: templateName,
+        overwrite: overwriteDecision.overwrite,
+      });
+      if (!payload.ok) {
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        return;
+      }
+      applyTemplateCatalogUpdate(
+        payload,
+        `Saved ${ctx.formatTemplateLabel(templateName)} to the template catalog.`
+      );
+    } catch (error) {
+      ctx.setStatus(`Could not save the template: ${error.message}`, "error");
+    }
+  }
+
+  async function promoteSelectedSubnetworkToTemplate() {
+    await promoteSubnetworkByTensorIds(
+      typeof ctx.getSelectedIdsByKind === "function"
+        ? ctx.getSelectedIdsByKind("tensor")
+        : [],
+      "selection_template"
+    );
+  }
+
+  async function promoteGroupToTemplate(groupId) {
+    const group =
+      typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+    if (!group || !Array.isArray(group.tensor_ids) || !group.tensor_ids.length) {
+      ctx.setStatus("This group does not contain any tensors to promote.", "error");
+      return;
+    }
+    await promoteSubnetworkByTensorIds(
+      group.tensor_ids,
+      typeof group.name === "string" && group.name
+        ? ctx.sanitizeFilename(group.name).replaceAll("-", "_")
+        : "group_template"
+    );
+  }
+
+  async function renameSelectedTemplate() {
+    const currentTemplateName =
+      typeof templateSelect.value === "string" ? templateSelect.value.trim() : "";
+    if (!currentTemplateName) {
+      ctx.setStatus("Choose a template first.");
+      return;
+    }
+    const currentDefinition = getTemplateDefinition(currentTemplateName);
+    if (!currentDefinition || currentDefinition.source !== "project") {
+      ctx.setStatus(
+        "Only project-local templates can be renamed from the editor.",
+        "error"
+      );
+      return;
+    }
+    const newTemplateName = requestTemplateName(currentTemplateName);
+    if (!newTemplateName) {
+      ctx.setStatus("Template rename cancelled.");
+      return;
+    }
+    if (newTemplateName === currentTemplateName) {
+      ctx.setStatus("Template name unchanged.");
+      return;
+    }
+    const overwriteDecision = resolveTemplateOverwriteDecision(
+      newTemplateName,
+      "Replace template"
+    );
+    if (overwriteDecision === null) {
+      return;
+    }
+    try {
+      const payload = await apiPost("/api/template/rename", {
+        template_name: currentTemplateName,
+        new_template_name: newTemplateName,
+        overwrite: overwriteDecision.overwrite,
+      });
+      if (!payload.ok) {
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        return;
+      }
+      applyTemplateCatalogUpdate(
+        payload,
+        `Renamed ${ctx.formatTemplateLabel(newTemplateName)}.`
+      );
+    } catch (error) {
+      ctx.setStatus(`Could not rename the template: ${error.message}`, "error");
+    }
+  }
+
+  async function deleteSelectedTemplate() {
+    const currentTemplateName =
+      typeof templateSelect.value === "string" ? templateSelect.value.trim() : "";
+    if (!currentTemplateName) {
+      ctx.setStatus("Choose a template first.");
+      return;
+    }
+    const currentDefinition = getTemplateDefinition(currentTemplateName);
+    if (!currentDefinition || currentDefinition.source !== "project") {
+      ctx.setStatus(
+        "Only project-local templates can be deleted from the editor.",
+        "error"
+      );
+      return;
+    }
+    const currentTemplateLabel = ctx.formatTemplateLabel(currentTemplateName);
+    if (
+      window &&
+      typeof window.confirm === "function" &&
+      !window.confirm(`Delete template '${currentTemplateLabel}' from this project?`)
+    ) {
+      ctx.setStatus("Template deletion cancelled.");
+      return;
+    }
+    try {
+      const payload = await apiPost("/api/template/delete", {
+        template_name: currentTemplateName,
+      });
+      if (!payload.ok) {
+        ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
+        return;
+      }
+      applyTemplateCatalogUpdate(
+        payload,
+        `Deleted ${currentTemplateLabel} from the template catalog.`
+      );
+    } catch (error) {
+      ctx.setStatus(`Could not delete the template: ${error.message}`, "error");
+    }
   }
 
   function loadSubnetworkFromFile(event) {
@@ -392,6 +629,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
           state.spec.tensors.push(...translatedSpec.tensors);
           state.spec.edges.push(...translatedSpec.edges);
           state.spec.groups.push(...translatedSpec.groups);
+          state.lastImportedTensorIds = translatedSpec.tensors.map(
+            (tensor) => tensor.id
+          );
         },
         {
           invalidate: { lookups: true },
@@ -420,6 +660,10 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     openSubnetworkPicker,
     exportSelectedSubnetwork,
     exportGroupSubnetwork,
+    promoteSelectedSubnetworkToTemplate,
+    promoteGroupToTemplate,
+    renameSelectedTemplate,
+    deleteSelectedTemplate,
     insertPreparedSubnetwork,
     loadSubnetworkFromFile,
     insertTemplate,

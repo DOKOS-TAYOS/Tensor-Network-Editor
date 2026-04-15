@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
+from tensor_network_editor._project_templates import (
+    append_project_template,
+    delete_project_template,
+    load_project_template_catalog,
+    rename_project_template,
+)
 from tensor_network_editor._template_catalog import (
     _reset_template_registry_for_tests,
     list_template_names,
@@ -23,12 +31,16 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
+from tensor_network_editor.serialization import SCHEMA_VERSION, serialize_spec
 from tensor_network_editor.templates import (
     TemplateDefinition,
     TemplateParameters,
     build_template_spec,
+    register_static_template,
     register_template,
+    serialize_template_definitions,
 )
+from tests.factories import build_sample_spec
 
 
 class DummyCodeGenerator(CodeGenerator):
@@ -124,6 +136,250 @@ def test_register_template_supports_custom_template_name() -> None:
 
     assert spec.name == "Custom Pair (2)"
     assert list_template_names()[-1] == "custom_pair"
+
+
+def test_register_static_template_supports_fixed_network_specs() -> None:
+    static_spec = NetworkSpec(
+        id="fixed_fragment",
+        name="Fixed Fragment",
+    )
+
+    register_static_template("fixed_fragment", "Fixed Fragment", static_spec)
+
+    spec = build_template_spec(
+        "fixed_fragment",
+        TemplateParameters(
+            graph_size=99,
+            bond_dimension=77,
+            physical_dimension=55,
+        ),
+    )
+    definitions = serialize_template_definitions()
+
+    assert spec.name == "Fixed Fragment"
+    assert spec.id == "fixed_fragment"
+    assert list_template_names()[-1] == "fixed_fragment"
+    assert definitions["fixed_fragment"]["supports_parameters"] is False
+
+
+def test_project_template_catalog_entries_are_loaded_per_session(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    promoted_spec = build_sample_spec()
+    promoted_spec.name = "Project Pair"
+    promoted_spec.notes = []
+    promoted_spec.contraction_plan = None
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "templates": [
+                    {
+                        "name": "project_pair",
+                        "display_name": "Project Pair",
+                        "spec": serialize_spec(promoted_spec),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    session = EditorSession(template_catalog_path=catalog_path)
+    payload = build_bootstrap_payload(session)
+
+    assert payload["templates"][0] == "project_pair"
+    assert (
+        payload["template_definitions"]["project_pair"]["supports_parameters"] is False
+    )
+    assert payload["template_definitions"]["project_pair"]["source"] == "project"
+    assert payload["template_definitions"]["mps"]["source"] == "global"
+    assert payload["template_catalog_warnings"] == []
+    assert build_template_spec("mps").name == "MPS"
+
+
+def test_project_template_catalog_warnings_skip_invalid_entries(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    promoted_spec = build_sample_spec()
+    promoted_spec.name = "Valid Project Pair"
+    promoted_spec.notes = []
+    promoted_spec.contraction_plan = None
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "templates": [
+                    {
+                        "name": "bad name",
+                        "display_name": "Bad Name",
+                        "spec": {"schema_version": SCHEMA_VERSION, "network": {}},
+                    },
+                    {
+                        "name": "valid_project_pair",
+                        "display_name": "Valid Project Pair",
+                        "spec": serialize_spec(promoted_spec),
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    session = EditorSession(template_catalog_path=catalog_path)
+    payload = build_bootstrap_payload(session)
+
+    assert "valid_project_pair" in payload["templates"]
+    assert "bad name" not in payload["templates"]
+    assert payload["template_catalog_warnings"]
+
+
+def test_project_template_catalog_entries_do_not_leak_between_sessions(
+    tmp_path: Path,
+) -> None:
+    left_catalog_path = tmp_path / "left" / ".tensor-network-editor" / "templates.json"
+    right_catalog_path = (
+        tmp_path / "right" / ".tensor-network-editor" / "templates.json"
+    )
+    promoted_spec = build_sample_spec()
+    promoted_spec.name = "Project Left Pair"
+    promoted_spec.notes = []
+    promoted_spec.contraction_plan = None
+    left_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    left_catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "templates": [
+                    {
+                        "name": "project_left_pair",
+                        "display_name": "Project Left Pair",
+                        "spec": serialize_spec(promoted_spec),
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    left_session = EditorSession(template_catalog_path=left_catalog_path)
+    right_session = EditorSession(template_catalog_path=right_catalog_path)
+
+    assert "project_left_pair" in build_bootstrap_payload(left_session)["templates"]
+    assert (
+        "project_left_pair" not in build_bootstrap_payload(right_session)["templates"]
+    )
+
+
+def test_project_template_catalog_entries_can_be_renamed_preserving_order(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    first_spec = build_sample_spec()
+    first_spec.id = "first_fragment"
+    first_spec.name = "First Fragment"
+    first_spec.notes = []
+    first_spec.contraction_plan = None
+    second_spec = build_sample_spec()
+    second_spec.id = "second_fragment"
+    second_spec.name = "Second Fragment"
+    second_spec.notes = []
+    second_spec.contraction_plan = None
+
+    append_project_template(catalog_path, "first_fragment", first_spec)
+    append_project_template(catalog_path, "second_fragment", second_spec)
+    renamed_catalog = rename_project_template(
+        catalog_path,
+        "first_fragment",
+        "renamed_fragment",
+        reserved_names=set(list_template_names()),
+    )
+    reloaded_catalog = load_project_template_catalog(catalog_path)
+    payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+
+    assert list(renamed_catalog.entries) == ["renamed_fragment", "second_fragment"]
+    assert list(reloaded_catalog.entries) == ["renamed_fragment", "second_fragment"]
+    assert (
+        reloaded_catalog.entries["renamed_fragment"].display_name == "Renamed Fragment"
+    )
+    assert reloaded_catalog.entries["renamed_fragment"].spec.name == "Renamed Fragment"
+    assert payload["templates"][:2] == ["renamed_fragment", "second_fragment"]
+    assert payload["template_definitions"]["renamed_fragment"]["source"] == "project"
+
+
+def test_project_template_catalog_entries_can_be_deleted_without_leaking(
+    tmp_path: Path,
+) -> None:
+    left_catalog_path = tmp_path / "left" / ".tensor-network-editor" / "templates.json"
+    right_catalog_path = (
+        tmp_path / "right" / ".tensor-network-editor" / "templates.json"
+    )
+    promoted_spec = build_sample_spec()
+    promoted_spec.id = "project_left_pair"
+    promoted_spec.name = "Project Left Pair"
+    promoted_spec.notes = []
+    promoted_spec.contraction_plan = None
+
+    append_project_template(left_catalog_path, "project_left_pair", promoted_spec)
+    delete_project_template(left_catalog_path, "project_left_pair")
+    left_payload = build_bootstrap_payload(
+        EditorSession(template_catalog_path=left_catalog_path)
+    )
+    right_payload = build_bootstrap_payload(
+        EditorSession(template_catalog_path=right_catalog_path)
+    )
+
+    assert "project_left_pair" not in left_payload["templates"]
+    assert "project_left_pair" not in right_payload["templates"]
+    assert left_payload["template_definitions"]["mps"]["source"] == "global"
+
+
+def test_project_template_catalog_overwrite_replaces_only_project_entries(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    first_spec = build_sample_spec()
+    first_spec.id = "first_fragment"
+    first_spec.name = "Project Pair"
+    first_spec.notes = []
+    first_spec.contraction_plan = None
+    replacement_spec = build_sample_spec()
+    replacement_spec.id = "replacement_fragment"
+    replacement_spec.name = "Project Pair"
+    replacement_spec.tensors[0].name = "Replacement A"
+    replacement_spec.notes = []
+    replacement_spec.contraction_plan = None
+
+    append_project_template(catalog_path, "project_pair", first_spec)
+    overwritten_catalog = append_project_template(
+        catalog_path,
+        "project_pair",
+        replacement_spec,
+        overwrite=True,
+        reserved_names=set(),
+    )
+
+    assert overwritten_catalog.entries["project_pair"].spec.id == "replacement_fragment"
+    assert (
+        overwritten_catalog.entries["project_pair"].spec.tensors[0].name
+        == "Replacement A"
+    )
+
+    with pytest.raises(ValueError, match="global"):
+        append_project_template(
+            catalog_path,
+            "mps",
+            replacement_spec,
+            overwrite=True,
+            reserved_names=set(list_template_names()),
+        )
 
 
 def test_bootstrap_payload_and_protocol_reflect_registered_extensions() -> None:
