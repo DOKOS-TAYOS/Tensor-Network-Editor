@@ -5,6 +5,9 @@ from typing import Any, cast
 
 import pytest
 
+from tensor_network_editor._validation_linear_periodic import (
+    _build_carry_validation_context,
+)
 from tensor_network_editor.errors import SpecValidationError
 from tensor_network_editor.models import (
     CanvasNoteSpec,
@@ -17,6 +20,7 @@ from tensor_network_editor.models import (
     EdgeSpec,
     GroupSpec,
     IndexSpec,
+    LinearPeriodicCellName,
     LinearPeriodicTensorRole,
     NetworkSpec,
     TensorSize,
@@ -80,6 +84,10 @@ def build_valid_spec() -> NetworkSpec:
 
 def find_issue(issues: list[ValidationIssue], code: str) -> ValidationIssue:
     return next(issue for issue in issues if issue.code == code)
+
+
+def find_issue_paths(issues: list[ValidationIssue], code: str) -> list[str]:
+    return [issue.path for issue in issues if issue.code == code]
 
 
 def duplicate_index_connection(spec: NetworkSpec) -> None:
@@ -385,6 +393,121 @@ def test_validate_spec_accepts_valid_linear_periodic_carry_chain() -> None:
 
 def test_validate_spec_accepts_linear_periodic_partial_carry_chain() -> None:
     assert validate_spec(build_linear_periodic_partial_carry_chain_spec()) == []
+
+
+def test_build_carry_validation_context_internal_helper_collects_interface_state() -> (
+    None
+):
+    spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+
+    context = _build_carry_validation_context(
+        LinearPeriodicCellName.PERIODIC,
+        spec.linear_periodic_chain.periodic_cell,
+        previous_expected=1,
+        next_expected=1,
+    )
+
+    assert context.cell_prefix == "linear_periodic_chain.periodic_cell"
+    assert context.incoming_labels == ("periodicleft_left",)
+    assert context.outgoing_labels == ("periodicright_right",)
+    assert context.label_by_index_id["periodic_left_in"] == "periodicleft_left"
+    assert context.dimension_by_label["periodicleft_left"] == 3
+    assert "__linear_previous__" in context.operand_state_by_id
+    assert "__linear_next__" in context.operand_state_by_id
+
+
+def test_validate_spec_rejects_linear_periodic_step_using_previous_and_next_together() -> (
+    None
+):
+    spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    periodic_cell = spec.linear_periodic_chain.periodic_cell
+    assert periodic_cell.contraction_plan is not None
+    periodic_cell.contraction_plan.steps[0] = ContractionStepSpec(
+        id="periodic_prev_next",
+        left_operand_id="__linear_previous__",
+        right_operand_id="__linear_next__",
+    )
+    periodic_cell.contraction_plan.steps[2] = ContractionStepSpec(
+        id="periodic_after",
+        left_operand_id="periodic_left_tensor",
+        right_operand_id="periodic_right_tensor",
+    )
+
+    issue_paths = find_issue_paths(
+        validate_spec(spec),
+        "linear-periodic-carry-boundary",
+    )
+
+    assert (
+        "linear_periodic_chain.periodic_cell.contraction_plan.steps.periodic_prev_next"
+        in issue_paths
+    )
+
+
+def test_validate_spec_rejects_linear_periodic_next_step_without_outgoing_labels() -> (
+    None
+):
+    spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    initial_cell = spec.linear_periodic_chain.initial_cell
+    initial_cell.tensors.append(
+        TensorSpec(
+            id="initial_extra_tensor",
+            name="InitialExtra",
+            position=CanvasPosition(x=220.0, y=240.0),
+            indices=[IndexSpec(id="initial_extra_open", name="free", dimension=11)],
+        )
+    )
+    assert initial_cell.contraction_plan is not None
+    initial_cell.contraction_plan.steps[0] = ContractionStepSpec(
+        id="initial_carry",
+        left_operand_id="initial_extra_tensor",
+        right_operand_id="__linear_next__",
+    )
+
+    issue_paths = find_issue_paths(
+        validate_spec(spec),
+        "linear-periodic-carry-operand",
+    )
+
+    assert (
+        "linear_periodic_chain.initial_cell.contraction_plan.steps.initial_carry"
+        in issue_paths
+    )
+
+
+def test_validate_spec_rejects_linear_periodic_previous_step_without_incoming_labels() -> (
+    None
+):
+    spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    final_cell = spec.linear_periodic_chain.final_cell
+    final_cell.tensors.append(
+        TensorSpec(
+            id="final_extra_tensor",
+            name="FinalExtra",
+            position=CanvasPosition(x=280.0, y=260.0),
+            indices=[IndexSpec(id="final_extra_open", name="free", dimension=11)],
+        )
+    )
+    assert final_cell.contraction_plan is not None
+    final_cell.contraction_plan.steps[0] = ContractionStepSpec(
+        id="final_contract",
+        left_operand_id="__linear_previous__",
+        right_operand_id="final_extra_tensor",
+    )
+
+    issue_paths = find_issue_paths(
+        validate_spec(spec),
+        "linear-periodic-carry-operand",
+    )
+
+    assert (
+        "linear_periodic_chain.final_cell.contraction_plan.steps.final_contract"
+        in issue_paths
+    )
 
 
 def test_validate_spec_rejects_linear_periodic_next_that_is_not_last() -> None:
