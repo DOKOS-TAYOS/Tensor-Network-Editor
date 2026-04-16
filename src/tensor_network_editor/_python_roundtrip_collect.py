@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
+from typing import TYPE_CHECKING
 
 from ._python_roundtrip_ast import (
     _call_name,
@@ -24,11 +25,13 @@ from ._python_roundtrip_build import (
     _default_tensor_name_from_position,
     _ManualStepComment,
     _parse_tensor_expression,
-    _ParsedTensor,
     _PendingEdge,
     _PendingManualStep,
 )
 from .errors import SerializationError
+
+if TYPE_CHECKING:
+    from ._python_roundtrip import _RoundtripParseState
 
 _MANUAL_STEP_COMMENT_PATTERN = re.compile(
     r"^\s*# Manual step (?P<step_id>\S+) \| left=(?P<left_operand_id>\S+) \| "
@@ -36,9 +39,7 @@ _MANUAL_STEP_COMMENT_PATTERN = re.compile(
 )
 
 
-def _collect_data_shape(
-    statement: ast.stmt, data_shapes: dict[str, tuple[int, ...]]
-) -> None:
+def _collect_data_shape(statement: ast.stmt, state: _RoundtripParseState) -> None:
     """Collect tensor-data shapes from supported ``zeros(...)`` assignments."""
     if (
         not isinstance(statement, ast.Assign)
@@ -49,107 +50,151 @@ def _collect_data_shape(
         return
     shape = _parse_zeros_shape(statement.value)
     if shape is not None:
-        data_shapes[statement.targets[0].id] = shape
+        state.data_shapes[statement.targets[0].id] = shape
+
+
+def _collect_supported_tensor_collection_initialization(
+    statement: ast.stmt,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect empty supported tensor collections and mark the parser state."""
+    if (
+        not isinstance(statement, ast.Assign)
+        or len(statement.targets) != 1
+        or not isinstance(statement.targets[0], ast.Name)
+    ):
+        return False
+    target_name = statement.targets[0].id
+    if target_name == "tensor_rows" and isinstance(statement.value, ast.List):
+        state.tensor_rows.clear()
+        return True
+    return target_name in {"tensors", "tensors_dict"}
+
+
+def _collect_dict_tensor_assignment(
+    statement: ast.stmt,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one tensor assigned into a supported dict-backed collection."""
+    if (
+        not isinstance(statement, ast.Assign)
+        or len(statement.targets) != 1
+        or not isinstance(statement.targets[0], ast.Subscript)
+    ):
+        return False
+    dict_reference = _parse_tensor_reference(statement.targets[0])
+    if dict_reference is None or not dict_reference.startswith("dict:"):
+        return False
+    parsed_tensor = _parse_tensor_expression(
+        expression=statement.value,
+        data_shapes=state.data_shapes,
+        reference=dict_reference,
+        fallback_name=dict_reference.removeprefix("dict:"),
+    )
+    state.tensors_by_reference[dict_reference] = parsed_tensor
+    state.tensor_order.append(dict_reference)
+    return True
+
+
+def _collect_list_tensor_append(
+    call: ast.Call,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one tensor appended to the flat ``tensors`` collection."""
+    if (
+        not isinstance(call.func, ast.Attribute)
+        or call.func.attr != "append"
+        or not isinstance(call.func.value, ast.Name)
+        or call.func.value.id != "tensors"
+        or len(call.args) != 1
+    ):
+        return False
+    reference = f"list:{len(state.tensor_order)}"
+    state.tensors_by_reference[reference] = _parse_tensor_expression(
+        expression=call.args[0],
+        data_shapes=state.data_shapes,
+        reference=reference,
+        fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
+    )
+    state.tensor_order.append(reference)
+    return True
+
+
+def _collect_empty_tensor_row_append(
+    call: ast.Call,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one empty row appended to the matrix tensor layout."""
+    if (
+        not isinstance(call.func, ast.Attribute)
+        or call.func.attr != "append"
+        or not isinstance(call.func.value, ast.Name)
+        or call.func.value.id != "tensor_rows"
+        or len(call.args) != 1
+        or not isinstance(call.args[0], ast.List)
+        or call.args[0].elts
+    ):
+        return False
+    state.tensor_rows.append([])
+    return True
+
+
+def _collect_matrix_tensor_append(
+    call: ast.Call,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one tensor appended to a row inside ``tensor_rows``."""
+    if (
+        not isinstance(call.func, ast.Attribute)
+        or call.func.attr != "append"
+        or not isinstance(call.func.value, ast.Subscript)
+        or len(call.args) != 1
+    ):
+        return False
+    row_index = _parse_matrix_row_index(call.func.value)
+    if row_index is None:
+        return False
+    while len(state.tensor_rows) <= row_index:
+        state.tensor_rows.append([])
+    reference = f"matrix:{row_index}:{len(state.tensor_rows[row_index])}"
+    state.tensors_by_reference[reference] = _parse_tensor_expression(
+        expression=call.args[0],
+        data_shapes=state.data_shapes,
+        reference=reference,
+        fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
+    )
+    state.tensor_rows[row_index].append(reference)
+    state.tensor_order.append(reference)
+    return True
 
 
 def _collect_tensor(
     *,
     statement: ast.stmt,
-    data_shapes: dict[str, tuple[int, ...]],
-    tensors_by_reference: dict[str, _ParsedTensor],
-    tensor_rows: list[list[str]],
-    tensor_order: list[str],
-    saw_supported_tensor_collection: bool,
-) -> bool:
+    state: _RoundtripParseState,
+) -> None:
     """Collect tensor definitions from list, matrix, and dict layouts."""
-    if (
-        isinstance(statement, ast.Assign)
-        and len(statement.targets) == 1
-        and isinstance(statement.targets[0], ast.Name)
-    ):
-        target_name = statement.targets[0].id
-        if target_name == "tensor_rows" and isinstance(statement.value, ast.List):
-            tensor_rows.clear()
-            return True
-        if target_name in {"tensors", "tensors_dict"}:
-            return True
-
+    if _collect_supported_tensor_collection_initialization(statement, state):
+        state.saw_supported_tensor_collection = True
+        return
+    if _collect_dict_tensor_assignment(statement, state):
+        return
     if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
-        if (
-            isinstance(statement, ast.Assign)
-            and len(statement.targets) == 1
-            and isinstance(statement.targets[0], ast.Subscript)
-        ):
-            dict_reference = _parse_tensor_reference(statement.targets[0])
-            if dict_reference is None or not dict_reference.startswith("dict:"):
-                return saw_supported_tensor_collection
-            parsed_tensor = _parse_tensor_expression(
-                expression=statement.value,
-                data_shapes=data_shapes,
-                reference=dict_reference,
-                fallback_name=dict_reference.removeprefix("dict:"),
-            )
-            tensors_by_reference[dict_reference] = parsed_tensor
-            tensor_order.append(dict_reference)
-        return saw_supported_tensor_collection
-
+        return
     call = statement.value
-    if (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "append"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id == "tensors"
-        and len(call.args) == 1
-    ):
-        reference = f"list:{len(tensor_order)}"
-        tensors_by_reference[reference] = _parse_tensor_expression(
-            expression=call.args[0],
-            data_shapes=data_shapes,
-            reference=reference,
-            fallback_name=_default_tensor_name_from_position(len(tensor_order)),
-        )
-        tensor_order.append(reference)
-        return True
-
-    if (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "append"
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id == "tensor_rows"
-        and len(call.args) == 1
-        and isinstance(call.args[0], ast.List)
-        and not call.args[0].elts
-    ):
-        tensor_rows.append([])
-        return True
-
-    if (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "append"
-        and isinstance(call.func.value, ast.Subscript)
-        and len(call.args) == 1
-    ):
-        row_index = _parse_matrix_row_index(call.func.value)
-        if row_index is None:
-            return saw_supported_tensor_collection
-        while len(tensor_rows) <= row_index:
-            tensor_rows.append([])
-        reference = f"matrix:{row_index}:{len(tensor_rows[row_index])}"
-        tensors_by_reference[reference] = _parse_tensor_expression(
-            expression=call.args[0],
-            data_shapes=data_shapes,
-            reference=reference,
-            fallback_name=_default_tensor_name_from_position(len(tensor_order)),
-        )
-        tensor_rows[row_index].append(reference)
-        tensor_order.append(reference)
-        return True
-
-    return saw_supported_tensor_collection
+    if _collect_list_tensor_append(call, state):
+        state.saw_supported_tensor_collection = True
+        return
+    if _collect_empty_tensor_row_append(call, state):
+        state.saw_supported_tensor_collection = True
+        return
+    if _collect_matrix_tensor_append(call, state):
+        state.saw_supported_tensor_collection = True
 
 
 def _collect_pending_edge(
-    statement: ast.stmt, pending_edges: list[_PendingEdge]
+    statement: ast.stmt,
+    state: _RoundtripParseState,
 ) -> None:
     """Collect pending edges from supported ``connect(...)`` calls."""
     edge_name: str | None = None
@@ -199,7 +244,7 @@ def _collect_pending_edge(
         raise SerializationError(
             "Generated Python connect calls must include a recoverable edge name."
         )
-    pending_edges.append(
+    state.pending_edges.append(
         _PendingEdge(
             name=edge_name,
             left_reference=left_operand[0],
@@ -211,7 +256,8 @@ def _collect_pending_edge(
 
 
 def _collect_einsum_labels(
-    statement: ast.stmt, einsum_labels_by_reference: dict[str, list[str]]
+    statement: ast.stmt,
+    state: _RoundtripParseState,
 ) -> None:
     """Collect einsum label sequences emitted by supported generators."""
     einsum_call: ast.Call | None = None
@@ -244,7 +290,7 @@ def _collect_einsum_labels(
             ):
                 reference = _parse_tensor_reference(argument)
                 if reference is not None:
-                    einsum_labels_by_reference[reference] = list(input_term)
+                    state.einsum_labels_by_reference[reference] = list(input_term)
             return
 
     arguments = einsum_call.args
@@ -256,14 +302,14 @@ def _collect_einsum_labels(
         if label_values is None:
             raise SerializationError("Generated Python einsum sublists are malformed.")
         if reference is not None:
-            einsum_labels_by_reference[reference] = [
+            state.einsum_labels_by_reference[reference] = [
                 f"label_{value}" for value in label_values
             ]
 
 
 def _collect_remaining_einsum_labels(
     statement: ast.stmt,
-    remaining_einsum_labels_by_reference: dict[str, list[str]],
+    state: _RoundtripParseState,
 ) -> None:
     """Collect labels emitted for remaining operands in partial einsum plans."""
     if (
@@ -279,7 +325,7 @@ def _collect_remaining_einsum_labels(
         reference = _parse_tensor_reference_string(_literal_string(key))
         labels = _literal_string_sequence(value)
         if reference is not None and labels is not None:
-            remaining_einsum_labels_by_reference[reference] = labels
+            state.remaining_einsum_labels_by_reference[reference] = labels
 
 
 def _collect_manual_step_comments(code: str) -> dict[int, _ManualStepComment]:
@@ -315,16 +361,13 @@ def _collect_manual_step_comments(code: str) -> dict[int, _ManualStepComment]:
 def _collect_manual_step(
     *,
     statement: ast.stmt,
-    manual_step_comments_by_statement_line: dict[int, _ManualStepComment],
-    pending_manual_steps: list[_PendingManualStep],
-    step_ids_by_results_list_index: list[str],
-    preferred_tensor_ids_by_reference: dict[str, str],
+    state: _RoundtripParseState,
 ) -> None:
     """Collect one manual step from supported generated-Python statements."""
     statement_line_number = getattr(statement, "lineno", None)
     if statement_line_number is None:
         return
-    comment = manual_step_comments_by_statement_line.get(statement_line_number)
+    comment = state.manual_step_comments_by_statement_line.get(statement_line_number)
     if comment is None:
         return
 
@@ -336,91 +379,134 @@ def _collect_manual_step(
     call = statement.value
     appended_value = _parse_list_append_value(statement, "results_list")
     if isinstance(appended_value, ast.Call):
-        appended_call_name = _call_name(appended_value.func)
-        if appended_call_name.endswith(".einsum") or appended_call_name == "einsum":
-            if len(appended_value.args) < 3:
-                raise SerializationError(
-                    "Generated Python manual step call is missing einsum operands."
-                )
-            _resolve_manual_operand_id(
-                expression=appended_value.args[1],
-                expected_operand_id=comment.left_operand_id,
-                step_ids_by_results_list_index=step_ids_by_results_list_index,
-                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
-            )
-            _resolve_manual_operand_id(
-                expression=appended_value.args[2],
-                expected_operand_id=comment.right_operand_id,
-                step_ids_by_results_list_index=step_ids_by_results_list_index,
-                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
-            )
-            pending_manual_steps.append(
-                _PendingManualStep(
-                    step_id=comment.step_id,
-                    left_operand_id=comment.left_operand_id,
-                    right_operand_id=comment.right_operand_id,
-                )
-            )
-            step_ids_by_results_list_index.append(comment.step_id)
-            return
-        if (
-            appended_call_name.endswith(".contract_between")
-            or appended_call_name == "contract_between"
+        if _collect_appended_einsum_manual_step(
+            appended_value=appended_value,
+            comment=comment,
+            state=state,
         ):
-            if len(appended_value.args) < 2:
-                raise SerializationError(
-                    "Generated Python manual step call is missing contraction operands."
-                )
-            _resolve_manual_operand_id(
-                expression=appended_value.args[0],
-                expected_operand_id=comment.left_operand_id,
-                step_ids_by_results_list_index=step_ids_by_results_list_index,
-                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
-            )
-            _resolve_manual_operand_id(
-                expression=appended_value.args[1],
-                expected_operand_id=comment.right_operand_id,
-                step_ids_by_results_list_index=step_ids_by_results_list_index,
-                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
-            )
-            pending_manual_steps.append(
-                _PendingManualStep(
-                    step_id=comment.step_id,
-                    left_operand_id=comment.left_operand_id,
-                    right_operand_id=comment.right_operand_id,
-                )
-            )
-            step_ids_by_results_list_index.append(comment.step_id)
+            return
+        if _collect_appended_contract_manual_step(
+            appended_value=appended_value,
+            comment=comment,
+            state=state,
+        ):
             return
 
     call_name = _call_name(call.func)
-    if call_name.endswith(".contract_between") or call_name == "contract_between":
-        if len(call.args) < 2:
-            raise SerializationError(
-                "Generated Python manual step call is missing contraction operands."
-            )
-        left_operand_id = _parse_operand_tag_string(_literal_string(call.args[0]))
-        right_operand_id = _parse_operand_tag_string(_literal_string(call.args[1]))
-        if (
-            left_operand_id != comment.left_operand_id
-            or right_operand_id != comment.right_operand_id
-        ):
-            raise SerializationError(
-                "Generated Python manual step operands conflict with their markup."
-            )
-        pending_manual_steps.append(
-            _PendingManualStep(
-                step_id=comment.step_id,
-                left_operand_id=comment.left_operand_id,
-                right_operand_id=comment.right_operand_id,
-            )
-        )
-        step_ids_by_results_list_index.append(comment.step_id)
+    if (
+        call_name.endswith(".contract_between") or call_name == "contract_between"
+    ) and _collect_tagged_contract_manual_step(
+        call=call,
+        comment=comment,
+        state=state,
+    ):
         return
 
     raise SerializationError(
         "Generated Python manual step comment must precede a supported step statement."
     )
+
+
+def _record_pending_manual_step(
+    comment: _ManualStepComment,
+    state: _RoundtripParseState,
+) -> None:
+    """Append one recovered manual step and track its result index."""
+    state.pending_manual_steps.append(
+        _PendingManualStep(
+            step_id=comment.step_id,
+            left_operand_id=comment.left_operand_id,
+            right_operand_id=comment.right_operand_id,
+        )
+    )
+    state.step_ids_by_results_list_index.append(comment.step_id)
+
+
+def _collect_appended_einsum_manual_step(
+    *,
+    appended_value: ast.Call,
+    comment: _ManualStepComment,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one manual step emitted as ``results_list.append(einsum(...))``."""
+    appended_call_name = _call_name(appended_value.func)
+    if not (appended_call_name.endswith(".einsum") or appended_call_name == "einsum"):
+        return False
+    if len(appended_value.args) < 3:
+        raise SerializationError(
+            "Generated Python manual step call is missing einsum operands."
+        )
+    _resolve_manual_operand_id(
+        expression=appended_value.args[1],
+        expected_operand_id=comment.left_operand_id,
+        step_ids_by_results_list_index=state.step_ids_by_results_list_index,
+        preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
+    )
+    _resolve_manual_operand_id(
+        expression=appended_value.args[2],
+        expected_operand_id=comment.right_operand_id,
+        step_ids_by_results_list_index=state.step_ids_by_results_list_index,
+        preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
+    )
+    _record_pending_manual_step(comment, state)
+    return True
+
+
+def _collect_appended_contract_manual_step(
+    *,
+    appended_value: ast.Call,
+    comment: _ManualStepComment,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one manual step emitted as ``results_list.append(contract(...))``."""
+    appended_call_name = _call_name(appended_value.func)
+    if not (
+        appended_call_name.endswith(".contract_between")
+        or appended_call_name == "contract_between"
+    ):
+        return False
+    if len(appended_value.args) < 2:
+        raise SerializationError(
+            "Generated Python manual step call is missing contraction operands."
+        )
+    _resolve_manual_operand_id(
+        expression=appended_value.args[0],
+        expected_operand_id=comment.left_operand_id,
+        step_ids_by_results_list_index=state.step_ids_by_results_list_index,
+        preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
+    )
+    _resolve_manual_operand_id(
+        expression=appended_value.args[1],
+        expected_operand_id=comment.right_operand_id,
+        step_ids_by_results_list_index=state.step_ids_by_results_list_index,
+        preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
+    )
+    _record_pending_manual_step(comment, state)
+    return True
+
+
+def _collect_tagged_contract_manual_step(
+    *,
+    call: ast.Call,
+    comment: _ManualStepComment,
+    state: _RoundtripParseState,
+) -> bool:
+    """Collect one graph-backend manual step emitted with operand tags."""
+    if len(call.args) < 2:
+        raise SerializationError(
+            "Generated Python manual step call is missing contraction operands."
+        )
+    left_operand_id = _parse_operand_tag_string(_literal_string(call.args[0]))
+    right_operand_id = _parse_operand_tag_string(_literal_string(call.args[1]))
+    if (
+        left_operand_id != comment.left_operand_id
+        or right_operand_id != comment.right_operand_id
+    ):
+        raise SerializationError(
+            "Generated Python manual step operands conflict with their markup."
+        )
+    _record_pending_manual_step(comment, state)
+    return True
 
 
 def _resolve_manual_operand_id(

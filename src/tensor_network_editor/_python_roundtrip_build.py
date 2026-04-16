@@ -75,6 +75,9 @@ class _PendingManualStep:
     right_operand_id: str
 
 
+_EdgeDescriptor = tuple[str, int, str, int, str]
+
+
 def _parse_tensor_expression(
     *,
     expression: ast.expr,
@@ -256,39 +259,62 @@ def _build_edge_specs(
     tensors_by_reference: dict[str, _ParsedTensor],
     tensor_order: list[str],
     pending_edges: list[_PendingEdge],
-) -> list[tuple[str, int, str, int, str]]:
+) -> list[_EdgeDescriptor]:
     """Build normalized edge descriptors from parsed tensor references."""
     if pending_edges:
-        edge_specs: list[tuple[str, int, str, int, str]] = []
-        for pending_edge in pending_edges:
-            left_tensor = tensors_by_reference[pending_edge.left_reference]
-            right_tensor = tensors_by_reference[pending_edge.right_reference]
-            if left_tensor.index_labels is None or right_tensor.index_labels is None:
-                raise SerializationError(
-                    "Generated Python connect calls require tensor index labels."
-                )
-            try:
-                left_index_position = left_tensor.index_labels.index(
-                    pending_edge.left_index_name
-                )
-                right_index_position = right_tensor.index_labels.index(
-                    pending_edge.right_index_name
-                )
-            except ValueError as exc:
-                raise SerializationError(
-                    "Generated Python connect calls reference unknown tensor indices."
-                ) from exc
-            edge_specs.append(
-                (
-                    pending_edge.left_reference,
-                    left_index_position,
-                    pending_edge.right_reference,
-                    right_index_position,
-                    pending_edge.name,
-                )
-            )
-        return edge_specs
+        return _build_edge_specs_from_pending_edges(
+            tensors_by_reference=tensors_by_reference,
+            pending_edges=pending_edges,
+        )
+    return _infer_edge_specs_from_shared_labels(
+        tensors_by_reference=tensors_by_reference,
+        tensor_order=tensor_order,
+    )
 
+
+def _build_edge_specs_from_pending_edges(
+    *,
+    tensors_by_reference: dict[str, _ParsedTensor],
+    pending_edges: list[_PendingEdge],
+) -> list[_EdgeDescriptor]:
+    """Recover normalized edge descriptors from explicit connect calls."""
+    edge_specs: list[_EdgeDescriptor] = []
+    for pending_edge in pending_edges:
+        left_tensor = tensors_by_reference[pending_edge.left_reference]
+        right_tensor = tensors_by_reference[pending_edge.right_reference]
+        if left_tensor.index_labels is None or right_tensor.index_labels is None:
+            raise SerializationError(
+                "Generated Python connect calls require tensor index labels."
+            )
+        try:
+            left_index_position = left_tensor.index_labels.index(
+                pending_edge.left_index_name
+            )
+            right_index_position = right_tensor.index_labels.index(
+                pending_edge.right_index_name
+            )
+        except ValueError as exc:
+            raise SerializationError(
+                "Generated Python connect calls reference unknown tensor indices."
+            ) from exc
+        edge_specs.append(
+            (
+                pending_edge.left_reference,
+                left_index_position,
+                pending_edge.right_reference,
+                right_index_position,
+                pending_edge.name,
+            )
+        )
+    return edge_specs
+
+
+def _infer_edge_specs_from_shared_labels(
+    *,
+    tensors_by_reference: dict[str, _ParsedTensor],
+    tensor_order: list[str],
+) -> list[_EdgeDescriptor]:
+    """Infer normalized edge descriptors from labels shared by two tensors."""
     label_occurrences: dict[str, list[tuple[str, int]]] = {}
     for reference in tensor_order:
         parsed_tensor = tensors_by_reference[reference]
@@ -299,7 +325,7 @@ def _build_edge_specs(
         for index_position, label in enumerate(parsed_tensor.index_labels):
             label_occurrences.setdefault(label, []).append((reference, index_position))
 
-    edge_specs = []
+    edge_specs: list[_EdgeDescriptor] = []
     for label, occurrences in label_occurrences.items():
         if len(occurrences) == 2:
             edge_specs.append(
@@ -323,15 +349,44 @@ def _build_network_spec(
     *,
     tensors_by_reference: dict[str, _ParsedTensor],
     tensor_rows: list[list[str]],
-    edge_specs: list[tuple[str, int, str, int, str]],
+    edge_specs: list[_EdgeDescriptor],
     pending_manual_steps: list[_PendingManualStep] | None = None,
     preferred_tensor_ids_by_reference: dict[str, str] | None = None,
 ) -> NetworkSpec:
     """Convert parsed tensors and edges into a reconstructed ``NetworkSpec``."""
-    tensor_specs: list[TensorSpec] = []
-    tensor_id_by_reference: dict[str, str] = {}
-    index_id_by_reference_and_position: dict[tuple[str, int], str] = {}
-    used_tensor_ids: set[str] = set()
+    edge_labels = _build_edge_label_map(edge_specs)
+    (
+        tensor_specs,
+        tensor_id_by_reference,
+        index_id_by_reference_and_position,
+    ) = _build_tensor_specs(
+        tensors_by_reference=tensors_by_reference,
+        tensor_rows=tensor_rows,
+        edge_labels=edge_labels,
+        preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+    )
+    edges = _build_imported_edges(
+        edge_specs=edge_specs,
+        tensor_id_by_reference=tensor_id_by_reference,
+        index_id_by_reference_and_position=index_id_by_reference_and_position,
+    )
+    contraction_plan = _build_imported_contraction_plan(pending_manual_steps)
+
+    return NetworkSpec(
+        id="imported_python_network",
+        name="Imported Python Network",
+        tensors=tensor_specs,
+        edges=edges,
+        groups=[],
+        notes=[],
+        contraction_plan=contraction_plan,
+    )
+
+
+def _build_edge_label_map(
+    edge_specs: list[_EdgeDescriptor],
+) -> dict[tuple[str, int], str]:
+    """Map each connected tensor slot to the recovered edge label."""
     edge_labels: dict[tuple[str, int], str] = {}
     for (
         left_reference,
@@ -342,51 +397,96 @@ def _build_network_spec(
     ) in edge_specs:
         edge_labels[(left_reference, left_index_position)] = edge_name
         edge_labels[(right_reference, right_index_position)] = edge_name
+    return edge_labels
 
+
+def _resolve_imported_tensor_id(
+    *,
+    reference: str,
+    parsed_tensor: _ParsedTensor,
+    used_tensor_ids: set[str],
+    preferred_tensor_ids_by_reference: dict[str, str] | None,
+    tensor_counter: int,
+) -> tuple[str, int]:
+    """Choose one stable tensor id for a recovered tensor reference."""
+    preferred_tensor_id = None
+    if preferred_tensor_ids_by_reference is not None:
+        preferred_tensor_id = preferred_tensor_ids_by_reference.get(reference)
+    if preferred_tensor_id is None:
+        preferred_tensor_id = parsed_tensor.operand_id
+    if preferred_tensor_id is not None:
+        tensor_id = preferred_tensor_id
+    else:
+        tensor_id = f"tensor_{tensor_counter}"
+        tensor_counter += 1
+    if tensor_id in used_tensor_ids:
+        raise SerializationError(
+            "Generated Python code recovers duplicate tensor operand ids."
+        )
+    used_tensor_ids.add(tensor_id)
+    return tensor_id, tensor_counter
+
+
+def _build_imported_index_specs(
+    *,
+    reference: str,
+    tensor_id: str,
+    parsed_tensor: _ParsedTensor,
+    edge_labels: dict[tuple[str, int], str],
+    index_id_by_reference_and_position: dict[tuple[str, int], str],
+) -> list[IndexSpec]:
+    """Build recovered index specs for one parsed tensor."""
+    if parsed_tensor.index_labels is None:
+        raise SerializationError(
+            "Generated Python code is missing tensor labels required to rebuild the network."
+        )
+    index_specs: list[IndexSpec] = []
+    for index_position, label in enumerate(parsed_tensor.index_labels):
+        index_id = f"{tensor_id}_index_{index_position + 1}"
+        index_id_by_reference_and_position[(reference, index_position)] = index_id
+        index_specs.append(
+            IndexSpec(
+                id=index_id,
+                name=_recover_index_name(
+                    label=label,
+                    tensor_name=parsed_tensor.name,
+                    data_variable_name=parsed_tensor.data_variable_name,
+                    connected_edge_label=edge_labels.get((reference, index_position)),
+                ),
+                dimension=parsed_tensor.shape[index_position],
+            )
+        )
+    return index_specs
+
+
+def _build_tensor_specs(
+    *,
+    tensors_by_reference: dict[str, _ParsedTensor],
+    tensor_rows: list[list[str]],
+    edge_labels: dict[tuple[str, int], str],
+    preferred_tensor_ids_by_reference: dict[str, str] | None,
+) -> tuple[
+    list[TensorSpec],
+    dict[str, str],
+    dict[tuple[str, int], str],
+]:
+    """Build recovered tensors plus the reference maps needed for edges."""
+    tensor_specs: list[TensorSpec] = []
+    tensor_id_by_reference: dict[str, str] = {}
+    index_id_by_reference_and_position: dict[tuple[str, int], str] = {}
+    used_tensor_ids: set[str] = set()
     tensor_counter = 1
     for row_index, row_references in enumerate(tensor_rows):
         for column_index, reference in enumerate(row_references):
             parsed_tensor = tensors_by_reference[reference]
-            if parsed_tensor.index_labels is None:
-                raise SerializationError(
-                    "Generated Python code is missing tensor labels required to rebuild the network."
-                )
-            preferred_tensor_id = None
-            if preferred_tensor_ids_by_reference is not None:
-                preferred_tensor_id = preferred_tensor_ids_by_reference.get(reference)
-            if preferred_tensor_id is None:
-                preferred_tensor_id = parsed_tensor.operand_id
-            if preferred_tensor_id is not None:
-                tensor_id = preferred_tensor_id
-            else:
-                tensor_id = f"tensor_{tensor_counter}"
-                tensor_counter += 1
-            if tensor_id in used_tensor_ids:
-                raise SerializationError(
-                    "Generated Python code recovers duplicate tensor operand ids."
-                )
-            used_tensor_ids.add(tensor_id)
+            tensor_id, tensor_counter = _resolve_imported_tensor_id(
+                reference=reference,
+                parsed_tensor=parsed_tensor,
+                used_tensor_ids=used_tensor_ids,
+                preferred_tensor_ids_by_reference=preferred_tensor_ids_by_reference,
+                tensor_counter=tensor_counter,
+            )
             tensor_id_by_reference[reference] = tensor_id
-            index_specs: list[IndexSpec] = []
-            for index_position, label in enumerate(parsed_tensor.index_labels):
-                index_id = f"{tensor_id}_index_{index_position + 1}"
-                index_id_by_reference_and_position[(reference, index_position)] = (
-                    index_id
-                )
-                index_specs.append(
-                    IndexSpec(
-                        id=index_id,
-                        name=_recover_index_name(
-                            label=label,
-                            tensor_name=parsed_tensor.name,
-                            data_variable_name=parsed_tensor.data_variable_name,
-                            connected_edge_label=edge_labels.get(
-                                (reference, index_position)
-                            ),
-                        ),
-                        dimension=parsed_tensor.shape[index_position],
-                    )
-                )
             tensor_specs.append(
                 TensorSpec(
                     id=tensor_id,
@@ -396,11 +496,28 @@ def _build_network_spec(
                         y=160.0 + row_index * 180.0,
                     ),
                     size=TensorSize(),
-                    indices=index_specs,
+                    indices=_build_imported_index_specs(
+                        reference=reference,
+                        tensor_id=tensor_id,
+                        parsed_tensor=parsed_tensor,
+                        edge_labels=edge_labels,
+                        index_id_by_reference_and_position=(
+                            index_id_by_reference_and_position
+                        ),
+                    ),
                 )
             )
+    return tensor_specs, tensor_id_by_reference, index_id_by_reference_and_position
 
-    edges = [
+
+def _build_imported_edges(
+    *,
+    edge_specs: list[_EdgeDescriptor],
+    tensor_id_by_reference: dict[str, str],
+    index_id_by_reference_and_position: dict[tuple[str, int], str],
+) -> list[EdgeSpec]:
+    """Build recovered edge specs from normalized edge descriptors."""
+    return [
         EdgeSpec(
             id=f"edge_{edge_index + 1}",
             name=edge_name,
@@ -426,31 +543,26 @@ def _build_network_spec(
         ) in enumerate(edge_specs)
     ]
 
-    contraction_plan = None
-    if pending_manual_steps:
-        contraction_plan = ContractionPlanSpec(
-            id="imported_contraction_plan",
-            name="Imported manual contraction path",
-            steps=[
-                ContractionStepSpec(
-                    id=step.step_id,
-                    left_operand_id=step.left_operand_id,
-                    right_operand_id=step.right_operand_id,
-                )
-                for step in pending_manual_steps
-            ],
-            view_snapshots=[],
-            metadata={},
-        )
 
-    return NetworkSpec(
-        id="imported_python_network",
-        name="Imported Python Network",
-        tensors=tensor_specs,
-        edges=edges,
-        groups=[],
-        notes=[],
-        contraction_plan=contraction_plan,
+def _build_imported_contraction_plan(
+    pending_manual_steps: list[_PendingManualStep] | None,
+) -> ContractionPlanSpec | None:
+    """Build the imported manual contraction plan when one was recovered."""
+    if not pending_manual_steps:
+        return None
+    return ContractionPlanSpec(
+        id="imported_contraction_plan",
+        name="Imported manual contraction path",
+        steps=[
+            ContractionStepSpec(
+                id=step.step_id,
+                left_operand_id=step.left_operand_id,
+                right_operand_id=step.right_operand_id,
+            )
+            for step in pending_manual_steps
+        ],
+        view_snapshots=[],
+        metadata={},
     )
 
 
