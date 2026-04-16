@@ -1,23 +1,96 @@
+function noop() {}
+
+function resolveContextAction(ctx, name) {
+  return (...args) => {
+    if (typeof ctx[name] === "function") {
+      return ctx[name](...args);
+    }
+    return undefined;
+  };
+}
+
 export function createInteractionShortcutBindings({
   ctx,
   state,
   dom,
   runtime,
+  shortcutActions = {},
 }) {
+  const { engineSelect, helpCloseButton, helpModal, loadInput } = dom;
+  const resolvedShortcutActions = {
+    toggleSidebarCollapsed:
+      shortcutActions.toggleSidebarCollapsed ||
+      resolveContextAction(ctx, "toggleSidebarCollapsed"),
+    setActiveSidebarTab:
+      shortcutActions.setActiveSidebarTab ||
+      resolveContextAction(ctx, "setActiveSidebarTab"),
+    enforceLinearPeriodicEngineSupport:
+      shortcutActions.enforceLinearPeriodicEngineSupport ||
+      resolveContextAction(ctx, "enforceLinearPeriodicEngineSupport"),
+    renderPlanner:
+      shortcutActions.renderPlanner || resolveContextAction(ctx, "renderPlanner"),
+    startAutomaticPreview:
+      shortcutActions.startAutomaticPreview ||
+      resolveContextAction(ctx, "startAutomaticPreview"),
+    acceptAutomaticPlan:
+      shortcutActions.acceptAutomaticPlan ||
+      resolveContextAction(ctx, "acceptAutomaticPlan"),
+    toggleMinimapVisibility:
+      shortcutActions.toggleMinimapVisibility ||
+      resolveContextAction(ctx, "toggleMinimapVisibility"),
+    syncPendingInteractionClasses:
+      shortcutActions.syncPendingInteractionClasses ||
+      resolveContextAction(ctx, "syncPendingInteractionClasses"),
+    clearAutomaticPreview:
+      shortcutActions.clearAutomaticPreview ||
+      resolveContextAction(ctx, "clearAutomaticPreview"),
+    clearPastInspection:
+      shortcutActions.clearPastInspection ||
+      resolveContextAction(ctx, "clearPastInspection"),
+    copySelectedSubgraphToClipboard:
+      shortcutActions.copySelectedSubgraphToClipboard ||
+      resolveContextAction(ctx, "copySelectedSubgraphToClipboard"),
+    pasteClipboardToCanvas:
+      shortcutActions.pasteClipboardToCanvas ||
+      resolveContextAction(ctx, "pasteClipboardToCanvas"),
+    trimContractionPlan:
+      shortcutActions.trimContractionPlan ||
+      resolveContextAction(ctx, "trimContractionPlan"),
+    togglePlannerMode:
+      shortcutActions.togglePlannerMode ||
+      resolveContextAction(ctx, "togglePlannerMode"),
+    createGroupFromSelection:
+      shortcutActions.createGroupFromSelection ||
+      resolveContextAction(ctx, "createGroupFromSelection"),
+    addNoteAtCenter:
+      shortcutActions.addNoteAtCenter || resolveContextAction(ctx, "addNoteAtCenter"),
+    toggleLinearPeriodicMode:
+      shortcutActions.toggleLinearPeriodicMode ||
+      resolveContextAction(ctx, "toggleLinearPeriodicMode"),
+  };
   const {
-    engineSelect,
-    helpCloseButton,
-    helpModal,
-    loadInput,
-  } = dom;
+    toggleSidebarCollapsed = noop,
+    setActiveSidebarTab = noop,
+    enforceLinearPeriodicEngineSupport = noop,
+    renderPlanner = noop,
+    startAutomaticPreview = noop,
+    acceptAutomaticPlan = noop,
+    toggleMinimapVisibility = noop,
+    syncPendingInteractionClasses = noop,
+    clearAutomaticPreview = noop,
+    clearPastInspection = noop,
+    copySelectedSubgraphToClipboard = noop,
+    pasteClipboardToCanvas = noop,
+    trimContractionPlan = noop,
+    togglePlannerMode = noop,
+    createGroupFromSelection = noop,
+    addNoteAtCenter = noop,
+    toggleLinearPeriodicMode = noop,
+  } = resolvedShortcutActions;
 
   function openSidebarTab(tabName) {
-    if (typeof ctx.toggleSidebarCollapsed === "function") {
-      ctx.toggleSidebarCollapsed(false);
-    }
-    if (typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab(tabName);
-    }
+    toggleSidebarCollapsed(false);
+    setActiveSidebarTab(tabName);
   }
 
   function setSelectedEngine(engineName) {
@@ -33,43 +106,29 @@ export function createInteractionShortcutBindings({
     }
     state.selectedEngine = engineName;
     engineSelect.value = engineName;
-    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
-      ctx.enforceLinearPeriodicEngineSupport();
-    }
-    if (typeof ctx.renderPlanner === "function") {
-      ctx.renderPlanner();
-    }
+    enforceLinearPeriodicEngineSupport();
+    renderPlanner();
     ctx.updateToolbarState();
     ctx.setStatus(`Engine set to ${ctx.formatEngineLabel(engineName)}.`, "success");
   }
 
   function toggleAutomaticPreview(mode) {
     openSidebarTab("planner");
-    if (typeof ctx.startAutomaticPreview === "function") {
-      ctx.startAutomaticPreview(mode);
-    }
+    startAutomaticPreview(mode);
   }
 
   function acceptAutomaticShortcut(mode) {
     openSidebarTab("planner");
-    if (typeof ctx.acceptAutomaticPlan === "function") {
-      ctx.acceptAutomaticPlan(mode);
-    }
+    acceptAutomaticPlan(mode);
   }
 
   function toggleSidebarVisibility() {
-    if (typeof ctx.toggleSidebarCollapsed !== "function") {
-      return;
-    }
-    ctx.toggleSidebarCollapsed();
+    toggleSidebarCollapsed();
     ctx.setStatus(state.sidebarCollapsed ? "Sidebar collapsed." : "Sidebar expanded.");
   }
 
-  function toggleMinimapVisibility() {
-    if (typeof ctx.toggleMinimapVisibility !== "function") {
-      return;
-    }
-    ctx.toggleMinimapVisibility();
+  function toggleMinimapShortcut() {
+    toggleMinimapVisibility();
     ctx.setStatus(state.minimapHidden ? "Minimap hidden." : "Minimap shown.");
   }
 
@@ -99,9 +158,7 @@ export function createInteractionShortcutBindings({
       if (state.connectMode) {
         state.pendingIndexId = null;
         state.connectMode = false;
-        if (typeof ctx.syncPendingInteractionClasses === "function") {
-          ctx.syncPendingInteractionClasses();
-        }
+        syncPendingInteractionClasses();
         ctx.render();
         ctx.setStatus("Connect mode cancelled.");
         return;
@@ -109,31 +166,21 @@ export function createInteractionShortcutBindings({
       if (state.pendingPlannerOperandId) {
         state.pendingPlannerOperandId = null;
         state.pendingPlannerSelectionId = null;
-        if (typeof ctx.syncPendingInteractionClasses === "function") {
-          ctx.syncPendingInteractionClasses();
-        }
-        if (typeof ctx.renderPlanner === "function") {
-          ctx.renderPlanner();
-        }
+        syncPendingInteractionClasses();
+        renderPlanner();
         ctx.renderOverlayDecorations();
         ctx.setStatus("Manual planner operand selection cleared.");
         return;
       }
       if (state.plannerPreviewMode) {
-        if (typeof ctx.clearAutomaticPreview === "function") {
-          ctx.clearAutomaticPreview();
-        } else {
-          state.plannerPreviewMode = null;
-        }
+        clearAutomaticPreview();
+        state.plannerPreviewMode = null;
         ctx.render();
         ctx.setStatus("Automatic preview cleared.");
         return;
       }
-      if (
-        Number.isInteger(state.plannerInspectionStepCount) &&
-        typeof ctx.clearPastInspection === "function"
-      ) {
-        ctx.clearPastInspection();
+      if (Number.isInteger(state.plannerInspectionStepCount)) {
+        clearPastInspection();
         ctx.render();
         ctx.setStatus("Returned to the latest contracted view.");
         return;
@@ -203,22 +250,18 @@ export function createInteractionShortcutBindings({
     }
     if (hasModifier && lowerKey === "c") {
       event.preventDefault();
-      if (typeof ctx.copySelectedSubgraphToClipboard === "function") {
-        ctx.copySelectedSubgraphToClipboard();
-      }
+      copySelectedSubgraphToClipboard();
       return;
     }
     if (hasModifier && lowerKey === "v") {
       event.preventDefault();
-      if (typeof ctx.pasteClipboardToCanvas === "function") {
-        ctx.pasteClipboardToCanvas();
-      }
+      pasteClipboardToCanvas();
       return;
     }
     if (event.shiftKey && lowerKey === "r") {
       event.preventDefault();
-      if (typeof ctx.trimContractionPlan === "function" && state.spec.contraction_plan) {
-        ctx.trimContractionPlan(0);
+      if (state.spec.contraction_plan) {
+        trimContractionPlan(0);
       } else {
         ctx.setStatus("There is no contraction path to reset.");
       }
@@ -236,7 +279,7 @@ export function createInteractionShortcutBindings({
     }
     if (event.shiftKey && lowerKey === "m") {
       event.preventDefault();
-      toggleMinimapVisibility();
+      toggleMinimapShortcut();
       return;
     }
     if (lowerKey === "a") {
@@ -247,9 +290,7 @@ export function createInteractionShortcutBindings({
     if (lowerKey === "m") {
       event.preventDefault();
       openSidebarTab("planner");
-      if (typeof ctx.togglePlannerMode === "function") {
-        ctx.togglePlannerMode();
-      }
+      togglePlannerMode();
       return;
     }
     if (event.shiftKey && lowerKey === "g") {
@@ -264,9 +305,7 @@ export function createInteractionShortcutBindings({
     }
     if (lowerKey === "g") {
       event.preventDefault();
-      if (typeof ctx.createGroupFromSelection === "function") {
-        ctx.createGroupFromSelection();
-      }
+      createGroupFromSelection();
       return;
     }
     if (lowerKey === "t") {
@@ -276,16 +315,12 @@ export function createInteractionShortcutBindings({
     }
     if (lowerKey === "p") {
       event.preventDefault();
-      if (typeof ctx.addNoteAtCenter === "function") {
-        ctx.addNoteAtCenter();
-      }
+      addNoteAtCenter();
       return;
     }
     if (lowerKey === "f") {
       event.preventDefault();
-      if (typeof ctx.toggleLinearPeriodicMode === "function") {
-        ctx.toggleLinearPeriodicMode();
-      }
+      toggleLinearPeriodicMode();
       return;
     }
     if (lowerKey === "n") {

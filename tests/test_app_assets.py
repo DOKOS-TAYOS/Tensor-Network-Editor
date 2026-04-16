@@ -293,7 +293,7 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert 'if (event.shiftKey && lowerKey === "r") {' in body
     assert "trimContractionPlan(0);" in body
     assert 'if (lowerKey === "f") {' in body
-    assert "ctx.toggleLinearPeriodicMode();" in body
+    assert "toggleLinearPeriodicMode();" in body
 
 
 def test_overlays_asset_reuses_shared_tensor_size_helpers(
@@ -1037,7 +1037,24 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     editor_server: EditorServer,
 ) -> None:
     history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
+    history_snapshots_body = request_text(
+        f"{editor_server.base_url}/js/state/historySnapshots.js"
+    )
+    history_selection_body = request_text(
+        f"{editor_server.base_url}/js/state/selectionEntries.js"
+    )
+    history_pipeline_body = request_text(
+        f"{editor_server.base_url}/js/actions/designMutationPipeline.js"
+    )
     utilities_body = request_utilities_runtime_bundle(editor_server)
+    utilities_spec_body = request_text(f"{editor_server.base_url}/js/utilitiesSpec.js")
+    spec_normalization_body = request_text(
+        f"{editor_server.base_url}/js/spec/specNormalization.js"
+    )
+    spec_lookups_body = request_text(f"{editor_server.base_url}/js/spec/specLookups.js")
+    spec_mutations_body = request_text(
+        f"{editor_server.base_url}/js/spec/specMutations.js"
+    )
     state_body = request_text(f"{editor_server.base_url}/js/state.js")
     notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
     properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
@@ -1060,12 +1077,28 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
         "JSON.stringify(leftSnapshot) === JSON.stringify(rightSnapshot)"
         not in history_body
     )
-    assert "function normalizeInvalidations(" in history_body
+    assert 'from "./state/historySnapshots.js"' in history_body
+    assert 'from "./state/selectionEntries.js"' in history_body
+    assert 'from "./actions/designMutationPipeline.js"' in history_body
+    assert "function normalizeInvalidations(" not in history_body
+    assert "function createHistorySnapshot(" not in history_body
+    assert "function getSelectedEntries(" not in history_body
+    assert "function createHistorySnapshotSupport(" in history_snapshots_body
+    assert "function createSelectionEntrySupport(" in history_selection_body
+    assert "function createDesignMutationPipeline(" in history_pipeline_body
     assert "structuredClone" in utilities_body
-    assert "function ensureSpecLookups()" in utilities_body
     assert "function toggleLinearPeriodicMode()" in utilities_body
     assert "function switchLinearPeriodicCell(direction)" in utilities_body
     assert "linear_periodic_chain" in utilities_body
+    assert 'from "./spec/specNormalization.js"' in utilities_spec_body
+    assert 'from "./spec/specLookups.js"' in utilities_spec_body
+    assert 'from "./spec/specMutations.js"' in utilities_spec_body
+    assert "function normalizeGraphSectionInPlace(" not in utilities_spec_body
+    assert "function ensureSpecLookups(" not in utilities_spec_body
+    assert "function createSpecNormalizationBindings(" in spec_normalization_body
+    assert "function createSpecLookupBindings(" in spec_lookups_body
+    assert "function ensureSpecLookups()" in spec_lookups_body
+    assert "function createSpecMutationBindings(" in spec_mutations_body
     assert "tensorById: {}" in state_body
     assert "edgeById: {}" in state_body
     assert "indexOwnerById: {}" in state_body
@@ -1077,7 +1110,7 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
         "invalidate: selectionColorInvalidation(selectedEntries)"
         in properties_renderers_body + properties_bindings_body
     )
-    assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
+    assert 'if (typeof ctx.bumpSpecRevision === "function")' not in interactions_body
     assert "startOffset:" in graph_body
     assert "createGraphElementModelBuilder" in graph_model_body
     assert "createCytoscapeGraphAdapter" in graph_adapter_body
@@ -1100,7 +1133,7 @@ def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
     history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
-    assert "ctx.syncCurrentGraphIntoLinearPeriodicChain();" in history_body
+    assert "syncCurrentGraphIntoLinearPeriodicChain:" in history_body
     assert "function syncLinearPeriodicChainInterfaceDimensions(" in utilities_body
     assert "function getCanonicalLinearPeriodicInterfaceDimensions(" in utilities_body
     assert "boundaryTensor.indices = resolvedInterfaceDimensions.map(" in utilities_body
@@ -1143,7 +1176,9 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/js/actions/propertyCommands.js")
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
-    utilities_body = request_utilities_runtime_bundle(editor_server)
+    spec_mutations_body = request_text(
+        f"{editor_server.base_url}/js/spec/specMutations.js"
+    )
 
     assert 'from "./properties/propertyInvalidation.js"' in support_body
     assert "createPropertyInvalidationSupport" in support_body
@@ -1153,10 +1188,10 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
     assert "syncConnectedIndexDimension(indexId, parsed);" in body
     assert (
         "function syncConnectedIndexDimension(indexId, nextDimension) {"
-        in utilities_body
+        in spec_mutations_body
     )
-    assert "const connectedEdge = findEdgeByIndexId(indexId);" in utilities_body
-    assert "connectedOwner.index.dimension = nextDimension;" in utilities_body
+    assert "const connectedEdge = findEdgeByIndexId(indexId);" in spec_mutations_body
+    assert "connectedOwner.index.dimension = nextDimension;" in spec_mutations_body
 
 
 def test_planner_assets_expose_total_elements_and_step_spacing(

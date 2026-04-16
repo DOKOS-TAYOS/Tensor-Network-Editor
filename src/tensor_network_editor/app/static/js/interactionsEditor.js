@@ -1,8 +1,91 @@
-export function createInteractionEditorBindings({ ctx, state, runtime }) {
+function noop() {}
+
+function resolveContextAction(ctx, name) {
+  return (...args) => {
+    if (typeof ctx[name] === "function") {
+      return ctx[name](...args);
+    }
+    return undefined;
+  };
+}
+
+function resolveContextValue(ctx, name, fallback) {
+  return typeof ctx[name] === "function" ? ctx[name].bind(ctx) : fallback;
+}
+
+export function createInteractionEditorBindings({
+  ctx,
+  state,
+  runtime,
+  editorActions = {},
+}) {
   const { window } = ctx;
+  const resolvedEditorActions = {
+    bumpSpecRevision:
+      editorActions.bumpSpecRevision || resolveContextAction(ctx, "bumpSpecRevision"),
+    enforceLinearPeriodicEngineSupport:
+      editorActions.enforceLinearPeriodicEngineSupport ||
+      resolveContextAction(ctx, "enforceLinearPeriodicEngineSupport"),
+    refreshContractionAnalysis:
+      editorActions.refreshContractionAnalysis ||
+      resolveContextAction(ctx, "refreshContractionAnalysis"),
+    findVisibleTensorById:
+      editorActions.findVisibleTensorById ||
+      resolveContextValue(ctx, "findVisibleTensorById", (tensorId) =>
+        ctx.findTensorById(tensorId)
+      ),
+    canEditCurrentContractionStage:
+      editorActions.canEditCurrentContractionStage ||
+      resolveContextValue(ctx, "canEditCurrentContractionStage", () => false),
+    updateCurrentStageOperandLayout:
+      editorActions.updateCurrentStageOperandLayout ||
+      resolveContextAction(ctx, "updateCurrentStageOperandLayout"),
+    isInspectingPastStage:
+      editorActions.isInspectingPastStage ||
+      resolveContextValue(ctx, "isInspectingPastStage", () => false),
+    resolveConnectableIndexOwner:
+      editorActions.resolveConnectableIndexOwner ||
+      resolveContextValue(ctx, "resolveConnectableIndexOwner", (indexId) =>
+        ctx.findIndexOwner(indexId)
+      ),
+    toggleSidebarCollapsed:
+      editorActions.toggleSidebarCollapsed ||
+      resolveContextAction(ctx, "toggleSidebarCollapsed"),
+    setActiveSidebarTab:
+      editorActions.setActiveSidebarTab ||
+      resolveContextAction(ctx, "setActiveSidebarTab"),
+    syncPendingInteractionClasses:
+      editorActions.syncPendingInteractionClasses ||
+      resolveContextAction(ctx, "syncPendingInteractionClasses"),
+    findVisibleEdgeSelectionIdByBaseEdgeId:
+      editorActions.findVisibleEdgeSelectionIdByBaseEdgeId ||
+      resolveContextValue(ctx, "findVisibleEdgeSelectionIdByBaseEdgeId", (edgeId) =>
+        edgeId
+      ),
+    removeNote: editorActions.removeNote || resolveContextAction(ctx, "removeNote"),
+  };
+  const {
+    bumpSpecRevision = noop,
+    enforceLinearPeriodicEngineSupport = noop,
+    refreshContractionAnalysis = noop,
+    findVisibleTensorById = (tensorId) => ctx.findTensorById(tensorId),
+    canEditCurrentContractionStage = () => false,
+    updateCurrentStageOperandLayout = noop,
+    isInspectingPastStage = () => false,
+    resolveConnectableIndexOwner = (indexId) => ctx.findIndexOwner(indexId),
+    toggleSidebarCollapsed = noop,
+    setActiveSidebarTab = noop,
+    syncPendingInteractionClasses = noop,
+    findVisibleEdgeSelectionIdByBaseEdgeId = (edgeId) => edgeId,
+    removeNote = noop,
+  } = resolvedEditorActions;
 
   function handleNewDesign() {
-    if (!window.confirm("Start a new design? Unsaved changes in this browser tab will be lost.")) {
+    if (
+      !window.confirm(
+        "Start a new design? Unsaved changes in this browser tab will be lost."
+      )
+    ) {
       return;
     }
 
@@ -24,9 +107,7 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
 
   function resetDesignState(spec, message, schemaVersion = state.schemaVersion) {
     state.spec = ctx.normalizeSpec(spec);
-    if (typeof ctx.bumpSpecRevision === "function") {
-      ctx.bumpSpecRevision();
-    }
+    bumpSpecRevision();
     state.schemaVersion = schemaVersion;
     state.generatedCode = "";
     state.lastImportedTensorIds = [];
@@ -54,15 +135,11 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
       : [];
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
-    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
-      ctx.enforceLinearPeriodicEngineSupport();
-    }
+    enforceLinearPeriodicEngineSupport();
     ctx.reconcileTensorOrder();
     ctx.clearHistory();
     ctx.render();
-    if (typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis();
-    }
+    refreshContractionAnalysis();
     ctx.setStatus(message, "success");
   }
 
@@ -81,8 +158,10 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
   function isTensorPositionOccupied(candidate) {
     return state.spec.tensors.some((tensor) => {
       return (
-        Math.abs(tensor.position.x - candidate.x) < Math.max(170, ctx.tensorWidth(tensor) * 0.8) &&
-        Math.abs(tensor.position.y - candidate.y) < Math.max(120, ctx.tensorHeight(tensor) * 0.8)
+        Math.abs(tensor.position.x - candidate.x) <
+          Math.max(170, ctx.tensorWidth(tensor) * 0.8) &&
+        Math.abs(tensor.position.y - candidate.y) <
+          Math.max(120, ctx.tensorHeight(tensor) * 0.8)
       );
     });
   }
@@ -135,20 +214,13 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
   }
 
   function centerTensor(tensorId) {
-    const tensor =
-      typeof ctx.findVisibleTensorById === "function"
-        ? ctx.findVisibleTensorById(tensorId)
-        : ctx.findTensorById(tensorId);
+    const tensor = findVisibleTensorById(tensorId);
     if (!tensor) {
       return;
     }
     const center = viewportCenterPosition();
-    if (
-      typeof ctx.canEditCurrentContractionStage === "function" &&
-      ctx.canEditCurrentContractionStage() &&
-      typeof ctx.updateCurrentStageOperandLayout === "function"
-    ) {
-      ctx.updateCurrentStageOperandLayout(tensor.id, { position: center });
+    if (canEditCurrentContractionStage()) {
+      updateCurrentStageOperandLayout(tensor.id, { position: center });
       tensor.position.x = center.x;
       tensor.position.y = center.y;
       return;
@@ -162,12 +234,11 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
   }
 
   function toggleConnectMode() {
-    if (
-      !state.connectMode &&
-      typeof ctx.isInspectingPastStage === "function" &&
-      ctx.isInspectingPastStage()
-    ) {
-      ctx.setStatus("Return to the latest contraction step before editing ports.", "error");
+    if (!state.connectMode && isInspectingPastStage()) {
+      ctx.setStatus(
+        "Return to the latest contraction step before editing ports.",
+        "error"
+      );
       return;
     }
     state.connectMode = !state.connectMode;
@@ -182,13 +253,13 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
 
   function handleConnectClick(indexId) {
     if (ctx.findEdgeByIndexId(indexId)) {
-      ctx.setStatus("This index is already connected. Delete the connection first.", "error");
+      ctx.setStatus(
+        "This index is already connected. Delete the connection first.",
+        "error"
+      );
       return;
     }
-    const located =
-      typeof ctx.resolveConnectableIndexOwner === "function"
-        ? ctx.resolveConnectableIndexOwner(indexId)
-        : ctx.findIndexOwner(indexId);
+    const located = resolveConnectableIndexOwner(indexId);
     if (!located) {
       ctx.setStatus(
         "This port is not available for new connections in the current view.",
@@ -197,46 +268,38 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
       return;
     }
     if (ctx.findEdgeByIndexId(located.index.id)) {
-      ctx.setStatus("This index is already connected. Delete the connection first.", "error");
+      ctx.setStatus(
+        "This index is already connected. Delete the connection first.",
+        "error"
+      );
       return;
     }
 
     if (!state.pendingIndexId) {
       state.pendingIndexId = indexId;
-      if (typeof ctx.toggleSidebarCollapsed === "function") {
-        ctx.toggleSidebarCollapsed(false);
-      }
-      if (typeof ctx.setActiveSidebarTab === "function") {
-        ctx.setActiveSidebarTab("selection");
-      }
+      toggleSidebarCollapsed(false);
+      setActiveSidebarTab("selection");
       ctx.setSelectedElement("index", indexId);
-      if (typeof ctx.syncPendingInteractionClasses === "function") {
-        ctx.syncPendingInteractionClasses();
-      }
+      syncPendingInteractionClasses();
       ctx.renderOverlayDecorations();
-      ctx.setStatus("First index selected. Click another compatible open index to connect.");
+      ctx.setStatus(
+        "First index selected. Click another compatible open index to connect."
+      );
       return;
     }
 
     if (state.pendingIndexId === indexId) {
       state.pendingIndexId = null;
-      if (typeof ctx.syncPendingInteractionClasses === "function") {
-        ctx.syncPendingInteractionClasses();
-      }
+      syncPendingInteractionClasses();
       ctx.renderOverlayDecorations();
       ctx.setStatus("Connection cancelled.");
       return;
     }
 
-    const left =
-      typeof ctx.resolveConnectableIndexOwner === "function"
-        ? ctx.resolveConnectableIndexOwner(state.pendingIndexId)
-        : ctx.findIndexOwner(state.pendingIndexId);
+    const left = resolveConnectableIndexOwner(state.pendingIndexId);
     if (!left) {
       state.pendingIndexId = null;
-      if (typeof ctx.syncPendingInteractionClasses === "function") {
-        ctx.syncPendingInteractionClasses();
-      }
+      syncPendingInteractionClasses();
       ctx.renderOverlayDecorations();
       return;
     }
@@ -268,15 +331,10 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
         });
       },
       {
-        selectionIds: [
-          typeof ctx.findVisibleEdgeSelectionIdByBaseEdgeId === "function"
-            ? ctx.findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId)
-            : newEdgeId,
-        ].filter(Boolean),
-        primaryId:
-          typeof ctx.findVisibleEdgeSelectionIdByBaseEdgeId === "function"
-            ? ctx.findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId)
-            : newEdgeId,
+        selectionIds: [findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId)].filter(
+          Boolean
+        ),
+        primaryId: findVisibleEdgeSelectionIdByBaseEdgeId(newEdgeId),
         statusMessage: "Connection created.",
       }
     );
@@ -329,13 +387,13 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
     });
 
     if (selectedGroupIds.size) {
-      state.spec.groups = state.spec.groups.filter((group) => !selectedGroupIds.has(group.id));
+      state.spec.groups = state.spec.groups.filter(
+        (group) => !selectedGroupIds.has(group.id)
+      );
     }
 
     selectedNoteIds.forEach((noteId) => {
-      if (typeof ctx.removeNote === "function") {
-        ctx.removeNote(noteId);
-      }
+      removeNote(noteId);
     });
   }
 
@@ -347,7 +405,8 @@ export function createInteractionEditorBindings({ ctx, state, runtime }) {
     const selectedEntries = ctx.getSelectedEntries();
     const hasMutableSelection = selectedEntries.some(
       (entry) =>
-        (entry.kind === "tensor" && !ctx.isLinearPeriodicBoundaryTensor(entry.tensor)) ||
+        (entry.kind === "tensor" &&
+          !ctx.isLinearPeriodicBoundaryTensor(entry.tensor)) ||
         (entry.kind === "index" &&
           !ctx.isLinearPeriodicBoundaryTensor(entry.located.tensor)) ||
         entry.kind === "contraction-tensor" ||

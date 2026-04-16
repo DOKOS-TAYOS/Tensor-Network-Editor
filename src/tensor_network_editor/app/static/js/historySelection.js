@@ -1,118 +1,17 @@
+import { createDesignMutationPipeline } from "./actions/designMutationPipeline.js";
+import { createHistorySnapshotSupport } from "./state/historySnapshots.js";
+import { createSelectionEntrySupport } from "./state/selectionEntries.js";
+
 export function registerHistorySelection(ctx) {
   const state = ctx.state;
-  const {
-    TENSOR_WIDTH,
-    TENSOR_HEIGHT,
-    MIN_TENSOR_WIDTH,
-    MIN_TENSOR_HEIGHT,
-    INDEX_RADIUS,
-    INDEX_PADDING,
-    HISTORY_LIMIT,
-    REDO_SHORTCUT_LABEL,
-    DEFAULT_INDEX_SLOTS,
-  } = ctx.constants;
-  const {
-    statusMessage,
-    propertiesPanel,
-    generatedCode,
-    engineSelect,
-    connectButton,
-    loadInput,
-    undoButton,
-    redoButton,
-    exportPyButton,
-    exportPngButton,
-    exportSvgButton,
-    templateSelect,
-    insertTemplateButton,
-    createGroupButton,
-    helpButton,
-    helpModal,
-    helpBackdrop,
-    helpCloseButton,
-    canvasShell,
-    groupLayer,
-    resizeLayer,
-    selectionBox,
-    minimapCanvas,
-  } = ctx.dom;
-  const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  const { HISTORY_LIMIT } = ctx.constants;
+  const { generatedCode } = ctx.dom;
 
-  function clearHistory() {
-    state.undoStack = [];
-    state.redoStack = [];
-    ctx.updateToolbarState();
-  }
-
-  function createHistorySnapshot() {
-    return {
-      spec:
-        typeof ctx.buildHistorySnapshotSpec === "function"
-          ? ctx.buildHistorySnapshotSpec()
-          : ctx.deepClone(state.spec),
-      tensorOrder: Array.isArray(state.tensorOrder) ? [...state.tensorOrder] : [],
-    };
-  }
-
-  function commitHistorySnapshot(previousSnapshot) {
-    state.undoStack.push(previousSnapshot);
-    if (state.undoStack.length > HISTORY_LIMIT) {
-      state.undoStack.shift();
+  function callOptionalContext(name, ...args) {
+    if (typeof ctx[name] === "function") {
+      return ctx[name](...args);
     }
-    state.redoStack = [];
-    state.lastMutationClearedCode = clearGeneratedCodePreview();
-    ctx.updateToolbarState();
-    return true;
-  }
-
-  function restoreHistorySnapshot(snapshot) {
-    state.spec = ctx.normalizeSpec(snapshot.spec);
-    state.tensorOrder = Array.isArray(snapshot.tensorOrder) ? [...snapshot.tensorOrder] : [];
-    if (typeof ctx.bumpSpecRevision === "function") {
-      ctx.bumpSpecRevision();
-    }
-    ctx.reconcileTensorOrder();
-    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
-      ctx.enforceLinearPeriodicEngineSupport();
-    }
-    state.pendingIndexId = null;
-    state.pendingPlannerOperandId = null;
-    state.pendingPlannerSelectionId = null;
-    state.plannerInspectionStepCount = null;
-    state.plannerPreviewMode = null;
-    state.plannerFutureBadgeDisclosure = {};
-    state.activeNoteResize = null;
-    state.activeSidebarTab = "selection";
-    state.pendingPropertiesIndexFocusId = null;
-    state.autoExpandedTensorIndex = null;
-    state.tensorIndexDisclosureState = {};
-    clearGeneratedCodePreview();
-    pruneSelectionToExisting();
-    ctx.render();
-    if (typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis();
-    }
-    ctx.updateToolbarState();
-  }
-
-  function performUndo() {
-    if (!state.undoStack.length) {
-      ctx.setStatus("There is nothing to undo.");
-      return;
-    }
-    state.redoStack.push(createHistorySnapshot());
-    restoreHistorySnapshot(state.undoStack.pop());
-    ctx.setStatus("Undo applied.", "success");
-  }
-
-  function performRedo() {
-    if (!state.redoStack.length) {
-      ctx.setStatus("There is nothing to redo.");
-      return;
-    }
-    state.undoStack.push(createHistorySnapshot());
-    restoreHistorySnapshot(state.redoStack.pop());
-    ctx.setStatus("Redo applied.", "success");
+    return undefined;
   }
 
   function clearGeneratedCodePreview() {
@@ -126,277 +25,16 @@ export function registerHistorySelection(ctx) {
     return hadGeneratedCode;
   }
 
-  function buildDesignStatusMessage(baseMessage, previewCleared) {
-    if (!previewCleared) {
-      return baseMessage;
-    }
-    return `${baseMessage} Generated code preview cleared; generate again to refresh it.`;
-  }
-
-  function normalizeInvalidations(overrides = {}) {
-    return {
-      graph: true,
-      lookups: true,
-      analysis: true,
-      properties: true,
-      toolbar: true,
-      overlays: true,
-      planner: true,
-      sidebarTabs: true,
-      minimap: true,
-      code: true,
-      ...overrides,
-    };
-  }
-
-  function renderMutationState(invalidate) {
-    ctx.render({
-      graph: invalidate.graph,
-      properties: invalidate.properties,
-      code: invalidate.code,
-      toolbar: invalidate.toolbar,
-      overlays: invalidate.overlays,
-      planner: invalidate.planner,
-      sidebarTabs: invalidate.sidebarTabs,
-      minimap: invalidate.minimap,
-      syncSelection: true,
-    });
-  }
-
-  function renderSelectionUi() {
-    ctx.syncCySelection();
-    ctx.render({
-      graph: false,
-      code: false,
-    });
-  }
-
-  function applyDesignChange(mutator, options = {}) {
-    const beforeSnapshot = createHistorySnapshot();
-    const invalidate = normalizeInvalidations(options.invalidate);
-    const preservedFocus =
-      typeof ctx.captureEditableFocus === "function"
-        ? ctx.captureEditableFocus()
-        : null;
-    const previousSelectionIds = [...state.selectionIds];
-    mutator();
-    const shouldRefreshLookups =
-      invalidate.lookups ||
-      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode());
-    if (shouldRefreshLookups) {
-      state.lookupRevision = -1;
-      if (typeof ctx.resetDerivedStateCaches === "function") {
-        ctx.resetDerivedStateCaches();
-      }
-    }
-    state.plannerPreviewMode = null;
-    state.plannerFutureBadgeDisclosure = {};
-    if (typeof ctx.syncCurrentGraphIntoLinearPeriodicChain === "function") {
-      ctx.syncCurrentGraphIntoLinearPeriodicChain();
-    } else if (typeof ctx.syncLinearPeriodicBoundaryTensors === "function") {
-      ctx.syncLinearPeriodicBoundaryTensors();
-    }
-    if (typeof ctx.repairContractionPlan === "function") {
-      ctx.repairContractionPlan();
-    }
-    ctx.reconcileTensorOrder();
-    if (shouldRefreshLookups && typeof ctx.bumpSpecRevision === "function") {
-      ctx.bumpSpecRevision();
-    }
-    commitHistorySnapshot(beforeSnapshot);
-
-    if (Array.isArray(options.selectionIds)) {
-      state.selectionIds = [...options.selectionIds];
-      state.primarySelectionId =
-        options.primaryId || (options.selectionIds.length ? options.selectionIds[options.selectionIds.length - 1] : null);
-    }
-
-    pruneSelectionToExisting();
-    updatePendingPropertiesIndexFocus(previousSelectionIds, state.selectionIds);
-    syncSelectedElementState();
-    renderMutationState(invalidate);
-    if (typeof options.afterRender === "function") {
-      options.afterRender();
-    }
-    if (typeof ctx.restoreEditableFocus === "function") {
-      ctx.restoreEditableFocus(preservedFocus);
-    }
-    if (invalidate.analysis && typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis();
-    }
-
-    if (options.statusMessage) {
-      ctx.setStatus(buildDesignStatusMessage(options.statusMessage, state.lastMutationClearedCode), options.statusKind || "success");
-    } else if (state.lastMutationClearedCode) {
-      ctx.setStatus("Design updated. Generated code preview cleared; generate again to refresh it.", "success");
-    }
-    state.lastMutationClearedCode = false;
-    return true;
-  }
-
-  function resolveSelectionKind(selectionId) {
-    const entry = getSelectionEntry(selectionId);
-    return entry ? entry.kind : null;
-  }
-
-  function getSelectionEntry(selectionId) {
-    const inContractionScene =
-      typeof ctx.isContractionSceneVisible === "function" &&
-      ctx.isContractionSceneVisible();
-    const inspectingPastStage =
-      typeof ctx.isInspectingPastStage === "function" &&
-      ctx.isInspectingPastStage();
-    const group = ctx.findGroupById(selectionId);
-    if (group) {
-      return { kind: "group", id: group.id, group };
-    }
-    const visibleTensor =
-      typeof ctx.findVisibleTensorById === "function"
-        ? ctx.findVisibleTensorById(selectionId)
-        : null;
-    if (
-      visibleTensor &&
-      inContractionScene
-    ) {
-      return {
-        kind: visibleTensor.isDerived ? "contraction-tensor" : "tensor",
-        id: visibleTensor.id,
-        tensor: visibleTensor,
-        isBaseTensor: !visibleTensor.isDerived,
-      };
-    }
-    const tensor = ctx.findTensorById(selectionId);
-    if (tensor && inContractionScene) {
-      return null;
-    }
-    if (tensor) {
-      return {
-        kind: "tensor",
-        id: tensor.id,
-        tensor,
-        isBaseTensor: true,
-      };
-    }
-    if (visibleTensor) {
-      return {
-        kind: "contraction-tensor",
-        id: visibleTensor.id,
-        tensor: visibleTensor,
-        isBaseTensor: false,
-      };
-    }
-    const locatedIndex = ctx.findIndexOwner(selectionId);
-    if (locatedIndex) {
-      if (inContractionScene && inspectingPastStage) {
-        return null;
-      }
-      if (inContractionScene) {
-        return { kind: "contraction-index", id: selectionId, located: locatedIndex };
-      }
-      return { kind: "index", id: selectionId, located: locatedIndex };
-    }
-    const edge = ctx.findEdgeById(selectionId);
-    if (edge) {
-      if (inContractionScene && inspectingPastStage) {
-        return null;
-      }
-      return { kind: "edge", id: selectionId, edge };
-    }
-    const note = typeof ctx.findNoteById === "function" ? ctx.findNoteById(selectionId) : null;
-    if (note) {
-      return { kind: "note", id: note.id, note };
-    }
-    return null;
-  }
-
-  function getSelectedEntries() {
-    return state.selectionIds.map((selectionId) => getSelectionEntry(selectionId)).filter(Boolean);
-  }
-
-  function getSelectedIdsByKind(kind) {
-    return getSelectedEntries()
-      .filter((entry) => entry.kind === kind)
-      .map((entry) => entry.id);
-  }
-
-  function syncSelectedElementState() {
-    if (state.selectionIds.length === 1) {
-      const selectionId = state.selectionIds[0];
-      const kind = resolveSelectionKind(selectionId);
-      state.selectedElement = kind ? { kind, id: selectionId } : null;
-      return;
-    }
-    state.selectedElement = null;
-  }
-
-  function updatePendingPropertiesIndexFocus(previousSelectionIds, nextSelectionIds) {
-    releaseAutoExpandedTensorIndex(
-      nextSelectionIds.length === 1 ? nextSelectionIds[0] : null
-    );
-    const previousPropertiesTensorId = getPropertiesTensorId(previousSelectionIds);
-    const nextPropertiesTensorId = getPropertiesTensorId(nextSelectionIds);
-    if (previousPropertiesTensorId !== nextPropertiesTensorId) {
-      state.tensorIndexDisclosureState = {};
-    }
-
-    const previousSingleSelectionId =
-      previousSelectionIds.length === 1 ? previousSelectionIds[0] : null;
-    const nextSingleSelectionId =
-      nextSelectionIds.length === 1 ? nextSelectionIds[0] : null;
-
-    if (previousSingleSelectionId === nextSingleSelectionId) {
-      return;
-    }
-
-    const nextEntry = nextSingleSelectionId
-      ? getSelectionEntry(nextSingleSelectionId)
-      : null;
-    state.pendingPropertiesIndexFocusId =
-      nextEntry && nextEntry.kind === "index" ? nextEntry.id : null;
-  }
-
-  function releaseAutoExpandedTensorIndex(nextSingleSelectionId) {
-    const autoExpanded = state.autoExpandedTensorIndex;
-    if (!autoExpanded || nextSingleSelectionId === autoExpanded.indexId) {
-      return;
-    }
-    if (!autoExpanded.wasOpen) {
-      const disclosureState =
-        state.tensorIndexDisclosureState[autoExpanded.tensorId];
-      if (disclosureState) {
-        delete disclosureState[autoExpanded.indexId];
-        if (!Object.keys(disclosureState).length) {
-          delete state.tensorIndexDisclosureState[autoExpanded.tensorId];
-        }
-      }
-    }
-    state.autoExpandedTensorIndex = null;
-  }
-
-  function getPropertiesTensorId(selectionIds) {
-    if (!Array.isArray(selectionIds) || selectionIds.length !== 1) {
-      return null;
-    }
-    const entry = getSelectionEntry(selectionIds[0]);
-    if (!entry) {
-      return null;
-    }
-    if (entry.kind === "tensor") {
-      return entry.id;
-    }
-    if (entry.kind === "index") {
-      return entry.located.tensor.id;
-    }
-    return null;
-  }
-
   function syncCySelection() {
     if (!state.cy) {
       return;
     }
     const actualSelectedElements = state.cy.$(":selected");
     const previousSelectionIds = [];
-    if (actualSelectedElements && typeof actualSelectedElements.forEach === "function") {
+    if (
+      actualSelectedElements &&
+      typeof actualSelectedElements.forEach === "function"
+    ) {
       actualSelectedElements.forEach((element) => {
         const elementId = typeof element.id === "function" ? element.id() : null;
         if (elementId && !previousSelectionIds.includes(elementId)) {
@@ -436,114 +74,102 @@ export function registerHistorySelection(ctx) {
     ctx.renderOverlayDecorations();
   }
 
-  function pruneSelectionToExisting() {
-    state.selectionIds = state.selectionIds.filter((selectionId) => Boolean(resolveSelectionKind(selectionId)));
-    if (!state.selectionIds.includes(state.primarySelectionId)) {
-      state.primarySelectionId = state.selectionIds.length ? state.selectionIds[state.selectionIds.length - 1] : null;
-    }
-    const pendingIndexKind = state.pendingIndexId
-      ? resolveSelectionKind(state.pendingIndexId)
-      : null;
-    if (
-      state.pendingIndexId &&
-      pendingIndexKind !== "index" &&
-      pendingIndexKind !== "contraction-index"
-    ) {
-      state.pendingIndexId = null;
-    }
-    if (
-      state.pendingPlannerOperandId &&
-      typeof ctx.isPlannerOperandAvailable === "function" &&
-      !ctx.isPlannerOperandAvailable(state.pendingPlannerOperandId)
-    ) {
-      state.pendingPlannerOperandId = null;
-      state.pendingPlannerSelectionId = null;
-    }
-  }
-
-  function setSelection(selectionIds, options = {}) {
-    const previousSelectionIds = [...state.selectionIds];
-    const uniqueIds = [];
-    selectionIds.forEach((selectionId) => {
-      if (resolveSelectionKind(selectionId) && !uniqueIds.includes(selectionId)) {
-        uniqueIds.push(selectionId);
-      }
+  function renderSelectionUi() {
+    syncCySelection();
+    ctx.render({
+      graph: false,
+      code: false,
     });
-    state.selectionIds = uniqueIds;
-    state.primarySelectionId =
-      uniqueIds.includes(options.primaryId) ? options.primaryId : uniqueIds.length ? uniqueIds[uniqueIds.length - 1] : null;
-    updatePendingPropertiesIndexFocus(previousSelectionIds, uniqueIds);
-    syncSelectedElementState();
-    renderSelectionUi();
   }
 
-  function selectElement(kind, id, options = {}) {
-    if (options.additive) {
-      if (state.selectionIds.includes(id)) {
-        setSelection(
-          state.selectionIds.filter((selectionId) => selectionId !== id),
-          {
-            primaryId:
-              state.primarySelectionId === id && state.selectionIds.length > 1
-                ? state.selectionIds[state.selectionIds.length - 2]
-                : state.primarySelectionId,
-          }
-        );
-        return;
-      }
-      setSelection([...state.selectionIds, id], { primaryId: id });
-      return;
-    }
-    setSelection([id], { primaryId: id });
-  }
+  const selectionSupport = createSelectionEntrySupport({
+    state,
+    findGroupById: (groupId) => ctx.findGroupById(groupId),
+    findTensorById: (tensorId) => ctx.findTensorById(tensorId),
+    findVisibleTensorById: (tensorId) =>
+      typeof ctx.findVisibleTensorById === "function"
+        ? ctx.findVisibleTensorById(tensorId)
+        : null,
+    findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
+    findEdgeById: (edgeId) => ctx.findEdgeById(edgeId),
+    findNoteById: (noteId) =>
+      typeof ctx.findNoteById === "function" ? ctx.findNoteById(noteId) : null,
+    getVisibleTensors: () =>
+      typeof ctx.getVisibleTensors === "function"
+        ? ctx.getVisibleTensors()
+        : state.spec.tensors,
+    isContractionSceneVisible: () =>
+      typeof ctx.isContractionSceneVisible === "function" &&
+      ctx.isContractionSceneVisible(),
+    isInspectingPastStage: () =>
+      typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage(),
+    isPlannerOperandAvailable: (operandId) =>
+      typeof ctx.isPlannerOperandAvailable === "function" &&
+      ctx.isPlannerOperandAvailable(operandId),
+    renderSelectionUi,
+  });
 
-  function setSelectedElement(kind, id) {
-    setSelection([id], { primaryId: id });
-  }
-
-  function clearSelection(options = {}) {
-    const previousSelectionIds = [...state.selectionIds];
-    state.selectionIds = [];
-    state.primarySelectionId = null;
-    state.selectedElement = null;
-    if (!options.preservePendingIndex) {
-      state.pendingIndexId = null;
-    }
-    updatePendingPropertiesIndexFocus(previousSelectionIds, []);
-    renderSelectionUi();
-  }
-
-  function selectAllTensors() {
-    const visibleTensors =
-      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
-    const tensorIds = visibleTensors.map((tensor) => tensor.id);
-    setSelection(tensorIds, { primaryId: tensorIds.length ? tensorIds[tensorIds.length - 1] : null });
-  }
-
-  Object.assign(ctx, {
-    clearHistory,
-    createHistorySnapshot,
-    commitHistorySnapshot,
-    restoreHistorySnapshot,
-    performUndo,
-    performRedo,
+  const historySupport = createHistorySnapshotSupport({
+    state,
+    historyLimit: HISTORY_LIMIT,
+    buildHistorySnapshotSpec: () => callOptionalContext("buildHistorySnapshotSpec"),
+    deepClone: (value) => ctx.deepClone(value),
+    updateToolbarState: () => ctx.updateToolbarState(),
+    normalizeSpec: (spec) => ctx.normalizeSpec(spec),
+    bumpSpecRevision: () => callOptionalContext("bumpSpecRevision"),
+    reconcileTensorOrder: () => ctx.reconcileTensorOrder(),
+    enforceLinearPeriodicEngineSupport: () =>
+      callOptionalContext("enforceLinearPeriodicEngineSupport"),
     clearGeneratedCodePreview,
-    buildDesignStatusMessage,
-    normalizeInvalidations,
-    applyDesignChange,
-    resolveSelectionKind,
-    getSelectionEntry,
-    getSelectedEntries,
-    getSelectedIdsByKind,
-    getPropertiesTensorId,
-    releaseAutoExpandedTensorIndex,
-    syncSelectedElementState,
+    pruneSelectionToExisting: () => selectionSupport.pruneSelectionToExisting(),
+    render: () => ctx.render(),
+    refreshContractionAnalysis: () =>
+      callOptionalContext("refreshContractionAnalysis"),
+    setStatus: (message, level) => ctx.setStatus(message, level),
+  });
+
+  const mutationPipeline = createDesignMutationPipeline({
+    state,
+    isLinearPeriodicMode: () =>
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    captureEditableFocus: () => callOptionalContext("captureEditableFocus"),
+    restoreEditableFocus: (focusState) =>
+      callOptionalContext("restoreEditableFocus", focusState),
+    resetDerivedStateCaches: () => callOptionalContext("resetDerivedStateCaches"),
+    syncCurrentGraphIntoLinearPeriodicChain: () =>
+      callOptionalContext("syncCurrentGraphIntoLinearPeriodicChain"),
+    syncLinearPeriodicBoundaryTensors: () =>
+      callOptionalContext("syncLinearPeriodicBoundaryTensors"),
+    repairContractionPlan: () => callOptionalContext("repairContractionPlan"),
+    reconcileTensorOrder: () => ctx.reconcileTensorOrder(),
+    bumpSpecRevision: () => callOptionalContext("bumpSpecRevision"),
+    createHistorySnapshot: () => historySupport.createHistorySnapshot(),
+    commitHistorySnapshot: (snapshot) =>
+      historySupport.commitHistorySnapshot(snapshot),
+    buildDesignStatusMessage: (message, previewCleared) =>
+      historySupport.buildDesignStatusMessage(message, previewCleared),
+    pruneSelectionToExisting: () => selectionSupport.pruneSelectionToExisting(),
+    updatePendingPropertiesIndexFocus: (previousIds, nextIds) =>
+      selectionSupport.updatePendingPropertiesIndexFocus(previousIds, nextIds),
+    syncSelectedElementState: () => selectionSupport.syncSelectedElementState(),
+    renderMutationState: (invalidate) =>
+      ctx.render({
+        graph: invalidate.graph,
+        properties: invalidate.properties,
+        code: invalidate.code,
+        toolbar: invalidate.toolbar,
+        overlays: invalidate.overlays,
+        planner: invalidate.planner,
+        sidebarTabs: invalidate.sidebarTabs,
+        minimap: invalidate.minimap,
+        syncSelection: true,
+      }),
+    refreshContractionAnalysis: () =>
+      callOptionalContext("refreshContractionAnalysis"),
+    setStatus: (message, level) => ctx.setStatus(message, level),
+  });
+
+  Object.assign(ctx, historySupport, mutationPipeline, selectionSupport, {
     syncCySelection,
-    pruneSelectionToExisting,
-    setSelection,
-    selectElement,
-    setSelectedElement,
-    clearSelection,
-    selectAllTensors
   });
 }

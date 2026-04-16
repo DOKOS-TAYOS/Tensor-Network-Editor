@@ -724,6 +724,403 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "history_spec_kernel_modules.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const historySnapshotsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "historySnapshots.js")!r}).href;
+        const selectionEntriesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "selectionEntries.js")!r}).href;
+        const mutationPipelineUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "actions" / "designMutationPipeline.js")!r}).href;
+        const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
+        const specLookupsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specLookups.js")!r}).href;
+        const specMutationsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specMutations.js")!r}).href;
+
+        const [
+          historySnapshotsModule,
+          selectionEntriesModule,
+          mutationPipelineModule,
+          specNormalizationModule,
+          specLookupsModule,
+          specMutationsModule,
+        ] = await Promise.all([
+          import(historySnapshotsUrl),
+          import(selectionEntriesUrl),
+          import(mutationPipelineUrl),
+          import(specNormalizationUrl),
+          import(specLookupsUrl),
+          import(specMutationsUrl),
+        ]);
+
+        const requiredFactories = [
+          historySnapshotsModule.createHistorySnapshotSupport,
+          selectionEntriesModule.createSelectionEntrySupport,
+          mutationPipelineModule.createDesignMutationPipeline,
+          specNormalizationModule.createSpecNormalizationBindings,
+          specLookupsModule.createSpecLookupBindings,
+          specMutationsModule.createSpecMutationBindings,
+        ];
+        if (requiredFactories.some((candidate) => typeof candidate !== "function")) {{
+          throw new Error("One or more runtime kernel helper factories were not exported.");
+        }}
+
+        const constants = {{
+          TENSOR_WIDTH: 140,
+          TENSOR_HEIGHT: 84,
+          MIN_TENSOR_WIDTH: 96,
+          MIN_TENSOR_HEIGHT: 60,
+          NOTE_WIDTH: 220,
+          NOTE_HEIGHT: 120,
+          NOTE_MIN_WIDTH: 120,
+          NOTE_MIN_HEIGHT: 90,
+        }};
+        const runtime = {{
+          deepClone: (value) => structuredClone(value),
+          isObject: (value) =>
+            Boolean(value) && typeof value === "object" && !Array.isArray(value),
+          asFiniteNumber: (value, fallbackValue) =>
+            Number.isFinite(Number(value)) ? Number(value) : fallbackValue,
+          makeId: (prefix) => `${{prefix}}_generated`,
+          nextName: (prefix, existingNames = []) => {{
+            let counter = 1;
+            while (existingNames.includes(`${{prefix}}${{counter}}`)) {{
+              counter += 1;
+            }}
+            return `${{prefix}}${{counter}}`;
+          }},
+          ensureTensorIndexOffsets(tensor) {{
+            tensor.indices.forEach((index, indexPosition) => {{
+              if (!index.offset) {{
+                index.offset = {{ x: indexPosition * 8, y: 0 }};
+              }}
+            }});
+          }},
+          defaultIndexOffsetForOrder(indexPosition) {{
+            return {{ x: indexPosition * 16, y: 0 }};
+          }},
+          getMetadataColor: (metadata, fallbackValue) =>
+            metadata && typeof metadata.color === "string" ? metadata.color : fallbackValue,
+          getIndexColor: () => "#224466",
+          isLinearPeriodicMode: (spec) => Boolean(spec && spec.linear_periodic_chain),
+          normalizeLinearPeriodicChainInPlace: (chain) => chain,
+          hydrateActiveLinearPeriodicCell() {{}},
+          syncCurrentGraphIntoLinearPeriodicChain(spec) {{
+            spec.synced = true;
+          }},
+          isLinearPeriodicBoundaryTensor: (tensor) =>
+            Boolean(tensor && tensor.linear_periodic_role),
+        }};
+
+        const normalizedState = {{
+          spec: {{
+            id: "network_demo",
+            name: "Network Demo",
+            tensors: [
+              {{
+                id: "tensor_a",
+                name: "A",
+                position: {{ x: 10, y: 20 }},
+                size: {{ width: 140, height: 84 }},
+                indices: [
+                  {{
+                    id: "index_a",
+                    name: "a",
+                    dimension: 2,
+                    offset: {{ x: 0, y: 0 }},
+                    metadata: {{}},
+                  }},
+                ],
+                metadata: {{}},
+              }},
+            ],
+            groups: [
+              {{
+                id: "group_a",
+                name: "Group A",
+                tensor_ids: ["tensor_a"],
+                metadata: {{}},
+              }},
+            ],
+            edges: [],
+            notes: [
+              {{
+                id: "note_a",
+                text: "Note",
+                position: {{ x: 60, y: 80 }},
+                size: {{ width: 220, height: 120 }},
+                metadata: {{}},
+              }},
+            ],
+            contraction_plan: null,
+            metadata: {{}},
+          }},
+          schemaVersion: "1.0",
+          specRevision: 4,
+          lookupRevision: -1,
+          tensorById: {{}},
+          edgeById: {{}},
+          edgeByIndexId: {{}},
+          groupById: {{}},
+          indexOwnerById: {{}},
+          groupsByTensorId: {{}},
+          noteById: {{}},
+        }};
+
+        const specNormalization = specNormalizationModule.createSpecNormalizationBindings({{
+          state: normalizedState,
+          constants,
+          runtime,
+        }});
+        const specLookups = specLookupsModule.createSpecLookupBindings({{
+          ctx: {{
+            findVisibleEdgeById: () => null,
+            getVisibleEdges: () => [],
+            getVisibleTensors: () => [],
+          }},
+          state: normalizedState,
+          runtime,
+        }});
+        const specMutations = specMutationsModule.createSpecMutationBindings({{
+          ctx: {{
+            getSelectedEntries() {{
+              return [
+                {{
+                  kind: "tensor",
+                  id: "tensor_a",
+                  tensor: normalizedState.spec.tensors[0],
+                }},
+              ];
+            }},
+          }},
+          state: normalizedState,
+          constants,
+          runtime,
+          findTensorById: (tensorId) => specLookups.findTensorById(tensorId),
+          findGroupById: (groupId) => specLookups.findGroupById(groupId),
+          findEdgeById: (edgeId) => specLookups.findEdgeById(edgeId),
+          findEdgeByIndexId: (indexId) => specLookups.findEdgeByIndexId(indexId),
+          findIndexOwner: (indexId) => specLookups.findIndexOwner(indexId),
+          resolveBaseEdgeId: (edgeId) => specLookups.resolveBaseEdgeId(edgeId),
+        }});
+
+        specLookups.ensureSpecLookups();
+        if (!specLookups.findTensorById("tensor_a")) {{
+          throw new Error("Spec lookup helpers should find tensors by id.");
+        }}
+        if (!specLookups.findIndexOwner("index_a")) {{
+          throw new Error("Spec lookup helpers should resolve index owners.");
+        }}
+        specMutations.applyColorToSelection("#ff8800");
+        if (normalizedState.spec.tensors[0].metadata.color !== "#ff8800") {{
+          throw new Error("Spec mutation helpers should update selection colors.");
+        }}
+        const createdTensor = specMutations.createTensor(120, 160);
+        if (createdTensor.indices.length !== 2) {{
+          throw new Error(`Expected created tensor to receive two default indices, received ${{createdTensor.indices.length}}.`);
+        }}
+        const normalizedGraphSection = specNormalization.normalizeGraphSectionInPlace({{
+          tensors: [{{ position: {{}}, size: {{}}, indices: [{{ metadata: {{}} }}], metadata: {{}} }}],
+          groups: [{{ tensor_ids: ["tensor_a"] }}],
+          edges: [{{ left: {{}}, right: {{}}, metadata: {{}} }}],
+          notes: [{{ position: {{}}, size: {{}}, metadata: {{}} }}],
+          contraction_plan: null,
+          metadata: {{}},
+        }});
+        if (!normalizedGraphSection.tensors[0].id || !normalizedGraphSection.edges[0].id) {{
+          throw new Error("Spec normalization helpers should seed missing entity ids.");
+        }}
+
+        const historyEvents = [];
+        const historyState = {{
+          spec: normalizedState.spec,
+          tensorOrder: ["tensor_a"],
+          undoStack: [],
+          redoStack: [{{ spec: {{ id: "redo" }}, tensorOrder: [] }}],
+          generatedCode: "print('demo')",
+          lastMutationClearedCode: false,
+          pendingIndexId: "missing_index",
+          pendingPlannerOperandId: "missing_operand",
+          pendingPlannerSelectionId: "selection_a",
+          plannerInspectionStepCount: 2,
+          plannerPreviewMode: "automaticFuture",
+          plannerFutureBadgeDisclosure: {{ future: true }},
+          activeNoteResize: {{ noteId: "note_a" }},
+          activeSidebarTab: "planner",
+          pendingPropertiesIndexFocusId: "index_a",
+          autoExpandedTensorIndex: {{ tensorId: "tensor_a", indexId: "index_a", wasOpen: false }},
+          tensorIndexDisclosureState: {{
+            tensor_a: {{ index_a: true }},
+          }},
+          selectionIds: ["tensor_a", "missing_selection"],
+          primarySelectionId: "missing_selection",
+          selectedElement: null,
+          lookupRevision: 4,
+          specRevision: 4,
+        }};
+        const historySupport = historySnapshotsModule.createHistorySnapshotSupport({{
+          state: historyState,
+          historyLimit: 1,
+          buildHistorySnapshotSpec: () => ({{ id: "snapshot_spec" }}),
+          deepClone: (value) => structuredClone(value),
+          updateToolbarState: () => historyEvents.push("toolbar"),
+          normalizeSpec: (spec) => ({{ ...spec, normalized: true }}),
+          bumpSpecRevision: () => historyEvents.push("bump"),
+          reconcileTensorOrder: () => historyEvents.push("reconcile"),
+          enforceLinearPeriodicEngineSupport: () => historyEvents.push("linear-periodic"),
+          clearGeneratedCodePreview: () => {{
+            historyEvents.push("clear-code");
+            historyState.generatedCode = "";
+            return true;
+          }},
+          pruneSelectionToExisting: () => historyEvents.push("prune"),
+          render: () => historyEvents.push("render"),
+          refreshContractionAnalysis: () => historyEvents.push("analysis"),
+        }});
+        const historySnapshot = historySupport.createHistorySnapshot();
+        if (historySnapshot.spec.id !== "snapshot_spec") {{
+          throw new Error("History snapshot support should use the injected spec builder.");
+        }}
+        historySupport.commitHistorySnapshot({{ spec: {{ id: "older" }}, tensorOrder: [] }});
+        historySupport.restoreHistorySnapshot({{
+          spec: {{ id: "restored_spec" }},
+          tensorOrder: ["tensor_a"],
+        }});
+        if (historyState.undoStack.length !== 1 || historyState.redoStack.length !== 0) {{
+          throw new Error("History snapshot support should prune undo/redo stacks explicitly.");
+        }}
+        if (!historyEvents.includes("render") || !historyEvents.includes("analysis")) {{
+          throw new Error(`History restore should trigger render and analysis refresh, received ${{JSON.stringify(historyEvents)}}.`);
+        }}
+
+        const selectionState = {{
+          selectionIds: ["group_a", "missing_selection"],
+          primarySelectionId: "missing_selection",
+          pendingIndexId: "missing_index",
+          pendingPlannerOperandId: "missing_operand",
+          pendingPlannerSelectionId: "selection_a",
+          selectedElement: null,
+          tensorIndexDisclosureState: {{
+            tensor_a: {{ index_a: true }},
+          }},
+          autoExpandedTensorIndex: {{
+            tensorId: "tensor_a",
+            indexId: "index_a",
+            wasOpen: false,
+          }},
+          pendingPropertiesIndexFocusId: null,
+        }};
+        const selectionSupport = selectionEntriesModule.createSelectionEntrySupport({{
+          state: selectionState,
+          findGroupById: (groupId) =>
+            groupId === "group_a" ? {{ id: "group_a", name: "Group A" }} : null,
+          findTensorById: (tensorId) =>
+            tensorId === "tensor_a"
+              ? {{ id: "tensor_a", indices: [{{ id: "index_a" }}] }}
+              : null,
+          findVisibleTensorById: () => null,
+          findIndexOwner: (indexId) =>
+            indexId === "index_a"
+              ? {{
+                  tensor: {{ id: "tensor_a" }},
+                  index: {{ id: "index_a" }},
+                  indexPosition: 0,
+                }}
+              : null,
+          findEdgeById: (edgeId) =>
+            edgeId === "edge_a" ? {{ id: "edge_a" }} : null,
+          findNoteById: (noteId) =>
+            noteId === "note_a" ? {{ id: "note_a" }} : null,
+          isContractionSceneVisible: () => false,
+          isInspectingPastStage: () => false,
+          isPlannerOperandAvailable: (operandId) => operandId === "operand_ok",
+          renderSelectionUi: () => {{}},
+        }});
+        const selectedEntries = selectionSupport.getSelectedEntries();
+        if (selectedEntries.length !== 1 || selectedEntries[0].kind !== "group") {{
+          throw new Error(`Selection support should resolve existing selection entries, received ${{JSON.stringify(selectedEntries)}}.`);
+        }}
+        selectionSupport.pruneSelectionToExisting();
+        if (selectionState.selectionIds.length !== 1 || selectionState.selectionIds[0] !== "group_a") {{
+          throw new Error(`Selection pruning should remove missing ids, received ${{JSON.stringify(selectionState.selectionIds)}}.`);
+        }}
+
+        const pipelineEvents = [];
+        const mutationState = {{
+          spec: {{ id: "network_demo" }},
+          selectionIds: ["tensor_a"],
+          primarySelectionId: "tensor_a",
+          plannerPreviewMode: "automaticFuture",
+          plannerFutureBadgeDisclosure: {{ badge: true }},
+          lastMutationClearedCode: false,
+        }};
+        const mutationPipeline = mutationPipelineModule.createDesignMutationPipeline({{
+          state: mutationState,
+          isLinearPeriodicMode: () => false,
+          captureEditableFocus: () => "focus-token",
+          restoreEditableFocus: (focusToken) => pipelineEvents.push(`restore:${{focusToken}}`),
+          resetDerivedStateCaches: () => pipelineEvents.push("reset-caches"),
+          syncCurrentGraphIntoLinearPeriodicChain: () => pipelineEvents.push("sync-chain"),
+          repairContractionPlan: () => pipelineEvents.push("repair-plan"),
+          reconcileTensorOrder: () => pipelineEvents.push("reconcile-order"),
+          bumpSpecRevision: () => pipelineEvents.push("bump"),
+          createHistorySnapshot: () => ({{ id: "before" }}),
+          commitHistorySnapshot: (snapshot) => {{
+            if (snapshot.id !== "before") {{
+              throw new Error("Mutation pipeline should commit the snapshot captured before the mutation.");
+            }}
+            pipelineEvents.push("commit");
+            mutationState.lastMutationClearedCode = true;
+            return true;
+          }},
+          buildDesignStatusMessage: (message, previewCleared) =>
+            previewCleared ? `${{message}} preview-cleared` : message,
+          pruneSelectionToExisting: () => pipelineEvents.push("prune-selection"),
+          updatePendingPropertiesIndexFocus: () => pipelineEvents.push("sync-index-focus"),
+          syncSelectedElementState: () => pipelineEvents.push("sync-selected"),
+          renderMutationState: (invalidate) =>
+            pipelineEvents.push(`render:${{invalidate.graph}}:${{invalidate.analysis}}`),
+          refreshContractionAnalysis: () => pipelineEvents.push("refresh-analysis"),
+          setStatus: (message, level) => pipelineEvents.push(`status:${{level}}:${{message}}`),
+        }});
+        mutationPipeline.applyDesignChange(
+          () => {{
+            mutationState.spec.updated = true;
+          }},
+          {{
+            statusMessage: "Updated design.",
+            invalidate: {{
+              graph: true,
+              analysis: true,
+            }},
+          }}
+        );
+        if (!mutationState.spec.updated) {{
+          throw new Error("Mutation pipeline should execute the provided mutator.");
+        }}
+        if (
+          !pipelineEvents.includes("commit") ||
+          !pipelineEvents.includes("refresh-analysis") ||
+          !pipelineEvents.includes("status:success:Updated design. preview-cleared")
+        ) {{
+          throw new Error(`Mutation pipeline should keep the explicit mutation flow, received ${{JSON.stringify(pipelineEvents)}}.`);
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The history/spec kernel runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
     tmp_path: Path,
 ) -> None:

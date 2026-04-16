@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
     module_names = [
+        "actions/designMutationPipeline.js",
         "actions/plannerCommands.js",
         "actions/propertyCommands.js",
         "actions/sessionCommands.js",
@@ -51,6 +52,11 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "services/plannerAnalysisService.js",
         "services/subnetworkService.js",
         "services/templateCatalogService.js",
+        "spec/specLookups.js",
+        "spec/specMutations.js",
+        "spec/specNormalization.js",
+        "state/historySnapshots.js",
+        "state/selectionEntries.js",
         "state/contractionSceneProgression.js",
         "state/contractionSceneSnapshots.js",
         "state/editorSelectors.js",
@@ -1947,7 +1953,9 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
         "exportMinimap.js": "exportMinimap.js",
     }
     for target_name, source_name in copied_modules.items():
-        (tmp_path / target_name).write_text(
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
             (js_root / source_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3316,6 +3324,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "state.runtime.mjs": "state.js",
         "utilities.runtime.mjs": "utilities.js",
         "utilitiesTemplates.js": "utilitiesTemplates.js",
+        "spec/specLookups.js": "spec/specLookups.js",
+        "spec/specMutations.js": "spec/specMutations.js",
+        "spec/specNormalization.js": "spec/specNormalization.js",
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
         "utilitiesLayout.js": "utilitiesLayout.js",
@@ -3324,7 +3335,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "utilitiesUi.js": "utilitiesUi.js",
     }
     for target_name, source_name in copied_modules.items():
-        (tmp_path / target_name).write_text(
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
             (js_root / source_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3570,6 +3583,7 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
         "interactionsEditor.js": "interactionsEditor.js",
         "interactionsSession.js": "interactionsSession.js",
         "interactionsShortcuts.js": "interactionsShortcuts.js",
+        "interactions/editorActionGroups.js": "interactions/editorActionGroups.js",
         "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
         "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
         "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
@@ -4270,6 +4284,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "state.runtime.mjs": "state.js",
         "utilities.runtime.mjs": "utilities.js",
         "historySelection.runtime.mjs": "historySelection.js",
+        "actions/designMutationPipeline.js": "actions/designMutationPipeline.js",
         "actions/sessionCommands.js": "actions/sessionCommands.js",
         "interactionsSession.js": "interactionsSession.js",
         "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
@@ -4278,8 +4293,13 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "services/editorSessionService.js": "services/editorSessionService.js",
         "services/subnetworkService.js": "services/subnetworkService.js",
         "services/templateCatalogService.js": "services/templateCatalogService.js",
+        "spec/specLookups.js": "spec/specLookups.js",
+        "spec/specMutations.js": "spec/specMutations.js",
+        "spec/specNormalization.js": "spec/specNormalization.js",
         "state/editorSelectors.js": "state/editorSelectors.js",
         "state/editorStore.js": "state/editorStore.js",
+        "state/historySnapshots.js": "state/historySnapshots.js",
+        "state/selectionEntries.js": "state/selectionEntries.js",
         "utilitiesTemplates.js": "utilitiesTemplates.js",
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
