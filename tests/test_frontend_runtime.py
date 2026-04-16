@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
     module_names = [
+        "actions/sessionCommands.js",
         "utilitiesBase.js",
         "utilitiesGeometry.js",
         "utilitiesLayout.js",
@@ -28,9 +29,16 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "propertiesRenderersOverview.js",
         "propertiesRenderersTensor.js",
         "propertiesRenderersEntities.js",
+        "services/editorSessionService.js",
+        "services/subnetworkService.js",
+        "services/templateCatalogService.js",
+        "state/editorSelectors.js",
+        "state/editorStore.js",
     ]
     for module_name in module_names:
-        (tmp_path / module_name).write_text(
+        target_path = tmp_path / module_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
             (js_root / module_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3535,13 +3543,22 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
     copied_modules = {
         "state.runtime.mjs": "state.js",
         "interactions.runtime.mjs": "interactions.js",
+        "actions/sessionCommands.js": "actions/sessionCommands.js",
         "interactionsCanvas.js": "interactionsCanvas.js",
         "interactionsEditor.js": "interactionsEditor.js",
         "interactionsSession.js": "interactionsSession.js",
         "interactionsShortcuts.js": "interactionsShortcuts.js",
+        "services/editorSessionService.js": "services/editorSessionService.js",
+        "services/subnetworkService.js": "services/subnetworkService.js",
+        "services/templateCatalogService.js": "services/templateCatalogService.js",
+        "state/editorSelectors.js": "state/editorSelectors.js",
+        "state/editorStore.js": "state/editorStore.js",
+        "utilitiesTemplates.js": "utilitiesTemplates.js",
     }
     for target_name, source_name in copied_modules.items():
-        (tmp_path / target_name).write_text(
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
             (js_root / source_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
@@ -3899,7 +3916,13 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "state.runtime.mjs": "state.js",
         "utilities.runtime.mjs": "utilities.js",
         "historySelection.runtime.mjs": "historySelection.js",
+        "actions/sessionCommands.js": "actions/sessionCommands.js",
         "interactionsSession.js": "interactionsSession.js",
+        "services/editorSessionService.js": "services/editorSessionService.js",
+        "services/subnetworkService.js": "services/subnetworkService.js",
+        "services/templateCatalogService.js": "services/templateCatalogService.js",
+        "state/editorSelectors.js": "state/editorSelectors.js",
+        "state/editorStore.js": "state/editorStore.js",
         "utilitiesTemplates.js": "utilitiesTemplates.js",
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
@@ -3909,7 +3932,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "utilitiesUi.js": "utilitiesUi.js",
     }
     for target_name, source_name in copied_modules.items():
-        (tmp_path / target_name).write_text(
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
             (js_root / source_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )

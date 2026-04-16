@@ -9,6 +9,7 @@ from typing import TypeAlias, cast
 
 from ..codegen.registry import engine_name_to_text, resolve_registered_engine
 from ..models import (
+    CanvasPosition,
     CodegenResult,
     EditorResult,
     EngineIdentifier,
@@ -40,6 +41,48 @@ class CodegenRequest:
     collection_format: TensorCollectionFormat
 
 
+@dataclass(slots=True, frozen=True)
+class TemplatePromoteRequest:
+    """Normalized payload for project-template promotion requests."""
+
+    serialized_spec: JsonDict
+    tensor_ids: list[str]
+    template_name: str
+    overwrite: bool
+
+
+@dataclass(slots=True, frozen=True)
+class TemplateRenameRequest:
+    """Normalized payload for project-template rename requests."""
+
+    template_name: str
+    new_template_name: str
+    overwrite: bool
+
+
+@dataclass(slots=True, frozen=True)
+class TemplateDeleteRequest:
+    """Normalized payload for project-template delete requests."""
+
+    template_name: str
+
+
+@dataclass(slots=True, frozen=True)
+class SubnetworkSelectionRequest:
+    """Normalized payload for subnetwork extract or promotion requests."""
+
+    serialized_spec: JsonDict
+    tensor_ids: list[str]
+
+
+@dataclass(slots=True, frozen=True)
+class SubnetworkPrepareInsertRequest:
+    """Normalized payload for subnetwork insertion preparation requests."""
+
+    serialized_spec: JsonDict
+    target_center: CanvasPosition
+
+
 def read_json(body: bytes) -> JsonDict:
     """Decode a request body into a JSON object payload."""
     if not body:
@@ -59,6 +102,50 @@ def require_serialized_spec(payload: JsonDict) -> JsonDict:
     if not isinstance(serialized_spec, dict):
         raise ValueError("Missing 'spec' payload.")
     return serialized_spec
+
+
+def require_non_empty_string(payload: JsonDict, field_name: str) -> str:
+    """Return a trimmed non-empty string field from ``payload``."""
+    raw_value = payload.get(field_name)
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        raise ValueError(f"Missing '{field_name}' payload.")
+    return raw_value.strip()
+
+
+def require_boolean(
+    payload: JsonDict, field_name: str, *, default: bool = False
+) -> bool:
+    """Return a boolean field from ``payload`` or ``default`` when omitted."""
+    raw_value = payload.get(field_name, default)
+    if not isinstance(raw_value, bool):
+        raise ValueError(f"'{field_name}' must be a boolean when provided.")
+    return raw_value
+
+
+def require_string_list(payload: JsonDict, field_name: str) -> list[str]:
+    """Return a non-empty list of non-empty strings from ``payload``."""
+    raw_values = payload.get(field_name)
+    if not isinstance(raw_values, list):
+        raise ValueError(f"'{field_name}' must be a non-empty list of values.")
+    values: list[str] = []
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(f"'{field_name}' must be a non-empty list of values.")
+        values.append(raw_value)
+    if not values:
+        raise ValueError(f"'{field_name}' must be a non-empty list of values.")
+    return values
+
+
+def require_canvas_position(payload: JsonDict, field_name: str) -> CanvasPosition:
+    """Return a parsed canvas position from ``payload``."""
+    raw_value = payload.get(field_name)
+    if not isinstance(raw_value, dict):
+        raise ValueError(f"Missing '{field_name}' payload.")
+    try:
+        return CanvasPosition.from_dict(raw_value)
+    except TypeError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def deserialize_validation_payload(payload: JsonDict) -> NetworkSpec:
@@ -87,6 +174,50 @@ def parse_codegen_request(
         serialized_spec=require_serialized_spec(payload),
         engine=resolve_engine(payload, default_engine),
         collection_format=resolve_collection_format(payload, default_collection_format),
+    )
+
+
+def parse_template_promote_request(payload: JsonDict) -> TemplatePromoteRequest:
+    """Normalize a template-promotion request payload."""
+    return TemplatePromoteRequest(
+        serialized_spec=require_serialized_spec(payload),
+        tensor_ids=require_string_list(payload, "tensor_ids"),
+        template_name=require_non_empty_string(payload, "template_name"),
+        overwrite=require_boolean(payload, "overwrite", default=False),
+    )
+
+
+def parse_template_rename_request(payload: JsonDict) -> TemplateRenameRequest:
+    """Normalize a template-rename request payload."""
+    return TemplateRenameRequest(
+        template_name=require_non_empty_string(payload, "template_name"),
+        new_template_name=require_non_empty_string(payload, "new_template_name"),
+        overwrite=require_boolean(payload, "overwrite", default=False),
+    )
+
+
+def parse_template_delete_request(payload: JsonDict) -> TemplateDeleteRequest:
+    """Normalize a template-delete request payload."""
+    return TemplateDeleteRequest(
+        template_name=require_non_empty_string(payload, "template_name"),
+    )
+
+
+def parse_subnetwork_selection_request(payload: JsonDict) -> SubnetworkSelectionRequest:
+    """Normalize a subnetwork-selection request payload."""
+    return SubnetworkSelectionRequest(
+        serialized_spec=require_serialized_spec(payload),
+        tensor_ids=require_string_list(payload, "tensor_ids"),
+    )
+
+
+def parse_subnetwork_prepare_insert_request(
+    payload: JsonDict,
+) -> SubnetworkPrepareInsertRequest:
+    """Normalize a subnetwork insertion-preparation request payload."""
+    return SubnetworkPrepareInsertRequest(
+        serialized_spec=require_serialized_spec(payload),
+        target_center=require_canvas_position(payload, "target_center"),
     )
 
 

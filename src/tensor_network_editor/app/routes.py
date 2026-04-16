@@ -7,9 +7,8 @@ from http import HTTPStatus
 from typing import Literal
 
 from .._contraction_analysis_types import ContractionAnalysisResult
-from .._payloads import require_dict, require_list
 from ..errors import CodeGenerationError, SerializationError, SpecValidationError
-from ..models import CanvasPosition, CodegenResult, EditorResult
+from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec
 from ._protocol import (
@@ -20,6 +19,11 @@ from ._protocol import (
     issues_response,
     ok_response,
     parse_codegen_request,
+    parse_subnetwork_prepare_insert_request,
+    parse_subnetwork_selection_request,
+    parse_template_delete_request,
+    parse_template_promote_request,
+    parse_template_rename_request,
     require_serialized_spec,
     serialize_codegen_result,
     serialize_editor_result,
@@ -116,16 +120,14 @@ def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
 
 def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Promote a selected subnetwork fragment to the project template catalog."""
-    template_name = payload.get("template_name")
-    if not isinstance(template_name, str) or not template_name.strip():
-        return bad_request_response("Missing 'template_name' payload.")
     try:
+        request = parse_template_promote_request(payload)
         catalog_payload = promote_serialized_subnetwork_to_template(
             session,
-            require_serialized_spec(payload),
-            tensor_ids=_parse_tensor_ids(payload),
-            template_name=template_name,
-            overwrite=_parse_overwrite(payload),
+            request.serialized_spec,
+            tensor_ids=request.tensor_ids,
+            template_name=request.template_name,
+            overwrite=request.overwrite,
         )
     except (SerializationError, TypeError, ValueError) as exc:
         return bad_request_response(str(exc))
@@ -134,18 +136,13 @@ def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonRe
 
 def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Rename one project-local template entry."""
-    template_name = payload.get("template_name")
-    if not isinstance(template_name, str) or not template_name.strip():
-        return bad_request_response("Missing 'template_name' payload.")
-    new_template_name = payload.get("new_template_name")
-    if not isinstance(new_template_name, str) or not new_template_name.strip():
-        return bad_request_response("Missing 'new_template_name' payload.")
     try:
+        request = parse_template_rename_request(payload)
         catalog_payload = rename_session_project_template(
             session,
-            template_name=template_name,
-            new_template_name=new_template_name,
-            overwrite=_parse_overwrite(payload),
+            template_name=request.template_name,
+            new_template_name=request.new_template_name,
+            overwrite=request.overwrite,
         )
     except ValueError as exc:
         return bad_request_response(str(exc))
@@ -154,13 +151,11 @@ def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonRes
 
 def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Delete one project-local template entry."""
-    template_name = payload.get("template_name")
-    if not isinstance(template_name, str) or not template_name.strip():
-        return bad_request_response("Missing 'template_name' payload.")
     try:
+        request = parse_template_delete_request(payload)
         catalog_payload = delete_session_project_template(
             session,
-            template_name=template_name,
+            template_name=request.template_name,
         )
     except ValueError as exc:
         return bad_request_response(str(exc))
@@ -195,9 +190,10 @@ def handle_subnetwork_extract(
     """Extract a reusable subnetwork fragment from the current graph."""
     del session
     try:
+        request = parse_subnetwork_selection_request(payload)
         spec = extract_serialized_subnetwork(
-            require_serialized_spec(payload),
-            tensor_ids=_parse_tensor_ids(payload),
+            request.serialized_spec,
+            tensor_ids=request.tensor_ids,
         )
     except (SerializationError, TypeError, ValueError) as exc:
         return bad_request_response(str(exc))
@@ -210,9 +206,10 @@ def handle_subnetwork_prepare_insert(
     """Prepare one saved fragment for insertion into the current design."""
     del session
     try:
+        request = parse_subnetwork_prepare_insert_request(payload)
         spec = prepare_serialized_subnetwork_for_insertion(
-            require_serialized_spec(payload),
-            target_center=_parse_target_center(payload),
+            request.serialized_spec,
+            target_center=request.target_center,
         )
     except (SerializationError, TypeError, ValueError) as exc:
         return bad_request_response(str(exc))
@@ -274,37 +271,3 @@ def _serialize_contraction_analysis_result(
 ) -> JsonDict:
     """Serialize a contraction analysis result for the API."""
     return result.to_dict()
-
-
-def _parse_tensor_ids(payload: JsonDict) -> list[str]:
-    """Parse the selected tensor ids from one JSON route payload."""
-    raw_tensor_ids = require_list(
-        payload.get("tensor_ids"),
-        field_name="tensor_ids",
-    )
-    tensor_ids = []
-    for raw_tensor_id in raw_tensor_ids:
-        if not isinstance(raw_tensor_id, str) or not raw_tensor_id.strip():
-            raise ValueError("'tensor_ids' must be a non-empty list of tensor ids.")
-        tensor_ids.append(raw_tensor_id)
-    if not tensor_ids:
-        raise ValueError("'tensor_ids' must be a non-empty list of tensor ids.")
-    return tensor_ids
-
-
-def _parse_target_center(payload: JsonDict) -> CanvasPosition:
-    """Parse the insertion target center from one JSON route payload."""
-    try:
-        return CanvasPosition.from_dict(
-            require_dict(payload.get("target_center"), field_name="target_center")
-        )
-    except TypeError as exc:
-        raise ValueError(str(exc)) from exc
-
-
-def _parse_overwrite(payload: JsonDict) -> bool:
-    """Parse one optional overwrite flag from a JSON route payload."""
-    raw_overwrite = payload.get("overwrite", False)
-    if not isinstance(raw_overwrite, bool):
-        raise ValueError("'overwrite' must be a boolean when provided.")
-    return raw_overwrite

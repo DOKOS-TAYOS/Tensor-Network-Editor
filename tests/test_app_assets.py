@@ -34,11 +34,17 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
 def request_interactions_runtime_bundle(editor_server: EditorServer) -> str:
     return request_runtime_bundle(
         editor_server,
+        "js/actions/sessionCommands.js",
         "js/interactions.js",
         "js/interactionsCanvas.js",
         "js/interactionsEditor.js",
         "js/interactionsSession.js",
         "js/interactionsShortcuts.js",
+        "js/services/editorSessionService.js",
+        "js/services/subnetworkService.js",
+        "js/services/templateCatalogService.js",
+        "js/state/editorSelectors.js",
+        "js/state/editorStore.js",
     )
 
 

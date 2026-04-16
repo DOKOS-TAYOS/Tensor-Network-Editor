@@ -1,5 +1,6 @@
 export function startEditor(ctx) {
   const state = ctx.state;
+  const store = ctx.store;
   const {
     TENSOR_WIDTH,
     TENSOR_HEIGHT,
@@ -50,7 +51,12 @@ export function startEditor(ctx) {
     selectionBox,
     minimapCanvas,
   } = ctx.dom;
-  const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  const { window, document } = ctx;
+  const sessionService = ctx.services && ctx.services.session
+    ? ctx.services.session
+    : {
+        loadBootstrap: () => ctx.apiGet("/api/bootstrap"),
+      };
   let shortcutTooltip = null;
   let activeShortcutButton = null;
 
@@ -62,24 +68,20 @@ export function startEditor(ctx) {
   });
 
   async function bootstrap() {
-    const payload = await apiGet("/api/bootstrap");
-    state.spec = ctx.normalizeSpec(payload.spec.network);
-    state.schemaVersion = payload.schema_version;
-    state.availableCollectionFormats = Array.isArray(payload.collection_formats)
-      ? [...payload.collection_formats]
-      : ["list"];
+    const payload = await sessionService.loadBootstrap();
+    store.setSpec(ctx.normalizeSpec(payload.spec.network));
+    store.setSchemaVersion(payload.schema_version);
+    store.setAvailableCollectionFormats(
+      Array.isArray(payload.collection_formats) ? payload.collection_formats : ["list"]
+    );
     ctx.applyTemplateCatalogPayload({
       templateNames: payload.templates,
       templateDefinitions: payload.template_definitions,
       templateCatalogWarnings: payload.template_catalog_warnings,
     });
-    state.annotationDefinitions =
-      payload.annotation_definitions &&
-      typeof payload.annotation_definitions === "object"
-        ? { ...payload.annotation_definitions }
-        : {};
-    state.selectedEngine = payload.default_engine;
-    state.selectedCollectionFormat = payload.default_collection_format || "list";
+    store.setAnnotationDefinitions(payload.annotation_definitions);
+    store.setSelectedEngine(payload.default_engine);
+    store.setSelectedCollectionFormat(payload.default_collection_format || "list");
     ctx.reconcileTensorOrder();
     ctx.populateEngineOptions(payload.engines);
     if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
@@ -295,7 +297,7 @@ export function startEditor(ctx) {
     helpBackdrop.addEventListener("click", () => ctx.toggleHelpModal(false));
     helpCloseButton.addEventListener("click", () => ctx.toggleHelpModal(false));
     engineSelect.addEventListener("change", (event) => {
-      state.selectedEngine = event.target.value;
+      store.setSelectedEngine(event.target.value);
       if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
         ctx.enforceLinearPeriodicEngineSupport();
       }
@@ -309,7 +311,7 @@ export function startEditor(ctx) {
       );
     });
     collectionFormatSelect.addEventListener("change", (event) => {
-      state.selectedCollectionFormat = event.target.value;
+      store.setSelectedCollectionFormat(event.target.value);
     });
     loadInput.addEventListener("change", ctx.loadDesignFromFile);
     subnetworkLoadInput.addEventListener("change", ctx.loadSubnetworkFromFile);

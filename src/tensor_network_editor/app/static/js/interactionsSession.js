@@ -1,70 +1,121 @@
+import { createSessionCommands } from "./actions/sessionCommands.js";
+import { createEditorSessionService } from "./services/editorSessionService.js";
+import { createSubnetworkService } from "./services/subnetworkService.js";
+import { createTemplateCatalogService } from "./services/templateCatalogService.js";
+import { createEditorSelectors } from "./state/editorSelectors.js";
+import { createEditorStore } from "./state/editorStore.js";
+
 export function createInteractionSessionBindings({ ctx, state, dom }) {
   const {
     exportFormatSelect,
     generatedCode,
-    generatedCodeView,
     loadInput,
     subnetworkLoadInput,
     templateSelect,
   } = dom;
-  const { apiPost, document, window } = ctx;
+  const { apiGet, apiPost, document, window } = ctx;
+  const store = ctx.store || createEditorStore(state);
+  const selectors = ctx.selectors || createEditorSelectors({ store });
+  const sessionService =
+    ctx.services && ctx.services.session
+      ? ctx.services.session
+      : createEditorSessionService({ apiGet, apiPost });
+  const templateCatalogService =
+    ctx.services && ctx.services.templateCatalog
+      ? ctx.services.templateCatalog
+      : createTemplateCatalogService({ apiPost });
+  const subnetworkService =
+    ctx.services && ctx.services.subnetwork
+      ? ctx.services.subnetwork
+      : createSubnetworkService({ apiPost });
+  const commands = createSessionCommands({
+    dom,
+    state,
+    store,
+    window,
+    setStatus: ctx.setStatus,
+    applyTemplateCatalogPayload: ctx.applyTemplateCatalogPayload,
+    normalizeSpec: ctx.normalizeSpec,
+    applyDesignChange: ctx.applyDesignChange,
+    bringTensorToFront: ctx.bringTensorToFront,
+  });
+  const clipboard =
+    window &&
+    window.navigator &&
+    window.navigator.clipboard &&
+    typeof window.navigator.clipboard.writeText === "function"
+      ? window.navigator.clipboard
+      : null;
 
-  function syncGeneratedCodePreview(code) {
-    if (typeof ctx.renderGeneratedCodePreview === "function") {
-      ctx.renderGeneratedCodePreview(code);
-      return;
-    }
-    const renderedCode = typeof code === "string" ? code : "";
-    if (generatedCode) {
-      generatedCode.value = renderedCode;
-    }
-    if (!generatedCodeView) {
-      return;
-    }
-    generatedCodeView.textContent = renderedCode;
-    const prism =
-      window && typeof window === "object" ? window.Prism : null;
-    if (prism && typeof prism.highlightElement === "function") {
-      prism.highlightElement(generatedCodeView);
-    }
+  function isLinearPeriodicMode() {
+    return typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
   }
 
-  function showCodeGenerationError(message) {
-    const safeMessage = message || "Code generation failed.";
-    state.generatedCode = `Code generation failed:\n${safeMessage}`;
-    syncGeneratedCodePreview(state.generatedCode);
-    ctx.setStatus(safeMessage, "error");
-  }
-
-  async function generateCode() {
+  function ensureCodePanelVisible() {
     if (typeof ctx.toggleSidebarCollapsed === "function") {
       ctx.toggleSidebarCollapsed(false);
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("code");
     }
+  }
+
+  function syncCodeGenerationWarning() {
     if (typeof ctx.syncCodeGenerationWarning === "function") {
       ctx.syncCodeGenerationWarning();
     }
-    const tensorKrowchPlanIssue =
-      typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
-        ? ctx.getTensorKrowchManualPlanIssueMessage()
-        : "";
+  }
+
+  function getTensorKrowchManualPlanIssueMessage() {
+    return typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
+      ? ctx.getTensorKrowchManualPlanIssueMessage()
+      : "";
+  }
+
+  function getSelectedTensorIds() {
+    return typeof ctx.getSelectedIdsByKind === "function"
+      ? ctx.getSelectedIdsByKind("tensor")
+      : [];
+  }
+
+  function getGroupById(groupId) {
+    return typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+  }
+
+  function syncGeneratedCodePreview(code) {
+    if (typeof ctx.renderGeneratedCodePreview === "function") {
+      ctx.renderGeneratedCodePreview(code);
+    } else {
+      commands.syncGeneratedCodePreview(code);
+    }
+  }
+
+  function showCodeGenerationError(message) {
+    const safeMessage = message || "Code generation failed.";
+    store.setGeneratedCode(`Code generation failed:\n${safeMessage}`);
+    syncGeneratedCodePreview(state.generatedCode);
+    ctx.setStatus(safeMessage, "error");
+  }
+
+  async function generateCode() {
+    ensureCodePanelVisible();
+    syncCodeGenerationWarning();
+    const tensorKrowchPlanIssue = getTensorKrowchManualPlanIssueMessage();
     if (tensorKrowchPlanIssue) {
       ctx.setStatus(tensorKrowchPlanIssue, "error");
       return;
     }
     try {
-      const payload = await apiPost("/api/generate", {
-        engine: state.selectedEngine,
-        collection_format: state.selectedCollectionFormat,
+      const payload = await sessionService.generateCode({
+        engine: selectors.getSelectedEngine(),
+        collectionFormat: selectors.getSelectedCollectionFormat(),
         spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
         showCodeGenerationError(payload.message || ctx.formatIssues(payload.issues));
         return;
       }
-      state.generatedCode = ctx.stripImportLines(payload.code);
+      store.setGeneratedCode(ctx.stripImportLines(payload.code));
       syncGeneratedCodePreview(state.generatedCode);
       ctx.setStatus(`Generated ${payload.engine} code.`, "success");
     } catch (error) {
@@ -74,16 +125,16 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
 
   async function completeEditor() {
     try {
-      const payload = await apiPost("/api/complete", {
-        engine: state.selectedEngine,
-        collection_format: state.selectedCollectionFormat,
+      const payload = await sessionService.completeSession({
+        engine: selectors.getSelectedEngine(),
+        collectionFormat: selectors.getSelectedCollectionFormat(),
         spec: ctx.serializeCurrentSpec({ persistViewSnapshots: true }),
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
         return;
       }
-      state.editorFinished = true;
+      store.setEditorFinished(true);
       ctx.setStatus("Returning the design to Python. You can close this tab.", "success");
       window.setTimeout(() => {
         window.close();
@@ -95,8 +146,8 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
 
   async function cancelEditor() {
     try {
-      state.editorFinished = true;
-      await apiPost("/api/cancel", {});
+      store.setEditorFinished(true);
+      await sessionService.cancelSession();
       ctx.setStatus("Editor cancelled. You can close this tab.", "success");
       window.setTimeout(() => {
         window.close();
@@ -133,8 +184,8 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
         const fileText = typeof reader.result === "string" ? reader.result : "";
         const isPythonSource = file.name.toLowerCase().endsWith(".py");
         const response = isPythonSource
-          ? await apiPost("/api/validate", { python_code: fileText })
-          : await apiPost("/api/validate", { spec: JSON.parse(fileText) });
+          ? await sessionService.validatePythonCode(fileText)
+          : await sessionService.validateSerializedSpec(JSON.parse(fileText));
         if (!response.ok) {
           ctx.setStatus(ctx.formatIssues(response.issues), "error");
           return;
@@ -154,7 +205,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   function openSubnetworkPicker() {
-    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+    if (isLinearPeriodicMode()) {
       ctx.setStatus(
         "Subnetwork insertion is only available in normal graph mode.",
         "error"
@@ -170,23 +221,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     payload,
     successMessage = "Updated the template catalog."
   ) {
-    ctx.applyTemplateCatalogPayload({
-      templateNames: payload.templates,
-      templateDefinitions: payload.template_definitions,
-      selectedTemplate:
-        typeof payload.selected_template === "string"
-          ? payload.selected_template
-          : null,
-      templateCatalogWarnings: payload.template_catalog_warnings,
-    });
-    if (
-      Array.isArray(payload.template_catalog_warnings) &&
-      payload.template_catalog_warnings.length
-    ) {
-      ctx.setStatus(payload.template_catalog_warnings[0], "error");
-      return;
-    }
-    ctx.setStatus(successMessage, "success");
+    commands.applyTemplateCatalogUpdate(payload, successMessage);
   }
 
   function requestTemplateName(defaultTemplateName = "fragment_template") {
@@ -204,12 +239,6 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     return normalizedName || null;
   }
 
-  function getTemplateDefinition(templateName) {
-    return typeof ctx.getTemplateDefinition === "function"
-      ? ctx.getTemplateDefinition(templateName)
-      : null;
-  }
-
   function confirmTemplateOverwrite(templateName, operationLabel) {
     if (!window || typeof window.confirm !== "function") {
       return true;
@@ -220,11 +249,11 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   function resolveTemplateOverwriteDecision(templateName, operationLabel) {
-    const existingDefinition = getTemplateDefinition(templateName);
+    const existingDefinition = selectors.getTemplateDefinition(templateName);
     if (!existingDefinition) {
       return { overwrite: false };
     }
-    if (existingDefinition.source === "global") {
+    if (!selectors.isProjectTemplate(templateName)) {
       ctx.setStatus(
         `Template '${templateName}' is registered globally and cannot be replaced.`,
         "error"
@@ -239,32 +268,11 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   function insertPreparedSubnetwork(preparedSpec, label = null) {
-    const normalizedSpec = ctx.normalizeSpec(preparedSpec);
-    ctx.applyDesignChange(
-      () => {
-        state.spec.tensors.push(...normalizedSpec.tensors);
-        state.spec.edges.push(...normalizedSpec.edges);
-        state.spec.groups.push(...normalizedSpec.groups);
-        normalizedSpec.tensors.forEach((tensor) => {
-          ctx.bringTensorToFront(tensor.id);
-        });
-        state.lastImportedTensorIds = normalizedSpec.tensors.map(
-          (tensor) => tensor.id
-        );
-      },
-      {
-        invalidate: { lookups: true },
-        selectionIds: normalizedSpec.tensors.map((tensor) => tensor.id),
-        primaryId: normalizedSpec.tensors.length
-          ? normalizedSpec.tensors[normalizedSpec.tensors.length - 1].id
-          : null,
-        statusMessage: `Inserted ${label || normalizedSpec.name || "subnetwork"}.`,
-      }
-    );
+    commands.insertPreparedSubnetwork(preparedSpec, label);
   }
 
   async function exportSubnetworkByTensorIds(tensorIds, label = "subnetwork") {
-    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+    if (isLinearPeriodicMode()) {
       ctx.setStatus(
         "Subnetwork export is only available in normal graph mode.",
         "error"
@@ -276,9 +284,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       return;
     }
     try {
-      const payload = await apiPost("/api/subnetwork/extract", {
-        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
-        tensor_ids: tensorIds,
+      const payload = await subnetworkService.extractSubnetwork({
+        serializedSpec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
+        tensorIds,
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
@@ -300,16 +308,11 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   async function exportSelectedSubnetwork() {
-    await exportSubnetworkByTensorIds(
-      typeof ctx.getSelectedIdsByKind === "function"
-        ? ctx.getSelectedIdsByKind("tensor")
-        : [],
-      "subnetwork"
-    );
+    await exportSubnetworkByTensorIds(getSelectedTensorIds(), "subnetwork");
   }
 
   async function exportGroupSubnetwork(groupId) {
-    const group = typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+    const group = getGroupById(groupId);
     if (!group || !Array.isArray(group.tensor_ids) || !group.tensor_ids.length) {
       ctx.setStatus("This group does not contain any tensors to extract.", "error");
       return;
@@ -321,7 +324,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     tensorIds,
     defaultTemplateName = "fragment_template"
   ) {
-    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+    if (isLinearPeriodicMode()) {
       ctx.setStatus(
         "Template promotion is only available in normal graph mode.",
         "error"
@@ -345,10 +348,10 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       return;
     }
     try {
-      const payload = await apiPost("/api/template/promote", {
-        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
-        tensor_ids: tensorIds,
-        template_name: templateName,
+      const payload = await templateCatalogService.promoteTemplate({
+        serializedSpec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
+        tensorIds,
+        templateName,
         overwrite: overwriteDecision.overwrite,
       });
       if (!payload.ok) {
@@ -365,17 +368,11 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   async function promoteSelectedSubnetworkToTemplate() {
-    await promoteSubnetworkByTensorIds(
-      typeof ctx.getSelectedIdsByKind === "function"
-        ? ctx.getSelectedIdsByKind("tensor")
-        : [],
-      "selection_template"
-    );
+    await promoteSubnetworkByTensorIds(getSelectedTensorIds(), "selection_template");
   }
 
   async function promoteGroupToTemplate(groupId) {
-    const group =
-      typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+    const group = getGroupById(groupId);
     if (!group || !Array.isArray(group.tensor_ids) || !group.tensor_ids.length) {
       ctx.setStatus("This group does not contain any tensors to promote.", "error");
       return;
@@ -395,8 +392,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       ctx.setStatus("Choose a template first.");
       return;
     }
-    const currentDefinition = getTemplateDefinition(currentTemplateName);
-    if (!currentDefinition || currentDefinition.source !== "project") {
+    if (!selectors.isProjectTemplate(currentTemplateName)) {
       ctx.setStatus(
         "Only project-local templates can be renamed from the editor.",
         "error"
@@ -420,9 +416,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       return;
     }
     try {
-      const payload = await apiPost("/api/template/rename", {
-        template_name: currentTemplateName,
-        new_template_name: newTemplateName,
+      const payload = await templateCatalogService.renameTemplate({
+        templateName: currentTemplateName,
+        newTemplateName,
         overwrite: overwriteDecision.overwrite,
       });
       if (!payload.ok) {
@@ -445,8 +441,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       ctx.setStatus("Choose a template first.");
       return;
     }
-    const currentDefinition = getTemplateDefinition(currentTemplateName);
-    if (!currentDefinition || currentDefinition.source !== "project") {
+    if (!selectors.isProjectTemplate(currentTemplateName)) {
       ctx.setStatus(
         "Only project-local templates can be deleted from the editor.",
         "error"
@@ -463,8 +458,8 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       return;
     }
     try {
-      const payload = await apiPost("/api/template/delete", {
-        template_name: currentTemplateName,
+      const payload = await templateCatalogService.deleteTemplate({
+        templateName: currentTemplateName,
       });
       if (!payload.ok) {
         ctx.setStatus(payload.message || ctx.formatIssues(payload.issues), "error");
@@ -484,7 +479,7 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     if (!file) {
       return;
     }
-    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+    if (isLinearPeriodicMode()) {
       ctx.setStatus(
         "Subnetwork insertion is only available in normal graph mode.",
         "error"
@@ -507,9 +502,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
                 schema_version: state.schemaVersion,
                 network: parsed,
               };
-        const response = await apiPost("/api/subnetwork/prepare-insert", {
-          spec: serializedSpec,
-          target_center: ctx.suggestTensorPosition(ctx.viewportCenterPosition()),
+        const response = await subnetworkService.prepareSubnetworkForInsert({
+          serializedSpec,
+          targetCenter: ctx.suggestTensorPosition(ctx.viewportCenterPosition()),
         });
         if (!response.ok) {
           ctx.setStatus(
@@ -539,8 +534,12 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
       ctx.setStatus("There is no generated code to copy yet.");
       return;
     }
+    if (!clipboard) {
+      ctx.setStatus("Clipboard access is not available in this browser.", "error");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(codeToCopy);
+      await clipboard.writeText(codeToCopy);
       ctx.setStatus("Generated code copied to the clipboard without import lines.", "success");
     } catch (error) {
       ctx.setStatus(`Could not copy the generated code: ${error.message}`, "error");
@@ -548,37 +547,27 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
   }
 
   async function downloadPythonExport() {
-    if (typeof ctx.toggleSidebarCollapsed === "function") {
-      ctx.toggleSidebarCollapsed(false);
-    }
-    if (typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab("code");
-    }
-    if (typeof ctx.syncCodeGenerationWarning === "function") {
-      ctx.syncCodeGenerationWarning();
-    }
-    const tensorKrowchPlanIssue =
-      typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
-        ? ctx.getTensorKrowchManualPlanIssueMessage()
-        : "";
+    ensureCodePanelVisible();
+    syncCodeGenerationWarning();
+    const tensorKrowchPlanIssue = getTensorKrowchManualPlanIssueMessage();
     if (tensorKrowchPlanIssue) {
       ctx.setStatus(tensorKrowchPlanIssue, "error");
       return;
     }
     try {
-      const payload = await apiPost("/api/generate", {
-        engine: state.selectedEngine,
-        collection_format: state.selectedCollectionFormat,
+      const payload = await sessionService.generateCode({
+        engine: selectors.getSelectedEngine(),
+        collectionFormat: selectors.getSelectedCollectionFormat(),
         spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
       });
       if (!payload.ok) {
         showCodeGenerationError(payload.message || ctx.formatIssues(payload.issues));
         return;
       }
-      state.generatedCode = ctx.stripImportLines(payload.code);
+      store.setGeneratedCode(ctx.stripImportLines(payload.code));
       syncGeneratedCodePreview(state.generatedCode);
       ctx.downloadBlob(
-        `${ctx.sanitizeFilename(state.spec.name || "tensor-network")}-${ctx.sanitizeFilename(state.selectedEngine || "engine")}.py`,
+        `${ctx.sanitizeFilename(state.spec.name || "tensor-network")}-${ctx.sanitizeFilename(selectors.getSelectedEngine() || "engine")}.py`,
         new Blob([payload.code], { type: "text/x-python;charset=utf-8" })
       );
       ctx.setStatus(`Exported ${payload.engine} Python code.`, "success");
@@ -612,8 +601,8 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
     }
     const parameters = ctx.persistTemplateParametersFromControls();
     try {
-      const payload = await apiPost("/api/template", {
-        template: templateName,
+      const payload = await sessionService.buildTemplate({
+        templateName,
         parameters,
       });
       const importedSpec = ctx.uniquifyImportedSpec(
@@ -629,9 +618,9 @@ export function createInteractionSessionBindings({ ctx, state, dom }) {
           state.spec.tensors.push(...translatedSpec.tensors);
           state.spec.edges.push(...translatedSpec.edges);
           state.spec.groups.push(...translatedSpec.groups);
-          state.lastImportedTensorIds = translatedSpec.tensors.map(
+          store.setLastImportedTensorIds(translatedSpec.tensors.map(
             (tensor) => tensor.id
-          );
+          ));
         },
         {
           invalidate: { lookups: true },
