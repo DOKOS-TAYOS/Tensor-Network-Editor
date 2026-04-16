@@ -7,13 +7,21 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from ._headless_models import (
+    LintReport,
+    SemanticSpecDiffResult,
+    SpecAnalysisReport,
+    SpecDiffResult,
+)
+from ._template_catalog import TemplateParameters
 from .errors import SerializationError
-from .models import EngineName, NetworkSpec, TensorCollectionFormat
+from .models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
 from .serialization import (
     deserialize_spec,
     deserialize_spec_from_python_code,
     serialize_spec,
 )
+from .types import JSONValue
 
 
 def handle_edit_command(
@@ -38,7 +46,7 @@ def handle_validate_command(
     args: argparse.Namespace,
     *,
     load_spec: Callable[[str], NetworkSpec],
-    validate_spec: Callable[[NetworkSpec], object],
+    validate_spec: Callable[[NetworkSpec], list[ValidationIssue]],
     print_validation_result: Callable[..., None],
 ) -> int:
     """Validate a spec file and emit text or JSON results."""
@@ -52,7 +60,7 @@ def handle_lint_command(
     args: argparse.Namespace,
     *,
     load_spec_for_lint: Callable[[str], NetworkSpec],
-    lint_spec: Callable[..., object],
+    lint_spec: Callable[..., LintReport],
     print_lint_result: Callable[..., None],
 ) -> int:
     """Run the soft linter against a spec file."""
@@ -72,9 +80,9 @@ def handle_analyze_command(
     args: argparse.Namespace,
     *,
     load_spec: Callable[[str], NetworkSpec],
-    analyze_spec: Callable[..., object],
+    analyze_spec: Callable[..., SpecAnalysisReport],
     print_json: Callable[[object], None],
-    print_analysis_text: Callable[[object], None],
+    print_analysis_text: Callable[[SpecAnalysisReport], None],
 ) -> int:
     """Analyze structure and contraction metrics for a saved spec."""
     spec = load_spec(args.path)
@@ -110,11 +118,11 @@ def handle_diff_command(
     args: argparse.Namespace,
     *,
     load_spec: Callable[[str], NetworkSpec],
-    diff_specs: Callable[[NetworkSpec, NetworkSpec], object],
-    semantic_diff_specs: Callable[[NetworkSpec, NetworkSpec], object],
+    diff_specs: Callable[[NetworkSpec, NetworkSpec], SpecDiffResult],
+    semantic_diff_specs: Callable[[NetworkSpec, NetworkSpec], SemanticSpecDiffResult],
     print_json: Callable[[object], None],
-    print_diff_text: Callable[[object], None],
-    print_semantic_diff_text: Callable[[object], None],
+    print_diff_text: Callable[[SpecDiffResult], None],
+    print_semantic_diff_text: Callable[[SemanticSpecDiffResult], None],
 ) -> int:
     """Compare two specs and print the resulting structured diff."""
     before = load_spec(args.before)
@@ -156,7 +164,7 @@ def handle_canonicalize_command(
 def handle_template_list_command(
     args: argparse.Namespace,
     *,
-    serialize_template_definitions: Callable[[], dict[str, dict[str, object]]],
+    serialize_template_definitions: Callable[[], dict[str, dict[str, JSONValue]]],
     list_template_names: Callable[[], list[str]],
     print_json: Callable[[object], None],
 ) -> int:
@@ -174,8 +182,8 @@ def handle_template_list_command(
 def handle_template_build_command(
     args: argparse.Namespace,
     *,
-    parse_template_parameters: Callable[..., object],
-    build_template_spec: Callable[[str, object], NetworkSpec],
+    parse_template_parameters: Callable[..., TemplateParameters],
+    build_template_spec: Callable[[str, TemplateParameters | None], NetworkSpec],
     save_spec: Callable[[NetworkSpec, str], None],
     print_json: Callable[[object], None],
 ) -> int:

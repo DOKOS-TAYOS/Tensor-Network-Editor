@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -30,6 +33,8 @@ from tensor_network_editor.cli import (
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_analysis_report(memory_dtype: str = "float64") -> SpecAnalysisReport:
@@ -128,6 +133,24 @@ def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     assert exit_code == 2
     launch_mock.assert_not_called()
     assert "the following arguments are required: command" in capsys.readouterr().err
+
+
+def test_cli_modules_pass_targeted_mypy_check() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "src/tensor_network_editor/_cli_handlers.py",
+            "src/tensor_network_editor/cli.py",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_format_shape_accepts_list_and_rejects_invalid_entries() -> None:
