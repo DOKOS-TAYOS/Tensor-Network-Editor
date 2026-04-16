@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Protocol, cast
 
 from ._headless_models import (
@@ -36,6 +37,38 @@ class _DiffableEntity(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class _SemanticEntityConfig:
+    """Describe one standard semantic-diff entity family."""
+
+    entity_type: str
+    entities: Callable[[NetworkSpec], Iterable[_DiffableEntity]]
+    payload_getter: Callable[[_DiffableEntity], dict[str, JSONValue]]
+
+
+_ENTITY_LABELS: dict[str, str] = {
+    "tensor": "Tensor",
+    "index": "Index",
+    "edge": "Edge",
+    "group": "Group",
+    "note": "Note",
+    "plan": "Contraction plan",
+    "step": "Contraction step",
+    "linear_periodic_chain": "Linear periodic chain",
+}
+
+_ENTITY_SORT_ORDER: dict[str, int] = {
+    "tensor": 0,
+    "index": 1,
+    "edge": 2,
+    "group": 3,
+    "note": 4,
+    "plan": 5,
+    "step": 6,
+    "linear_periodic_chain": 7,
+}
+
+
 def diff_specs(before: NetworkSpec, after: NetworkSpec) -> SpecDiffResult:
     """Return a structured diff between two specs based on stable ids.
 
@@ -62,47 +95,7 @@ def semantic_diff_specs(
     """Return field-level semantic changes grouped by stable entity ids."""
     normalized_before = canonicalize_spec(before)
     normalized_after = canonicalize_spec(after)
-    entries: list[SemanticDiffEntry] = []
-    entries.extend(
-        _semantic_diff_named_entities(
-            normalized_before.tensors,
-            normalized_after.tensors,
-            entity_type="tensor",
-            payload_getter=_tensor_payload,
-        )
-    )
-    entries.extend(
-        _semantic_diff_named_entities(
-            _index_entities(normalized_before.tensors),
-            _index_entities(normalized_after.tensors),
-            entity_type="index",
-            payload_getter=_index_payload,
-        )
-    )
-    entries.extend(
-        _semantic_diff_named_entities(
-            normalized_before.edges,
-            normalized_after.edges,
-            entity_type="edge",
-            payload_getter=_edge_payload,
-        )
-    )
-    entries.extend(
-        _semantic_diff_named_entities(
-            normalized_before.groups,
-            normalized_after.groups,
-            entity_type="group",
-            payload_getter=_group_payload,
-        )
-    )
-    entries.extend(
-        _semantic_diff_named_entities(
-            normalized_before.notes,
-            normalized_after.notes,
-            entity_type="note",
-            payload_getter=_note_payload,
-        )
-    )
+    entries = _semantic_diff_standard_entities(normalized_before, normalized_after)
     entries.extend(
         _semantic_diff_plan(
             normalized_before.contraction_plan,
@@ -113,6 +106,24 @@ def semantic_diff_specs(
         _semantic_diff_linear_periodic_chain(normalized_before, normalized_after)
     )
     return SemanticSpecDiffResult(entries=_sort_semantic_entries(entries))
+
+
+def _semantic_diff_standard_entities(
+    before: NetworkSpec,
+    after: NetworkSpec,
+) -> list[SemanticDiffEntry]:
+    """Build semantic diff entries for the standard entity families."""
+    entries: list[SemanticDiffEntry] = []
+    for config in _STANDARD_SEMANTIC_ENTITY_CONFIGS:
+        entries.extend(
+            _semantic_diff_named_entities(
+                config.entities(before),
+                config.entities(after),
+                entity_type=config.entity_type,
+                payload_getter=config.payload_getter,
+            )
+        )
+    return entries
 
 
 def _diff_named_entities(
@@ -166,23 +177,9 @@ def _semantic_diff_named_entities(
     before_by_id = {_entity_id(item): item for item in before}
     after_by_id = {_entity_id(item): item for item in after}
     for entity_id in sorted(before_by_id.keys() - after_by_id.keys()):
-        entries.append(
-            SemanticDiffEntry(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                change_type="removed",
-                summary=_summary_for_entity(entity_type, "removed"),
-            )
-        )
+        entries.append(_build_simple_semantic_entry(entity_type, entity_id, "removed"))
     for entity_id in sorted(after_by_id.keys() - before_by_id.keys()):
-        entries.append(
-            SemanticDiffEntry(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                change_type="added",
-                summary=_summary_for_entity(entity_type, "added"),
-            )
-        )
+        entries.append(_build_simple_semantic_entry(entity_type, entity_id, "added"))
     for entity_id in sorted(before_by_id.keys() & after_by_id.keys()):
         field_changes = _diff_json_fields(
             payload_getter(before_by_id[entity_id]),
@@ -190,12 +187,10 @@ def _semantic_diff_named_entities(
         )
         if field_changes:
             entries.append(
-                SemanticDiffEntry(
-                    entity_type=entity_type,
-                    entity_id=entity_id,
-                    change_type="changed",
-                    summary=_summary_for_changed_entry(entity_type, field_changes),
-                    field_changes=field_changes,
+                _build_changed_semantic_entry(
+                    entity_type,
+                    entity_id,
+                    field_changes,
                 )
             )
     return entries
@@ -206,64 +201,34 @@ def _semantic_diff_plan(
     after: ContractionPlanSpec | None,
 ) -> list[SemanticDiffEntry]:
     """Build semantic diff entries for the optional contraction plan."""
-    entries: list[SemanticDiffEntry] = []
     if before is None and after is None:
-        return entries
+        return []
     if before is None and after is not None:
-        entries.append(
-            SemanticDiffEntry(
-                entity_type="plan",
-                entity_id=after.id,
-                change_type="added",
-                summary=_summary_for_entity("plan", "added"),
-            )
-        )
-        entries.extend(_plan_step_add_remove_entries(after.steps, change_type="added"))
-        return entries
+        return [
+            _build_simple_semantic_entry("plan", after.id, "added"),
+            *_plan_step_add_remove_entries(after.steps, change_type="added"),
+        ]
     if before is not None and after is None:
-        entries.append(
-            SemanticDiffEntry(
-                entity_type="plan",
-                entity_id=before.id,
-                change_type="removed",
-                summary=_summary_for_entity("plan", "removed"),
-            )
-        )
-        entries.extend(
-            _plan_step_add_remove_entries(before.steps, change_type="removed")
-        )
-        return entries
+        return [
+            _build_simple_semantic_entry("plan", before.id, "removed"),
+            *_plan_step_add_remove_entries(before.steps, change_type="removed"),
+        ]
 
     assert before is not None
     assert after is not None
+    entries: list[SemanticDiffEntry] = []
     if before.id != after.id:
-        entries.append(
-            SemanticDiffEntry(
-                entity_type="plan",
-                entity_id=before.id,
-                change_type="removed",
-                summary=_summary_for_entity("plan", "removed"),
-            )
-        )
-        entries.append(
-            SemanticDiffEntry(
-                entity_type="plan",
-                entity_id=after.id,
-                change_type="added",
-                summary=_summary_for_entity("plan", "added"),
-            )
+        entries.extend(
+            [
+                _build_simple_semantic_entry("plan", before.id, "removed"),
+                _build_simple_semantic_entry("plan", after.id, "added"),
+            ]
         )
     else:
         field_changes = _diff_json_fields(_plan_payload(before), _plan_payload(after))
         if field_changes:
             entries.append(
-                SemanticDiffEntry(
-                    entity_type="plan",
-                    entity_id=after.id,
-                    change_type="changed",
-                    summary=_summary_for_changed_entry("plan", field_changes),
-                    field_changes=field_changes,
-                )
+                _build_changed_semantic_entry("plan", after.id, field_changes)
             )
 
     entries.extend(
@@ -314,20 +279,18 @@ def _semantic_diff_linear_periodic_chain(
         return []
     if before_payload is None and after_payload is not None:
         return [
-            SemanticDiffEntry(
-                entity_type="linear_periodic_chain",
-                entity_id="linear_periodic_chain",
-                change_type="added",
-                summary=_summary_for_entity("linear_periodic_chain", "added"),
+            _build_simple_semantic_entry(
+                "linear_periodic_chain",
+                "linear_periodic_chain",
+                "added",
             )
         ]
     if before_payload is not None and after_payload is None:
         return [
-            SemanticDiffEntry(
-                entity_type="linear_periodic_chain",
-                entity_id="linear_periodic_chain",
-                change_type="removed",
-                summary=_summary_for_entity("linear_periodic_chain", "removed"),
+            _build_simple_semantic_entry(
+                "linear_periodic_chain",
+                "linear_periodic_chain",
+                "removed",
             )
         ]
     return [
@@ -359,13 +322,7 @@ def _plan_step_add_remove_entries(
 ) -> list[SemanticDiffEntry]:
     """Build step addition or removal entries in step order."""
     return [
-        SemanticDiffEntry(
-            entity_type="step",
-            entity_id=step.id,
-            change_type=change_type,
-            summary=_summary_for_entity("step", change_type),
-        )
-        for step in steps
+        _build_simple_semantic_entry("step", step.id, change_type) for step in steps
     ]
 
 
@@ -499,16 +456,6 @@ def _sort_semantic_entries(
     entries: list[SemanticDiffEntry],
 ) -> list[SemanticDiffEntry]:
     """Return semantic entries in a stable user-facing order."""
-    entity_order = {
-        "tensor": 0,
-        "index": 1,
-        "edge": 2,
-        "group": 3,
-        "note": 4,
-        "plan": 5,
-        "step": 6,
-        "linear_periodic_chain": 7,
-    }
     change_order = {
         "removed": 0,
         "added": 1,
@@ -518,28 +465,23 @@ def _sort_semantic_entries(
     return sorted(
         entries,
         key=lambda entry: (
-            entity_order.get(entry.entity_type, 999),
+            _ENTITY_SORT_ORDER.get(entry.entity_type, 999),
             entry.entity_id,
             change_order.get(entry.change_type, 999),
         ),
     )
 
 
+def _entity_label(entity_type: str) -> str:
+    """Return the user-facing label for one semantic diff entity type."""
+    return _ENTITY_LABELS.get(entity_type, entity_type.replace("_", " ").title())
+
+
 def _summary_for_entity(entity_type: str, change_type: str) -> str:
     """Return a compact user-facing summary for one semantic diff entry."""
     if entity_type == "plan" and change_type == "reordered":
         return "Contraction step order changed."
-    label = {
-        "tensor": "Tensor",
-        "index": "Index",
-        "edge": "Edge",
-        "group": "Group",
-        "note": "Note",
-        "plan": "Contraction plan",
-        "step": "Contraction step",
-        "linear_periodic_chain": "Linear periodic chain",
-    }.get(entity_type, entity_type.replace("_", " ").title())
-    return f"{label} {change_type}."
+    return f"{_entity_label(entity_type)} {change_type}."
 
 
 def _summary_for_changed_entry(
@@ -547,20 +489,39 @@ def _summary_for_changed_entry(
     field_changes: list[SemanticFieldChange],
 ) -> str:
     """Return a changed-entry summary that names the affected fields."""
-    label = {
-        "tensor": "Tensor",
-        "index": "Index",
-        "edge": "Edge",
-        "group": "Group",
-        "note": "Note",
-        "plan": "Contraction plan",
-        "step": "Contraction step",
-        "linear_periodic_chain": "Linear periodic chain",
-    }.get(entity_type, entity_type.replace("_", " ").title())
     field_names = ", ".join(
         _unique_field_paths(field_change.path for field_change in field_changes)
     )
-    return f"{label} fields changed: {field_names}."
+    return f"{_entity_label(entity_type)} fields changed: {field_names}."
+
+
+def _build_simple_semantic_entry(
+    entity_type: str,
+    entity_id: str,
+    change_type: str,
+) -> SemanticDiffEntry:
+    """Build one semantic diff entry without field-level payload changes."""
+    return SemanticDiffEntry(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        change_type=change_type,
+        summary=_summary_for_entity(entity_type, change_type),
+    )
+
+
+def _build_changed_semantic_entry(
+    entity_type: str,
+    entity_id: str,
+    field_changes: list[SemanticFieldChange],
+) -> SemanticDiffEntry:
+    """Build one semantic diff entry with field-level payload changes."""
+    return SemanticDiffEntry(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        change_type="changed",
+        summary=_summary_for_changed_entry(entity_type, field_changes),
+        field_changes=field_changes,
+    )
 
 
 def _unique_field_paths(paths: Iterable[str]) -> list[str]:
@@ -583,6 +544,35 @@ def _entity_id(entity: _DiffableEntity) -> str:
 def _entity_payload(entity: _DiffableEntity) -> dict[str, JSONValue]:
     """Serialize one entity for diff comparison."""
     return entity.to_dict()
+
+
+_STANDARD_SEMANTIC_ENTITY_CONFIGS: tuple[_SemanticEntityConfig, ...] = (
+    _SemanticEntityConfig(
+        entity_type="tensor",
+        entities=lambda spec: spec.tensors,
+        payload_getter=_tensor_payload,
+    ),
+    _SemanticEntityConfig(
+        entity_type="index",
+        entities=lambda spec: _index_entities(spec.tensors),
+        payload_getter=_index_payload,
+    ),
+    _SemanticEntityConfig(
+        entity_type="edge",
+        entities=lambda spec: spec.edges,
+        payload_getter=_edge_payload,
+    ),
+    _SemanticEntityConfig(
+        entity_type="group",
+        entities=lambda spec: spec.groups,
+        payload_getter=_group_payload,
+    ),
+    _SemanticEntityConfig(
+        entity_type="note",
+        entities=lambda spec: spec.notes,
+        payload_getter=_note_payload,
+    ),
+)
 
 
 __all__ = [

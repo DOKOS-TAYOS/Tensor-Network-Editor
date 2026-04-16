@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from ._template_catalog import (
     TEMPLATE_DEFINITIONS,
     TemplateParameters,
@@ -31,6 +33,9 @@ DOWN_OFFSET = (0.0, 28.0)
 LOWER_LEFT_OFFSET = (-24.0, 34.0)
 LOWER_RIGHT_OFFSET = (24.0, 34.0)
 TemplateIndexConfig = tuple[str, int, tuple[float, float]]
+LinearChainSiteIndexBuilder = Callable[
+    [int, int, TemplateParameters], list[TemplateIndexConfig]
+]
 
 
 def build_template(
@@ -52,73 +57,98 @@ def build_template(
 
 def _build_mps_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build an MPS template with the requested site count and dimensions."""
-    length = parameters.graph_size
-    tensors = []
-    for site_index in range(length):
-        tensor_indices: list[TemplateIndexConfig] = []
-        if site_index > 0:
-            tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
-        if site_index < length - 1:
-            tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
-        tensor_indices.append(("phys", parameters.physical_dimension, DOWN_OFFSET))
-        tensors.append(
-            _make_tensor(
-                f"tensor_{site_index}",
-                f"A{site_index + 1}",
-                HORIZONTAL_SPACING * site_index,
-                0.0,
-                tensor_indices,
-            )
-        )
-    edges = [
-        _make_edge(
-            f"edge_{site_index}_{site_index + 1}",
-            tensors[site_index],
-            "right",
-            tensors[site_index + 1],
-            "left",
-        )
-        for site_index in range(length - 1)
-    ]
-    spec_name = (
-        "MPS"
-        if length == TEMPLATE_DEFINITIONS["mps"].defaults.graph_size
-        else f"MPS ({length} sites)"
-    )
-    return NetworkSpec(
-        id=f"template_mps_{length}",
-        name=spec_name,
-        tensors=tensors,
-        edges=edges,
+    return _build_linear_chain_template(
+        "mps",
+        parameters,
+        tensor_name_prefix="A",
+        spacing=HORIZONTAL_SPACING,
+        site_index_builder=_build_mps_site_indices,
     )
 
 
 def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build an MPO template with the requested site count and dimensions."""
+    return _build_linear_chain_template(
+        "mpo",
+        parameters,
+        tensor_name_prefix="W",
+        spacing=330.0,
+        site_index_builder=_build_mpo_site_indices,
+    )
+
+
+def _build_linear_chain_template(
+    template_name: str,
+    parameters: TemplateParameters,
+    *,
+    tensor_name_prefix: str,
+    spacing: float,
+    site_index_builder: LinearChainSiteIndexBuilder,
+) -> NetworkSpec:
+    """Build one left-to-right chain template from a per-site index factory."""
     length = parameters.graph_size
-    tensors = []
-    for site_index in range(length):
-        tensor_indices: list[TemplateIndexConfig] = []
-        if site_index > 0:
-            tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
-        if site_index < length - 1:
-            tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
-        tensor_indices.extend(
-            [
-                ("bra", parameters.physical_dimension, UP_OFFSET),
-                ("ket", parameters.physical_dimension, DOWN_OFFSET),
-            ]
+    tensors = [
+        _make_tensor(
+            f"tensor_{site_index}",
+            f"{tensor_name_prefix}{site_index + 1}",
+            spacing * site_index,
+            0.0,
+            site_index_builder(site_index, length, parameters),
         )
-        tensors.append(
-            _make_tensor(
-                f"tensor_{site_index}",
-                f"W{site_index + 1}",
-                330.0 * site_index,
-                0.0,
-                tensor_indices,
-            )
-        )
-    edges = [
+        for site_index in range(length)
+    ]
+    definition = TEMPLATE_DEFINITIONS[template_name]
+    spec_name = (
+        definition.display_name
+        if length == definition.defaults.graph_size
+        else f"{definition.display_name} ({length} {definition.graph_size_label.lower()})"
+    )
+    return NetworkSpec(
+        id=f"template_{template_name}_{length}",
+        name=spec_name,
+        tensors=tensors,
+        edges=_make_linear_chain_edges(tensors),
+    )
+
+
+def _build_mps_site_indices(
+    site_index: int,
+    length: int,
+    parameters: TemplateParameters,
+) -> list[TemplateIndexConfig]:
+    """Return the named index layout for one MPS site."""
+    tensor_indices: list[TemplateIndexConfig] = []
+    if site_index > 0:
+        tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
+    if site_index < length - 1:
+        tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
+    tensor_indices.append(("phys", parameters.physical_dimension, DOWN_OFFSET))
+    return tensor_indices
+
+
+def _build_mpo_site_indices(
+    site_index: int,
+    length: int,
+    parameters: TemplateParameters,
+) -> list[TemplateIndexConfig]:
+    """Return the named index layout for one MPO site."""
+    tensor_indices: list[TemplateIndexConfig] = []
+    if site_index > 0:
+        tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
+    if site_index < length - 1:
+        tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
+    tensor_indices.extend(
+        [
+            ("bra", parameters.physical_dimension, UP_OFFSET),
+            ("ket", parameters.physical_dimension, DOWN_OFFSET),
+        ]
+    )
+    return tensor_indices
+
+
+def _make_linear_chain_edges(tensors: list[TensorSpec]) -> list[EdgeSpec]:
+    """Return the right-to-left bonds between adjacent chain tensors."""
+    return [
         _make_edge(
             f"edge_{site_index}_{site_index + 1}",
             tensors[site_index],
@@ -126,19 +156,8 @@ def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
             tensors[site_index + 1],
             "left",
         )
-        for site_index in range(length - 1)
+        for site_index in range(len(tensors) - 1)
     ]
-    spec_name = (
-        "MPO"
-        if length == TEMPLATE_DEFINITIONS["mpo"].defaults.graph_size
-        else f"MPO ({length} sites)"
-    )
-    return NetworkSpec(
-        id=f"template_mpo_{length}",
-        name=spec_name,
-        tensors=tensors,
-        edges=edges,
-    )
 
 
 def _build_peps_template(parameters: TemplateParameters) -> NetworkSpec:

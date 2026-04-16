@@ -45,6 +45,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "interactionsEditor.js",
         "interactionsSession.js",
         "interactionsShortcuts.js",
+        "plannerAutomaticSupport.js",
         "propertiesRenderersOverview.js",
         "propertiesRenderersTensor.js",
         "propertiesRenderersEntities.js",
@@ -70,6 +71,14 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
             (js_root / module_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
+
+
+def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
+    tmp_path: Path,
+) -> None:
+    _copy_runtime_editor_support_modules(tmp_path)
+
+    assert (tmp_path / "plannerAutomaticSupport.js").exists()
 
 
 def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:

@@ -6,7 +6,7 @@ from tensor_network_editor._headless_models import (
     SemanticDiffEntry,
     SemanticSpecDiffResult,
 )
-from tensor_network_editor.diffing import semantic_diff_specs
+from tensor_network_editor.diffing import _entity_label, semantic_diff_specs
 from tests.factories import (
     build_linear_periodic_chain_spec,
     build_sample_spec,
@@ -28,6 +28,12 @@ def _field_changes_by_path(entry: SemanticDiffEntry) -> dict[str, tuple[Any, Any
     return {
         change.path: (change.before, change.after) for change in entry.field_changes
     }
+
+
+def test_entity_label_internal_helper_covers_known_and_fallback_types() -> None:
+    assert _entity_label("tensor") == "Tensor"
+    assert _entity_label("linear_periodic_chain") == "Linear periodic chain"
+    assert _entity_label("manual_subtree") == "Manual Subtree"
 
 
 def test_semantic_diff_specs_reports_tensor_and_index_field_changes() -> None:
