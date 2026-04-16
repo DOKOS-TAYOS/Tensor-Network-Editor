@@ -22,7 +22,7 @@ def validate_metadata(
     """Append a validation issue when metadata is not JSON serializable."""
     try:
         json.dumps(metadata)
-    except TypeError as exc:
+    except (TypeError, ValueError) as exc:
         issues.append(
             ValidationIssue(
                 code="metadata-not-serializable",

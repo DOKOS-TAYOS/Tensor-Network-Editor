@@ -591,9 +591,15 @@ def _format_shape(shape: object) -> str:
     """Format a result shape for text output."""
     if shape == ():
         return "scalar"
-    if not isinstance(shape, tuple) or not shape:
+    if not isinstance(shape, Sequence) or isinstance(shape, (str, bytes)) or not shape:
         return "n/a"
-    return " x ".join(str(int(dimension)) for dimension in shape)
+    dimensions: list[str] = []
+    for dimension in shape:
+        try:
+            dimensions.append(str(int(dimension)))
+        except (TypeError, ValueError):
+            return "n/a"
+    return " x ".join(dimensions)
 
 
 def _describe_delta(value: object, *, unit: str = "") -> str:
@@ -619,7 +625,7 @@ def _format_text_value(value: object | None) -> str:
 
 def _format_label_list(labels: object) -> str:
     """Format bottleneck labels for analysis output."""
-    if not isinstance(labels, tuple):
+    if not isinstance(labels, Sequence) or isinstance(labels, (str, bytes)):
         return "n/a"
     if not labels:
         return "none"

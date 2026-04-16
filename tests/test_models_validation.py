@@ -179,6 +179,12 @@ def non_serializable_metadata(spec: NetworkSpec) -> None:
     spec.metadata = cast(Any, {"bad": {1, 2, 3}})
 
 
+def circular_metadata(spec: NetworkSpec) -> None:
+    recursive_list: list[object] = []
+    recursive_list.append(recursive_list)
+    spec.metadata = cast(Any, {"loop": recursive_list})
+
+
 def mismatched_linear_periodic_boundary(spec: NetworkSpec) -> None:
     assert spec.linear_periodic_chain is not None
     final_previous_boundary = spec.linear_periodic_chain.final_cell.tensors[1]
@@ -506,6 +512,7 @@ def test_validate_spec_rejects_duplicate_operand_ids_in_contraction_view_snapsho
         ),
         (mismatched_edge_owner, "endpoint-tensor-mismatch", "edges.edge_shared.left"),
         (non_serializable_metadata, "metadata-not-serializable", "metadata"),
+        (circular_metadata, "metadata-not-serializable", "metadata"),
         (
             mismatched_linear_periodic_boundary,
             "linear-periodic-interface-mismatch",

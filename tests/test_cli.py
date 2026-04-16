@@ -20,7 +20,12 @@ from tensor_network_editor._headless_models import (
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
-from tensor_network_editor.cli import _coerce_int, main
+from tensor_network_editor.cli import (
+    _coerce_int,
+    _format_label_list,
+    _format_shape,
+    main,
+)
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
@@ -122,6 +127,15 @@ def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     assert exit_code == 2
     launch_mock.assert_not_called()
     assert "the following arguments are required: command" in capsys.readouterr().err
+
+
+def test_format_shape_accepts_list_and_rejects_invalid_entries() -> None:
+    assert _format_shape([2, "3", 4.0]) == "2 x 3 x 4"
+    assert _format_shape([2, "bad"]) == "n/a"
+
+
+def test_format_label_list_accepts_list_sequences() -> None:
+    assert _format_label_list(["x", "y"]) == "x, y"
 
 
 def test_edit_subcommand_uses_expected_defaults() -> None:
