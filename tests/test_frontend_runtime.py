@@ -18,11 +18,17 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "actions/propertyCommands.js",
         "actions/sessionCommands.js",
         "planner/plannerAnalysisFormatting.js",
+        "planner/plannerPanelBindings.js",
         "properties/metadataEditors.js",
+        "properties/propertyAutosave.js",
+        "properties/propertyInvalidation.js",
         "properties/propertySummaries.js",
         "properties/tensorPropertiesBoundary.js",
         "properties/tensorPropertiesContraction.js",
         "properties/tensorPropertiesStandard.js",
+        "session/sessionEditorFlows.js",
+        "session/sessionTemplateFlows.js",
+        "session/sessionUiAdapters.js",
         "utilitiesBase.js",
         "utilitiesGeometry.js",
         "utilitiesLayout.js",
@@ -3560,6 +3566,9 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
         "interactionsEditor.js": "interactionsEditor.js",
         "interactionsSession.js": "interactionsSession.js",
         "interactionsShortcuts.js": "interactionsShortcuts.js",
+        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
+        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
+        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
         "services/editorSessionService.js": "services/editorSessionService.js",
         "services/subnetworkService.js": "services/subnetworkService.js",
         "services/templateCatalogService.js": "services/templateCatalogService.js",
@@ -3598,7 +3607,7 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             }
 
             const baseUrl = new URL("./", import.meta.url);
-            const [stateModule, interactionsModule, canvasModule, editorModule, sessionModule, shortcutsModule] =
+            const [stateModule, interactionsModule, canvasModule, editorModule, sessionModule, shortcutsModule, selectorsModule, storeModule] =
               await Promise.all([
                 import(new URL("./state.runtime.mjs", baseUrl).href),
                 import(new URL("./interactions.runtime.mjs", baseUrl).href),
@@ -3606,6 +3615,8 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                 import(new URL("./interactionsEditor.js", baseUrl).href),
                 import(new URL("./interactionsSession.js", baseUrl).href),
                 import(new URL("./interactionsShortcuts.js", baseUrl).href),
+                import(new URL("./state/editorSelectors.js", baseUrl).href),
+                import(new URL("./state/editorStore.js", baseUrl).href),
               ]);
 
             const { createInitialState } = stateModule;
@@ -3614,6 +3625,8 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             const { createInteractionEditorBindings } = editorModule;
             const { createInteractionSessionBindings } = sessionModule;
             const { createInteractionShortcutBindings } = shortcutsModule;
+            const { createEditorSelectors } = selectorsModule;
+            const { createEditorStore } = storeModule;
 
             const requiredFactories = [
               createInteractionCanvasBindings,
@@ -3823,11 +3836,80 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               persistTemplateParametersFromControls() {
                 return {};
               },
+              formatTemplateLabel(value) {
+                return value;
+              },
               uniquifyImportedSpec(spec) {
                 return spec;
               },
               translateImportedSpec(spec) {
                 return spec;
+              },
+              viewportCenterPosition() {
+                return { x: 500, y: 400 };
+              },
+              suggestTensorPosition(position) {
+                return position;
+              },
+            };
+            ctx.store = createEditorStore(ctx.state);
+            ctx.selectors = createEditorSelectors({ store: ctx.store });
+            ctx.services = {
+              session: {
+                async generateCode(payload) {
+                  return {
+                    ok: true,
+                    engine: payload.engine,
+                    code: "import x\\nresult = 1\\n",
+                  };
+                },
+                async completeSession() {
+                  return { ok: true };
+                },
+                async cancelSession() {
+                  return { ok: true };
+                },
+                async validatePythonCode() {
+                  return { ok: true, spec: { network: { tensors: [], edges: [], groups: [], notes: [], metadata: {} }, schema_version: "1.0" } };
+                },
+                async validateSerializedSpec(spec) {
+                  return { ok: true, spec };
+                },
+                async buildTemplate() {
+                  return {
+                    ok: true,
+                    spec: {
+                      network: {
+                        id: "template_demo",
+                        name: "Template",
+                        tensors: [],
+                        edges: [],
+                        groups: [],
+                        notes: [],
+                        metadata: {},
+                      },
+                    },
+                  };
+                },
+              },
+              templateCatalog: {
+                async promoteTemplate() {
+                  return { ok: true, templates: [], template_definitions: {}, selected_template: null, template_catalog_warnings: [] };
+                },
+                async renameTemplate() {
+                  return { ok: true, templates: [], template_definitions: {}, selected_template: null, template_catalog_warnings: [] };
+                },
+                async deleteTemplate() {
+                  return { ok: true, templates: [], template_definitions: {}, selected_template: null, template_catalog_warnings: [] };
+                },
+              },
+              subnetwork: {
+                async extractSubnetwork() {
+                  return { ok: true, spec: { network: { id: "subnetwork", name: "subnetwork", tensors: [], edges: [], groups: [], notes: [], metadata: {} } } };
+                },
+                async prepareSubnetworkForInsert() {
+                  return { ok: true, spec: { network: { id: "subnetwork", name: "subnetwork", tensors: [], edges: [], groups: [], notes: [], metadata: {} } } };
+                },
               },
             };
 
@@ -3846,7 +3928,73 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             }
             Object.assign(runtime, createInteractionShortcutBindings(env));
             Object.assign(runtime, createInteractionEditorBindings(env));
-            Object.assign(runtime, createInteractionSessionBindings(env));
+            Object.assign(
+              runtime,
+              createInteractionSessionBindings({
+                ...env,
+                store: ctx.store,
+                selectors: ctx.selectors,
+                services: ctx.services,
+                sessionUi: {
+                  async copyText() {},
+                  downloadText() {},
+                  downloadBlob() {},
+                  requestFileText: async () => "",
+                  openFilePicker() {},
+                  schedule(callback) {
+                    callback();
+                  },
+                  closeWindow() {},
+                  promptText: () => null,
+                  confirmAction: () => true,
+                },
+                sessionActions: {
+                  ensureCodePanelVisible() {},
+                  syncCodeGenerationWarning() {},
+                  getTensorKrowchManualPlanIssueMessage() {
+                    return "";
+                  },
+                  getSelectedTensorIds() {
+                    return [];
+                  },
+                  findGroupById() {
+                    return null;
+                  },
+                  isLinearPeriodicMode() {
+                    return false;
+                  },
+                  syncGeneratedCodePreview: (code) => {
+                    ctx.dom.generatedCode.value = code;
+                    ctx.dom.generatedCodeView.textContent = code;
+                    ctx.window.Prism.highlightElement(ctx.dom.generatedCodeView);
+                  },
+                  setStatus: (message, level) => ctx.setStatus(message, level),
+                  serializeCurrentSpec: () => ctx.serializeCurrentSpec(),
+                  formatIssues: () => ctx.formatIssues(),
+                  stripImportLines: (code) => ctx.stripImportLines(code),
+                  sanitizeFilename: (value) => ctx.sanitizeFilename(value),
+                  resetDesignState() {},
+                  downloadPngExport() {},
+                  downloadSvgExport() {},
+                  applyTemplateCatalogPayload() {},
+                  normalizeSpec: (spec) => ctx.normalizeSpec(spec),
+                  applyDesignChange: (mutate, options) =>
+                    ctx.applyDesignChange(mutate, options),
+                  bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
+                  formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+                  persistTemplateParametersFromControls: () =>
+                    ctx.persistTemplateParametersFromControls(),
+                  uniquifyImportedSpec: (spec, prefix) =>
+                    ctx.uniquifyImportedSpec(spec, prefix),
+                  makeId: (prefix) => ctx.makeId(prefix),
+                  translateImportedSpec: (spec, targetCenter) =>
+                    ctx.translateImportedSpec(spec, targetCenter),
+                  suggestTensorPosition: (position) =>
+                    ctx.suggestTensorPosition(position),
+                  viewportCenterPosition: () => ctx.viewportCenterPosition(),
+                },
+              })
+            );
 
             registerInteractions(ctx);
             const requiredCtxBindings = [
@@ -3901,6 +4049,196 @@ def test_runtime_utility_helper_modules_preserve_facade_contract(
     )
 
 
+def _write_interaction_session_dependency_injection_runtime_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "interaction_session_dependency_injection.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "actions/sessionCommands.js": "actions/sessionCommands.js",
+        "interactionsSession.js": "interactionsSession.js",
+        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
+        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
+        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
+        "state/editorSelectors.js": "state/editorSelectors.js",
+        "state/editorStore.js": "state/editorStore.js",
+        "utilitiesTemplates.js": "utilitiesTemplates.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            import { pathToFileURL } from "node:url";
+
+            const baseUrl = new URL("./", import.meta.url);
+            const [selectorsModule, storeModule, sessionModule] = await Promise.all([
+              import(new URL("./state/editorSelectors.js", baseUrl).href),
+              import(new URL("./state/editorStore.js", baseUrl).href),
+              import(new URL("./interactionsSession.js", baseUrl).href),
+            ]);
+
+            const { createEditorStore } = storeModule;
+            const { createEditorSelectors } = selectorsModule;
+            const { createInteractionSessionBindings } = sessionModule;
+
+            const state = {
+              schemaVersion: 4,
+              spec: {
+                id: "network_demo",
+                name: "demo_network",
+                tensors: [],
+                groups: [],
+                edges: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {},
+              },
+              generatedCode: "",
+              selectedEngine: "quimb",
+              selectedCollectionFormat: "dict",
+              templateDefinitions: {},
+              availableTemplates: [],
+              templateCatalogWarnings: [],
+              templateParametersByTemplate: {},
+            };
+            const store = createEditorStore(state);
+            const selectors = createEditorSelectors({ store });
+            const calls = [];
+            const dom = {
+              generatedCode: { value: "" },
+              generatedCodeView: { textContent: "", dataset: {} },
+              exportFormatSelect: { value: "py" },
+              loadInput: { value: "" },
+              subnetworkLoadInput: { value: "" },
+              templateSelect: { value: "" },
+            };
+            const ctx = {
+              apiGet: async () => {
+                throw new Error("Fallback apiGet should not be used when services are injected.");
+              },
+              apiPost: async () => {
+                throw new Error("Fallback apiPost should not be used when services are injected.");
+              },
+              setStatus(message, level = "info") {
+                calls.push({ type: "status", message, level });
+              },
+            };
+            const bindings = createInteractionSessionBindings({
+              ctx,
+              state,
+              dom,
+              store,
+              selectors,
+              services: {
+                session: {
+                  async generateCode(payload) {
+                    calls.push({ type: "generateCode", payload });
+                    return {
+                      ok: true,
+                      engine: payload.engine,
+                      code: "import tensor_network\\nresult = 1\\n",
+                    };
+                  },
+                },
+                templateCatalog: {},
+                subnetwork: {},
+              },
+              sessionActions: {
+                ensureCodePanelVisible() {},
+                syncCodeGenerationWarning() {},
+                getTensorKrowchManualPlanIssueMessage() {
+                  return "";
+                },
+                serializeCurrentSpec: () => ({
+                  schema_version: "4.0",
+                  network: {
+                    id: "network_demo",
+                    name: "demo_network",
+                  },
+                }),
+                stripImportLines: (code) => code.replace(/^import .*\\n/, ""),
+                syncGeneratedCodePreview: (code) => {
+                  dom.generatedCode.value = code;
+                  dom.generatedCodeView.textContent = code;
+                },
+                setStatus: (message, level = "info") =>
+                  calls.push({ type: "actionStatus", message, level }),
+                sanitizeFilename: (value) => value,
+                applyTemplateCatalogPayload() {},
+                normalizeSpec: (spec) => spec,
+                applyDesignChange(mutate) {
+                  mutate();
+                },
+                bringTensorToFront() {},
+              },
+              sessionUi: {
+                async copyText(text) {
+                  calls.push({ type: "copyText", text });
+                },
+                downloadText(filename, text, contentType) {
+                  calls.push({ type: "downloadText", filename, text, contentType });
+                },
+              },
+            });
+
+            await bindings.generateCode();
+            await bindings.copyGeneratedCode();
+            bindings.saveDesign();
+
+            const generateCall = calls.find((entry) => entry.type === "generateCode");
+            if (!generateCall) {
+              throw new Error(`Expected generateCode to use the injected session service, received ${JSON.stringify(calls)}.`);
+            }
+            if (generateCall.payload.engine !== "quimb" || generateCall.payload.collectionFormat !== "dict") {
+              throw new Error(`Unexpected generate payload: ${JSON.stringify(generateCall.payload)}.`);
+            }
+            if (dom.generatedCode.value.trim() !== "result = 1") {
+              throw new Error(`Expected injected preview sync to receive stripped code, received ${dom.generatedCode.value}.`);
+            }
+            const copyCall = calls.find((entry) => entry.type === "copyText");
+            if (!copyCall || copyCall.text.trim() !== "result = 1") {
+              throw new Error(`Expected copyGeneratedCode to use the injected UI adapter, received ${JSON.stringify(calls)}.`);
+            }
+            const downloadCall = calls.find((entry) => entry.type === "downloadText");
+            if (!downloadCall || downloadCall.filename !== "demo_network.json") {
+              throw new Error(`Expected saveDesign to use the injected download adapter, received ${JSON.stringify(calls)}.`);
+            }
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_interaction_session_bindings_use_injected_services_and_ui_adapters(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_interaction_session_dependency_injection_runtime_script(
+        tmp_path
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The interaction-session dependency injection runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_runtime_interaction_helper_modules_preserve_facade_contract(
     tmp_path: Path,
@@ -3930,6 +4268,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "historySelection.runtime.mjs": "historySelection.js",
         "actions/sessionCommands.js": "actions/sessionCommands.js",
         "interactionsSession.js": "interactionsSession.js",
+        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
+        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
+        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
         "services/editorSessionService.js": "services/editorSessionService.js",
         "services/subnetworkService.js": "services/subnetworkService.js",
         "services/templateCatalogService.js": "services/templateCatalogService.js",
@@ -3994,18 +4335,22 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             }
 
             const baseUrl = new URL("./", import.meta.url);
-            const [stateModule, utilitiesModule, historyModule, sessionModule] =
+            const [stateModule, utilitiesModule, historyModule, sessionModule, selectorsModule, storeModule] =
               await Promise.all([
                 import(new URL("./state.runtime.mjs", baseUrl).href),
                 import(new URL("./utilities.runtime.mjs", baseUrl).href),
                 import(new URL("./historySelection.runtime.mjs", baseUrl).href),
                 import(new URL("./interactionsSession.js", baseUrl).href),
+                import(new URL("./state/editorSelectors.js", baseUrl).href),
+                import(new URL("./state/editorStore.js", baseUrl).href),
               ]);
 
             const { createInitialState } = stateModule;
             const { registerUtilities } = utilitiesModule;
             const { registerHistorySelection } = historyModule;
             const { createInteractionSessionBindings } = sessionModule;
+            const { createEditorSelectors } = selectorsModule;
+            const { createEditorStore } = storeModule;
 
             const apiCalls = [];
 
@@ -4279,12 +4624,121 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
 
             registerUtilities(ctx);
             registerHistorySelection(ctx);
+            ctx.store = createEditorStore(ctx.state);
+            ctx.selectors = createEditorSelectors({ store: ctx.store });
+            ctx.services = {
+              session: {
+                async buildTemplate(payload) {
+                  return ctx.apiPost("/api/template", {
+                    template: payload.templateName,
+                    parameters: payload.parameters,
+                  });
+                },
+              },
+              templateCatalog: {
+                async promoteTemplate(payload) {
+                  return ctx.apiPost("/api/template/promote", {
+                    spec: payload.serializedSpec,
+                    tensor_ids: payload.tensorIds,
+                    template_name: payload.templateName,
+                    overwrite: payload.overwrite,
+                  });
+                },
+                async renameTemplate(payload) {
+                  return ctx.apiPost("/api/template/rename", {
+                    template_name: payload.templateName,
+                    new_template_name: payload.newTemplateName,
+                    overwrite: payload.overwrite,
+                  });
+                },
+                async deleteTemplate(payload) {
+                  return ctx.apiPost("/api/template/delete", {
+                    template_name: payload.templateName,
+                  });
+                },
+              },
+              subnetwork: {
+                async extractSubnetwork(payload) {
+                  return ctx.apiPost("/api/subnetwork/extract", {
+                    spec: payload.serializedSpec,
+                    tensor_ids: payload.tensorIds,
+                  });
+                },
+                async prepareSubnetworkForInsert(payload) {
+                  return ctx.apiPost("/api/subnetwork/prepare-insert", {
+                    spec: payload.serializedSpec,
+                    target_center: payload.targetCenter,
+                  });
+                },
+              },
+            };
             const env = {
               ctx,
               state: ctx.state,
               dom: ctx.dom,
             };
-            Object.assign(ctx, createInteractionSessionBindings(env));
+            Object.assign(
+              ctx,
+              createInteractionSessionBindings({
+                ...env,
+                store: ctx.store,
+                selectors: ctx.selectors,
+                services: ctx.services,
+                sessionUi: {
+                  async copyText() {},
+                  downloadText() {},
+                  downloadBlob() {},
+                  requestFileText: async (file) => file.text(),
+                  openFilePicker(input) {
+                    input.click();
+                  },
+                  schedule(callback) {
+                    callback();
+                  },
+                  closeWindow() {},
+                  promptText: (...args) => ctx.window.prompt(...args),
+                  confirmAction: (...args) => ctx.window.confirm(...args),
+                },
+                sessionActions: {
+                  ensureCodePanelVisible() {},
+                  syncCodeGenerationWarning() {},
+                  getTensorKrowchManualPlanIssueMessage() {
+                    return "";
+                  },
+                  getSelectedTensorIds: () => ctx.getSelectedIdsByKind("tensor"),
+                  findGroupById: (groupId) => ctx.findGroupById(groupId),
+                  isLinearPeriodicMode: () => ctx.isLinearPeriodicMode(),
+                  syncGeneratedCodePreview: (code) =>
+                    ctx.renderGeneratedCodePreview(code),
+                  setStatus: (message, level) => ctx.setStatus(message, level),
+                  serializeCurrentSpec: (options) => ctx.serializeCurrentSpec(options),
+                  formatIssues: (issues) => ctx.formatIssues(issues),
+                  stripImportLines: (code) => ctx.stripImportLines(code),
+                  sanitizeFilename: (value) => ctx.sanitizeFilename(value),
+                  resetDesignState: (spec, message, schemaVersion) =>
+                    ctx.resetDesignState(spec, message, schemaVersion),
+                  downloadPngExport: () => ctx.downloadPngExport(),
+                  downloadSvgExport: () => ctx.downloadSvgExport(),
+                  applyTemplateCatalogPayload: (payload) =>
+                    ctx.applyTemplateCatalogPayload(payload),
+                  normalizeSpec: (spec) => ctx.normalizeSpec(spec),
+                  applyDesignChange: (mutate, options) =>
+                    ctx.applyDesignChange(mutate, options),
+                  bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
+                  formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+                  persistTemplateParametersFromControls: () =>
+                    ctx.persistTemplateParametersFromControls(),
+                  uniquifyImportedSpec: (spec, prefix) =>
+                    ctx.uniquifyImportedSpec(spec, prefix),
+                  makeId: (prefix) => ctx.makeId(prefix),
+                  translateImportedSpec: (spec, targetCenter) =>
+                    ctx.translateImportedSpec(spec, targetCenter),
+                  suggestTensorPosition: (position) =>
+                    ctx.suggestTensorPosition(position),
+                  viewportCenterPosition: () => ctx.viewportCenterPosition(),
+                },
+              })
+            );
             ctx.uniquifyImportedSpec = (spec) => ctx.normalizeSpec(spec);
             ctx.translateImportedSpec = (spec) => ctx.normalizeSpec(spec);
             ctx.viewportCenterPosition = () => ({ x: 500, y: 400 });
@@ -4648,18 +5102,22 @@ def _write_template_catalog_management_runtime_regression_script(
         }
 
         const baseUrl = new URL("./", import.meta.url);
-        const [stateModule, utilitiesModule, historyModule, sessionModule] =
+        const [stateModule, utilitiesModule, historyModule, sessionModule, selectorsModule, storeModule] =
           await Promise.all([
             import(new URL("./state.runtime.mjs", baseUrl).href),
             import(new URL("./utilities.runtime.mjs", baseUrl).href),
             import(new URL("./historySelection.runtime.mjs", baseUrl).href),
             import(new URL("./interactionsSession.js", baseUrl).href),
+            import(new URL("./state/editorSelectors.js", baseUrl).href),
+            import(new URL("./state/editorStore.js", baseUrl).href),
           ]);
 
         const { createInitialState } = stateModule;
         const { registerUtilities } = utilitiesModule;
         const { registerHistorySelection } = historyModule;
         const { createInteractionSessionBindings } = sessionModule;
+        const { createEditorSelectors } = selectorsModule;
+        const { createEditorStore } = storeModule;
 
         const apiCalls = [];
         const confirmMessages = [];
@@ -4947,12 +5405,143 @@ def _write_template_catalog_management_runtime_regression_script(
 
         registerUtilities(ctx);
         registerHistorySelection(ctx);
+        ctx.store = createEditorStore(ctx.state);
+        ctx.selectors = createEditorSelectors({ store: ctx.store });
+        ctx.services = {
+          session: {
+            async generateCode(payload) {
+              return ctx.apiPost("/api/generate", {
+                engine: payload.engine,
+                collection_format: payload.collectionFormat,
+                spec: payload.spec,
+              });
+            },
+            async completeSession(payload) {
+              return ctx.apiPost("/api/complete", {
+                engine: payload.engine,
+                collection_format: payload.collectionFormat,
+                spec: payload.spec,
+              });
+            },
+            async cancelSession() {
+              return ctx.apiPost("/api/cancel", {});
+            },
+            async validatePythonCode(payload) {
+              return ctx.apiPost("/api/validate", {
+                python_code: payload,
+              });
+            },
+            async validateSerializedSpec(payload) {
+              return ctx.apiPost("/api/validate", {
+                spec: payload,
+              });
+            },
+            async buildTemplate(payload) {
+              return ctx.apiPost("/api/template", {
+                template: payload.templateName,
+                parameters: payload.parameters,
+              });
+            },
+          },
+          templateCatalog: {
+            async promoteTemplate(payload) {
+              return ctx.apiPost("/api/template/promote", {
+                spec: payload.serializedSpec,
+                tensor_ids: payload.tensorIds,
+                template_name: payload.templateName,
+                overwrite: payload.overwrite,
+              });
+            },
+            async renameTemplate(payload) {
+              return ctx.apiPost("/api/template/rename", {
+                template_name: payload.templateName,
+                new_template_name: payload.newTemplateName,
+                overwrite: payload.overwrite,
+              });
+            },
+            async deleteTemplate(payload) {
+              return ctx.apiPost("/api/template/delete", {
+                template_name: payload.templateName,
+              });
+            },
+          },
+          subnetwork: {
+            async extractSubnetwork(payload) {
+              return ctx.apiPost("/api/subnetwork/extract", {
+                spec: payload.serializedSpec,
+                tensor_ids: payload.tensorIds,
+              });
+            },
+            async prepareSubnetworkForInsert(payload) {
+              return ctx.apiPost("/api/subnetwork/prepare-insert", {
+                spec: payload.serializedSpec,
+                target_center: payload.targetCenter,
+              });
+            },
+          },
+        };
         Object.assign(
           ctx,
           createInteractionSessionBindings({
             ctx,
             state: ctx.state,
             dom: ctx.dom,
+            store: ctx.store,
+            selectors: ctx.selectors,
+            services: ctx.services,
+            sessionUi: {
+              async copyText() {},
+              downloadText() {},
+              downloadBlob() {},
+              requestFileText: async (file) => file.text(),
+              openFilePicker(input) {
+                input.click();
+              },
+              schedule(callback) {
+                callback();
+              },
+              closeWindow() {},
+              promptText: (...args) => ctx.window.prompt(...args),
+              confirmAction: (...args) => ctx.window.confirm(...args),
+            },
+            sessionActions: {
+              ensureCodePanelVisible() {},
+              syncCodeGenerationWarning() {},
+              getTensorKrowchManualPlanIssueMessage() {
+                return "";
+              },
+              getSelectedTensorIds: () => ctx.getSelectedIdsByKind("tensor"),
+              findGroupById: (groupId) => ctx.findGroupById(groupId),
+              isLinearPeriodicMode: () => ctx.isLinearPeriodicMode(),
+              syncGeneratedCodePreview: (code) =>
+                ctx.renderGeneratedCodePreview(code),
+              setStatus: (message, level) => ctx.setStatus(message, level),
+              serializeCurrentSpec: (options) => ctx.serializeCurrentSpec(options),
+              formatIssues: (issues) => ctx.formatIssues(issues),
+              stripImportLines: (code) => ctx.stripImportLines(code),
+              sanitizeFilename: (value) => ctx.sanitizeFilename(value),
+              resetDesignState: (spec, message, schemaVersion) =>
+                ctx.resetDesignState(spec, message, schemaVersion),
+              downloadPngExport: () => ctx.downloadPngExport(),
+              downloadSvgExport: () => ctx.downloadSvgExport(),
+              applyTemplateCatalogPayload: (payload) =>
+                ctx.applyTemplateCatalogPayload(payload),
+              normalizeSpec: (spec) => ctx.normalizeSpec(spec),
+              applyDesignChange: (mutate, options) =>
+                ctx.applyDesignChange(mutate, options),
+              bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
+              formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+              persistTemplateParametersFromControls: () =>
+                ctx.persistTemplateParametersFromControls(),
+              uniquifyImportedSpec: (spec, prefix) =>
+                ctx.uniquifyImportedSpec(spec, prefix),
+              makeId: (prefix) => ctx.makeId(prefix),
+              translateImportedSpec: (spec, targetCenter) =>
+                ctx.translateImportedSpec(spec, targetCenter),
+              suggestTensorPosition: (position) =>
+                ctx.suggestTensorPosition(position),
+              viewportCenterPosition: () => ctx.viewportCenterPosition(),
+            },
           })
         );
 

@@ -614,3 +614,231 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_editor_shell_helper_modules_expose_explicit_ui_and_invalidation_adapters(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "editor_shell_helpers.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const sessionUiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "session" / "sessionUiAdapters.js")!r}).href;
+        const plannerBindingsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner" / "plannerPanelBindings.js")!r}).href;
+        const propertyAutosaveUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "properties" / "propertyAutosave.js")!r}).href;
+        const propertyInvalidationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "properties" / "propertyInvalidation.js")!r}).href;
+
+        const [
+          sessionUiModule,
+          plannerBindingsModule,
+          propertyAutosaveModule,
+          propertyInvalidationModule,
+        ] = await Promise.all([
+          import(sessionUiUrl),
+          import(plannerBindingsUrl),
+          import(propertyAutosaveUrl),
+          import(propertyInvalidationUrl),
+        ]);
+
+        const uiEvents = [];
+        const sessionUi = sessionUiModule.createSessionUiAdapters({{
+          promptText: (message, defaultValue) => {{
+            uiEvents.push({{ kind: "prompt", message, defaultValue }});
+            return "project_fragment";
+          }},
+          confirmAction: (message) => {{
+            uiEvents.push({{ kind: "confirm", message }});
+            return true;
+          }},
+          copyText: async (text) => {{
+            uiEvents.push({{ kind: "copy", text }});
+          }},
+          downloadText: (filename, text, contentType) => {{
+            uiEvents.push({{ kind: "downloadText", filename, text, contentType }});
+          }},
+          downloadBlob: (filename, blobLike) => {{
+            uiEvents.push({{ kind: "downloadBlob", filename, type: blobLike.type }});
+          }},
+          closeWindow: () => {{
+            uiEvents.push({{ kind: "close" }});
+          }},
+        }});
+        if (sessionUi.promptText("Name?", "seed") !== "project_fragment") {{
+          throw new Error("Session UI prompt adapter did not return the injected value.");
+        }}
+        if (!sessionUi.confirmAction("Overwrite?")) {{
+          throw new Error("Session UI confirm adapter should forward the injected result.");
+        }}
+        await sessionUi.copyText("result = 1");
+        sessionUi.downloadText("demo.json", "{{}}", "application/json");
+        sessionUi.downloadBlob("demo.py", {{ type: "text/x-python" }});
+        sessionUi.closeWindow();
+        if (!uiEvents.some((event) => event.kind === "copy" && event.text === "result = 1")) {{
+          throw new Error(`Expected injected copy adapter to run, received ${{JSON.stringify(uiEvents)}}.`);
+        }}
+        if (!uiEvents.some((event) => event.kind === "downloadText" && event.filename === "demo.json")) {{
+          throw new Error(`Expected injected text download adapter to run, received ${{JSON.stringify(uiEvents)}}.`);
+        }}
+
+        function createButton(dataset = {{}}) {{
+          return {{
+            dataset,
+            listeners: {{}},
+            addEventListener(type, handler) {{
+              this.listeners[type] = handler;
+            }},
+          }};
+        }}
+
+        const plannerEvents = [];
+        const toggleButton = createButton();
+        const resetButton = createButton();
+        const trimButton = createButton({{ trimStep: "2" }});
+        const inspectButton = createButton({{ inspectStep: "1" }});
+        const disclosureButton = createButton({{ disclosure: "automaticFuture" }});
+        const previewButton = createButton({{ previewMode: "automaticFuture" }});
+        const acceptButton = createButton({{ acceptMode: "automaticFuture" }});
+        const plannerBindings = plannerBindingsModule.createPlannerPanelBindings({{
+          plannerPanel: {{
+            querySelectorAll(selector) {{
+              if (selector === "[data-trim-step]") {{
+                return [trimButton];
+              }}
+              if (selector === "[data-inspect-step]") {{
+                return [inspectButton];
+              }}
+              if (selector === "[data-disclosure]") {{
+                return [disclosureButton];
+              }}
+              if (selector === "[data-preview-mode]") {{
+                return [previewButton];
+              }}
+              if (selector === "[data-accept-mode]") {{
+                return [acceptButton];
+              }}
+              return [];
+            }},
+          }},
+          plannerDocument: {{
+            getElementById(elementId) {{
+              if (elementId === "toggle-planner-mode-button") {{
+                return toggleButton;
+              }}
+              if (elementId === "planner-reset-button") {{
+                return resetButton;
+              }}
+              return null;
+            }},
+          }},
+          actions: {{
+            togglePlannerMode: () => plannerEvents.push("togglePlannerMode"),
+            trimContractionPlan: (stepCount) =>
+              plannerEvents.push(`trim:${{stepCount}}`),
+            togglePastInspection: (stepIndex) =>
+              plannerEvents.push(`inspect:${{stepIndex}}`),
+            clearAutomaticPreview: (options) =>
+              plannerEvents.push({{ clearAutomaticPreview: options }}),
+            togglePlannerDisclosure: (disclosureKey) =>
+              plannerEvents.push(`disclosure:${{disclosureKey}}`),
+            startAutomaticPreview: (mode) =>
+              plannerEvents.push(`preview:${{mode}}`),
+            acceptAutomaticPlan: (mode) =>
+              plannerEvents.push(`accept:${{mode}}`),
+            renderPlanner: () => plannerEvents.push("renderPlanner"),
+            renderEditor: () => plannerEvents.push("renderEditor"),
+            renderOverlayDecorations: () =>
+              plannerEvents.push("renderOverlayDecorations"),
+          }},
+        }});
+        plannerBindings.bindPlannerPanelInteractions();
+        toggleButton.listeners.click();
+        resetButton.listeners.click();
+        trimButton.listeners.click();
+        inspectButton.listeners.click();
+        disclosureButton.listeners.click();
+        previewButton.listeners.click();
+        acceptButton.listeners.click();
+        if (!plannerEvents.includes("togglePlannerMode")) {{
+          throw new Error(`Expected planner mode toggle binding, received ${{JSON.stringify(plannerEvents)}}.`);
+        }}
+        if (!plannerEvents.includes("trim:0") || !plannerEvents.includes("trim:2")) {{
+          throw new Error(`Expected trim bindings for reset and step trim, received ${{JSON.stringify(plannerEvents)}}.`);
+        }}
+        if (!plannerEvents.includes("inspect:1") || !plannerEvents.includes("renderEditor")) {{
+          throw new Error(`Expected injected inspect actions to run, received ${{JSON.stringify(plannerEvents)}}.`);
+        }}
+
+        function createInput() {{
+          return {{
+            dataset: {{}},
+            listeners: {{}},
+            addEventListener(type, handler) {{
+              this.listeners[type] = handler;
+            }},
+          }};
+        }}
+
+        const timers = [];
+        const clearedTimers = [];
+        const autosave = propertyAutosaveModule.createPropertyAutosaveBindings({{
+          windowRef: {{
+            setTimeout(callback, delay) {{
+              const timerId = timers.length + 1;
+              timers.push({{ timerId, delay, callback }});
+              return timerId;
+            }},
+            clearTimeout(timerId) {{
+              clearedTimers.push(timerId);
+            }},
+          }},
+          delayMs: 45,
+        }});
+        const input = createInput();
+        let debouncedCommits = 0;
+        autosave.bindDebouncedAutosave(input, "field:name", () => {{
+          debouncedCommits += 1;
+        }});
+        input.listeners.input();
+        if (timers.length !== 1 || timers[0].delay !== 45) {{
+          throw new Error(`Expected one autosave timer with delay 45, received ${{JSON.stringify(timers)}}.`);
+        }}
+        timers[0].callback();
+        input.listeners.blur();
+        if (debouncedCommits !== 2) {{
+          throw new Error(`Expected blur and timer to commit, received ${{debouncedCommits}} commits.`);
+        }}
+        if (clearedTimers.length !== 0) {{
+          throw new Error(`Expected no extra timer clears after the scheduled commit completed, received ${{JSON.stringify(clearedTimers)}}.`);
+        }}
+
+        const invalidationSupport =
+          propertyInvalidationModule.createPropertyInvalidationSupport({{
+            isLinearPeriodicMode: () => true,
+          }});
+        const baseInvalidation = invalidationSupport.propertyInvalidation({{
+          graph: true,
+        }});
+        if (!baseInvalidation.graph || !baseInvalidation.properties) {{
+          throw new Error(`Expected explicit invalidation defaults, received ${{JSON.stringify(baseInvalidation)}}.`);
+        }}
+        const selectionInvalidation =
+          invalidationSupport.selectionColorInvalidation([
+            {{ kind: "tensor" }},
+            {{ kind: "group" }},
+          ]);
+        if (!selectionInvalidation.graph || !selectionInvalidation.overlays) {{
+          throw new Error(`Expected selection invalidation to track graph and overlays, received ${{JSON.stringify(selectionInvalidation)}}.`);
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The editor-shell helper runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

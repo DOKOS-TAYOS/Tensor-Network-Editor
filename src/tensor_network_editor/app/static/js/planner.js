@@ -24,12 +24,28 @@ export function registerPlannerFeature(ctx) {
     clearTimer,
     getRenderPlanner: () => renderPlanner,
   });
+  const plannerActions = {
+    togglePlannerMode: support.togglePlannerMode,
+    trimContractionPlan: support.trimContractionPlan,
+    togglePastInspection:
+      typeof ctx.togglePastInspection === "function"
+        ? (stepIndex) => ctx.togglePastInspection(stepIndex)
+        : () => {},
+    clearAutomaticPreview: support.clearAutomaticPreview,
+    togglePlannerDisclosure: support.togglePlannerDisclosure,
+    startAutomaticPreview: support.startAutomaticPreview,
+    acceptAutomaticPlan: support.acceptAutomaticPlan,
+    renderPlanner: () => renderPlanner(),
+    renderEditor: () => ctx.render(),
+    renderOverlayDecorations: () => ctx.renderOverlayDecorations(),
+  };
   const renderers = createPlannerRenderers({
     ctx,
     state: ctx.state,
     plannerPanel: ctx.dom.plannerPanel,
     plannerDocument,
     support,
+    actions: plannerActions,
   });
   renderPlanner = renderers.renderPlanner;
 

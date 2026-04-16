@@ -40,6 +40,9 @@ def request_interactions_runtime_bundle(editor_server: EditorServer) -> str:
         "js/interactionsEditor.js",
         "js/interactionsSession.js",
         "js/interactionsShortcuts.js",
+        "js/session/sessionEditorFlows.js",
+        "js/session/sessionTemplateFlows.js",
+        "js/session/sessionUiAdapters.js",
         "js/services/editorSessionService.js",
         "js/services/subnetworkService.js",
         "js/services/templateCatalogService.js",
@@ -703,9 +706,9 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
     assert 'case "py":' in interactions_body
     assert 'case "png":' in interactions_body
     assert 'case "svg":' in interactions_body
-    assert "await ctx.downloadPythonExport();" in interactions_body
-    assert "ctx.downloadPngExport();" in interactions_body
-    assert "ctx.downloadSvgExport();" in interactions_body
+    assert "await downloadPythonExport();" in interactions_body
+    assert "actions.downloadPngExport();" in interactions_body
+    assert "actions.downloadSvgExport();" in interactions_body
     assert "exportButton.disabled =" in utilities_body
 
 
@@ -891,12 +894,8 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     assert (
         "serializeCurrentSpec({ persistViewSnapshots: false })" in planner_service_body
     )
-    assert (
-        "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in interactions_body
-    )
-    assert (
-        "ctx.serializeCurrentSpec({ persistViewSnapshots: true })" in interactions_body
-    )
+    assert "serializeCurrentSpec({ persistViewSnapshots: false })" in interactions_body
+    assert "serializeCurrentSpec({ persistViewSnapshots: true })" in interactions_body
     assert "ANALYSIS_REFRESH_DELAY_MS = 200" in planner_body
     assert "requestAnimationFrame" in minimap_body
     assert "requestAnimationFrame" in overlays_body
@@ -1011,7 +1010,8 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
-    assert "properties: isLinearPeriodicMode," in support_body
+    assert 'from "./properties/propertyInvalidation.js"' in support_body
+    assert "createPropertyInvalidationSupport" in support_body
     assert "const currentOwner = findIndexOwner(indexId);" in body
     assert "const currentIndex = currentOwner ? currentOwner.index : null;" in body
     assert "if (!currentIndex) {" in body
@@ -1039,6 +1039,60 @@ def test_planner_assets_expose_total_elements_and_step_spacing(
     assert "planner-manual-step-list" in planner_body
     assert ".planner-manual-step-list {" in css_body
     assert "border-top:" in css_body
+
+
+def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
+    editor_server: EditorServer,
+) -> None:
+    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
+    session_body = request_text(f"{editor_server.base_url}/js/interactionsSession.js")
+    session_editor_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionEditorFlows.js"
+    )
+    session_template_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
+    )
+    session_ui_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionUiAdapters.js"
+    )
+    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    planner_bindings_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerPanelBindings.js"
+    )
+    properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    property_autosave_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertyAutosave.js"
+    )
+    property_invalidation_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertyInvalidation.js"
+    )
+
+    assert "store: ctx.store" in interactions_body
+    assert "selectors: ctx.selectors" in interactions_body
+    assert "services: ctx.services" in interactions_body
+    assert 'from "./session/sessionUiAdapters.js"' in interactions_body
+    assert 'from "./session/sessionEditorFlows.js"' in session_body
+    assert 'from "./session/sessionTemplateFlows.js"' in session_body
+    assert "ctx.store ||" not in session_body
+    assert "ctx.selectors ||" not in session_body
+    assert "ctx.services && ctx.services.session" not in session_body
+    assert "createEditorSessionService" not in session_body
+    assert "createTemplateCatalogService" not in session_body
+    assert "createSubnetworkService" not in session_body
+    assert "createEditorSelectors" not in session_body
+    assert "createEditorStore" not in session_body
+    assert "function createSessionEditorFlows(" in session_editor_body
+    assert "function createSessionTemplateFlows(" in session_template_body
+    assert "function createSessionUiAdapters(" in session_ui_body
+    assert 'from "./planner/plannerPanelBindings.js"' in planner_body
+    assert "ctx.render()" not in planner_body
+    assert "typeof ctx.togglePastInspection" not in planner_body
+    assert "function createPlannerPanelBindings(" in planner_bindings_body
+    assert 'from "./properties/propertyAutosave.js"' in properties_body
+    assert 'from "./properties/propertyInvalidation.js"' in properties_body
+    assert "function bindDebouncedAutosave(" not in properties_body
+    assert "function createPropertyAutosaveBindings(" in property_autosave_body
+    assert "function createPropertyInvalidationSupport(" in property_invalidation_body
 
 
 def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(

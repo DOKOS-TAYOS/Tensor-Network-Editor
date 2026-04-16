@@ -9,6 +9,7 @@ import {
   getPeakMemoryBytes,
   renderShapeElementDetail,
 } from "./planner/plannerAnalysisFormatting.js";
+import { createPlannerPanelBindings } from "./planner/plannerPanelBindings.js";
 
 export function createPlannerRenderers({
   ctx,
@@ -16,18 +17,18 @@ export function createPlannerRenderers({
   plannerPanel,
   plannerDocument,
   support,
+  actions,
 }) {
   const {
     syncPlannerOrderBadges,
     getPlannerOperandLabel,
     getAutomaticAnalysisByMode,
-    togglePlannerDisclosure,
-    trimContractionPlan,
-    togglePlannerMode,
-    startAutomaticPreview,
-    acceptAutomaticPlan,
-    clearAutomaticPreview,
   } = support;
+  const plannerPanelBindings = createPlannerPanelBindings({
+    plannerPanel,
+    plannerDocument,
+    actions,
+  });
 
   function renderMetricChips(items) {
     return `
@@ -422,43 +423,8 @@ export function createPlannerRenderers({
       ${renderPlannerAnalysis()}
     `;
 
-    plannerDocument
-      ?.getElementById("toggle-planner-mode-button")
-      ?.addEventListener("click", togglePlannerMode);
-    plannerDocument
-      ?.getElementById("planner-reset-button")
-      ?.addEventListener("click", () => trimContractionPlan(0));
-    plannerPanel.querySelectorAll("[data-trim-step]").forEach((button) => {
-      button.addEventListener("click", () => {
-        trimContractionPlan(Number(button.dataset.trimStep));
-      });
-    });
-    plannerPanel.querySelectorAll("[data-inspect-step]").forEach((button) => {
-      button.addEventListener("click", () => {
-        if (typeof ctx.togglePastInspection === "function") {
-          ctx.togglePastInspection(Number(button.dataset.inspectStep));
-        }
-        clearAutomaticPreview({ preservePastInspection: true });
-        renderPlanner();
-        ctx.render();
-      });
-    });
-    plannerPanel.querySelectorAll("[data-disclosure]").forEach((button) => {
-      button.addEventListener("click", () => {
-        togglePlannerDisclosure(button.dataset.disclosure);
-      });
-    });
-    plannerPanel.querySelectorAll("[data-preview-mode]").forEach((button) => {
-      button.addEventListener("click", () => {
-        startAutomaticPreview(button.dataset.previewMode);
-      });
-    });
-    plannerPanel.querySelectorAll("[data-accept-mode]").forEach((button) => {
-      button.addEventListener("click", () => {
-        acceptAutomaticPlan(button.dataset.acceptMode);
-      });
-    });
-    ctx.renderOverlayDecorations();
+    plannerPanelBindings.bindPlannerPanelInteractions();
+    actions.renderOverlayDecorations();
   }
 
   return {

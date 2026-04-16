@@ -1,5 +1,11 @@
 import { createPropertyCommands } from "./actions/propertyCommands.js";
 import { createMetadataEditorSupport } from "./properties/metadataEditors.js";
+import { createPropertyAutosaveBindings } from "./properties/propertyAutosave.js";
+import {
+  createPropertyInvalidationSupport,
+  propertyInvalidationForContext,
+  selectionColorInvalidationForContext,
+} from "./properties/propertyInvalidation.js";
 import {
   formatTotalElementCount as formatTotalElementCountFromSummaries,
   getContractionTensorTotalElementCount as getContractionTensorTotalElementCountFromSummaries,
@@ -7,43 +13,14 @@ import {
   getSelectionTotalElementCount as getSelectionTotalElementCountFromSummaries,
   getTensorTotalElementCount as getTensorTotalElementCountFromSummaries,
   getTotalElementCountForTensorIds as getTotalElementCountForTensorIdsFromSummaries,
+  normalizeElementDimension,
 } from "./properties/propertySummaries.js";
 
-const AUTOSAVE_DELAY_MS = 300;
-const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
-
-export function propertyInvalidationForContext(ctx, overrides = {}) {
-  const isLinearPeriodicMode =
-    typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
-  return {
-    graph: false,
-    lookups: false,
-    analysis: false,
-    properties: isLinearPeriodicMode,
-    overlays: false,
-    planner: false,
-    minimap: false,
-    ...overrides,
-  };
-}
-
-export function selectionColorInvalidationForContext(ctx, selectedEntries) {
-  const entryKinds = new Set(
-    (Array.isArray(selectedEntries) ? selectedEntries : []).map(
-      (entry) => entry.kind
-    )
-  );
-  const affectsGraph =
-    entryKinds.has("tensor") ||
-    entryKinds.has("index") ||
-    entryKinds.has("edge");
-  const affectsOverlays = entryKinds.has("group") || entryKinds.has("note");
-  return propertyInvalidationForContext(ctx, {
-    graph: affectsGraph,
-    overlays: affectsOverlays,
-    minimap: affectsGraph,
-  });
-}
+export {
+  normalizeElementDimension,
+  propertyInvalidationForContext,
+  selectionColorInvalidationForContext,
+};
 
 export function renderTrashIcon() {
   return `
@@ -53,96 +30,14 @@ export function renderTrashIcon() {
     `;
 }
 
-export function normalizeElementDimension(value, asFiniteNumber) {
-  return BigInt(Math.max(1, Math.round(asFiniteNumber(value, 1))));
-}
-
-export function getTensorTotalElementCount(tensor, asFiniteNumber) {
-  const indices = Array.isArray(tensor && tensor.indices) ? tensor.indices : [];
-  return indices.reduce(
-    (product, index) =>
-      product * normalizeElementDimension(index.dimension, asFiniteNumber),
-    1n
-  );
-}
-
-export function getTotalElementCountForTensorIds(
-  tensorIds,
-  findTensorById,
-  asFiniteNumber
-) {
-  const uniqueTensorIds = [...new Set(Array.isArray(tensorIds) ? tensorIds : [])];
-  let resolvedTensorCount = 0;
-  const totalElementCount = uniqueTensorIds.reduce((sum, tensorId) => {
-    const tensor = findTensorById(tensorId);
-    if (!tensor) {
-      return sum;
-    }
-    resolvedTensorCount += 1;
-    return sum + getTensorTotalElementCount(tensor, asFiniteNumber);
-  }, 0n);
-  return resolvedTensorCount ? totalElementCount : null;
-}
-
-export function getSelectionEntryTensorIds(entry) {
-  if (!entry) {
-    return [];
-  }
-  if (entry.kind === "group") {
-    return Array.isArray(entry.group && entry.group.tensor_ids)
-      ? [...entry.group.tensor_ids]
-      : [];
-  }
-  if (entry.kind === "contraction-tensor") {
-    return Array.isArray(entry.tensor && entry.tensor.sourceTensorIds)
-      ? [...entry.tensor.sourceTensorIds]
-      : [];
-  }
-  if (entry.kind === "tensor" && entry.id) {
-    return [entry.id];
-  }
-  return [];
-}
-
-export function getSelectionTotalElementCount(
-  selectedEntries,
-  findTensorById,
-  asFiniteNumber
-) {
-  const tensorIds = selectedEntries.flatMap((entry) =>
-    getSelectionEntryTensorIds(entry)
-  );
-  return getTotalElementCountForTensorIds(
-    tensorIds,
-    findTensorById,
-    asFiniteNumber
-  );
-}
-
-export function getContractionTensorTotalElementCount(
-  tensor,
-  findTensorById,
-  asFiniteNumber
-) {
-  const sourceTensorIds = Array.isArray(tensor && tensor.sourceTensorIds)
-    ? tensor.sourceTensorIds
-    : [];
-  const totalElementCount = getTotalElementCountForTensorIds(
-    sourceTensorIds,
-    findTensorById,
-    asFiniteNumber
-  );
-  return totalElementCount === null
-    ? getTensorTotalElementCount(tensor, asFiniteNumber)
-    : totalElementCount;
-}
-
-export function formatTotalElementCount(totalElementCount) {
-  return totalElementCount === null ? "" : totalElementCount.toString();
-}
-
 export function createPropertiesSupport({ ctx, state, window }) {
-  const autosaveTimers = new Map();
+  const autosave = createPropertyAutosaveBindings({
+    windowRef: window || globalThis,
+  });
+  const invalidationSupport = createPropertyInvalidationSupport({
+    isLinearPeriodicMode: () =>
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+  });
   const metadataSupport = createMetadataEditorSupport({
     annotationDefinitionsByScope: () => state.annotationDefinitions || {},
     escapeHtml: (value) => ctx.escapeHtml(value),
@@ -166,537 +61,11 @@ export function createPropertiesSupport({ ctx, state, window }) {
   });
 
   function propertyInvalidation(overrides = {}) {
-    return propertyInvalidationForContext(ctx, overrides);
+    return invalidationSupport.propertyInvalidation(overrides);
   }
 
   function selectionColorInvalidation(selectedEntries) {
-    return selectionColorInvalidationForContext(ctx, selectedEntries);
-  }
-
-  function clearAutosaveTimer(fieldKey) {
-    const timerId = autosaveTimers.get(fieldKey);
-    if (typeof timerId === "number") {
-      window.clearTimeout(timerId);
-    }
-    autosaveTimers.delete(fieldKey);
-  }
-
-  function commitAutosave(fieldKey, commit) {
-    clearAutosaveTimer(fieldKey);
-    commit();
-  }
-
-  function scheduleAutosave(fieldKey, commit) {
-    clearAutosaveTimer(fieldKey);
-    autosaveTimers.set(
-      fieldKey,
-      window.setTimeout(() => {
-        autosaveTimers.delete(fieldKey);
-        commit();
-      }, AUTOSAVE_DELAY_MS)
-    );
-  }
-
-  function bindDebouncedAutosave(element, fieldKey, commit, options = {}) {
-    if (!element) {
-      return;
-    }
-    element.dataset.focusKey = fieldKey;
-    element.addEventListener("input", () => {
-      scheduleAutosave(fieldKey, commit);
-    });
-    element.addEventListener("blur", () => {
-      commitAutosave(fieldKey, commit);
-    });
-    if (options.commitOnEnter !== false) {
-      element.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" || event.shiftKey) {
-          return;
-        }
-        event.preventDefault();
-        commitAutosave(fieldKey, commit);
-      });
-    }
-  }
-
-  function bindImmediateAutosave(
-    element,
-    fieldKey,
-    commit,
-    eventName = "change"
-  ) {
-    if (!element) {
-      return;
-    }
-    if (fieldKey) {
-      element.dataset.focusKey = fieldKey;
-    }
-    element.addEventListener(eventName, () => {
-      commit();
-    });
-  }
-
-  function normalizeMetadataTarget(target) {
-    if (!target || !ctx.isObject(target)) {
-      return null;
-    }
-    target.metadata = ctx.isObject(target.metadata) ? target.metadata : {};
-    return target.metadata;
-  }
-
-  function getReservedMetadata(target) {
-    return getProtectedMetadata(target);
-  }
-
-  function getAnnotationDefinitions(annotationScope) {
-    const scopedDefinitions =
-      annotationScope &&
-      state.annotationDefinitions &&
-      Array.isArray(state.annotationDefinitions[annotationScope])
-        ? state.annotationDefinitions[annotationScope]
-        : [];
-    return scopedDefinitions
-      .filter(
-        (definition) =>
-          ctx.isObject(definition) &&
-          typeof definition.key === "string" &&
-          definition.key.trim() &&
-          typeof definition.label === "string"
-      )
-      .map((definition) => ({
-        key: definition.key.trim(),
-        label: definition.label,
-        placeholder:
-          typeof definition.placeholder === "string"
-            ? definition.placeholder
-            : "",
-        suggestions: Array.isArray(definition.suggestions)
-          ? definition.suggestions.filter(
-              (suggestion) =>
-                typeof suggestion === "string" && suggestion.trim()
-            )
-          : [],
-      }));
-  }
-
-  function getGuidedAnnotationKeys(annotationScope) {
-    return new Set(
-      getAnnotationDefinitions(annotationScope).map((definition) => definition.key)
-    );
-  }
-
-  function getProtectedMetadata(target, annotationScope = null) {
-    const metadata = normalizeMetadataTarget(target);
-    if (!metadata) {
-      return {};
-    }
-    const reserved = {};
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
-    RESERVED_METADATA_KEYS.forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(metadata, key)) {
-        reserved[key] = ctx.deepClone(metadata[key]);
-      }
-    });
-    guidedAnnotationKeys.forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(metadata, key)) {
-        reserved[key] = ctx.deepClone(metadata[key]);
-      }
-    });
-    return reserved;
-  }
-
-  function getCustomMetadata(target, annotationScope = null) {
-    const metadata = normalizeMetadataTarget(target);
-    if (!metadata) {
-      return {};
-    }
-    const customMetadata = {};
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
-    Object.keys(metadata).forEach((key) => {
-      if (
-        !RESERVED_METADATA_KEYS.has(key) &&
-        !guidedAnnotationKeys.has(key)
-      ) {
-        customMetadata[key] = ctx.deepClone(metadata[key]);
-      }
-    });
-    return customMetadata;
-  }
-
-  function formatTagsValue(target) {
-    const metadata = normalizeMetadataTarget(target);
-    const tags = Array.isArray(metadata && metadata.tags)
-      ? metadata.tags.filter((tag) => typeof tag === "string" && tag.trim())
-      : [];
-    return tags.join(", ");
-  }
-
-  function normalizeTagsValue(rawValue) {
-    const tags = [];
-    const seenTags = new Set();
-    String(rawValue || "")
-      .split(",")
-      .map((candidate) => candidate.trim())
-      .filter(Boolean)
-      .forEach((tag) => {
-        if (seenTags.has(tag)) {
-          return;
-        }
-        seenTags.add(tag);
-        tags.push(tag);
-      });
-    return tags;
-  }
-
-  function formatAnnotationValue(target, key) {
-    const metadata = normalizeMetadataTarget(target);
-    if (!metadata || !Object.prototype.hasOwnProperty.call(metadata, key)) {
-      return "";
-    }
-    const value = metadata[key];
-    if (typeof value === "string") {
-      return value;
-    }
-    if (typeof value === "number" || typeof value === "boolean") {
-      return String(value);
-    }
-    return "";
-  }
-
-  function normalizeAnnotationValue(rawValue) {
-    return String(rawValue || "").trim();
-  }
-
-  function formatCustomMetadataValue(target, annotationScope = null) {
-    const customMetadata = getCustomMetadata(target, annotationScope);
-    return Object.keys(customMetadata).length
-      ? JSON.stringify(customMetadata, null, 2)
-      : "";
-  }
-
-  function parseCustomMetadataValue(rawValue, annotationScope = null) {
-    if (!String(rawValue || "").trim()) {
-      return {};
-    }
-    let parsedValue;
-    try {
-      parsedValue = JSON.parse(rawValue);
-    } catch (error) {
-      throw new Error("Custom metadata must be valid JSON.");
-    }
-    if (!ctx.isObject(parsedValue)) {
-      throw new Error("Custom metadata must be a JSON object.");
-    }
-    const sanitizedMetadata = {};
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
-    Object.keys(parsedValue).forEach((key) => {
-      if (
-        !RESERVED_METADATA_KEYS.has(key) &&
-        !guidedAnnotationKeys.has(key)
-      ) {
-        sanitizedMetadata[key] = parsedValue[key];
-      }
-    });
-    return sanitizedMetadata;
-  }
-
-  function metadataValuesEqual(leftValue, rightValue) {
-    return JSON.stringify(leftValue) === JSON.stringify(rightValue);
-  }
-
-  function buildMetadataEditorMarkup({
-    tagsInputId,
-    tagsFocusKey,
-    customMetadataInputId,
-    customMetadataFocusKey,
-    target,
-    annotationScope = null,
-    suggestedAnnotationsMarkup = "",
-    collapsible = false,
-    summaryLabel = "Metadata",
-  }) {
-    const metadataEditorMarkup = `
-      <div class="field-group">
-        <label for="${tagsInputId}">Tags</label>
-        <input
-          id="${tagsInputId}"
-          data-focus-key="${tagsFocusKey}"
-          value="${ctx.escapeHtml(formatTagsValue(target))}"
-          placeholder="physical, observable, left-leg"
-        />
-      </div>
-      ${suggestedAnnotationsMarkup}
-      <div class="field-group">
-        <label for="${customMetadataInputId}">Custom metadata (JSON)</label>
-        <textarea
-          id="${customMetadataInputId}"
-          data-focus-key="${customMetadataFocusKey}"
-          rows="5"
-          placeholder='{"role": "physical"}'
-        >${ctx.escapeHtml(
-          formatCustomMetadataValue(target, annotationScope)
-        )}</textarea>
-      </div>
-    `;
-    if (!collapsible) {
-      return metadataEditorMarkup;
-    }
-    return `
-      <details class="metadata-editor-disclosure properties-disclosure">
-        <summary class="properties-disclosure-summary">${ctx.escapeHtml(
-          summaryLabel
-        )}</summary>
-        <div class="properties-disclosure-body metadata-editor-disclosure-body">
-          ${metadataEditorMarkup}
-        </div>
-      </details>
-    `;
-  }
-
-  function buildSuggestedAnnotationsMarkup({
-    annotationScope,
-    target,
-    inputIdForKey,
-    focusKeyForKey,
-    suggestionButtonIdForValue,
-  }) {
-    const definitions = getAnnotationDefinitions(annotationScope);
-    if (!definitions.length) {
-      return "";
-    }
-    return `
-      <section class="suggested-annotations">
-        <div class="properties-section-heading">Suggested annotations</div>
-        ${definitions
-          .map(
-            (definition) => `
-              <div class="field-group">
-                <label for="${inputIdForKey(definition.key)}">${ctx.escapeHtml(
-                  definition.label
-                )}</label>
-                <input
-                  id="${inputIdForKey(definition.key)}"
-                  data-focus-key="${focusKeyForKey(definition.key)}"
-                  value="${ctx.escapeHtml(
-                    formatAnnotationValue(target, definition.key)
-                  )}"
-                  placeholder="${ctx.escapeHtml(definition.placeholder)}"
-                />
-                ${
-                  definition.suggestions.length
-                    ? `
-                      <div class="suggested-annotation-chips">
-                        ${definition.suggestions
-                          .map(
-                            (suggestion) => `
-                              <button
-                                id="${suggestionButtonIdForValue(
-                                  definition.key,
-                                  suggestion
-                                )}"
-                                type="button"
-                                class="annotation-chip"
-                              >
-                                ${ctx.escapeHtml(suggestion)}
-                              </button>
-                            `
-                          )
-                          .join("")}
-                      </div>
-                    `
-                    : ""
-                }
-              </div>
-            `
-          )
-          .join("")}
-      </section>
-    `;
-  }
-
-  function bindMetadataEditors({
-    target,
-    tagsInput,
-    tagsFieldKey,
-    customMetadataInput,
-    customMetadataFieldKey,
-    statusMessage,
-    invalidate = null,
-    annotationScope = null,
-  }) {
-    const metadataInvalidation =
-      invalidate || propertyInvalidation();
-
-    bindDebouncedAutosave(tagsInput, tagsFieldKey, () => {
-      const nextTags = normalizeTagsValue(tagsInput.value);
-      const currentTags = normalizeTagsValue(formatTagsValue(target));
-      if (metadataValuesEqual(currentTags, nextTags)) {
-        tagsInput.value = nextTags.join(", ");
-        return;
-      }
-      ctx.applyDesignChange(
-        () => {
-          const reservedMetadata = getProtectedMetadata(target, annotationScope);
-          const customMetadata = getCustomMetadata(target, annotationScope);
-          target.metadata = {
-            ...reservedMetadata,
-            ...customMetadata,
-          };
-          if (nextTags.length) {
-            target.metadata.tags = nextTags;
-          } else {
-            delete target.metadata.tags;
-          }
-        },
-        {
-          invalidate: metadataInvalidation,
-          statusMessage,
-        }
-      );
-      tagsInput.value = formatTagsValue(target);
-      if (customMetadataInput) {
-        customMetadataInput.value = formatCustomMetadataValue(
-          target,
-          annotationScope
-        );
-      }
-    });
-
-    bindDebouncedAutosave(
-      customMetadataInput,
-      customMetadataFieldKey,
-      () => {
-        let nextCustomMetadata;
-        try {
-          nextCustomMetadata = parseCustomMetadataValue(
-            customMetadataInput.value,
-            annotationScope
-          );
-        } catch (error) {
-          ctx.setStatus(error.message, "error");
-          return;
-        }
-        const currentCustomMetadata = getCustomMetadata(target, annotationScope);
-        if (metadataValuesEqual(currentCustomMetadata, nextCustomMetadata)) {
-          customMetadataInput.value = formatCustomMetadataValue(
-            target,
-            annotationScope
-          );
-          return;
-        }
-        ctx.applyDesignChange(
-          () => {
-            target.metadata = {
-              ...getProtectedMetadata(target, annotationScope),
-              ...nextCustomMetadata,
-            };
-          },
-          {
-            invalidate: metadataInvalidation,
-            statusMessage,
-          }
-        );
-        customMetadataInput.value = formatCustomMetadataValue(
-          target,
-          annotationScope
-        );
-        if (tagsInput) {
-          tagsInput.value = formatTagsValue(target);
-        }
-      },
-      { commitOnEnter: false }
-    );
-  }
-
-  function bindSuggestedAnnotationEditors({
-    target,
-    annotationScope,
-    inputForKey,
-    fieldKeyForKey,
-    suggestionButtonForValue,
-    customMetadataInput = null,
-    statusMessage,
-    invalidate = null,
-  }) {
-    const definitions = getAnnotationDefinitions(annotationScope);
-    if (!definitions.length) {
-      return;
-    }
-    const metadataInvalidation = invalidate || propertyInvalidation();
-
-    definitions.forEach((definition) => {
-      const input = inputForKey(definition.key);
-      if (!input) {
-        return;
-      }
-
-      const commitAnnotationValue = (
-        rawValue = input.value,
-        options = {}
-      ) => {
-        const nextValue = normalizeAnnotationValue(rawValue);
-        const currentValue = normalizeAnnotationValue(
-          formatAnnotationValue(target, definition.key)
-        );
-        if (currentValue === nextValue) {
-          input.value = formatAnnotationValue(target, definition.key);
-          if (customMetadataInput) {
-            customMetadataInput.value = formatCustomMetadataValue(
-              target,
-              annotationScope
-            );
-          }
-          return;
-        }
-        ctx.applyDesignChange(
-          () => {
-            const metadata = normalizeMetadataTarget(target);
-            if (!metadata) {
-              return;
-            }
-            if (nextValue) {
-              metadata[definition.key] = nextValue;
-            } else {
-              delete metadata[definition.key];
-            }
-          },
-          {
-            invalidate: metadataInvalidation,
-            statusMessage,
-            ...options,
-          }
-        );
-        input.value = formatAnnotationValue(target, definition.key);
-        if (customMetadataInput) {
-          customMetadataInput.value = formatCustomMetadataValue(
-            target,
-            annotationScope
-          );
-        }
-      };
-
-      bindDebouncedAutosave(
-        input,
-        fieldKeyForKey(definition.key),
-        () => commitAnnotationValue()
-      );
-
-      definition.suggestions.forEach((suggestion) => {
-        const suggestionButton = suggestionButtonForValue(
-          definition.key,
-          suggestion
-        );
-        if (!suggestionButton) {
-          return;
-        }
-        suggestionButton.addEventListener("click", () => {
-          input.value = suggestion;
-          commitAutosave(fieldKeyForKey(definition.key), () =>
-            commitAnnotationValue(suggestion)
-          );
-        });
-      });
-    });
+    return invalidationSupport.selectionColorInvalidation(selectedEntries);
   }
 
   function tensorDisclosureState(tensorId) {
@@ -754,8 +123,8 @@ export function createPropertiesSupport({ ctx, state, window }) {
   }
 
   return {
-    bindDebouncedAutosave,
-    bindImmediateAutosave,
+    bindDebouncedAutosave: autosave.bindDebouncedAutosave,
+    bindImmediateAutosave: autosave.bindImmediateAutosave,
     buildMetadataEditorMarkup: (...args) =>
       metadataSupport.buildMetadataEditorMarkup(...args),
     buildSuggestedAnnotationsMarkup: (...args) =>
@@ -765,7 +134,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
         ...options,
         applyDesignChange: (mutate, changeOptions) =>
           ctx.applyDesignChange(mutate, changeOptions),
-        bindDebouncedAutosave,
+        bindDebouncedAutosave: autosave.bindDebouncedAutosave,
         setStatus: (message, level) => ctx.setStatus(message, level),
       }),
     bindSuggestedAnnotationEditors: (options) =>
@@ -773,8 +142,8 @@ export function createPropertiesSupport({ ctx, state, window }) {
         ...options,
         applyDesignChange: (mutate, changeOptions) =>
           ctx.applyDesignChange(mutate, changeOptions),
-        bindDebouncedAutosave,
-        commitAutosave,
+        bindDebouncedAutosave: autosave.bindDebouncedAutosave,
+        commitAutosave: autosave.commitAutosave,
       }),
     commands: propertyCommands,
     propertyInvalidation: (overrides = {}) => propertyInvalidation(overrides),

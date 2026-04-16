@@ -132,6 +132,56 @@ def _build_runtime_prelude() -> str:
         / "js"
         / "graphRender.js"
     )
+    editor_store_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state"
+        / "editorStore.js"
+    )
+    editor_selectors_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state"
+        / "editorSelectors.js"
+    )
+    session_service_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "services"
+        / "editorSessionService.js"
+    )
+    template_service_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "services"
+        / "templateCatalogService.js"
+    )
+    subnetwork_service_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "services"
+        / "subnetworkService.js"
+    )
 
     return f"""
     import {{ pathToFileURL }} from "node:url";
@@ -145,6 +195,11 @@ def _build_runtime_prelude() -> str:
     const interactionsModuleUrl = pathToFileURL({json.dumps(str(interactions_path))}).href;
     const notesModuleUrl = pathToFileURL({json.dumps(str(notes_path))}).href;
     const graphRenderModuleUrl = pathToFileURL({json.dumps(str(graph_render_path))}).href;
+    const editorStoreModuleUrl = pathToFileURL({json.dumps(str(editor_store_path))}).href;
+    const editorSelectorsModuleUrl = pathToFileURL({json.dumps(str(editor_selectors_path))}).href;
+    const sessionServiceModuleUrl = pathToFileURL({json.dumps(str(session_service_path))}).href;
+    const templateServiceModuleUrl = pathToFileURL({json.dumps(str(template_service_path))}).href;
+    const subnetworkServiceModuleUrl = pathToFileURL({json.dumps(str(subnetwork_service_path))}).href;
 
     function createClassList() {{
       return {{
@@ -649,14 +704,33 @@ def _build_runtime_prelude() -> str:
     }}
 
     async function buildContext() {{
-      const [constantsModule, stateModule, utilitiesModule] = await Promise.all([
+      const [
+        constantsModule,
+        stateModule,
+        utilitiesModule,
+        storeModule,
+        selectorsModule,
+        sessionServiceModule,
+        templateServiceModule,
+        subnetworkServiceModule,
+      ] = await Promise.all([
         import(constantsModuleUrl),
         import(stateModuleUrl),
         import(utilitiesModuleUrl),
+        import(editorStoreModuleUrl),
+        import(editorSelectorsModuleUrl),
+        import(sessionServiceModuleUrl),
+        import(templateServiceModuleUrl),
+        import(subnetworkServiceModuleUrl),
       ]);
       const {{ constants }} = constantsModule;
       const {{ createInitialState }} = stateModule;
       const {{ registerUtilities }} = utilitiesModule;
+      const {{ createEditorStore }} = storeModule;
+      const {{ createEditorSelectors }} = selectorsModule;
+      const {{ createEditorSessionService }} = sessionServiceModule;
+      const {{ createTemplateCatalogService }} = templateServiceModule;
+      const {{ createSubnetworkService }} = subnetworkServiceModule;
 
       const ctx = {{
         state: createInitialState(),
@@ -700,6 +774,20 @@ def _build_runtime_prelude() -> str:
       ctx.downloadSvgExport = () => {{}};
       ctx.handleMinimapMouseDown = () => {{}};
       ctx.initGraph = () => {{}};
+      ctx.store = createEditorStore(ctx.state);
+      ctx.selectors = createEditorSelectors({{ store: ctx.store }});
+      ctx.services = {{
+        session: createEditorSessionService({{
+          apiGet: (...args) => ctx.apiGet(...args),
+          apiPost: (...args) => ctx.apiPost(...args),
+        }}),
+        templateCatalog: createTemplateCatalogService({{
+          apiPost: (...args) => ctx.apiPost(...args),
+        }}),
+        subnetwork: createSubnetworkService({{
+          apiPost: (...args) => ctx.apiPost(...args),
+        }}),
+      }};
       return ctx;
     }}
 
