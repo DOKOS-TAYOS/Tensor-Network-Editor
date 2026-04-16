@@ -1,16 +1,43 @@
 export function createPropertyCommands({
   applyDesignChange,
+  applyColorToSelection = () => {},
   centerTensor,
   createIndex,
   deleteSelection = () => {},
   findIndexOwner,
+  findTensorById = () => null,
+  getSelectedTensorIds = () => [],
   moveIndex,
+  removeEdge = () => {},
+  removeGroup = () => {},
   removeIndex,
+  removeNote = () => {},
   removeTensor,
   setStatus,
   syncConnectedIndexDimension = () => {},
   tensorIndexNameExists = () => false,
 }) {
+  function renameNetwork({ spec, proposedName, invalidate, statusMessage }) {
+    const normalizedName = String(proposedName || "").trim();
+    if (!normalizedName) {
+      setStatus("Design name cannot be empty.", "error");
+      return false;
+    }
+    if (normalizedName === spec.name) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        spec.name = normalizedName;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
   function renameTensor({ tensor, proposedName, invalidate, statusMessage }) {
     const normalizedName = String(proposedName || "").trim();
     if (!normalizedName) {
@@ -33,12 +60,30 @@ export function createPropertyCommands({
   }
 
   function updateTargetColor({ target, nextColor, invalidate, statusMessage }) {
-    if (!target || nextColor === target.metadata.color) {
+    const currentColor = target?.metadata?.color;
+    if (!target || nextColor === currentColor) {
       return false;
     }
     applyDesignChange(
       () => {
+        target.metadata = target.metadata || {};
         target.metadata.color = nextColor;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function applySelectionColor({ nextColor, invalidate, statusMessage }) {
+    if (!nextColor) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        applyColorToSelection(nextColor);
       },
       {
         invalidate,
@@ -200,15 +245,159 @@ export function createPropertyCommands({
     );
   }
 
+  function addIndexToSelectedTensors({
+    tensorIds = getSelectedTensorIds(),
+    selectionIds = tensorIds,
+    primaryId = selectionIds[0] || null,
+    invalidate,
+    statusMessage,
+  }) {
+    if (!Array.isArray(tensorIds) || !tensorIds.length) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        tensorIds.forEach((tensorId) => {
+          const tensor = findTensorById(tensorId);
+          if (!tensor) {
+            return;
+          }
+          tensor.indices.push(createIndex(tensor, tensor.indices.length));
+        });
+      },
+      {
+        invalidate,
+        selectionIds,
+        primaryId,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function renameGroup({ group, proposedName, invalidate, statusMessage }) {
+    const normalizedName = String(proposedName || "").trim();
+    if (!normalizedName) {
+      setStatus("Group name cannot be empty.", "error");
+      return false;
+    }
+    if (normalizedName === group.name) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        group.name = normalizedName;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function deleteGroup({ groupId, selectionIds, invalidate, statusMessage }) {
+    applyDesignChange(
+      () => {
+        removeGroup(groupId);
+      },
+      {
+        invalidate,
+        selectionIds,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function renameEdge({ edge, proposedName, invalidate, statusMessage }) {
+    const normalizedName = String(proposedName || "").trim();
+    if (!normalizedName) {
+      setStatus("Connection name cannot be empty.", "error");
+      return false;
+    }
+    if (normalizedName === edge.name) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        edge.name = normalizedName;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function deleteEdge({ edgeId, selectionIds, invalidate, statusMessage }) {
+    applyDesignChange(
+      () => {
+        removeEdge(edgeId);
+      },
+      {
+        invalidate,
+        selectionIds,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function updateNoteText({ note, proposedText, invalidate, statusMessage }) {
+    const normalizedText = String(proposedText || "").trim();
+    if (!normalizedText) {
+      setStatus("Notes cannot be empty.", "error");
+      return false;
+    }
+    if (normalizedText === note.text) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        note.text = normalizedText;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function deleteNote({ noteId, selectionIds, invalidate, statusMessage }) {
+    applyDesignChange(
+      () => {
+        removeNote(noteId);
+      },
+      {
+        invalidate,
+        selectionIds,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
   return {
+    addIndexToSelectedTensors,
     addTensorIndex,
+    applySelectionColor,
     centerTensorInView,
     deleteCurrentSelection,
+    deleteEdge,
+    deleteGroup,
+    deleteNote,
     deleteTensor,
     deleteTensorIndex,
     moveTensorIndex,
+    renameEdge,
+    renameGroup,
     renameIndex,
+    renameNetwork,
     renameTensor,
+    updateNoteText,
     updateIndexDimension,
     updateTargetColor,
   };

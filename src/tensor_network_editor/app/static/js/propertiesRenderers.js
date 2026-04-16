@@ -8,17 +8,18 @@ export function createPropertiesRenderers({
   document,
   propertiesPanel,
   support,
+  actions,
 }) {
   const { syncPendingTensorIndexDisclosure } = support;
   const {
     renderNetworkProperties,
     renderMultiSelectionProperties,
   } = createOverviewPropertiesRenderers({
-    ctx,
     state,
     document,
     propertiesPanel,
     support,
+    actions,
   });
   const {
     renderContractionTensorProperties,
@@ -36,11 +37,11 @@ export function createPropertiesRenderers({
     renderEdgeProperties,
     renderNoteProperties,
   } = createEntityPropertiesRenderers({
-    ctx,
     state,
     document,
     propertiesPanel,
     support,
+    actions,
   });
 
   function renderProperties() {

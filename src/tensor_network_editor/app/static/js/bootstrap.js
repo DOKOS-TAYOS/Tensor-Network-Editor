@@ -1,330 +1,100 @@
+import { createEditorBootstrapFlow } from "./shell/editorBootstrapFlow.js";
+import { createEditorShellBindings } from "./shell/editorShellBindings.js";
+import { createShortcutTooltip } from "./shell/shortcutTooltip.js";
+
+function resolveContextAction(ctx, actionName, fallback = () => {}) {
+  const candidate = ctx[actionName];
+  return typeof candidate === "function" ? candidate.bind(ctx) : fallback;
+}
+
+function createShellActions(ctx) {
+  return {
+    normalizeSpec: (spec) => ctx.normalizeSpec(spec),
+    applyTemplateCatalogPayload: (payload) => ctx.applyTemplateCatalogPayload(payload),
+    reconcileTensorOrder: () => ctx.reconcileTensorOrder(),
+    populateEngineOptions: (engines) => ctx.populateEngineOptions(engines),
+    enforceLinearPeriodicEngineSupport: resolveContextAction(
+      ctx,
+      "enforceLinearPeriodicEngineSupport"
+    ),
+    populateCollectionFormatOptions: (formats) => ctx.populateCollectionFormatOptions(formats),
+    initGraph: () => ctx.initGraph(),
+    clearHistory: () => ctx.clearHistory(),
+    render: () => ctx.render(),
+    refreshContractionAnalysis: resolveContextAction(ctx, "refreshContractionAnalysis"),
+    setStatus: (message, level) => ctx.setStatus(message, level),
+    handleNewDesign: () => ctx.handleNewDesign(),
+    addTensorAtCenter: () => ctx.addTensorAtCenter(),
+    addNoteAtCenter: () => ctx.addNoteAtCenter(),
+    toggleConnectMode: () => ctx.toggleConnectMode(),
+    deleteSelection: () => ctx.deleteSelection(),
+    saveDesign: () => ctx.saveDesign(),
+    generateCode: () => ctx.generateCode(),
+    completeEditor: () => ctx.completeEditor(),
+    cancelEditor: () => ctx.cancelEditor(),
+    copyGeneratedCode: () => ctx.copyGeneratedCode(),
+    performUndo: () => ctx.performUndo(),
+    performRedo: () => ctx.performRedo(),
+    downloadSelectedExport: () => ctx.downloadSelectedExport(),
+    updateToolbarState: () => ctx.updateToolbarState(),
+    toggleLinearPeriodicMode: () => ctx.toggleLinearPeriodicMode(),
+    switchLinearPeriodicCell: (direction) => ctx.switchLinearPeriodicCell(direction),
+    handleTemplateSelectionChange: (event) => ctx.handleTemplateSelectionChange(event),
+    handleTemplateParameterInput: (event) => ctx.handleTemplateParameterInput(event),
+    insertTemplate: () => ctx.insertTemplate(),
+    openSubnetworkPicker: () => ctx.openSubnetworkPicker(),
+    renameSelectedTemplate: () => ctx.renameSelectedTemplate(),
+    deleteSelectedTemplate: () => ctx.deleteSelectedTemplate(),
+    reflowLastImportedTensors: () => ctx.reflowLastImportedTensors(),
+    createGroupFromSelection: () => ctx.createGroupFromSelection(),
+    toggleHelpModal: (isOpen) => ctx.toggleHelpModal(isOpen),
+    renderPlanner: resolveContextAction(ctx, "renderPlanner"),
+    formatEngineLabel: (engine) => ctx.formatEngineLabel(engine),
+    loadDesignFromFile: (event) => ctx.loadDesignFromFile(event),
+    loadSubnetworkFromFile: (event) => ctx.loadSubnetworkFromFile(event),
+    handleKeydown: (event) => ctx.handleKeydown(event),
+    sendCancelBeacon: (event) => ctx.sendCancelBeacon(event),
+    handleWindowResize: (event) => ctx.handleWindowResize(event),
+    handleGlobalMouseMove: (event) => ctx.handleGlobalMouseMove(event),
+    handleGlobalMouseUp: (event) => ctx.handleGlobalMouseUp(event),
+    handleCanvasContextMenu: (event) => ctx.handleCanvasContextMenu(event),
+    handleCanvasWheel: (event) => ctx.handleCanvasWheel(event),
+    handleCanvasMouseDown: (event) => ctx.handleCanvasMouseDown(event),
+    handleMinimapMouseDown: (event) => ctx.handleMinimapMouseDown(event),
+  };
+}
+
 export function startEditor(ctx) {
   const state = ctx.state;
   const store = ctx.store;
-  const {
-    TENSOR_WIDTH,
-    TENSOR_HEIGHT,
-    MIN_TENSOR_WIDTH,
-    MIN_TENSOR_HEIGHT,
-    INDEX_RADIUS,
-    INDEX_PADDING,
-    HISTORY_LIMIT,
-    REDO_SHORTCUT_LABEL,
-    DEFAULT_INDEX_SLOTS,
-  } = ctx.constants;
-  const {
-    workspace,
-    statusMessage,
-    propertiesPanel,
-    generatedCode,
-    engineSelect,
-    collectionFormatSelect,
-    exportFormatSelect,
-    addNoteButton,
-    connectButton,
-    loadInput,
-    subnetworkLoadInput,
-    undoButton,
-    redoButton,
-    exportButton,
-    toggleLinearPeriodicButton,
-    linearPeriodicPreviousCellButton,
-    linearPeriodicCellLabel,
-    linearPeriodicNextCellButton,
-    templateSelect,
-    templateGraphSizeInput,
-    templateBondDimensionInput,
-    templatePhysicalDimensionInput,
-    insertTemplateButton,
-    insertSubnetworkButton,
-    renameTemplateButton,
-    deleteTemplateButton,
-    reflowImportedButton,
-    createGroupButton,
-    helpButton,
-    helpModal,
-    helpBackdrop,
-    helpCloseButton,
-    canvasShell,
-    groupLayer,
-    resizeLayer,
-    selectionBox,
-    minimapCanvas,
-  } = ctx.dom;
   const { window, document } = ctx;
-  const sessionService = ctx.services && ctx.services.session
-    ? ctx.services.session
-    : {
-        loadBootstrap: () => ctx.apiGet("/api/bootstrap"),
-      };
-  let shortcutTooltip = null;
-  let activeShortcutButton = null;
-
-  document.addEventListener("DOMContentLoaded", () => {
-    attachToolbarHandlers();
-    bootstrap().catch((error) => {
-      ctx.setStatus(`Failed to load the editor: ${error.message}`, "error");
-    });
+  const sessionService = ctx.services.session;
+  const actions = createShellActions(ctx);
+  const shortcutTooltip = createShortcutTooltip({
+    documentRef: document,
+    windowRef: window,
+  });
+  const bootstrapFlow = createEditorBootstrapFlow({
+    state,
+    store,
+    sessionService,
+    actions,
+  });
+  const shellBindings = createEditorShellBindings({
+    state,
+    store,
+    dom: ctx.dom,
+    documentRef: document,
+    windowRef: window,
+    actions,
+    shortcutTooltip,
+    redoShortcutLabel: ctx.constants.REDO_SHORTCUT_LABEL,
   });
 
-  async function bootstrap() {
-    const payload = await sessionService.loadBootstrap();
-    store.setSpec(ctx.normalizeSpec(payload.spec.network));
-    store.setSchemaVersion(payload.schema_version);
-    store.setAvailableCollectionFormats(
-      Array.isArray(payload.collection_formats) ? payload.collection_formats : ["list"]
-    );
-    ctx.applyTemplateCatalogPayload({
-      templateNames: payload.templates,
-      templateDefinitions: payload.template_definitions,
-      templateCatalogWarnings: payload.template_catalog_warnings,
+  document.addEventListener("DOMContentLoaded", () => {
+    shellBindings.attachToolbarHandlers();
+    bootstrapFlow.bootstrap().catch((error) => {
+      actions.setStatus(`Failed to load the editor: ${error.message}`, "error");
     });
-    store.setAnnotationDefinitions(payload.annotation_definitions);
-    store.setSelectedEngine(payload.default_engine);
-    store.setSelectedCollectionFormat(payload.default_collection_format || "list");
-    ctx.reconcileTensorOrder();
-    ctx.populateEngineOptions(payload.engines);
-    if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
-      ctx.enforceLinearPeriodicEngineSupport();
-    }
-    ctx.populateCollectionFormatOptions(state.availableCollectionFormats);
-    ctx.initGraph();
-    ctx.clearHistory();
-    ctx.render();
-    if (typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis();
-    }
-    if (state.templateCatalogWarnings.length) {
-      ctx.setStatus(state.templateCatalogWarnings[0], "error");
-    } else {
-      ctx.setStatus(
-        "Editor ready. Drag the canvas to move, use Ctrl+wheel to zoom, use the wheel to pan, and right drag to box-select.",
-        "success"
-      );
-    }
-  }
-
-  function applyShortcutHint(buttonId, label, shortcut) {
-    const button = document.getElementById(buttonId);
-    if (!button) {
-      return;
-    }
-    button.dataset.shortcut = shortcut;
-    button.dataset.shortcutLabel = label;
-    button.setAttribute("aria-label", `${label} (${shortcut})`);
-    button.removeAttribute("title");
-  }
-
-  function ensureShortcutTooltip() {
-    if (shortcutTooltip) {
-      return shortcutTooltip;
-    }
-    shortcutTooltip = document.createElement("div");
-    shortcutTooltip.className = "shortcut-tooltip is-hidden";
-    shortcutTooltip.setAttribute("aria-hidden", "true");
-    document.body.appendChild(shortcutTooltip);
-    return shortcutTooltip;
-  }
-
-  function formatShortcutTooltipText(button) {
-    const label = button.dataset.shortcutLabel || button.textContent.trim();
-    const shortcut = button.dataset.shortcut || "";
-    return label ? `${label} (${shortcut})` : shortcut;
-  }
-
-  function positionShortcutTooltip(button) {
-    const tooltip = ensureShortcutTooltip();
-    const rect = button.getBoundingClientRect();
-    const tooltipRect = tooltip.getBoundingClientRect();
-    const margin = 8;
-    let left = rect.right - tooltipRect.width;
-    let top = rect.bottom + margin;
-
-    if (top + tooltipRect.height > window.innerHeight - margin) {
-      top = rect.top - tooltipRect.height - margin;
-    }
-    left = Math.min(
-      Math.max(margin, left),
-      Math.max(margin, window.innerWidth - tooltipRect.width - margin)
-    );
-    top = Math.min(
-      Math.max(margin, top),
-      Math.max(margin, window.innerHeight - tooltipRect.height - margin)
-    );
-
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
-  }
-
-  function showShortcutTooltip(button) {
-    if (!button || !button.dataset.shortcut || button.disabled) {
-      return;
-    }
-    const tooltip = ensureShortcutTooltip();
-    tooltip.textContent = formatShortcutTooltipText(button);
-    tooltip.classList.remove("is-hidden");
-    activeShortcutButton = button;
-    positionShortcutTooltip(button);
-  }
-
-  function hideShortcutTooltip(button = null) {
-    if (button && activeShortcutButton && button !== activeShortcutButton) {
-      return;
-    }
-    if (!shortcutTooltip) {
-      return;
-    }
-    shortcutTooltip.classList.add("is-hidden");
-    activeShortcutButton = null;
-  }
-
-  function attachShortcutTooltipHandlers() {
-    document.addEventListener("mouseover", (event) => {
-      const button =
-        event.target instanceof Element
-          ? event.target.closest("button[data-shortcut]")
-          : null;
-      if (!button) {
-        return;
-      }
-      showShortcutTooltip(button);
-    });
-    document.addEventListener("mouseout", (event) => {
-      const button =
-        event.target instanceof Element
-          ? event.target.closest("button[data-shortcut]")
-          : null;
-      if (!button) {
-        return;
-      }
-      const relatedButton =
-        event.relatedTarget instanceof Element
-          ? event.relatedTarget.closest("button[data-shortcut]")
-          : null;
-      if (relatedButton === button) {
-        return;
-      }
-      hideShortcutTooltip(button);
-    });
-    document.addEventListener("focusin", (event) => {
-      const button =
-        event.target instanceof Element
-          ? event.target.closest("button[data-shortcut]")
-          : null;
-      if (!button) {
-        return;
-      }
-      showShortcutTooltip(button);
-    });
-    document.addEventListener("focusout", (event) => {
-      const button =
-        event.target instanceof Element
-          ? event.target.closest("button[data-shortcut]")
-          : null;
-      if (!button) {
-        return;
-      }
-      hideShortcutTooltip(button);
-    });
-    window.addEventListener("resize", () => {
-      if (activeShortcutButton) {
-        positionShortcutTooltip(activeShortcutButton);
-      }
-    });
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (activeShortcutButton) {
-          positionShortcutTooltip(activeShortcutButton);
-        }
-      },
-      true
-    );
-  }
-
-  function attachToolbarHandlers() {
-    applyShortcutHint("add-tensor-button", "Add tensor", "N");
-    applyShortcutHint("insert-template-button", "Insert template", "T");
-    applyShortcutHint("create-group-button", "Group", "G");
-    applyShortcutHint("add-note-button", "Add note", "P");
-    applyShortcutHint("connect-button", "Connect", "C");
-    applyShortcutHint("delete-button", "Delete", "Delete");
-    applyShortcutHint("save-button", "Save", "Ctrl/Cmd+S");
-    applyShortcutHint("load-button", "Load", "Ctrl/Cmd+L");
-    applyShortcutHint("generate-button", "Generate code", "Shift+G");
-    applyShortcutHint("toggle-linear-periodic-button", "For mode", "F");
-    applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
-    applyShortcutHint("redo-button", "Redo", REDO_SHORTCUT_LABEL);
-    applyShortcutHint("help-button", "Help", "?");
-    attachShortcutTooltipHandlers();
-    document.getElementById("new-design-button").addEventListener("click", ctx.handleNewDesign);
-    document.getElementById("add-tensor-button").addEventListener("click", ctx.addTensorAtCenter);
-    addNoteButton.addEventListener("click", ctx.addNoteAtCenter);
-    document.getElementById("connect-button").addEventListener("click", ctx.toggleConnectMode);
-    document.getElementById("delete-button").addEventListener("click", ctx.deleteSelection);
-    document.getElementById("save-button").addEventListener("click", ctx.saveDesign);
-    document.getElementById("load-button").addEventListener("click", () => loadInput.click());
-    document.getElementById("generate-button").addEventListener("click", ctx.generateCode);
-    document.getElementById("done-button").addEventListener("click", ctx.completeEditor);
-    document.getElementById("cancel-button").addEventListener("click", ctx.cancelEditor);
-    document.getElementById("copy-code-button").addEventListener("click", ctx.copyGeneratedCode);
-    undoButton.addEventListener("click", ctx.performUndo);
-    redoButton.addEventListener("click", ctx.performRedo);
-    exportButton.addEventListener("click", ctx.downloadSelectedExport);
-    exportFormatSelect.addEventListener("change", () => {
-      ctx.updateToolbarState();
-    });
-    toggleLinearPeriodicButton.addEventListener("click", ctx.toggleLinearPeriodicMode);
-    linearPeriodicPreviousCellButton.addEventListener("click", () => {
-      ctx.switchLinearPeriodicCell(-1);
-    });
-    linearPeriodicNextCellButton.addEventListener("click", () => {
-      ctx.switchLinearPeriodicCell(1);
-    });
-    templateSelect.addEventListener("change", ctx.handleTemplateSelectionChange);
-    templateGraphSizeInput.addEventListener("change", ctx.handleTemplateParameterInput);
-    templateBondDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
-    templatePhysicalDimensionInput.addEventListener("change", ctx.handleTemplateParameterInput);
-    insertTemplateButton.addEventListener("click", ctx.insertTemplate);
-    insertSubnetworkButton.addEventListener("click", ctx.openSubnetworkPicker);
-    renameTemplateButton.addEventListener("click", ctx.renameSelectedTemplate);
-    deleteTemplateButton.addEventListener("click", ctx.deleteSelectedTemplate);
-    if (reflowImportedButton) {
-      reflowImportedButton.addEventListener("click", ctx.reflowLastImportedTensors);
-    }
-    createGroupButton.addEventListener("click", ctx.createGroupFromSelection);
-    helpButton.addEventListener("click", () => ctx.toggleHelpModal(true));
-    helpBackdrop.addEventListener("click", () => ctx.toggleHelpModal(false));
-    helpCloseButton.addEventListener("click", () => ctx.toggleHelpModal(false));
-    engineSelect.addEventListener("change", (event) => {
-      store.setSelectedEngine(event.target.value);
-      if (typeof ctx.enforceLinearPeriodicEngineSupport === "function") {
-        ctx.enforceLinearPeriodicEngineSupport();
-      }
-      if (typeof ctx.renderPlanner === "function") {
-        ctx.renderPlanner();
-      }
-      ctx.updateToolbarState();
-      ctx.setStatus(
-        `Engine set to ${ctx.formatEngineLabel(state.selectedEngine)}.`,
-        "success"
-      );
-    });
-    collectionFormatSelect.addEventListener("change", (event) => {
-      store.setSelectedCollectionFormat(event.target.value);
-    });
-    loadInput.addEventListener("change", ctx.loadDesignFromFile);
-    subnetworkLoadInput.addEventListener("change", ctx.loadSubnetworkFromFile);
-    window.addEventListener("keydown", ctx.handleKeydown);
-    window.addEventListener("beforeunload", ctx.sendCancelBeacon);
-    window.addEventListener("pagehide", ctx.sendCancelBeacon);
-    window.addEventListener("resize", ctx.handleWindowResize);
-    window.addEventListener("mousemove", ctx.handleGlobalMouseMove);
-    window.addEventListener("mouseup", ctx.handleGlobalMouseUp);
-    canvasShell.addEventListener("contextmenu", ctx.handleCanvasContextMenu);
-    canvasShell.addEventListener("wheel", ctx.handleCanvasWheel, { passive: false });
-    canvasShell.addEventListener("mousedown", ctx.handleCanvasMouseDown, true);
-    minimapCanvas.addEventListener("mousedown", ctx.handleMinimapMouseDown);
-  }
-
+  });
 }

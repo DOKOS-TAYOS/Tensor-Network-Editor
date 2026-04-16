@@ -1,4 +1,3 @@
-import { createPropertyCommands } from "./actions/propertyCommands.js";
 import { createMetadataEditorSupport } from "./properties/metadataEditors.js";
 import { createPropertyAutosaveBindings } from "./properties/propertyAutosave.js";
 import {
@@ -30,7 +29,7 @@ export function renderTrashIcon() {
     `;
 }
 
-export function createPropertiesSupport({ ctx, state, window }) {
+export function createPropertiesSupport({ ctx, state, window, commands }) {
   const autosave = createPropertyAutosaveBindings({
     windowRef: window || globalThis,
   });
@@ -42,22 +41,6 @@ export function createPropertiesSupport({ ctx, state, window }) {
     annotationDefinitionsByScope: () => state.annotationDefinitions || {},
     escapeHtml: (value) => ctx.escapeHtml(value),
     isObject: (value) => ctx.isObject(value),
-  });
-  const propertyCommands = createPropertyCommands({
-    applyDesignChange: (mutate, options) => ctx.applyDesignChange(mutate, options),
-    centerTensor: (tensorId) => ctx.centerTensor(tensorId),
-    createIndex: (tensor, indexPosition) => ctx.createIndex(tensor, indexPosition),
-    deleteSelection: () => ctx.deleteSelection(),
-    findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
-    moveIndex: (tensorId, indexPosition, direction) =>
-      ctx.moveIndex(tensorId, indexPosition, direction),
-    removeIndex: (tensorId, indexId) => ctx.removeIndex(tensorId, indexId),
-    removeTensor: (tensorId) => ctx.removeTensor(tensorId),
-    setStatus: (message, level) => ctx.setStatus(message, level),
-    syncConnectedIndexDimension: (indexId, nextDimension) =>
-      ctx.syncConnectedIndexDimension(indexId, nextDimension),
-    tensorIndexNameExists: (tensor, proposedName, ignoredIndexId) =>
-      ctx.tensorIndexNameExists(tensor, proposedName, ignoredIndexId),
   });
 
   function propertyInvalidation(overrides = {}) {
@@ -145,7 +128,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
         bindDebouncedAutosave: autosave.bindDebouncedAutosave,
         commitAutosave: autosave.commitAutosave,
       }),
-    commands: propertyCommands,
+    commands,
     propertyInvalidation: (overrides = {}) => propertyInvalidation(overrides),
     selectionColorInvalidation: (selectedEntries) =>
       selectionColorInvalidation(selectedEntries),

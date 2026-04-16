@@ -396,25 +396,41 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     overview_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
     tensor_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
     )
     entities_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    metadata_body = request_text(
+        f"{editor_server.base_url}/js/properties/metadataEditors.js"
+    )
     summaries_body = request_text(
         f"{editor_server.base_url}/js/properties/propertySummaries.js"
     )
 
-    combined_body = overview_body + tensor_body + entities_body
+    combined_body = (
+        overview_body
+        + overview_markup_body
+        + tensor_body
+        + entities_body
+        + entity_markup_body
+        + metadata_body
+    )
     assert "Total elements" in combined_body
     assert "Delete Selected" not in combined_body
     assert "Delete Connection" not in combined_body
     assert "Delete Note" not in combined_body
-    assert 'aria-label="Delete selection"' in overview_body
-    assert 'aria-label="Delete connection"' in entities_body
-    assert 'aria-label="Delete note"' in entities_body
+    assert 'aria-label="Delete selection"' in overview_body + overview_markup_body
+    assert 'aria-label="Delete connection"' in entities_body + entity_markup_body
+    assert 'aria-label="Delete note"' in entities_body + entity_markup_body
     assert 'from "./properties/propertySummaries.js"' in support_body
     assert "function getSelectionTotalElementCount(" in summaries_body
     assert "function getTensorTotalElementCount(" in summaries_body
@@ -426,18 +442,31 @@ def test_properties_assets_expose_tags_and_custom_metadata_editors(
     overview_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
     tensor_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
     )
     entities_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     metadata_body = request_text(
         f"{editor_server.base_url}/js/properties/metadataEditors.js"
     )
 
-    combined_body = overview_body + tensor_body + entities_body
+    combined_body = (
+        overview_body
+        + overview_markup_body
+        + tensor_body
+        + entities_body
+        + entity_markup_body
+        + metadata_body
+    )
     assert "Tags" in combined_body
     assert 'from "./properties/metadataEditors.js"' in support_body
     assert "Custom metadata (JSON)" in metadata_body
@@ -513,6 +542,18 @@ def test_properties_renderer_assets_are_split_by_selection_family(
     entities_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
+    overview_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesBindings.js"
+    )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
+    entity_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesBindings.js"
+    )
     tensor_standard_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
     )
@@ -526,15 +567,71 @@ def test_properties_renderer_assets_are_split_by_selection_family(
     assert 'from "./propertiesRenderersOverview.js"' in facade_body
     assert 'from "./propertiesRenderersTensor.js"' in facade_body
     assert 'from "./propertiesRenderersEntities.js"' in facade_body
+    assert 'from "./properties/overviewPropertiesMarkup.js"' in overview_body
+    assert 'from "./properties/overviewPropertiesBindings.js"' in overview_body
+    assert 'from "./properties/entityPropertiesMarkup.js"' in entities_body
+    assert 'from "./properties/entityPropertiesBindings.js"' in entities_body
     assert 'from "./properties/tensorPropertiesStandard.js"' in tensor_body
     assert 'from "./properties/tensorPropertiesBoundary.js"' in tensor_body
     assert 'from "./properties/tensorPropertiesContraction.js"' in tensor_body
     assert "renderNetworkProperties" in overview_body
     assert "renderTensorProperties" in tensor_body
     assert "renderGroupProperties" in entities_body
+    assert "buildNetworkPropertiesMarkup" in overview_markup_body
+    assert "createOverviewPropertiesBindings" in overview_bindings_body
+    assert "buildGroupPropertiesMarkup" in entity_markup_body
+    assert "createEntityPropertiesBindings" in entity_bindings_body
     assert "createStandardTensorPropertiesRenderer" in tensor_standard_body
     assert "createBoundaryTensorPropertiesRenderer" in tensor_boundary_body
     assert "createContractionTensorPropertiesRenderer" in tensor_contraction_body
+
+
+def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_internal_modules(
+    editor_server: EditorServer,
+) -> None:
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    bootstrap_flow_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorBootstrapFlow.js"
+    )
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
+    tooltip_body = request_text(f"{editor_server.base_url}/js/shell/shortcutTooltip.js")
+    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    overview_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+    )
+    entities_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
+    commands_body = request_text(
+        f"{editor_server.base_url}/js/actions/propertyCommands.js"
+    )
+
+    assert 'from "./shell/editorBootstrapFlow.js"' in bootstrap_body
+    assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
+    assert 'from "./shell/shortcutTooltip.js"' in bootstrap_body
+    assert "ctx.services && ctx.services.session" not in bootstrap_body
+    assert "typeof ctx.enforceLinearPeriodicEngineSupport" not in bootstrap_body
+    assert "typeof ctx.refreshContractionAnalysis" not in bootstrap_body
+    assert "typeof ctx.renderPlanner" not in bootstrap_body
+    assert "function createEditorBootstrapFlow(" in bootstrap_flow_body
+    assert "function createEditorShellBindings(" in shell_bindings_body
+    assert "function createShortcutTooltip(" in tooltip_body
+    assert "ctx.applyDesignChange(" not in overview_body
+    assert "ctx.applyDesignChange(" not in entities_body
+    assert "ctx.removeEdge(" not in entities_body
+    assert "ctx.removeNote(" not in entities_body
+    assert 'from "./actions/propertyCommands.js"' in properties_body
+    assert "function renameNetwork(" in commands_body
+    assert "function applySelectionColor(" in commands_body
+    assert "function addIndexToSelectedTensors(" in commands_body
+    assert "function renameGroup(" in commands_body
+    assert "function deleteGroup(" in commands_body
+    assert "function renameEdge(" in commands_body
+    assert "function deleteEdge(" in commands_body
+    assert "function updateNoteText(" in commands_body
+    assert "function deleteNote(" in commands_body
 
 
 def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_modules(
@@ -602,6 +699,9 @@ def test_note_assets_move_note_editing_into_canvas(
     properties_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
+    properties_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'textarea.addEventListener("keydown", (event) => {' in notes_body
@@ -609,8 +709,11 @@ def test_note_assets_move_note_editing_into_canvas(
     assert 'className = "canvas-note-color-button"' in notes_body
     assert 'colorInput.type = "color";' in notes_body
     assert "ctx.bindDebouncedAutosave(" in notes_body
-    assert '<label for="note-text-input">Note text</label>' in properties_body
-    assert 'id="note-color-input"' in properties_body
+    assert (
+        '<label for="note-text-input">Note text</label>'
+        in properties_body + properties_markup_body
+    )
+    assert 'id="note-color-input"' in properties_body + properties_markup_body
     assert "Edit this note directly on the canvas." not in properties_body
     assert ".canvas-note-color-button {" in css_body
 
@@ -684,6 +787,9 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
     editor_server: EditorServer,
 ) -> None:
     bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
     dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_body = request_utilities_runtime_bundle(editor_server)
@@ -697,9 +803,10 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
         in dom_body
     )
     assert 'exportButton: document.getElementById("export-button")' in dom_body
+    assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
     assert (
-        'exportButton.addEventListener("click", ctx.downloadSelectedExport);'
-        in bootstrap_body
+        'bindListener(exportButton, "click", actions.downloadSelectedExport);'
+        in shell_bindings_body
     )
     assert "async function downloadSelectedExport()" in interactions_body
     assert "switch (exportFormatSelect.value)" in interactions_body
@@ -743,13 +850,21 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
     dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
-    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     overview_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
     entities_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+    )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
 
     assert 'id="insert-subnetwork-button"' in html
@@ -768,20 +883,22 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         in dom_body
     )
     assert (
-        'insertSubnetworkButton.addEventListener("click", ctx.openSubnetworkPicker);'
-        in bootstrap_body
+        'bindListener(insertSubnetworkButton, "click", actions.openSubnetworkPicker);'
+        in shell_bindings_body
     )
     assert (
-        'subnetworkLoadInput.addEventListener("change", ctx.loadSubnetworkFromFile);'
-        in bootstrap_body
+        'bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);'
+        in shell_bindings_body
     )
     assert '"/api/subnetwork/extract"' in interactions_body
     assert '"/api/subnetwork/prepare-insert"' in interactions_body
     assert '"/api/template/promote"' in interactions_body
-    assert 'id="extract-selection-button"' in overview_body
-    assert 'id="promote-selection-template-button"' in overview_body
-    assert 'id="extract-group-button"' in entities_body
-    assert 'id="promote-group-template-button"' in entities_body
+    assert 'id="extract-selection-button"' in overview_body + overview_markup_body
+    assert (
+        'id="promote-selection-template-button"' in overview_body + overview_markup_body
+    )
+    assert 'id="extract-group-button"' in entities_body + entity_markup_body
+    assert 'id="promote-group-template-button"' in entities_body + entity_markup_body
 
 
 def test_template_management_assets_expose_toolbar_controls_and_routes(
@@ -789,7 +906,12 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
     dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
-    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    bootstrap_flow_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorBootstrapFlow.js"
+    )
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_ui_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
 
@@ -826,17 +948,21 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert (
-        'renameTemplateButton.addEventListener("click", ctx.renameSelectedTemplate);'
-        in bootstrap_body
+        'bindListener(renameTemplateButton, "click", actions.renameSelectedTemplate);'
+        in shell_bindings_body
     )
     assert (
-        'deleteTemplateButton.addEventListener("click", ctx.deleteSelectedTemplate);'
-        in bootstrap_body
+        'bindListener(deleteTemplateButton, "click", actions.deleteSelectedTemplate);'
+        in shell_bindings_body
     )
     assert (
-        "templateCatalogWarnings: payload.template_catalog_warnings" in bootstrap_body
+        "templateCatalogWarnings: payload.template_catalog_warnings"
+        in bootstrap_flow_body
     )
-    assert 'ctx.setStatus(state.templateCatalogWarnings[0], "error");' in bootstrap_body
+    assert (
+        'actions.setStatus(state.templateCatalogWarnings[0], "error");'
+        in bootstrap_flow_body
+    )
     assert '"/api/template/rename"' in interactions_body
     assert '"/api/template/delete"' in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_body
@@ -851,6 +977,9 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     overview_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
 
     assert 'from "./utilitiesLayout.js"' in utilities_module_body
     assert "createUtilityLayoutBindings" in layout_body
@@ -860,12 +989,15 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     assert "function snapSelectedTensorsToGrid(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
     assert "GRID_SNAP_SIZE" in utilities_body
-    assert 'id="align-selection-left-button"' in overview_body
-    assert 'id="arrange-selection-chain-button"' in overview_body
-    assert 'id="arrange-selection-tree-button"' in overview_body
-    assert 'id="arrange-selection-grid-button"' in overview_body
-    assert 'id="distribute-selection-horizontal-button"' in overview_body
-    assert 'id="snap-selection-button"' in overview_body
+    assert 'id="align-selection-left-button"' in overview_body + overview_markup_body
+    assert 'id="arrange-selection-chain-button"' in overview_body + overview_markup_body
+    assert 'id="arrange-selection-tree-button"' in overview_body + overview_markup_body
+    assert 'id="arrange-selection-grid-button"' in overview_body + overview_markup_body
+    assert (
+        'id="distribute-selection-horizontal-button"'
+        in overview_body + overview_markup_body
+    )
+    assert 'id="snap-selection-button"' in overview_body + overview_markup_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
@@ -912,6 +1044,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     properties_renderers_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
     )
+    properties_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesBindings.js"
+    )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
     graph_model_body = request_text(
@@ -940,7 +1075,7 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "function selectionColorInvalidation(selectedEntries)" in properties_body
     assert (
         "invalidate: selectionColorInvalidation(selectedEntries)"
-        in properties_renderers_body
+        in properties_renderers_body + properties_bindings_body
     )
     assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
     assert "startOffset:" in graph_body

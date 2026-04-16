@@ -578,19 +578,91 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
         }}
 
         const propertyEvents = [];
+        const spec = {{
+          name: "Demo network",
+          groups: [{{ id: "group_a", name: "Group A", tensor_ids: ["tensor_a"], metadata: {{ color: "#123456" }} }}],
+          edges: [{{ id: "edge_a", name: "edge_a", metadata: {{ color: "#654321" }} }}],
+          notes: [{{ id: "note_a", text: "Original note", metadata: {{ color: "#abcdef" }} }}],
+        }};
+        const tensorById = {{
+          tensor_a: tensor,
+          tensor_b: {{
+            id: "tensor_b",
+            indices: [],
+            metadata: {{}},
+          }},
+        }};
+        const applyColorToSelection = (nextColor) => {{
+          Object.values(tensorById).forEach((candidate) => {{
+            candidate.metadata = candidate.metadata || {{}};
+            candidate.metadata.color = nextColor;
+          }});
+        }};
         const propertyCommands = propertyCommandsModule.createPropertyCommands({{
           applyDesignChange: (mutate, options = {{}}) => {{
             mutate();
             propertyEvents.push(options.statusMessage || null);
           }},
+          applyColorToSelection,
+          createIndex: (targetTensor, indexPosition) => ({{
+            id: `${{targetTensor.id}}_index_${{indexPosition}}`,
+            name: `i${{indexPosition + 1}}`,
+            dimension: 2,
+            metadata: {{}},
+          }}),
+          findTensorById: (tensorId) => tensorById[tensorId] || null,
           setStatus: (message, level = "info") => propertyEvents.push(`${{level}}:${{message}}`),
           findIndexOwner: (indexId) =>
             indexId === "index_left"
               ? {{ tensor, index: tensor.indices[0] }}
               : null,
+          getSelectedTensorIds: () => ["tensor_a", "tensor_b"],
+          removeGroup: (groupId) => {{
+            spec.groups = spec.groups.filter((candidate) => candidate.id !== groupId);
+          }},
+          removeEdge: (edgeId) => {{
+            spec.edges = spec.edges.filter((candidate) => candidate.id !== edgeId);
+          }},
+          removeNote: (noteId) => {{
+            spec.notes = spec.notes.filter((candidate) => candidate.id !== noteId);
+          }},
           syncConnectedIndexDimension: (indexId, nextDimension) =>
             propertyEvents.push(`sync:${{indexId}}:${{nextDimension}}`),
           tensorIndexNameExists: () => false,
+        }});
+        propertyCommands.renameNetwork({{
+          spec,
+          proposedName: "Refined network",
+          invalidate: {{ properties: true }},
+          statusMessage: "Updated design name.",
+        }});
+        propertyCommands.applySelectionColor({{
+          nextColor: "#ff8800",
+          invalidate: {{ graph: true }},
+          statusMessage: "Updated the selection color.",
+        }});
+        propertyCommands.addIndexToSelectedTensors({{
+          selectionIds: ["tensor_a", "tensor_b"],
+          primaryId: "tensor_b",
+          statusMessage: "Added one index to each selected tensor.",
+        }});
+        propertyCommands.renameGroup({{
+          group: spec.groups[0],
+          proposedName: "Cluster A",
+          invalidate: {{ overlays: true }},
+          statusMessage: "Updated group Cluster A.",
+        }});
+        propertyCommands.renameEdge({{
+          edge: spec.edges[0],
+          proposedName: "bond_main",
+          invalidate: {{ graph: true }},
+          statusMessage: "Updated connection bond_main.",
+        }});
+        propertyCommands.updateNoteText({{
+          note: spec.notes[0],
+          proposedText: "Updated note",
+          invalidate: {{ overlays: true }},
+          statusMessage: "Updated the note.",
         }});
         propertyCommands.updateIndexDimension({{
           indexId: "index_left",
@@ -598,6 +670,41 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
           invalidate: {{ graph: true, analysis: true }},
           statusMessage: "Updated index index_left.",
         }});
+        propertyCommands.deleteGroup({{
+          groupId: "group_a",
+          selectionIds: [],
+          invalidate: {{ overlays: true, lookups: true }},
+          statusMessage: "Deleted group Cluster A.",
+        }});
+        propertyCommands.deleteEdge({{
+          edgeId: "edge_a",
+          selectionIds: [],
+          statusMessage: "Deleted connection bond_main.",
+        }});
+        propertyCommands.deleteNote({{
+          noteId: "note_a",
+          selectionIds: [],
+          invalidate: {{ overlays: true, lookups: true }},
+          statusMessage: "Deleted the note.",
+        }});
+        if (spec.name !== "Refined network") {{
+          throw new Error(`Expected renamed network, received ${{spec.name}}.`);
+        }}
+        if (tensorById.tensor_a.metadata.color !== "#ff8800" || tensorById.tensor_b.metadata.color !== "#ff8800") {{
+          throw new Error(`Expected batch color to update all selected tensors, received ${{JSON.stringify(tensorById)}}.`);
+        }}
+        if (tensor.indices.length !== 3 || tensorById.tensor_b.indices.length !== 1) {{
+          throw new Error(`Expected addIndexToSelectedTensors to append indices, received ${{JSON.stringify(tensorById)}}.`);
+        }}
+        if (spec.groups.length !== 0) {{
+          throw new Error(`Expected deleteGroup to remove the group, received ${{JSON.stringify(spec.groups)}}.`);
+        }}
+        if (spec.edges.length !== 0) {{
+          throw new Error(`Expected deleteEdge to remove the edge, received ${{JSON.stringify(spec.edges)}}.`);
+        }}
+        if (spec.notes.length !== 0) {{
+          throw new Error(`Expected deleteNote to remove the note, received ${{JSON.stringify(spec.notes)}}.`);
+        }}
         if (tensor.indices[0].dimension !== 5) {{
           throw new Error(`Expected index dimension 5, received ${{tensor.indices[0].dimension}}.`);
         }}
@@ -611,6 +718,300 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
 
     assert completed_process.returncode == 0, (
         "The planner/property module runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "shell_modules.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const bootstrapFlowUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorBootstrapFlow.js")!r}).href;
+        const shellBindingsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorShellBindings.js")!r}).href;
+        const shortcutTooltipUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "shortcutTooltip.js")!r}).href;
+
+        const [bootstrapFlowModule, shellBindingsModule, tooltipModule] = await Promise.all([
+          import(bootstrapFlowUrl),
+          import(shellBindingsUrl),
+          import(shortcutTooltipUrl),
+        ]);
+
+        function createButton(id) {{
+          return {{
+            id,
+            disabled: false,
+            dataset: {{}},
+            attributes: {{}},
+            listeners: {{}},
+            textContent: "",
+            setAttribute(name, value) {{
+              this.attributes[name] = value;
+            }},
+            removeAttribute(name) {{
+              delete this.attributes[name];
+            }},
+            addEventListener(type, handler) {{
+              this.listeners[type] = handler;
+            }},
+            click() {{
+              if (this.listeners.click) {{
+                this.listeners.click({{ target: this }});
+              }}
+            }},
+          }};
+        }}
+
+        const state = {{
+          availableCollectionFormats: [],
+          templateCatalogWarnings: [],
+          selectedEngine: "",
+        }};
+        const storeCalls = [];
+        const store = {{
+          setSpec(spec) {{
+            state.spec = spec;
+            storeCalls.push({{ step: "setSpec", spec }});
+          }},
+          setSchemaVersion(schemaVersion) {{
+            state.schemaVersion = schemaVersion;
+            storeCalls.push({{ step: "setSchemaVersion", schemaVersion }});
+          }},
+          setAvailableCollectionFormats(collectionFormats) {{
+            state.availableCollectionFormats = [...collectionFormats];
+            storeCalls.push({{ step: "setAvailableCollectionFormats", collectionFormats }});
+          }},
+          setAnnotationDefinitions(annotationDefinitions) {{
+            state.annotationDefinitions = annotationDefinitions;
+            storeCalls.push({{ step: "setAnnotationDefinitions", annotationDefinitions }});
+          }},
+          setSelectedEngine(engine) {{
+            state.selectedEngine = engine;
+            storeCalls.push({{ step: "setSelectedEngine", engine }});
+          }},
+          setSelectedCollectionFormat(collectionFormat) {{
+            state.selectedCollectionFormat = collectionFormat;
+            storeCalls.push({{ step: "setSelectedCollectionFormat", collectionFormat }});
+          }},
+        }};
+        const flowEvents = [];
+        const bootstrapFlow = bootstrapFlowModule.createEditorBootstrapFlow({{
+          state,
+          store,
+          sessionService: {{
+            async loadBootstrap() {{
+              flowEvents.push("loadBootstrap");
+              return {{
+                spec: {{ network: {{ id: "network_demo" }} }},
+                schema_version: 4,
+                collection_formats: ["list", "dict"],
+                templates: ["mps"],
+                template_definitions: {{ mps: {{ display_name: "MPS" }} }},
+                template_catalog_warnings: ["Template warning"],
+                annotation_definitions: {{ tensor: [] }},
+                default_engine: "quimb",
+                default_collection_format: "dict",
+                engines: ["quimb", "cotengra"],
+              }};
+            }},
+          }},
+          actions: {{
+            normalizeSpec: (spec) => ({{ ...spec, normalized: true }}),
+            applyTemplateCatalogPayload: (payload) => {{
+              state.templateCatalogWarnings = payload.templateCatalogWarnings;
+              flowEvents.push({{ templatePayload: payload }});
+            }},
+            reconcileTensorOrder: () => flowEvents.push("reconcileTensorOrder"),
+            populateEngineOptions: (engines) => flowEvents.push({{ engines }}),
+            enforceLinearPeriodicEngineSupport: () =>
+              flowEvents.push("enforceLinearPeriodicEngineSupport"),
+            populateCollectionFormatOptions: (formats) =>
+              flowEvents.push({{ formats }}),
+            initGraph: () => flowEvents.push("initGraph"),
+            clearHistory: () => flowEvents.push("clearHistory"),
+            render: () => flowEvents.push("render"),
+            refreshContractionAnalysis: () =>
+              flowEvents.push("refreshContractionAnalysis"),
+            setStatus: (message, level) => flowEvents.push({{ message, level }}),
+          }},
+        }});
+        await bootstrapFlow.bootstrap();
+        if (!storeCalls.some((entry) => entry.step === "setSpec" && entry.spec.normalized === true)) {{
+          throw new Error(`Expected bootstrap flow to normalize the incoming spec, received ${{JSON.stringify(storeCalls)}}.`);
+        }}
+        if (!flowEvents.some((entry) => entry.message === "Template warning" && entry.level === "error")) {{
+          throw new Error(`Expected bootstrap flow to surface template warnings, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("enforceLinearPeriodicEngineSupport") || !flowEvents.includes("refreshContractionAnalysis")) {{
+          throw new Error(`Expected bootstrap flow to run post-load actions, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+
+        const buttonRegistry = new Map();
+        const getButton = (id) => {{
+          if (!buttonRegistry.has(id)) {{
+            buttonRegistry.set(id, createButton(id));
+          }}
+          return buttonRegistry.get(id);
+        }};
+        const documentListeners = [];
+        const windowListeners = [];
+        const tooltipDocument = {{
+          body: {{
+            appendChild(node) {{
+              flowEvents.push({{ tooltipAttached: node.className }});
+            }},
+          }},
+          getElementById: (id) => getButton(id),
+          createElement: () => ({{
+            className: "",
+            textContent: "",
+            style: {{}},
+            classList: {{
+              add() {{}},
+              remove() {{}},
+            }},
+            setAttribute() {{}},
+            getBoundingClientRect() {{
+              return {{ width: 0, height: 0 }};
+            }},
+          }}),
+          addEventListener(type, handler) {{
+            documentListeners.push(type);
+          }},
+        }};
+        const shortcutTooltip = tooltipModule.createShortcutTooltip({{
+          documentRef: tooltipDocument,
+          windowRef: {{
+            innerWidth: 800,
+            innerHeight: 600,
+            addEventListener(type, handler) {{
+              windowListeners.push(type);
+            }},
+          }},
+        }});
+        shortcutTooltip.applyShortcutHint("generate-button", "Generate code", "Shift+G");
+        if (getButton("generate-button").dataset.shortcut !== "Shift+G") {{
+          throw new Error("Expected shortcut tooltip helper to set the shortcut dataset.");
+        }}
+
+        const dom = {{
+          addNoteButton: getButton("add-note-button"),
+          connectButton: getButton("connect-button"),
+          loadInput: {{ click() {{ flowEvents.push("loadInput.click"); }}, addEventListener(type, handler) {{ this[type] = handler; }} }},
+          subnetworkLoadInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          undoButton: getButton("undo-button"),
+          redoButton: getButton("redo-button"),
+          exportButton: getButton("export-button"),
+          exportFormatSelect: {{ value: "py", addEventListener(type, handler) {{ this[type] = handler; }} }},
+          toggleLinearPeriodicButton: getButton("toggle-linear-periodic-button"),
+          linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
+          linearPeriodicCellLabel: {{ textContent: "" }},
+          linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
+          templateSelect: {{ value: "mps", addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateGraphSizeInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateBondDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          insertTemplateButton: getButton("insert-template-button"),
+          insertSubnetworkButton: getButton("insert-subnetwork-button"),
+          renameTemplateButton: getButton("rename-template-button"),
+          deleteTemplateButton: getButton("delete-template-button"),
+          reflowImportedButton: getButton("reflow-imported-button"),
+          createGroupButton: getButton("create-group-button"),
+          helpButton: getButton("help-button"),
+          helpModal: {{ classList: {{ add() {{}}, remove() {{}} }} }},
+          helpBackdrop: getButton("help-backdrop"),
+          helpCloseButton: getButton("help-close-button"),
+          canvasShell: {{ addEventListener(type, handler) {{ this[type] = handler; }}, getBoundingClientRect() {{ return {{ left: 0, top: 0, width: 1000, height: 800 }}; }} }},
+          minimapCanvas: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          engineSelect: {{ value: "cotengra", addEventListener(type, handler) {{ this[type] = handler; }} }},
+          collectionFormatSelect: {{ value: "dict", addEventListener(type, handler) {{ this[type] = handler; }} }},
+        }};
+        const shellActions = {{
+          handleNewDesign: () => flowEvents.push("handleNewDesign"),
+          addTensorAtCenter: () => flowEvents.push("addTensorAtCenter"),
+          addNoteAtCenter: () => flowEvents.push("addNoteAtCenter"),
+          toggleConnectMode: () => flowEvents.push("toggleConnectMode"),
+          deleteSelection: () => flowEvents.push("deleteSelection"),
+          saveDesign: () => flowEvents.push("saveDesign"),
+          generateCode: () => flowEvents.push("generateCode"),
+          completeEditor: () => flowEvents.push("completeEditor"),
+          cancelEditor: () => flowEvents.push("cancelEditor"),
+          copyGeneratedCode: () => flowEvents.push("copyGeneratedCode"),
+          performUndo: () => flowEvents.push("performUndo"),
+          performRedo: () => flowEvents.push("performRedo"),
+          downloadSelectedExport: () => flowEvents.push("downloadSelectedExport"),
+          updateToolbarState: () => flowEvents.push("updateToolbarState"),
+          toggleLinearPeriodicMode: () => flowEvents.push("toggleLinearPeriodicMode"),
+          switchLinearPeriodicCell: (direction) =>
+            flowEvents.push(`switchLinearPeriodicCell:${{direction}}`),
+          handleTemplateSelectionChange: () => flowEvents.push("handleTemplateSelectionChange"),
+          handleTemplateParameterInput: () => flowEvents.push("handleTemplateParameterInput"),
+          insertTemplate: () => flowEvents.push("insertTemplate"),
+          openSubnetworkPicker: () => flowEvents.push("openSubnetworkPicker"),
+          renameSelectedTemplate: () => flowEvents.push("renameSelectedTemplate"),
+          deleteSelectedTemplate: () => flowEvents.push("deleteSelectedTemplate"),
+          reflowLastImportedTensors: () => flowEvents.push("reflowLastImportedTensors"),
+          createGroupFromSelection: () => flowEvents.push("createGroupFromSelection"),
+          toggleHelpModal: (isOpen) => flowEvents.push(`toggleHelpModal:${{isOpen}}`),
+          enforceLinearPeriodicEngineSupport: () =>
+            flowEvents.push("binding.enforceLinearPeriodicEngineSupport"),
+          renderPlanner: () => flowEvents.push("binding.renderPlanner"),
+          formatEngineLabel: (engine) => engine.toUpperCase(),
+          setStatus: (message, level) => flowEvents.push({{ bindingStatus: message, level }}),
+          loadDesignFromFile: () => flowEvents.push("loadDesignFromFile"),
+          loadSubnetworkFromFile: () => flowEvents.push("loadSubnetworkFromFile"),
+          handleKeydown: () => flowEvents.push("handleKeydown"),
+          sendCancelBeacon: () => flowEvents.push("sendCancelBeacon"),
+          handleWindowResize: () => flowEvents.push("handleWindowResize"),
+          handleGlobalMouseMove: () => flowEvents.push("handleGlobalMouseMove"),
+          handleGlobalMouseUp: () => flowEvents.push("handleGlobalMouseUp"),
+          handleCanvasContextMenu: () => flowEvents.push("handleCanvasContextMenu"),
+          handleCanvasWheel: () => flowEvents.push("handleCanvasWheel"),
+          handleCanvasMouseDown: () => flowEvents.push("handleCanvasMouseDown"),
+          handleMinimapMouseDown: () => flowEvents.push("handleMinimapMouseDown"),
+        }};
+        const shellBindings = shellBindingsModule.createEditorShellBindings({{
+          state,
+          store,
+          dom,
+          documentRef: tooltipDocument,
+          windowRef: {{
+            addEventListener(type, handler) {{
+              windowListeners.push(type);
+            }},
+          }},
+          actions: shellActions,
+          shortcutTooltip,
+        }});
+        shellBindings.attachToolbarHandlers();
+        getButton("generate-button").click();
+        dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
+        dom.insertSubnetworkButton.click();
+        if (!flowEvents.includes("generateCode")) {{
+          throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("openSubnetworkPicker")) {{
+          throw new Error(`Expected subnetwork button binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("binding.enforceLinearPeriodicEngineSupport") || !flowEvents.includes("binding.renderPlanner")) {{
+          throw new Error(`Expected engine change binding to run its injected actions, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.some((entry) => entry.bindingStatus === "Engine set to COTENGRA.")) {{
+          throw new Error(`Expected engine change binding to set status through injected actions, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The shell module runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
