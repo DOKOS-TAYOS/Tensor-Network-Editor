@@ -1,3 +1,17 @@
+import {
+  buildContractionOperandProgression as buildContractionOperandProgressionFromState,
+  buildContractionStateFromProgression,
+  getActiveOperandsFromProgression,
+} from "./state/contractionSceneProgression.js";
+import {
+  buildExistingSnapshotLayoutsByStepCount,
+  buildExistingSnapshotsByStepCount,
+  buildSnapshotAndLayoutMapFromOperands,
+  buildSnapshotLayoutMap,
+  cloneOperandLayout,
+  getPreferredStepAnchorOperandId,
+} from "./state/contractionSceneSnapshots.js";
+
 export function registerContractionScene(ctx) {
   const state = ctx.state;
   const TENSORKROWCH_MANUAL_PLAN_BASE_MESSAGE =
@@ -132,205 +146,19 @@ export function registerContractionScene(ctx) {
     return [...realOperands, ...buildBoundaryOperands()];
   }
 
-  function cloneOperand(operand) {
-    return {
-      id: operand.id,
-      name: operand.name,
-      isDerived: Boolean(operand.isDerived),
-      linearPeriodicRole: operand.linearPeriodicRole || null,
-      sourceTensorIds: [...operand.sourceTensorIds],
-      tokens: operand.tokens.map((token) => ({ ...token })),
-    };
-  }
-
-  function analyzeOperandPair(leftOperand, rightOperand) {
-    if (!leftOperand || !rightOperand) {
-      return null;
-    }
-    const rightTokenKeys = new Set(rightOperand.tokens.map((token) => token.key));
-    const sharedTokenKeys = [...new Set(
-      leftOperand.tokens
-        .filter((token) => rightTokenKeys.has(token.key))
-        .map((token) => token.key)
-    )];
-    return {
-      sharedTokenKeys,
-      sharedTokenCount: sharedTokenKeys.length,
-      isOuterProduct: sharedTokenKeys.length === 0,
-    };
-  }
-
-  function cloneSourceTensorIdsByOperandId(progression, stepCount) {
-    const sourceTensorIdsByOperandId = {};
-    progression.seedOperandIds.forEach((operandId) => {
-      sourceTensorIdsByOperandId[operandId] = [
-        ...(progression.sourceTensorIdsByOperandId[operandId] || []),
-      ];
+  function buildContractionOperandProgressionForSteps(planSteps) {
+    return buildContractionOperandProgressionFromState({
+      initialOperands: buildInitialOperands(),
+      planSteps,
+      previousOperandId: LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+      nextOperandId: LINEAR_PERIODIC_NEXT_OPERAND_ID,
     });
-    progression.validSteps.slice(0, stepCount).forEach((step) => {
-      sourceTensorIdsByOperandId[step.id] = [
-        ...(progression.sourceTensorIdsByOperandId[step.id] || []),
-      ];
-    });
-    return sourceTensorIdsByOperandId;
-  }
-
-  function cloneStepAnalysis(stepAnalysis) {
-    return {
-      ...stepAnalysis,
-      sourceTensorIds: [...stepAnalysis.sourceTensorIds],
-      sharedTokenKeys: [...stepAnalysis.sharedTokenKeys],
-    };
-  }
-
-  function getActiveOperandsFromProgression(progression, stepCount, shouldClone = true) {
-    const normalizedStepCount = Math.max(
-      0,
-      Math.min(progression.validSteps.length, stepCount)
-    );
-    const stage = progression.stages[normalizedStepCount] || progression.stages[0];
-    const activeOperands = Array.isArray(stage.activeOperands)
-      ? stage.activeOperands
-      : stage.activeOperandIds
-          .map((operandId) => progression.operandById.get(operandId))
-          .filter(Boolean);
-    return shouldClone
-      ? activeOperands.map((operand) => cloneOperand(operand))
-      : activeOperands;
-  }
-
-  function buildContractionStateFromProgression(progression, stepCount = null) {
-    const normalizedStepCount =
-      stepCount === null
-        ? progression.validSteps.length
-        : Math.max(0, Math.min(progression.validSteps.length, stepCount));
-    return {
-      activeOperands: getActiveOperandsFromProgression(
-        progression,
-        normalizedStepCount
-      ),
-      validSteps: progression.validSteps.slice(0, normalizedStepCount),
-      sourceTensorIdsByOperandId: cloneSourceTensorIdsByOperandId(
-        progression,
-        normalizedStepCount
-      ),
-      stepAnalyses: progression.stepAnalyses
-        .slice(0, normalizedStepCount)
-        .map((stepAnalysis) => cloneStepAnalysis(stepAnalysis)),
-    };
-  }
-
-  function buildContractionOperandProgressionUncached(planSteps = getPlanSteps()) {
-    const seedOperands = buildInitialOperands().map((operand) => cloneOperand(operand));
-    const operandById = new Map(seedOperands.map((operand) => [operand.id, operand]));
-    let activeOperandIds = seedOperands.map((operand) => operand.id);
-    const activeOperandIdSet = new Set(activeOperandIds);
-    const seedOperandIds = [...activeOperandIds];
-    const sourceTensorIdsByOperandId = Object.fromEntries(
-      seedOperands.map((operand) => [operand.id, [...operand.sourceTensorIds]])
-    );
-    const validSteps = [];
-    const stepAnalyses = [];
-    const stepOrdersByTensorId = {};
-    const stages = [{ activeOperandIds: [...activeOperandIds], activeOperands: [...seedOperands] }];
-
-    for (const step of planSteps) {
-      const usesPreviousOperand =
-        isPreviousOperandId(step.left_operand_id) ||
-        isPreviousOperandId(step.right_operand_id);
-      const usesNextOperand =
-        isNextOperandId(step.left_operand_id) ||
-        isNextOperandId(step.right_operand_id);
-      if (
-        !activeOperandIdSet.has(step.left_operand_id) ||
-        !activeOperandIdSet.has(step.right_operand_id) ||
-        step.left_operand_id === step.right_operand_id ||
-        activeOperandIdSet.has(step.id) ||
-        (usesPreviousOperand && usesNextOperand)
-      ) {
-        break;
-      }
-
-      const leftOperand = operandById.get(step.left_operand_id);
-      const rightOperand = operandById.get(step.right_operand_id);
-      if (!leftOperand || !rightOperand) {
-        break;
-      }
-      const pairAnalysis = analyzeOperandPair(leftOperand, rightOperand);
-      const contractedTokenKeys = new Set(
-        pairAnalysis ? pairAnalysis.sharedTokenKeys : []
-      );
-      const carrySourceOperand = usesNextOperand
-        ? (isNextOperandId(step.left_operand_id) ? rightOperand : leftOperand)
-        : null;
-      const resultOperand = {
-        id: step.id,
-        name: `Result ${validSteps.length + 1}`,
-        isDerived: true,
-        sourceTensorIds: carrySourceOperand
-          ? [...carrySourceOperand.sourceTensorIds]
-          : [...new Set([...leftOperand.sourceTensorIds, ...rightOperand.sourceTensorIds])],
-        tokens: carrySourceOperand
-          ? carrySourceOperand.tokens.map((token) => ({ ...token }))
-          : [
-              ...leftOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
-              ...rightOperand.tokens.filter((token) => !contractedTokenKeys.has(token.key)),
-            ].map((token) => ({ ...token })),
-      };
-
-      stepAnalyses.push({
-        stepId: step.id,
-        stepNumber: validSteps.length + 1,
-        leftOperandId: step.left_operand_id,
-        rightOperandId: step.right_operand_id,
-        sourceTensorIds: [...resultOperand.sourceTensorIds],
-        sharedTokenKeys: pairAnalysis ? [...pairAnalysis.sharedTokenKeys] : [],
-        sharedTokenCount: pairAnalysis ? pairAnalysis.sharedTokenCount : 0,
-        isOuterProduct: pairAnalysis ? pairAnalysis.isOuterProduct : false,
-      });
-      validSteps.push(step);
-      resultOperand.sourceTensorIds.forEach((tensorId) => {
-        if (!Array.isArray(stepOrdersByTensorId[tensorId])) {
-          stepOrdersByTensorId[tensorId] = [];
-        }
-        stepOrdersByTensorId[tensorId].push(validSteps.length);
-      });
-      sourceTensorIdsByOperandId[step.id] = [...resultOperand.sourceTensorIds];
-      operandById.set(step.id, resultOperand);
-      activeOperandIdSet.delete(step.left_operand_id);
-      activeOperandIdSet.delete(step.right_operand_id);
-      activeOperandIdSet.add(step.id);
-      activeOperandIds = activeOperandIds.filter(
-        (operandId) =>
-          operandId !== step.left_operand_id && operandId !== step.right_operand_id
-      );
-      activeOperandIds.push(step.id);
-      stages.push({
-        activeOperandIds: [...activeOperandIds],
-        activeOperands: activeOperandIds
-          .map((operandId) => operandById.get(operandId))
-          .filter(Boolean),
-      });
-      if (usesNextOperand) {
-        break;
-      }
-    }
-
-    return {
-      validSteps,
-      stepAnalyses,
-      sourceTensorIdsByOperandId,
-      seedOperandIds,
-      operandById,
-      stepOrdersByTensorId,
-      stages,
-    };
   }
 
   function buildContractionOperandProgression(planSteps = getPlanSteps()) {
     const currentPlanSteps = getPlanSteps();
     if (planSteps !== currentPlanSteps) {
-      return buildContractionOperandProgressionUncached(planSteps);
+      return buildContractionOperandProgressionForSteps(planSteps);
     }
 
     const cacheIsFresh =
@@ -346,7 +174,7 @@ export function registerContractionScene(ctx) {
 
     ctx.getContractibleTensors();
     const contractibleToken = state.contractibleCacheToken;
-    const progression = buildContractionOperandProgressionUncached(currentPlanSteps);
+    const progression = buildContractionOperandProgressionForSteps(currentPlanSteps);
     state.contractionProgressionCacheRevision = state.specRevision;
     state.contractionProgressionCacheStepsRef = currentPlanSteps;
     state.contractionProgressionCacheStepCount = currentPlanSteps.length;
@@ -408,44 +236,12 @@ export function registerContractionScene(ctx) {
     };
   }
 
-  function cloneOperandLayout(layout) {
+  function getSnapshotOptions() {
     return {
-      position: {
-        x: layout.position.x,
-        y: layout.position.y,
-      },
-      size: {
-        width: layout.size.width,
-        height: layout.size.height,
-      },
+      asFiniteNumber: (value, fallbackValue) =>
+        ctx.asFiniteNumber(value, fallbackValue),
+      constants: ctx.constants,
     };
-  }
-
-  function buildSnapshotLayoutMap(snapshot) {
-    if (!snapshot || !Array.isArray(snapshot.operand_layouts)) {
-      return {};
-    }
-    return Object.fromEntries(
-      snapshot.operand_layouts.map((layout) => [
-        layout.operand_id,
-        {
-          position: {
-            x: ctx.asFiniteNumber(layout.position && layout.position.x, 120),
-            y: ctx.asFiniteNumber(layout.position && layout.position.y, 120),
-          },
-          size: {
-            width: Math.max(
-              ctx.constants.MIN_TENSOR_WIDTH,
-              ctx.asFiniteNumber(layout.size && layout.size.width, ctx.constants.TENSOR_WIDTH)
-            ),
-            height: Math.max(
-              ctx.constants.MIN_TENSOR_HEIGHT,
-              ctx.asFiniteNumber(layout.size && layout.size.height, ctx.constants.TENSOR_HEIGHT)
-            ),
-          },
-        },
-      ])
-    );
   }
 
   function getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId = null) {
@@ -456,63 +252,6 @@ export function registerContractionScene(ctx) {
       fallbackLayoutsByOperandId[operand.id] = buildFallbackLayoutForOperand(operand);
     }
     return fallbackLayoutsByOperandId[operand.id];
-  }
-
-  function buildSnapshotAndLayoutMapFromOperands(
-    activeOperands,
-    existingSnapshot,
-    defaultsByOperandId = {},
-    fallbackLayoutsByOperandId = null,
-    existingLayouts = null
-  ) {
-    const resolvedExistingLayouts = existingLayouts || buildSnapshotLayoutMap(existingSnapshot);
-    const operandLayouts = [];
-    const layoutMap = {};
-
-    activeOperands.forEach((operand) => {
-      const fallbackLayout =
-        defaultsByOperandId[operand.id] ||
-        getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId);
-      const chosenLayout = cloneOperandLayout(
-        resolvedExistingLayouts[operand.id] || fallbackLayout
-      );
-      layoutMap[operand.id] = chosenLayout;
-      operandLayouts.push({
-        operand_id: operand.id,
-        position: {
-          x: chosenLayout.position.x,
-          y: chosenLayout.position.y,
-        },
-        size: {
-          width: chosenLayout.size.width,
-          height: chosenLayout.size.height,
-        },
-      });
-    });
-
-    return {
-      layoutMap,
-      snapshot: {
-        applied_step_count: Number(existingSnapshot && existingSnapshot.applied_step_count) || 0,
-        operand_layouts: operandLayouts,
-      },
-    };
-  }
-
-  function buildExistingSnapshotLayoutsByStepCount(currentSnapshots) {
-    return new Map(
-      currentSnapshots
-        .filter((snapshot) => snapshot && Number.isInteger(snapshot.applied_step_count))
-        .map((snapshot) => [snapshot.applied_step_count, buildSnapshotLayoutMap(snapshot)])
-    );
-  }
-
-  function buildExistingSnapshotsByStepCount(currentSnapshots) {
-    return new Map(
-      currentSnapshots
-        .filter((snapshot) => snapshot && Number.isInteger(snapshot.applied_step_count))
-        .map((snapshot) => [snapshot.applied_step_count, snapshot])
-    );
   }
 
   function buildSnapshotDefaultsByOperandId(
@@ -526,7 +265,10 @@ export function registerContractionScene(ctx) {
       const fallbackLayout =
         previousLayouts[operand.id] || getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId);
       if (step && operand.id === step.id) {
-        const anchorOperandId = getPreferredStepAnchorOperandId(step);
+        const anchorOperandId = getPreferredStepAnchorOperandId(step, {
+          isNextOperandId,
+          isPreviousOperandId,
+        });
         defaultsByOperandId[operand.id] = cloneOperandLayout(
           previousLayouts[anchorOperandId] || fallbackLayout
         );
@@ -535,16 +277,6 @@ export function registerContractionScene(ctx) {
       defaultsByOperandId[operand.id] = cloneOperandLayout(fallbackLayout);
     });
     return defaultsByOperandId;
-  }
-
-  function getPreferredStepAnchorOperandId(step) {
-    if (isPreviousOperandId(step.left_operand_id) || isNextOperandId(step.left_operand_id)) {
-      return step.right_operand_id;
-    }
-    if (isPreviousOperandId(step.right_operand_id) || isNextOperandId(step.right_operand_id)) {
-      return step.left_operand_id;
-    }
-    return step.left_operand_id;
   }
 
   function snapshotsMatchProgression(snapshots, progression) {
@@ -604,14 +336,21 @@ export function registerContractionScene(ctx) {
       return currentSnapshots;
     }
     const fallbackLayoutsByOperandId = {};
+    const snapshotOptions = getSnapshotOptions();
     const existingSnapshots = buildExistingSnapshotsByStepCount(currentSnapshots);
-    const existingLayoutsByStepCount = buildExistingSnapshotLayoutsByStepCount(currentSnapshots);
+    const existingLayoutsByStepCount = buildExistingSnapshotLayoutsByStepCount(
+      currentSnapshots,
+      snapshotOptions
+    );
     const initialSnapshotRecord = buildSnapshotAndLayoutMapFromOperands(
       getActiveOperandsFromProgression(progression, 0, false),
       existingSnapshots.get(0),
-      {},
-      fallbackLayoutsByOperandId,
-      existingLayoutsByStepCount.get(0) || null
+      {
+        existingLayouts: existingLayoutsByStepCount.get(0) || null,
+        fallbackLayoutForOperand: (operand) =>
+          getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId),
+        snapshotOptions,
+      }
     );
     const nextSnapshots = [
       {
@@ -637,9 +376,13 @@ export function registerContractionScene(ctx) {
       const nextSnapshotRecord = buildSnapshotAndLayoutMapFromOperands(
         activeOperands,
         existingSnapshots.get(stepCount),
-        defaultsByOperandId,
-        fallbackLayoutsByOperandId,
-        existingLayoutsByStepCount.get(stepCount) || null
+        {
+          defaultsByOperandId,
+          existingLayouts: existingLayoutsByStepCount.get(stepCount) || null,
+          fallbackLayoutForOperand: (operand) =>
+            getFallbackLayoutForOperand(operand, fallbackLayoutsByOperandId),
+          snapshotOptions,
+        }
       );
 
       nextSnapshots.push({
@@ -740,7 +483,7 @@ export function registerContractionScene(ctx) {
       normalizedAppliedStepCount
     );
     const snapshot = snapshots[normalizedAppliedStepCount] || null;
-    const layoutMap = buildSnapshotLayoutMap(snapshot);
+    const layoutMap = buildSnapshotLayoutMap(snapshot, getSnapshotOptions());
     const operandMap = {};
     const tokenOccurrencesByKey = {};
     const edgeMap = {};
@@ -1045,6 +788,9 @@ export function registerContractionScene(ctx) {
         (layout) => layout.operand_id === getPreferredStepAnchorOperandId({
           left_operand_id: leftOperandId,
           right_operand_id: rightOperandId,
+        }, {
+          isNextOperandId,
+          isPreviousOperandId,
         })
       );
       if (fallbackLayout) {

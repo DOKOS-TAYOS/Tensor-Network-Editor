@@ -1,7 +1,18 @@
+import { createPropertyCommands } from "./actions/propertyCommands.js";
+import { createMetadataEditorSupport } from "./properties/metadataEditors.js";
+import {
+  formatTotalElementCount as formatTotalElementCountFromSummaries,
+  getContractionTensorTotalElementCount as getContractionTensorTotalElementCountFromSummaries,
+  getSelectionEntryTensorIds as getSelectionEntryTensorIdsFromSummaries,
+  getSelectionTotalElementCount as getSelectionTotalElementCountFromSummaries,
+  getTensorTotalElementCount as getTensorTotalElementCountFromSummaries,
+  getTotalElementCountForTensorIds as getTotalElementCountForTensorIdsFromSummaries,
+} from "./properties/propertySummaries.js";
+
 const AUTOSAVE_DELAY_MS = 300;
 const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
 
-export function propertyInvalidation(ctx, overrides = {}) {
+export function propertyInvalidationForContext(ctx, overrides = {}) {
   const isLinearPeriodicMode =
     typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode();
   return {
@@ -16,7 +27,7 @@ export function propertyInvalidation(ctx, overrides = {}) {
   };
 }
 
-export function selectionColorInvalidation(ctx, selectedEntries) {
+export function selectionColorInvalidationForContext(ctx, selectedEntries) {
   const entryKinds = new Set(
     (Array.isArray(selectedEntries) ? selectedEntries : []).map(
       (entry) => entry.kind
@@ -27,7 +38,7 @@ export function selectionColorInvalidation(ctx, selectedEntries) {
     entryKinds.has("index") ||
     entryKinds.has("edge");
   const affectsOverlays = entryKinds.has("group") || entryKinds.has("note");
-  return propertyInvalidation(ctx, {
+  return propertyInvalidationForContext(ctx, {
     graph: affectsGraph,
     overlays: affectsOverlays,
     minimap: affectsGraph,
@@ -132,6 +143,35 @@ export function formatTotalElementCount(totalElementCount) {
 
 export function createPropertiesSupport({ ctx, state, window }) {
   const autosaveTimers = new Map();
+  const metadataSupport = createMetadataEditorSupport({
+    annotationDefinitionsByScope: () => state.annotationDefinitions || {},
+    escapeHtml: (value) => ctx.escapeHtml(value),
+    isObject: (value) => ctx.isObject(value),
+  });
+  const propertyCommands = createPropertyCommands({
+    applyDesignChange: (mutate, options) => ctx.applyDesignChange(mutate, options),
+    centerTensor: (tensorId) => ctx.centerTensor(tensorId),
+    createIndex: (tensor, indexPosition) => ctx.createIndex(tensor, indexPosition),
+    deleteSelection: () => ctx.deleteSelection(),
+    findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
+    moveIndex: (tensorId, indexPosition, direction) =>
+      ctx.moveIndex(tensorId, indexPosition, direction),
+    removeIndex: (tensorId, indexId) => ctx.removeIndex(tensorId, indexId),
+    removeTensor: (tensorId) => ctx.removeTensor(tensorId),
+    setStatus: (message, level) => ctx.setStatus(message, level),
+    syncConnectedIndexDimension: (indexId, nextDimension) =>
+      ctx.syncConnectedIndexDimension(indexId, nextDimension),
+    tensorIndexNameExists: (tensor, proposedName, ignoredIndexId) =>
+      ctx.tensorIndexNameExists(tensor, proposedName, ignoredIndexId),
+  });
+
+  function propertyInvalidation(overrides = {}) {
+    return propertyInvalidationForContext(ctx, overrides);
+  }
+
+  function selectionColorInvalidation(selectedEntries) {
+    return selectionColorInvalidationForContext(ctx, selectedEntries);
+  }
 
   function clearAutosaveTimer(fieldKey) {
     const timerId = autosaveTimers.get(fieldKey);
@@ -485,7 +525,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
     annotationScope = null,
   }) {
     const metadataInvalidation =
-      invalidate || propertyInvalidation(ctx);
+      invalidate || propertyInvalidation();
 
     bindDebouncedAutosave(tagsInput, tagsFieldKey, () => {
       const nextTags = normalizeTagsValue(tagsInput.value);
@@ -582,7 +622,7 @@ export function createPropertiesSupport({ ctx, state, window }) {
     if (!definitions.length) {
       return;
     }
-    const metadataInvalidation = invalidate || propertyInvalidation(ctx);
+    const metadataInvalidation = invalidate || propertyInvalidation();
 
     definitions.forEach((definition) => {
       const input = inputForKey(definition.key);
@@ -716,37 +756,53 @@ export function createPropertiesSupport({ ctx, state, window }) {
   return {
     bindDebouncedAutosave,
     bindImmediateAutosave,
-    buildMetadataEditorMarkup,
-    buildSuggestedAnnotationsMarkup,
-    bindMetadataEditors,
-    bindSuggestedAnnotationEditors,
-    propertyInvalidation: (overrides = {}) =>
-      propertyInvalidation(ctx, overrides),
+    buildMetadataEditorMarkup: (...args) =>
+      metadataSupport.buildMetadataEditorMarkup(...args),
+    buildSuggestedAnnotationsMarkup: (...args) =>
+      metadataSupport.buildSuggestedAnnotationsMarkup(...args),
+    bindMetadataEditors: (options) =>
+      metadataSupport.bindMetadataEditors({
+        ...options,
+        applyDesignChange: (mutate, changeOptions) =>
+          ctx.applyDesignChange(mutate, changeOptions),
+        bindDebouncedAutosave,
+        setStatus: (message, level) => ctx.setStatus(message, level),
+      }),
+    bindSuggestedAnnotationEditors: (options) =>
+      metadataSupport.bindSuggestedAnnotationEditors({
+        ...options,
+        applyDesignChange: (mutate, changeOptions) =>
+          ctx.applyDesignChange(mutate, changeOptions),
+        bindDebouncedAutosave,
+        commitAutosave,
+      }),
+    commands: propertyCommands,
+    propertyInvalidation: (overrides = {}) => propertyInvalidation(overrides),
     selectionColorInvalidation: (selectedEntries) =>
-      selectionColorInvalidation(ctx, selectedEntries),
+      selectionColorInvalidation(selectedEntries),
     renderTrashIcon,
     getTensorTotalElementCount: (tensor) =>
-      getTensorTotalElementCount(tensor, ctx.asFiniteNumber),
+      getTensorTotalElementCountFromSummaries(tensor, ctx.asFiniteNumber),
     getTotalElementCountForTensorIds: (tensorIds) =>
-      getTotalElementCountForTensorIds(
+      getTotalElementCountForTensorIdsFromSummaries(
         tensorIds,
         ctx.findTensorById,
         ctx.asFiniteNumber
       ),
-    getSelectionEntryTensorIds,
+    getSelectionEntryTensorIds: getSelectionEntryTensorIdsFromSummaries,
     getSelectionTotalElementCount: (selectedEntries) =>
-      getSelectionTotalElementCount(
+      getSelectionTotalElementCountFromSummaries(
         selectedEntries,
         ctx.findTensorById,
         ctx.asFiniteNumber
       ),
     getContractionTensorTotalElementCount: (tensor) =>
-      getContractionTensorTotalElementCount(
+      getContractionTensorTotalElementCountFromSummaries(
         tensor,
         ctx.findTensorById,
         ctx.asFiniteNumber
       ),
-    formatTotalElementCount,
+    formatTotalElementCount: formatTotalElementCountFromSummaries,
     tensorDisclosureState,
     isTensorIndexDisclosureOpen,
     setTensorIndexDisclosureOpen,

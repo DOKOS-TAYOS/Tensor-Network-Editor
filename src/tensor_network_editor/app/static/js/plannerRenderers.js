@@ -1,3 +1,15 @@
+import {
+  formatBytes,
+  formatNumber,
+  formatShape,
+  formatShapeElementCount,
+  formatSignedDelta,
+  getAnalysisMemoryDtype,
+  getShapeElementCount,
+  getPeakMemoryBytes,
+  renderShapeElementDetail,
+} from "./planner/plannerAnalysisFormatting.js";
+
 export function createPlannerRenderers({
   ctx,
   state,
@@ -16,17 +28,6 @@ export function createPlannerRenderers({
     acceptAutomaticPlan,
     clearAutomaticPreview,
   } = support;
-
-  function formatShape(shape) {
-    if (!Array.isArray(shape) || !shape.length) {
-      return "scalar";
-    }
-    return shape.join(" \u00d7 ");
-  }
-
-  function formatNumber(value) {
-    return Number(value || 0).toLocaleString();
-  }
 
   function renderMetricChips(items) {
     return `
@@ -48,89 +49,6 @@ export function createPlannerRenderers({
           .join("")}
       </div>
     `;
-  }
-
-  function normalizeShapeDimension(value) {
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) {
-      return null;
-    }
-    return BigInt(Math.max(1, Math.round(numericValue)));
-  }
-
-  function getShapeElementCount(shape) {
-    if (!Array.isArray(shape)) {
-      return null;
-    }
-    return shape.reduce((product, dimension) => {
-      const normalizedDimension = normalizeShapeDimension(dimension);
-      if (normalizedDimension === null) {
-        return product;
-      }
-      return product * normalizedDimension;
-    }, 1n);
-  }
-
-  function formatShapeElementCount(shape) {
-    const elementCount = getShapeElementCount(shape);
-    return elementCount === null ? "" : elementCount.toString();
-  }
-
-  function renderShapeElementDetail(shape) {
-    const formattedElementCount = formatShapeElementCount(shape);
-    return formattedElementCount
-      ? `Total elements ${formattedElementCount}`
-      : "";
-  }
-
-  function getAnalysisMemoryDtype(payload) {
-    if (payload && typeof payload.memory_dtype === "string" && payload.memory_dtype) {
-      return payload.memory_dtype;
-    }
-    return "float64";
-  }
-
-  function getMemoryBytesPerElement(memoryDtype) {
-    switch (memoryDtype) {
-      case "float16":
-        return 2;
-      case "float32":
-        return 4;
-      case "complex64":
-        return 8;
-      case "complex128":
-        return 16;
-      case "float64":
-      default:
-        return 8;
-    }
-  }
-
-  function getPeakMemoryBytes(summary, memoryDtype) {
-    if (!summary || typeof summary !== "object") {
-      return 0;
-    }
-    if (Number.isFinite(Number(summary.peak_intermediate_bytes))) {
-      return Number(summary.peak_intermediate_bytes);
-    }
-    return (
-      Number(summary.peak_intermediate_size || 0) *
-      getMemoryBytesPerElement(memoryDtype)
-    );
-  }
-
-  function formatBytes(value) {
-    return `${formatNumber(value)} bytes`;
-  }
-
-  function formatSignedDelta(value, unit = "") {
-    const numericValue = Number(value || 0);
-    if (!Number.isFinite(numericValue)) {
-      return unit ? `0 ${unit}` : "0";
-    }
-    const prefix = numericValue > 0 ? "+" : numericValue < 0 ? "-" : "";
-    const suffix = unit ? ` ${unit}` : "";
-    return `${prefix}${formatNumber(Math.abs(numericValue))}${suffix}`;
   }
 
   function renderComparisonBody(comparison) {

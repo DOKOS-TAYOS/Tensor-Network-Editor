@@ -1,3 +1,6 @@
+import { createCytoscapeGraphAdapter } from "./views/cytoscapeGraphAdapter.js";
+import { createGraphElementModelBuilder } from "./views/graphElementModel.js";
+
 export function registerGraphRender(ctx) {
   const state = ctx.state;
   const TENSOR_BASE_Z_INDEX = 10;
@@ -40,6 +43,42 @@ export function registerGraphRender(ctx) {
     minimapCanvas,
   } = ctx.dom;
   const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  const graphAdapter = createCytoscapeGraphAdapter({
+    state,
+    getCy: () => state.cy,
+  });
+  const graphElementModelBuilder = createGraphElementModelBuilder({
+    state,
+    buildContractionScene: () =>
+      typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null,
+    ensureTensorIndexOffsets: (tensor) => ctx.ensureTensorIndexOffsets(tensor),
+    findTensorById: (tensorId) => ctx.findTensorById(tensorId),
+    getIndexColor: (index, isConnected) => ctx.getIndexColor(index, isConnected),
+    getMetadataColor: (metadata, fallbackColor) =>
+      ctx.getMetadataColor(metadata, fallbackColor),
+    getMetadataFilterEntityState: (entityKind, entityId, metadataFilterHighlight) =>
+      ctx.getMetadataFilterEntityState(entityKind, entityId, metadataFilterHighlight),
+    getMetadataFilterHighlight: () =>
+      typeof ctx.getMetadataFilterHighlight === "function"
+        ? ctx.getMetadataFilterHighlight()
+        : null,
+    indexAbsolutePosition: (tensor, index) => ctx.indexAbsolutePosition(tensor, index),
+    indexLabelNodeId: (indexId) => ctx.indexLabelNodeId(indexId),
+    indexLabelPosition: (position) => ctx.indexLabelPosition(position),
+    isInspectingPastStage: () =>
+      typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage(),
+    readableTextColor: (color) => ctx.readableTextColor(color),
+    shiftColor: (color, amount) => ctx.shiftColor(color, amount),
+    tensorHeight: (tensor) => ctx.tensorHeight(tensor),
+    tensorLayerRank: (tensorId) => ctx.tensorLayerRank(tensorId),
+    tensorWidth: (tensor) => ctx.tensorWidth(tensor),
+    zIndexes: {
+      edge: EDGE_Z_INDEX,
+      indexLabel: INDEX_LABEL_BASE_Z_INDEX,
+      port: PORT_BASE_Z_INDEX,
+      tensor: TENSOR_BASE_Z_INDEX,
+    },
+  });
 
   function initGraph() {
     state.cy = cytoscape({
@@ -427,147 +466,7 @@ export function registerGraphRender(ctx) {
     }
   }
 
-  function cloneGraphElementDescriptor(descriptor) {
-    return {
-      classes: descriptor.classes || "",
-      data: { ...descriptor.data },
-      grabbable: Boolean(descriptor.grabbable),
-      group: descriptor.group,
-      position: descriptor.position
-        ? {
-            x: descriptor.position.x,
-            y: descriptor.position.y,
-          }
-        : null,
-      selectable: descriptor.selectable !== false,
-    };
-  }
-
-  function graphElementDataEqual(leftData = {}, rightData = {}) {
-    const leftKeys = Object.keys(leftData);
-    const rightKeys = Object.keys(rightData);
-    if (leftKeys.length !== rightKeys.length) {
-      return false;
-    }
-    return leftKeys.every((key) => leftData[key] === rightData[key]);
-  }
-
-  function graphElementPositionEqual(leftPosition, rightPosition) {
-    if (!leftPosition || !rightPosition) {
-      return leftPosition === rightPosition;
-    }
-    return leftPosition.x === rightPosition.x && leftPosition.y === rightPosition.y;
-  }
-
-  function graphElementDescriptorsEqual(leftDescriptor, rightDescriptor) {
-    if (!leftDescriptor || !rightDescriptor) {
-      return leftDescriptor === rightDescriptor;
-    }
-    return (
-      leftDescriptor.group === rightDescriptor.group &&
-      leftDescriptor.classes === rightDescriptor.classes &&
-      leftDescriptor.selectable === rightDescriptor.selectable &&
-      leftDescriptor.grabbable === rightDescriptor.grabbable &&
-      graphElementPositionEqual(leftDescriptor.position, rightDescriptor.position) &&
-      graphElementDataEqual(leftDescriptor.data, rightDescriptor.data)
-    );
-  }
-
-  function updateGraphRenderCache(model) {
-    state.graphRenderCyRef = state.cy;
-    state.graphRenderDescriptorById = Object.fromEntries(
-      model.orderedIds.map((elementId) => [
-        elementId,
-        cloneGraphElementDescriptor(model.descriptorsById[elementId]),
-      ])
-    );
-    state.graphRenderDescriptorOrder = [...model.orderedIds];
-    state.graphRenderVisibleSignature = model.visibleSignature;
-    state.graphRenderEphemeralSignature = model.ephemeralSignature;
-    state.graphRenderDescriptorRevision = state.specRevision;
-  }
-
-  function resetGraphRenderCacheForCurrentCy() {
-    state.graphRenderCyRef = state.cy;
-    state.graphRenderDescriptorById = {};
-    state.graphRenderDescriptorOrder = [];
-    state.graphRenderVisibleSignature = null;
-    state.graphRenderEphemeralSignature = null;
-    state.graphRenderDescriptorRevision = -1;
-    state.cySelectionSyncedIds = [];
-    state.pendingInteractionRenderedPlannerSelectionId = null;
-    state.pendingInteractionRenderedIndexId = null;
-  }
-
-  function ensureGraphRenderCacheForCurrentCy() {
-    if (state.graphRenderCyRef === state.cy) {
-      return;
-    }
-    resetGraphRenderCacheForCurrentCy();
-  }
-
-  function applyInitialGraphElementModel(model) {
-    if (model.elements.length) {
-      state.cy.add(model.elements);
-    }
-    updateGraphRenderCache(model);
-  }
-
-  function applyGraphElementModelDiff(model) {
-    const previousDescriptorsById = state.graphRenderDescriptorById || {};
-    const nextDescriptorsById = model.descriptorsById;
-    const nextIdSet = new Set(model.orderedIds);
-    const addedDescriptors = [];
-
-    Object.keys(previousDescriptorsById).forEach((elementId) => {
-      if (nextIdSet.has(elementId)) {
-        return;
-      }
-      const element = state.cy.getElementById(elementId);
-      if (element && element.length) {
-        element.remove();
-      }
-    });
-
-    model.orderedIds.forEach((elementId) => {
-      const nextDescriptor = nextDescriptorsById[elementId];
-      const previousDescriptor = previousDescriptorsById[elementId];
-      if (!previousDescriptor) {
-        addedDescriptors.push(nextDescriptor);
-        return;
-      }
-      if (graphElementDescriptorsEqual(previousDescriptor, nextDescriptor)) {
-        return;
-      }
-      const element = state.cy.getElementById(elementId);
-      if (!element || !element.length) {
-        addedDescriptors.push(nextDescriptor);
-        return;
-      }
-      if (!graphElementDataEqual(previousDescriptor.data, nextDescriptor.data)) {
-        element.data(nextDescriptor.data);
-      }
-      if (!graphElementPositionEqual(previousDescriptor.position, nextDescriptor.position)) {
-        element.position(nextDescriptor.position);
-      }
-      if (previousDescriptor.classes !== nextDescriptor.classes) {
-        element.classes(nextDescriptor.classes || "");
-      }
-      if (previousDescriptor.selectable !== nextDescriptor.selectable) {
-        element.selectable(nextDescriptor.selectable);
-      }
-      if (previousDescriptor.grabbable !== nextDescriptor.grabbable) {
-        element.grabbable(nextDescriptor.grabbable);
-      }
-    });
-
-    if (addedDescriptors.length) {
-      state.cy.add(addedDescriptors);
-    }
-    updateGraphRenderCache(model);
-  }
-
-  function buildGraphElementModel(contractionScene = null) {
+  function buildLegacyGraphElementModel(contractionScene = null) {
     const descriptorsById = {};
     const orderedIds = [];
     const connectedIndexIds = new Set();
@@ -754,18 +653,13 @@ export function registerGraphRender(ctx) {
     if (!state.cy || !state.spec) {
       return;
     }
-    ensureGraphRenderCacheForCurrentCy();
+    graphAdapter.ensureForCurrentCy();
     ctx.reconcileTensorOrder();
     const contractionScene =
       typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null;
-    const graphModel = buildGraphElementModel(contractionScene);
-    const hasPreviousRender = state.graphRenderDescriptorOrder.length > 0;
+    const graphModel = graphElementModelBuilder(contractionScene);
     state.cy.batch(() => {
-      if (hasPreviousRender) {
-        applyGraphElementModelDiff(graphModel);
-      } else {
-        applyInitialGraphElementModel(graphModel);
-      }
+      graphAdapter.applyModel(graphModel);
     });
     syncPendingInteractionClasses();
     if (!state.hasFitCanvas) {
@@ -821,7 +715,7 @@ export function registerGraphRender(ctx) {
   }
 
   function buildGraphElements(contractionScene = null) {
-    return buildGraphElementModel(contractionScene).elements;
+    return graphElementModelBuilder(contractionScene).elements;
   }
 
   function createTensorDragState(anchorId) {

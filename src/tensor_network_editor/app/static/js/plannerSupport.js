@@ -1,14 +1,15 @@
+import { createPlannerCommands } from "./actions/plannerCommands.js";
+import { createPlannerAnalysisService } from "./services/plannerAnalysisService.js";
+import {
+  getPlannerStepId as getPlannerStepIdFromSelectors,
+  buildPlannerOperandState as buildPlannerOperandStateFromSelectors,
+  buildPlannerSeedOperands as buildPlannerSeedOperandsFromSelectors,
+  buildPreviewOrderByVisibleTensorId as buildPreviewOrderByVisibleTensorIdFromSelectors,
+  getAutomaticAnalysisByMode as getAutomaticAnalysisByModeFromSelectors,
+} from "./state/plannerSelectors.js";
+
 export function getPlannerStepId(step) {
-  if (!step || typeof step !== "object") {
-    return null;
-  }
-  if (typeof step.id === "string" && step.id) {
-    return step.id;
-  }
-  if (typeof step.step_id === "string" && step.step_id) {
-    return step.step_id;
-  }
-  return null;
+  return getPlannerStepIdFromSelectors(step);
 }
 
 export function buildPlannerSeedOperands({
@@ -18,36 +19,13 @@ export function buildPlannerSeedOperands({
   isLinearPeriodicBoundaryTensor,
   getLinearPeriodicReservedOperandIdForTensor,
 }) {
-  const baseOperands = (Array.isArray(tensors) ? tensors : []).map((tensor) => ({
-    id: tensor.id,
-    sourceTensorIds: [tensor.id],
-    selectionIds: [tensor.id],
-  }));
-  if (!isLinearPeriodicMode) {
-    return baseOperands;
-  }
-  const boundaryOperands = (Array.isArray(specTensors) ? specTensors : [])
-    .filter((tensor) => isLinearPeriodicBoundaryTensor(tensor))
-    .map((tensor) => {
-      const reservedOperandId =
-        getLinearPeriodicReservedOperandIdForTensor(tensor);
-      return reservedOperandId
-        ? {
-            id: reservedOperandId,
-            sourceTensorIds: [tensor.id],
-            selectionIds: [tensor.id, reservedOperandId],
-          }
-        : null;
-    })
-    .filter(Boolean);
-  return [...baseOperands, ...boundaryOperands];
-}
-
-function buildPlannerResultSelectionIds(stepId, leftOperand, rightOperand, carrySourceOperand) {
-  const mergedSelectionIds = carrySourceOperand
-    ? carrySourceOperand.selectionIds
-    : [...leftOperand.selectionIds, ...rightOperand.selectionIds];
-  return [...new Set([stepId, ...(Array.isArray(mergedSelectionIds) ? mergedSelectionIds : [])])];
+  return buildPlannerSeedOperandsFromSelectors({
+    tensors,
+    specTensors,
+    isLinearPeriodicMode,
+    isLinearPeriodicBoundaryTensor,
+    getLinearPeriodicReservedOperandIdForTensor,
+  });
 }
 
 export function buildPlannerOperandState({
@@ -57,167 +35,21 @@ export function buildPlannerOperandState({
   previousOperandId,
   nextOperandId,
 }) {
-  const activeOperands = new Map();
-  const representativeByTensorId = {};
-  const representativeByOperandId = {};
-  const sourceTensorIdsByOperandId = {};
-  const validSteps = [];
-  const reservedOperandIds = new Set();
-  const stepOrdersByTensorId = {};
-
-  (Array.isArray(seedOperands) ? seedOperands : []).forEach((operand) => {
-    const sourceTensorIds =
-      Array.isArray(operand.sourceTensorIds) && operand.sourceTensorIds.length
-        ? [...operand.sourceTensorIds]
-        : [operand.id];
-    const selectionIds = [
-      ...new Set(
-        Array.isArray(operand.selectionIds) && operand.selectionIds.length
-          ? [operand.id, ...operand.selectionIds]
-          : [operand.id]
-      ),
-    ];
-    activeOperands.set(operand.id, { sourceTensorIds, selectionIds });
-    representativeByOperandId[operand.id] = operand.id;
-    selectionIds.forEach((selectionId) => {
-      representativeByOperandId[selectionId] = operand.id;
-    });
-    sourceTensorIdsByOperandId[operand.id] = sourceTensorIds;
-    sourceTensorIds.forEach((tensorId) => {
-      representativeByTensorId[tensorId] = operand.id;
-    });
-    reservedOperandIds.add(operand.id);
-  });
-
-  for (const step of Array.isArray(steps) ? steps : []) {
-    const stepId = getPlannerStepId(step);
-    const usesPreviousOperand =
-      step.left_operand_id === previousOperandId ||
-      step.right_operand_id === previousOperandId;
-    const usesNextOperand =
-      step.left_operand_id === nextOperandId ||
-      step.right_operand_id === nextOperandId;
-    if (
-      !step ||
-      !stepId ||
-      step.left_operand_id === step.right_operand_id ||
-      !activeOperands.has(step.left_operand_id) ||
-      !activeOperands.has(step.right_operand_id) ||
-      reservedOperandIds.has(stepId) ||
-      (usesPreviousOperand && usesNextOperand)
-    ) {
-      break;
-    }
-    const leftOperand = activeOperands.get(step.left_operand_id);
-    const rightOperand = activeOperands.get(step.right_operand_id);
-    if (!leftOperand || !rightOperand) {
-      break;
-    }
-    const carrySourceOperand = usesNextOperand
-      ? step.left_operand_id === nextOperandId
-        ? rightOperand
-        : leftOperand
-      : null;
-    const selectionIds = buildPlannerResultSelectionIds(
-      stepId,
-      leftOperand,
-      rightOperand,
-      carrySourceOperand
-    );
-    const sourceTensorIds = carrySourceOperand
-      ? [...carrySourceOperand.sourceTensorIds]
-      : [...new Set([...leftOperand.sourceTensorIds, ...rightOperand.sourceTensorIds])];
-
-    activeOperands.delete(step.left_operand_id);
-    activeOperands.delete(step.right_operand_id);
-    activeOperands.set(stepId, { sourceTensorIds, selectionIds });
-    reservedOperandIds.add(stepId);
-    validSteps.push(step);
-    sourceTensorIdsByOperandId[stepId] = sourceTensorIds;
-
-    sourceTensorIds.forEach((tensorId) => {
-      representativeByTensorId[tensorId] = stepId;
-      representativeByOperandId[tensorId] = stepId;
-      if (!Array.isArray(stepOrdersByTensorId[tensorId])) {
-        stepOrdersByTensorId[tensorId] = [];
-      }
-      stepOrdersByTensorId[tensorId].push(validSteps.length);
-    });
-    selectionIds.forEach((selectionId) => {
-      representativeByOperandId[selectionId] = stepId;
-    });
-    if (usesNextOperand) {
-      break;
-    }
-  }
-
-  return {
-    activeOperandIds: [...activeOperands.keys()],
-    representativeByTensorId,
-    representativeByOperandId,
-    sourceTensorIdsByOperandId,
-    validSteps,
-    stepOrdersByTensorId,
+  return buildPlannerOperandStateFromSelectors({
     tensors,
-  };
+    steps,
+    seedOperands,
+    previousOperandId,
+    nextOperandId,
+  });
 }
 
 export function buildPreviewOrderByVisibleTensorId(visibleTensors, steps) {
-  const previewOrderByTensorId = Object.fromEntries(
-    visibleTensors.map((tensor) => [tensor.id, []])
-  );
-  const sourceTensorIdsByOperandId = {};
-  const visibleTensorIdsBySourceTensorId = {};
-
-  visibleTensors.forEach((tensor) => {
-    const sourceTensorIds =
-      Array.isArray(tensor.sourceTensorIds) && tensor.sourceTensorIds.length
-        ? [...tensor.sourceTensorIds]
-        : [tensor.id];
-    sourceTensorIdsByOperandId[tensor.id] = sourceTensorIds;
-    sourceTensorIds.forEach((sourceTensorId) => {
-      if (!Array.isArray(visibleTensorIdsBySourceTensorId[sourceTensorId])) {
-        visibleTensorIdsBySourceTensorId[sourceTensorId] = [];
-      }
-      visibleTensorIdsBySourceTensorId[sourceTensorId].push(tensor.id);
-    });
-  });
-
-  (Array.isArray(steps) ? steps : []).forEach((step, index) => {
-    const leftSourceTensorIds = sourceTensorIdsByOperandId[step.left_operand_id] || [
-      step.left_operand_id,
-    ];
-    const rightSourceTensorIds = sourceTensorIdsByOperandId[step.right_operand_id] || [
-      step.right_operand_id,
-    ];
-    const resultSourceTensorIds = [...new Set([...leftSourceTensorIds, ...rightSourceTensorIds])];
-    sourceTensorIdsByOperandId[step.result_operand_id] = resultSourceTensorIds;
-
-    const affectedVisibleTensorIds = new Set();
-    resultSourceTensorIds.forEach((sourceTensorId) => {
-      (visibleTensorIdsBySourceTensorId[sourceTensorId] || []).forEach((visibleTensorId) => {
-        affectedVisibleTensorIds.add(visibleTensorId);
-      });
-    });
-    affectedVisibleTensorIds.forEach((visibleTensorId) => {
-      previewOrderByTensorId[visibleTensorId].push(index + 1);
-    });
-  });
-
-  return previewOrderByTensorId;
+  return buildPreviewOrderByVisibleTensorIdFromSelectors(visibleTensors, steps);
 }
 
 export function getAutomaticAnalysisByMode(payload, mode) {
-  if (!payload) {
-    return null;
-  }
-  if (mode === "automaticFuture") {
-    return payload.automatic_future || null;
-  }
-  if (mode === "automaticPast") {
-    return payload.automatic_past || null;
-  }
-  return null;
+  return getAutomaticAnalysisByModeFromSelectors(payload, mode);
 }
 
 export function createPlannerSupport({
@@ -236,13 +68,51 @@ export function createPlannerSupport({
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("next")
       : "__linear_next__";
-  let contractionAnalysisDebounceId = null;
-  let contractionAnalysisRequestPending = false;
   let pendingContractionAnalysisOptions = null;
+  let plannerCommands = null;
 
   function renderPlanner() {
     getRenderPlanner()();
   }
+
+  const analysisService = createPlannerAnalysisService({
+    analysisRefreshDelayMs,
+    analyze: (payload) => ctx.apiPost("/api/analyze-contraction", payload),
+    cancel: (timerId) => clearTimer(timerId),
+    onAnalysisError: (error) => {
+      state.contractionAnalysis = {
+        status: "error",
+        message: error.message,
+      };
+    },
+    onAnalysisResult: (payload) => {
+      if (!payload.ok) {
+        state.contractionAnalysis = {
+          status: "issues",
+          issues: payload.issues || [],
+        };
+        return;
+      }
+      state.contractionAnalysis = {
+        status: "ready",
+        payload,
+      };
+    },
+    onRequestStarted: (options) => {
+      if (options.focusTab && typeof ctx.setActiveSidebarTab === "function") {
+        ctx.setActiveSidebarTab("planner");
+      }
+      state.contractionAnalysisRequestId += 1;
+      state.contractionAnalysis = { status: "loading" };
+      renderPlanner();
+    },
+    onRenderRequested: () => {
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+    },
+    schedule: (callback, delay) => setTimer(callback, delay),
+    serializeCurrentSpec: (options) => ctx.serializeCurrentSpec(options),
+  });
 
   function ensureContractionPlan() {
     if (!state.spec.contraction_plan) {
@@ -275,7 +145,7 @@ export function createPlannerSupport({
   }
 
   function buildSeedOperandsForTensors(tensors) {
-    return buildPlannerSeedOperands({
+    return buildPlannerSeedOperandsFromSelectors({
       tensors,
       specTensors: state.spec && state.spec.tensors,
       isLinearPeriodicMode:
@@ -287,7 +157,7 @@ export function createPlannerSupport({
   }
 
   function buildPlannerOperandStateForSteps(steps, tensors) {
-    return buildPlannerOperandState({
+    return buildPlannerOperandStateFromSelectors({
       tensors,
       steps,
       seedOperands: buildSeedOperandsForTensors(tensors),
@@ -339,7 +209,7 @@ export function createPlannerSupport({
       state.contractionAnalysis &&
       state.contractionAnalysis.status === "ready"
     ) {
-      const previewAnalysis = getAutomaticAnalysisByMode(
+      const previewAnalysis = getAutomaticAnalysisByModeFromSelectors(
         state.contractionAnalysis.payload,
         state.plannerPreviewMode
       );
@@ -350,7 +220,10 @@ export function createPlannerSupport({
               .filter((tensor) => !ctx.isLinearPeriodicBoundaryTensor(tensor))
           : ctx.getContractibleTensors();
       state.plannerPreviewOrderByTensorId = previewAnalysis
-        ? buildPreviewOrderByVisibleTensorId(visibleTensors, previewAnalysis.steps)
+        ? buildPreviewOrderByVisibleTensorIdFromSelectors(
+            visibleTensors,
+            previewAnalysis.steps
+          )
         : {};
       return;
     }
@@ -448,76 +321,7 @@ export function createPlannerSupport({
   }
 
   function handlePlannerOperandClick(operandId) {
-    if (!state.plannerMode) {
-      return;
-    }
-    if (
-      typeof ctx.isInspectingPastStage === "function" &&
-      ctx.isInspectingPastStage()
-    ) {
-      ctx.setStatus(
-        "Past contraction steps are read-only. Return to the latest step before adding a new contraction.",
-        "error"
-      );
-      return;
-    }
-    if (typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab("planner");
-    }
-    const resolvedOperandId = resolvePlannerOperandId(operandId);
-    if (!resolvedOperandId) {
-      ctx.setStatus("That operand is not available for the next manual contraction step.", "error");
-      return;
-    }
-    if (!state.pendingPlannerOperandId) {
-      state.pendingPlannerOperandId = resolvedOperandId;
-      state.pendingPlannerSelectionId = operandId;
-      if (typeof ctx.syncPendingInteractionClasses === "function") {
-        ctx.syncPendingInteractionClasses();
-      }
-      renderPlanner();
-      ctx.renderOverlayDecorations();
-      ctx.setStatus(`Selected ${getPlannerOperandLabel(resolvedOperandId)} as the first manual operand.`);
-      return;
-    }
-    if (state.pendingPlannerOperandId === resolvedOperandId) {
-      state.pendingPlannerOperandId = null;
-      state.pendingPlannerSelectionId = null;
-      if (typeof ctx.syncPendingInteractionClasses === "function") {
-        ctx.syncPendingInteractionClasses();
-      }
-      renderPlanner();
-      ctx.renderOverlayDecorations();
-      ctx.setStatus("Selection cleared.");
-      return;
-    }
-    const leftOperandId = state.pendingPlannerOperandId;
-    const rightOperandId = resolvedOperandId;
-    state.pendingPlannerOperandId = null;
-    state.pendingPlannerSelectionId = null;
-    if (typeof ctx.syncPendingInteractionClasses === "function") {
-      ctx.syncPendingInteractionClasses();
-    }
-    const leftLabel = getPlannerOperandLabel(leftOperandId);
-    const rightLabel = getPlannerOperandLabel(rightOperandId);
-    ctx.applyDesignChange(
-      () => {
-        if (typeof ctx.applyManualContractionStep === "function") {
-          ctx.applyManualContractionStep(leftOperandId, rightOperandId);
-        } else {
-          const plan = ensureContractionPlan();
-          plan.steps.push({
-            id: ctx.makeId("step"),
-            left_operand_id: leftOperandId,
-            right_operand_id: rightOperandId,
-            metadata: {},
-          });
-        }
-      },
-      {
-        statusMessage: `Added manual contraction step ${leftLabel} \u00d7 ${rightLabel}.`,
-      }
-    );
+    return plannerCommands.handlePlannerOperandClick(operandId);
   }
 
   function trimContractionPlanInPlace(stepCount) {
@@ -586,66 +390,15 @@ export function createPlannerSupport({
     );
   }
 
-  async function runContractionAnalysisRequest(options = {}) {
-    if (options.focusTab && typeof ctx.setActiveSidebarTab === "function") {
-      ctx.setActiveSidebarTab("planner");
-    }
-    const requestId = state.contractionAnalysisRequestId + 1;
-    state.contractionAnalysisRequestId = requestId;
-    contractionAnalysisRequestPending = true;
-    state.contractionAnalysis = { status: "loading" };
-    renderPlanner();
-    try {
-      const payload = await ctx.apiPost("/api/analyze-contraction", {
-        spec: ctx.serializeCurrentSpec({ persistViewSnapshots: false }),
-      });
-      if (state.contractionAnalysisRequestId !== requestId) {
-        return;
-      }
-      if (!payload.ok) {
-        state.contractionAnalysis = {
-          status: "issues",
-          issues: payload.issues || [],
-        };
-      } else {
-        state.contractionAnalysis = {
-          status: "ready",
-          payload,
-        };
-      }
-    } catch (error) {
-      if (state.contractionAnalysisRequestId !== requestId) {
-        return;
-      }
-      state.contractionAnalysis = {
-        status: "error",
-        message: error.message,
-      };
-    } finally {
-      contractionAnalysisRequestPending = false;
-    }
-    renderPlanner();
-    ctx.renderOverlayDecorations();
+  function runContractionAnalysisRequest(options = {}) {
+    pendingContractionAnalysisOptions = options;
+    return analysisService.flushQueue();
   }
 
   function flushContractionAnalysisQueue() {
-    contractionAnalysisDebounceId = null;
-    if (contractionAnalysisRequestPending) {
-      return;
-    }
     const queuedOptions = pendingContractionAnalysisOptions || {};
     pendingContractionAnalysisOptions = null;
-    runContractionAnalysisRequest(queuedOptions).finally(() => {
-      if (
-        pendingContractionAnalysisOptions &&
-        contractionAnalysisDebounceId === null
-      ) {
-        contractionAnalysisDebounceId = setTimer(
-          flushContractionAnalysisQueue,
-          analysisRefreshDelayMs
-        );
-      }
-    });
+    return runContractionAnalysisRequest(queuedOptions);
   }
 
   function refreshContractionAnalysis(options = {}) {
@@ -657,13 +410,7 @@ export function createPlannerSupport({
             pendingContractionAnalysisOptions.focusTab
         ),
     };
-    if (contractionAnalysisDebounceId !== null) {
-      clearTimer(contractionAnalysisDebounceId);
-    }
-    contractionAnalysisDebounceId = setTimer(
-      flushContractionAnalysisQueue,
-      analysisRefreshDelayMs
-    );
+    analysisService.requestRefresh(pendingContractionAnalysisOptions);
   }
 
   function togglePlannerDisclosure(disclosureKey) {
@@ -740,7 +487,10 @@ export function createPlannerSupport({
       ctx.setStatus("Automatic preview cleared.");
       return;
     }
-    const analysis = getAutomaticAnalysisByMode(state.contractionAnalysis.payload, mode);
+    const analysis = getAutomaticAnalysisByModeFromSelectors(
+      state.contractionAnalysis.payload,
+      mode
+    );
     if (!analysis || analysis.status === "unavailable" || !Array.isArray(analysis.steps)) {
       ctx.setStatus("That automatic preview is not available yet.", "error");
       return;
@@ -860,7 +610,10 @@ export function createPlannerSupport({
     if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {
       return;
     }
-    const analysis = getAutomaticAnalysisByMode(state.contractionAnalysis.payload, mode);
+    const analysis = getAutomaticAnalysisByModeFromSelectors(
+      state.contractionAnalysis.payload,
+      mode
+    );
     if (!analysis || analysis.status === "unavailable" || !Array.isArray(analysis.steps) || !analysis.steps.length) {
       ctx.setStatus("That automatic path is not available to accept.", "error");
       return;
@@ -888,6 +641,44 @@ export function createPlannerSupport({
       }
     );
   }
+
+  plannerCommands = createPlannerCommands({
+    state,
+    applyManualContractionStep: (leftOperandId, rightOperandId) => {
+      const leftLabel = getPlannerOperandLabel(leftOperandId);
+      const rightLabel = getPlannerOperandLabel(rightOperandId);
+      ctx.applyDesignChange(
+        () => {
+          if (typeof ctx.applyManualContractionStep === "function") {
+            ctx.applyManualContractionStep(leftOperandId, rightOperandId);
+            return;
+          }
+          const plan = ensureContractionPlan();
+          plan.steps.push({
+            id: ctx.makeId("step"),
+            left_operand_id: leftOperandId,
+            right_operand_id: rightOperandId,
+            metadata: {},
+          });
+        },
+        {
+          statusMessage: `Added manual contraction step ${leftLabel} × ${rightLabel}.`,
+        }
+      );
+    },
+    getPlannerOperandLabel,
+    isInspectingPastStage: () =>
+      typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage(),
+    renderOverlayDecorations: () => ctx.renderOverlayDecorations(),
+    renderPlanner,
+    resolvePlannerOperandId,
+    setActiveSidebarTab: (tabId) =>
+      typeof ctx.setActiveSidebarTab === "function" && ctx.setActiveSidebarTab(tabId),
+    setStatus: (message, level) => ctx.setStatus(message, level),
+    syncPendingInteractionClasses: () =>
+      typeof ctx.syncPendingInteractionClasses === "function" &&
+      ctx.syncPendingInteractionClasses(),
+  });
 
   return {
     analysisRefreshDelayMs,

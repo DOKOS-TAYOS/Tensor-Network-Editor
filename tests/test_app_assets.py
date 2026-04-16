@@ -218,6 +218,15 @@ def test_notes_and_planner_feature_modules_are_served(
     planner_renderers_body = request_text(
         f"{editor_server.base_url}/js/plannerRenderers.js"
     )
+    planner_selectors_body = request_text(
+        f"{editor_server.base_url}/js/state/plannerSelectors.js"
+    )
+    planner_commands_body = request_text(
+        f"{editor_server.base_url}/js/actions/plannerCommands.js"
+    )
+    planner_service_body = request_text(
+        f"{editor_server.base_url}/js/services/plannerAnalysisService.js"
+    )
     registrar_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
     utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
     utilities_templates_body = request_text(
@@ -228,8 +237,14 @@ def test_notes_and_planner_feature_modules_are_served(
     assert "registerPlannerFeature" in planner_body
     assert 'from "./plannerSupport.js"' in planner_body
     assert 'from "./plannerRenderers.js"' in planner_body
+    assert 'from "./state/plannerSelectors.js"' in planner_support_body
+    assert 'from "./actions/plannerCommands.js"' in planner_support_body
+    assert 'from "./services/plannerAnalysisService.js"' in planner_support_body
     assert "createPlannerSupport" in planner_support_body
     assert "createPlannerRenderers" in planner_renderers_body
+    assert "buildPlannerOperandState" in planner_selectors_body
+    assert "createPlannerCommands" in planner_commands_body
+    assert "createPlannerAnalysisService" in planner_service_body
     assert 'from "./notes.js"' in registrar_body
     assert 'from "./planner.js"' in registrar_body
     assert 'from "./utilitiesTemplates.js"' in utilities_body
@@ -385,6 +400,9 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    summaries_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertySummaries.js"
+    )
 
     combined_body = overview_body + tensor_body + entities_body
     assert "Total elements" in combined_body
@@ -394,8 +412,9 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert 'aria-label="Delete selection"' in overview_body
     assert 'aria-label="Delete connection"' in entities_body
     assert 'aria-label="Delete note"' in entities_body
-    assert "function getSelectionTotalElementCount(" in support_body
-    assert "function getTensorTotalElementCount(" in support_body
+    assert 'from "./properties/propertySummaries.js"' in support_body
+    assert "function getSelectionTotalElementCount(" in summaries_body
+    assert "function getTensorTotalElementCount(" in summaries_body
 
 
 def test_properties_assets_expose_tags_and_custom_metadata_editors(
@@ -411,34 +430,47 @@ def test_properties_assets_expose_tags_and_custom_metadata_editors(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    metadata_body = request_text(
+        f"{editor_server.base_url}/js/properties/metadataEditors.js"
+    )
 
     combined_body = overview_body + tensor_body + entities_body
     assert "Tags" in combined_body
-    assert "Custom metadata (JSON)" in support_body
-    assert "metadata-editor-disclosure" in support_body
-    assert 'summaryLabel = "Metadata"' in support_body
+    assert 'from "./properties/metadataEditors.js"' in support_body
+    assert "Custom metadata (JSON)" in metadata_body
+    assert "metadata-editor-disclosure" in metadata_body
+    assert 'summaryLabel = "Metadata"' in metadata_body
     assert (
         'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
-        in support_body
+        in metadata_body
     )
-    assert "function bindMetadataEditors(" in support_body
-    assert "propertyInvalidation(ctx);" in support_body
+    assert "function bindMetadataEditors(" in metadata_body
+    assert "function propertyInvalidation(overrides = {})" in support_body
 
 
 def test_properties_assets_expose_guided_annotation_editors_for_tensor_and_index(
     editor_server: EditorServer,
 ) -> None:
-    tensor_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    tensor_standard_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
     )
-    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    tensor_boundary_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
+    )
+    metadata_body = request_text(
+        f"{editor_server.base_url}/js/properties/metadataEditors.js"
+    )
 
-    assert "buildSuggestedAnnotationsMarkup({" in tensor_body
-    assert "tensorAnnotationInputId(key)" in tensor_body
-    assert "indexAnnotationInputId(index.id, key)" in tensor_body
-    assert "Suggested annotations" in support_body
-    assert "function buildSuggestedAnnotationsMarkup(" in support_body
-    assert "function bindSuggestedAnnotationEditors(" in support_body
+    assert "buildSuggestedAnnotationsMarkup({" in tensor_standard_body
+    assert "buildSuggestedAnnotationsMarkup({" in tensor_boundary_body
+    assert "tensorAnnotationInputId(key)" in tensor_standard_body + tensor_boundary_body
+    assert (
+        "indexAnnotationInputId(index.id, key)"
+        in tensor_standard_body + tensor_boundary_body
+    )
+    assert "Suggested annotations" in metadata_body
+    assert "function buildSuggestedAnnotationsMarkup(" in metadata_body
+    assert "function bindSuggestedAnnotationEditors(" in metadata_body
 
 
 def test_metadata_filter_assets_expose_persistent_panel_and_highlight_hooks(
@@ -478,25 +510,70 @@ def test_properties_renderer_assets_are_split_by_selection_family(
     entities_body = request_text(
         f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
     )
+    tensor_standard_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
+    )
+    tensor_boundary_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
+    )
+    tensor_contraction_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesContraction.js"
+    )
 
     assert 'from "./propertiesRenderersOverview.js"' in facade_body
     assert 'from "./propertiesRenderersTensor.js"' in facade_body
     assert 'from "./propertiesRenderersEntities.js"' in facade_body
+    assert 'from "./properties/tensorPropertiesStandard.js"' in tensor_body
+    assert 'from "./properties/tensorPropertiesBoundary.js"' in tensor_body
+    assert 'from "./properties/tensorPropertiesContraction.js"' in tensor_body
     assert "renderNetworkProperties" in overview_body
     assert "renderTensorProperties" in tensor_body
     assert "renderGroupProperties" in entities_body
+    assert "createStandardTensorPropertiesRenderer" in tensor_standard_body
+    assert "createBoundaryTensorPropertiesRenderer" in tensor_boundary_body
+    assert "createContractionTensorPropertiesRenderer" in tensor_contraction_body
+
+
+def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_modules(
+    editor_server: EditorServer,
+) -> None:
+    tensor_body = request_text(
+        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    )
+    tensor_standard_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
+    )
+    tensor_boundary_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
+    )
+    tensor_contraction_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesContraction.js"
+    )
+
+    assert "function renderTensorProperties(" not in tensor_body
+    assert "function renderLinearPeriodicBoundaryTensorProperties(" not in tensor_body
+    assert "function renderContractionTensorProperties(" not in tensor_body
+    assert "function renderContractionIndexProperties(" not in tensor_body
+    assert "ctx.applyDesignChange(" not in tensor_body
+    assert "typeof ctx.syncConnectedIndexDimension" not in tensor_body
+    assert "function renderTensorProperties(" in tensor_standard_body
+    assert (
+        "function renderLinearPeriodicBoundaryTensorProperties(" in tensor_boundary_body
+    )
+    assert "function renderContractionTensorProperties(" in tensor_contraction_body
+    assert "function renderContractionIndexProperties(" in tensor_contraction_body
 
 
 def test_index_disclosure_border_uses_the_port_color(
     editor_server: EditorServer,
 ) -> None:
-    properties_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+    standard_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
     )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
-    assert "--index-border-color:" in properties_body
-    assert "ctx.getIndexColor(index, isConnected)" in properties_body
+    assert "--index-border-color:" in standard_body
+    assert "ctx.getIndexColor(index, isConnected)" in standard_body
     assert (
         "border-color: var(--index-border-color, rgba(76, 92, 120, 0.95));" in css_body
     )
@@ -506,11 +583,13 @@ def test_index_disclosure_border_uses_the_port_color(
 def test_contraction_result_properties_expose_a_delete_action(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
+    body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesContraction.js"
+    )
 
     assert 'id="delete-contraction-tensor-button"' in body
     assert 'aria-label="Delete result"' in body
-    assert "ctx.deleteSelection" in body
+    assert "commands.deleteCurrentSelection" in body
 
 
 def test_note_assets_move_note_editing_into_canvas(
@@ -578,6 +657,9 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
 ) -> None:
     interactions_body = request_interactions_runtime_bundle(editor_server)
     planner_body = request_text(f"{editor_server.base_url}/js/plannerSupport.js")
+    planner_commands_body = request_text(
+        f"{editor_server.base_url}/js/actions/plannerCommands.js"
+    )
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
@@ -585,7 +667,7 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
         "Connect mode is only available in the base tensor view."
         not in interactions_body
     )
-    assert "Selection cleared." in planner_body
+    assert "Selection cleared." in planner_body + planner_commands_body
     assert (
         "Choose a different tensor or intermediate; both selections refer to the same contracted operand."
         not in planner_body
@@ -636,6 +718,21 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
     assert "invalidate: { lookups: true }" in interactions_body
     assert "ctx.ensureSpecLookups()" in contraction_body
     assert "state.tensorById[anchorTensorId] || null" in contraction_body
+
+
+def test_contraction_scene_assets_route_progression_and_snapshots_through_state_modules(
+    editor_server: EditorServer,
+) -> None:
+    contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
+
+    assert 'from "./state/contractionSceneProgression.js"' in contraction_body
+    assert 'from "./state/contractionSceneSnapshots.js"' in contraction_body
+    assert "function cloneOperand(" not in contraction_body
+    assert "function analyzeOperandPair(" not in contraction_body
+    assert (
+        "function buildContractionOperandProgressionUncached(" not in contraction_body
+    )
+    assert "function buildSnapshotLayoutMap(" not in contraction_body
 
 
 def test_subnetwork_assets_expose_import_export_controls_and_routes(
@@ -775,6 +872,9 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     planner_support_body = request_text(
         f"{editor_server.base_url}/js/plannerSupport.js"
     )
+    planner_service_body = request_text(
+        f"{editor_server.base_url}/js/services/plannerAnalysisService.js"
+    )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_body = request_utilities_runtime_bundle(editor_server)
     minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
@@ -786,7 +886,10 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     assert "persistViewSnapshots = false" in utilities_body
     assert (
         "ctx.serializeCurrentSpec({ persistViewSnapshots: false })"
-        in planner_support_body
+        not in planner_support_body
+    )
+    assert (
+        "serializeCurrentSpec({ persistViewSnapshots: false })" in planner_service_body
     )
     assert (
         "ctx.serializeCurrentSpec({ persistViewSnapshots: false })" in interactions_body
@@ -812,6 +915,12 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_model_body = request_text(
+        f"{editor_server.base_url}/js/views/graphElementModel.js"
+    )
+    graph_adapter_body = request_text(
+        f"{editor_server.base_url}/js/views/cytoscapeGraphAdapter.js"
+    )
 
     assert (
         "JSON.stringify(leftSnapshot) === JSON.stringify(rightSnapshot)"
@@ -828,14 +937,16 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "indexOwnerById: {}" in state_body
     assert "noteById: {}" in state_body
     assert "return state.noteById[noteId] || null;" in notes_body
-    assert "function propertyInvalidation(" in properties_body
-    assert "function selectionColorInvalidation(" in properties_body
+    assert "function propertyInvalidation(overrides = {})" in properties_body
+    assert "function selectionColorInvalidation(selectedEntries)" in properties_body
     assert (
         "invalidate: selectionColorInvalidation(selectedEntries)"
         in properties_renderers_body
     )
     assert 'if (typeof ctx.bumpSpecRevision === "function")' in interactions_body
     assert "startOffset:" in graph_body
+    assert "createGraphElementModelBuilder" in graph_model_body
+    assert "createCytoscapeGraphAdapter" in graph_adapter_body
 
 
 def test_properties_assets_lock_virtual_boundary_tensor_structure(
@@ -896,15 +1007,15 @@ def test_linear_periodic_assets_do_not_force_two_engine_support_message(
 def test_properties_assets_sync_dimensions_across_connected_ports(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
+    body = request_text(f"{editor_server.base_url}/js/actions/propertyCommands.js")
     support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "properties: isLinearPeriodicMode," in support_body
-    assert "const currentOwner = ctx.findIndexOwner(index.id);" in body
+    assert "const currentOwner = findIndexOwner(indexId);" in body
     assert "const currentIndex = currentOwner ? currentOwner.index : null;" in body
     assert "if (!currentIndex) {" in body
-    assert "ctx.syncConnectedIndexDimension(index.id, parsed);" in body
+    assert "syncConnectedIndexDimension(indexId, parsed);" in body
     assert (
         "function syncConnectedIndexDimension(indexId, nextDimension) {"
         in utilities_body
@@ -917,10 +1028,14 @@ def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:
     planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    planner_formatting_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerAnalysisFormatting.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
-    assert "Total elements" in planner_body
-    assert "function getShapeElementCount(" in planner_body
+    assert "Total elements" in planner_body + planner_formatting_body
+    assert 'from "./planner/plannerAnalysisFormatting.js"' in planner_body
+    assert "function getShapeElementCount(" in planner_formatting_body
     assert "planner-manual-step-list" in planner_body
     assert ".planner-manual-step-list {" in css_body
     assert "border-top:" in css_body
@@ -930,15 +1045,34 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     editor_server: EditorServer,
 ) -> None:
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_model_body = request_text(
+        f"{editor_server.base_url}/js/views/graphElementModel.js"
+    )
+    graph_diff_body = request_text(
+        f"{editor_server.base_url}/js/views/graphModelDiff.js"
+    )
+    graph_adapter_body = request_text(
+        f"{editor_server.base_url}/js/views/cytoscapeGraphAdapter.js"
+    )
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "const TENSOR_BASE_Z_INDEX = 10;" in graph_body
     assert "const EDGE_Z_INDEX = 100;" in graph_body
     assert "const PORT_BASE_Z_INDEX = 200;" in graph_body
+    assert 'from "./views/graphElementModel.js"' in graph_body
+    assert 'from "./views/cytoscapeGraphAdapter.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
     assert '"border-width": 4' in graph_body
     assert '"border-color": "#8bc2ff"' in graph_body
+    assert "createGraphElementModelBuilder" in graph_model_body
+    assert "buildGraphElementUpdatePlan" in graph_diff_body
+    assert "createCytoscapeGraphAdapter" in graph_adapter_body
     assert '"overlay-opacity": 0' in graph_body
+    assert "function cloneGraphElementDescriptor(" not in graph_body
+    assert "function graphElementDataEqual(" not in graph_body
+    assert "function graphElementDescriptorsEqual(" not in graph_body
+    assert "function updateGraphRenderCache(" not in graph_body
+    assert "function buildGraphElementModel(" not in graph_body
     assert (
         'tensorElement.data("zIndex", TENSOR_BASE_Z_INDEX + tensorRank);'
         in utilities_body

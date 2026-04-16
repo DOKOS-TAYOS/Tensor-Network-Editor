@@ -14,7 +14,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
     module_names = [
+        "actions/plannerCommands.js",
+        "actions/propertyCommands.js",
         "actions/sessionCommands.js",
+        "planner/plannerAnalysisFormatting.js",
+        "properties/metadataEditors.js",
+        "properties/propertySummaries.js",
+        "properties/tensorPropertiesBoundary.js",
+        "properties/tensorPropertiesContraction.js",
+        "properties/tensorPropertiesStandard.js",
         "utilitiesBase.js",
         "utilitiesGeometry.js",
         "utilitiesLayout.js",
@@ -30,10 +38,14 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "propertiesRenderersTensor.js",
         "propertiesRenderersEntities.js",
         "services/editorSessionService.js",
+        "services/plannerAnalysisService.js",
         "services/subnetworkService.js",
         "services/templateCatalogService.js",
+        "state/contractionSceneProgression.js",
+        "state/contractionSceneSnapshots.js",
         "state/editorSelectors.js",
         "state/editorStore.js",
+        "state/plannerSelectors.js",
     ]
     for module_name in module_names:
         target_path = tmp_path / module_name
