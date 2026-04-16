@@ -82,6 +82,34 @@ class _CarryPlanSimulation:
     outgoing_ports: tuple[LinearPeriodicInterfacePort, ...]
 
 
+@dataclass(slots=True, frozen=True)
+class _CarrySimulationContext:
+    """Immutable carry-cell inputs shared across all step handlers."""
+
+    cell_name: LinearPeriodicCellName
+    previous_payload_state: _CarryPayloadState | None
+    engine: EngineName
+    prepared: PreparedNetwork
+    incoming_ports: tuple[LinearPeriodicInterfacePort, ...]
+    outgoing_ports: tuple[LinearPeriodicInterfacePort, ...]
+    interface_index_ids: frozenset[str]
+    incoming_labels: tuple[str, ...]
+    outgoing_labels: tuple[str, ...]
+    dimension_by_label: dict[str, int]
+
+
+@dataclass(slots=True)
+class _CarrySimulationState:
+    """Mutable carry-cell simulation state updated by each plan step."""
+
+    remaining_operand_ids: list[str]
+    remaining_operand_states: dict[str, _CarryOperandState]
+    real_steps: list[SimulatedContractionStep]
+    result_index_by_step_id: dict[str, int]
+    previous_operand_interface_index: int | None
+    dimension_by_label: dict[str, int]
+
+
 _LINEAR_PERIODIC_CHAIN_LENGTH_ERROR = (
     "n must be at least 2 for a linear periodic chain."
 )
@@ -191,6 +219,29 @@ def _simulate_carry_cell(
             f"Carry mode in cell '{cell_name.value}' requires a contraction plan."
         )
 
+    context = _build_carry_simulation_context(
+        cell=cell,
+        cell_name=cell_name,
+        previous_payload_state=previous_payload_state,
+        engine=engine,
+    )
+    state = _build_carry_simulation_state(context)
+    _simulate_carry_plan_steps(
+        steps=cell.contraction_plan.steps,
+        context=context,
+        state=state,
+    )
+    return _build_carry_plan_simulation(context=context, state=state)
+
+
+def _build_carry_simulation_context(
+    *,
+    cell: LinearPeriodicCellSpec,
+    cell_name: LinearPeriodicCellName,
+    previous_payload_state: _CarryPayloadState | None,
+    engine: EngineName,
+) -> _CarrySimulationContext:
+    """Prepare the immutable carry-cell context shared by all step handlers."""
     prepared = prepare_network(
         build_internal_linear_periodic_cell_network(
             cell,
@@ -262,195 +313,316 @@ def _simulate_carry_cell(
             label_by_index_id=label_by_index_id,
         ),
     }
-    real_steps: list[SimulatedContractionStep] = []
-    result_index_by_step_id: dict[str, int] = {}
-    carry_operand_id: str | None = None
-    previous_operand_interface_index: int | None = None
+    return _CarrySimulationContext(
+        cell_name=cell_name,
+        previous_payload_state=previous_payload_state,
+        engine=engine,
+        prepared=prepared,
+        incoming_ports=incoming_ports,
+        outgoing_ports=outgoing_ports,
+        interface_index_ids=frozenset(interface_index_ids),
+        incoming_labels=incoming_labels,
+        outgoing_labels=outgoing_labels,
+        dimension_by_label=dimension_by_label,
+    )
 
-    for step_index, step in enumerate(cell.contraction_plan.steps):
-        uses_previous = LINEAR_PERIODIC_PREVIOUS_OPERAND_ID in {
-            step.left_operand_id,
-            step.right_operand_id,
-        }
-        uses_next = LINEAR_PERIODIC_NEXT_OPERAND_ID in {
-            step.left_operand_id,
-            step.right_operand_id,
-        }
+
+def _build_carry_simulation_state(
+    context: _CarrySimulationContext,
+) -> _CarrySimulationState:
+    """Build the mutable carry-cell state before simulating any plan steps."""
+    remaining_operand_states = {
+        tensor.spec.id: _CarryOperandState(
+            labels=tuple(index.label for index in tensor.indices),
+            axis_names=_axis_names_for_engine(
+                context.engine,
+                tuple(index.spec.name for index in tensor.indices),
+            ),
+            dimensions=tuple(index.spec.dimension for index in tensor.indices),
+        )
+        for tensor in context.prepared.tensors
+    }
+    remaining_operand_ids = [tensor.spec.id for tensor in context.prepared.tensors]
+    if context.incoming_labels:
+        remaining_operand_ids.insert(0, LINEAR_PERIODIC_PREVIOUS_OPERAND_ID)
+    if context.outgoing_labels:
+        remaining_operand_states[LINEAR_PERIODIC_NEXT_OPERAND_ID] = _CarryOperandState(
+            labels=context.outgoing_labels,
+            axis_names=_axis_names_for_engine(
+                context.engine,
+                build_linear_periodic_interface_axis_names(
+                    ports=context.outgoing_ports
+                ),
+            ),
+            dimensions=tuple(port.dimension for port in context.outgoing_ports),
+        )
+        remaining_operand_ids.append(LINEAR_PERIODIC_NEXT_OPERAND_ID)
+    return _CarrySimulationState(
+        remaining_operand_ids=remaining_operand_ids,
+        remaining_operand_states=remaining_operand_states,
+        real_steps=[],
+        result_index_by_step_id={},
+        previous_operand_interface_index=None,
+        dimension_by_label=dict(context.dimension_by_label),
+    )
+
+
+def _simulate_carry_plan_steps(
+    *,
+    steps: list[ContractionStepSpec],
+    context: _CarrySimulationContext,
+    state: _CarrySimulationState,
+) -> None:
+    """Run all carry-mode plan steps in order for one cell."""
+    for step_index, step in enumerate(steps):
+        uses_previous = _step_uses_reserved_operand(
+            step,
+            LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+        )
+        uses_next = _step_uses_reserved_operand(
+            step,
+            LINEAR_PERIODIC_NEXT_OPERAND_ID,
+        )
         if uses_previous and uses_next:
             raise CodeGenerationError(
-                f"Carry step '{step.id}' in cell '{cell_name.value}' cannot use previous and next together."
+                f"Carry step '{step.id}' in cell '{context.cell_name.value}' cannot use previous and next together."
             )
         if uses_next:
-            partner_operand_id = (
-                step.right_operand_id
-                if step.left_operand_id == LINEAR_PERIODIC_NEXT_OPERAND_ID
-                else step.left_operand_id
-            )
-            partner_state = remaining_operand_states.get(partner_operand_id)
-            if partner_state is None:
-                raise CodeGenerationError(
-                    f"Carry step '{step.id}' in cell '{cell_name.value}' references an unavailable operand."
-                )
-            if not set(partner_state.labels).intersection(outgoing_labels):
-                raise CodeGenerationError(
-                    f"Carry step '{step.id}' in cell '{cell_name.value}' must carry an outgoing interface label."
-                )
-            if step_index < len(cell.contraction_plan.steps) - 1:
-                raise CodeGenerationError(
-                    f"Carry step '{step.id}' in cell '{cell_name.value}' must be the final step."
-                )
-            remaining_operand_states.pop(LINEAR_PERIODIC_NEXT_OPERAND_ID, None)
-            remaining_operand_ids = [
-                operand_id
-                for operand_id in remaining_operand_ids
-                if operand_id != LINEAR_PERIODIC_NEXT_OPERAND_ID
-            ]
-            break
-
-        if uses_previous:
-            partner_operand_id = (
-                step.right_operand_id
-                if step.left_operand_id == LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
-                else step.left_operand_id
-            )
-            partner_state = remaining_operand_states.pop(partner_operand_id, None)
-            if partner_state is None:
-                raise CodeGenerationError(
-                    f"Carry step '{step.id}' in cell '{cell_name.value}' references an unavailable operand."
-                )
-            previous_state, selected_interface_index = (
-                _resolve_previous_payload_operand_state(
-                    previous_payload_state=previous_payload_state,
-                    incoming_labels=incoming_labels,
-                    partner_state=partner_state,
-                    cell_name=cell_name,
-                    step_id=step.id,
-                )
-            )
-            previous_operand_interface_index = selected_interface_index
-            dimension_by_label.update(
-                dict(
-                    zip(
-                        previous_state.labels,
-                        previous_state.dimensions,
-                        strict=True,
-                    )
-                )
-            )
-            step_dimension_by_label = {
-                **dimension_by_label,
-                **dict(
-                    zip(
-                        previous_state.labels,
-                        previous_state.dimensions,
-                        strict=True,
-                    )
-                ),
-            }
-            left_state = (
-                previous_state
-                if step.left_operand_id == LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
-                else partner_state
-            )
-            right_state = (
-                partner_state
-                if step.left_operand_id == LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
-                else previous_state
-            )
-            simulated_step, result_state = _simulate_carry_step(
+            _simulate_carry_next_step(
                 step=step,
-                left_state=left_state,
-                right_state=right_state,
-                dimension_by_label=step_dimension_by_label,
-                engine=engine,
+                step_index=step_index,
+                step_count=len(steps),
+                context=context,
+                state=state,
             )
-            remaining_operand_states = {
-                step.id: result_state,
-                **remaining_operand_states,
-            }
-            dimension_by_label.update(
-                dict(zip(result_state.labels, result_state.dimensions, strict=True))
+            break
+        if uses_previous:
+            _simulate_carry_previous_step(
+                step=step,
+                context=context,
+                state=state,
             )
-            remaining_operand_ids = [
-                step.id,
-                *[
-                    operand_id
-                    for operand_id in remaining_operand_ids
-                    if operand_id
-                    not in {
-                        step.left_operand_id,
-                        step.right_operand_id,
-                        LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
-                    }
-                ],
-            ]
-            result_index_by_step_id[step.id] = len(real_steps)
-            real_steps.append(simulated_step)
             continue
-
-        try:
-            left_state = remaining_operand_states.pop(step.left_operand_id)
-            right_state = remaining_operand_states.pop(step.right_operand_id)
-        except KeyError as exc:
-            raise CodeGenerationError(
-                f"Carry step '{step.id}' in cell '{cell_name.value}' references an unavailable operand."
-            ) from exc
-        simulated_step, result_state = _simulate_carry_step(
+        _simulate_standard_carry_step(
             step=step,
-            left_state=left_state,
-            right_state=right_state,
-            dimension_by_label=dimension_by_label,
-            engine=engine,
+            context=context,
+            state=state,
         )
-        remaining_operand_states = {
-            step.id: result_state,
-            **remaining_operand_states,
-        }
-        dimension_by_label.update(
-            dict(zip(result_state.labels, result_state.dimensions, strict=True))
-        )
-        remaining_operand_ids = [
-            step.id,
-            *[
-                operand_id
-                for operand_id in remaining_operand_ids
-                if operand_id not in {step.left_operand_id, step.right_operand_id}
-            ],
-        ]
-        result_index_by_step_id[step.id] = len(real_steps)
-        real_steps.append(simulated_step)
 
+
+def _step_uses_reserved_operand(
+    step: ContractionStepSpec,
+    operand_id: str,
+) -> bool:
+    """Return whether a carry step references one reserved operand id."""
+    return operand_id in {step.left_operand_id, step.right_operand_id}
+
+
+def _carry_partner_operand_id(
+    step: ContractionStepSpec,
+    reserved_operand_id: str,
+) -> str:
+    """Return the non-reserved operand paired with one boundary operand."""
+    if step.left_operand_id == reserved_operand_id:
+        return step.right_operand_id
+    return step.left_operand_id
+
+
+def _simulate_carry_next_step(
+    *,
+    step: ContractionStepSpec,
+    step_index: int,
+    step_count: int,
+    context: _CarrySimulationContext,
+    state: _CarrySimulationState,
+) -> None:
+    """Validate and finalize a ``next`` handoff step without simulating it."""
+    partner_operand_id = _carry_partner_operand_id(
+        step,
+        LINEAR_PERIODIC_NEXT_OPERAND_ID,
+    )
+    partner_state = state.remaining_operand_states.get(partner_operand_id)
+    if partner_state is None:
+        raise CodeGenerationError(
+            f"Carry step '{step.id}' in cell '{context.cell_name.value}' references an unavailable operand."
+        )
+    if not set(partner_state.labels).intersection(context.outgoing_labels):
+        raise CodeGenerationError(
+            f"Carry step '{step.id}' in cell '{context.cell_name.value}' must carry an outgoing interface label."
+        )
+    if step_index < step_count - 1:
+        raise CodeGenerationError(
+            f"Carry step '{step.id}' in cell '{context.cell_name.value}' must be the final step."
+        )
+    state.remaining_operand_states.pop(LINEAR_PERIODIC_NEXT_OPERAND_ID, None)
+    state.remaining_operand_ids = [
+        operand_id
+        for operand_id in state.remaining_operand_ids
+        if operand_id != LINEAR_PERIODIC_NEXT_OPERAND_ID
+    ]
+
+
+def _simulate_carry_previous_step(
+    *,
+    step: ContractionStepSpec,
+    context: _CarrySimulationContext,
+    state: _CarrySimulationState,
+) -> None:
+    """Simulate one carry step that consumes the previous payload operand."""
+    partner_operand_id = _carry_partner_operand_id(
+        step,
+        LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+    )
+    partner_state = state.remaining_operand_states.pop(partner_operand_id, None)
+    if partner_state is None:
+        raise CodeGenerationError(
+            f"Carry step '{step.id}' in cell '{context.cell_name.value}' references an unavailable operand."
+        )
+    previous_state, selected_interface_index = _resolve_previous_payload_operand_state(
+        previous_payload_state=context.previous_payload_state,
+        incoming_labels=context.incoming_labels,
+        partner_state=partner_state,
+        cell_name=context.cell_name,
+        step_id=step.id,
+    )
+    state.previous_operand_interface_index = selected_interface_index
+    previous_dimensions = dict(
+        zip(
+            previous_state.labels,
+            previous_state.dimensions,
+            strict=True,
+        )
+    )
+    state.dimension_by_label.update(previous_dimensions)
+    step_dimension_by_label = {
+        **state.dimension_by_label,
+        **previous_dimensions,
+    }
+    left_state = (
+        previous_state
+        if step.left_operand_id == LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
+        else partner_state
+    )
+    right_state = (
+        partner_state
+        if step.left_operand_id == LINEAR_PERIODIC_PREVIOUS_OPERAND_ID
+        else previous_state
+    )
+    simulated_step, result_state = _simulate_carry_step(
+        step=step,
+        left_state=left_state,
+        right_state=right_state,
+        dimension_by_label=step_dimension_by_label,
+        engine=context.engine,
+    )
+    _store_simulated_carry_step(
+        step=step,
+        simulated_step=simulated_step,
+        result_state=result_state,
+        consumed_operand_ids={
+            step.left_operand_id,
+            step.right_operand_id,
+            LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+        },
+        state=state,
+    )
+
+
+def _simulate_standard_carry_step(
+    *,
+    step: ContractionStepSpec,
+    context: _CarrySimulationContext,
+    state: _CarrySimulationState,
+) -> None:
+    """Simulate one standard carry step using only local remaining operands."""
+    try:
+        left_state = state.remaining_operand_states.pop(step.left_operand_id)
+        right_state = state.remaining_operand_states.pop(step.right_operand_id)
+    except KeyError as exc:
+        raise CodeGenerationError(
+            f"Carry step '{step.id}' in cell '{context.cell_name.value}' references an unavailable operand."
+        ) from exc
+    simulated_step, result_state = _simulate_carry_step(
+        step=step,
+        left_state=left_state,
+        right_state=right_state,
+        dimension_by_label=state.dimension_by_label,
+        engine=context.engine,
+    )
+    _store_simulated_carry_step(
+        step=step,
+        simulated_step=simulated_step,
+        result_state=result_state,
+        consumed_operand_ids={step.left_operand_id, step.right_operand_id},
+        state=state,
+    )
+
+
+def _store_simulated_carry_step(
+    *,
+    step: ContractionStepSpec,
+    simulated_step: SimulatedContractionStep,
+    result_state: _CarryOperandState,
+    consumed_operand_ids: set[str],
+    state: _CarrySimulationState,
+) -> None:
+    """Record one simulated carry step and update remaining operand state."""
+    state.remaining_operand_states = {
+        step.id: result_state,
+        **state.remaining_operand_states,
+    }
+    state.dimension_by_label.update(
+        dict(zip(result_state.labels, result_state.dimensions, strict=True))
+    )
+    state.remaining_operand_ids = [
+        step.id,
+        *[
+            operand_id
+            for operand_id in state.remaining_operand_ids
+            if operand_id not in consumed_operand_ids
+        ],
+    ]
+    state.result_index_by_step_id[step.id] = len(state.real_steps)
+    state.real_steps.append(simulated_step)
+
+
+def _build_carry_plan_simulation(
+    *,
+    context: _CarrySimulationContext,
+    state: _CarrySimulationState,
+) -> _CarryPlanSimulation:
+    """Build the final carry simulation payload consumed by code generators."""
     outgoing_interface_operand_ids = tuple(
         _find_remaining_operand_id_for_label(
             label=label,
-            remaining_operand_ids=tuple(remaining_operand_ids),
-            remaining_operand_states=remaining_operand_states,
-            cell_name=cell_name,
+            remaining_operand_ids=tuple(state.remaining_operand_ids),
+            remaining_operand_states=state.remaining_operand_states,
+            cell_name=context.cell_name,
         )
-        for label in outgoing_labels
+        for label in context.outgoing_labels
     )
-    if outgoing_interface_operand_ids:
-        carry_operand_id = outgoing_interface_operand_ids[0]
-
+    carry_operand_id = (
+        outgoing_interface_operand_ids[0] if outgoing_interface_operand_ids else None
+    )
     local_open_labels = tuple(
         index.label
-        for index in prepared.open_indices
-        if index.spec.id not in interface_index_ids
+        for index in context.prepared.open_indices
+        if index.spec.id not in context.interface_index_ids
     )
     return _CarryPlanSimulation(
-        prepared=prepared,
-        real_steps=real_steps,
-        result_index_by_step_id=result_index_by_step_id,
-        remaining_operand_ids=tuple(remaining_operand_ids),
-        remaining_operand_states=remaining_operand_states,
+        prepared=context.prepared,
+        real_steps=state.real_steps,
+        result_index_by_step_id=state.result_index_by_step_id,
+        remaining_operand_ids=tuple(state.remaining_operand_ids),
+        remaining_operand_states=state.remaining_operand_states,
         carry_operand_id=carry_operand_id,
         outgoing_interface_operand_ids=outgoing_interface_operand_ids,
-        previous_operand_interface_index=previous_operand_interface_index,
+        previous_operand_interface_index=state.previous_operand_interface_index,
         local_open_labels=local_open_labels,
-        incoming_labels=incoming_labels,
-        outgoing_labels=outgoing_labels,
-        incoming_ports=incoming_ports,
-        outgoing_ports=outgoing_ports,
+        incoming_labels=context.incoming_labels,
+        outgoing_labels=context.outgoing_labels,
+        incoming_ports=context.incoming_ports,
+        outgoing_ports=context.outgoing_ports,
     )
 
 
