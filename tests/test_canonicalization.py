@@ -13,6 +13,7 @@ def test_canonicalize_spec_sorts_entities_and_normalizes_tags() -> None:
     spec.edges[0].metadata = {"tags": [" bond ", "alpha", "bond"]}
 
     canonical = canonicalize_spec(spec)
+    assert canonical.contraction_plan is not None
 
     assert canonical is not spec
     assert [tensor.id for tensor in canonical.tensors] == ["tensor_a", "tensor_b"]
@@ -37,6 +38,7 @@ def test_canonicalize_spec_rewrites_ids_deterministically() -> None:
     spec.notes = []
 
     canonical = canonicalize_spec(spec, deterministic_ids=True)
+    assert canonical.contraction_plan is not None
 
     assert canonical.id == "network_001"
     assert [tensor.id for tensor in canonical.tensors] == [

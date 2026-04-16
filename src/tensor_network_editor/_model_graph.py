@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Self, cast
@@ -55,7 +56,7 @@ class IndexSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build an index from a serialized mapping."""
         offset_payload = require_dict(
             payload.get("offset", {"x": 0.0, "y": 0.0}),
@@ -106,7 +107,7 @@ class TensorSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a tensor from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         size_payload = require_dict(
@@ -145,7 +146,7 @@ class EdgeEndpointRef:
         return {"tensor_id": self.tensor_id, "index_id": self.index_id}
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build an endpoint reference from a serialized mapping."""
         return cls(
             tensor_id=coerce_string(payload["tensor_id"], field_name="tensor_id"),
@@ -174,7 +175,7 @@ class EdgeSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build an edge from a serialized mapping."""
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
@@ -210,7 +211,7 @@ class GroupSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a group from a serialized mapping."""
         tensor_ids_payload = require_list(
             payload.get("tensor_ids", []), field_name="tensor_ids"
@@ -247,7 +248,7 @@ class CanvasNoteSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a note from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         return cls(
@@ -287,7 +288,7 @@ class LinearPeriodicCellSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a cell from a serialized mapping."""
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
         groups_payload = require_list(payload.get("groups", []), field_name="groups")
@@ -349,7 +350,7 @@ class LinearPeriodicChainSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build the periodic-chain payload from a serialized mapping."""
         return cls(
             active_cell=_coerce_linear_periodic_cell_name(
@@ -434,7 +435,7 @@ class NetworkSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a network from a serialized mapping."""
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
         groups_payload = require_list(payload.get("groups", []), field_name="groups")

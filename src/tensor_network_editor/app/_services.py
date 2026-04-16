@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 
 from .._annotation_catalog import serialize_annotation_definitions
 from .._contraction_analysis_types import ContractionAnalysisResult
@@ -33,24 +34,30 @@ from ..templates import (
     build_template_spec,
     parse_template_parameters,
 )
+from ..types import JSONValue
 from ..validation import validate_spec
+from ._protocol import JsonDict
 
 if TYPE_CHECKING:
     from .session import EditorSession
 
 
-def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
+def build_bootstrap_payload(session: EditorSession) -> JsonDict:
     """Build the initial payload used to bootstrap the browser client."""
     return {
         "default_engine": engine_name_to_text(session.default_engine),
-        "engines": list_generator_names(),
+        "engines": cast(JSONValue, list_generator_names()),
         "default_collection_format": session.default_collection_format.value,
-        "collection_formats": [
-            collection_format.value for collection_format in TensorCollectionFormat
-        ],
+        "collection_formats": cast(
+            JSONValue,
+            [collection_format.value for collection_format in TensorCollectionFormat],
+        ),
         "schema_version": SCHEMA_VERSION,
         **build_template_catalog_payload(session),
-        "annotation_definitions": serialize_annotation_definitions(),
+        "annotation_definitions": cast(
+            JSONValue,
+            serialize_annotation_definitions(),
+        ),
         "spec": {
             "schema_version": SCHEMA_VERSION,
             "network": session.initial_spec.to_dict(),
@@ -60,7 +67,7 @@ def build_bootstrap_payload(session: EditorSession) -> dict[str, object]:
 
 def generate_session_request(
     session: EditorSession,
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
     engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
 ) -> CodegenResult:
@@ -75,7 +82,7 @@ def generate_session_request(
 
 def complete_session_request(
     session: EditorSession,
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
     engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
 ) -> EditorResult:
@@ -117,7 +124,7 @@ def build_template_from_payload(
 
 
 def analyze_serialized_contraction(
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
 ) -> ContractionAnalysisResult:
     """Deserialize, validate, and analyze contraction data for one payload."""
     spec = deserialize_spec(serialized_spec, validate=False)
@@ -128,7 +135,7 @@ def analyze_serialized_contraction(
 
 
 def extract_serialized_subnetwork(
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
     *,
     tensor_ids: list[str],
 ) -> NetworkSpec:
@@ -138,7 +145,7 @@ def extract_serialized_subnetwork(
 
 
 def prepare_serialized_subnetwork_for_insertion(
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
     *,
     target_center: CanvasPosition,
 ) -> NetworkSpec:
@@ -149,12 +156,12 @@ def prepare_serialized_subnetwork_for_insertion(
 
 def promote_serialized_subnetwork_to_template(
     session: EditorSession,
-    serialized_spec: dict[str, object],
+    serialized_spec: Mapping[str, object],
     *,
     tensor_ids: list[str],
     template_name: str,
     overwrite: bool = False,
-) -> dict[str, object]:
+) -> JsonDict:
     """Extract one fragment and persist it as a project-local static template."""
     spec = deserialize_spec(serialized_spec, validate=False)
     promoted_spec = extract_subnetwork_spec(
@@ -179,7 +186,7 @@ def rename_session_project_template(
     template_name: str,
     new_template_name: str,
     overwrite: bool = False,
-) -> dict[str, object]:
+) -> JsonDict:
     """Rename one project-local template and return the refreshed catalog."""
     if session.has_global_template(template_name) and not session.has_project_template(
         template_name
@@ -202,7 +209,7 @@ def delete_session_project_template(
     session: EditorSession,
     *,
     template_name: str,
-) -> dict[str, object]:
+) -> JsonDict:
     """Delete one project-local template and return the refreshed catalog."""
     if session.has_global_template(template_name) and not session.has_project_template(
         template_name
@@ -233,12 +240,18 @@ def build_template_catalog_payload(
     session: EditorSession,
     *,
     selected_template: str | None = None,
-) -> dict[str, object]:
+) -> JsonDict:
     """Build the merged session template catalog payload for the editor."""
-    payload: dict[str, object] = {
-        "templates": session.list_available_template_names(),
-        "template_definitions": session.serialize_available_template_definitions(),
-        "template_catalog_warnings": session.template_catalog_warnings,
+    payload: JsonDict = {
+        "templates": cast(JSONValue, session.list_available_template_names()),
+        "template_definitions": cast(
+            JSONValue,
+            session.serialize_available_template_definitions(),
+        ),
+        "template_catalog_warnings": cast(
+            JSONValue,
+            session.template_catalog_warnings,
+        ),
     }
     if selected_template is not None:
         payload["selected_template"] = selected_template

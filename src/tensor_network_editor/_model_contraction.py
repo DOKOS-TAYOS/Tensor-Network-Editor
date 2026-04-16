@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Self
 
@@ -36,7 +37,7 @@ class ContractionStepSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a contraction step from a serialized mapping."""
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
@@ -69,7 +70,7 @@ class ContractionOperandLayoutSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build an operand layout from a serialized mapping."""
         position_payload = require_dict(payload["position"], field_name="position")
         size_payload = require_dict(payload["size"], field_name="size")
@@ -97,7 +98,7 @@ class ContractionViewSnapshotSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a view snapshot from a serialized mapping."""
         operand_layouts_payload = require_list(
             payload.get("operand_layouts", []),
@@ -142,7 +143,7 @@ class ContractionPlanSpec:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a contraction plan from a serialized mapping."""
         steps_payload = require_list(payload.get("steps", []), field_name="steps")
         view_snapshots_payload = require_list(

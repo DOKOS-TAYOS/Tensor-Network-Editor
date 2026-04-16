@@ -6,13 +6,14 @@ import logging
 import signal
 import threading
 import webbrowser
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from types import FrameType
 from typing import Any, Protocol
 
 from .._project_templates import (
     ProjectTemplateCatalog,
+    ProjectTemplateEntry,
     append_project_template,
     delete_project_template,
     derive_project_template_display_name,
@@ -30,7 +31,8 @@ from ..models import (
     TensorCollectionFormat,
 )
 from ..templates import list_template_names, serialize_template_definitions
-from ..types import StrPath
+from ..types import JSONValue, StrPath
+from ._protocol import JsonDict
 from ._services import (
     build_bootstrap_payload,
     build_template_from_payload,
@@ -99,7 +101,7 @@ class EditorSession:
         self._lock = threading.Lock()
 
     @property
-    def project_template_entries(self) -> dict[str, object]:
+    def project_template_entries(self) -> Mapping[str, ProjectTemplateEntry]:
         """Return the project-local static template entries keyed by name."""
         return self._project_template_catalog.entries
 
@@ -116,7 +118,9 @@ class EditorSession:
         """Return the globally registered template names only."""
         return list_template_names()
 
-    def serialize_available_template_definitions(self) -> dict[str, dict[str, object]]:
+    def serialize_available_template_definitions(
+        self,
+    ) -> dict[str, dict[str, JSONValue]]:
         """Return serialized template definitions for the current session."""
         definitions = {
             template_name: entry.definition.to_dict()
@@ -185,13 +189,13 @@ class EditorSession:
             reserved_names=set(self.list_global_template_names()),
         )
 
-    def bootstrap_payload(self) -> dict[str, object]:
+    def bootstrap_payload(self) -> JsonDict:
         """Return the bootstrap payload consumed by the browser client."""
         return build_bootstrap_payload(self)
 
     def generate(
         self,
-        serialized_spec: dict[str, object],
+        serialized_spec: Mapping[str, object],
         engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
@@ -209,7 +213,7 @@ class EditorSession:
 
     def complete(
         self,
-        serialized_spec: dict[str, object],
+        serialized_spec: Mapping[str, object],
         engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:

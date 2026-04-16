@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from .models import (
+    CanvasNoteSpec,
     ContractionPlanSpec,
     EdgeEndpointRef,
     EdgeSpec,
@@ -24,7 +26,7 @@ class _GraphSection:
     tensors: list[TensorSpec]
     groups: list[GroupSpec]
     edges: list[EdgeSpec]
-    notes: list[object]
+    notes: list[CanvasNoteSpec]
     contraction_plan: ContractionPlanSpec | None
 
 
@@ -280,7 +282,7 @@ def _group_sort_key(group: GroupSpec) -> tuple[object, ...]:
     return (group.name.casefold(), tuple(sorted(group.tensor_ids)), group.id)
 
 
-def _note_sort_key(note: object) -> tuple[object, ...]:
+def _note_sort_key(note: CanvasNoteSpec) -> tuple[object, ...]:
     """Return a stable sort key for notes."""
     return (
         round(note.position.y, 6),
@@ -320,6 +322,10 @@ def _canonicalize_json_value(value: JSONValue) -> JSONValue:
 
 def _canonicalize_tags(value: JSONValue) -> JSONValue:
     """Normalize a tags value when it is a string list."""
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return sorted({item.strip() for item in value if item.strip()})
+    if isinstance(value, list):
+        string_items = [item for item in value if isinstance(item, str)]
+        if len(string_items) != len(value):
+            return _canonicalize_json_value(value)
+        stripped_items = [item.strip() for item in string_items]
+        return cast(JSONValue, sorted({item for item in stripped_items if item}))
     return _canonicalize_json_value(value)

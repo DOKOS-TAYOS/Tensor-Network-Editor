@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, NetworkSpec
@@ -19,7 +20,7 @@ def sample_spec() -> NetworkSpec:
 
 
 @pytest.fixture
-def serialized_sample_spec(sample_spec: NetworkSpec) -> dict[str, object]:
+def serialized_sample_spec(sample_spec: NetworkSpec) -> JsonDict:
     return serialize_spec_payload(sample_spec)
 
 

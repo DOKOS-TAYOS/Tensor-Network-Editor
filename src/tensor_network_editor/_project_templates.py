@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -291,7 +292,9 @@ def save_project_template_catalog(
     )
 
 
-def _parse_project_template_entry(payload: dict[str, object]) -> ProjectTemplateEntry:
+def _parse_project_template_entry(
+    payload: Mapping[str, object],
+) -> ProjectTemplateEntry:
     """Parse one serialized project template catalog entry."""
     raw_name = payload.get("name")
     if not isinstance(raw_name, str):
@@ -308,7 +311,7 @@ def _parse_project_template_entry(payload: dict[str, object]) -> ProjectTemplate
     raw_spec = payload.get("spec")
     if not isinstance(raw_spec, dict):
         raise SerializationError("Missing template 'spec' payload.")
-    spec = deserialize_spec(cast(dict[str, object], raw_spec))
+    spec = deserialize_spec(raw_spec)
     return ProjectTemplateEntry(
         name=normalized_name,
         display_name=display_name,

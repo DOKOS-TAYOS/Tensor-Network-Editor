@@ -75,7 +75,7 @@ def test_resolve_collection_format_rejects_unknown_collection_format() -> None:
 
 
 def test_parse_codegen_request_uses_defaults_when_optional_fields_are_missing(
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     request = parse_codegen_request(
         cast(JsonDict, {"spec": cast(JsonDict, serialized_sample_spec)}),
@@ -91,7 +91,7 @@ def test_parse_codegen_request_uses_defaults_when_optional_fields_are_missing(
 
 
 def test_parse_codegen_request_honors_explicit_engine_and_collection_format(
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     request = parse_codegen_request(
         cast(
@@ -183,10 +183,10 @@ def test_serialize_helpers_expose_public_response_shapes(
 
 
 def test_deserialize_spec_with_issues_skips_validation(
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     payload = dict(serialized_sample_spec)
-    network_payload = dict(cast(dict[str, object], payload["network"]))
+    network_payload = dict(cast(JsonDict, payload["network"]))
     network_payload["name"] = "   "
     payload["network"] = network_payload
 

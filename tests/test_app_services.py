@@ -11,6 +11,7 @@ from tensor_network_editor.app._services import (
     generate_session_request,
 )
 from tensor_network_editor.app.session import EditorSession
+from tensor_network_editor.codegen.registry import engine_name_to_text
 from tensor_network_editor.models import CodegenResult, EditorResult, NetworkSpec
 from tensor_network_editor.models import EngineName as SessionEngineName
 from tensor_network_editor.serialization import SCHEMA_VERSION
@@ -22,26 +23,26 @@ def test_build_bootstrap_payload_matches_session_contract(
 ) -> None:
     payload = build_bootstrap_payload(editor_session)
 
-    assert payload["default_engine"] == editor_session.default_engine.value
+    assert payload["default_engine"] == engine_name_to_text(
+        editor_session.default_engine
+    )
     assert payload["default_collection_format"] == (
         editor_session.default_collection_format.value
     )
-    assert payload["templates"] == list(
-        cast(dict[str, object], payload["template_definitions"])
-    )
-    annotation_definitions = cast(
-        dict[str, list[dict[str, object]]], payload["annotation_definitions"]
-    )
+    assert payload["templates"] == list(cast(JsonDict, payload["template_definitions"]))
+    annotation_definitions = cast(JsonDict, payload["annotation_definitions"])
+    tensor_annotations = cast(list[JsonDict], annotation_definitions["tensor"])
+    index_annotations = cast(list[JsonDict], annotation_definitions["index"])
     assert list(annotation_definitions) == ["tensor", "index"]
-    assert annotation_definitions["tensor"][0]["key"] == "role"
-    assert annotation_definitions["tensor"][0]["label"] == "Tensor role"
-    assert annotation_definitions["index"][0]["key"] == "leg_kind"
-    assert annotation_definitions["index"][0]["label"] == "Leg kind"
+    assert tensor_annotations[0]["key"] == "role"
+    assert tensor_annotations[0]["label"] == "Tensor role"
+    assert index_annotations[0]["key"] == "leg_kind"
+    assert index_annotations[0]["label"] == "Leg kind"
 
 
 def test_generate_session_request_matches_session_generate(
     editor_session: EditorSession,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     result = generate_session_request(
         editor_session,
@@ -56,7 +57,7 @@ def test_generate_session_request_matches_session_generate(
 
 def test_complete_session_request_matches_session_complete(
     editor_session: EditorSession,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     result = complete_session_request(
         editor_session,
@@ -87,7 +88,7 @@ def test_build_template_from_payload_returns_network_spec(
 
 
 def test_analyze_serialized_contraction_returns_structured_result(
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     result = analyze_serialized_contraction(serialized_sample_spec)
 

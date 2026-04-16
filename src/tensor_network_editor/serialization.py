@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 
 from ._io import read_utf8_text, write_utf8_text
@@ -36,7 +37,7 @@ def serialize_spec(spec: NetworkSpec) -> dict[str, JSONValue]:
 
 
 def deserialize_spec(
-    payload: dict[str, object], *, validate: bool = True
+    payload: Mapping[str, object], *, validate: bool = True
 ) -> NetworkSpec:
     """Build a ``NetworkSpec`` from a schema-wrapped JSON payload.
 

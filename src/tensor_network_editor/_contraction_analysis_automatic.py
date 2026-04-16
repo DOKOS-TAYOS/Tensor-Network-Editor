@@ -184,11 +184,11 @@ def _analyze_automatic_operands(
             bytes_per_element=bytes_per_element,
         )
 
-    label_order: list[str] = []
-    for operand_id in operand_order:
-        for label in operands[operand_id]:
-            if label not in label_order:
-                label_order.append(label)
+    label_order = list(
+        dict.fromkeys(
+            label for operand_id in operand_order for label in operands[operand_id]
+        )
+    )
     if len(label_order) > len(ascii_letters):
         return _unavailable_automatic_analysis(
             "Automatic greedy path analysis currently supports up to 52 distinct labels.",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -348,7 +349,9 @@ def test_analyze_subcommand_reports_integer_metric_errors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     report = build_analysis_report()
-    report.contraction.manual.summary.total_estimated_flops = 1.5
+    assert report.contraction is not None
+    summary = cast(Any, report.contraction.manual.summary)
+    summary.total_estimated_flops = 1.5
     with (
         patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
         patch("tensor_network_editor.cli.analyze_spec", return_value=report),

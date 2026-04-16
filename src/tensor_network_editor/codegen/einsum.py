@@ -9,7 +9,12 @@ from .._contraction_plan import (
     prepare_contraction_inputs,
     simulate_contraction_plan,
 )
-from ..models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
+from ..models import (
+    CodegenResult,
+    EngineIdentifier,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from .base import CodeGenerator
 from .common import (
     CodeSection,
@@ -31,7 +36,7 @@ from .common import (
 class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     """Base generator for NumPy and PyTorch einsum backends."""
 
-    engine: EngineName
+    engine: EngineIdentifier
     import_line: str
     module_alias: str
     zero_initializer_suffix: str = ""
@@ -106,11 +111,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 [f"result = {self.empty_network_expression}"],
             )
 
-        label_order: list[str] = []
-        for tensor in prepared.tensors:
-            for index in tensor.indices:
-                if index.label not in label_order:
-                    label_order.append(index.label)
+        label_order = list(
+            dict.fromkeys(
+                index.label for tensor in prepared.tensors for index in tensor.indices
+            )
+        )
 
         label_to_int = {label: offset for offset, label in enumerate(label_order)}
         output_labels = [index.label for index in prepared.open_indices]
@@ -159,11 +164,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         collection_name: str,
     ) -> tuple[list[str], list[str]]:
         """Render step-by-step einsum calls for a saved manual plan."""
-        label_order: list[str] = []
-        for tensor in prepared.tensors:
-            for index in tensor.indices:
-                if index.label not in label_order:
-                    label_order.append(index.label)
+        label_order = list(
+            dict.fromkeys(
+                index.label for tensor in prepared.tensors for index in tensor.indices
+            )
+        )
         use_string_labels = len(label_order) <= len(ascii_letters)
         symbol_map = {
             label: ascii_letters[offset]

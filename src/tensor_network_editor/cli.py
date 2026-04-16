@@ -318,17 +318,17 @@ def _handle_diff(args: argparse.Namespace) -> int:
     before = load_spec(args.before)
     after = load_spec(args.after)
     if args.semantic:
-        result = semantic_diff_specs(before, after)
+        semantic_result = semantic_diff_specs(before, after)
         if args.format == "json":
-            _print_json(result.to_dict())
+            _print_json(semantic_result.to_dict())
         else:
-            _print_semantic_diff_text(result)
+            _print_semantic_diff_text(semantic_result)
         return 0
-    result = diff_specs(before, after)
+    diff_result = diff_specs(before, after)
     if args.format == "json":
-        _print_json(result.to_dict())
+        _print_json(diff_result.to_dict())
     else:
-        _print_diff_text(result)
+        _print_diff_text(diff_result)
     return 0
 
 

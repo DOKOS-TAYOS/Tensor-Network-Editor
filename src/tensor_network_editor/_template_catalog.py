@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from .types import JSONValue
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -35,7 +37,7 @@ class TemplateDefinition:
     supports_parameters: bool = True
     source: Literal["project", "global"] = "global"
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the template definition for frontend bootstrap payloads."""
         return {
             "display_name": self.display_name,
@@ -228,7 +230,7 @@ def list_template_names() -> list[str]:
     return list(_REGISTERED_TEMPLATE_DEFINITIONS)
 
 
-def serialize_template_definitions() -> dict[str, dict[str, object]]:
+def serialize_template_definitions() -> dict[str, dict[str, JSONValue]]:
     """Serialize all template definitions for the browser bootstrap payload."""
     _ensure_template_registry_seeded()
     return {

@@ -902,13 +902,24 @@ def _render_einsum_carry_cell_helper(
         )
     label_order = list(
         dict.fromkeys(
-            index.label for tensor in prepared.tensors for index in tensor.indices
+            [
+                *(
+                    index.label
+                    for tensor in prepared.tensors
+                    for index in tensor.indices
+                ),
+                *(
+                    label
+                    for step in simulation.real_steps
+                    for label in (
+                        *step.left_labels,
+                        *step.right_labels,
+                        *step.surviving_labels,
+                    )
+                ),
+            ]
         )
     )
-    for step in simulation.real_steps:
-        for label in (*step.left_labels, *step.right_labels, *step.surviving_labels):
-            if label not in label_order:
-                label_order.append(label)
     label_to_int = {label: offset for offset, label in enumerate(label_order)}
     contraction_lines: list[str] = []
     for step_index, step in enumerate(simulation.real_steps):

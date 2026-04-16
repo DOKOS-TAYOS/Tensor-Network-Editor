@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from .types import JSONValue
+
 
 class AnnotationScope(StrEnum):
     """Supported editor scopes for guided metadata annotations."""
@@ -22,7 +24,7 @@ class AnnotationDefinition:
     placeholder: str
     suggestions: tuple[str, ...] = ()
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the annotation definition for frontend bootstrap payloads."""
         return {
             "key": self.key,
@@ -82,7 +84,7 @@ ANNOTATION_DEFINITIONS: dict[AnnotationScope, tuple[AnnotationDefinition, ...]] 
 }
 
 
-def serialize_annotation_definitions() -> dict[str, list[dict[str, object]]]:
+def serialize_annotation_definitions() -> dict[str, list[dict[str, JSONValue]]]:
     """Serialize all guided annotation definitions for the browser bootstrap."""
     return {
         scope.value: [definition.to_dict() for definition in definitions]

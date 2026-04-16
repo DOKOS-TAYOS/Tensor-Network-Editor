@@ -9,6 +9,7 @@ from typing import cast
 import pytest
 
 from tensor_network_editor.api import launch_tensor_network_editor
+from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.session import (
     EditorSession,
     build_blank_network_spec,
@@ -47,14 +48,12 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     editor_session: EditorSession,
 ) -> None:
     payload = editor_session.bootstrap_payload()
-    template_definitions = cast(dict[str, object], payload["template_definitions"])
-    mps_definition = cast(dict[str, object], template_definitions["mps"])
-    binary_tree_definition = cast(
-        dict[str, object], template_definitions["binary_tree"]
-    )
-    binary_tree_defaults = cast(dict[str, object], binary_tree_definition["defaults"])
-    spec_payload = cast(dict[str, object], payload["spec"])
-    network_payload = cast(dict[str, object], spec_payload["network"])
+    template_definitions = cast(JsonDict, payload["template_definitions"])
+    mps_definition = cast(JsonDict, template_definitions["mps"])
+    binary_tree_definition = cast(JsonDict, template_definitions["binary_tree"])
+    binary_tree_defaults = cast(JsonDict, binary_tree_definition["defaults"])
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
 
     assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
     assert payload["default_collection_format"] == TensorCollectionFormat.LIST.value
@@ -69,7 +68,7 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
 
 def test_generate_returns_preview_without_finishing_session(
     editor_session: EditorSession,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     result = editor_session.generate(
         serialized_sample_spec,
@@ -85,7 +84,7 @@ def test_generate_returns_preview_without_finishing_session(
 
 def test_complete_records_result_and_can_write_code(
     sample_spec: NetworkSpec,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -108,7 +107,7 @@ def test_complete_records_result_and_can_write_code(
 
 def test_complete_supports_collection_format_in_generated_output(
     sample_spec: NetworkSpec,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     session = EditorSession(
         initial_spec=sample_spec,
@@ -166,7 +165,7 @@ def test_wait_for_editor_result_delegates_to_session_once() -> None:
 
 def test_launch_tensor_network_editor_waits_for_complete(
     sample_spec: NetworkSpec,
-    serialized_sample_spec: dict[str, object],
+    serialized_sample_spec: JsonDict,
 ) -> None:
     ready_queue: Queue[str] = Queue()
     result_queue: Queue[EditorResult | None] = Queue()

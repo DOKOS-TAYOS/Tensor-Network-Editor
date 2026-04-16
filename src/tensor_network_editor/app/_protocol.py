@@ -182,4 +182,4 @@ def serialize_editor_result(result: EditorResult) -> JsonDict:
 
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     """Deserialize a spec payload without raising on validation issues."""
-    return deserialize_spec(cast(dict[str, object], serialized_spec), validate=False)
+    return deserialize_spec(serialized_spec, validate=False)

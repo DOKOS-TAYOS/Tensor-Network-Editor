@@ -10,6 +10,7 @@ from ._python_roundtrip_build import (
     _build_network_spec,
     _ParsedTensor,
     _PendingEdge,
+    _PendingManualStep,
 )
 from ._python_roundtrip_collect import (
     _collect_data_shape,
@@ -36,7 +37,7 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
     tensor_rows: list[list[str]] = []
     tensor_order: list[str] = []
     pending_edges: list[_PendingEdge] = []
-    pending_manual_steps = []
+    pending_manual_steps: list[_PendingManualStep] = []
     einsum_labels_by_reference: dict[str, list[str]] = {}
     remaining_einsum_labels_by_reference: dict[str, list[str]] = {}
     manual_step_comments_by_statement_line = _collect_manual_step_comments(code)

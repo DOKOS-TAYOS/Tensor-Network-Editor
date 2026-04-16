@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Self
 
@@ -21,7 +22,7 @@ class CanvasPosition:
         return {"x": self.x, "y": self.y}
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a position from a serialized mapping."""
         return cls(
             x=coerce_float(payload["x"], field_name="x"),
@@ -41,7 +42,7 @@ class TensorSize:
         return {"width": self.width, "height": self.height}
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> Self:
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
         """Build a size from a serialized mapping."""
         return cls(
             width=coerce_float(payload["width"], field_name="width"),

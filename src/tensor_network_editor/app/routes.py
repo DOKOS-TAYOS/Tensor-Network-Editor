@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
-from typing import Literal, cast
+from typing import Literal
 
 from .._contraction_analysis_types import ContractionAnalysisResult
 from .._payloads import require_dict, require_list
@@ -42,7 +42,7 @@ LOGGER = logging.getLogger(__name__)
 
 def handle_bootstrap(session: EditorSession) -> JsonResponse:
     """Return the bootstrap payload used by the browser client."""
-    return HTTPStatus.OK, cast(JsonDict, build_bootstrap_payload(session))
+    return HTTPStatus.OK, build_bootstrap_payload(session)
 
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -122,14 +122,14 @@ def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonRe
     try:
         catalog_payload = promote_serialized_subnetwork_to_template(
             session,
-            cast(dict[str, object], require_serialized_spec(payload)),
+            require_serialized_spec(payload),
             tensor_ids=_parse_tensor_ids(payload),
             template_name=template_name,
             overwrite=_parse_overwrite(payload),
         )
     except (SerializationError, TypeError, ValueError) as exc:
         return bad_request_response(str(exc))
-    return ok_response(cast(JsonDict, catalog_payload))
+    return ok_response(catalog_payload)
 
 
 def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -149,7 +149,7 @@ def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonRes
         )
     except ValueError as exc:
         return bad_request_response(str(exc))
-    return ok_response(cast(JsonDict, catalog_payload))
+    return ok_response(catalog_payload)
 
 
 def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -164,7 +164,7 @@ def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonRes
         )
     except ValueError as exc:
         return bad_request_response(str(exc))
-    return ok_response(cast(JsonDict, catalog_payload))
+    return ok_response(catalog_payload)
 
 
 def handle_analyze_contraction(
@@ -179,9 +179,7 @@ def handle_analyze_contraction(
         return bad_request_response("Missing 'spec' payload.")
 
     try:
-        result = analyze_serialized_contraction(
-            cast(dict[str, object], serialized_spec)
-        )
+        result = analyze_serialized_contraction(serialized_spec)
     except SerializationError as exc:
         LOGGER.warning("Contraction analysis request contained malformed spec: %s", exc)
         return bad_request_response(str(exc))
@@ -198,7 +196,7 @@ def handle_subnetwork_extract(
     del session
     try:
         spec = extract_serialized_subnetwork(
-            cast(dict[str, object], require_serialized_spec(payload)),
+            require_serialized_spec(payload),
             tensor_ids=_parse_tensor_ids(payload),
         )
     except (SerializationError, TypeError, ValueError) as exc:
@@ -213,7 +211,7 @@ def handle_subnetwork_prepare_insert(
     del session
     try:
         spec = prepare_serialized_subnetwork_for_insertion(
-            cast(dict[str, object], require_serialized_spec(payload)),
+            require_serialized_spec(payload),
             target_center=_parse_target_center(payload),
         )
     except (SerializationError, TypeError, ValueError) as exc:
@@ -250,14 +248,14 @@ def _handle_session_codegen_request(
     try:
         if operation == "generate":
             generate_result = session.generate(
-                cast(dict[str, object], request.serialized_spec),
+                request.serialized_spec,
                 request.engine,
                 request.collection_format,
             )
             return ok_response(_serialize_generate_result(generate_result))
         if operation == "complete":
             complete_result = session.complete(
-                cast(dict[str, object], request.serialized_spec),
+                request.serialized_spec,
                 request.engine,
                 request.collection_format,
             )

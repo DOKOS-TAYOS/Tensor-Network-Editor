@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -17,7 +18,7 @@ from tensor_network_editor._template_catalog import (
     list_template_names,
 )
 from tensor_network_editor.api import generate_code
-from tensor_network_editor.app._protocol import resolve_engine
+from tensor_network_editor.app._protocol import JsonDict, resolve_engine
 from tensor_network_editor.app._services import build_bootstrap_payload
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.codegen.base import CodeGenerator
@@ -41,6 +42,22 @@ from tensor_network_editor.templates import (
     serialize_template_definitions,
 )
 from tests.factories import build_sample_spec
+
+
+def _payload_templates(payload: JsonDict) -> list[str]:
+    return cast(list[str], payload["templates"])
+
+
+def _payload_template_definitions(payload: JsonDict) -> JsonDict:
+    return cast(JsonDict, payload["template_definitions"])
+
+
+def _payload_warnings(payload: JsonDict) -> list[str]:
+    return cast(list[str], payload["template_catalog_warnings"])
+
+
+def _payload_engines(payload: JsonDict) -> list[str]:
+    return cast(list[str], payload["engines"])
 
 
 class DummyCodeGenerator(CodeGenerator):
@@ -190,14 +207,18 @@ def test_project_template_catalog_entries_are_loaded_per_session(
 
     session = EditorSession(template_catalog_path=catalog_path)
     payload = build_bootstrap_payload(session)
+    templates = _payload_templates(payload)
+    template_definitions = _payload_template_definitions(payload)
+    warnings = _payload_warnings(payload)
 
-    assert payload["templates"][0] == "project_pair"
+    assert templates[0] == "project_pair"
     assert (
-        payload["template_definitions"]["project_pair"]["supports_parameters"] is False
+        cast(JsonDict, template_definitions["project_pair"])["supports_parameters"]
+        is False
     )
-    assert payload["template_definitions"]["project_pair"]["source"] == "project"
-    assert payload["template_definitions"]["mps"]["source"] == "global"
-    assert payload["template_catalog_warnings"] == []
+    assert cast(JsonDict, template_definitions["project_pair"])["source"] == "project"
+    assert cast(JsonDict, template_definitions["mps"])["source"] == "global"
+    assert warnings == []
     assert build_template_spec("mps").name == "MPS"
 
 
@@ -234,10 +255,12 @@ def test_project_template_catalog_warnings_skip_invalid_entries(
 
     session = EditorSession(template_catalog_path=catalog_path)
     payload = build_bootstrap_payload(session)
+    templates = _payload_templates(payload)
+    warnings = _payload_warnings(payload)
 
-    assert "valid_project_pair" in payload["templates"]
-    assert "bad name" not in payload["templates"]
-    assert payload["template_catalog_warnings"]
+    assert "valid_project_pair" in templates
+    assert "bad name" not in templates
+    assert warnings
 
 
 def test_project_template_catalog_entries_do_not_leak_between_sessions(
@@ -272,9 +295,11 @@ def test_project_template_catalog_entries_do_not_leak_between_sessions(
     left_session = EditorSession(template_catalog_path=left_catalog_path)
     right_session = EditorSession(template_catalog_path=right_catalog_path)
 
-    assert "project_left_pair" in build_bootstrap_payload(left_session)["templates"]
-    assert (
-        "project_left_pair" not in build_bootstrap_payload(right_session)["templates"]
+    assert "project_left_pair" in _payload_templates(
+        build_bootstrap_payload(left_session)
+    )
+    assert "project_left_pair" not in _payload_templates(
+        build_bootstrap_payload(right_session)
     )
 
 
@@ -305,12 +330,15 @@ def test_project_template_catalog_skips_names_that_collide_with_global_templates
     )
 
     payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+    templates = _payload_templates(payload)
+    template_definitions = _payload_template_definitions(payload)
+    warnings = _payload_warnings(payload)
 
-    assert payload["templates"].count("mps") == 1
-    assert payload["template_definitions"]["mps"]["display_name"] == "MPS"
-    assert payload["template_definitions"]["mps"]["source"] == "global"
-    assert payload["template_catalog_warnings"]
-    assert "global template" in payload["template_catalog_warnings"][0]
+    assert templates.count("mps") == 1
+    assert cast(JsonDict, template_definitions["mps"])["display_name"] == "MPS"
+    assert cast(JsonDict, template_definitions["mps"])["source"] == "global"
+    assert warnings
+    assert "global template" in warnings[0]
 
 
 def test_project_template_catalog_rewrites_away_global_name_collisions_on_save(
@@ -347,13 +375,14 @@ def test_project_template_catalog_rewrites_away_global_name_collisions_on_save(
     append_project_template(catalog_path, "project_pair", valid_spec)
     persisted_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+    templates = _payload_templates(payload)
+    warnings = _payload_warnings(payload)
+    persisted_templates = cast(list[JsonDict], persisted_payload["templates"])
 
-    assert [entry["name"] for entry in persisted_payload["templates"]] == [
-        "project_pair"
-    ]
-    assert payload["templates"][0] == "project_pair"
-    assert payload["templates"].count("mps") == 1
-    assert payload["template_catalog_warnings"] == []
+    assert [entry["name"] for entry in persisted_templates] == ["project_pair"]
+    assert templates[0] == "project_pair"
+    assert templates.count("mps") == 1
+    assert warnings == []
 
 
 def test_project_template_catalog_entries_can_be_renamed_preserving_order(
@@ -381,6 +410,8 @@ def test_project_template_catalog_entries_can_be_renamed_preserving_order(
     )
     reloaded_catalog = load_project_template_catalog(catalog_path)
     payload = build_bootstrap_payload(EditorSession(template_catalog_path=catalog_path))
+    templates = _payload_templates(payload)
+    template_definitions = _payload_template_definitions(payload)
 
     assert list(renamed_catalog.entries) == ["renamed_fragment", "second_fragment"]
     assert list(reloaded_catalog.entries) == ["renamed_fragment", "second_fragment"]
@@ -388,8 +419,10 @@ def test_project_template_catalog_entries_can_be_renamed_preserving_order(
         reloaded_catalog.entries["renamed_fragment"].display_name == "Renamed Fragment"
     )
     assert reloaded_catalog.entries["renamed_fragment"].spec.name == "Renamed Fragment"
-    assert payload["templates"][:2] == ["renamed_fragment", "second_fragment"]
-    assert payload["template_definitions"]["renamed_fragment"]["source"] == "project"
+    assert templates[:2] == ["renamed_fragment", "second_fragment"]
+    assert (
+        cast(JsonDict, template_definitions["renamed_fragment"])["source"] == "project"
+    )
 
 
 def test_project_template_catalog_entries_can_be_deleted_without_leaking(
@@ -413,10 +446,13 @@ def test_project_template_catalog_entries_can_be_deleted_without_leaking(
     right_payload = build_bootstrap_payload(
         EditorSession(template_catalog_path=right_catalog_path)
     )
+    left_templates = _payload_templates(left_payload)
+    right_templates = _payload_templates(right_payload)
+    left_template_definitions = _payload_template_definitions(left_payload)
 
-    assert "project_left_pair" not in left_payload["templates"]
-    assert "project_left_pair" not in right_payload["templates"]
-    assert left_payload["template_definitions"]["mps"]["source"] == "global"
+    assert "project_left_pair" not in left_templates
+    assert "project_left_pair" not in right_templates
+    assert cast(JsonDict, left_template_definitions["mps"])["source"] == "global"
 
 
 def test_project_template_catalog_overwrite_replaces_only_project_entries(
@@ -483,8 +519,10 @@ def test_bootstrap_payload_and_protocol_reflect_registered_extensions() -> None:
     session = EditorSession(default_engine="dummy_engine")
 
     payload = build_bootstrap_payload(session)
+    engines = _payload_engines(payload)
+    templates = _payload_templates(payload)
 
     assert payload["default_engine"] == "dummy_engine"
-    assert "dummy_engine" in payload["engines"]
-    assert payload["templates"][-1] == "custom_pair"
+    assert "dummy_engine" in engines
+    assert templates[-1] == "custom_pair"
     assert resolve_engine({"engine": "dummy_engine"}, "dummy_engine") == "dummy_engine"
