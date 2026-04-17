@@ -16,6 +16,7 @@ from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
+from tensor_network_editor.errors import PackageIOError
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
 from tensor_network_editor.serialization import (
     SCHEMA_VERSION,
@@ -844,6 +845,33 @@ def test_template_promote_route_rejects_overwrite_of_global_template_name(
     assert "global" in payload["message"]
 
 
+def test_template_promote_route_reports_catalog_io_errors_as_bad_request(
+    editor_server: EditorServer,
+) -> None:
+    with patch(
+        "tensor_network_editor.app.routes.promote_serialized_subnetwork_to_template",
+        side_effect=PackageIOError("Could not write project template catalog JSON."),
+    ):
+        status, payload = request_json_with_status(
+            f"{editor_server.base_url}/api/template/promote",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "template_name": "project_pair",
+            },
+        )
+
+    assert status == 400
+    assert payload == {
+        "ok": False,
+        "message": "Could not write project template catalog JSON.",
+    }
+
+
 def test_template_rename_route_renames_project_template_and_updates_selection(
     tmp_path: Path,
 ) -> None:
@@ -943,6 +971,29 @@ def test_template_rename_route_rejects_global_duplicate_and_missing_template(
     assert missing_status == 400
     assert missing_payload["ok"] is False
     assert "missing_template" in missing_payload["message"]
+
+
+def test_template_rename_route_reports_catalog_io_errors_as_bad_request(
+    editor_server: EditorServer,
+) -> None:
+    with patch(
+        "tensor_network_editor.app.routes.rename_session_project_template",
+        side_effect=PackageIOError("Could not write project template catalog JSON."),
+    ):
+        status, payload = request_json_with_status(
+            f"{editor_server.base_url}/api/template/rename",
+            method="POST",
+            payload={
+                "template_name": "project_pair",
+                "new_template_name": "renamed_pair",
+            },
+        )
+
+    assert status == 400
+    assert payload == {
+        "ok": False,
+        "message": "Could not write project template catalog JSON.",
+    }
 
 
 def test_template_delete_route_deletes_project_template_and_keeps_selection_stable(
@@ -1105,8 +1156,30 @@ def test_template_delete_route_rejects_global_and_missing_templates(
     assert global_payload["ok"] is False
     assert "global" in global_payload["message"]
     assert missing_status == 400
-    assert missing_payload["ok"] is False
-    assert "missing_template" in missing_payload["message"]
+    assert missing_payload == {
+        "ok": False,
+        "message": "Unknown project template 'missing_template'.",
+    }
+
+
+def test_template_delete_route_reports_catalog_io_errors_as_bad_request(
+    editor_server: EditorServer,
+) -> None:
+    with patch(
+        "tensor_network_editor.app.routes.delete_session_project_template",
+        side_effect=PackageIOError("Could not write project template catalog JSON."),
+    ):
+        status, payload = request_json_with_status(
+            f"{editor_server.base_url}/api/template/delete",
+            method="POST",
+            payload={"template_name": "project_pair"},
+        )
+
+    assert status == 400
+    assert payload == {
+        "ok": False,
+        "message": "Could not write project template catalog JSON.",
+    }
 
 
 def test_template_promote_route_rejects_linear_periodic_mode(

@@ -134,7 +134,7 @@ def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonRe
             template_name=request.template_name,
             overwrite=request.overwrite,
         )
-    except (SerializationError, TypeError, ValueError) as exc:
+    except (PackageIOError, SerializationError, TypeError, ValueError) as exc:
         return bad_request_response(str(exc))
     return ok_response(catalog_payload)
 
@@ -149,7 +149,7 @@ def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonRes
             new_template_name=request.new_template_name,
             overwrite=request.overwrite,
         )
-    except ValueError as exc:
+    except (PackageIOError, ValueError) as exc:
         return bad_request_response(str(exc))
     return ok_response(catalog_payload)
 
@@ -162,7 +162,7 @@ def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonRes
             session,
             template_name=request.template_name,
         )
-    except ValueError as exc:
+    except (PackageIOError, ValueError) as exc:
         return bad_request_response(str(exc))
     return ok_response(catalog_payload)
 

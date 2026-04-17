@@ -218,6 +218,8 @@ def delete_session_project_template(
             f"Template '{template_name}' is registered globally and cannot be deleted."
         )
     previous_project_template_names = list(session.project_template_entries)
+    if template_name not in previous_project_template_names:
+        raise ValueError(f"Unknown project template '{template_name}'.")
     deleted_template_index = previous_project_template_names.index(template_name)
     session.delete_project_template(template_name)
     selected_template = None

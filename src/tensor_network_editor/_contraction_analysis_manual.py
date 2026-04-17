@@ -14,7 +14,7 @@ from ._contraction_plan import (
     SimulatedContractionPlan,
     simulate_contraction_plan,
 )
-from .models import ContractionPlanSpec, ContractionStepSpec, NetworkSpec
+from .models import NetworkSpec
 
 
 @dataclass(slots=True)
@@ -89,29 +89,6 @@ def _analyze_manual_plan_and_state(
             bytes_per_element=bytes_per_element,
         ),
         _build_manual_operand_state_from_simulation(simulation),
-    )
-
-
-def _simulate_plan_steps(
-    *,
-    steps: list[ContractionStepSpec],
-    initial_operands: dict[str, tuple[str, ...]],
-    dimension_by_label: dict[str, int],
-    bytes_per_element: int,
-) -> ManualContractionPlanAnalysis:
-    """Simulate each saved step and accumulate manual-plan metrics."""
-    return _build_manual_analysis_from_simulation(
-        simulation=simulate_contraction_plan(
-            initial_operand_ids=tuple(initial_operands),
-            initial_operands=initial_operands,
-            initial_axis_names={
-                operand_id: labels for operand_id, labels in initial_operands.items()
-            },
-            dimension_by_label=dimension_by_label,
-            plan=ContractionPlanSpec(steps=steps),
-        ),
-        dimension_by_label=dimension_by_label,
-        bytes_per_element=bytes_per_element,
     )
 
 

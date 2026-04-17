@@ -27,6 +27,7 @@ from tensor_network_editor.codegen.registry import (
     list_generator_names,
     register_generator,
 )
+from tensor_network_editor.errors import PackageIOError
 from tensor_network_editor.models import (
     CodegenResult,
     NetworkSpec,
@@ -493,6 +494,24 @@ def test_project_template_catalog_overwrite_replaces_only_project_entries(
             replacement_spec,
             overwrite=True,
             reserved_names=set(list_template_names()),
+        )
+
+
+def test_append_project_template_wraps_catalog_parent_creation_errors(
+    tmp_path: Path,
+) -> None:
+    blocked_parent = tmp_path / "blocked"
+    blocked_parent.write_text("not a directory", encoding="utf-8")
+    promoted_spec = build_sample_spec()
+
+    with pytest.raises(
+        PackageIOError,
+        match="Could not create parent directory for project template catalog JSON",
+    ):
+        append_project_template(
+            blocked_parent / "templates.json",
+            "project_pair",
+            promoted_spec,
         )
 
 

@@ -280,7 +280,13 @@ def save_project_template_catalog(
 ) -> None:
     """Write the project-local template catalog to disk."""
     target_path = Path(catalog_path)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise PackageIOError(
+            "Could not create parent directory for project template catalog JSON "
+            f"at '{target_path.parent}': {exc}"
+        ) from exc
     payload = {
         "schema_version": PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION,
         "templates": [entry.to_dict() for entry in entries.values()],
