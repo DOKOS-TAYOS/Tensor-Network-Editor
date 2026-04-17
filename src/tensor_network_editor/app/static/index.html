@@ -279,7 +279,7 @@
                 <div class="title-control-group title-control-group-template">
                   <label
                     id="template-select-field"
-                    class="template-parameter-field template-select-field"
+                    class="template-parameter-field template-select-field select-chevron-field"
                     for="template-select"
                     data-expanded="false"
                   >
@@ -379,7 +379,15 @@
                 aria-expanded="true"
                 title="Collapse sidebar"
               >
-                &gt;&gt;
+                <svg
+                  class="sidebar-toggle-icon"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M4.5 3.25 8.5 8l-4 4.75"></path>
+                  <path d="M9 3.25 13 8l-4 4.75"></path>
+                </svg>
               </button>
               <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Editor side panel sections">
               <button
@@ -504,11 +512,19 @@
           class="help-dialog-close"
           type="button"
           aria-label="Close help"
+          title="Close"
         >
-          Close
+          <svg
+            class="help-close-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4.22 3.16 8 6.94l3.78-3.78a.75.75 0 1 1 1.06 1.06L9.06 8l3.78 3.78a.75.75 0 1 1-1.06 1.06L8 9.06l-3.78 3.78a.75.75 0 1 1-1.06-1.06L6.94 8 3.16 4.22a.75.75 0 1 1 1.06-1.06Z"/>
+          </svg>
         </button>
         <div id="help-shared-header" class="help-dialog-header">
-          <h2 id="help-title">Help</h2>
+          <h2 id="help-title">Info</h2>
           <p id="help-note" class="help-note">Use the menu to switch between Info, Shortcuts, and About.</p>
         </div>
 

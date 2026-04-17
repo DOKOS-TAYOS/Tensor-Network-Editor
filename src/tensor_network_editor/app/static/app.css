@@ -413,27 +413,27 @@ select {
   line-height: 1.1;
 }
 
-.template-select-field {
+.select-chevron-field {
   position: relative;
 }
 
-.template-select-field::after {
-  content: "›";
+.select-chevron-field::after {
+  content: "";
   position: absolute;
-  right: 0.8rem;
-  bottom: 0.7rem;
-  color: rgba(236, 242, 251, 0.78);
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1;
+  right: 0.9rem;
+  top: calc(50% + 0.5rem);
+  width: 0.44rem;
+  height: 0.44rem;
+  border-right: 2px solid rgba(236, 242, 251, 0.78);
+  border-bottom: 2px solid rgba(236, 242, 251, 0.78);
   pointer-events: none;
-  transition: color 0.12s ease, transform 0.12s ease;
+  transform: translateY(-50%) rotate(45deg);
+  transform-origin: center;
+  transition: border-color 0.12s ease;
 }
 
-.template-select-field:focus-within::after {
-  content: "⌄";
-  color: var(--accent-strong);
-  transform: translateY(0.04rem);
+.select-chevron-field:focus-within::after {
+  border-color: var(--accent-strong);
 }
 
 .template-select-field select {
@@ -444,25 +444,6 @@ select {
   -moz-appearance: none;
 }
 
-.template-select-field::after {
-  content: "";
-  position: absolute;
-  right: 0.9rem;
-  bottom: 0.83rem;
-  width: 0.42rem;
-  height: 0.42rem;
-  border-top: 2px solid rgba(236, 242, 251, 0.78);
-  border-right: 2px solid rgba(236, 242, 251, 0.78);
-  pointer-events: none;
-  transform: rotate(45deg);
-  transform-origin: center;
-  transition: border-color 0.12s ease, transform 0.12s ease;
-}
-
-.template-select-field[data-expanded="true"]::after {
-  border-color: var(--accent-strong);
-  transform: rotate(135deg);
-}
 
 .template-number-field input {
   width: 6rem;
@@ -710,8 +691,21 @@ select {
   flex-wrap: wrap;
 }
 
-.canvas-tool-popover-header select {
+.canvas-tool-scope-field {
   min-width: 6.5rem;
+}
+
+.canvas-tool-scope-field::after {
+  top: 50%;
+}
+
+.canvas-tool-scope-field select {
+  width: 100%;
+  min-width: 6.5rem;
+  padding-right: 2.1rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 .canvas-tool-actions {
@@ -1135,6 +1129,16 @@ select {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+}
+
+.sidebar-toggle-button svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .sidebar-panel.is-collapsed .sidebar-toggle-button {
@@ -2034,6 +2038,29 @@ textarea[disabled] {
   top: 1.25rem;
   right: 1.25rem;
   z-index: 1;
+  width: 2.2rem;
+  min-width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: rgba(255, 235, 239, 0.96);
+  background: rgba(98, 28, 36, 0.42);
+  border: 1px solid rgba(203, 79, 92, 0.42);
+}
+
+.help-dialog-close:hover,
+.help-dialog-close:focus-visible {
+  color: #fff4f6;
+  border-color: rgba(234, 114, 126, 0.76);
+  background: rgba(116, 34, 44, 0.56);
+}
+
+.help-close-icon {
+  width: 0.82rem;
+  height: 0.82rem;
 }
 
 .help-dialog-header {
@@ -2077,6 +2104,7 @@ textarea[disabled] {
 }
 
 .help-shortcuts {
+  margin-top: 1rem;
   padding: 1rem;
   border-radius: 18px;
   border: 1px solid rgba(44, 52, 72, 0.95);

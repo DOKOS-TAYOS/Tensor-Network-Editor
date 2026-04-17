@@ -374,17 +374,19 @@ export function registerMetadataFilters(ctx) {
     return `
       <div class="canvas-tool-popover" data-canvas-tool-popover="filter">
         <div class="canvas-tool-popover-header">
-          <select id="canvas-metadata-filter-scope-select" aria-label="Filter scope">
-            <option value="tensor"${
-              filters.scope === "tensor" ? " selected" : ""
-            }>Tensor</option>
-            <option value="index"${
-              filters.scope === "index" ? " selected" : ""
-            }>Index</option>
-            <option value="bond"${
-              filters.scope === "bond" ? " selected" : ""
-            }>Bond</option>
-          </select>
+          <div class="canvas-tool-scope-field select-chevron-field">
+            <select id="canvas-metadata-filter-scope-select" aria-label="Filter scope">
+              <option value="tensor"${
+                filters.scope === "tensor" ? " selected" : ""
+              }>Tensor</option>
+              <option value="index"${
+                filters.scope === "index" ? " selected" : ""
+              }>Index</option>
+              <option value="bond"${
+                filters.scope === "bond" ? " selected" : ""
+              }>Bond</option>
+            </select>
+          </div>
           <div class="canvas-tool-actions">
             <button
               id="canvas-metadata-filter-clear-button"
@@ -452,17 +454,19 @@ export function registerMetadataFilters(ctx) {
     return `
       <div class="canvas-tool-popover" data-canvas-tool-popover="search">
         <div class="canvas-tool-popover-header">
-          <select id="canvas-name-search-scope-select" aria-label="Search scope">
-            <option value="tensor"${
-              search.scope === "tensor" ? " selected" : ""
-            }>Tensor</option>
-            <option value="index"${
-              search.scope === "index" ? " selected" : ""
-            }>Index</option>
-            <option value="bond"${
-              search.scope === "bond" ? " selected" : ""
-            }>Bond</option>
-          </select>
+          <div class="canvas-tool-scope-field select-chevron-field">
+            <select id="canvas-name-search-scope-select" aria-label="Search scope">
+              <option value="tensor"${
+                search.scope === "tensor" ? " selected" : ""
+              }>Tensor</option>
+              <option value="index"${
+                search.scope === "index" ? " selected" : ""
+              }>Index</option>
+              <option value="bond"${
+                search.scope === "bond" ? " selected" : ""
+              }>Bond</option>
+            </select>
+          </div>
         </div>
         <div class="field-group">
           <input

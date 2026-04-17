@@ -4603,22 +4603,26 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             }
             runtime.openHelpSection("shortcuts");
             if (
-              ctx.dom.helpSharedHeader.hidden !== true
-              || ctx.dom.helpTitle.hidden !== true
-              || ctx.dom.helpNote.hidden !== true
+              ctx.dom.helpSharedHeader.hidden !== false
+              || ctx.dom.helpTitle.hidden !== false
             ) {
-              throw new Error("Shortcuts should hide the shared help header.");
+              throw new Error("Shortcuts should keep the shared help header visible.");
+            }
+            if (ctx.dom.helpTitle.textContent !== "Shortcuts" || ctx.dom.helpNote.hidden !== true) {
+              throw new Error("Shortcuts should show its title and hide the help note.");
             }
             if (ctx.dom.helpShortcutsSection.hidden !== false || ctx.dom.helpInfoSection.hidden !== true) {
               throw new Error("Shortcuts should only show the shortcuts section.");
             }
             runtime.openHelpSection("about");
             if (
-              ctx.dom.helpSharedHeader.hidden !== true
-              || ctx.dom.helpTitle.hidden !== true
-              || ctx.dom.helpNote.hidden !== true
+              ctx.dom.helpSharedHeader.hidden !== false
+              || ctx.dom.helpTitle.hidden !== false
             ) {
-              throw new Error("About should hide the shared help header.");
+              throw new Error("About should keep the shared help header visible.");
+            }
+            if (ctx.dom.helpTitle.textContent !== "About" || ctx.dom.helpNote.hidden !== true) {
+              throw new Error("About should show its title and hide the help note.");
             }
             if (ctx.dom.helpAboutSection.hidden !== false || ctx.dom.helpShortcutsSection.hidden !== true) {
               throw new Error("About should only show the about section.");
@@ -4630,6 +4634,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               || ctx.dom.helpNote.hidden !== false
             ) {
               throw new Error("Info should keep the shared help header visible.");
+            }
+            if (ctx.dom.helpTitle.textContent !== "Info") {
+              throw new Error("Info should set the shared help title to Info.");
             }
             if (ctx.dom.helpInfoSection.hidden !== false || ctx.dom.helpAboutSection.hidden !== true) {
               throw new Error("Info should only show the information section.");

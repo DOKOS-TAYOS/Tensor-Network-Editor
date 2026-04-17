@@ -35,6 +35,23 @@ export function registerSidebarTabs(ctx) {
     },
   };
 
+  function buildSidebarToggleIconMarkup(isCollapsed) {
+    if (isCollapsed) {
+      return `
+        <svg class="sidebar-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M11.5 3.25 7.5 8l4 4.75"></path>
+          <path d="M7 3.25 3 8l4 4.75"></path>
+        </svg>
+      `;
+    }
+    return `
+      <svg class="sidebar-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M4.5 3.25 8.5 8l-4 4.75"></path>
+        <path d="M9 3.25 13 8l-4 4.75"></path>
+      </svg>
+    `;
+  }
+
   function normalizeSidebarTab(tabName) {
     return Object.prototype.hasOwnProperty.call(tabConfig, tabName) ? tabName : "selection";
   }
@@ -100,7 +117,7 @@ export function registerSidebarTabs(ctx) {
       sidebarResizeHandle.hidden = isCollapsed;
     }
     if (sidebarToggleButton) {
-      sidebarToggleButton.innerHTML = isCollapsed ? "&lt;&lt;" : "&gt;&gt;";
+      sidebarToggleButton.innerHTML = buildSidebarToggleIconMarkup(isCollapsed);
       sidebarToggleButton.setAttribute("aria-expanded", String(!isCollapsed));
       sidebarToggleButton.dataset.shortcut = "S";
       sidebarToggleButton.dataset.shortcutLabel = isCollapsed

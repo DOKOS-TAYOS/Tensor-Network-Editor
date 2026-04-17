@@ -381,14 +381,14 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "top: var(--template-settings-popover-top, 0px);" in body
     assert "left: var(--template-settings-popover-left, 0px);" in body
     assert "position: fixed;" in body
-    assert ".template-select-field {" in body
-    assert ".template-select-field::after {" in body
+    assert ".select-chevron-field::after {" in body
     assert 'content: "";' in body
-    assert "border-top: 2px solid rgba(236, 242, 251, 0.78);" in body
     assert "border-right: 2px solid rgba(236, 242, 251, 0.78);" in body
-    assert "transform: rotate(45deg);" in body
-    assert '.template-select-field[data-expanded="true"]::after {' in body
-    assert "transform: rotate(135deg);" in body
+    assert "border-bottom: 2px solid rgba(236, 242, 251, 0.78);" in body
+    assert "transform: translateY(-50%) rotate(45deg);" in body
+    assert '.template-select-field[data-expanded="true"]::after {' not in body
+    assert 'content: "â€º";' not in body
+    assert 'content: "âŒ„";' not in body
     assert ".template-parameter-panel select," in body
     assert "height: var(--canvas-control-height);" in body
     assert ".template-select-field select {" in body
@@ -427,9 +427,12 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
     sidebar_body = request_text(f"{editor_server.base_url}/js/sidebarTabs.js")
 
     assert 'id="sidebar-resize-handle"' in html
+    assert 'class="sidebar-toggle-icon"' in html
+    assert "&gt;&gt;" not in html
     assert 'role="separator"' in html
     assert "--sidebar-width: 360px;" in css_body
     assert ".sidebar-resize-handle {" in css_body
+    assert ".sidebar-toggle-button svg {" in css_body
     assert (
         "grid-template-columns: minmax(0, 1fr) minmax(280px, var(--sidebar-width));"
         in css_body
@@ -439,6 +442,7 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
         in dom_body
     )
     assert "function setSidebarWidth(" in sidebar_body
+    assert "function buildSidebarToggleIconMarkup(" in sidebar_body
     assert (
         'windowRef.addEventListener("mousemove", handleSidebarResizeMove);'
         in sidebar_body
@@ -594,12 +598,15 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "canvas-metadata-filter-select-none-button" in filter_body
     assert "Not specified" in filter_body
     assert "canvas-name-search-input" in filter_body
+    assert 'class="canvas-tool-scope-field select-chevron-field"' in filter_body
     assert '"bond"' in filter_body
     assert "function getMetadataFilterHighlight(" in filter_body
     assert "metadata-filter-dim" in graph_body
     assert "getMetadataFilterEntityState" in graph_body
     assert "getMetadataFilterEntityState" in minimap_body
     assert ".canvas-tool-popover" in css_body
+    assert ".canvas-tool-scope-field {" in css_body
+    assert ".canvas-tool-scope-field select {" in css_body
     assert "bottom: calc(100% +" in css_body
     assert "flex-wrap: wrap;" in css_body
     assert "transform: rotate(90deg)" in css_body
@@ -1080,6 +1087,11 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-catalog-warning"' in html
     assert 'id="insert-subnetwork-button"' not in html
     assert 'id="help-shared-header"' in html
+    assert 'class="help-close-icon"' in html
+    assert not re.search(
+        r'<button id="help-close-button"[^>]*>\s*Close\s*</button>',
+        html,
+    )
     shortcuts_section = re.search(
         r'<section id="help-shortcuts-section"[^>]*>(?P<body>.*?)</section>',
         html,
@@ -1114,6 +1126,13 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert 'helpSharedHeader: document.getElementById("help-shared-header")' in dom_body
+    assert ".help-dialog-close {" in body
+    assert "width: 2.2rem;" in body
+    assert "min-width: 2.2rem;" in body
+    assert "height: 2.2rem;" in body
+    assert "border-radius: 8px;" in body
+    assert "color: rgba(255, 235, 239, 0.96);" in body
+    assert ".help-dialog-close:hover," in body
     assert ".help-dialog-header[hidden] {" in body
     assert ".help-sections[hidden] {" in body
     assert ".help-shortcuts[hidden] {" in body

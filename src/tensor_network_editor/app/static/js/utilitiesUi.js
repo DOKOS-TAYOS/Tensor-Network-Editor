@@ -79,11 +79,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     },
     shortcuts: {
       title: "Shortcuts",
-      note: "Keyboard shortcuts for the editor.",
+      note: "",
     },
     about: {
       title: "About",
-      note: "Repository and package metadata.",
+      note: "",
     },
   };
   const LINEAR_PERIODIC_CELL_LABELS = {
@@ -356,7 +356,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       ? state.activeHelpSection
       : "info";
     const sectionContent = HELP_SECTION_CONTENT[helpSection];
-    const showSharedHelpHeader = helpSection === "info";
+    const showSharedHelpHeader = true;
+    const showSharedHelpNote = Boolean(sectionContent.note);
     if (helpSharedHeader) {
       helpSharedHeader.hidden = !showSharedHelpHeader;
     }
@@ -366,7 +367,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     if (helpNote) {
       helpNote.textContent = sectionContent.note;
-      helpNote.hidden = !showSharedHelpHeader;
+      helpNote.hidden = !showSharedHelpNote;
     }
     if (helpInfoSection) {
       helpInfoSection.hidden = helpSection !== "info";
