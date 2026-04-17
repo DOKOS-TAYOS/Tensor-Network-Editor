@@ -372,6 +372,9 @@ export function createInteractionShortcutBindings({
     }
     ctx.renderOverlayDecorations();
     ctx.renderMinimap();
+    if (typeof ctx.syncToolbarTransientUi === "function") {
+      ctx.syncToolbarTransientUi();
+    }
   }
 
   return {

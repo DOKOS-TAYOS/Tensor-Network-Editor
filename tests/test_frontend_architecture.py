@@ -1809,7 +1809,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
           linearPeriodicCellLabel: {{ textContent: "" }},
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
-          templateSelect: {{ value: "mps", addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateSelectField: getButton("template-select-field"),
+          templateSelect: {{
+            value: "mps",
+            addEventListener(type, handler) {{ this[type] = handler; }},
+          }},
           templateSettingsButton: getButton("template-settings-button"),
           templateSettingsPopover: getButton("template-settings-popover"),
           templateGraphSizeInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
@@ -1924,6 +1928,14 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.editSessionTemplateMenuItem.click();
         dom.helpInfoMenuItem.click();
         dom.templateSettingsButton.click();
+        dom.templateSelect.mousedown({{ target: dom.templateSelect }});
+        if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
+          throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
+        }}
+        dom.templateSelect.change({{ target: dom.templateSelect }});
+        if (dom.templateSelectField.attributes["data-expanded"] !== "false") {{
+          throw new Error("Expected template select change to collapse the disclosure indicator.");
+        }}
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
         }}

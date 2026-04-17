@@ -277,13 +277,33 @@
                 </div>
                 <div class="title-control-divider" aria-hidden="true"></div>
                 <div class="title-control-group title-control-group-template">
-                  <label class="template-parameter-field template-select-field" for="template-select">
+                  <label
+                    id="template-select-field"
+                    class="template-parameter-field template-select-field"
+                    for="template-select"
+                    data-expanded="false"
+                  >
                     <span class="template-parameter-title">Template</span>
                     <select id="template-select"></select>
                   </label>
                   <div class="template-settings-shell">
-                    <button id="template-settings-button" type="button" aria-label="Template settings" title="Template settings" aria-haspopup="dialog" aria-expanded="false">
-                      ...
+                    <button
+                      id="template-settings-button"
+                      class="icon-button template-settings-button"
+                      type="button"
+                      aria-label="Template settings"
+                      title="Template settings"
+                      aria-haspopup="dialog"
+                      aria-expanded="false"
+                    >
+                      <svg
+                        class="template-settings-icon"
+                        viewBox="0 0 16 16"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path d="M6.4 1.75a.75.75 0 0 1 .75.75v.53c.56-.08 1.13-.08 1.69 0V2.5a.75.75 0 0 1 1.5 0v.89c.42.14.82.31 1.19.52l.62-.62a.75.75 0 1 1 1.06 1.06l-.62.62c.21.37.39.77.52 1.19h.89a.75.75 0 0 1 0 1.5h-.53c.08.56.08 1.13 0 1.69H13.5a.75.75 0 0 1 0 1.5h-.89a5.04 5.04 0 0 1-.52 1.19l.62.62a.75.75 0 0 1-1.06 1.06l-.62-.62c-.37.21-.77.39-1.19.52v.89a.75.75 0 0 1-1.5 0v-.53a6.11 6.11 0 0 1-1.69 0v.53a.75.75 0 0 1-1.5 0v-.89a5.04 5.04 0 0 1-1.19-.52l-.62.62a.75.75 0 1 1-1.06-1.06l.62-.62a5.04 5.04 0 0 1-.52-1.19H2.5a.75.75 0 0 1 0-1.5h.53a6.11 6.11 0 0 1 0-1.69H2.5a.75.75 0 0 1 0-1.5h.89c.14-.42.31-.82.52-1.19l-.62-.62a.75.75 0 1 1 1.06-1.06l.62.62c.37-.21.77-.39 1.19-.52V2.5a.75.75 0 0 1 .75-.75Zm1.6 3.85A2.4 2.4 0 1 0 8 10.4a2.4 2.4 0 0 0 0-4.8Z"/>
+                      </svg>
                     </button>
                     <div id="template-settings-popover" class="template-settings-popover" hidden>
                       <div id="template-parameter-panel" class="template-parameter-panel">
@@ -479,12 +499,17 @@
     <div id="help-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
       <div id="help-backdrop" class="help-backdrop"></div>
       <section class="help-dialog">
-        <div class="help-dialog-header">
-          <div>
-            <h2 id="help-title">Help</h2>
-            <p id="help-note" class="help-note">Use the menu to switch between Info, Shortcuts, and About.</p>
-          </div>
-          <button id="help-close-button" type="button" aria-label="Close help">Close</button>
+        <button
+          id="help-close-button"
+          class="help-dialog-close"
+          type="button"
+          aria-label="Close help"
+        >
+          Close
+        </button>
+        <div id="help-shared-header" class="help-dialog-header">
+          <h2 id="help-title">Help</h2>
+          <p id="help-note" class="help-note">Use the menu to switch between Info, Shortcuts, and About.</p>
         </div>
 
         <div id="help-info-section" class="help-sections">
@@ -552,7 +577,6 @@
         </div>
 
         <section id="help-shortcuts-section" class="help-shortcuts" hidden>
-          <h3>Shortcuts</h3>
           <div class="help-shortcut-grid">
             <div><strong>Ctrl/Cmd+Z</strong><span>Undo</span></div>
             <div><strong>Ctrl/Cmd+Shift+Z</strong><span>Redo</span></div>
@@ -589,7 +613,6 @@
         </section>
 
         <section id="help-about-section" class="help-shortcuts" hidden>
-          <h3>About</h3>
           <div class="help-shortcut-grid help-about-grid">
             <div>
               <strong>Repository</strong>

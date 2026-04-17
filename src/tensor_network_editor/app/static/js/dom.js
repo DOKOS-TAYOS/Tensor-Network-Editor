@@ -42,6 +42,7 @@ export function getDomRefs(document) {
     linearPeriodicNextCellButton: document.getElementById(
       "linear-periodic-next-cell-button"
     ),
+    templateSelectField: document.getElementById("template-select-field"),
     templateSelect: document.getElementById("template-select"),
     templateSettingsButton: document.getElementById("template-settings-button"),
     templateSettingsPopover: document.getElementById("template-settings-popover"),
@@ -83,6 +84,7 @@ export function getDomRefs(document) {
     helpModal: document.getElementById("help-modal"),
     helpBackdrop: document.getElementById("help-backdrop"),
     helpCloseButton: document.getElementById("help-close-button"),
+    helpSharedHeader: document.getElementById("help-shared-header"),
     helpTitle: document.getElementById("help-title"),
     helpNote: document.getElementById("help-note"),
     helpInfoSection: document.getElementById("help-info-section"),

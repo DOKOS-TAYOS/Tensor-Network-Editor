@@ -35,6 +35,7 @@ export function createEditorShellBindings({
     linearPeriodicModeMenuItem,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
+    templateSelectField,
     templateSelect,
     templateSettingsButton,
     templateSettingsPopover,
@@ -117,6 +118,23 @@ export function createEditorShellBindings({
         actions.openToolbarMenu(menuName);
       }
     });
+  }
+
+  function readTemplateSelectExpanded() {
+    if (!templateSelectField) {
+      return false;
+    }
+    if (typeof templateSelectField.getAttribute === "function") {
+      return templateSelectField.getAttribute("data-expanded") === "true";
+    }
+    return templateSelectField.attributes?.["data-expanded"] === "true";
+  }
+
+  function setTemplateSelectExpanded(isExpanded) {
+    if (!templateSelectField || typeof templateSelectField.setAttribute !== "function") {
+      return;
+    }
+    templateSelectField.setAttribute("data-expanded", String(Boolean(isExpanded)));
   }
 
   function attachToolbarHandlers() {
@@ -202,7 +220,25 @@ export function createEditorShellBindings({
     bindListener(linearPeriodicNextCellButton, "click", () => {
       actions.switchLinearPeriodicCell(1);
     });
-    bindListener(templateSelect, "change", actions.handleTemplateSelectionChange);
+    setTemplateSelectExpanded(false);
+    bindListener(templateSelect, "mousedown", () => {
+      setTemplateSelectExpanded(!readTemplateSelectExpanded());
+    });
+    bindListener(templateSelect, "keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+        setTemplateSelectExpanded(true);
+      }
+      if (["Escape", "Tab"].includes(event.key)) {
+        setTemplateSelectExpanded(false);
+      }
+    });
+    bindListener(templateSelect, "blur", () => {
+      setTemplateSelectExpanded(false);
+    });
+    bindListener(templateSelect, "change", (event) => {
+      setTemplateSelectExpanded(false);
+      actions.handleTemplateSelectionChange(event);
+    });
     bindListener(templateGraphSizeInput, "change", actions.handleTemplateParameterInput);
     bindListener(templateBondDimensionInput, "change", actions.handleTemplateParameterInput);
     bindListener(

@@ -14,6 +14,7 @@
   --danger: #ff6e66;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
   --canvas-control-height: 2.5rem;
+  --toolbar-height: 3rem;
   --sidebar-width: 360px;
 }
 
@@ -144,6 +145,8 @@ select {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.45rem 1rem;
+  min-height: var(--toolbar-height);
+  height: var(--toolbar-height);
   border-bottom: 1px solid rgba(44, 52, 72, 0.95);
   backdrop-filter: blur(10px);
   background: rgba(19, 21, 26, 0.96);
@@ -156,7 +159,7 @@ select {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   padding-bottom: 0.1rem;
 }
 
@@ -232,10 +235,13 @@ select {
 }
 
 .toolbar-menu-panel {
-  position: absolute;
-  top: calc(100% + 0.2rem);
-  left: 0;
+  position: fixed;
+  top: var(--toolbar-menu-top, 0px);
+  left: var(--toolbar-menu-left, 0px);
   min-width: 15rem;
+  max-width: min(calc(100vw - 1rem), 24rem);
+  max-height: min(70dvh, calc(100dvh - var(--toolbar-menu-top, 0px) - 0.75rem));
+  overflow: auto;
   padding: 0.3rem;
   border-radius: 6px;
   border: 1px solid rgba(82, 86, 97, 0.98);
@@ -243,7 +249,7 @@ select {
   box-shadow: var(--shadow);
   display: grid;
   gap: 0.1rem;
-  z-index: 90;
+  z-index: 220;
 }
 
 .toolbar-menu-panel[hidden] {
@@ -353,16 +359,39 @@ select {
   align-items: flex-end;
 }
 
+.template-settings-button {
+  color: rgba(194, 201, 214, 0.82);
+  border-color: rgba(112, 124, 147, 0.44);
+  background: rgba(14, 20, 30, 0.84);
+}
+
+.template-settings-button:hover,
+.template-settings-button:focus-visible {
+  color: rgba(236, 242, 251, 0.94);
+  border-color: rgba(144, 156, 180, 0.7);
+}
+
+.template-settings-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .template-settings-popover {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
+  position: fixed;
+  top: var(--template-settings-popover-top, 0px);
+  left: var(--template-settings-popover-left, 0px);
+  max-width: min(calc(100vw - 1rem), 28rem);
+  max-height: min(
+    70dvh,
+    calc(100dvh - var(--template-settings-popover-top, 0px) - 0.75rem)
+  );
+  overflow: auto;
   padding: 0.75rem;
   border-radius: 8px;
   border: 1px solid rgba(76, 92, 120, 0.92);
   background: rgba(14, 20, 30, 0.98);
   box-shadow: var(--shadow);
-  z-index: 80;
+  z-index: 220;
 }
 
 .template-settings-popover[hidden] {
@@ -384,8 +413,55 @@ select {
   line-height: 1.1;
 }
 
+.template-select-field {
+  position: relative;
+}
+
+.template-select-field::after {
+  content: "›";
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.7rem;
+  color: rgba(236, 242, 251, 0.78);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.template-select-field:focus-within::after {
+  content: "⌄";
+  color: var(--accent-strong);
+  transform: translateY(0.04rem);
+}
+
 .template-select-field select {
   min-width: 9rem;
+  padding-right: 2.2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.template-select-field::after {
+  content: "";
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.83rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-top: 2px solid rgba(236, 242, 251, 0.78);
+  border-right: 2px solid rgba(236, 242, 251, 0.78);
+  pointer-events: none;
+  transform: rotate(45deg);
+  transform-origin: center;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.template-select-field[data-expanded="true"]::after {
+  border-color: var(--accent-strong);
+  transform: rotate(135deg);
 }
 
 .template-number-field input {
@@ -467,7 +543,7 @@ select {
 .title-button-scroll-shell {
   width: 100%;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   padding-bottom: 0.2rem;
 }
 
@@ -1953,11 +2029,17 @@ textarea[disabled] {
   overflow: auto;
 }
 
+.help-dialog-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 1;
+}
+
 .help-dialog-header {
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  align-items: flex-start;
+  display: grid;
+  gap: 0.35rem;
+  padding-right: 5.5rem;
 }
 
 .help-dialog-header h2,
@@ -1987,7 +2069,6 @@ textarea[disabled] {
 }
 
 .help-shortcuts {
-  margin-top: 1rem;
   padding: 1rem;
   border-radius: 18px;
   border: 1px solid rgba(44, 52, 72, 0.95);
@@ -2082,11 +2163,12 @@ textarea[disabled] {
   }
 
   .toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .toolbar-scroll-shell {
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .workspace {
@@ -2117,11 +2199,6 @@ textarea[disabled] {
   .template-parameter-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: start;
-  }
-
-  .template-settings-popover {
-    right: auto;
-    left: 0;
   }
 
   .template-select-field select,

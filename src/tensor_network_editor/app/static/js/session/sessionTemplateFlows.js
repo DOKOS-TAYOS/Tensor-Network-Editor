@@ -382,42 +382,25 @@ export function createSessionTemplateFlows({
     const nameInput = documentRef.createElement("input");
     const sourceBadge = documentRef.createElement("span");
     row.className = "template-manager-row";
-    if (entry.source !== "session") {
-      row.classList.add("is-locked");
-    }
     nameLabel.textContent = "Template name";
     nameInput.value =
-      entry.source === "session"
-        ? templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName
-        : entry.displayName;
+      templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName;
     nameInput.dataset.templateName = entry.templateName;
-    nameInput.disabled = entry.source !== "session";
+    nameInput.disabled = false;
     sourceBadge.className = "template-manager-source";
-    sourceBadge.textContent =
-      entry.source === "session"
-        ? "Session"
-        : entry.source === "project"
-          ? "Project"
-          : "Built-in";
+    sourceBadge.textContent = "Session";
     nameField.append(nameLabel, nameInput);
     row.append(nameField, sourceBadge);
-    if (entry.source === "session") {
-      const deleteButton = documentRef.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.className = "icon-button danger";
-      deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
-      deleteButton.textContent = "Delete";
-      deleteButton.addEventListener("click", () => {
-        templateManagerDraft.deletedTemplateNames.add(entry.templateName);
-        renderTemplateManager();
-      });
-      row.appendChild(deleteButton);
-    } else {
-      const lockedBadge = documentRef.createElement("span");
-      lockedBadge.className = "template-manager-source";
-      lockedBadge.textContent = "Locked";
-      row.appendChild(lockedBadge);
-    }
+    const deleteButton = documentRef.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "icon-button danger";
+    deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => {
+      templateManagerDraft.deletedTemplateNames.add(entry.templateName);
+      renderTemplateManager();
+    });
+    row.appendChild(deleteButton);
     return row;
   }
 
@@ -427,9 +410,11 @@ export function createSessionTemplateFlows({
     }
     templateManagerList.innerHTML = "";
     actions.listTemplateEntries().forEach((entry) => {
+      if (entry.source !== "session") {
+        return;
+      }
       if (
-        entry.source === "session"
-        && templateManagerDraft.deletedTemplateNames.has(entry.templateName)
+        templateManagerDraft.deletedTemplateNames.has(entry.templateName)
       ) {
         return;
       }

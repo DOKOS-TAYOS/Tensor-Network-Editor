@@ -39,6 +39,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     generateButton,
     helpModal,
     helpCloseButton,
+    helpSharedHeader,
     helpTitle,
     helpNote,
     helpInfoSection,
@@ -90,6 +91,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     periodic: "Periodic cell",
     final: "Final cell",
   };
+  const FLOATING_PANEL_MARGIN = 8;
+  const FLOATING_PANEL_GAP = 4;
 
   function toggleElementClass(element, className, isActive) {
     if (
@@ -119,6 +122,101 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
   }
 
+  function setStyleVariable(element, propertyName, value) {
+    if (!element || !element.style) {
+      return;
+    }
+    if (typeof element.style.setProperty === "function") {
+      element.style.setProperty(propertyName, value);
+      return;
+    }
+    element.style[propertyName] = value;
+  }
+
+  function normalizeRect(rect, fallbackWidth = 0, fallbackHeight = 0) {
+    const left = Number.isFinite(rect?.left) ? rect.left : 0;
+    const top = Number.isFinite(rect?.top) ? rect.top : 0;
+    const widthFromEdges =
+      Number.isFinite(rect?.right) && Number.isFinite(rect?.left)
+        ? Math.max(rect.right - rect.left, 0)
+        : 0;
+    const heightFromEdges =
+      Number.isFinite(rect?.bottom) && Number.isFinite(rect?.top)
+        ? Math.max(rect.bottom - rect.top, 0)
+        : 0;
+    const width =
+      Number.isFinite(rect?.width) && rect.width > 0
+        ? rect.width
+        : Math.max(widthFromEdges, fallbackWidth);
+    const height =
+      Number.isFinite(rect?.height) && rect.height > 0
+        ? rect.height
+        : Math.max(heightFromEdges, fallbackHeight);
+
+    return {
+      left,
+      top,
+      width,
+      height,
+      right: Number.isFinite(rect?.right) ? rect.right : left + width,
+      bottom: Number.isFinite(rect?.bottom) ? rect.bottom : top + height,
+    };
+  }
+
+  function getElementRect(element, fallbackWidth = 0, fallbackHeight = 0) {
+    const rawRect =
+      element && typeof element.getBoundingClientRect === "function"
+        ? element.getBoundingClientRect()
+        : null;
+    return normalizeRect(rawRect, fallbackWidth, fallbackHeight);
+  }
+
+  function clampFloatingOffset(offset, panelSize, viewportSize) {
+    const minOffset = FLOATING_PANEL_MARGIN;
+    const maxOffset = Math.max(
+      FLOATING_PANEL_MARGIN,
+      viewportSize - panelSize - FLOATING_PANEL_MARGIN
+    );
+    return Math.min(Math.max(offset, minOffset), maxOffset);
+  }
+
+  function positionFloatingPanel(
+    panel,
+    anchor,
+    {
+      align = "left",
+      leftVariable,
+      topVariable,
+      fallbackWidth = 0,
+      fallbackHeight = 0,
+    }
+  ) {
+    if (!panel || !anchor) {
+      return;
+    }
+
+    const windowRef = ctx.window && typeof ctx.window === "object" ? ctx.window : globalThis;
+    const anchorRect = getElementRect(anchor);
+    const panelRect = getElementRect(panel, fallbackWidth, fallbackHeight);
+    const viewportWidth = Number.isFinite(windowRef.innerWidth)
+      ? windowRef.innerWidth
+      : anchorRect.right + panelRect.width + FLOATING_PANEL_MARGIN;
+    const viewportHeight = Number.isFinite(windowRef.innerHeight)
+      ? windowRef.innerHeight
+      : anchorRect.bottom + panelRect.height + FLOATING_PANEL_MARGIN;
+    const rawLeft =
+      align === "right" ? anchorRect.right - panelRect.width : anchorRect.left;
+    const left = clampFloatingOffset(rawLeft, panelRect.width, viewportWidth);
+    const top = clampFloatingOffset(
+      anchorRect.bottom + FLOATING_PANEL_GAP,
+      panelRect.height,
+      viewportHeight
+    );
+
+    setStyleVariable(panel, leftVariable, `${Math.round(left)}px`);
+    setStyleVariable(panel, topVariable, `${Math.round(top)}px`);
+  }
+
   function syncToolbarTransientUi() {
     const openToolbarMenu =
       typeof state.openToolbarMenu === "string" ? state.openToolbarMenu : null;
@@ -127,6 +225,14 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         openToolbarMenu === menuName && elements.button && !elements.button.disabled;
       if (elements.panel) {
         elements.panel.hidden = !isOpen;
+        if (isOpen) {
+          positionFloatingPanel(elements.panel, elements.button, {
+            leftVariable: "--toolbar-menu-left",
+            topVariable: "--toolbar-menu-top",
+            fallbackWidth: 240,
+            fallbackHeight: 240,
+          });
+        }
       }
       setExpandedState(elements.button, isOpen);
       toggleElementClass(elements.button, "is-active", isOpen);
@@ -137,6 +243,15 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       && !templateSettingsButton.disabled;
     if (templateSettingsPopover) {
       templateSettingsPopover.hidden = !isTemplateSettingsOpen;
+      if (isTemplateSettingsOpen) {
+        positionFloatingPanel(templateSettingsPopover, templateSettingsButton, {
+          align: "right",
+          leftVariable: "--template-settings-popover-left",
+          topVariable: "--template-settings-popover-top",
+          fallbackWidth: 280,
+          fallbackHeight: 220,
+        });
+      }
     }
     setExpandedState(templateSettingsButton, isTemplateSettingsOpen);
     toggleElementClass(templateSettingsButton, "is-active", isTemplateSettingsOpen);
@@ -241,11 +356,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       ? state.activeHelpSection
       : "info";
     const sectionContent = HELP_SECTION_CONTENT[helpSection];
+    const showSharedHelpHeader = helpSection === "info";
+    if (helpSharedHeader) {
+      helpSharedHeader.hidden = !showSharedHelpHeader;
+    }
     if (helpTitle) {
       helpTitle.textContent = sectionContent.title;
+      helpTitle.hidden = !showSharedHelpHeader;
     }
     if (helpNote) {
       helpNote.textContent = sectionContent.note;
+      helpNote.hidden = !showSharedHelpHeader;
     }
     if (helpInfoSection) {
       helpInfoSection.hidden = helpSection !== "info";

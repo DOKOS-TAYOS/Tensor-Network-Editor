@@ -367,6 +367,7 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "--canvas-control-height:" in body
+    assert "--toolbar-height:" in body
     assert ".toolbar-title-link {" in body
     assert ".title-control-divider {" in body
     assert ".title-control-group-template {" in body
@@ -377,9 +378,22 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "height: var(--canvas-control-height);" in body
     assert ".template-settings-shell {" in body
     assert ".template-settings-popover {" in body
+    assert "top: var(--template-settings-popover-top, 0px);" in body
+    assert "left: var(--template-settings-popover-left, 0px);" in body
+    assert "position: fixed;" in body
+    assert ".template-select-field {" in body
+    assert ".template-select-field::after {" in body
+    assert 'content: "";' in body
+    assert "border-top: 2px solid rgba(236, 242, 251, 0.78);" in body
+    assert "border-right: 2px solid rgba(236, 242, 251, 0.78);" in body
+    assert "transform: rotate(45deg);" in body
+    assert '.template-select-field[data-expanded="true"]::after {' in body
+    assert "transform: rotate(135deg);" in body
     assert ".template-parameter-panel select," in body
     assert "height: var(--canvas-control-height);" in body
     assert ".template-select-field select {" in body
+    assert "appearance: none;" in body
+    assert "padding-right: 2.2rem;" in body
     assert "min-width: 9rem;" in body
     assert "min-width: 10.5rem;" not in body
 
@@ -391,6 +405,9 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
 
     assert ".toolbar-menu {" in body
     assert ".toolbar-menu-panel {" in body
+    assert "top: var(--toolbar-menu-top, 0px);" in body
+    assert "left: var(--toolbar-menu-left, 0px);" in body
+    assert "position: fixed;" in body
     assert ".toolbar-menubar {" in body
     assert ".toolbar-menubar-button {" in body
     assert ".toolbar-menu-item {" in body
@@ -1044,10 +1061,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         r'<button id="insert-template-button"[^>]*>\s*\+\s*</button>',
         html,
     )
-    assert re.search(
-        r'<button id="template-settings-button"[^>]*>\s*\.\.\.\s*</button>',
-        html,
-    )
+    assert 'id="template-settings-button"' in html
+    assert 'class="template-settings-icon"' in html
+    assert ">...<" not in html
     assert re.search(
         r'<button id="reflow-imported-button"[^>]*>\s*Reflow\s*</button>',
         html,
@@ -1062,6 +1078,21 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
     assert 'id="insert-subnetwork-button"' not in html
+    assert 'id="help-shared-header"' in html
+    shortcuts_section = re.search(
+        r'<section id="help-shortcuts-section"[^>]*>(?P<body>.*?)</section>',
+        html,
+        re.DOTALL,
+    )
+    assert shortcuts_section is not None
+    assert "<h3>" not in shortcuts_section.group("body")
+    about_section = re.search(
+        r'<section id="help-about-section"[^>]*>(?P<body>.*?)</section>',
+        html,
+        re.DOTALL,
+    )
+    assert about_section is not None
+    assert "<h3>" not in about_section.group("body")
     assert (
         'templateSettingsButton: document.getElementById("template-settings-button")'
         in dom_body
@@ -1081,6 +1112,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         'templateCatalogWarning: document.getElementById("template-catalog-warning")'
         in dom_body
     )
+    assert 'helpSharedHeader: document.getElementById("help-shared-header")' in dom_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body

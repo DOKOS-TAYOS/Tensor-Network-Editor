@@ -4290,10 +4290,35 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               };
             }
 
-            function createButton() {
+            function createStyleObject() {
+              return {
+                values: {},
+                setProperty(name, value) {
+                  this.values[name] = value;
+                },
+                getPropertyValue(name) {
+                  return this.values[name] || "";
+                },
+              };
+            }
+
+            function createButton(rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }) {
               return {
                 disabled: false,
+                hidden: false,
                 classList: createClassList(),
+                style: createStyleObject(),
+                attributes: {},
+                dataset: {},
+                setAttribute(name, value) {
+                  this.attributes[name] = String(value);
+                },
+                getAttribute(name) {
+                  return this.attributes[name] ?? null;
+                },
+                getBoundingClientRect() {
+                  return rect;
+                },
               };
             }
 
@@ -4365,6 +4390,28 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 engineSelect: { options: [], value: "tensornetwork" },
                 collectionFormatSelect: { options: [], value: "list" },
                 exportFormatSelect: { value: "py" },
+                fileMenuButton: createButton({
+                  left: 24,
+                  top: 8,
+                  right: 68,
+                  bottom: 34,
+                  width: 44,
+                  height: 26,
+                }),
+                fileMenuPanel: createButton({
+                  left: 0,
+                  top: 0,
+                  right: 240,
+                  bottom: 220,
+                  width: 240,
+                  height: 220,
+                }),
+                modesMenuButton: createButton(),
+                modesMenuPanel: createButton(),
+                templatesMenuButton: createButton(),
+                templatesMenuPanel: createButton(),
+                helpMenuButton: createButton(),
+                helpMenuPanel: createButton(),
                 addNoteButton: createButton(),
                 connectButton: createButton(),
                 loadInput: {},
@@ -4381,6 +4428,22 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 templateGraphSizeInput: { value: "2", min: "1" },
                 templateBondDimensionInput: { value: "3", min: "1" },
                 templatePhysicalDimensionInput: { value: "2", min: "1" },
+                templateSettingsButton: createButton({
+                  left: 720,
+                  top: 132,
+                  right: 756,
+                  bottom: 164,
+                  width: 36,
+                  height: 32,
+                }),
+                templateSettingsPopover: createButton({
+                  left: 0,
+                  top: 0,
+                  right: 280,
+                  bottom: 220,
+                  width: 280,
+                  height: 220,
+                }),
                 insertTemplateButton: createButton(),
                 insertSubnetworkButton: createButton(),
                 createGroupButton: createButton(),
@@ -4388,6 +4451,19 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 helpModal: { classList: createClassList() },
                 helpBackdrop: createButton(),
                 helpCloseButton: createButton(),
+                helpSharedHeader: { hidden: false },
+                helpTitle: { textContent: "", hidden: false },
+                helpNote: { textContent: "", hidden: false },
+                helpInfoSection: { hidden: false },
+                helpShortcutsSection: { hidden: true },
+                helpAboutSection: { hidden: true },
+                aboutRepositoryLink: {
+                  textContent: "",
+                  href: "",
+                },
+                aboutVersion: { textContent: "" },
+                aboutLicense: { textContent: "" },
+                aboutAuthor: { textContent: "" },
                 canvasShell: {
                   getBoundingClientRect() {
                     return { left: 0, top: 0, width: 1000, height: 800 };
@@ -4422,6 +4498,8 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 setTimeout,
                 clearTimeout,
                 confirm: () => true,
+                innerWidth: 1280,
+                innerHeight: 720,
               },
               document: {
                 activeElement: null,
@@ -4484,6 +4562,77 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               ]) !== "first second third"
             ) {
               throw new Error("formatIssues should keep the first three messages.");
+            }
+            runtime.openToolbarMenu("file");
+            if (ctx.dom.fileMenuPanel.hidden !== false) {
+              throw new Error("Opening a toolbar menu should reveal the floating menu panel.");
+            }
+            if (
+              ctx.dom.fileMenuPanel.style.getPropertyValue("--toolbar-menu-left") !== "24px"
+            ) {
+              throw new Error(
+                `Expected the floating toolbar menu to anchor to its button, received ${ctx.dom.fileMenuPanel.style.getPropertyValue("--toolbar-menu-left")}.`
+              );
+            }
+            if (
+              ctx.dom.fileMenuPanel.style.getPropertyValue("--toolbar-menu-top") !== "38px"
+            ) {
+              throw new Error(
+                `Expected the floating toolbar menu to sit below its button, received ${ctx.dom.fileMenuPanel.style.getPropertyValue("--toolbar-menu-top")}.`
+              );
+            }
+            runtime.toggleTemplateSettingsPopover();
+            if (ctx.dom.templateSettingsPopover.hidden !== false) {
+              throw new Error("Opening the template settings popover should reveal its floating overlay.");
+            }
+            if (
+              ctx.dom.templateSettingsPopover.style.getPropertyValue("--template-settings-popover-left")
+              !== "476px"
+            ) {
+              throw new Error(
+                `Expected the template settings popover to anchor to the three-dot button, received ${ctx.dom.templateSettingsPopover.style.getPropertyValue("--template-settings-popover-left")}.`
+              );
+            }
+            if (
+              ctx.dom.templateSettingsPopover.style.getPropertyValue("--template-settings-popover-top")
+              !== "168px"
+            ) {
+              throw new Error(
+                `Expected the template settings popover to sit below the three-dot button, received ${ctx.dom.templateSettingsPopover.style.getPropertyValue("--template-settings-popover-top")}.`
+              );
+            }
+            runtime.openHelpSection("shortcuts");
+            if (
+              ctx.dom.helpSharedHeader.hidden !== true
+              || ctx.dom.helpTitle.hidden !== true
+              || ctx.dom.helpNote.hidden !== true
+            ) {
+              throw new Error("Shortcuts should hide the shared help header.");
+            }
+            if (ctx.dom.helpShortcutsSection.hidden !== false || ctx.dom.helpInfoSection.hidden !== true) {
+              throw new Error("Shortcuts should only show the shortcuts section.");
+            }
+            runtime.openHelpSection("about");
+            if (
+              ctx.dom.helpSharedHeader.hidden !== true
+              || ctx.dom.helpTitle.hidden !== true
+              || ctx.dom.helpNote.hidden !== true
+            ) {
+              throw new Error("About should hide the shared help header.");
+            }
+            if (ctx.dom.helpAboutSection.hidden !== false || ctx.dom.helpShortcutsSection.hidden !== true) {
+              throw new Error("About should only show the about section.");
+            }
+            runtime.openHelpSection("info");
+            if (
+              ctx.dom.helpSharedHeader.hidden !== false
+              || ctx.dom.helpTitle.hidden !== false
+              || ctx.dom.helpNote.hidden !== false
+            ) {
+              throw new Error("Info should keep the shared help header visible.");
+            }
+            if (ctx.dom.helpInfoSection.hidden !== false || ctx.dom.helpAboutSection.hidden !== true) {
+              throw new Error("Info should only show the information section.");
             }
 
             registerUtilities(ctx);
@@ -6149,6 +6298,7 @@ def _write_template_catalog_management_runtime_regression_script(
             disabled: false,
             title: "",
             classList: createClassList(),
+            focus() {},
             addEventListener() {},
           };
         }
@@ -6166,6 +6316,95 @@ def _write_template_catalog_management_runtime_regression_script(
             },
             addEventListener() {},
           };
+        }
+
+        function createFakeNode(tagName = "div", ownerDocument = null) {
+          return {
+            tagName: String(tagName || "div").toUpperCase(),
+            ownerDocument,
+            value: "",
+            textContent: "",
+            disabled: false,
+            hidden: false,
+            type: "",
+            className: "",
+            dataset: {},
+            attributes: {},
+            children: [],
+            listeners: {},
+            classList: createClassList(),
+            addEventListener(eventName, listener) {
+              this.listeners[eventName] = listener;
+            },
+            append(...items) {
+              items.forEach((item) => this.appendChild(item));
+            },
+            appendChild(item) {
+              if (!item) {
+                return item;
+              }
+              this.children.push(item);
+              return item;
+            },
+            setAttribute(name, value) {
+              this.attributes[name] = String(value);
+            },
+            focus() {
+              if (this.ownerDocument) {
+                this.ownerDocument.activeElement = this;
+              }
+            },
+            querySelector(selector) {
+              const inputMatch = /^input\\[data-template-name=\"([^\"]+)\"\\]$/.exec(selector);
+              if (!inputMatch) {
+                return null;
+              }
+              const templateName = inputMatch[1];
+              const stack = [...this.children];
+              while (stack.length) {
+                const node = stack.shift();
+                if (
+                  node
+                  && node.tagName === "INPUT"
+                  && node.dataset
+                  && node.dataset.templateName === templateName
+                ) {
+                  return node;
+                }
+                if (node && Array.isArray(node.children) && node.children.length) {
+                  stack.unshift(...node.children);
+                }
+              }
+              return null;
+            },
+          };
+        }
+
+        function createFakeDocument() {
+          return {
+            activeElement: null,
+            createElement(tagName) {
+              return createFakeNode(tagName, this);
+            },
+            querySelectorAll() {
+              return [];
+            },
+          };
+        }
+
+        function createFakeList(ownerDocument) {
+          const list = createFakeNode("div", ownerDocument);
+          let html = "";
+          Object.defineProperty(list, "innerHTML", {
+            get() {
+              return html;
+            },
+            set(value) {
+              html = value;
+              list.children = [];
+            },
+          });
+          return list;
         }
 
         function createPromptQueue(values) {
@@ -6194,6 +6433,9 @@ def _write_template_catalog_management_runtime_regression_script(
         const apiCalls = [];
         const confirmMessages = [];
         let deleteResponseUsed = false;
+
+        const fakeDocument = createFakeDocument();
+        const templateManagerList = createFakeList(fakeDocument);
 
         const ctx = {
           state: createInitialState(),
@@ -6254,6 +6496,14 @@ def _write_template_catalog_management_runtime_regression_script(
             insertSubnetworkButton: createButton(),
             renameTemplateButton: createButton(),
             deleteTemplateButton: createButton(),
+            templateManagerModal: { classList: createClassList() },
+            templateManagerBackdrop: createButton(),
+            templateManagerCloseButton: createButton(),
+            templateManagerError: {
+              hidden: true,
+              textContent: "",
+            },
+            templateManagerList,
             templateCatalogWarning: {
               hidden: true,
               textContent: "",
@@ -6478,20 +6728,7 @@ def _write_template_catalog_management_runtime_regression_script(
             prompt: createPromptQueue([]),
             Prism: null,
           },
-          document: {
-            activeElement: null,
-            createElement() {
-              return {
-                href: "",
-                download: "",
-                click() {},
-                appendChild() {},
-              };
-            },
-            querySelectorAll() {
-              return [];
-            },
-          },
+          document: fakeDocument,
           cytoscape: null,
           render() {},
           renderOverlayDecorations() {},
@@ -6644,6 +6881,7 @@ def _write_template_catalog_management_runtime_regression_script(
                 ctx.removeSessionTemplate(templateName),
               toggleTemplateManager: (forceOpen) =>
                 ctx.toggleTemplateManager(forceOpen),
+              updateToolbarState: () => ctx.updateToolbarState(),
               syncTemplateManagerModalState: () =>
                 ctx.syncTemplateManagerModalState(),
               setTemplateManagerValidationMessage: (message) =>
@@ -6761,6 +6999,53 @@ def _write_template_catalog_management_runtime_regression_script(
         );
         if (!secondSessionEntry) {
           throw new Error("Saving the same selection twice should suffix the session template name.");
+        }
+        ctx.toggleTemplateManager(true);
+        if (ctx.dom.templateManagerList.children.length !== 2) {
+          throw new Error(
+            `Expected the template manager to show only session templates, received ${ctx.dom.templateManagerList.children.length} rows.`
+          );
+        }
+        const visibleManagerLabels = ctx.dom.templateManagerList.children
+          .map((row) => row.children[1] && row.children[1].textContent)
+          .filter(Boolean);
+        if (visibleManagerLabels.some((label) => label === "Project" || label === "Built-in")) {
+          throw new Error(
+            `Locked template labels should not appear in the template manager, received ${visibleManagerLabels.join(",")}.`
+          );
+        }
+        const firstManagerInput = ctx.dom.templateManagerList.querySelector(
+          `input[data-template-name="${firstSessionTemplate}"]`
+        );
+        if (!firstManagerInput) {
+          throw new Error("Expected the session template row to remain editable in the manager.");
+        }
+        firstManagerInput.value = "Project Fragment";
+        if (ctx.toggleTemplateManager(false) !== true) {
+          throw new Error("Closing the template manager with a duplicate locked name should be blocked.");
+        }
+        if (!ctx.state.isTemplateManagerOpen) {
+          throw new Error("The template manager should stay open when validation fails.");
+        }
+        if (
+          ctx.dom.templateManagerError.textContent
+          !== "Template name 'Project Fragment' is already in use."
+        ) {
+          throw new Error(
+            `Expected duplicate-name validation against hidden locked templates, received ${ctx.dom.templateManagerError.textContent}.`
+          );
+        }
+        firstManagerInput.value = "Manager Rename";
+        if (ctx.toggleTemplateManager(false) !== false) {
+          throw new Error("Closing the template manager with valid session names should succeed.");
+        }
+        const managerRenamedEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.templateName === firstSessionTemplate
+        );
+        if (!managerRenamedEntry || managerRenamedEntry.displayName !== "Manager Rename") {
+          throw new Error(
+            `Expected template manager rename to persist for session templates, received ${JSON.stringify(managerRenamedEntry)}.`
+          );
         }
 
         ctx.dom.templateSelect.value = firstSessionTemplate;
