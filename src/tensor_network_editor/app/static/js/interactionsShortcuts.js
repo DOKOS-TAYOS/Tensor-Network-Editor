@@ -62,6 +62,9 @@ export function createInteractionShortcutBindings({
     createGroupFromSelection:
       shortcutActions.createGroupFromSelection ||
       resolveContextAction(ctx, "createGroupFromSelection"),
+    selectAllTensors:
+      shortcutActions.selectAllTensors ||
+      resolveContextAction(ctx, "selectAllTensors"),
     addNoteAtCenter:
       shortcutActions.addNoteAtCenter || resolveContextAction(ctx, "addNoteAtCenter"),
     toggleLinearPeriodicMode:
@@ -84,6 +87,7 @@ export function createInteractionShortcutBindings({
     trimContractionPlan = noop,
     togglePlannerMode = noop,
     createGroupFromSelection = noop,
+    selectAllTensors = noop,
     addNoteAtCenter = noop,
     toggleLinearPeriodicMode = noop,
   } = resolvedShortcutActions;
@@ -212,6 +216,11 @@ export function createInteractionShortcutBindings({
     if (hasSystemModifier && event.shiftKey && lowerKey === "a") {
       event.preventDefault();
       acceptAutomaticShortcut("automaticPast");
+      return;
+    }
+    if (hasSystemModifier && lowerKey === "a") {
+      event.preventDefault();
+      selectAllTensors();
       return;
     }
     if (hasSystemModifier && lowerKey === "s") {

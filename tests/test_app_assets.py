@@ -297,8 +297,10 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "toggleLinearPeriodicMode();" in body
     assert 'if (hasSystemModifier && event.altKey && lowerKey === "a") {' in body
     assert 'if (!hasSystemModifier && event.altKey && lowerKey === "a") {' in body
-    assert 'if (hasSystemModifier && lowerKey === "a") {' not in body
+    assert 'if (hasSystemModifier && lowerKey === "a") {' in body
+    assert "selectAllTensors();" in body
     assert "Alt+A" in html
+    assert "Ctrl/Cmd+A" in html
     assert "Ctrl/Cmd+Alt+A" in html
 
 

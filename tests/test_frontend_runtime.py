@@ -2716,6 +2716,9 @@ def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Pa
                   acceptAutomaticPlan(mode) {
                     shortcutCalls.push({ kind: "accept", mode });
                   },
+                  selectAllTensors() {
+                    shortcutCalls.push({ kind: "select-all-tensors" });
+                  },
                 },
               })
             );
@@ -2755,12 +2758,15 @@ def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Pa
             const callsBeforeCtrlA = shortcutCalls.length;
             const ctrlAEvent = createEvent({ key: "a", ctrlKey: true });
             ctx.handleKeydown(ctrlAEvent);
-            if (ctrlAEvent.preventDefaultCalls !== 0) {
-              throw new Error("Ctrl+A should stay available for the browser select-all behavior.");
+            if (ctrlAEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+A should prevent the browser default and select the visible tensors.");
             }
-            if (shortcutCalls.length !== callsBeforeCtrlA) {
+            if (
+              shortcutCalls.length !== callsBeforeCtrlA + 1 ||
+              shortcutCalls[shortcutCalls.length - 1].kind !== "select-all-tensors"
+            ) {
               throw new Error(
-                `Ctrl+A should not trigger planner shortcuts, received ${JSON.stringify(shortcutCalls.slice(callsBeforeCtrlA))}.`
+                `Ctrl+A should select the visible tensors, received ${JSON.stringify(shortcutCalls.slice(callsBeforeCtrlA))}.`
               );
             }
             """
@@ -4025,7 +4031,7 @@ def test_shift_m_hides_the_minimap_without_recursive_shortcut_calls(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
-def test_planner_auto_shortcuts_leave_ctrl_a_available_for_select_all(
+def test_planner_auto_shortcuts_keep_ctrl_a_for_canvas_tensor_selection(
     tmp_path: Path,
 ) -> None:
     script_path = _write_planner_auto_shortcut_runtime_regression_script(tmp_path)
