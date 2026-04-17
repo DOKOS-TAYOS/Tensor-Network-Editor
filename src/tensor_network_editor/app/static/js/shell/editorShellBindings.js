@@ -10,22 +10,31 @@ export function createEditorShellBindings({
 }) {
   const {
     addNoteButton,
+    loadButton,
+    loadMenuPanel,
+    loadDesignMenuItem,
+    loadSubnetworkMenuItem,
     connectButton,
     loadInput,
     subnetworkLoadInput,
     undoButton,
     redoButton,
     exportButton,
+    exportMenuPanel,
+    exportPythonMenuItem,
+    exportPngMenuItem,
+    exportSvgMenuItem,
     exportFormatSelect,
     toggleLinearPeriodicButton,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
     templateSelect,
+    templateSettingsButton,
+    templateSettingsPopover,
     templateGraphSizeInput,
     templateBondDimensionInput,
     templatePhysicalDimensionInput,
     insertTemplateButton,
-    insertSubnetworkButton,
     renameTemplateButton,
     deleteTemplateButton,
     reflowImportedButton,
@@ -44,6 +53,37 @@ export function createEditorShellBindings({
       return;
     }
     target.addEventListener(eventName, handler, options);
+  }
+
+  function targetWithinElement(target, element) {
+    if (!target || !element) {
+      return false;
+    }
+    if (target === element) {
+      return true;
+    }
+    if (typeof element.contains === "function") {
+      return element.contains(target);
+    }
+    if (
+      typeof target.closest === "function"
+      && typeof element.id === "string"
+      && element.id
+    ) {
+      return Boolean(target.closest(`#${element.id}`));
+    }
+    return false;
+  }
+
+  function isWithinTransientToolbarUi(target) {
+    return [
+      loadButton,
+      loadMenuPanel,
+      exportButton,
+      exportMenuPanel,
+      templateSettingsButton,
+      templateSettingsPopover,
+    ].some((element) => targetWithinElement(target, element));
   }
 
   function attachToolbarHandlers() {
@@ -68,14 +108,38 @@ export function createEditorShellBindings({
     bindListener(connectButton, "click", actions.toggleConnectMode);
     bindListener(documentRef.getElementById("delete-button"), "click", actions.deleteSelection);
     bindListener(documentRef.getElementById("save-button"), "click", actions.saveDesign);
-    bindListener(documentRef.getElementById("load-button"), "click", () => loadInput.click());
+    bindListener(loadButton, "click", () => {
+      actions.toggleToolbarMenu("load");
+    });
+    bindListener(loadDesignMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      loadInput.click();
+    });
+    bindListener(loadSubnetworkMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.openSubnetworkPicker();
+    });
     bindListener(documentRef.getElementById("generate-button"), "click", actions.generateCode);
     bindListener(documentRef.getElementById("done-button"), "click", actions.completeEditor);
     bindListener(documentRef.getElementById("cancel-button"), "click", actions.cancelEditor);
     bindListener(documentRef.getElementById("copy-code-button"), "click", actions.copyGeneratedCode);
     bindListener(undoButton, "click", actions.performUndo);
     bindListener(redoButton, "click", actions.performRedo);
-    bindListener(exportButton, "click", actions.downloadSelectedExport);
+    bindListener(exportButton, "click", () => {
+      actions.toggleToolbarMenu("export");
+    });
+    bindListener(exportPythonMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("py");
+    });
+    bindListener(exportPngMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("png");
+    });
+    bindListener(exportSvgMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("svg");
+    });
     bindListener(exportFormatSelect, "change", () => {
       actions.updateToolbarState();
     });
@@ -94,8 +158,10 @@ export function createEditorShellBindings({
       "change",
       actions.handleTemplateParameterInput
     );
+    bindListener(templateSettingsButton, "click", () => {
+      actions.toggleTemplateSettingsPopover();
+    });
     bindListener(insertTemplateButton, "click", actions.insertTemplate);
-    bindListener(insertSubnetworkButton, "click", actions.openSubnetworkPicker);
     bindListener(renameTemplateButton, "click", actions.renameSelectedTemplate);
     bindListener(deleteTemplateButton, "click", actions.deleteSelectedTemplate);
     bindListener(reflowImportedButton, "click", actions.reflowLastImportedTensors);
@@ -115,6 +181,11 @@ export function createEditorShellBindings({
     });
     bindListener(collectionFormatSelect, "change", (event) => {
       store.setSelectedCollectionFormat(event.target.value);
+    });
+    bindListener(documentRef, "mousedown", (event) => {
+      if (!isWithinTransientToolbarUi(event.target)) {
+        actions.closeTransientToolbarUi();
+      }
     });
     bindListener(loadInput, "change", actions.loadDesignFromFile);
     bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);

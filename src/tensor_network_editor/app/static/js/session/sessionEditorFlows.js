@@ -216,6 +216,20 @@ export function createSessionEditorFlows({
     }
   }
 
+  async function downloadExportAs(format) {
+    if (!exportFormatSelect) {
+      actions.setStatus("Export controls are not available in this browser.", "error");
+      return;
+    }
+    const previousFormat = exportFormatSelect.value;
+    exportFormatSelect.value = format;
+    try {
+      await downloadSelectedExport();
+    } finally {
+      exportFormatSelect.value = previousFormat;
+    }
+  }
+
   return {
     showCodeGenerationError,
     generateCode,
@@ -225,6 +239,7 @@ export function createSessionEditorFlows({
     loadDesignFromFile,
     copyGeneratedCode,
     downloadSelectedExport,
+    downloadExportAs,
     downloadPythonExport,
   };
 }

@@ -91,6 +91,8 @@ export function createInitialState() {
       selectedTags: [],
       enabled: false,
     },
+    openToolbarMenu: null,
+    isTemplateSettingsOpen: false,
     nameSearch: {
       scope: "tensor",
       query: "",

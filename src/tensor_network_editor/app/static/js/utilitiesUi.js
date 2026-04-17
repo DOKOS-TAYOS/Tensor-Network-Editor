@@ -1,6 +1,8 @@
 export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   const {
     statusMessage,
+    loadButton,
+    loadMenuPanel,
     exportFormatSelect,
     generatedCode,
     generatedCodeView,
@@ -8,13 +10,15 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     undoButton,
     redoButton,
     exportButton,
+    exportMenuPanel,
     toggleLinearPeriodicButton,
     linearPeriodicPreviousCellButton,
     linearPeriodicCellLabel,
     linearPeriodicNextCellButton,
     templateSelect,
+    templateSettingsButton,
+    templateSettingsPopover,
     insertTemplateButton,
-    insertSubnetworkButton,
     renameTemplateButton,
     deleteTemplateButton,
     templateCatalogWarning,
@@ -28,6 +32,86 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     periodic: "Periodic cell",
     final: "Final cell",
   };
+
+  function toggleElementClass(element, className, isActive) {
+    if (
+      !element ||
+      !element.classList ||
+      typeof element.classList.toggle !== "function"
+    ) {
+      return;
+    }
+    element.classList.toggle(className, isActive);
+  }
+
+  function setExpandedState(button, isExpanded) {
+    if (!button || typeof button.setAttribute !== "function") {
+      return;
+    }
+    button.setAttribute("aria-expanded", String(isExpanded));
+  }
+
+  function syncToolbarTransientUi() {
+    const openToolbarMenu =
+      typeof state.openToolbarMenu === "string" ? state.openToolbarMenu : null;
+    const isLoadMenuOpen =
+      openToolbarMenu === "load" && loadButton && !loadButton.disabled;
+    const isExportMenuOpen =
+      openToolbarMenu === "export" && exportButton && !exportButton.disabled;
+    const isTemplateSettingsOpen =
+      Boolean(state.isTemplateSettingsOpen)
+      && templateSettingsButton
+      && !templateSettingsButton.disabled;
+
+    if (loadMenuPanel) {
+      loadMenuPanel.hidden = !isLoadMenuOpen;
+    }
+    setExpandedState(loadButton, isLoadMenuOpen);
+    toggleElementClass(loadButton, "is-active", isLoadMenuOpen);
+
+    if (exportMenuPanel) {
+      exportMenuPanel.hidden = !isExportMenuOpen;
+    }
+    setExpandedState(exportButton, isExportMenuOpen);
+    toggleElementClass(exportButton, "is-active", isExportMenuOpen);
+
+    if (templateSettingsPopover) {
+      templateSettingsPopover.hidden = !isTemplateSettingsOpen;
+    }
+    setExpandedState(templateSettingsButton, isTemplateSettingsOpen);
+    toggleElementClass(templateSettingsButton, "is-active", isTemplateSettingsOpen);
+  }
+
+  function closeTransientToolbarUi() {
+    const hadOpenUi = Boolean(state.openToolbarMenu || state.isTemplateSettingsOpen);
+    if (!hadOpenUi) {
+      return false;
+    }
+    state.openToolbarMenu = null;
+    state.isTemplateSettingsOpen = false;
+    syncToolbarTransientUi();
+    return true;
+  }
+
+  function toggleToolbarMenu(menuName) {
+    if (menuName !== "load" && menuName !== "export") {
+      return state.openToolbarMenu;
+    }
+    state.openToolbarMenu = state.openToolbarMenu === menuName ? null : menuName;
+    state.isTemplateSettingsOpen = false;
+    syncToolbarTransientUi();
+    return state.openToolbarMenu;
+  }
+
+  function toggleTemplateSettingsPopover() {
+    if (!templateSettingsButton || templateSettingsButton.disabled) {
+      return state.isTemplateSettingsOpen;
+    }
+    state.isTemplateSettingsOpen = !state.isTemplateSettingsOpen;
+    state.openToolbarMenu = null;
+    syncToolbarTransientUi();
+    return state.isTemplateSettingsOpen;
+  }
 
   function renderGeneratedCodePreview(code = state.generatedCode) {
     const renderedCode = typeof code === "string" ? code : "";
@@ -115,12 +199,6 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       selectedTemplateDefinition && typeof selectedTemplateDefinition.source === "string"
         ? selectedTemplateDefinition.source
         : "global";
-    if (insertSubnetworkButton) {
-      insertSubnetworkButton.disabled = linearPeriodicMode;
-      insertSubnetworkButton.title = linearPeriodicMode
-        ? "Available only in normal graph mode."
-        : "Insert a saved subnetwork JSON fragment.";
-    }
     if (renameTemplateButton) {
       renameTemplateButton.disabled =
         !templateSelect.value || selectedTemplateSource !== "project";
@@ -148,6 +226,15 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
           ? "Insert a template or subnetwork first."
           : "Reflow the last imported tensors.";
     }
+    if (templateSettingsButton) {
+      templateSettingsButton.disabled = !templateSelect.value;
+      templateSettingsButton.title = !templateSelect.value
+        ? "Choose a template first."
+        : "Edit template parameters.";
+    }
+    if ((!templateSelect.value || linearPeriodicMode) && state.isTemplateSettingsOpen) {
+      state.isTemplateSettingsOpen = false;
+    }
     createGroupButton.disabled = selectedTensorIds.length < 2;
     if (toggleLinearPeriodicButton) {
       toggleLinearPeriodicButton.classList.toggle("is-active", linearPeriodicMode);
@@ -165,6 +252,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       linearPeriodicNextCellButton.disabled =
         !linearPeriodicMode || activeLinearPeriodicCell === "final";
     }
+    syncToolbarTransientUi();
   }
 
   function formatIssues(issues) {
@@ -192,6 +280,10 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   }
 
   return {
+    syncToolbarTransientUi,
+    closeTransientToolbarUi,
+    toggleToolbarMenu,
+    toggleTemplateSettingsPopover,
     renderGeneratedCodePreview,
     updateToolbarState,
     syncCodeGenerationWarning,

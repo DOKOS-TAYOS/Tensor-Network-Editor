@@ -45,6 +45,9 @@ export function createInteractionShortcutBindings({
     clearPastInspection:
       shortcutActions.clearPastInspection ||
       resolveContextAction(ctx, "clearPastInspection"),
+    closeTransientToolbarUi:
+      shortcutActions.closeTransientToolbarUi ||
+      resolveContextAction(ctx, "closeTransientToolbarUi"),
     copySelectedSubgraphToClipboard:
       shortcutActions.copySelectedSubgraphToClipboard ||
       resolveContextAction(ctx, "copySelectedSubgraphToClipboard"),
@@ -80,6 +83,7 @@ export function createInteractionShortcutBindings({
     syncPendingInteractionClasses,
     clearAutomaticPreview,
     clearPastInspection,
+    closeTransientToolbarUi,
     copySelectedSubgraphToClipboard,
     pasteClipboardToCanvas,
     trimContractionPlan,
@@ -151,6 +155,9 @@ export function createInteractionShortcutBindings({
 
     if (event.key === "Escape") {
       event.preventDefault();
+      if (closeTransientToolbarUi()) {
+        return;
+      }
       if (state.isHelpOpen) {
         toggleHelpModal(false);
         return;

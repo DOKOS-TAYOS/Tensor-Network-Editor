@@ -22,16 +22,52 @@
           </h1>
           <button id="new-design-button" type="button">New</button>
           <button id="save-button" type="button" class="button-accent-positive">Save</button>
-          <button id="load-button" type="button">Load</button>
-          <button id="help-button" type="button" class="icon-button toolbar-icon-button" aria-label="Help" title="Help">?</button>
-          <div class="toolbar-export-controls">
-            <select id="export-format-select" aria-label="Export format">
-              <option value="py">Python (.py)</option>
-              <option value="png">PNG</option>
-              <option value="svg">SVG</option>
-            </select>
-            <button id="export-button" type="button">Export</button>
+          <div class="toolbar-menu">
+            <button
+              id="load-button"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+            >
+              Load
+            </button>
+            <div id="load-menu-panel" class="toolbar-menu-panel" role="menu" hidden>
+              <button id="load-design-menu-item" type="button" role="menuitem">
+                Load tensor network
+              </button>
+              <button id="load-subnetwork-menu-item" type="button" role="menuitem">
+                Load subnetwork
+              </button>
+            </div>
           </div>
+          <button id="rename-template-button" type="button">Rename</button>
+          <div class="toolbar-menu">
+            <button
+              id="export-button"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+            >
+              Export
+            </button>
+            <div id="export-menu-panel" class="toolbar-menu-panel" role="menu" hidden>
+              <button id="export-python-menu-item" type="button" role="menuitem">
+                Export as Python
+              </button>
+              <button id="export-png-menu-item" type="button" role="menuitem">
+                Export as PNG
+              </button>
+              <button id="export-svg-menu-item" type="button" role="menuitem">
+                Export as SVG
+              </button>
+            </div>
+          </div>
+          <button id="help-button" type="button" class="icon-button toolbar-icon-button" aria-label="Help" title="Help">?</button>
+          <select id="export-format-select" aria-label="Export format" hidden>
+            <option value="py">Python (.py)</option>
+            <option value="png">PNG</option>
+            <option value="svg">SVG</option>
+          </select>
           <div class="toolbar-mode-controls">
             <button id="toggle-linear-periodic-button" type="button">For</button>
             <button
@@ -136,39 +172,44 @@
               </div>
               <div class="title-control-divider" aria-hidden="true"></div>
               <div class="title-control-group title-control-group-template">
-                <div id="template-parameter-panel" class="template-parameter-panel">
-                  <label class="template-parameter-field template-select-field" for="template-select">
-                    <span class="template-parameter-title">Template</span>
-                    <select id="template-select"></select>
-                  </label>
-                  <label
-                    id="template-graph-size-field"
-                    class="template-parameter-field template-number-field"
-                    for="template-graph-size-input"
-                  >
-                    <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
-                    <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
-                  </label>
-                  <label
-                    id="template-bond-dimension-field"
-                    class="template-parameter-field template-number-field"
-                    for="template-bond-dimension-input"
-                  >
-                    <span class="template-parameter-title">Bond dimension</span>
-                    <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                  </label>
-                  <label
-                    id="template-physical-dimension-field"
-                    class="template-parameter-field template-number-field"
-                    for="template-physical-dimension-input"
-                  >
-                    <span class="template-parameter-title">Physical dimension</span>
-                    <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                  </label>
+                <label class="template-parameter-field template-select-field" for="template-select">
+                  <span class="template-parameter-title">Template</span>
+                  <select id="template-select"></select>
+                </label>
+                <div class="template-settings-shell">
+                  <button id="template-settings-button" type="button" aria-label="Template settings" title="Template settings" aria-haspopup="dialog" aria-expanded="false">
+                    ...
+                  </button>
+                  <div id="template-settings-popover" class="template-settings-popover" hidden>
+                    <div id="template-parameter-panel" class="template-parameter-panel">
+                      <label
+                        id="template-graph-size-field"
+                        class="template-parameter-field template-number-field"
+                        for="template-graph-size-input"
+                      >
+                        <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
+                        <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
+                      </label>
+                      <label
+                        id="template-bond-dimension-field"
+                        class="template-parameter-field template-number-field"
+                        for="template-bond-dimension-input"
+                      >
+                        <span class="template-parameter-title">Bond dimension</span>
+                        <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                      </label>
+                      <label
+                        id="template-physical-dimension-field"
+                        class="template-parameter-field template-number-field"
+                        for="template-physical-dimension-input"
+                      >
+                        <span class="template-parameter-title">Physical dimension</span>
+                        <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <button id="insert-template-button" type="button" class="button-accent-insert">+</button>
-                <button id="insert-subnetwork-button" type="button">+ subnetwork</button>
-                <button id="rename-template-button" type="button">Rename</button>
                 <button
                   id="delete-template-button"
                   type="button"

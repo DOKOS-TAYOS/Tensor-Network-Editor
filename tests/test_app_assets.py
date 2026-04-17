@@ -107,12 +107,12 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
 
-    assert 'id="export-format-select"' in html
     assert 'id="export-button"' in html
-    assert 'id="export-py-button"' not in html
-    assert 'id="export-png-button"' not in html
-    assert 'id="export-svg-button"' not in html
-    assert html.index('id="export-format-select"') < html.index('id="export-button"')
+    assert 'id="export-menu-panel"' in html
+    assert 'id="export-python-menu-item"' in html
+    assert 'id="export-png-menu-item"' in html
+    assert 'id="export-svg-menu-item"' in html
+    assert html.index('id="export-button"') < html.index('id="export-menu-panel"')
 
     code_pane_index = html.index('id="sidebar-pane-code"')
     engine_index = html.index('id="engine-select"')
@@ -360,6 +360,8 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "align-items: flex-end;" in body
     assert ".title-button-row button {" in body
     assert "height: var(--canvas-control-height);" in body
+    assert ".template-settings-shell {" in body
+    assert ".template-settings-popover {" in body
     assert ".template-parameter-panel select," in body
     assert "height: var(--canvas-control-height);" in body
     assert ".template-select-field select {" in body
@@ -372,9 +374,9 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/app.css")
 
-    assert ".toolbar-export-controls {" in body
-    assert ".toolbar-export-controls select {" in body
-    assert ".toolbar-export-controls button {" in body
+    assert ".toolbar-menu {" in body
+    assert ".toolbar-menu-panel {" in body
+    assert ".toolbar-menu-panel button {" in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
     assert ".code-header-row {" in body
@@ -887,19 +889,26 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
         in dom_body
     )
     assert 'exportButton: document.getElementById("export-button")' in dom_body
-    assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
+    assert 'exportMenuPanel: document.getElementById("export-menu-panel")' in dom_body
     assert (
-        'bindListener(exportButton, "click", actions.downloadSelectedExport);'
-        in shell_bindings_body
+        'exportPythonMenuItem: document.getElementById("export-python-menu-item")'
+        in dom_body
     )
+    assert (
+        'exportPngMenuItem: document.getElementById("export-png-menu-item")' in dom_body
+    )
+    assert (
+        'exportSvgMenuItem: document.getElementById("export-svg-menu-item")' in dom_body
+    )
+    assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
+    assert 'bindListener(exportButton, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportPythonMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportPngMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportSvgMenuItem, "click", () => {' in shell_bindings_body
     assert "async function downloadSelectedExport()" in interactions_body
-    assert "switch (exportFormatSelect.value)" in interactions_body
-    assert 'case "py":' in interactions_body
-    assert 'case "png":' in interactions_body
-    assert 'case "svg":' in interactions_body
-    assert "await downloadPythonExport();" in interactions_body
-    assert "actions.downloadPngExport();" in interactions_body
-    assert "actions.downloadSvgExport();" in interactions_body
+    assert "async function downloadExportAs(format)" in interactions_body
+    assert "const previousFormat = exportFormatSelect.value;" in interactions_body
+    assert "await downloadSelectedExport();" in interactions_body
     assert "exportButton.disabled =" in utilities_body
 
 
@@ -951,11 +960,12 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
 
-    assert 'id="insert-subnetwork-button"' in html
+    assert 'id="load-subnetwork-menu-item"' in html
     assert 'id="reflow-imported-button"' in html
     assert 'id="subnetwork-load-input"' in html
+    assert 'loadButton: document.getElementById("load-button")' in dom_body
     assert (
-        'insertSubnetworkButton: document.getElementById("insert-subnetwork-button")'
+        'loadSubnetworkMenuItem: document.getElementById("load-subnetwork-menu-item")'
         in dom_body
     )
     assert (
@@ -967,13 +977,13 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         in dom_body
     )
     assert (
-        'bindListener(insertSubnetworkButton, "click", actions.openSubnetworkPicker);'
-        in shell_bindings_body
+        'bindListener(loadSubnetworkMenuItem, "click", () => {' in shell_bindings_body
     )
     assert (
         'bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);'
         in shell_bindings_body
     )
+    assert 'id="insert-subnetwork-button"' not in html
     assert '"/api/subnetwork/extract"' in interactions_body
     assert '"/api/subnetwork/prepare-insert"' in interactions_body
     assert '"/api/template/promote"' in interactions_body
@@ -1004,7 +1014,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         html,
     )
     assert re.search(
-        r'<button id="insert-subnetwork-button"[^>]*>\s*\+ subnetwork\s*</button>',
+        r'<button id="template-settings-button"[^>]*>\s*\.\.\.\s*</button>',
         html,
     )
     assert re.search(
@@ -1017,10 +1027,22 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert 'id="rename-template-button"' in html
     assert 'id="delete-template-button"' in html
+    assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
     assert 'aria-label="Delete template"' in html
+    assert 'id="insert-subnetwork-button"' not in html
+    assert html.index('id="load-button"') < html.index('id="rename-template-button"')
+    assert html.index('id="rename-template-button"') < html.index('id="help-button"')
     assert (
         'renameTemplateButton: document.getElementById("rename-template-button")'
+        in dom_body
+    )
+    assert (
+        'templateSettingsButton: document.getElementById("template-settings-button")'
+        in dom_body
+    )
+    assert (
+        'templateSettingsPopover: document.getElementById("template-settings-popover")'
         in dom_body
     )
     assert (
@@ -1034,6 +1056,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert (
         'bindListener(renameTemplateButton, "click", actions.renameSelectedTemplate);'
         in shell_bindings_body
+    )
+    assert (
+        'bindListener(templateSettingsButton, "click", () => {' in shell_bindings_body
     )
     assert (
         'bindListener(deleteTemplateButton, "click", actions.deleteSelectedTemplate);'

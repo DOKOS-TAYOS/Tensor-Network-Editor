@@ -1778,23 +1778,32 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
 
         const dom = {{
           addNoteButton: getButton("add-note-button"),
+          loadButton: getButton("load-button"),
+          loadMenuPanel: getButton("load-menu-panel"),
+          loadDesignMenuItem: getButton("load-design-menu-item"),
+          loadSubnetworkMenuItem: getButton("load-subnetwork-menu-item"),
           connectButton: getButton("connect-button"),
           loadInput: {{ click() {{ flowEvents.push("loadInput.click"); }}, addEventListener(type, handler) {{ this[type] = handler; }} }},
           subnetworkLoadInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           undoButton: getButton("undo-button"),
           redoButton: getButton("redo-button"),
           exportButton: getButton("export-button"),
+          exportMenuPanel: getButton("export-menu-panel"),
+          exportPythonMenuItem: getButton("export-python-menu-item"),
+          exportPngMenuItem: getButton("export-png-menu-item"),
+          exportSvgMenuItem: getButton("export-svg-menu-item"),
           exportFormatSelect: {{ value: "py", addEventListener(type, handler) {{ this[type] = handler; }} }},
           toggleLinearPeriodicButton: getButton("toggle-linear-periodic-button"),
           linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
           linearPeriodicCellLabel: {{ textContent: "" }},
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
           templateSelect: {{ value: "mps", addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateSettingsButton: getButton("template-settings-button"),
+          templateSettingsPopover: getButton("template-settings-popover"),
           templateGraphSizeInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           templateBondDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           insertTemplateButton: getButton("insert-template-button"),
-          insertSubnetworkButton: getButton("insert-subnetwork-button"),
           renameTemplateButton: getButton("rename-template-button"),
           deleteTemplateButton: getButton("delete-template-button"),
           reflowImportedButton: getButton("reflow-imported-button"),
@@ -1822,6 +1831,14 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           performUndo: () => flowEvents.push("performUndo"),
           performRedo: () => flowEvents.push("performRedo"),
           downloadSelectedExport: () => flowEvents.push("downloadSelectedExport"),
+          downloadExportAs: (format) => flowEvents.push(`downloadExportAs:${{format}}`),
+          toggleToolbarMenu: (menuName) => flowEvents.push(`toggleToolbarMenu:${{menuName}}`),
+          closeTransientToolbarUi: () => {{
+            flowEvents.push("closeTransientToolbarUi");
+            return true;
+          }},
+          toggleTemplateSettingsPopover: () =>
+            flowEvents.push("toggleTemplateSettingsPopover"),
           updateToolbarState: () => flowEvents.push("updateToolbarState"),
           toggleLinearPeriodicMode: () => flowEvents.push("toggleLinearPeriodicMode"),
           switchLinearPeriodicCell: (direction) =>
@@ -1868,12 +1885,24 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         shellBindings.attachToolbarHandlers();
         getButton("generate-button").click();
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
-        dom.insertSubnetworkButton.click();
+        dom.loadButton.click();
+        dom.loadSubnetworkMenuItem.click();
+        dom.exportPngMenuItem.click();
+        dom.templateSettingsButton.click();
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
         }}
+        if (!flowEvents.includes("toggleToolbarMenu:load")) {{
+          throw new Error(`Expected the Load button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
         if (!flowEvents.includes("openSubnetworkPicker")) {{
-          throw new Error(`Expected subnetwork button binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
+          throw new Error(`Expected the Load submenu to invoke subnetwork loading, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("downloadExportAs:png")) {{
+          throw new Error(`Expected the Export submenu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("toggleTemplateSettingsPopover")) {{
+          throw new Error(`Expected the template settings button to toggle its popover, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("binding.enforceLinearPeriodicEngineSupport") || !flowEvents.includes("binding.renderPlanner")) {{
           throw new Error(`Expected engine change binding to run its injected actions, received ${{JSON.stringify(flowEvents)}}.`);

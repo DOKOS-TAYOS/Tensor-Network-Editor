@@ -110,6 +110,7 @@ export function createEditorActionGroups(ctx) {
       ),
       clearAutomaticPreview: resolveOptionalAction(ctx, "clearAutomaticPreview"),
       clearPastInspection: resolveOptionalAction(ctx, "clearPastInspection"),
+      closeTransientToolbarUi: resolveOptionalAction(ctx, "closeTransientToolbarUi"),
       copySelectedSubgraphToClipboard: resolveOptionalAction(
         ctx,
         "copySelectedSubgraphToClipboard"
