@@ -24,7 +24,11 @@ from tensor_network_editor.templates import (
     register_static_template,
 )
 from tensor_network_editor.types import JSONValue
-from tests.factories import build_sample_spec, build_three_tensor_spec
+from tests.factories import (
+    build_linear_periodic_partial_carry_chain_spec,
+    build_sample_spec,
+    build_three_tensor_spec,
+)
 
 
 def test_package_root_exports_headless_entry_points() -> None:
@@ -157,25 +161,75 @@ def test_analyze_spec_passes_memory_dtype_to_contraction_analysis() -> None:
     spec = build_three_tensor_spec()
 
     with patch(
-        "tensor_network_editor.analysis.analyze_contraction",
+        "tensor_network_editor.analysis._analyze_prepared_contraction",
         return_value=None,
     ) as analyze_mock:
         report = analyze_spec(spec, memory_dtype="float32")
 
     assert report.contraction is None
-    analyze_mock.assert_called_once_with(spec, memory_dtype="float32")
+    analyze_mock.assert_called_once()
+    assert analyze_mock.call_args.kwargs["memory_dtype"] == "float32"
 
 
 def test_analyze_spec_defaults_memory_dtype_to_float64() -> None:
     spec = build_three_tensor_spec()
 
     with patch(
-        "tensor_network_editor.analysis.analyze_contraction",
+        "tensor_network_editor.analysis._analyze_prepared_contraction",
         return_value=None,
     ) as analyze_mock:
         analyze_spec(spec)
 
-    analyze_mock.assert_called_once_with(spec, memory_dtype="float64")
+    analyze_mock.assert_called_once()
+    assert analyze_mock.call_args.kwargs["memory_dtype"] == "float64"
+
+
+def test_analyze_spec_reuses_validation_and_analysis_for_standard_specs() -> None:
+    spec = build_three_tensor_spec()
+    analysis_module = __import__(
+        "tensor_network_editor.analysis",
+        fromlist=["analyze_network"],
+    )
+
+    with (
+        patch(
+            "tensor_network_editor.analysis.ensure_valid_spec",
+            wraps=analysis_module.ensure_valid_spec,
+        ) as ensure_valid_spec_mock,
+        patch(
+            "tensor_network_editor.analysis.analyze_network",
+            wraps=analysis_module.analyze_network,
+        ) as analysis_analyze_network_mock,
+    ):
+        report = analyze_spec(spec)
+
+    assert report.contraction is not None
+    assert ensure_valid_spec_mock.call_count == 1
+    assert analysis_analyze_network_mock.call_count == 1
+
+
+def test_analyze_spec_reuses_validation_for_linear_periodic_specs() -> None:
+    spec = build_linear_periodic_partial_carry_chain_spec()
+    analysis_module = __import__(
+        "tensor_network_editor.analysis",
+        fromlist=["analyze_network"],
+    )
+
+    with (
+        patch(
+            "tensor_network_editor.analysis.ensure_valid_spec",
+            wraps=analysis_module.ensure_valid_spec,
+        ) as ensure_valid_spec_mock,
+        patch(
+            "tensor_network_editor.analysis.analyze_network",
+            wraps=analysis_module.analyze_network,
+        ) as analysis_analyze_network_mock,
+    ):
+        report = analyze_spec(spec)
+
+    assert report.contraction is not None
+    assert ensure_valid_spec_mock.call_count == 1
+    assert analysis_analyze_network_mock.call_count == 2
 
 
 def test_diff_specs_compares_entities_by_stable_ids() -> None:

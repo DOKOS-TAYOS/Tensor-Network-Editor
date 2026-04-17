@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ._analysis import analyze_network
 from ._contraction_analysis_automatic import (
     _analyze_automatic_operands,
     _analyze_future_automatic_plan,
@@ -17,8 +18,9 @@ from ._contraction_plan import (
 )
 from ._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
-from .codegen.common import prepare_network
+from .codegen.common import PreparedNetwork, prepare_analyzed_network
 from .models import NetworkSpec
+from .validation import ensure_valid_spec
 
 
 def analyze_contraction(
@@ -27,17 +29,36 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
-    if spec.linear_periodic_chain is not None:
-        from .validation import ensure_valid_spec
+    normalized_spec = _normalize_spec_for_contraction_analysis(spec)
+    prepared = prepare_analyzed_network(analyze_network(normalized_spec))
+    return _analyze_prepared_contraction(
+        prepared,
+        memory_dtype=memory_dtype,
+    )
 
-        validated_spec = ensure_valid_spec(spec)
-        if validated_spec.linear_periodic_chain is not None:
-            spec = linear_periodic_active_cell_as_analysis_network(
-                validated_spec.linear_periodic_chain
-            )
 
+def _normalize_spec_for_contraction_analysis(
+    spec: NetworkSpec,
+    *,
+    validate: bool = True,
+) -> NetworkSpec:
+    """Return the validated spec variant consumed by contraction analysis."""
+    resolved_spec = ensure_valid_spec(spec) if validate else spec
+    if resolved_spec.linear_periodic_chain is None:
+        return resolved_spec
+    return linear_periodic_active_cell_as_analysis_network(
+        resolved_spec.linear_periodic_chain
+    )
+
+
+def _analyze_prepared_contraction(
+    prepared: PreparedNetwork,
+    *,
+    memory_dtype: str = DEFAULT_MEMORY_DTYPE,
+) -> ContractionAnalysisResult:
+    """Analyze contraction paths using an already prepared network."""
+    spec = prepared.spec
     bytes_per_element = dtype_size_in_bytes(memory_dtype)
-    prepared = prepare_network(spec)
     contraction_inputs = prepare_contraction_inputs(prepared)
     network_output_shape = tuple(
         index.spec.dimension for index in prepared.open_indices

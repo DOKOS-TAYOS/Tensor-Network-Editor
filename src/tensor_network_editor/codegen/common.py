@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .._analysis import analyze_network
+from .._analysis import NetworkAnalysis, analyze_network
 from ..models import (
     EdgeSpec,
     IndexSpec,
@@ -95,6 +95,11 @@ class CodeSection:
 def prepare_network(spec: NetworkSpec, *, validate: bool = True) -> PreparedNetwork:
     """Validate and normalize ``spec`` for backend code generation."""
     analysis = analyze_network(spec, validate=validate)
+    return prepare_analyzed_network(analysis)
+
+
+def prepare_analyzed_network(analysis: NetworkAnalysis) -> PreparedNetwork:
+    """Normalize an existing analyzed network for backend code generation."""
     tensor_rows = group_tensors_by_visual_rows(analysis.spec.tensors)
     ordered_tensors = [tensor for tensor_row in tensor_rows for tensor in tensor_row]
     tensor_names = make_unique_identifiers(
