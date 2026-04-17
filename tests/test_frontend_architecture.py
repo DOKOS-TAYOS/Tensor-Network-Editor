@@ -558,6 +558,7 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
         const metadataSupport = propertyMetadataModule.createMetadataEditorSupport({{
           escapeHtml: (value) => String(value),
           isObject: (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value),
+          isMetadataDisclosureOpen: (disclosureKey) => disclosureKey === "network:metadata",
           annotationDefinitionsByScope: {{
             tensor: [
               {{
@@ -748,6 +749,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         const metadataSupport = propertyMetadataModule.createMetadataEditorSupport({{
           escapeHtml: (value) => String(value),
           isObject: (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value),
+          isMetadataDisclosureOpen: (disclosureKey) => disclosureKey === "network:metadata",
           annotationDefinitionsByScope: {{
             tensor: [
               {{
@@ -777,6 +779,20 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           metadataSupport.replaceActiveTagToken("alpha, ob", "observable");
         if (replacedTagValue !== "alpha, observable") {{
           throw new Error(`Expected active tag token replacement, received ${{replacedTagValue}}.`);
+        }}
+        const metadataMarkup = metadataSupport.buildMetadataEditorMarkup({{
+          tagsInputId: "network-tags-input",
+          tagsFocusKey: "network:tags",
+          customMetadataInputId: "network-custom-metadata-input",
+          customMetadataFocusKey: "network:custom-metadata",
+          target: {{ metadata: {{}} }},
+          collapsible: true,
+        }});
+        if (!metadataMarkup.includes('id="network-tags-input-disclosure"')) {{
+          throw new Error("Expected collapsible metadata editors to expose a stable disclosure id.");
+        }}
+        if (!metadataMarkup.includes("open")) {{
+          throw new Error("Expected the metadata disclosure helper to respect persisted open state.");
         }}
 
         function createClassList() {{

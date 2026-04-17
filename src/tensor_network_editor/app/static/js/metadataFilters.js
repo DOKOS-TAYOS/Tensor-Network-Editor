@@ -6,6 +6,13 @@ function normalizeTextLower(value) {
   return normalizeText(value).toLowerCase();
 }
 
+const NOT_SPECIFIED_FILTER_LABEL = "Not specified";
+const NOT_SPECIFIED_FILTER_VALUE = "__not_specified__";
+
+function collectFilterOptionsForScope(collectTagsForScope, scope) {
+  return [...collectTagsForScope(scope), NOT_SPECIFIED_FILTER_VALUE];
+}
+
 function scopeToEntityKind(scope) {
   if (scope === "bond") {
     return "edge";
@@ -166,12 +173,16 @@ export function registerMetadataFilters(ctx) {
     if (!selectedTags.length) {
       return false;
     }
+    const includesNotSpecified = selectedTags.includes(NOT_SPECIFIED_FILTER_VALUE);
     const normalizedSelectedTags = selectedTags.map((tag) => tag.toLowerCase());
     const metadataTags = Array.isArray(metadata && metadata.tags)
       ? metadata.tags
           .filter((tag) => typeof tag === "string" && tag.trim())
           .map((tag) => tag.trim().toLowerCase())
       : [];
+    if (!metadataTags.length && includesNotSpecified) {
+      return true;
+    }
     return metadataTags.some((tag) => normalizedSelectedTags.includes(tag));
   }
 
@@ -338,6 +349,9 @@ export function registerMetadataFilters(ctx) {
   }
 
   function getCheckboxIdForTag(tag) {
+    if (tag === NOT_SPECIFIED_FILTER_VALUE) {
+      return "canvas-metadata-filter-tag-not-specified";
+    }
     const fallbackSanitize = (value) =>
       String(value || "")
         .trim()
@@ -352,6 +366,10 @@ export function registerMetadataFilters(ctx) {
 
   function renderFilterPopover(filters) {
     const availableTags = collectTagsForScope(filters.scope);
+    const filterOptions = collectFilterOptionsForScope(
+      collectTagsForScope,
+      filters.scope
+    );
     return `
       <div class="canvas-tool-popover" data-canvas-tool-popover="filter">
         <div class="canvas-tool-popover-header">
@@ -367,6 +385,13 @@ export function registerMetadataFilters(ctx) {
             }>Bond</option>
           </select>
           <div class="canvas-tool-actions">
+            <button
+              id="canvas-metadata-filter-clear-button"
+              type="button"
+              class="button-quiet"
+            >
+              Clear
+            </button>
             <button
               id="canvas-metadata-filter-select-all-button"
               type="button"
@@ -385,14 +410,18 @@ export function registerMetadataFilters(ctx) {
         </div>
         <div class="canvas-tool-checkbox-list">
           ${
-            availableTags.length
-              ? availableTags
+            filterOptions.length
+              ? filterOptions
                   .map((tag) => {
                     const checkboxId = getCheckboxIdForTag(tag);
                     const isChecked = filters.selectedTags.some(
                       (selectedTag) =>
                         selectedTag.toLowerCase() === tag.toLowerCase()
                     );
+                    const label =
+                      tag === NOT_SPECIFIED_FILTER_VALUE
+                        ? NOT_SPECIFIED_FILTER_LABEL
+                        : tag;
                     return `
                       <label class="canvas-tool-checkbox" for="${checkboxId}">
                         <input
@@ -401,11 +430,16 @@ export function registerMetadataFilters(ctx) {
                           data-filter-tag="${ctx.escapeHtml(tag)}"
                           ${isChecked ? "checked" : ""}
                         />
-                        <span>${ctx.escapeHtml(tag)}</span>
+                        <span>${ctx.escapeHtml(label)}</span>
                       </label>
                     `;
                   })
                   .join("")
+              : ""
+          }
+          ${
+            availableTags.length
+              ? ""
               : '<p class="property-meta">No tags yet for this scope.</p>'
           }
         </div>
@@ -500,6 +534,9 @@ export function registerMetadataFilters(ctx) {
     const filterSelectAllButton = document.getElementById(
       "canvas-metadata-filter-select-all-button"
     );
+    const filterClearButton = document.getElementById(
+      "canvas-metadata-filter-clear-button"
+    );
     const filterSelectNoneButton = document.getElementById(
       "canvas-metadata-filter-select-none-button"
     );
@@ -540,6 +577,7 @@ export function registerMetadataFilters(ctx) {
       filterScopeSelect.addEventListener("change", () => {
         const nextScope = filterScopeSelect.value;
         const nextSelectedTags = normalizeMetadataFilters().selectedTags.filter((tag) =>
+          tag === NOT_SPECIFIED_FILTER_VALUE ||
           collectTagsForScope(nextScope).some(
             (candidate) => candidate.toLowerCase() === tag.toLowerCase()
           )
@@ -555,9 +593,24 @@ export function registerMetadataFilters(ctx) {
     if (filterSelectAllButton) {
       filterSelectAllButton.addEventListener("click", () => {
         updateMetadataFilters({
-          selectedTags: collectTagsForScope(filters.scope),
+          selectedTags: collectFilterOptionsForScope(
+            collectTagsForScope,
+            filters.scope
+          ),
           enabled: true,
         });
+      });
+    }
+
+    if (filterClearButton) {
+      filterClearButton.addEventListener("click", () => {
+        updateMetadataFilters(
+          {
+            selectedTags: [],
+            enabled: false,
+          },
+          { openPopover: "filter" }
+        );
       });
     }
 
@@ -570,13 +623,16 @@ export function registerMetadataFilters(ctx) {
       });
     }
 
-    collectTagsForScope(filters.scope).forEach((tag) => {
+    collectFilterOptionsForScope(collectTagsForScope, filters.scope).forEach((tag) => {
       const checkbox = document.getElementById(getCheckboxIdForTag(tag));
       if (!checkbox) {
         return;
       }
       checkbox.addEventListener("change", () => {
-        const nextSelectedTags = collectTagsForScope(filters.scope).filter((candidate) => {
+        const nextSelectedTags = collectFilterOptionsForScope(
+          collectTagsForScope,
+          filters.scope
+        ).filter((candidate) => {
           const checkboxElement = document.getElementById(
             getCheckboxIdForTag(candidate)
           );
@@ -600,10 +656,13 @@ export function registerMetadataFilters(ctx) {
 
     if (searchInput) {
       searchInput.addEventListener("input", () => {
-        updateNameSearch({
-          query: searchInput.value,
-          enabled: Boolean(normalizeText(searchInput.value)),
-        });
+        updateNameSearch(
+          {
+            query: searchInput.value,
+            enabled: Boolean(normalizeText(searchInput.value)),
+          },
+          { renderPanel: false }
+        );
       });
       searchInput.addEventListener("blur", () => {
         updateNameSearch({
@@ -611,6 +670,9 @@ export function registerMetadataFilters(ctx) {
           enabled: Boolean(normalizeText(searchInput.value)),
         });
       });
+      if (state.openCanvasToolPopover === "search" && typeof searchInput.focus === "function") {
+        searchInput.focus();
+      }
     }
   }
 
@@ -631,7 +693,9 @@ export function registerMetadataFilters(ctx) {
       enabled: false,
     };
     state.openCanvasToolPopover = options.openPopover || "filter";
-    renderMetadataFilters();
+    if (options.renderPanel !== false) {
+      renderMetadataFilters();
+    }
     if (
       !metadataFiltersEqual(currentFilters, nextFilters) ||
       currentSearch.enabled
@@ -653,7 +717,9 @@ export function registerMetadataFilters(ctx) {
       enabled: false,
     };
     state.openCanvasToolPopover = options.openPopover || "search";
-    renderMetadataFilters();
+    if (options.renderPanel !== false) {
+      renderMetadataFilters();
+    }
     if (
       !nameSearchEqual(currentSearch, nextSearch) ||
       currentFilters.enabled

@@ -1491,11 +1491,17 @@ textarea[disabled] {
 
 .metadata-editor-disclosure {
   display: block;
+  position: relative;
   padding: 0;
   border: 1px solid rgba(44, 52, 72, 0.95);
   border-radius: 8px;
   background: rgba(14, 20, 30, 0.84);
-  overflow: hidden;
+  overflow: visible;
+  z-index: 0;
+}
+
+.metadata-editor-disclosure[open] {
+  z-index: 2;
 }
 
 .properties-disclosure-summary {
@@ -1514,6 +1520,7 @@ textarea[disabled] {
 
 .properties-disclosure-summary.properties-disclosure-chevron::after {
   content: "\203A";
+  display: inline-block;
   margin-left: auto;
   color: var(--muted);
   font-size: 1.2rem;
@@ -1522,8 +1529,8 @@ textarea[disabled] {
 }
 
 .properties-disclosure[open] .properties-disclosure-summary.properties-disclosure-chevron::after {
-  content: "\2304";
-  transform: translateY(-0.02rem);
+  content: "\203A";
+  transform: rotate(90deg);
   color: var(--accent-strong);
 }
 

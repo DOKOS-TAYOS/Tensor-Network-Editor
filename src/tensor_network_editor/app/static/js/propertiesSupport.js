@@ -93,6 +93,18 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     tagSuggestionsByScope: collectTagSuggestionsByScope,
     escapeHtml: (value) => ctx.escapeHtml(value),
     isObject: (value) => ctx.isObject(value),
+    isMetadataDisclosureOpen: (disclosureKey) =>
+      Boolean(state.metadataDisclosureState[disclosureKey]),
+    setMetadataDisclosureOpen: (disclosureKey, isOpen) => {
+      if (!disclosureKey) {
+        return;
+      }
+      if (isOpen) {
+        state.metadataDisclosureState[disclosureKey] = true;
+        return;
+      }
+      delete state.metadataDisclosureState[disclosureKey];
+    },
   });
 
   function propertyInvalidation(overrides = {}) {

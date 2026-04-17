@@ -5,6 +5,8 @@ export function createMetadataEditorSupport({
   tagSuggestionsByScope = {},
   escapeHtml,
   isObject,
+  isMetadataDisclosureOpen = null,
+  setMetadataDisclosureOpen = null,
 }) {
   function resolveAnnotationDefinitionsByScope() {
     return typeof annotationDefinitionsByScope === "function"
@@ -179,6 +181,19 @@ export function createMetadataEditorSupport({
     return `${prefix}${normalizedSuggestion}${after}`.trim();
   }
 
+  function deriveDisclosureKey(baseFieldKey) {
+    if (typeof baseFieldKey !== "string" || !baseFieldKey) {
+      return null;
+    }
+    if (baseFieldKey.endsWith(":tags")) {
+      return `${baseFieldKey.slice(0, -5)}:metadata`;
+    }
+    if (baseFieldKey.endsWith(":custom-metadata")) {
+      return `${baseFieldKey.slice(0, -16)}:metadata`;
+    }
+    return null;
+  }
+
   function buildMetadataEditorMarkup({
     tagsInputId,
     tagsFocusKey,
@@ -188,8 +203,17 @@ export function createMetadataEditorSupport({
     annotationScope = null,
     collapsible = false,
     summaryLabel = "Metadata",
+    disclosureKey = null,
   }) {
     const tagSuggestionsId = `${tagsInputId}-suggestions`;
+    const resolvedDisclosureKey = disclosureKey || deriveDisclosureKey(tagsFocusKey);
+    const disclosureId = `${tagsInputId}-disclosure`;
+    const disclosureOpen =
+      collapsible &&
+      resolvedDisclosureKey &&
+      typeof isMetadataDisclosureOpen === "function"
+        ? Boolean(isMetadataDisclosureOpen(resolvedDisclosureKey))
+        : false;
     const metadataEditorMarkup = `
       <div class="field-group">
         <label for="${tagsInputId}">Tags</label>
@@ -219,7 +243,11 @@ export function createMetadataEditorSupport({
       return metadataEditorMarkup;
     }
     return `
-      <details class="metadata-editor-disclosure properties-disclosure">
+      <details
+        id="${disclosureId}"
+        class="metadata-editor-disclosure properties-disclosure"
+        ${disclosureOpen ? "open" : ""}
+      >
         <summary class="properties-disclosure-summary properties-disclosure-chevron">${escapeHtml(
           summaryLabel
         )}</summary>
@@ -242,6 +270,7 @@ export function createMetadataEditorSupport({
     bindDebouncedAutosave,
     applyDesignChange,
     setStatus,
+    disclosureKey = null,
   }) {
     const documentRef =
       tagsInput &&
@@ -256,6 +285,23 @@ export function createMetadataEditorSupport({
     const suggestionContainer = tagsInput
       ? documentRef && documentRef.getElementById(`${tagsInput.id}-suggestions`)
       : null;
+    const resolvedDisclosureKey = disclosureKey || deriveDisclosureKey(tagsFieldKey);
+    const disclosureElement =
+      resolvedDisclosureKey && tagsInput && documentRef
+        ? documentRef.getElementById(`${tagsInput.id}-disclosure`)
+        : null;
+
+    if (
+      disclosureElement &&
+      typeof setMetadataDisclosureOpen === "function"
+    ) {
+      disclosureElement.addEventListener("toggle", () => {
+        setMetadataDisclosureOpen(
+          resolvedDisclosureKey,
+          Boolean(disclosureElement.open)
+        );
+      });
+    }
 
     function renderTagSuggestionButtons() {
       if (!tagsInput || !suggestionContainer) {

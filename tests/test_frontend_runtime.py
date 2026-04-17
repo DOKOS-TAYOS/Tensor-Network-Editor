@@ -1557,6 +1557,21 @@ def _write_tensor_index_move_properties_runtime_regression_script(
           }
         }
 
+        function assertDisclosureState(html, disclosureId, expectedOpen) {
+          const match = html.match(
+            new RegExp(`<details[^>]*id="${disclosureId}"[^>]*>`)
+          );
+          if (!match) {
+            throw new Error(`Missing disclosure ${disclosureId}.`);
+          }
+          const isOpen = /\\sopen(?:\\s|>)/.test(match[0]);
+          if (isOpen !== expectedOpen) {
+            throw new Error(
+              `Expected disclosure ${disclosureId} open=${expectedOpen}, received ${isOpen}.`
+            );
+          }
+        }
+
         function assertHtmlOrder(html, firstLabel, secondLabel) {
           const firstPosition = html.indexOf(firstLabel);
           const secondPosition = html.indexOf(secondLabel);
@@ -1705,6 +1720,12 @@ def _write_tensor_index_move_properties_runtime_regression_script(
         assertHtmlOrder(initialHtml, "<strong>1. A</strong>", "<strong>2. B</strong>");
         assertToggleState(initialHtml, "index_a", { open: true, focused: true });
         assertToggleState(initialHtml, "index_b", { open: false, focused: false });
+        assertDisclosureState(initialHtml, "tensor-tags-input-disclosure", false);
+
+        ctx.state.metadataDisclosureState["tensor:tensor_a:metadata"] = true;
+        ctx.renderProperties();
+        const metadataOpenHtml = ctx.dom.propertiesPanel.innerHTML;
+        assertDisclosureState(metadataOpenHtml, "tensor-tags-input-disclosure", true);
 
         const moveDownButton = document.getElementById("move-index-down-button-index_a");
         if (!moveDownButton) {
@@ -1727,6 +1748,7 @@ def _write_tensor_index_move_properties_runtime_regression_script(
         assertHtmlOrder(updatedHtml, "<strong>1. B</strong>", "<strong>2. A</strong>");
         assertToggleState(updatedHtml, "index_b", { open: false, focused: false });
         assertToggleState(updatedHtml, "index_a", { open: true, focused: true });
+        assertDisclosureState(updatedHtml, "tensor-tags-input-disclosure", true);
         """
     )
     script_body = script_body.replace(
@@ -3075,6 +3097,12 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         if (!document.getElementById("canvas-metadata-filter-scope-select")) {
           throw new Error("Expected the floating metadata filter popover to open.");
         }
+        if (!document.getElementById("canvas-metadata-filter-clear-button")) {
+          throw new Error("Expected the floating metadata filter popover to expose a clear action.");
+        }
+        if (!document.getElementById("canvas-metadata-filter-tag-not-specified")) {
+          throw new Error("Expected every filter scope to expose the Not specified checkbox.");
+        }
 
         commitCheckbox(document.getElementById("canvas-metadata-filter-tag-block"), true);
         if (JSON.stringify(ctx.state.metadataFilters.selectedTags) !== JSON.stringify(["block"])) {
@@ -3109,9 +3137,37 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
           throw new Error("Deselecting every tag should leave the filter active and dim all entities.");
         }
 
+        commitSelect(document.getElementById("canvas-metadata-filter-scope-select"), "index");
+        commitCheckbox(document.getElementById("canvas-metadata-filter-tag-not-specified"), true);
+        const unspecifiedHighlight = ctx.getMetadataFilterHighlight();
+        if (ctx.getMetadataFilterEntityState("index", "index_c", unspecifiedHighlight) !== "match") {
+          throw new Error("Expected the Not specified checkbox to match indices without tags.");
+        }
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_b", unspecifiedHighlight) !== "context") {
+          throw new Error("Expected the owner tensor to stay in context for a Not specified index match.");
+        }
+        document.getElementById("canvas-metadata-filter-clear-button").click();
+        if (ctx.state.metadataFilters.enabled) {
+          throw new Error("Clearing the filter should disable the metadata filter state.");
+        }
+        if (ctx.getMetadataFilterHighlight() !== null) {
+          throw new Error("Clearing the filter should restore the neutral highlight state.");
+        }
+
         document.getElementById("canvas-name-search-button").click();
         commitSelect(document.getElementById("canvas-name-search-scope-select"), "bond");
-        commitInput(document.getElementById("canvas-name-search-input"), "bond_ab");
+        const searchInput = document.getElementById("canvas-name-search-input");
+        if (!searchInput) {
+          throw new Error("Expected the search popover to expose its input.");
+        }
+        searchInput.value = "b";
+        searchInput.dispatchEvent("input");
+        if (document.getElementById("canvas-name-search-input") !== searchInput) {
+          throw new Error("Typing in the name search should not recreate the input and steal focus.");
+        }
+        searchInput.value = "bond_ab";
+        searchInput.dispatchEvent("input");
+        searchInput.dispatchEvent("blur");
         const searchHighlight = ctx.getMetadataFilterHighlight();
         if (ctx.getMetadataFilterEntityState("edge", "edge_ab", searchHighlight) !== "match") {
           throw new Error("Expected the bond search to match the edge by exact name.");
@@ -3925,6 +3981,35 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             if (!ctx.state.boxSelection || ctx.state.boxSelection.start.x !== 10) {
               throw new Error("Canvas bindings no longer seed box selection correctly.");
             }
+            ctx.state.boxSelection = null;
+
+            const rightMouseEvent = {
+              button: 2,
+              shiftKey: false,
+              clientX: 30,
+              clientY: 40,
+              preventDefaultCalls: 0,
+              stopPropagationCalls: 0,
+              preventDefault() {
+                this.preventDefaultCalls += 1;
+              },
+              stopPropagation() {
+                this.stopPropagationCalls += 1;
+              },
+              target: {
+                closest() {
+                  return null;
+                },
+              },
+            };
+            runtime.handleCanvasMouseDown(rightMouseEvent);
+            if (!ctx.state.pendingBoxSelection || ctx.state.pendingBoxSelection.startPoint.x !== 30) {
+              throw new Error("Right mouse down should still arm box selection for empty canvas drags.");
+            }
+            if (rightMouseEvent.preventDefaultCalls !== 0 || rightMouseEvent.stopPropagationCalls !== 0) {
+              throw new Error("Right mouse down on the canvas should not swallow the Cytoscape context-menu path.");
+            }
+
             Object.assign(runtime, createInteractionShortcutBindings(env));
             Object.assign(runtime, createInteractionEditorBindings(env));
             Object.assign(

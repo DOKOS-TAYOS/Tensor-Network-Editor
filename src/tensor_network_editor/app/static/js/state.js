@@ -98,6 +98,7 @@ export function createInitialState() {
     },
     openCanvasToolPopover: null,
     canvasContextMenu: null,
+    metadataDisclosureState: {},
     tensorIndexDisclosureState: {},
     autoExpandedTensorIndex: null,
     pendingPropertiesIndexFocusId: null,

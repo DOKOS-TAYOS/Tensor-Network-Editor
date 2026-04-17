@@ -533,8 +533,10 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "registerMetadataFilters(context);" in main_body
     assert "canvas-metadata-filter-button" in filter_body
     assert "canvas-name-search-button" in filter_body
+    assert "canvas-metadata-filter-clear-button" in filter_body
     assert "canvas-metadata-filter-select-all-button" in filter_body
     assert "canvas-metadata-filter-select-none-button" in filter_body
+    assert "Not specified" in filter_body
     assert "canvas-name-search-input" in filter_body
     assert '"bond"' in filter_body
     assert "function getMetadataFilterHighlight(" in filter_body
@@ -543,6 +545,9 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "getMetadataFilterEntityState" in minimap_body
     assert ".canvas-tool-popover" in css_body
     assert "bottom: calc(100% +" in css_body
+    assert "transform: rotate(90deg)" in css_body
+    assert ".metadata-editor-disclosure" in css_body
+    assert "overflow: visible;" in css_body
 
 
 def test_canvas_context_menu_assets_expose_minimal_selection_actions(

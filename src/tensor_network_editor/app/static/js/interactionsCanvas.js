@@ -55,8 +55,6 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
       return;
     }
     if (event.button === 2) {
-      event.preventDefault();
-      event.stopPropagation();
       state.pendingBoxSelection = {
         additive: Boolean(event.shiftKey),
         startClientX: event.clientX,
