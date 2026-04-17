@@ -34,6 +34,7 @@ export function buildNetworkPropertiesMarkup({
         customMetadataInputId: "network-custom-metadata-input",
         customMetadataFocusKey: "network:custom-metadata",
         target: spec,
+        collapsible: true,
       })}
     `;
 }
@@ -124,7 +125,6 @@ export function buildMultiSelectionPropertiesMarkup({
             <div class="properties-section-heading">Layout</div>
             <div class="button-row">
               <button id="align-selection-left-button" type="button">Left</button>
-              <button id="align-selection-center-button" type="button">Center</button>
               <button id="align-selection-right-button" type="button">Right</button>
             </div>
             <div class="button-row">

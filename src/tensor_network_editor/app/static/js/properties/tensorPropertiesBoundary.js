@@ -1,20 +1,12 @@
 export function createBoundaryTensorPropertiesRenderer({
   bindImmediateAutosave,
   bindMetadataEditors,
-  bindSuggestedAnnotationEditors,
   buildMetadataEditorMarkup,
-  buildSuggestedAnnotationsMarkup,
   commands,
   ctx,
   document,
-  indexAnnotationFocusKey,
-  indexAnnotationInputId,
-  indexAnnotationSuggestionButtonId,
   propertiesPanel,
   propertyInvalidation,
-  tensorAnnotationFocusKey,
-  tensorAnnotationInputId,
-  tensorAnnotationSuggestionButtonId,
 }) {
   function renderLinearPeriodicBoundaryTensorProperties(tensor) {
     const roleLabel =
@@ -61,15 +53,6 @@ export function createBoundaryTensorPropertiesRenderer({
                 target: index,
                 annotationScope: "index",
                 collapsible: true,
-                suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
-                  annotationScope: "index",
-                  target: index,
-                  inputIdForKey: (key) => indexAnnotationInputId(index.id, key),
-                  focusKeyForKey: (key) =>
-                    indexAnnotationFocusKey(index.id, key),
-                  suggestionButtonIdForValue: (key, suggestion) =>
-                    indexAnnotationSuggestionButtonId(index.id, key, suggestion),
-                }),
               })}
             </div>
           </section>
@@ -95,7 +78,6 @@ export function createBoundaryTensorPropertiesRenderer({
         </div>
       </div>
       <div class="button-row">
-        <button id="center-tensor-button" type="button">Center</button>
         <label class="control-inline-color" for="tensor-color-input">
           <input
             id="tensor-color-input"
@@ -115,14 +97,6 @@ export function createBoundaryTensorPropertiesRenderer({
         target: tensor,
         annotationScope: "tensor",
         collapsible: true,
-        suggestedAnnotationsMarkup: buildSuggestedAnnotationsMarkup({
-          annotationScope: "tensor",
-          target: tensor,
-          inputIdForKey: (key) => tensorAnnotationInputId(key),
-          focusKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
-          suggestionButtonIdForValue: (key, suggestion) =>
-            tensorAnnotationSuggestionButtonId(key, suggestion),
-        }),
       })}
       <div class="properties-list">
         ${indexEditors || "<p class='property-meta'>Ports will appear automatically when this cell exposes free non-virtual indices.</p>"}
@@ -148,19 +122,6 @@ export function createBoundaryTensorPropertiesRenderer({
       },
       "input"
     );
-    document
-      .getElementById("center-tensor-button")
-      .addEventListener("click", () => {
-        commands.centerTensorInView({
-          tensorId: tensor.id,
-          invalidate: propertyInvalidation({
-            graph: true,
-            overlays: true,
-            minimap: true,
-          }),
-          statusMessage: `Centered ${roleLabel.toLowerCase()}.`,
-        });
-      });
     bindMetadataEditors({
       target: tensor,
       tagsInput: tensorTagsInput,
@@ -170,20 +131,6 @@ export function createBoundaryTensorPropertiesRenderer({
       statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
       invalidate: propertyInvalidation(),
       annotationScope: "tensor",
-    });
-    bindSuggestedAnnotationEditors({
-      target: tensor,
-      annotationScope: "tensor",
-      inputForKey: (key) =>
-        document.getElementById(tensorAnnotationInputId(key)),
-      fieldKeyForKey: (key) => tensorAnnotationFocusKey(tensor.id, key),
-      suggestionButtonForValue: (key, suggestion) =>
-        document.getElementById(
-          tensorAnnotationSuggestionButtonId(key, suggestion)
-        ),
-      customMetadataInput: tensorCustomMetadataInput,
-      statusMessage: `Updated ${roleLabel.toLowerCase()}.`,
-      invalidate: propertyInvalidation(),
     });
 
     tensor.indices.forEach((index) => {
@@ -218,20 +165,6 @@ export function createBoundaryTensorPropertiesRenderer({
         statusMessage: `Updated ${index.name}.`,
         invalidate: propertyInvalidation(),
         annotationScope: "index",
-      });
-      bindSuggestedAnnotationEditors({
-        target: index,
-        annotationScope: "index",
-        inputForKey: (key) =>
-          document.getElementById(indexAnnotationInputId(index.id, key)),
-        fieldKeyForKey: (key) => indexAnnotationFocusKey(index.id, key),
-        suggestionButtonForValue: (key, suggestion) =>
-          document.getElementById(
-            indexAnnotationSuggestionButtonId(index.id, key, suggestion)
-          ),
-        customMetadataInput: indexCustomMetadataInput,
-        statusMessage: `Updated ${index.name}.`,
-        invalidate: propertyInvalidation(),
       });
     });
   }

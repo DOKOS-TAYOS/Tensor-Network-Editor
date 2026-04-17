@@ -2,6 +2,7 @@ export const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
 
 export function createMetadataEditorSupport({
   annotationDefinitionsByScope = {},
+  tagSuggestionsByScope = {},
   escapeHtml,
   isObject,
 }) {
@@ -9,6 +10,12 @@ export function createMetadataEditorSupport({
     return typeof annotationDefinitionsByScope === "function"
       ? annotationDefinitionsByScope() || {}
       : annotationDefinitionsByScope || {};
+  }
+
+  function resolveTagSuggestionsByScope() {
+    return typeof tagSuggestionsByScope === "function"
+      ? tagSuggestionsByScope() || {}
+      : tagSuggestionsByScope || {};
   }
 
   function normalizeMetadataTarget(target) {
@@ -31,30 +38,22 @@ export function createMetadataEditorSupport({
     return Array.isArray(definitions) ? definitions : [];
   }
 
-  function getGuidedAnnotationKeys(annotationScope) {
-    return new Set(
-      getAnnotationDefinitions(annotationScope).map((definition) => definition.key)
-    );
-  }
-
-  function getProtectedMetadata(target, annotationScope = null) {
+  function getProtectedMetadata(target) {
     const metadata = getReservedMetadata(target);
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     const protectedMetadata = {};
     Object.keys(metadata).forEach((key) => {
-      if (RESERVED_METADATA_KEYS.has(key) || guidedAnnotationKeys.has(key)) {
+      if (RESERVED_METADATA_KEYS.has(key)) {
         protectedMetadata[key] = metadata[key];
       }
     });
     return protectedMetadata;
   }
 
-  function getCustomMetadata(target, annotationScope = null) {
+  function getCustomMetadata(target) {
     const metadata = getReservedMetadata(target);
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     const customMetadata = {};
     Object.keys(metadata).forEach((key) => {
-      if (!RESERVED_METADATA_KEYS.has(key) && !guidedAnnotationKeys.has(key)) {
+      if (!RESERVED_METADATA_KEYS.has(key)) {
         customMetadata[key] = metadata[key];
       }
     });
@@ -71,23 +70,21 @@ export function createMetadataEditorSupport({
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean)
-      .filter((value, index, values) => values.indexOf(value) === index);
+      .filter((value, index, values) => {
+        const normalizedValue = value.toLowerCase();
+        return (
+          values.findIndex(
+            (candidate) => String(candidate || "").trim().toLowerCase() === normalizedValue
+          ) === index
+        );
+      });
   }
 
-  function formatAnnotationValue(target, key) {
-    const metadata = getReservedMetadata(target);
-    return typeof metadata[key] === "string" ? metadata[key] : "";
+  function formatCustomMetadataValue(target) {
+    return JSON.stringify(getCustomMetadata(target), null, 2);
   }
 
-  function normalizeAnnotationValue(rawValue) {
-    return String(rawValue || "").trim();
-  }
-
-  function formatCustomMetadataValue(target, annotationScope = null) {
-    return JSON.stringify(getCustomMetadata(target, annotationScope), null, 2);
-  }
-
-  function parseCustomMetadataValue(rawValue, annotationScope = null) {
+  function parseCustomMetadataValue(rawValue) {
     if (!rawValue || !String(rawValue).trim()) {
       return {};
     }
@@ -101,9 +98,8 @@ export function createMetadataEditorSupport({
       throw new Error("Custom metadata must be a JSON object.");
     }
     const sanitizedMetadata = {};
-    const guidedAnnotationKeys = getGuidedAnnotationKeys(annotationScope);
     Object.keys(parsedValue).forEach((key) => {
-      if (!RESERVED_METADATA_KEYS.has(key) && !guidedAnnotationKeys.has(key)) {
+      if (!RESERVED_METADATA_KEYS.has(key)) {
         sanitizedMetadata[key] = parsedValue[key];
       }
     });
@@ -114,6 +110,75 @@ export function createMetadataEditorSupport({
     return JSON.stringify(leftValue) === JSON.stringify(rightValue);
   }
 
+  function uniqueCaseInsensitive(values) {
+    const seen = new Set();
+    return values.filter((value) => {
+      const normalizedValue = String(value || "").trim().toLowerCase();
+      if (!normalizedValue || seen.has(normalizedValue)) {
+        return false;
+      }
+      seen.add(normalizedValue);
+      return true;
+    });
+  }
+
+  function getExistingTagSuggestions(annotationScope = null) {
+    const scopedSuggestions = resolveTagSuggestionsByScope()[annotationScope] || [];
+    return Array.isArray(scopedSuggestions)
+      ? scopedSuggestions.filter((value) => typeof value === "string" && value.trim())
+      : [];
+  }
+
+  function getGuidedSuggestionValues(annotationScope = null) {
+    return getAnnotationDefinitions(annotationScope).flatMap((definition) =>
+      Array.isArray(definition.suggestions)
+        ? definition.suggestions.filter(
+            (suggestion) => typeof suggestion === "string" && suggestion.trim()
+          )
+        : []
+    );
+  }
+
+  function buildTagAutocompleteSuggestions(annotationScope = null, rawQuery = "") {
+    const normalizedQuery = String(rawQuery || "").trim().toLowerCase();
+    const combinedSuggestions = uniqueCaseInsensitive([
+      ...getExistingTagSuggestions(annotationScope),
+      ...getGuidedSuggestionValues(annotationScope),
+    ]);
+    if (!normalizedQuery) {
+      return combinedSuggestions;
+    }
+    return combinedSuggestions.filter((suggestion) =>
+      suggestion.toLowerCase().startsWith(normalizedQuery)
+    );
+  }
+
+  function replaceActiveTagToken(rawValue, suggestion, cursorPosition = null) {
+    const value = String(rawValue || "");
+    const normalizedSuggestion = String(suggestion || "").trim();
+    if (!normalizedSuggestion) {
+      return value;
+    }
+    const safeCursor =
+      typeof cursorPosition === "number" && Number.isFinite(cursorPosition)
+        ? cursorPosition
+        : value.length;
+    const previousComma = value.lastIndexOf(",", safeCursor - 1);
+    const nextComma = value.indexOf(",", safeCursor);
+    const tokenStart = previousComma >= 0 ? previousComma + 1 : 0;
+    const tokenEnd = nextComma >= 0 ? nextComma : value.length;
+    const before = value
+      .slice(0, tokenStart)
+      .replace(/\s*$/, "")
+      .replace(/\s*,\s*$/, ",");
+    const after = value
+      .slice(tokenEnd)
+      .replace(/^\s*/, "")
+      .replace(/^,\s*/, ", ");
+    const prefix = before ? `${before} ` : "";
+    return `${prefix}${normalizedSuggestion}${after}`.trim();
+  }
+
   function buildMetadataEditorMarkup({
     tagsInputId,
     tagsFocusKey,
@@ -121,10 +186,10 @@ export function createMetadataEditorSupport({
     customMetadataFocusKey,
     target,
     annotationScope = null,
-    suggestedAnnotationsMarkup = "",
     collapsible = false,
     summaryLabel = "Metadata",
   }) {
+    const tagSuggestionsId = `${tagsInputId}-suggestions`;
     const metadataEditorMarkup = `
       <div class="field-group">
         <label for="${tagsInputId}">Tags</label>
@@ -134,16 +199,20 @@ export function createMetadataEditorSupport({
           value="${escapeHtml(formatTagsValue(target))}"
           placeholder="physical, observable, left-leg"
         />
+        <div
+          id="${tagSuggestionsId}"
+          class="metadata-tag-suggestions"
+          aria-live="polite"
+        ></div>
       </div>
-      ${suggestedAnnotationsMarkup}
       <div class="field-group">
         <label for="${customMetadataInputId}">Custom metadata (JSON)</label>
         <textarea
           id="${customMetadataInputId}"
           data-focus-key="${customMetadataFocusKey}"
-          rows="5"
+          rows="1"
           placeholder='{"role": "physical"}'
-        >${escapeHtml(formatCustomMetadataValue(target, annotationScope))}</textarea>
+        >${escapeHtml(formatCustomMetadataValue(target))}</textarea>
       </div>
     `;
     if (!collapsible) {
@@ -151,65 +220,13 @@ export function createMetadataEditorSupport({
     }
     return `
       <details class="metadata-editor-disclosure properties-disclosure">
-        <summary class="properties-disclosure-summary">${escapeHtml(summaryLabel)}</summary>
+        <summary class="properties-disclosure-summary properties-disclosure-chevron">${escapeHtml(
+          summaryLabel
+        )}</summary>
         <div class="properties-disclosure-body metadata-editor-disclosure-body">
           ${metadataEditorMarkup}
         </div>
       </details>
-    `;
-  }
-
-  function buildSuggestedAnnotationsMarkup({
-    annotationScope,
-    target,
-    inputIdForKey,
-    focusKeyForKey,
-    suggestionButtonIdForValue,
-  }) {
-    const definitions = getAnnotationDefinitions(annotationScope);
-    if (!definitions.length) {
-      return "";
-    }
-    return `
-      <section class="suggested-annotations">
-        <div class="properties-section-heading">Suggested annotations</div>
-        ${definitions
-          .map(
-            (definition) => `
-              <div class="field-group">
-                <label for="${inputIdForKey(definition.key)}">${escapeHtml(definition.label)}</label>
-                <input
-                  id="${inputIdForKey(definition.key)}"
-                  data-focus-key="${focusKeyForKey(definition.key)}"
-                  value="${escapeHtml(formatAnnotationValue(target, definition.key))}"
-                  placeholder="${escapeHtml(definition.placeholder)}"
-                />
-                ${
-                  definition.suggestions.length
-                    ? `
-                      <div class="suggested-annotation-chips">
-                        ${definition.suggestions
-                          .map(
-                            (suggestion) => `
-                              <button
-                                id="${suggestionButtonIdForValue(definition.key, suggestion)}"
-                                type="button"
-                                class="annotation-chip"
-                              >
-                                ${escapeHtml(suggestion)}
-                              </button>
-                            `
-                          )
-                          .join("")}
-                      </div>
-                    `
-                    : ""
-                }
-              </div>
-            `
-          )
-          .join("")}
-      </section>
     `;
   }
 
@@ -226,17 +243,91 @@ export function createMetadataEditorSupport({
     applyDesignChange,
     setStatus,
   }) {
-    bindDebouncedAutosave(tagsInput, tagsFieldKey, () => {
-      const nextTags = normalizeTagsValue(tagsInput.value);
+    const documentRef =
+      tagsInput &&
+      tagsInput.ownerDocument &&
+      typeof tagsInput.ownerDocument.getElementById === "function"
+        ? tagsInput.ownerDocument
+        : customMetadataInput &&
+            customMetadataInput.ownerDocument &&
+            typeof customMetadataInput.ownerDocument.getElementById === "function"
+          ? customMetadataInput.ownerDocument
+          : null;
+    const suggestionContainer = tagsInput
+      ? documentRef && documentRef.getElementById(`${tagsInput.id}-suggestions`)
+      : null;
+
+    function renderTagSuggestionButtons() {
+      if (!tagsInput || !suggestionContainer) {
+        return;
+      }
+      const cursorPosition =
+        typeof tagsInput.selectionStart === "number"
+          ? tagsInput.selectionStart
+          : tagsInput.value.length;
+      const rawValue = String(tagsInput.value || "");
+      const previousComma = rawValue.lastIndexOf(",", Math.max(0, cursorPosition - 1));
+      const nextComma = rawValue.indexOf(",", cursorPosition);
+      const tokenStart = previousComma >= 0 ? previousComma + 1 : 0;
+      const tokenEnd = nextComma >= 0 ? nextComma : rawValue.length;
+      const activeToken = rawValue.slice(tokenStart, tokenEnd).trim();
+      const suggestions = buildTagAutocompleteSuggestions(
+        annotationScope,
+        activeToken
+      ).filter(
+        (suggestion) => suggestion.toLowerCase() !== activeToken.toLowerCase()
+      );
+      if (!activeToken || !suggestions.length) {
+        suggestionContainer.innerHTML = "";
+        return;
+      }
+      suggestionContainer.innerHTML = suggestions
+        .map(
+          (suggestion) => `
+            <button
+              type="button"
+              class="metadata-tag-suggestion"
+              data-tag-suggestion="${escapeHtml(suggestion)}"
+            >
+              ${escapeHtml(suggestion)}
+            </button>
+          `
+        )
+        .join("");
+      suggestionContainer
+        .querySelectorAll("[data-tag-suggestion]")
+        .forEach((button) => {
+          button.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          button.addEventListener("click", () => {
+            const nextValue = replaceActiveTagToken(
+              tagsInput.value,
+              button.dataset.tagSuggestion || "",
+              tagsInput.selectionStart
+            );
+            tagsInput.value = nextValue;
+            commitTagsValue(nextValue);
+          });
+        });
+    }
+
+    function commitTagsValue(rawValue = tagsInput ? tagsInput.value : "") {
+      if (!tagsInput) {
+        return;
+      }
+      const nextTags = normalizeTagsValue(rawValue);
       const currentTags = normalizeTagsValue(formatTagsValue(target));
       if (metadataValuesEqual(currentTags, nextTags)) {
         tagsInput.value = nextTags.join(", ");
+        renderTagSuggestionButtons();
         return;
       }
       applyDesignChange(
         () => {
-          const reservedMetadata = getProtectedMetadata(target, annotationScope);
-          const customMetadata = getCustomMetadata(target, annotationScope);
+          const reservedMetadata = getProtectedMetadata(target);
+          const customMetadata = getCustomMetadata(target);
           target.metadata = {
             ...reservedMetadata,
             ...customMetadata,
@@ -253,10 +344,21 @@ export function createMetadataEditorSupport({
         }
       );
       tagsInput.value = formatTagsValue(target);
+      renderTagSuggestionButtons();
       if (customMetadataInput) {
-        customMetadataInput.value = formatCustomMetadataValue(target, annotationScope);
+        customMetadataInput.value = formatCustomMetadataValue(target);
       }
-    });
+    }
+
+    if (tagsInput) {
+      bindDebouncedAutosave(tagsInput, tagsFieldKey, () => commitTagsValue());
+      tagsInput.addEventListener("focus", () => {
+        renderTagSuggestionButtons();
+      });
+      tagsInput.addEventListener("input", () => {
+        renderTagSuggestionButtons();
+      });
+    }
 
     bindDebouncedAutosave(
       customMetadataInput,
@@ -264,23 +366,20 @@ export function createMetadataEditorSupport({
       () => {
         let nextCustomMetadata;
         try {
-          nextCustomMetadata = parseCustomMetadataValue(
-            customMetadataInput.value,
-            annotationScope
-          );
+          nextCustomMetadata = parseCustomMetadataValue(customMetadataInput.value);
         } catch (error) {
           setStatus(error.message, "error");
           return;
         }
-        const currentCustomMetadata = getCustomMetadata(target, annotationScope);
+        const currentCustomMetadata = getCustomMetadata(target);
         if (metadataValuesEqual(currentCustomMetadata, nextCustomMetadata)) {
-          customMetadataInput.value = formatCustomMetadataValue(target, annotationScope);
+          customMetadataInput.value = formatCustomMetadataValue(target);
           return;
         }
         applyDesignChange(
           () => {
             target.metadata = {
-              ...getProtectedMetadata(target, annotationScope),
+              ...getProtectedMetadata(target),
               ...nextCustomMetadata,
             };
           },
@@ -289,120 +388,28 @@ export function createMetadataEditorSupport({
             statusMessage,
           }
         );
-        customMetadataInput.value = formatCustomMetadataValue(target, annotationScope);
+        customMetadataInput.value = formatCustomMetadataValue(target);
         if (tagsInput) {
           tagsInput.value = formatTagsValue(target);
+          renderTagSuggestionButtons();
         }
       },
       { commitOnEnter: false }
     );
   }
 
-  function bindSuggestedAnnotationEditors({
-    target,
-    annotationScope,
-    inputForKey,
-    fieldKeyForKey,
-    suggestionButtonForValue,
-    customMetadataInput = null,
-    statusMessage,
-    invalidate,
-    bindDebouncedAutosave,
-    commitAutosave,
-    applyDesignChange,
-  }) {
-    const definitions = getAnnotationDefinitions(annotationScope);
-    if (!definitions.length) {
-      return;
-    }
-
-    definitions.forEach((definition) => {
-      const input = inputForKey(definition.key);
-      if (!input) {
-        return;
-      }
-
-      const commitAnnotationValue = (rawValue = input.value, options = {}) => {
-        const nextValue = normalizeAnnotationValue(rawValue);
-        const currentValue = normalizeAnnotationValue(
-          formatAnnotationValue(target, definition.key)
-        );
-        if (currentValue === nextValue) {
-          input.value = formatAnnotationValue(target, definition.key);
-          if (customMetadataInput) {
-            customMetadataInput.value = formatCustomMetadataValue(
-              target,
-              annotationScope
-            );
-          }
-          return;
-        }
-        applyDesignChange(
-          () => {
-            const metadata = normalizeMetadataTarget(target);
-            if (!metadata) {
-              return;
-            }
-            if (nextValue) {
-              metadata[definition.key] = nextValue;
-            } else {
-              delete metadata[definition.key];
-            }
-          },
-          {
-            invalidate,
-            statusMessage,
-            ...options,
-          }
-        );
-        input.value = formatAnnotationValue(target, definition.key);
-        if (customMetadataInput) {
-          customMetadataInput.value = formatCustomMetadataValue(
-            target,
-            annotationScope
-          );
-        }
-      };
-
-      bindDebouncedAutosave(
-        input,
-        fieldKeyForKey(definition.key),
-        () => commitAnnotationValue()
-      );
-
-      definition.suggestions.forEach((suggestion) => {
-        const suggestionButton = suggestionButtonForValue(
-          definition.key,
-          suggestion
-        );
-        if (!suggestionButton) {
-          return;
-        }
-        suggestionButton.addEventListener("click", () => {
-          input.value = suggestion;
-          commitAutosave(fieldKeyForKey(definition.key), () =>
-            commitAnnotationValue(suggestion)
-          );
-        });
-      });
-    });
-  }
-
   return {
     bindMetadataEditors,
-    bindSuggestedAnnotationEditors,
     buildMetadataEditorMarkup,
-    buildSuggestedAnnotationsMarkup,
-    formatAnnotationValue,
+    buildTagAutocompleteSuggestions,
     formatCustomMetadataValue,
     formatTagsValue,
-    getAnnotationDefinitions,
     getCustomMetadata,
     getProtectedMetadata,
     metadataValuesEqual,
-    normalizeAnnotationValue,
     normalizeMetadataTarget,
     normalizeTagsValue,
     parseCustomMetadataValue,
+    replaceActiveTagToken,
   };
 }

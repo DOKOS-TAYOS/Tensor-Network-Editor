@@ -83,6 +83,8 @@ export function registerProperties(ctx) {
   Object.assign(ctx, {
     bindDebouncedAutosave: support.bindDebouncedAutosave,
     bindImmediateAutosave: support.bindImmediateAutosave,
+    propertyCommands: commands,
+    propertyInvalidation: support.propertyInvalidation,
     ...renderers,
   });
 }

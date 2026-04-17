@@ -1,123 +1,86 @@
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeTextLower(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function scopeToEntityKind(scope) {
+  if (scope === "bond") {
+    return "edge";
+  }
+  return scope === "index" ? "index" : "tensor";
+}
+
+function createEmptyHighlight(mode = null, scope = null) {
+  return {
+    mode,
+    scope,
+    matchedTensorIds: new Set(),
+    contextTensorIds: new Set(),
+    matchedIndexIds: new Set(),
+    contextIndexIds: new Set(),
+    matchedEdgeIds: new Set(),
+    contextEdgeIds: new Set(),
+  };
+}
+
 export function registerMetadataFilters(ctx) {
   const state = ctx.state;
-  const { metadataFiltersPanel } = ctx.dom;
   const { document } = ctx;
-
-  function getAnnotationDefinitions(scope) {
-    const scopedDefinitions =
-      scope &&
-      state.annotationDefinitions &&
-      Array.isArray(state.annotationDefinitions[scope])
-        ? state.annotationDefinitions[scope]
-        : [];
-    return scopedDefinitions
-      .filter(
-        (definition) =>
-          ctx.isObject(definition) &&
-          typeof definition.key === "string" &&
-          definition.key.trim() &&
-          typeof definition.label === "string"
-      )
-      .map((definition) => ({
-        key: definition.key.trim(),
-        label: definition.label,
-        placeholder:
-          typeof definition.placeholder === "string"
-            ? definition.placeholder
-            : "",
-      }));
-  }
-
-  function normalizeFilterText(value) {
-    return String(value || "").trim();
-  }
+  const { canvasTools } = ctx.dom;
 
   function normalizeMetadataFilters(filters = state.metadataFilters) {
     const scope =
-      filters && filters.scope === "index" ? "index" : "tensor";
-    const tag = normalizeFilterText(filters && filters.tag);
-    const annotationKey = normalizeFilterText(filters && filters.annotationKey);
-    const annotationValue = normalizeFilterText(
-      filters && filters.annotationValue
-    );
-    const validAnnotationKeys = new Set(
-      getAnnotationDefinitions(scope).map((definition) => definition.key)
-    );
+      filters && (filters.scope === "index" || filters.scope === "bond")
+        ? filters.scope
+        : "tensor";
+    const selectedTags = Array.isArray(filters && filters.selectedTags)
+      ? filters.selectedTags
+          .filter((tag) => typeof tag === "string" && tag.trim())
+          .map((tag) => tag.trim())
+          .filter(
+            (tag, index, values) =>
+              values.findIndex(
+                (candidate) => candidate.toLowerCase() === tag.toLowerCase()
+              ) === index
+          )
+      : [];
     return {
       scope,
-      tag,
-      annotationKey: validAnnotationKeys.has(annotationKey) ? annotationKey : "",
-      annotationValue: validAnnotationKeys.has(annotationKey)
-        ? annotationValue
-        : "",
+      selectedTags,
+      enabled: Boolean(filters && filters.enabled),
+    };
+  }
+
+  function normalizeNameSearch(search = state.nameSearch) {
+    const scope =
+      search && (search.scope === "index" || search.scope === "bond")
+        ? search.scope
+        : "tensor";
+    const query = normalizeText(search && search.query);
+    return {
+      scope,
+      query,
+      enabled: Boolean(search && search.enabled && query),
     };
   }
 
   function metadataFiltersEqual(leftFilters, rightFilters) {
     return (
       leftFilters.scope === rightFilters.scope &&
-      leftFilters.tag === rightFilters.tag &&
-      leftFilters.annotationKey === rightFilters.annotationKey &&
-      leftFilters.annotationValue === rightFilters.annotationValue
+      leftFilters.enabled === rightFilters.enabled &&
+      JSON.stringify(leftFilters.selectedTags) ===
+        JSON.stringify(rightFilters.selectedTags)
     );
   }
 
-  function isMetadataFilterActive(filters = normalizeMetadataFilters()) {
-    return Boolean(filters.tag || filters.annotationKey || filters.annotationValue);
-  }
-
-  function normalizeComparisonValue(value) {
-    return normalizeFilterText(value).toLowerCase();
-  }
-
-  function metadataMatchesTag(metadata, tagQuery) {
-    if (!tagQuery) {
-      return true;
-    }
-    const tags = Array.isArray(metadata && metadata.tags)
-      ? metadata.tags.filter((tag) => typeof tag === "string" && tag.trim())
-      : [];
-    const normalizedQuery = normalizeComparisonValue(tagQuery);
-    return tags.some(
-      (tag) => normalizeComparisonValue(tag) === normalizedQuery
-    );
-  }
-
-  function metadataMatchesAnnotation(metadata, annotationKey, annotationValue) {
-    if (!annotationKey) {
-      return true;
-    }
-    if (!metadata || !Object.prototype.hasOwnProperty.call(metadata, annotationKey)) {
-      return false;
-    }
-    if (!annotationValue) {
-      return true;
-    }
+  function nameSearchEqual(leftSearch, rightSearch) {
     return (
-      normalizeComparisonValue(metadata[annotationKey]) ===
-      normalizeComparisonValue(annotationValue)
-    );
-  }
-
-  function tensorMatchesMetadataFilter(tensor, filters) {
-    return (
-      metadataMatchesTag(tensor && tensor.metadata, filters.tag) &&
-      metadataMatchesAnnotation(
-        tensor && tensor.metadata,
-        filters.annotationKey,
-        filters.annotationValue
-      )
-    );
-  }
-
-  function indexMatchesMetadataFilter(index, filters) {
-    return (
-      metadataMatchesTag(index && index.metadata, filters.tag) &&
-      metadataMatchesAnnotation(
-        index && index.metadata,
-        filters.annotationKey,
-        filters.annotationValue
-      )
+      leftSearch.scope === rightSearch.scope &&
+      leftSearch.query === rightSearch.query &&
+      leftSearch.enabled === rightSearch.enabled
     );
   }
 
@@ -147,8 +110,7 @@ export function registerMetadataFilters(ctx) {
   }
 
   function resolveEdgeTensorIds(edge) {
-    const leftIndexId = edge.leftIndexId || (edge.left && edge.left.index_id);
-    const rightIndexId = edge.rightIndexId || (edge.right && edge.right.index_id);
+    const [leftIndexId, rightIndexId] = resolveEdgeIndexIds(edge);
     const leftOwner = leftIndexId ? ctx.findIndexOwner(leftIndexId) : null;
     const rightOwner = rightIndexId ? ctx.findIndexOwner(rightIndexId) : null;
     return [
@@ -159,69 +121,562 @@ export function registerMetadataFilters(ctx) {
     ];
   }
 
-  function getMetadataFilterHighlight() {
-    const filters = normalizeMetadataFilters();
-    state.metadataFilters = filters;
-    if (!state.spec || !isMetadataFilterActive(filters)) {
-      return null;
-    }
+  function collectTagsForScope(scope) {
+    const normalizedScope = scopeToEntityKind(scope);
+    const seenTags = new Set();
+    const tags = [];
 
-    const visibleTensors = getVisibleTensors();
-    const visibleEdges = getVisibleEdges();
-    const matchedTensorIds = new Set();
-    const contextTensorIds = new Set();
-    const matchedIndexIds = new Set();
-    const matchedEdgeIds = new Set();
-
-    if (filters.scope === "tensor") {
-      visibleTensors.forEach((tensor) => {
-        if (!tensorMatchesMetadataFilter(tensor, filters)) {
+    function addTags(metadata) {
+      const metadataTags = Array.isArray(metadata && metadata.tags)
+        ? metadata.tags
+        : [];
+      metadataTags.forEach((tag) => {
+        if (typeof tag !== "string" || !tag.trim()) {
           return;
         }
-        matchedTensorIds.add(tensor.id);
-        (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
-          matchedIndexIds.add(index.id);
-        });
-      });
-      visibleEdges.forEach((edge) => {
-        const [leftTensorId, rightTensorId] = resolveEdgeTensorIds(edge);
-        if (
-          leftTensorId &&
-          rightTensorId &&
-          matchedTensorIds.has(leftTensorId) &&
-          matchedTensorIds.has(rightTensorId)
-        ) {
-          matchedEdgeIds.add(edge.id);
+        const normalizedTag = tag.trim().toLowerCase();
+        if (seenTags.has(normalizedTag)) {
+          return;
         }
-      });
-    } else {
-      visibleTensors.forEach((tensor) => {
-        (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
-          if (!indexMatchesMetadataFilter(index, filters)) {
-            return;
-          }
-          matchedIndexIds.add(index.id);
-          contextTensorIds.add(tensor.id);
-        });
-      });
-      visibleEdges.forEach((edge) => {
-        const [leftIndexId, rightIndexId] = resolveEdgeIndexIds(edge);
-        if (
-          matchedIndexIds.has(leftIndexId) ||
-          matchedIndexIds.has(rightIndexId)
-        ) {
-          matchedEdgeIds.add(edge.id);
-        }
+        seenTags.add(normalizedTag);
+        tags.push(tag.trim());
       });
     }
 
-    return {
-      scope: filters.scope,
-      matchedTensorIds,
-      contextTensorIds,
-      matchedIndexIds,
-      matchedEdgeIds,
+    if (!state.spec) {
+      return tags;
+    }
+
+    if (normalizedScope === "tensor") {
+      getVisibleTensors().forEach((tensor) => addTags(tensor.metadata));
+    } else if (normalizedScope === "index") {
+      getVisibleTensors().forEach((tensor) => {
+        (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
+          addTags(index.metadata);
+        });
+      });
+    } else {
+      getVisibleEdges().forEach((edge) => addTags(edge.metadata));
+    }
+
+    return tags;
+  }
+
+  function metadataMatchesSelectedTags(metadata, selectedTags) {
+    if (!selectedTags.length) {
+      return false;
+    }
+    const normalizedSelectedTags = selectedTags.map((tag) => tag.toLowerCase());
+    const metadataTags = Array.isArray(metadata && metadata.tags)
+      ? metadata.tags
+          .filter((tag) => typeof tag === "string" && tag.trim())
+          .map((tag) => tag.trim().toLowerCase())
+      : [];
+    return metadataTags.some((tag) => normalizedSelectedTags.includes(tag));
+  }
+
+  function nameMatchesQuery(name, query) {
+    return normalizeTextLower(name) === normalizeTextLower(query);
+  }
+
+  function buildTensorHighlight(matchTensor) {
+    const highlight = createEmptyHighlight("tensor", "tensor");
+    const visibleTensors = getVisibleTensors();
+    const visibleEdges = getVisibleEdges();
+
+    visibleTensors.forEach((tensor) => {
+      if (!matchTensor(tensor)) {
+        return;
+      }
+      highlight.matchedTensorIds.add(tensor.id);
+      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
+        highlight.matchedIndexIds.add(index.id);
+      });
+    });
+
+    visibleEdges.forEach((edge) => {
+      const [leftTensorId, rightTensorId] = resolveEdgeTensorIds(edge);
+      if (
+        leftTensorId &&
+        rightTensorId &&
+        highlight.matchedTensorIds.has(leftTensorId) &&
+        highlight.matchedTensorIds.has(rightTensorId)
+      ) {
+        highlight.matchedEdgeIds.add(edge.id);
+      }
+    });
+
+    return highlight;
+  }
+
+  function buildIndexHighlight(matchIndex) {
+    const highlight = createEmptyHighlight("index", "index");
+    const visibleTensors = getVisibleTensors();
+    const visibleEdges = getVisibleEdges();
+
+    visibleTensors.forEach((tensor) => {
+      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
+        if (!matchIndex(index)) {
+          return;
+        }
+        highlight.matchedIndexIds.add(index.id);
+        highlight.contextTensorIds.add(tensor.id);
+      });
+    });
+
+    visibleEdges.forEach((edge) => {
+      const [leftIndexId, rightIndexId] = resolveEdgeIndexIds(edge);
+      if (
+        highlight.matchedIndexIds.has(leftIndexId) ||
+        highlight.matchedIndexIds.has(rightIndexId)
+      ) {
+        highlight.matchedEdgeIds.add(edge.id);
+      }
+    });
+
+    return highlight;
+  }
+
+  function buildBondHighlight(matchBond) {
+    const highlight = createEmptyHighlight("bond", "bond");
+    const visibleEdges = getVisibleEdges();
+
+    visibleEdges.forEach((edge) => {
+      if (!matchBond(edge)) {
+        return;
+      }
+      highlight.matchedEdgeIds.add(edge.id);
+      const [leftIndexId, rightIndexId] = resolveEdgeIndexIds(edge);
+      const [leftTensorId, rightTensorId] = resolveEdgeTensorIds(edge);
+      if (leftIndexId) {
+        highlight.contextIndexIds.add(leftIndexId);
+      }
+      if (rightIndexId) {
+        highlight.contextIndexIds.add(rightIndexId);
+      }
+      if (leftTensorId) {
+        highlight.contextTensorIds.add(leftTensorId);
+      }
+      if (rightTensorId) {
+        highlight.contextTensorIds.add(rightTensorId);
+      }
+    });
+
+    return highlight;
+  }
+
+  function buildTagFilterHighlight(filters) {
+    if (!filters.enabled) {
+      return null;
+    }
+    const scopeKind = scopeToEntityKind(filters.scope);
+    if (scopeKind === "tensor") {
+      return buildTensorHighlight((tensor) =>
+        metadataMatchesSelectedTags(tensor && tensor.metadata, filters.selectedTags)
+      );
+    }
+    if (scopeKind === "index") {
+      return buildIndexHighlight((index) =>
+        metadataMatchesSelectedTags(index && index.metadata, filters.selectedTags)
+      );
+    }
+    return buildBondHighlight((edge) =>
+      metadataMatchesSelectedTags(edge && edge.metadata, filters.selectedTags)
+    );
+  }
+
+  function buildNameSearchHighlight(search) {
+    if (!search.enabled || !search.query) {
+      return null;
+    }
+    const scopeKind = scopeToEntityKind(search.scope);
+    if (scopeKind === "tensor") {
+      return buildTensorHighlight((tensor) =>
+        nameMatchesQuery(tensor && tensor.name, search.query)
+      );
+    }
+    if (scopeKind === "index") {
+      return buildIndexHighlight((index) =>
+        nameMatchesQuery(index && index.name, search.query)
+      );
+    }
+    return buildBondHighlight((edge) =>
+      nameMatchesQuery(edge && (edge.name || edge.label), search.query)
+    );
+  }
+
+  function requestHighlightRender() {
+    if (typeof ctx.render !== "function") {
+      return;
+    }
+    ctx.render({
+      graph: true,
+      properties: false,
+      code: false,
+      toolbar: false,
+      overlays: false,
+      planner: false,
+      sidebarTabs: false,
+      minimap: true,
+    });
+  }
+
+  function filterButtonIcon() {
+    return `
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M2 3.5a1 1 0 0 1 1-1h10a1 1 0 0 1 .78 1.62L10 8.9v3.6a1 1 0 0 1-1.45.9l-2-1A1 1 0 0 1 6 11.5V8.9L2.22 4.12A1 1 0 0 1 2 3.5Z"></path>
+      </svg>
+    `;
+  }
+
+  function searchButtonIcon() {
+    return `
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M6.8 2.2a4.6 4.6 0 1 0 2.86 8.2l2.62 2.62a.75.75 0 1 0 1.06-1.06l-2.62-2.62A4.6 4.6 0 0 0 6.8 2.2Zm0 1.5a3.1 3.1 0 1 1 0 6.2 3.1 3.1 0 0 1 0-6.2Z"></path>
+      </svg>
+    `;
+  }
+
+  function getCheckboxIdForTag(tag) {
+    const fallbackSanitize = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    const sanitized = typeof ctx.sanitizeFilename === "function"
+      ? ctx.sanitizeFilename(tag).toLowerCase()
+      : fallbackSanitize(tag);
+    return `canvas-metadata-filter-tag-${sanitized || "tag"}`;
+  }
+
+  function renderFilterPopover(filters) {
+    const availableTags = collectTagsForScope(filters.scope);
+    return `
+      <div class="canvas-tool-popover" data-canvas-tool-popover="filter">
+        <div class="canvas-tool-popover-header">
+          <select id="canvas-metadata-filter-scope-select" aria-label="Filter scope">
+            <option value="tensor"${
+              filters.scope === "tensor" ? " selected" : ""
+            }>Tensor</option>
+            <option value="index"${
+              filters.scope === "index" ? " selected" : ""
+            }>Index</option>
+            <option value="bond"${
+              filters.scope === "bond" ? " selected" : ""
+            }>Bond</option>
+          </select>
+          <div class="canvas-tool-actions">
+            <button
+              id="canvas-metadata-filter-select-all-button"
+              type="button"
+              class="button-quiet"
+            >
+              All
+            </button>
+            <button
+              id="canvas-metadata-filter-select-none-button"
+              type="button"
+              class="button-quiet"
+            >
+              None
+            </button>
+          </div>
+        </div>
+        <div class="canvas-tool-checkbox-list">
+          ${
+            availableTags.length
+              ? availableTags
+                  .map((tag) => {
+                    const checkboxId = getCheckboxIdForTag(tag);
+                    const isChecked = filters.selectedTags.some(
+                      (selectedTag) =>
+                        selectedTag.toLowerCase() === tag.toLowerCase()
+                    );
+                    return `
+                      <label class="canvas-tool-checkbox" for="${checkboxId}">
+                        <input
+                          id="${checkboxId}"
+                          type="checkbox"
+                          data-filter-tag="${ctx.escapeHtml(tag)}"
+                          ${isChecked ? "checked" : ""}
+                        />
+                        <span>${ctx.escapeHtml(tag)}</span>
+                      </label>
+                    `;
+                  })
+                  .join("")
+              : '<p class="property-meta">No tags yet for this scope.</p>'
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSearchPopover(search) {
+    return `
+      <div class="canvas-tool-popover" data-canvas-tool-popover="search">
+        <div class="canvas-tool-popover-header">
+          <select id="canvas-name-search-scope-select" aria-label="Search scope">
+            <option value="tensor"${
+              search.scope === "tensor" ? " selected" : ""
+            }>Tensor</option>
+            <option value="index"${
+              search.scope === "index" ? " selected" : ""
+            }>Index</option>
+            <option value="bond"${
+              search.scope === "bond" ? " selected" : ""
+            }>Bond</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <input
+            id="canvas-name-search-input"
+            value="${ctx.escapeHtml(search.query)}"
+            placeholder="Exact name"
+            aria-label="Search by exact name"
+          />
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMetadataFilters() {
+    if (!canvasTools) {
+      return;
+    }
+
+    const filters = normalizeMetadataFilters();
+    const search = normalizeNameSearch();
+    state.metadataFilters = filters;
+    state.nameSearch = search;
+
+    canvasTools.innerHTML = `
+      <div class="canvas-tool-tray">
+        <div class="canvas-tool">
+          <button
+            id="canvas-metadata-filter-button"
+            type="button"
+            class="canvas-tool-button${
+              state.openCanvasToolPopover === "filter" ? " is-open" : ""
+            }${filters.enabled ? " is-active" : ""}"
+            aria-label="Filter by metadata tags"
+            aria-pressed="${state.openCanvasToolPopover === "filter"}"
+          >
+            ${filterButtonIcon()}
+          </button>
+          ${
+            state.openCanvasToolPopover === "filter"
+              ? renderFilterPopover(filters)
+              : ""
+          }
+        </div>
+        <div class="canvas-tool">
+          <button
+            id="canvas-name-search-button"
+            type="button"
+            class="canvas-tool-button${
+              state.openCanvasToolPopover === "search" ? " is-open" : ""
+            }${search.enabled ? " is-active" : ""}"
+            aria-label="Search by exact name"
+            aria-pressed="${state.openCanvasToolPopover === "search"}"
+          >
+            ${searchButtonIcon()}
+          </button>
+          ${
+            state.openCanvasToolPopover === "search"
+              ? renderSearchPopover(search)
+              : ""
+          }
+        </div>
+      </div>
+    `;
+
+    const filterButton = document.getElementById("canvas-metadata-filter-button");
+    const searchButton = document.getElementById("canvas-name-search-button");
+    const filterScopeSelect = document.getElementById(
+      "canvas-metadata-filter-scope-select"
+    );
+    const filterSelectAllButton = document.getElementById(
+      "canvas-metadata-filter-select-all-button"
+    );
+    const filterSelectNoneButton = document.getElementById(
+      "canvas-metadata-filter-select-none-button"
+    );
+    const searchScopeSelect = document.getElementById(
+      "canvas-name-search-scope-select"
+    );
+    const searchInput = document.getElementById("canvas-name-search-input");
+
+    if (filterButton) {
+      filterButton.addEventListener("click", () => {
+        const nextPopover =
+          state.openCanvasToolPopover === "filter" ? null : "filter";
+        state.openCanvasToolPopover = nextPopover;
+        state.nameSearch = {
+          ...normalizeNameSearch(),
+          enabled: false,
+        };
+        renderMetadataFilters();
+        requestHighlightRender();
+      });
+    }
+
+    if (searchButton) {
+      searchButton.addEventListener("click", () => {
+        const nextPopover =
+          state.openCanvasToolPopover === "search" ? null : "search";
+        state.openCanvasToolPopover = nextPopover;
+        state.metadataFilters = {
+          ...normalizeMetadataFilters(),
+          enabled: false,
+        };
+        renderMetadataFilters();
+        requestHighlightRender();
+      });
+    }
+
+    if (filterScopeSelect) {
+      filterScopeSelect.addEventListener("change", () => {
+        const nextScope = filterScopeSelect.value;
+        const nextSelectedTags = normalizeMetadataFilters().selectedTags.filter((tag) =>
+          collectTagsForScope(nextScope).some(
+            (candidate) => candidate.toLowerCase() === tag.toLowerCase()
+          )
+        );
+        updateMetadataFilters({
+          scope: nextScope,
+          selectedTags: nextSelectedTags,
+          enabled: true,
+        });
+      });
+    }
+
+    if (filterSelectAllButton) {
+      filterSelectAllButton.addEventListener("click", () => {
+        updateMetadataFilters({
+          selectedTags: collectTagsForScope(filters.scope),
+          enabled: true,
+        });
+      });
+    }
+
+    if (filterSelectNoneButton) {
+      filterSelectNoneButton.addEventListener("click", () => {
+        updateMetadataFilters({
+          selectedTags: [],
+          enabled: true,
+        });
+      });
+    }
+
+    collectTagsForScope(filters.scope).forEach((tag) => {
+      const checkbox = document.getElementById(getCheckboxIdForTag(tag));
+      if (!checkbox) {
+        return;
+      }
+      checkbox.addEventListener("change", () => {
+        const nextSelectedTags = collectTagsForScope(filters.scope).filter((candidate) => {
+          const checkboxElement = document.getElementById(
+            getCheckboxIdForTag(candidate)
+          );
+          return checkboxElement && checkboxElement.checked;
+        });
+        updateMetadataFilters({
+          selectedTags: nextSelectedTags,
+          enabled: true,
+        });
+      });
+    });
+
+    if (searchScopeSelect) {
+      searchScopeSelect.addEventListener("change", () => {
+        updateNameSearch({
+          scope: searchScopeSelect.value,
+          enabled: Boolean(normalizeText(searchInput ? searchInput.value : search.query)),
+        });
+      });
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        updateNameSearch({
+          query: searchInput.value,
+          enabled: Boolean(normalizeText(searchInput.value)),
+        });
+      });
+      searchInput.addEventListener("blur", () => {
+        updateNameSearch({
+          query: searchInput.value,
+          enabled: Boolean(normalizeText(searchInput.value)),
+        });
+      });
+    }
+  }
+
+  function updateMetadataFilters(updates, options = {}) {
+    const currentFilters = normalizeMetadataFilters();
+    const currentSearch = normalizeNameSearch();
+    const nextFilters = normalizeMetadataFilters({
+      ...currentFilters,
+      ...updates,
+      enabled:
+        updates && Object.prototype.hasOwnProperty.call(updates, "enabled")
+          ? updates.enabled
+          : true,
+    });
+    state.metadataFilters = nextFilters;
+    state.nameSearch = {
+      ...currentSearch,
+      enabled: false,
     };
+    state.openCanvasToolPopover = options.openPopover || "filter";
+    renderMetadataFilters();
+    if (
+      !metadataFiltersEqual(currentFilters, nextFilters) ||
+      currentSearch.enabled
+    ) {
+      requestHighlightRender();
+    }
+  }
+
+  function updateNameSearch(updates, options = {}) {
+    const currentFilters = normalizeMetadataFilters();
+    const currentSearch = normalizeNameSearch();
+    const nextSearch = normalizeNameSearch({
+      ...currentSearch,
+      ...updates,
+    });
+    state.nameSearch = nextSearch;
+    state.metadataFilters = {
+      ...currentFilters,
+      enabled: false,
+    };
+    state.openCanvasToolPopover = options.openPopover || "search";
+    renderMetadataFilters();
+    if (
+      !nameSearchEqual(currentSearch, nextSearch) ||
+      currentFilters.enabled
+    ) {
+      requestHighlightRender();
+    }
+  }
+
+  function getMetadataFilterHighlight() {
+    const filters = normalizeMetadataFilters();
+    const search = normalizeNameSearch();
+    state.metadataFilters = filters;
+    state.nameSearch = search;
+    if (!state.spec) {
+      return null;
+    }
+    if (search.enabled && search.query) {
+      return buildNameSearchHighlight(search);
+    }
+    if (filters.enabled) {
+      return buildTagFilterHighlight(filters);
+    }
+    return null;
   }
 
   function getMetadataFilterEntityState(entityKind, entityId, highlight = null) {
@@ -239,184 +694,31 @@ export function registerMetadataFilters(ctx) {
       return "dim";
     }
     if (entityKind === "index") {
-      return resolvedHighlight.matchedIndexIds.has(entityId) ? "match" : "dim";
+      if (resolvedHighlight.matchedIndexIds.has(entityId)) {
+        return "match";
+      }
+      if (resolvedHighlight.contextIndexIds.has(entityId)) {
+        return "context";
+      }
+      return "dim";
     }
     if (entityKind === "edge") {
-      return resolvedHighlight.matchedEdgeIds.has(entityId) ? "match" : "dim";
+      if (resolvedHighlight.matchedEdgeIds.has(entityId)) {
+        return "match";
+      }
+      if (resolvedHighlight.contextEdgeIds.has(entityId)) {
+        return "context";
+      }
+      return "dim";
     }
     return "none";
-  }
-
-  function renderMetadataFilters() {
-    if (!metadataFiltersPanel) {
-      return;
-    }
-
-    const filters = normalizeMetadataFilters();
-    state.metadataFilters = filters;
-    const annotationDefinitions = getAnnotationDefinitions(filters.scope);
-    const annotationValuePlaceholder = filters.annotationKey
-      ? (
-          annotationDefinitions.find(
-            (definition) => definition.key === filters.annotationKey
-          ) || { placeholder: "" }
-        ).placeholder
-      : "";
-    const keepDisclosureOpen =
-      /<details[^>]*\sopen\b/i.test(metadataFiltersPanel.innerHTML) ||
-      isMetadataFilterActive(filters);
-
-    metadataFiltersPanel.innerHTML = `
-      <details class="metadata-filters-card metadata-filters-disclosure"${
-        keepDisclosureOpen ? " open" : ""
-      }>
-        <summary class="properties-disclosure-summary">Metadata filters</summary>
-        <div class="properties-disclosure-body metadata-filters-body">
-          <div class="metadata-filters-header">
-            <button
-              id="clear-metadata-filters-button"
-              type="button"
-              class="button-quiet"
-            >
-              Clear
-            </button>
-          </div>
-          <div class="field-group">
-            <label for="metadata-filter-scope-select">Scope</label>
-            <select id="metadata-filter-scope-select">
-              <option value="tensor"${
-                filters.scope === "tensor" ? " selected" : ""
-              }>Tensor</option>
-              <option value="index"${
-                filters.scope === "index" ? " selected" : ""
-              }>Index</option>
-            </select>
-          </div>
-          <div class="field-group">
-            <label for="metadata-filter-tag-input">Tag</label>
-            <input
-              id="metadata-filter-tag-input"
-              value="${ctx.escapeHtml(filters.tag)}"
-              placeholder="physical"
-            />
-          </div>
-          <div class="field-group">
-            <label for="metadata-filter-key-select">Suggested annotation</label>
-            <select id="metadata-filter-key-select">
-              <option value="">Any guided field</option>
-              ${annotationDefinitions
-                .map(
-                  (definition) => `
-                    <option value="${ctx.escapeHtml(definition.key)}"${
-                      filters.annotationKey === definition.key ? " selected" : ""
-                    }>
-                      ${ctx.escapeHtml(definition.label)}
-                    </option>
-                  `
-                )
-                .join("")}
-            </select>
-          </div>
-          <div class="field-group">
-            <label for="metadata-filter-value-input">Annotation value</label>
-            <input
-              id="metadata-filter-value-input"
-              value="${ctx.escapeHtml(filters.annotationValue)}"
-              placeholder="${ctx.escapeHtml(annotationValuePlaceholder)}"
-              ${filters.annotationKey ? "" : "disabled"}
-            />
-          </div>
-          <p class="property-meta">
-            Matching elements stay bright and the rest fade.
-          </p>
-        </div>
-      </details>
-    `;
-
-    const scopeSelect = document.getElementById("metadata-filter-scope-select");
-    const tagInput = document.getElementById("metadata-filter-tag-input");
-    const keySelect = document.getElementById("metadata-filter-key-select");
-    const valueInput = document.getElementById("metadata-filter-value-input");
-    const clearButton = document.getElementById("clear-metadata-filters-button");
-
-    if (scopeSelect) {
-      scopeSelect.value = filters.scope;
-      scopeSelect.addEventListener("change", () => {
-        updateMetadataFilters({
-          scope: scopeSelect.value,
-          annotationKey: "",
-          annotationValue: "",
-        });
-      });
-    }
-    if (tagInput) {
-      tagInput.value = filters.tag;
-      tagInput.addEventListener("input", () => {
-        updateMetadataFilters({ tag: tagInput.value }, { renderPanel: false });
-      });
-      tagInput.addEventListener("blur", () => {
-        updateMetadataFilters({ tag: tagInput.value });
-      });
-    }
-    if (keySelect) {
-      keySelect.value = filters.annotationKey;
-      keySelect.addEventListener("change", () => {
-        updateMetadataFilters({
-          annotationKey: keySelect.value,
-          annotationValue: "",
-        });
-      });
-    }
-    if (valueInput) {
-      valueInput.value = filters.annotationValue;
-      valueInput.addEventListener("input", () => {
-        updateMetadataFilters(
-          { annotationValue: valueInput.value },
-          { renderPanel: false }
-        );
-      });
-      valueInput.addEventListener("blur", () => {
-        updateMetadataFilters({ annotationValue: valueInput.value });
-      });
-    }
-    if (clearButton) {
-      clearButton.addEventListener("click", () => {
-        updateMetadataFilters({
-          tag: "",
-          annotationKey: "",
-          annotationValue: "",
-        });
-      });
-    }
-  }
-
-  function updateMetadataFilters(updates, options = {}) {
-    const currentFilters = normalizeMetadataFilters();
-    const nextFilters = normalizeMetadataFilters({
-      ...currentFilters,
-      ...updates,
-    });
-    state.metadataFilters = nextFilters;
-    if (options.renderPanel !== false) {
-      renderMetadataFilters();
-    }
-    if (!metadataFiltersEqual(currentFilters, nextFilters) && typeof ctx.render === "function") {
-      ctx.render({
-        graph: true,
-        properties: false,
-        code: false,
-        toolbar: false,
-        overlays: false,
-        planner: false,
-        sidebarTabs: false,
-        minimap: true,
-      });
-    }
   }
 
   Object.assign(ctx, {
     renderMetadataFilters,
     getMetadataFilterHighlight,
     getMetadataFilterEntityState,
+    updateMetadataFilters,
+    updateNameSearch,
   });
 }

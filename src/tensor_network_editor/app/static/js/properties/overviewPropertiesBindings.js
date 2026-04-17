@@ -86,9 +86,6 @@ export function createOverviewPropertiesBindings({
     }
 
     bindClick("align-selection-left-button", () => actions.alignSelectedTensors("left"));
-    bindClick("align-selection-center-button", () =>
-      actions.alignSelectedTensors("center")
-    );
     bindClick("align-selection-right-button", () =>
       actions.alignSelectedTensors("right")
     );

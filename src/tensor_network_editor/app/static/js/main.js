@@ -1,4 +1,5 @@
 import { startEditor } from "./bootstrap.js";
+import { registerCanvasContextMenu } from "./canvasContextMenu.js";
 import { registerContractionScene } from "./contractionScene.js";
 import { createEditorContext } from "./editorContext.js";
 import { registerExportMinimap } from "./exportMinimap.js";
@@ -24,6 +25,7 @@ registerHistorySelection(context);
 registerGraphRender(context);
 registerSidebarTabs(context);
 registerProperties(context);
+registerCanvasContextMenu(context);
 registerMetadataFilters(context);
 registerExportMinimap(context);
 registerOverlaysLayoutTemplates(context);

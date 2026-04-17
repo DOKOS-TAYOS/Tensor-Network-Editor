@@ -2230,6 +2230,7 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
             value: "",
             textContent: "",
             dataset: {},
+            checked: false,
             disabled: false,
             classList: createClassList(),
             style: {},
@@ -2598,6 +2599,12 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (propertiesPanel.innerHTML.includes("<details open")) {
           throw new Error("Tensor metadata disclosures should be collapsed by default.");
         }
+        if (propertiesPanel.innerHTML.includes("Suggested annotations")) {
+          throw new Error("Tensor metadata should no longer render guided annotation fields.");
+        }
+        if (!propertiesPanel.innerHTML.includes('rows="1"')) {
+          throw new Error("Custom metadata should start with a single visible row.");
+        }
         renderCalls.length = 0;
         graphRenderCount = 0;
         minimapRenderCount = 0;
@@ -2621,26 +2628,9 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         renderCalls.length = 0;
         graphRenderCount = 0;
         minimapRenderCount = 0;
-        commitField(document.getElementById("tensor-annotation-role-input"), "observable");
-        const tensorMetadataAfterGuidedEdit = ctx.state.spec.tensors[0].metadata;
-        if (tensorMetadataAfterGuidedEdit.role !== "observable") {
-          throw new Error(`Expected the guided tensor role to update, received ${JSON.stringify(tensorMetadataAfterGuidedEdit)}.`);
-        }
-        if (document.getElementById("tensor-custom-metadata-input").value.includes('"role"')) {
-          throw new Error("The custom metadata editor should hide guided tensor annotations.");
-        }
-        assertLastRenderDidNotInvalidateGraph(
-          renderCalls,
-          () => graphRenderCount,
-          () => minimapRenderCount
-        );
-
-        renderCalls.length = 0;
-        graphRenderCount = 0;
-        minimapRenderCount = 0;
         commitField(
           document.getElementById("tensor-custom-metadata-input"),
-          '{"source":"imported","color":"#ffffff","tags":["ignored"]}'
+          '{"source":"imported","role":"observable","color":"#ffffff","tags":["ignored"]}'
         );
         const tensorMetadataAfterCustomEdit = ctx.state.spec.tensors[0].metadata;
         if (tensorMetadataAfterCustomEdit.color !== "#123456") {
@@ -2653,10 +2643,13 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           throw new Error("The advanced metadata editor should preserve tags edited in the dedicated field.");
         }
         if (tensorMetadataAfterCustomEdit.role !== "observable") {
-          throw new Error("The advanced metadata editor should preserve guided tensor annotations.");
+          throw new Error("Custom metadata should now keep former guided keys editable in JSON.");
         }
         if (tensorMetadataAfterCustomEdit.source !== "imported") {
           throw new Error("The advanced metadata editor did not apply the custom metadata payload.");
+        }
+        if (!document.getElementById("tensor-custom-metadata-input").value.includes('"role": "observable"')) {
+          throw new Error("The custom metadata editor should surface former guided keys in the JSON payload.");
         }
         assertLastRenderDidNotInvalidateGraph(
           renderCalls,
@@ -2666,7 +2659,7 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
 
         ctx.performUndo();
         const tensorMetadataAfterUndo = ctx.state.spec.tensors[0].metadata;
-        if (tensorMetadataAfterUndo.source !== "sim" || tensorMetadataAfterUndo.role !== "observable") {
+        if (tensorMetadataAfterUndo.source !== "sim" || Object.prototype.hasOwnProperty.call(tensorMetadataAfterUndo, "role")) {
           throw new Error(`Undo should restore the previous tensor custom metadata, received ${JSON.stringify(tensorMetadataAfterUndo)}.`);
         }
         ctx.performRedo();
@@ -2675,22 +2668,12 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           throw new Error(`Redo should restore the advanced metadata edit, received ${JSON.stringify(tensorMetadataAfterRedo)}.`);
         }
 
-        renderCalls.length = 0;
-        graphRenderCount = 0;
-        minimapRenderCount = 0;
-        document.getElementById("tensor-annotation-role-suggestion-operator").click();
-        if (ctx.state.spec.tensors[0].metadata.role !== "operator") {
-          throw new Error("Clicking a guided tensor suggestion should update the selected value.");
-        }
-        assertLastRenderDidNotInvalidateGraph(
-          renderCalls,
-          () => graphRenderCount,
-          () => minimapRenderCount
-        );
-
         ctx.setSelection(["index_a"], { primaryId: "index_a" });
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting an index should keep metadata inside a disclosure.");
+        }
+        if (propertiesPanel.innerHTML.includes("Suggested annotations")) {
+          throw new Error("Index metadata should no longer render guided annotation fields.");
         }
         const indexTagsInput = document.getElementById("index-tags-input-index_a");
         if (!indexTagsInput) {
@@ -2710,32 +2693,13 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           () => minimapRenderCount
         );
 
-        renderCalls.length = 0;
-        graphRenderCount = 0;
-        minimapRenderCount = 0;
-        commitField(
-          document.getElementById("index-annotation-leg_kind-input-index_a"),
-          "logical"
-        );
-        if (ctx.state.spec.tensors[0].indices[0].metadata.leg_kind !== "logical") {
-          throw new Error("Expected the guided index leg kind to update.");
-        }
-        if (
-          document
-            .getElementById("index-custom-metadata-input-index_a")
-            .value.includes('"leg_kind"')
-        ) {
-          throw new Error("The custom metadata editor should hide guided index annotations.");
-        }
-        assertLastRenderDidNotInvalidateGraph(
-          renderCalls,
-          () => graphRenderCount,
-          () => minimapRenderCount
-        );
-
         ctx.setSelection(["edge_ab"], { primaryId: "edge_ab" });
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting a connection should render the metadata disclosure.");
+        }
+        ctx.setSelection(["note_a"], { primaryId: "note_a" });
+        if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
+          throw new Error("Selecting a note should keep metadata inside a disclosure.");
         }
         """
     )
@@ -2969,6 +2933,14 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
           element.dispatchEvent("change");
         }
 
+        function commitCheckbox(element, nextValue) {
+          if (!element) {
+            throw new Error("Missing filter checkbox.");
+          }
+          element.checked = Boolean(nextValue);
+          element.dispatchEvent("change");
+        }
+
         const [stateModule, utilitiesModule, metadataFiltersModule] =
           await Promise.all([
             import(pathToFileURL(__STATE_PATH__).href),
@@ -2980,7 +2952,7 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         const { registerMetadataFilters } = metadataFiltersModule;
 
         const document = createFakeDocument();
-        const metadataFiltersPanel = createPanel(document);
+        const canvasTools = createPanel(document);
         const renderCalls = [];
         const ctx = {
           state: createInitialState(),
@@ -3011,7 +2983,8 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
                 return { left: 0, top: 0, width: 1000, height: 800 };
               },
             },
-            metadataFiltersPanel,
+            canvasTools,
+            canvasContextMenuRoot: createPanel(document),
             propertiesPanel: createPanel(document),
             statusMessage: { textContent: "", classList: createClassList() },
             engineSelect: { options: [], value: "tensornetwork" },
@@ -3095,18 +3068,16 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         const originalUndoLength = ctx.state.undoStack.length;
 
         ctx.renderMetadataFilters();
-        if (!document.getElementById("metadata-filter-scope-select")) {
-          throw new Error("Expected the metadata filter panel to render.");
+        if (!document.getElementById("canvas-metadata-filter-button")) {
+          throw new Error("Expected the floating canvas tools to render.");
         }
-        if (!metadataFiltersPanel.innerHTML.includes(">Metadata filters</summary>")) {
-          throw new Error("Metadata filters should render inside a disclosure.");
-        }
-        if (metadataFiltersPanel.innerHTML.includes("<details open")) {
-          throw new Error("Metadata filters should be collapsed by default.");
+        document.getElementById("canvas-metadata-filter-button").click();
+        if (!document.getElementById("canvas-metadata-filter-scope-select")) {
+          throw new Error("Expected the floating metadata filter popover to open.");
         }
 
-        commitInput(document.getElementById("metadata-filter-tag-input"), "block");
-        if (ctx.state.metadataFilters.tag !== "block") {
+        commitCheckbox(document.getElementById("canvas-metadata-filter-tag-block"), true);
+        if (JSON.stringify(ctx.state.metadataFilters.selectedTags) !== JSON.stringify(["block"])) {
           throw new Error(`Expected the tensor tag filter to update, received ${JSON.stringify(ctx.state.metadataFilters)}.`);
         }
         if (JSON.stringify(ctx.state.spec) !== originalSpec) {
@@ -3132,26 +3103,27 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
           throw new Error("Changing filters should trigger a lightweight render.");
         }
 
-        document.getElementById("clear-metadata-filters-button").click();
-        if (ctx.getMetadataFilterHighlight() !== null) {
-          throw new Error("Clearing metadata filters should reset the highlight state.");
+        document.getElementById("canvas-metadata-filter-select-none-button").click();
+        const noneHighlight = ctx.getMetadataFilterHighlight();
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_a", noneHighlight) !== "dim") {
+          throw new Error("Deselecting every tag should leave the filter active and dim all entities.");
         }
 
-        commitSelect(document.getElementById("metadata-filter-scope-select"), "index");
-        commitSelect(document.getElementById("metadata-filter-key-select"), "leg_kind");
-        commitInput(document.getElementById("metadata-filter-value-input"), "physical");
-        const indexHighlight = ctx.getMetadataFilterHighlight();
-        if (ctx.getMetadataFilterEntityState("index", "index_a", indexHighlight) !== "match") {
-          throw new Error("Expected index_a to match the guided index filter.");
+        document.getElementById("canvas-name-search-button").click();
+        commitSelect(document.getElementById("canvas-name-search-scope-select"), "bond");
+        commitInput(document.getElementById("canvas-name-search-input"), "bond_ab");
+        const searchHighlight = ctx.getMetadataFilterHighlight();
+        if (ctx.getMetadataFilterEntityState("edge", "edge_ab", searchHighlight) !== "match") {
+          throw new Error("Expected the bond search to match the edge by exact name.");
         }
-        if (ctx.getMetadataFilterEntityState("tensor", "tensor_a", indexHighlight) !== "context") {
-          throw new Error("Expected tensor_a to remain as context for a matched index.");
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_a", searchHighlight) !== "context") {
+          throw new Error("Expected the left tensor to remain in context for a matched bond search.");
         }
-        if (ctx.getMetadataFilterEntityState("edge", "edge_ab", indexHighlight) !== "match") {
-          throw new Error("Expected the incident edge to stay bright for a matched index.");
+        if (ctx.getMetadataFilterEntityState("index", "index_b", searchHighlight) !== "context") {
+          throw new Error("Expected the incident indices to remain in context for a matched bond search.");
         }
-        if (ctx.getMetadataFilterEntityState("tensor", "tensor_b", indexHighlight) !== "dim") {
-          throw new Error("Expected non-matching tensors to dim under the index filter.");
+        if (ctx.getMetadataFilterEntityState("tensor", "tensor_b", searchHighlight) !== "context") {
+          throw new Error("Expected the right tensor to remain in context for a matched bond search.");
         }
         """
     )

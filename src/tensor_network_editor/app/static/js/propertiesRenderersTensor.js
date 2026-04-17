@@ -12,9 +12,7 @@ export function createTensorPropertiesRenderers({
     bindDebouncedAutosave,
     bindImmediateAutosave,
     bindMetadataEditors,
-    bindSuggestedAnnotationEditors,
     buildMetadataEditorMarkup,
-    buildSuggestedAnnotationsMarkup,
     commands,
     propertyInvalidation,
     renderTrashIcon,
@@ -25,41 +23,21 @@ export function createTensorPropertiesRenderers({
     toggleTensorIndexDisclosure,
   } = support;
 
-  const tensorAnnotationInputId = (key) => `tensor-annotation-${key}-input`;
-  const tensorAnnotationFocusKey = (tensorId, key) =>
-    `tensor:${tensorId}:annotation:${key}`;
-  const tensorAnnotationSuggestionButtonId = (key, suggestion) =>
-    `tensor-annotation-${key}-suggestion-${ctx.sanitizeFilename(suggestion)}`;
-  const indexAnnotationInputId = (indexId, key) =>
-    `index-annotation-${key}-input-${indexId}`;
-  const indexAnnotationFocusKey = (indexId, key) =>
-    `index:${indexId}:annotation:${key}`;
-  const indexAnnotationSuggestionButtonId = (indexId, key, suggestion) =>
-    `index-annotation-${key}-suggestion-${ctx.sanitizeFilename(suggestion)}-${indexId}`;
-
   const rendererDependencies = {
     bindDebouncedAutosave,
     bindImmediateAutosave,
     bindMetadataEditors,
-    bindSuggestedAnnotationEditors,
     buildMetadataEditorMarkup,
-    buildSuggestedAnnotationsMarkup,
     commands,
     ctx,
     document,
     formatTotalElementCount,
     getContractionTensorTotalElementCount,
     getTensorTotalElementCount,
-    indexAnnotationFocusKey,
-    indexAnnotationInputId,
-    indexAnnotationSuggestionButtonId,
     isTensorIndexDisclosureOpen,
     propertiesPanel,
     propertyInvalidation,
     renderTrashIcon,
-    tensorAnnotationFocusKey,
-    tensorAnnotationInputId,
-    tensorAnnotationSuggestionButtonId,
     toggleTensorIndexDisclosure,
   };
 

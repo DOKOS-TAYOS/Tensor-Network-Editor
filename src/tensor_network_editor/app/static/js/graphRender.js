@@ -250,6 +250,9 @@ export function registerGraphRender(ctx) {
     });
 
     state.cy.on("tap", "node, edge", (event) => {
+      if (typeof ctx.closeCanvasContextMenu === "function") {
+        ctx.closeCanvasContextMenu();
+      }
       if (state.boxSelection) {
         return;
       }
@@ -290,8 +293,40 @@ export function registerGraphRender(ctx) {
       ctx.selectElement(kind, element.id(), { additive: Boolean(event.originalEvent && event.originalEvent.shiftKey) });
     });
 
+    state.cy.on("cxttap", "node, edge", (event) => {
+      const element = event.target;
+      const kind = element.data("kind");
+      if (kind !== "tensor" && kind !== "index") {
+        return;
+      }
+      if (typeof ctx.cancelPendingBoxSelection === "function") {
+        ctx.cancelPendingBoxSelection();
+      }
+      if (event.originalEvent) {
+        event.originalEvent.preventDefault();
+        event.originalEvent.stopPropagation();
+      }
+      if (typeof ctx.openCanvasContextMenu === "function") {
+        ctx.openCanvasContextMenu({
+          kind,
+          id: element.id(),
+          clientX:
+            event.originalEvent && Number.isFinite(event.originalEvent.clientX)
+              ? event.originalEvent.clientX
+              : 0,
+          clientY:
+            event.originalEvent && Number.isFinite(event.originalEvent.clientY)
+              ? event.originalEvent.clientY
+              : 0,
+        });
+      }
+    });
+
     state.cy.on("tap", (event) => {
       if (event.target === state.cy && !state.boxSelection) {
+        if (typeof ctx.closeCanvasContextMenu === "function") {
+          ctx.closeCanvasContextMenu();
+        }
         ctx.clearSelection({ preservePendingIndex: true });
       }
     });

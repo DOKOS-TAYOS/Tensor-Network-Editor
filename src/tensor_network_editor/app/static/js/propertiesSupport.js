@@ -30,6 +30,57 @@ export function renderTrashIcon() {
 }
 
 export function createPropertiesSupport({ ctx, state, window, commands }) {
+  function collectTagSuggestionsByScope() {
+    const scopedTags = {
+      edge: [],
+      group: [],
+      index: [],
+      network: [],
+      note: [],
+      tensor: [],
+    };
+    const seenByScope = Object.fromEntries(
+      Object.keys(scopedTags).map((scope) => [scope, new Set()])
+    );
+
+    function addTags(scope, metadata) {
+      const tags = Array.isArray(metadata && metadata.tags) ? metadata.tags : [];
+      tags.forEach((tag) => {
+        if (typeof tag !== "string" || !tag.trim()) {
+          return;
+        }
+        const normalizedTag = tag.trim().toLowerCase();
+        if (seenByScope[scope].has(normalizedTag)) {
+          return;
+        }
+        seenByScope[scope].add(normalizedTag);
+        scopedTags[scope].push(tag.trim());
+      });
+    }
+
+    if (!ctx.isObject(state.spec)) {
+      return scopedTags;
+    }
+
+    addTags("network", state.spec.metadata);
+    (Array.isArray(state.spec.tensors) ? state.spec.tensors : []).forEach((tensor) => {
+      addTags("tensor", tensor.metadata);
+      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach((index) => {
+        addTags("index", index.metadata);
+      });
+    });
+    (Array.isArray(state.spec.edges) ? state.spec.edges : []).forEach((edge) => {
+      addTags("edge", edge.metadata);
+    });
+    (Array.isArray(state.spec.groups) ? state.spec.groups : []).forEach((group) => {
+      addTags("group", group.metadata);
+    });
+    (Array.isArray(state.spec.notes) ? state.spec.notes : []).forEach((note) => {
+      addTags("note", note.metadata);
+    });
+    return scopedTags;
+  }
+
   const autosave = createPropertyAutosaveBindings({
     windowRef: window || globalThis,
   });
@@ -39,6 +90,7 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
   });
   const metadataSupport = createMetadataEditorSupport({
     annotationDefinitionsByScope: () => state.annotationDefinitions || {},
+    tagSuggestionsByScope: collectTagSuggestionsByScope,
     escapeHtml: (value) => ctx.escapeHtml(value),
     isObject: (value) => ctx.isObject(value),
   });
@@ -110,8 +162,6 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     bindImmediateAutosave: autosave.bindImmediateAutosave,
     buildMetadataEditorMarkup: (...args) =>
       metadataSupport.buildMetadataEditorMarkup(...args),
-    buildSuggestedAnnotationsMarkup: (...args) =>
-      metadataSupport.buildSuggestedAnnotationsMarkup(...args),
     bindMetadataEditors: (options) =>
       metadataSupport.bindMetadataEditors({
         ...options,
@@ -119,14 +169,6 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
           ctx.applyDesignChange(mutate, changeOptions),
         bindDebouncedAutosave: autosave.bindDebouncedAutosave,
         setStatus: (message, level) => ctx.setStatus(message, level),
-      }),
-    bindSuggestedAnnotationEditors: (options) =>
-      metadataSupport.bindSuggestedAnnotationEditors({
-        ...options,
-        applyDesignChange: (mutate, changeOptions) =>
-          ctx.applyDesignChange(mutate, changeOptions),
-        bindDebouncedAutosave: autosave.bindDebouncedAutosave,
-        commitAutosave: autosave.commitAutosave,
       }),
     commands,
     propertyInvalidation: (overrides = {}) => propertyInvalidation(overrides),

@@ -1,5 +1,6 @@
 export function createInteractionCanvasBindings({ ctx, state, dom }) {
   const { minimapCanvas, selectionBox } = dom;
+  const BOX_SELECTION_DRAG_THRESHOLD = 4;
 
   function handleCanvasContextMenu(event) {
     event.preventDefault();
@@ -56,11 +57,36 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
     if (event.button === 2) {
       event.preventDefault();
       event.stopPropagation();
-      startBoxSelection(event);
+      state.pendingBoxSelection = {
+        additive: Boolean(event.shiftKey),
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startPoint: ctx.clientPointToCanvasPoint(event.clientX, event.clientY),
+      };
+      if (typeof ctx.closeCanvasContextMenu === "function") {
+        ctx.closeCanvasContextMenu();
+      }
+      return;
+    }
+    if (typeof ctx.closeCanvasContextMenu === "function") {
+      ctx.closeCanvasContextMenu();
     }
   }
 
   function handleGlobalMouseMove(event) {
+    if (state.pendingBoxSelection) {
+      const deltaX = event.clientX - state.pendingBoxSelection.startClientX;
+      const deltaY = event.clientY - state.pendingBoxSelection.startClientY;
+      if (
+        Math.hypot(deltaX, deltaY) >= BOX_SELECTION_DRAG_THRESHOLD
+      ) {
+        startBoxSelectionFromPoint(
+          state.pendingBoxSelection.startPoint,
+          state.pendingBoxSelection.additive
+        );
+        state.pendingBoxSelection = null;
+      }
+    }
     if (state.boxSelection) {
       updateBoxSelection(event);
       return;
@@ -87,6 +113,10 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
   }
 
   function handleGlobalMouseUp(event) {
+    if (state.pendingBoxSelection && event.button === 2) {
+      cancelPendingBoxSelection();
+      return;
+    }
     if (state.boxSelection && event.button === 2) {
       finishBoxSelection(false);
       return;
@@ -115,10 +145,14 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
 
   function startBoxSelection(event) {
     const point = ctx.clientPointToCanvasPoint(event.clientX, event.clientY);
+    startBoxSelectionFromPoint(point, Boolean(event.shiftKey));
+  }
+
+  function startBoxSelectionFromPoint(point, additive) {
     state.boxSelection = {
       start: point,
       current: point,
-      additive: Boolean(event.shiftKey),
+      additive: Boolean(additive),
     };
     updateSelectionBoxElement();
   }
@@ -186,6 +220,10 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
     selectionBox.style.height = `${Math.max(1, box.height)}px`;
   }
 
+  function cancelPendingBoxSelection() {
+    state.pendingBoxSelection = null;
+  }
+
   return {
     handleCanvasContextMenu,
     handleCanvasWheel,
@@ -193,8 +231,10 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
     handleGlobalMouseMove,
     handleGlobalMouseUp,
     startBoxSelection,
+    startBoxSelectionFromPoint,
     updateBoxSelection,
     finishBoxSelection,
     updateSelectionBoxElement,
+    cancelPendingBoxSelection,
   };
 }

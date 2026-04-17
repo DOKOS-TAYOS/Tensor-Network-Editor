@@ -82,6 +82,7 @@ export function buildGroupPropertiesMarkup({
         customMetadataInputId: "group-custom-metadata-input",
         customMetadataFocusKey: `group:${group.id}:custom-metadata`,
         target: group,
+        collapsible: true,
       })}
     `;
 }
@@ -178,6 +179,7 @@ export function buildNotePropertiesMarkup({
         customMetadataInputId: "note-custom-metadata-input",
         customMetadataFocusKey: `note:${note.id}:custom-metadata`,
         target: note,
+        collapsible: true,
       })}
     `;
 }

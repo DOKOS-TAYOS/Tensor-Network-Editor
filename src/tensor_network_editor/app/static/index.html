@@ -192,6 +192,8 @@
               <div id="resize-layer" class="overlay-layer"></div>
               <div id="notes-layer" class="overlay-layer"></div>
               <div id="canvas-selection-box" class="selection-box is-hidden"></div>
+              <div id="canvas-tools" class="canvas-tools" aria-label="Canvas tools"></div>
+              <div id="canvas-context-menu-root" class="canvas-context-menu-root"></div>
               <section id="minimap-shell" class="minimap-shell" aria-label="Minimap">
                 <div class="minimap-header">
                   <span>Minimap</span>
@@ -265,7 +267,6 @@
             >
               <h2>Selection</h2>
               <div id="properties-panel" class="properties-panel"></div>
-              <div id="metadata-filters-panel" class="metadata-filters-panel"></div>
             </section>
 
             <section
@@ -394,7 +395,7 @@
             <h3>Metadata</h3>
             <ul>
               <li>Use <strong>Tags</strong> for short reusable labels such as physical, logical, symmetry names, or block ids.</li>
-              <li><strong>Suggested annotations</strong> expose guided tensor keys like <strong>role</strong>, <strong>state</strong>, <strong>provenance</strong>, and <strong>symmetry</strong>, plus index keys like <strong>leg kind</strong> and <strong>observable</strong>.</li>
+              <li><strong>Metadata</strong> lets you keep reusable tags plus any custom JSON fields on tensors, indices, bonds, groups, notes, and the full network.</li>
               <li>Leaving a guided annotation blank removes that key from metadata.</li>
               <li><strong>Custom metadata (JSON)</strong> is still available for everything else, and it hides the guided keys so you do not edit the same value twice.</li>
               <li>Filters only affect emphasis on the graph and the minimap. They do not change selection, saved files, or undo/redo history.</li>

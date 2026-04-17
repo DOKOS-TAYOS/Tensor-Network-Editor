@@ -573,7 +573,11 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
           '{{"color": "#fff", "role": "physical", "kept": 7}}',
           "tensor"
         );
-        if (parsedMetadata.kept !== 7 || Object.prototype.hasOwnProperty.call(parsedMetadata, "color") || Object.prototype.hasOwnProperty.call(parsedMetadata, "role")) {{
+        if (
+          parsedMetadata.kept !== 7 ||
+          parsedMetadata.role !== "physical" ||
+          Object.prototype.hasOwnProperty.call(parsedMetadata, "color")
+        ) {{
           throw new Error(`Unexpected custom metadata parsing result: ${{JSON.stringify(parsedMetadata)}}.`);
         }}
 
@@ -718,6 +722,251 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
 
     assert completed_process.returncode == 0, (
         "The planner/property module runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "metadata_autocomplete_and_context_menu.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const propertyMetadataUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "properties" / "metadataEditors.js")!r}).href;
+        const canvasContextMenuUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "canvasContextMenu.js")!r}).href;
+
+        const [propertyMetadataModule, canvasContextMenuModule] = await Promise.all([
+          import(propertyMetadataUrl),
+          import(canvasContextMenuUrl),
+        ]);
+
+        const metadataSupport = propertyMetadataModule.createMetadataEditorSupport({{
+          escapeHtml: (value) => String(value),
+          isObject: (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value),
+          annotationDefinitionsByScope: {{
+            tensor: [
+              {{
+                key: "role",
+                label: "Role",
+                placeholder: "observable",
+                suggestions: ["operator", "observable"],
+              }},
+            ],
+          }},
+          tagSuggestionsByScope: {{
+            tensor: ["observable", "quimb", "tensornetwork"],
+          }},
+        }});
+
+        const autocompleteSuggestions =
+          metadataSupport.buildTagAutocompleteSuggestions("tensor", "ob");
+        if (JSON.stringify(autocompleteSuggestions) !== JSON.stringify(["observable"])) {{
+          throw new Error(`Expected existing tags to win over guided duplicates, received ${{JSON.stringify(autocompleteSuggestions)}}.`);
+        }}
+        const autocompleteSuggestionsWithOrdering =
+          metadataSupport.buildTagAutocompleteSuggestions("tensor", "o");
+        if (JSON.stringify(autocompleteSuggestionsWithOrdering) !== JSON.stringify(["observable", "operator"])) {{
+          throw new Error(`Expected existing tags first and guided suggestions after them, received ${{JSON.stringify(autocompleteSuggestionsWithOrdering)}}.`);
+        }}
+        const replacedTagValue =
+          metadataSupport.replaceActiveTagToken("alpha, ob", "observable");
+        if (replacedTagValue !== "alpha, observable") {{
+          throw new Error(`Expected active tag token replacement, received ${{replacedTagValue}}.`);
+        }}
+
+        function createClassList() {{
+          return {{
+            add() {{}},
+            remove() {{}},
+            toggle() {{}},
+          }};
+        }}
+
+        function createFakeElement(id = null, tagName = "div") {{
+          return {{
+            id,
+            tagName: String(tagName || "div").toUpperCase(),
+            value: "",
+            textContent: "",
+            dataset: {{}},
+            checked: false,
+            disabled: false,
+            classList: createClassList(),
+            style: {{}},
+            listeners: {{}},
+            addEventListener(eventName, listener) {{
+              if (!this.listeners[eventName]) {{
+                this.listeners[eventName] = [];
+              }}
+              this.listeners[eventName].push(listener);
+            }},
+            dispatchEvent(eventName, event = {{}}) {{
+              (this.listeners[eventName] || []).forEach((listener) => {{
+                listener({{
+                  preventDefault() {{}},
+                  stopPropagation() {{}},
+                  target: this,
+                  ...event,
+                }});
+              }});
+            }},
+            click() {{
+              this.dispatchEvent("click");
+            }},
+            focus() {{}},
+            setAttribute() {{}},
+            removeAttribute() {{}},
+            appendChild() {{}},
+          }};
+        }}
+
+        function createFakeDocument() {{
+          const elements = new Map();
+          return {{
+            registerHtml(html) {{
+              elements.clear();
+              const tagPattern = /<(input|button)[^>]*id="([^"]+)"[^>]*>/g;
+              let tagMatch = tagPattern.exec(html);
+              while (tagMatch) {{
+                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                tagMatch = tagPattern.exec(html);
+              }}
+            }},
+            getElementById(id) {{
+              return elements.get(id) || null;
+            }},
+            addEventListener() {{}},
+            createElement(tagName) {{
+              return createFakeElement(null, tagName);
+            }},
+          }};
+        }}
+
+        function createRoot(document) {{
+          let html = "";
+          return {{
+            get innerHTML() {{
+              return html;
+            }},
+            set innerHTML(value) {{
+              html = value;
+              document.registerHtml(value);
+            }},
+          }};
+        }}
+
+        const document = createFakeDocument();
+        const contextMenuRoot = createRoot(document);
+        const contextMenuEvents = [];
+        const tensor = {{
+          id: "tensor_a",
+          name: "Tensor A",
+          indices: [
+            {{ id: "index_left", name: "left", dimension: 2, metadata: {{}} }},
+            {{ id: "index_right", name: "right", dimension: 3, metadata: {{}} }},
+          ],
+          metadata: {{}},
+        }};
+        const group = {{
+          id: "group_a",
+          name: "Group A",
+          tensor_ids: ["tensor_a"],
+          metadata: {{}},
+        }};
+        const ctx = {{
+          state: {{
+            spec: {{
+              tensors: [tensor],
+              groups: [group],
+            }},
+            canvasContextMenu: null,
+          }},
+          document,
+          dom: {{
+            canvasContextMenuRoot: contextMenuRoot,
+          }},
+          window: {{
+            addEventListener() {{}},
+          }},
+          escapeHtml: (value) => String(value),
+          render: () => contextMenuEvents.push("render"),
+          setSelection: (selectionIds, options = {{}}) =>
+            contextMenuEvents.push({{ selectionIds, primaryId: options.primaryId || null }}),
+          propertyCommands: {{
+            renameTensor: (payload) => {{
+              contextMenuEvents.push(`renameTensor:${{payload.proposedName}}`);
+              return true;
+            }},
+            addTensorIndex: (payload) => {{
+              contextMenuEvents.push(`addTensorIndex:${{payload.tensor.id}}`);
+            }},
+            renameIndex: (payload) => {{
+              contextMenuEvents.push(`renameIndex:${{payload.proposedName}}`);
+              return true;
+            }},
+            updateIndexDimension: (payload) => {{
+              contextMenuEvents.push(`updateIndexDimension:${{payload.rawValue}}`);
+              return true;
+            }},
+            moveTensorIndex: (payload) => {{
+              contextMenuEvents.push(`moveTensorIndex:${{payload.direction}}`);
+            }},
+            renameGroup: (payload) => {{
+              contextMenuEvents.push(`renameGroup:${{payload.proposedName}}`);
+              return true;
+            }},
+          }},
+          propertyInvalidation: () => ({{ graph: true }}),
+          findTensorById: (tensorId) => (tensorId === tensor.id ? tensor : null),
+          findIndexOwner: (indexId) => {{
+            const index = tensor.indices.find((candidate) => candidate.id === indexId) || null;
+            return index ? {{ tensor, index }} : null;
+          }},
+          findGroupById: (groupId) => (groupId === group.id ? group : null),
+          toggleGroupCollapse: (groupId) => {{
+            contextMenuEvents.push(`toggleGroupCollapse:${{groupId}}`);
+          }},
+        }};
+
+        canvasContextMenuModule.registerCanvasContextMenu(ctx);
+
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 10, clientY: 20 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-button"')) {{
+          throw new Error("Expected the tensor context menu to expose the add-index action.");
+        }}
+        document.getElementById("context-menu-add-index-button").click();
+
+        ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-dimension-input"')) {{
+          throw new Error("Expected the index context menu to expose the dimension editor.");
+        }}
+        document.getElementById("context-menu-move-up-button").click();
+
+        ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-toggle-group-button"')) {{
+          throw new Error("Expected the group context menu to expose the collapse toggle.");
+        }}
+        document.getElementById("context-menu-toggle-group-button").click();
+
+        if (
+          !contextMenuEvents.includes("addTensorIndex:tensor_a") ||
+          !contextMenuEvents.includes("moveTensorIndex:-1") ||
+          !contextMenuEvents.includes("toggleGroupCollapse:group_a")
+        ) {{
+          throw new Error(`Expected the context menu to reuse injected actions, received ${{JSON.stringify(contextMenuEvents)}}.`);
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The metadata autocomplete/context-menu runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

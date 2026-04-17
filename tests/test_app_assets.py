@@ -436,7 +436,7 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert "function getTensorTotalElementCount(" in summaries_body
 
 
-def test_properties_assets_expose_tags_and_custom_metadata_editors(
+def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete(
     editor_server: EditorServer,
 ) -> None:
     overview_body = request_text(
@@ -472,15 +472,22 @@ def test_properties_assets_expose_tags_and_custom_metadata_editors(
     assert "Custom metadata (JSON)" in metadata_body
     assert "metadata-editor-disclosure" in metadata_body
     assert 'summaryLabel = "Metadata"' in metadata_body
+    assert 'rows="1"' in metadata_body
+    assert "properties-disclosure-chevron" in metadata_body
+    assert "function buildTagAutocompleteSuggestions(" in metadata_body
+    assert "function replaceActiveTagToken(" in metadata_body
     assert (
         'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
         in metadata_body
     )
     assert "function bindMetadataEditors(" in metadata_body
     assert "function propertyInvalidation(overrides = {})" in support_body
+    assert "Suggested annotations" not in metadata_body
+    assert "function buildSuggestedAnnotationsMarkup(" not in metadata_body
+    assert "function bindSuggestedAnnotationEditors(" not in metadata_body
 
 
-def test_properties_assets_expose_guided_annotation_editors_for_tensor_and_index(
+def test_properties_assets_remove_guided_annotation_inputs_and_center_controls(
     editor_server: EditorServer,
 ) -> None:
     tensor_standard_body = request_text(
@@ -489,44 +496,78 @@ def test_properties_assets_expose_guided_annotation_editors_for_tensor_and_index
     tensor_boundary_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
     )
-    metadata_body = request_text(
-        f"{editor_server.base_url}/js/properties/metadataEditors.js"
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
     )
 
-    assert "buildSuggestedAnnotationsMarkup({" in tensor_standard_body
-    assert "buildSuggestedAnnotationsMarkup({" in tensor_boundary_body
-    assert "tensorAnnotationInputId(key)" in tensor_standard_body + tensor_boundary_body
-    assert (
-        "indexAnnotationInputId(index.id, key)"
-        in tensor_standard_body + tensor_boundary_body
-    )
-    assert "Suggested annotations" in metadata_body
-    assert "function buildSuggestedAnnotationsMarkup(" in metadata_body
-    assert "function bindSuggestedAnnotationEditors(" in metadata_body
+    combined_body = tensor_standard_body + tensor_boundary_body + overview_markup_body
+
+    assert "tensorAnnotationInputId" not in combined_body
+    assert "indexAnnotationInputId" not in combined_body
+    assert "bindSuggestedAnnotationEditors" not in combined_body
+    assert 'id="center-tensor-button"' not in combined_body
+    assert 'id="align-selection-center-button"' not in combined_body
+    assert ">Center<" not in combined_body
 
 
-def test_metadata_filter_assets_expose_persistent_panel_and_highlight_hooks(
+def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     editor_server: EditorServer,
 ) -> None:
     html_body = request_text(f"{editor_server.base_url}/")
+    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
     main_body = request_text(f"{editor_server.base_url}/js/main.js")
     filter_body = request_text(f"{editor_server.base_url}/js/metadataFilters.js")
     graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
     minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
 
-    assert 'id="metadata-filters-panel"' in html_body
-    assert html_body.index('id="properties-panel"') < html_body.index(
-        'id="metadata-filters-panel"'
+    assert 'id="canvas-tools"' in html_body
+    assert 'id="canvas-context-menu-root"' in html_body
+    assert 'id="metadata-filters-panel"' not in html_body
+    assert 'canvasTools: document.getElementById("canvas-tools")' in dom_body
+    assert (
+        'canvasContextMenuRoot: document.getElementById("canvas-context-menu-root")'
+        in dom_body
     )
     assert 'from "./metadataFilters.js"' in main_body
     assert "registerMetadataFilters(context);" in main_body
-    assert "function renderMetadataFilters(" in filter_body
-    assert "metadata-filters-disclosure" in filter_body
-    assert ">Metadata filters</summary>" in filter_body
+    assert "canvas-metadata-filter-button" in filter_body
+    assert "canvas-name-search-button" in filter_body
+    assert "canvas-metadata-filter-select-all-button" in filter_body
+    assert "canvas-metadata-filter-select-none-button" in filter_body
+    assert "canvas-name-search-input" in filter_body
+    assert '"bond"' in filter_body
     assert "function getMetadataFilterHighlight(" in filter_body
     assert "metadata-filter-dim" in graph_body
     assert "getMetadataFilterEntityState" in graph_body
     assert "getMetadataFilterEntityState" in minimap_body
+    assert ".canvas-tool-popover" in css_body
+    assert "bottom: calc(100% +" in css_body
+
+
+def test_canvas_context_menu_assets_expose_minimal_selection_actions(
+    editor_server: EditorServer,
+) -> None:
+    main_body = request_text(f"{editor_server.base_url}/js/main.js")
+    context_menu_body = request_text(
+        f"{editor_server.base_url}/js/canvasContextMenu.js"
+    )
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    overlays_body = request_text(
+        f"{editor_server.base_url}/js/overlaysLayoutTemplates.js"
+    )
+
+    assert 'from "./canvasContextMenu.js"' in main_body
+    assert "registerCanvasContextMenu(context);" in main_body
+    assert "function openCanvasContextMenu(" in context_menu_body
+    assert 'id="context-menu-name-input"' in context_menu_body
+    assert 'id="context-menu-add-index-button"' in context_menu_body
+    assert 'id="context-menu-dimension-input"' in context_menu_body
+    assert 'id="context-menu-move-up-button"' in context_menu_body
+    assert 'id="context-menu-move-down-button"' in context_menu_body
+    assert 'id="context-menu-toggle-group-button"' in context_menu_body
+    assert 'state.cy.on("cxttap"' in graph_body
+    assert 'addEventListener("contextmenu"' in overlays_body
 
 
 def test_properties_renderer_assets_are_split_by_selection_family(

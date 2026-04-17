@@ -129,6 +129,21 @@ export function registerOverlaysLayoutTemplates(ctx) {
           additive: Boolean(event.shiftKey),
         });
       });
+      overlay.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof ctx.cancelPendingBoxSelection === "function") {
+          ctx.cancelPendingBoxSelection();
+        }
+        if (typeof ctx.openCanvasContextMenu === "function") {
+          ctx.openCanvasContextMenu({
+            kind: "group",
+            id: group.id,
+            clientX: event.clientX,
+            clientY: event.clientY,
+          });
+        }
+      });
       groupLayer.appendChild(overlay);
     });
   }
