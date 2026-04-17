@@ -747,10 +747,27 @@ export function registerContractionScene(ctx) {
     ensureContractionViewSnapshots();
     const latestAppliedStepCount = getLatestAppliedStepCount();
     const latestSnapshot = getSnapshotForStepCount(latestAppliedStepCount);
+    const latestLayoutMap = latestSnapshot
+      ? buildSnapshotLayoutMap(latestSnapshot, getSnapshotOptions())
+      : captureVisibleOperandLayoutMap(latestAppliedStepCount);
     const latestScene = buildContractionScene(latestAppliedStepCount);
-    const leftVisibleOperand = latestScene ? latestScene.operandMap[leftOperandId] : ctx.findTensorById(leftOperandId);
-    const rightVisibleOperand = latestScene ? latestScene.operandMap[rightOperandId] : ctx.findTensorById(rightOperandId);
+    const leftVisibleOperand = latestScene
+      ? latestScene.operandMap[leftOperandId]
+      : ctx.findTensorById(leftOperandId);
+    const rightVisibleOperand = latestScene
+      ? latestScene.operandMap[rightOperandId]
+      : ctx.findTensorById(rightOperandId);
     const nextStepId = ctx.makeId("step");
+    const preferredAnchorOperandId = getPreferredStepAnchorOperandId(
+      {
+        left_operand_id: leftOperandId,
+        right_operand_id: rightOperandId,
+      },
+      {
+        isNextOperandId,
+        isPreviousOperandId,
+      }
+    );
 
     plan.steps.push({
       id: nextStepId,
@@ -765,6 +782,9 @@ export function registerContractionScene(ctx) {
       ? nextSnapshot.operand_layouts.find((layout) => layout.operand_id === nextStepId)
       : null;
     const preferredLayout =
+      latestLayoutMap[preferredAnchorOperandId] ||
+      latestLayoutMap[leftOperandId] ||
+      latestLayoutMap[rightOperandId] ||
       (isPreviousOperandId(leftOperandId) || isNextOperandId(leftOperandId)
         ? rightVisibleOperand
         : leftVisibleOperand) ||
@@ -783,19 +803,17 @@ export function registerContractionScene(ctx) {
         width: Math.round(preferredLayout.size.width),
         height: Math.round(preferredLayout.size.height),
       };
+      touchContractionViewRevision();
     } else if (nextLayout && latestSnapshot) {
-      const fallbackLayout = latestSnapshot.operand_layouts.find(
-        (layout) => layout.operand_id === getPreferredStepAnchorOperandId({
-          left_operand_id: leftOperandId,
-          right_operand_id: rightOperandId,
-        }, {
-          isNextOperandId,
-          isPreviousOperandId,
-        })
-      );
+      const fallbackLayout =
+        latestLayoutMap[preferredAnchorOperandId] ||
+        latestSnapshot.operand_layouts.find(
+          (layout) => layout.operand_id === preferredAnchorOperandId
+        );
       if (fallbackLayout) {
         nextLayout.position = { ...fallbackLayout.position };
         nextLayout.size = { ...fallbackLayout.size };
+        touchContractionViewRevision();
       }
     }
   }

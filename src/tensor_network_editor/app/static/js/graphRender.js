@@ -296,7 +296,7 @@ export function registerGraphRender(ctx) {
     state.cy.on("cxttap", "node, edge", (event) => {
       const element = event.target;
       const kind = element.data("kind");
-      if (kind !== "tensor" && kind !== "index") {
+      if (kind !== "tensor" && kind !== "index" && kind !== "edge") {
         return;
       }
       if (typeof ctx.cancelPendingBoxSelection === "function") {

@@ -174,8 +174,9 @@ export function createPlannerRenderers({
     const canAct = Boolean(hasActions && analysis && analysis.status !== "unavailable");
     const summary = analysis && analysis.summary ? analysis.summary : {};
     const isPreviewing = hasActions && state.plannerPreviewMode === mode;
-    const previewShortcut = mode === "automaticFuture" ? "A" : "Shift+A";
-    const acceptShortcut = mode === "automaticFuture" ? "Ctrl+A" : "Ctrl+Shift+A";
+    const previewShortcut = mode === "automaticFuture" ? "Alt+A" : "Shift+A";
+    const acceptShortcut =
+      mode === "automaticFuture" ? "Ctrl/Cmd+Alt+A" : "Ctrl/Cmd+Shift+A";
     const meta =
       analysis && analysis.message
         ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`

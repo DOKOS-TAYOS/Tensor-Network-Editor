@@ -36,6 +36,9 @@ export function createPropertyAutosaveBindings({
     }
     element.dataset.focusKey = fieldKey;
     element.addEventListener("input", () => {
+      if (options.scheduleOnInput === false) {
+        return;
+      }
       scheduleAutosave(fieldKey, commit);
     });
     element.addEventListener("blur", () => {

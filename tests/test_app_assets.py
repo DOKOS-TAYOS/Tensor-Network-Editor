@@ -281,19 +281,25 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     editor_server: EditorServer,
 ) -> None:
     body = request_interactions_runtime_bundle(editor_server)
+    html = request_text(f"{editor_server.base_url}/")
 
     assert "ctx.isTextInput(event.target) || ctx.isTextInput(activeElement)" in body
-    assert 'if (hasModifier && lowerKey === "y") {' in body
+    assert 'if (hasSystemModifier && lowerKey === "y") {' in body
     assert 'setSelectedEngine("einsum_numpy");' in body
-    assert 'if (hasModifier && lowerKey === "n") {' not in body
-    assert 'if (lowerKey === "s") {' in body
+    assert 'if (hasSystemModifier && lowerKey === "n") {' not in body
+    assert 'if (!hasAnyModifier && lowerKey === "s") {' in body
     assert "toggleSidebarCollapsed();" in body
     assert 'if (event.shiftKey && lowerKey === "m") {' in body
     assert "toggleMinimapVisibility();" in body
     assert 'if (event.shiftKey && lowerKey === "r") {' in body
     assert "trimContractionPlan(0);" in body
-    assert 'if (lowerKey === "f") {' in body
+    assert 'if (!hasAnyModifier && lowerKey === "f") {' in body
     assert "toggleLinearPeriodicMode();" in body
+    assert 'if (hasSystemModifier && event.altKey && lowerKey === "a") {' in body
+    assert 'if (!hasSystemModifier && event.altKey && lowerKey === "a") {' in body
+    assert 'if (hasSystemModifier && lowerKey === "a") {' not in body
+    assert "Alt+A" in html
+    assert "Ctrl/Cmd+Alt+A" in html
 
 
 def test_overlays_asset_reuses_shared_tensor_size_helpers(
@@ -476,6 +482,7 @@ def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete
     assert "properties-disclosure-chevron" in metadata_body
     assert "function buildTagAutocompleteSuggestions(" in metadata_body
     assert "function replaceActiveTagToken(" in metadata_body
+    assert "{ scheduleOnInput: false }" in metadata_body
     assert (
         'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
         in metadata_body
@@ -570,14 +577,22 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'id="context-menu-add-index-button"' in context_menu_body
     assert 'id="context-menu-tensor-color-input"' in context_menu_body
     assert 'id="context-menu-delete-tensor-button"' in context_menu_body
+    assert 'inputPrefix: "context-menu-tensor"' in context_menu_body
     assert 'id="context-menu-dimension-input"' in context_menu_body
     assert 'id="context-menu-index-color-input"' in context_menu_body
     assert 'id="context-menu-move-up-button"' in context_menu_body
     assert 'id="context-menu-move-down-button"' in context_menu_body
     assert 'id="context-menu-delete-index-button"' in context_menu_body
+    assert 'inputPrefix: "context-menu-index"' in context_menu_body
+    assert 'id="context-menu-edge-color-input"' in context_menu_body
+    assert 'id="context-menu-delete-edge-button"' in context_menu_body
+    assert 'inputPrefix: "context-menu-edge"' in context_menu_body
     assert 'id="context-menu-toggle-group-button"' in context_menu_body
+    assert "buildMetadataEditorMarkup" in context_menu_body
+    assert "bindMetadataEditors" in context_menu_body
     assert "canvas-context-menu-title" not in context_menu_body
     assert 'state.cy.on("cxttap"' in graph_body
+    assert 'kind !== "tensor" && kind !== "index" && kind !== "edge"' in graph_body
     assert 'addEventListener("contextmenu"' in overlays_body
 
 
@@ -754,6 +769,9 @@ def test_note_assets_move_note_editing_into_canvas(
     properties_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
+    properties_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesBindings.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'textarea.addEventListener("keydown", (event) => {' in notes_body
@@ -761,6 +779,8 @@ def test_note_assets_move_note_editing_into_canvas(
     assert 'className = "canvas-note-color-button"' in notes_body
     assert 'colorInput.type = "color";' in notes_body
     assert "ctx.bindDebouncedAutosave(" in notes_body
+    assert "scheduleOnInput: false" in notes_body
+    assert "scheduleOnInput: false" in properties_bindings_body
     assert (
         '<label for="note-text-input">Note text</label>'
         in properties_body + properties_markup_body

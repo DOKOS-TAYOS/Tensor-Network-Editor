@@ -147,7 +147,7 @@ export function createEntityPropertiesBindings({
           statusMessage: "Updated the note.",
         });
       },
-      { commitOnEnter: false }
+      { commitOnEnter: false, scheduleOnInput: false }
     );
     bindImmediateAutosave(
       noteColorInput,

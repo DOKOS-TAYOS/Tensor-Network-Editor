@@ -47,12 +47,19 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
     if (state.isHelpOpen) {
       return;
     }
+    const closestTarget =
+      event &&
+      event.target &&
+      typeof event.target.closest === "function"
+        ? (selector) => event.target.closest(selector)
+        : () => null;
     if (
-      event.target.closest(".canvas-context-menu") ||
-      event.target.closest(".canvas-tools") ||
-      event.target.closest(".resize-handle") ||
-      event.target.closest(".group-overlay") ||
-      event.target.closest(".canvas-note")
+      closestTarget(".canvas-context-menu") ||
+      closestTarget(".canvas-tools") ||
+      closestTarget(".resize-handle") ||
+      closestTarget(".group-overlay") ||
+      closestTarget(".canvas-note") ||
+      closestTarget(".minimap-shell")
     ) {
       return;
     }

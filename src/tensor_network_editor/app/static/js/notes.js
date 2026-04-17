@@ -416,7 +416,7 @@ export function registerNotesFeature(ctx) {
               }
             );
           },
-          { commitOnEnter: false }
+          { commitOnEnter: false, scheduleOnInput: false }
         );
 
         const resizeHandle = document.createElement("div");

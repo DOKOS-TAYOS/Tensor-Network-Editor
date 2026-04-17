@@ -144,6 +144,8 @@ export function createInteractionShortcutBindings({
     const activeElement = ctx.document.activeElement;
     const inTextInput = ctx.isTextInput(event.target) || ctx.isTextInput(activeElement);
     const lowerKey = event.key.toLowerCase();
+    const hasSystemModifier = event.ctrlKey || event.metaKey;
+    const hasAnyModifier = hasSystemModifier || event.altKey || event.shiftKey;
 
     if (event.key === "Escape") {
       event.preventDefault();
@@ -193,8 +195,7 @@ export function createInteractionShortcutBindings({
       return;
     }
 
-    const hasModifier = event.ctrlKey || event.metaKey;
-    if (hasModifier && lowerKey === "z") {
+    if (hasSystemModifier && lowerKey === "z") {
       event.preventDefault();
       if (event.shiftKey) {
         ctx.performRedo();
@@ -203,57 +204,57 @@ export function createInteractionShortcutBindings({
       }
       return;
     }
-    if (hasModifier && event.shiftKey && lowerKey === "a") {
-      event.preventDefault();
-      acceptAutomaticShortcut("automaticPast");
-      return;
-    }
-    if (hasModifier && lowerKey === "a") {
+    if (hasSystemModifier && event.altKey && lowerKey === "a") {
       event.preventDefault();
       acceptAutomaticShortcut("automaticFuture");
       return;
     }
-    if (hasModifier && lowerKey === "s") {
+    if (hasSystemModifier && event.shiftKey && lowerKey === "a") {
+      event.preventDefault();
+      acceptAutomaticShortcut("automaticPast");
+      return;
+    }
+    if (hasSystemModifier && lowerKey === "s") {
       event.preventDefault();
       ctx.saveDesign();
       return;
     }
-    if (hasModifier && lowerKey === "l") {
+    if (hasSystemModifier && lowerKey === "l") {
       event.preventDefault();
       loadInput.click();
       return;
     }
-    if (hasModifier && lowerKey === "y") {
+    if (hasSystemModifier && lowerKey === "y") {
       event.preventDefault();
       setSelectedEngine("einsum_numpy");
       return;
     }
-    if (hasModifier && lowerKey === "p") {
+    if (hasSystemModifier && lowerKey === "p") {
       event.preventDefault();
       setSelectedEngine("einsum_torch");
       return;
     }
-    if (hasModifier && lowerKey === "k") {
+    if (hasSystemModifier && lowerKey === "k") {
       event.preventDefault();
       setSelectedEngine("tensorkrowch");
       return;
     }
-    if (hasModifier && lowerKey === "q") {
+    if (hasSystemModifier && lowerKey === "q") {
       event.preventDefault();
       setSelectedEngine("quimb");
       return;
     }
-    if (hasModifier && lowerKey === "t") {
+    if (hasSystemModifier && lowerKey === "t") {
       event.preventDefault();
       setSelectedEngine("tensornetwork");
       return;
     }
-    if (hasModifier && lowerKey === "c") {
+    if (hasSystemModifier && lowerKey === "c") {
       event.preventDefault();
       copySelectedSubgraphToClipboard();
       return;
     }
-    if (hasModifier && lowerKey === "v") {
+    if (hasSystemModifier && lowerKey === "v") {
       event.preventDefault();
       pasteClipboardToCanvas();
       return;
@@ -272,9 +273,14 @@ export function createInteractionShortcutBindings({
       ctx.deleteSelection();
       return;
     }
-    if (event.shiftKey && lowerKey === "a") {
+    if (!hasSystemModifier && event.shiftKey && lowerKey === "a") {
       event.preventDefault();
       toggleAutomaticPreview("automaticPast");
+      return;
+    }
+    if (!hasSystemModifier && event.altKey && lowerKey === "a") {
+      event.preventDefault();
+      toggleAutomaticPreview("automaticFuture");
       return;
     }
     if (event.shiftKey && lowerKey === "m") {
@@ -282,12 +288,7 @@ export function createInteractionShortcutBindings({
       toggleMinimapShortcut();
       return;
     }
-    if (lowerKey === "a") {
-      event.preventDefault();
-      toggleAutomaticPreview("automaticFuture");
-      return;
-    }
-    if (lowerKey === "m") {
+    if (!hasAnyModifier && lowerKey === "m") {
       event.preventDefault();
       openSidebarTab("planner");
       togglePlannerMode();
@@ -298,37 +299,37 @@ export function createInteractionShortcutBindings({
       ctx.generateCode();
       return;
     }
-    if (lowerKey === "s") {
+    if (!hasAnyModifier && lowerKey === "s") {
       event.preventDefault();
       toggleSidebarVisibility();
       return;
     }
-    if (lowerKey === "g") {
+    if (!hasAnyModifier && lowerKey === "g") {
       event.preventDefault();
       createGroupFromSelection();
       return;
     }
-    if (lowerKey === "t") {
+    if (!hasAnyModifier && lowerKey === "t") {
       event.preventDefault();
       ctx.insertTemplate();
       return;
     }
-    if (lowerKey === "p") {
+    if (!hasAnyModifier && lowerKey === "p") {
       event.preventDefault();
       addNoteAtCenter();
       return;
     }
-    if (lowerKey === "f") {
+    if (!hasAnyModifier && lowerKey === "f") {
       event.preventDefault();
       toggleLinearPeriodicMode();
       return;
     }
-    if (lowerKey === "n") {
+    if (!hasAnyModifier && lowerKey === "n") {
       event.preventDefault();
       ctx.addTensorAtCenter();
       return;
     }
-    if (lowerKey === "c") {
+    if (!hasAnyModifier && lowerKey === "c") {
       event.preventDefault();
       ctx.toggleConnectMode();
       return;

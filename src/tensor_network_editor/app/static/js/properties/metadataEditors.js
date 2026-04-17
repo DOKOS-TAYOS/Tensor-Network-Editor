@@ -181,6 +181,12 @@ export function createMetadataEditorSupport({
     return `${prefix}${normalizedSuggestion}${after}`.trim();
   }
 
+  function usedTagSet(rawValue) {
+    return new Set(
+      normalizeTagsValue(rawValue).map((value) => value.toLowerCase())
+    );
+  }
+
   function deriveDisclosureKey(baseFieldKey) {
     if (typeof baseFieldKey !== "string" || !baseFieldKey) {
       return null;
@@ -317,13 +323,21 @@ export function createMetadataEditorSupport({
       const tokenStart = previousComma >= 0 ? previousComma + 1 : 0;
       const tokenEnd = nextComma >= 0 ? nextComma : rawValue.length;
       const activeToken = rawValue.slice(tokenStart, tokenEnd).trim();
+      const normalizedActiveToken = activeToken.toLowerCase();
+      const existingTags = usedTagSet(
+        `${rawValue.slice(0, tokenStart)}${rawValue.slice(tokenEnd)}`
+      );
       const suggestions = buildTagAutocompleteSuggestions(
         annotationScope,
         activeToken
-      ).filter(
-        (suggestion) => suggestion.toLowerCase() !== activeToken.toLowerCase()
-      );
-      if (!activeToken || !suggestions.length) {
+      ).filter((suggestion) => {
+        const normalizedSuggestion = suggestion.toLowerCase();
+        if (normalizedActiveToken) {
+          return normalizedSuggestion !== normalizedActiveToken;
+        }
+        return !existingTags.has(normalizedSuggestion);
+      });
+      if (!suggestions.length) {
         suggestionContainer.innerHTML = "";
         return;
       }
@@ -347,14 +361,23 @@ export function createMetadataEditorSupport({
             event.preventDefault();
             event.stopPropagation();
           });
-          button.addEventListener("click", () => {
+          button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
             const nextValue = replaceActiveTagToken(
               tagsInput.value,
               button.dataset.tagSuggestion || "",
               tagsInput.selectionStart
             );
-            tagsInput.value = nextValue;
             commitTagsValue(nextValue);
+            const nextDisplayValue = formatTagsValue(target);
+            tagsInput.value = nextDisplayValue ? `${nextDisplayValue}, ` : "";
+            tagsInput.selectionStart = tagsInput.value.length;
+            tagsInput.selectionEnd = tagsInput.value.length;
+            if (typeof tagsInput.focus === "function") {
+              tagsInput.focus();
+            }
+            renderTagSuggestionButtons();
           });
         });
     }
@@ -397,7 +420,12 @@ export function createMetadataEditorSupport({
     }
 
     if (tagsInput) {
-      bindDebouncedAutosave(tagsInput, tagsFieldKey, () => commitTagsValue());
+      bindDebouncedAutosave(
+        tagsInput,
+        tagsFieldKey,
+        () => commitTagsValue(),
+        { scheduleOnInput: false }
+      );
       tagsInput.addEventListener("focus", () => {
         renderTagSuggestionButtons();
       });

@@ -1074,6 +1074,474 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
     return script_path
 
 
+def _write_manual_contraction_anchor_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "manual_contraction_anchor_runtime_regression.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+    utilities_templates_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesTemplates.js"
+    )
+    history_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "historySelection.js"
+    )
+    planner_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "planner.js"
+    )
+    planner_support_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "plannerSupport.js"
+    )
+    planner_renderers_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "plannerRenderers.js"
+    )
+    contraction_scene_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "contractionScene.js"
+    )
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
+    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
+    history_runtime_path = tmp_path / "historySelection.runtime.mjs"
+    planner_runtime_path = tmp_path / "planner.runtime.mjs"
+    planner_support_runtime_path = tmp_path / "plannerSupport.js"
+    planner_renderers_runtime_path = tmp_path / "plannerRenderers.js"
+    contraction_scene_runtime_path = tmp_path / "contractionScene.runtime.mjs"
+    state_runtime_path.write_text(
+        state_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_runtime_path.write_text(
+        utilities_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    utilities_templates_runtime_path.write_text(
+        utilities_templates_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _copy_runtime_editor_support_modules(tmp_path)
+    history_runtime_path.write_text(
+        history_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    planner_runtime_path.write_text(
+        planner_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    planner_support_runtime_path.write_text(
+        planner_support_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    planner_renderers_runtime_path.write_text(
+        planner_renderers_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    contraction_scene_runtime_path.write_text(
+        contraction_scene_module_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    script_body = textwrap.dedent(
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        function createClassList() {{
+          return {{
+            add() {{}},
+            remove() {{}},
+            toggle() {{}},
+          }};
+        }}
+
+        function createButton() {{
+          return {{
+            disabled: false,
+            classList: createClassList(),
+            addEventListener() {{}},
+          }};
+        }}
+
+        function createPlannerPanel() {{
+          return {{
+            innerHTML: "",
+            querySelectorAll() {{
+              return [];
+            }},
+          }};
+        }}
+
+        function createSpec() {{
+          return {{
+            id: "network_manual_anchor",
+            name: "manual-anchor",
+            tensors: [
+              {{
+                id: "tensor_a",
+                name: "A",
+                position: {{ x: 120, y: 140 }},
+                size: {{ width: 140, height: 84 }},
+                metadata: {{}},
+                indices: [
+                  {{
+                    id: "tensor_a_left",
+                    name: "left",
+                    dimension: 2,
+                    offset: {{ x: -38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "tensor_a_bond",
+                    name: "bond",
+                    dimension: 3,
+                    offset: {{ x: 38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                ],
+              }},
+              {{
+                id: "tensor_b",
+                name: "B",
+                position: {{ x: 360, y: 220 }},
+                size: {{ width: 140, height: 84 }},
+                metadata: {{}},
+                indices: [
+                  {{
+                    id: "tensor_b_bond",
+                    name: "bond",
+                    dimension: 3,
+                    offset: {{ x: -38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "tensor_b_right",
+                    name: "carry",
+                    dimension: 5,
+                    offset: {{ x: 38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                ],
+              }},
+              {{
+                id: "tensor_c",
+                name: "C",
+                position: {{ x: 620, y: 300 }},
+                size: {{ width: 140, height: 84 }},
+                metadata: {{}},
+                indices: [
+                  {{
+                    id: "tensor_c_left",
+                    name: "carry",
+                    dimension: 5,
+                    offset: {{ x: -38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "tensor_c_right",
+                    name: "right",
+                    dimension: 7,
+                    offset: {{ x: 38, y: 0 }},
+                    metadata: {{}},
+                  }},
+                ],
+              }},
+            ],
+            groups: [],
+            edges: [
+              {{
+                id: "edge_ab",
+                name: "bond_ab",
+                left: {{ tensor_id: "tensor_a", index_id: "tensor_a_bond" }},
+                right: {{ tensor_id: "tensor_b", index_id: "tensor_b_bond" }},
+                metadata: {{}},
+              }},
+              {{
+                id: "edge_bc",
+                name: "bond_bc",
+                left: {{ tensor_id: "tensor_b", index_id: "tensor_b_right" }},
+                right: {{ tensor_id: "tensor_c", index_id: "tensor_c_left" }},
+                metadata: {{}},
+              }},
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }};
+        }}
+
+        function assertLatestResultPosition(ctx, expectedPosition, label) {{
+          const plan = ctx.state.spec && ctx.state.spec.contraction_plan;
+          const steps = plan && Array.isArray(plan.steps) ? plan.steps : [];
+          if (!steps.length) {{
+            throw new Error(`${{label}} should produce at least one step.`);
+          }}
+          const scene = ctx.buildContractionScene();
+          if (!scene) {{
+            throw new Error(`${{label}} did not produce a contraction scene.`);
+          }}
+          const result = scene.operandMap[steps[steps.length - 1].id];
+          if (!result) {{
+            throw new Error(`${{label}} did not expose the result operand in the scene.`);
+          }}
+          if (
+            result.position.x !== expectedPosition.x ||
+            result.position.y !== expectedPosition.y
+          ) {{
+            throw new Error(
+              `${{label}} anchored the result at (${{result.position.x}}, ${{result.position.y}}) instead of (${{expectedPosition.x}}, ${{expectedPosition.y}}).`
+            );
+          }}
+        }}
+
+        function createContext() {{
+          const ctx = {{
+            state: createInitialState(),
+            constants: {{
+              TENSOR_WIDTH: 140,
+              TENSOR_HEIGHT: 84,
+              MIN_TENSOR_WIDTH: 96,
+              MIN_TENSOR_HEIGHT: 60,
+              INDEX_RADIUS: 10,
+              INDEX_PADDING: 6,
+              NOTE_WIDTH: 220,
+              NOTE_HEIGHT: 120,
+              NOTE_MIN_WIDTH: 120,
+              NOTE_MIN_HEIGHT: 90,
+              HISTORY_LIMIT: 100,
+              REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+              DEFAULT_INDEX_SLOTS: [
+                {{ x: -38, y: 0 }},
+                {{ x: 38, y: 0 }},
+                {{ x: 0, y: -24 }},
+                {{ x: 0, y: 24 }},
+              ],
+            }},
+            dom: {{
+              workspace: {{}},
+              statusMessage: {{ textContent: "", classList: createClassList() }},
+              propertiesPanel: {{ innerHTML: "" }},
+              generatedCode: {{ value: "" }},
+              engineSelect: {{ options: [], value: "tensornetwork" }},
+              collectionFormatSelect: {{ options: [], value: "list" }},
+              exportFormatSelect: {{ value: "py" }},
+              addNoteButton: createButton(),
+              connectButton: {{ classList: createClassList() }},
+              loadInput: {{}},
+              undoButton: createButton(),
+              redoButton: createButton(),
+              exportButton: createButton(),
+              toggleLinearPeriodicButton: {{ classList: createClassList() }},
+              linearPeriodicPreviousCellButton: createButton(),
+              linearPeriodicCellLabel: {{ textContent: "" }},
+              linearPeriodicNextCellButton: createButton(),
+              templateSelect: {{ value: "" }},
+              templateParameterPanel: {{ hidden: true }},
+              templateGraphSizeLabel: {{ textContent: "" }},
+              templateGraphSizeInput: {{ value: "2", min: "1" }},
+              templateBondDimensionInput: {{ value: "3", min: "1" }},
+              templatePhysicalDimensionInput: {{ value: "2", min: "1" }},
+              insertTemplateButton: createButton(),
+              createGroupButton: createButton(),
+              helpButton: createButton(),
+              helpModal: {{ classList: createClassList() }},
+              helpBackdrop: createButton(),
+              helpCloseButton: createButton(),
+              canvasShell: {{
+                getBoundingClientRect() {{
+                  return {{ left: 0, top: 0, width: 1000, height: 800 }};
+                }},
+              }},
+              groupLayer: {{}},
+              resizeLayer: {{}},
+              notesLayer: {{}},
+              selectionBox: {{}},
+              minimapCanvas: {{}},
+              sidebar: {{}},
+              plannerPanel: createPlannerPanel(),
+              generateButton: createButton(),
+            }},
+            apiGet: async () => null,
+            apiPost: async () => null,
+            window: {{
+              structuredClone: globalThis.structuredClone,
+              crypto: globalThis.crypto,
+              setTimeout,
+              clearTimeout,
+              confirm: () => true,
+            }},
+            document: {{
+              activeElement: null,
+              createElement() {{
+                return {{
+                  value: "",
+                  textContent: "",
+                  selected: false,
+                  appendChild() {{}},
+                  click() {{}},
+                }};
+              }},
+              getElementById() {{
+                return createButton();
+              }},
+              querySelectorAll() {{
+                return [];
+              }},
+            }},
+            cytoscape: null,
+            tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+            tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+            render: () => {{}},
+            renderOverlayDecorations: () => {{}},
+            renderMinimap: () => {{}},
+            renderPlanner: () => {{}},
+            renderSidebarTabs: () => {{}},
+            refreshContractionAnalysis: () => {{}},
+            syncPendingInteractionClasses: () => {{}},
+            setActiveSidebarTab: () => {{}},
+            updateToolbarState: () => {{}},
+            captureEditableFocus: () => null,
+            restoreEditableFocus: () => {{}},
+          }};
+
+          registerUtilities(ctx);
+          registerContractionScene(ctx);
+          registerHistorySelection(ctx);
+          registerPlannerFeature(ctx);
+
+          ctx.state.selectedEngine = "tensornetwork";
+          ctx.state.selectedCollectionFormat = "list";
+          ctx.state.spec = ctx.normalizeSpec(createSpec());
+          return ctx;
+        }}
+
+        const [
+          stateModule,
+          utilitiesModule,
+          historyModule,
+          plannerModule,
+          contractionSceneModule,
+        ] = await Promise.all([
+          import(pathToFileURL({json.dumps(str(state_runtime_path))}).href),
+          import(pathToFileURL({json.dumps(str(utilities_runtime_path))}).href),
+          import(pathToFileURL({json.dumps(str(history_runtime_path))}).href),
+          import(pathToFileURL({json.dumps(str(planner_runtime_path))}).href),
+          import(pathToFileURL({json.dumps(str(contraction_scene_runtime_path))}).href),
+        ]);
+        const {{ createInitialState }} = stateModule;
+        const {{ registerUtilities }} = utilitiesModule;
+        const {{ registerHistorySelection }} = historyModule;
+        const {{ registerPlannerFeature }} = plannerModule;
+        const {{ registerContractionScene }} = contractionSceneModule;
+
+        const directContext = createContext();
+        directContext.applyManualContractionStep("tensor_a", "tensor_b");
+        assertLatestResultPosition(
+          directContext,
+          {{ x: 120, y: 140 }},
+          "Direct manual contraction"
+        );
+        const directFirstStepId = directContext.state.spec.contraction_plan.steps[0].id;
+        directContext.buildContractionScene();
+        const directSnapshot = directContext.getSnapshotForStepCount(1);
+        const directFirstResultLayout = directSnapshot.operand_layouts.find(
+          (layout) => layout.operand_id === directFirstStepId
+        );
+        directFirstResultLayout.position = {{ x: 210, y: 80 }};
+        directContext.applyManualContractionStep(directFirstStepId, "tensor_c");
+        assertLatestResultPosition(
+          directContext,
+          {{ x: 210, y: 80 }},
+          "Direct follow-up contraction"
+        );
+
+        const plannerContext = createContext();
+        plannerContext.state.plannerMode = true;
+        plannerContext.handlePlannerOperandClick("tensor_a");
+        plannerContext.handlePlannerOperandClick("tensor_b");
+        const plannerSteps = plannerContext.state.spec.contraction_plan.steps;
+        if (
+          plannerSteps.length !== 1 ||
+          plannerSteps[0].left_operand_id !== "tensor_a" ||
+          plannerSteps[0].right_operand_id !== "tensor_b"
+        ) {{
+          throw new Error(
+            `Planner click order changed the recorded step order: ${{JSON.stringify(plannerSteps)}}.`
+          );
+        }}
+        assertLatestResultPosition(
+          plannerContext,
+          {{ x: 120, y: 140 }},
+          "Planner click contraction"
+        );
+        const plannerFirstStepId = plannerSteps[0].id;
+        plannerContext.buildContractionScene();
+        const plannerSnapshot = plannerContext.getSnapshotForStepCount(1);
+        const plannerFirstResultLayout = plannerSnapshot.operand_layouts.find(
+          (layout) => layout.operand_id === plannerFirstStepId
+        );
+        plannerFirstResultLayout.position = {{ x: 260, y: 100 }};
+        plannerContext.handlePlannerOperandClick(plannerFirstStepId);
+        plannerContext.handlePlannerOperandClick("tensor_c");
+        assertLatestResultPosition(
+          plannerContext,
+          {{ x: 260, y: 100 }},
+          "Planner follow-up contraction"
+        );
+        """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
 def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "engine_order_runtime_regression.mjs"
     utilities_module_path = (
@@ -1687,6 +2155,10 @@ def _write_tensor_index_move_properties_runtime_regression_script(
         registerUtilities(ctx);
         registerHistorySelection(ctx);
         registerProperties(ctx);
+        ctx.findNoteById = (noteId) =>
+          (Array.isArray(ctx.state.spec?.notes)
+            ? ctx.state.spec.notes.find((note) => note.id === noteId)
+            : null) || null;
 
         ctx.captureEditableFocus = () => null;
         ctx.restoreEditableFocus = () => {};
@@ -2132,6 +2604,172 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "planner_auto_shortcut_runtime_regression.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "interactionsShortcuts.js": "interactionsShortcuts.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, shortcutsModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createEvent({
+              key,
+              altKey = false,
+              ctrlKey = false,
+              metaKey = false,
+              shiftKey = false,
+            }) {
+              return {
+                key,
+                altKey,
+                ctrlKey,
+                metaKey,
+                shiftKey,
+                preventDefaultCalls: 0,
+                preventDefault() {
+                  this.preventDefaultCalls += 1;
+                },
+                target: null,
+              };
+            }
+
+            const shortcutCalls = [];
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [],
+              },
+              dom: {
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                generatedCode: {},
+                engineSelect: { options: [], value: "tensornetwork" },
+                connectButton: {},
+                loadInput: { click() {} },
+                undoButton: {},
+                redoButton: {},
+                helpCloseButton: { focus() {} },
+                helpModal: { classList: createClassList() },
+              },
+              document: {
+                activeElement: null,
+              },
+              isTextInput() {
+                return false;
+              },
+              setStatus() {},
+            };
+
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state: ctx.state,
+                dom: ctx.dom,
+                runtime: {},
+                shortcutActions: {
+                  toggleSidebarCollapsed(force) {
+                    shortcutCalls.push({ kind: "sidebar", force });
+                  },
+                  setActiveSidebarTab(tabId) {
+                    shortcutCalls.push({ kind: "tab", tabId });
+                  },
+                  startAutomaticPreview(mode) {
+                    shortcutCalls.push({ kind: "preview", mode });
+                  },
+                  acceptAutomaticPlan(mode) {
+                    shortcutCalls.push({ kind: "accept", mode });
+                  },
+                },
+              })
+            );
+
+            const altAEvent = createEvent({ key: "a", altKey: true });
+            ctx.handleKeydown(altAEvent);
+            if (altAEvent.preventDefaultCalls !== 1) {
+              throw new Error("Alt+A should prevent the browser default.");
+            }
+            if (
+              !shortcutCalls.some(
+                (entry) =>
+                  entry.kind === "preview" && entry.mode === "automaticFuture"
+              )
+            ) {
+              throw new Error(
+                `Alt+A should preview the auto future path, received ${JSON.stringify(shortcutCalls)}.`
+              );
+            }
+
+            const ctrlAltAEvent = createEvent({ key: "a", ctrlKey: true, altKey: true });
+            ctx.handleKeydown(ctrlAltAEvent);
+            if (ctrlAltAEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+Alt+A should prevent the browser default.");
+            }
+            if (
+              !shortcutCalls.some(
+                (entry) =>
+                  entry.kind === "accept" && entry.mode === "automaticFuture"
+              )
+            ) {
+              throw new Error(
+                `Ctrl+Alt+A should accept the auto future path, received ${JSON.stringify(shortcutCalls)}.`
+              );
+            }
+
+            const callsBeforeCtrlA = shortcutCalls.length;
+            const ctrlAEvent = createEvent({ key: "a", ctrlKey: true });
+            ctx.handleKeydown(ctrlAEvent);
+            if (ctrlAEvent.preventDefaultCalls !== 0) {
+              throw new Error("Ctrl+A should stay available for the browser select-all behavior.");
+            }
+            if (shortcutCalls.length !== callsBeforeCtrlA) {
+              throw new Error(
+                `Ctrl+A should not trigger planner shortcuts, received ${JSON.stringify(shortcutCalls.slice(callsBeforeCtrlA))}.`
+              );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "metadata_properties_runtime_regression.mjs"
     state_module_path = (
@@ -2545,6 +3183,10 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         registerUtilities(ctx);
         registerHistorySelection(ctx);
         registerProperties(ctx);
+        ctx.findNoteById = (noteId) =>
+          (Array.isArray(ctx.state.spec?.notes)
+            ? ctx.state.spec.notes.find((note) => note.id === noteId)
+            : null) || null;
 
         ctx.captureEditableFocus = () => null;
         ctx.restoreEditableFocus = () => {};
@@ -2627,6 +3269,20 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         }
         if (!propertiesPanel.innerHTML.includes('rows="1"')) {
           throw new Error("Custom metadata should start with a single visible row.");
+        }
+        ctx.window.setTimeout = (callback) => {
+          callback();
+          return 1;
+        };
+        ctx.window.clearTimeout = () => {};
+        const fluidTagsInput = document.getElementById("tensor-tags-input");
+        fluidTagsInput.value = "alpha, ";
+        fluidTagsInput.dispatchEvent("input");
+        if (fluidTagsInput.value !== "alpha, ") {
+          throw new Error("Typing a comma should not strip the active tag separator.");
+        }
+        if (JSON.stringify(ctx.state.spec.tensors[0].metadata.tags) !== JSON.stringify(["seed"])) {
+          throw new Error("Typing in the tags field should not commit metadata until the field is confirmed.");
         }
         renderCalls.length = 0;
         graphRenderCount = 0;
@@ -2720,9 +3376,28 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting a connection should render the metadata disclosure.");
         }
-        ctx.setSelection(["note_a"], { primaryId: "note_a" });
+        ctx.renderNoteProperties("note_a");
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting a note should keep metadata inside a disclosure.");
+        }
+        const originalNoteText = ctx.state.spec.notes[0].text;
+        const noteTextInput = document.getElementById("note-text-input");
+        if (!noteTextInput) {
+          throw new Error("Selecting a note should expose the note text editor.");
+        }
+        ctx.window.setTimeout = (callback) => {
+          callback();
+          return 1;
+        };
+        ctx.window.clearTimeout = () => {};
+        noteTextInput.value = "Draft note text";
+        noteTextInput.dispatchEvent("input");
+        if (ctx.state.spec.notes[0].text !== originalNoteText) {
+          throw new Error("Typing in a note should not autosave until leaving the field.");
+        }
+        noteTextInput.dispatchEvent("blur");
+        if (ctx.state.spec.notes[0].text !== "Draft note text") {
+          throw new Error("Leaving the note field should commit the note text.");
         }
         """
     )
@@ -3252,6 +3927,26 @@ def test_for_mode_reserved_operands_survive_cell_switches_and_scene_updates(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_manual_contraction_anchor_follows_the_first_selected_tensor(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_manual_contraction_anchor_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The manual-contraction anchor runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_engine_picker_uses_the_requested_display_order(tmp_path: Path) -> None:
     script_path = _write_engine_order_runtime_regression_script(tmp_path)
     completed_process = subprocess.run(
@@ -3324,6 +4019,26 @@ def test_shift_m_hides_the_minimap_without_recursive_shortcut_calls(
 
     assert completed_process.returncode == 0, (
         "The minimap shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_auto_shortcuts_leave_ctrl_a_available_for_select_all(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_planner_auto_shortcut_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The planner auto-shortcut runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -4023,6 +4738,22 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             }
             if (rightMouseEvent.preventDefaultCalls !== 0 || rightMouseEvent.stopPropagationCalls !== 0) {
               throw new Error("Right mouse down on the canvas should not swallow the Cytoscape context-menu path.");
+            }
+
+            ctx.state.pendingBoxSelection = null;
+            runtime.handleCanvasMouseDown({
+              button: 2,
+              shiftKey: false,
+              clientX: 70,
+              clientY: 80,
+              target: {
+                closest(selector) {
+                  return selector === ".minimap-shell" ? {} : null;
+                },
+              },
+            });
+            if (ctx.state.pendingBoxSelection) {
+              throw new Error("Right mouse down inside the minimap should not arm box selection.");
             }
 
             let closeCanvasContextMenuCalls = 0;

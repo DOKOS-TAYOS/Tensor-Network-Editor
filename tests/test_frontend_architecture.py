@@ -804,6 +804,8 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         }}
 
         function createFakeElement(id = null, tagName = "div") {{
+          let innerHtml = "";
+          const queryResults = new Map();
           return {{
             id,
             tagName: String(tagName || "div").toUpperCase(),
@@ -815,6 +817,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             classList: createClassList(),
             style: {{}},
             listeners: {{}},
+            ownerDocument: null,
             addEventListener(eventName, listener) {{
               if (!this.listeners[eventName]) {{
                 this.listeners[eventName] = [];
@@ -838,6 +841,28 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             setAttribute() {{}},
             removeAttribute() {{}},
             appendChild() {{}},
+            get innerHTML() {{
+              return innerHtml;
+            }},
+            set innerHTML(value) {{
+              innerHtml = value;
+              queryResults.clear();
+              const suggestionButtons = [];
+              const suggestionPattern =
+                /<button[\\s\\S]*?data-tag-suggestion="([^"]+)"[\\s\\S]*?>/g;
+              let suggestionMatch = suggestionPattern.exec(value);
+              while (suggestionMatch) {{
+                const button = createFakeElement(null, "button");
+                button.dataset.tagSuggestion = suggestionMatch[1];
+                button.ownerDocument = this.ownerDocument;
+                suggestionButtons.push(button);
+                suggestionMatch = suggestionPattern.exec(value);
+              }}
+              queryResults.set("[data-tag-suggestion]", suggestionButtons);
+            }},
+            querySelectorAll(selector) {{
+              return queryResults.get(selector) || [];
+            }},
           }};
         }}
 
@@ -847,10 +872,12 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           return {{
             registerHtml(html) {{
               elements.clear();
-              const tagPattern = /<(input|button|label|div)[^>]*id="([^"]+)"[^>]*>/g;
+              const tagPattern = /<(input|button|label|div|textarea)[^>]*id="([^"]+)"[^>]*>/g;
               let tagMatch = tagPattern.exec(html);
               while (tagMatch) {{
-                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                const element = createFakeElement(tagMatch[2], tagMatch[1]);
+                element.ownerDocument = this;
+                elements.set(tagMatch[2], element);
                 tagMatch = tagPattern.exec(html);
               }}
             }},
@@ -900,6 +927,11 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           ],
           metadata: {{ color: "#345678" }},
         }};
+        const edge = {{
+          id: "edge_ab",
+          name: "bond_ab",
+          metadata: {{ color: "#778899" }},
+        }};
         const group = {{
           id: "group_a",
           name: "Group A",
@@ -910,6 +942,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           state: {{
             spec: {{
               tensors: [tensor],
+              edges: [edge],
               groups: [group],
             }},
             canvasContextMenu: null,
@@ -926,6 +959,34 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             const candidate = Number(value);
             return Number.isFinite(candidate) ? candidate : fallback;
           }},
+          buildMetadataEditorMarkup: (options) =>
+            metadataSupport.buildMetadataEditorMarkup(options),
+          bindMetadataEditors: (options) =>
+            metadataSupport.bindMetadataEditors({{
+              ...options,
+              bindDebouncedAutosave: (element, fieldKey, commit, bindOptions = {{}}) => {{
+                if (!element) {{
+                  return;
+                }}
+                element.dataset.focusKey = fieldKey;
+                element.addEventListener("blur", () => {{
+                  commit();
+                }});
+                if (bindOptions.commitOnEnter !== false) {{
+                  element.addEventListener("keydown", (event) => {{
+                    if (event.key !== "Enter" || event.shiftKey) {{
+                      return;
+                    }}
+                    event.preventDefault();
+                    commit();
+                  }});
+                }}
+              }},
+              applyDesignChange: (mutate) => mutate(),
+              setStatus: (message, level = "info") => {{
+                contextMenuEvents.push(`status:${{level}}:${{message}}`);
+              }},
+            }}),
           getMetadataColor: (metadata, fallbackColor) =>
             metadata && metadata.color ? metadata.color : fallbackColor,
           render: () => contextMenuEvents.push("render"),
@@ -959,6 +1020,13 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             deleteTensorIndex: (payload) => {{
               contextMenuEvents.push(`deleteTensorIndex:${{payload.indexId}}`);
             }},
+            renameEdge: (payload) => {{
+              contextMenuEvents.push(`renameEdge:${{payload.proposedName}}`);
+              return true;
+            }},
+            deleteEdge: (payload) => {{
+              contextMenuEvents.push(`deleteEdge:${{payload.edgeId}}`);
+            }},
             renameGroup: (payload) => {{
               contextMenuEvents.push(`renameGroup:${{payload.proposedName}}`);
               return true;
@@ -966,6 +1034,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           }},
           propertyInvalidation: () => ({{ graph: true }}),
           findTensorById: (tensorId) => (tensorId === tensor.id ? tensor : null),
+          findEdgeById: (edgeId) => (edgeId === edge.id ? edge : null),
           findIndexOwner: (indexId) => {{
             const index = tensor.indices.find((candidate) => candidate.id === indexId) || null;
             return index ? {{ tensor, index }} : null;
@@ -1003,8 +1072,68 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         if (contextMenuRoot.innerHTML.includes(">Name<")) {{
           throw new Error("The context menu should no longer render the explicit Name label.");
         }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-tensor-tags-input"')) {{
+          throw new Error("Expected the tensor context menu to expose inline metadata tags.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-tensor-custom-metadata-input"')) {{
+          throw new Error("Expected the tensor context menu to expose inline custom metadata.");
+        }}
         document.getElementById("context-menu-add-index-button").click();
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-tensor-button"')) {{
+          throw new Error("Adding an index should keep the tensor context menu open.");
+        }}
+        const tensorNameInput = document.getElementById("context-menu-name-input");
+        tensorNameInput.value = "Tensor renamed";
+        tensorNameInput.dispatchEvent("keydown", {{
+          key: "Enter",
+          preventDefault() {{
+            contextMenuEvents.push("tensorEnterPrevented");
+          }},
+        }});
+        if (ctx.state.canvasContextMenu !== null || contextMenuRoot.innerHTML !== "") {{
+          throw new Error("Pressing Enter in the tensor name field should close the context menu.");
+        }}
+
         ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 220 }});
+        const tensorTagsInput = document.getElementById("context-menu-tensor-tags-input");
+        tensorTagsInput.value = "alpha";
+        tensorTagsInput.dispatchEvent("keydown", {{
+          key: "Enter",
+          preventDefault() {{
+            contextMenuEvents.push("tensorTagsEnterPrevented");
+          }},
+        }});
+        if (ctx.state.canvasContextMenu !== null || contextMenuRoot.innerHTML !== "") {{
+          throw new Error("Pressing Enter in the tensor tags field should close the context menu.");
+        }}
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 220 }});
+        const tensorTagsInputForSuggestions = document.getElementById(
+          "context-menu-tensor-tags-input"
+        );
+        tensorTagsInputForSuggestions.value = "ob";
+        tensorTagsInputForSuggestions.selectionStart = 2;
+        tensorTagsInputForSuggestions.selectionEnd = 2;
+        tensorTagsInputForSuggestions.dispatchEvent("input");
+        const tensorSuggestions = document.getElementById(
+          "context-menu-tensor-tags-input-suggestions"
+        );
+        const tensorSuggestionButtons =
+          tensorSuggestions.querySelectorAll("[data-tag-suggestion]");
+        if (!tensorSuggestionButtons.length) {{
+          throw new Error("Expected tag suggestions to appear while typing in the context menu.");
+        }}
+        tensorSuggestionButtons[0].click();
+        if (ctx.state.canvasContextMenu === null || contextMenuRoot.innerHTML === "") {{
+          throw new Error("Clicking a tag suggestion should keep the context menu open.");
+        }}
+        if (tensorTagsInputForSuggestions.value !== "observable, ") {{
+          throw new Error(`Expected tag suggestions to keep the field ready for another tag, received ${{tensorTagsInputForSuggestions.value}}.`);
+        }}
+        if (
+          !tensorSuggestions.querySelectorAll("[data-tag-suggestion]").length
+        ) {{
+          throw new Error("Clicking a tag suggestion should keep the suggestions list available.");
+        }}
         document.getElementById("context-menu-delete-tensor-button").click();
 
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
@@ -1020,9 +1149,30 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         if (contextMenuRoot.innerHTML.includes(">Dimension<")) {{
           throw new Error("The index context menu should no longer render the explicit Dimension label.");
         }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-index-tags-input"')) {{
+          throw new Error("Expected the index context menu to expose inline metadata tags.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-index-custom-metadata-input"')) {{
+          throw new Error("Expected the index context menu to expose inline custom metadata.");
+        }}
         document.getElementById("context-menu-move-up-button").click();
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
         document.getElementById("context-menu-delete-index-button").click();
+
+        ctx.openCanvasContextMenu({{ kind: "edge", id: "edge_ab", clientX: 130, clientY: 240 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-edge-color-input"')) {{
+          throw new Error("Expected the bond context menu to expose the color picker.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-edge-button"')) {{
+          throw new Error("Expected the bond context menu to expose deletion.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-edge-tags-input"')) {{
+          throw new Error("Expected the bond context menu to expose inline metadata tags.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-edge-custom-metadata-input"')) {{
+          throw new Error("Expected the bond context menu to expose inline custom metadata.");
+        }}
+        document.getElementById("context-menu-delete-edge-button").click();
 
         ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-toggle-group-button"')) {{
@@ -1035,6 +1185,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           !contextMenuEvents.includes("moveTensorIndex:-1") ||
           !contextMenuEvents.includes("deleteTensor:tensor_a") ||
           !contextMenuEvents.includes("deleteTensorIndex:index_left") ||
+          !contextMenuEvents.includes("deleteEdge:edge_ab") ||
           !contextMenuEvents.includes("toggleGroupCollapse:group_a")
         ) {{
           throw new Error(`Expected the context menu to reuse injected actions, received ${{JSON.stringify(contextMenuEvents)}}.`);

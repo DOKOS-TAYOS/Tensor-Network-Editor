@@ -45,6 +45,28 @@ function renderTrashIcon() {
   `;
 }
 
+function buildInlineMetadataEditor(
+  ctx,
+  { target, annotationScope, inputPrefix }
+) {
+  if (typeof ctx.buildMetadataEditorMarkup !== "function") {
+    return "";
+  }
+  return `
+    <div class="canvas-context-menu-section canvas-context-menu-metadata">
+      ${ctx.buildMetadataEditorMarkup({
+        tagsInputId: `${inputPrefix}-tags-input`,
+        tagsFocusKey: `${annotationScope}:${target.id}:tags`,
+        customMetadataInputId: `${inputPrefix}-custom-metadata-input`,
+        customMetadataFocusKey: `${annotationScope}:${target.id}:custom-metadata`,
+        target,
+        annotationScope,
+        collapsible: false,
+      })}
+    </div>
+  `;
+}
+
 export function registerCanvasContextMenu(ctx) {
   const state = ctx.state;
   const { document, window } = ctx;
@@ -57,8 +79,77 @@ export function registerCanvasContextMenu(ctx) {
     }
   }
 
+  function bindCommitOnBlurAndEnter(element, commit) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener("blur", commit);
+    element.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+      event.preventDefault();
+      commit();
+      closeCanvasContextMenu();
+    });
+  }
+
+  function bindCloseOnEnter(element) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+      closeCanvasContextMenu();
+    });
+  }
+
+  function bindColorInput(element, { target, statusMessage }) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener("input", () => {
+      ctx.propertyCommands.updateTargetColor({
+        target,
+        nextColor: element.value,
+        invalidate: ctx.propertyInvalidation({ graph: true, minimap: true }),
+        statusMessage,
+      });
+    });
+  }
+
+  function bindInlineMetadataEditor({
+    target,
+    annotationScope,
+    inputPrefix,
+    statusMessage,
+    invalidate,
+  }) {
+    if (typeof ctx.bindMetadataEditors !== "function") {
+      return;
+    }
+    const tagsInput = document.getElementById(`${inputPrefix}-tags-input`);
+    const customMetadataInput = document.getElementById(
+      `${inputPrefix}-custom-metadata-input`
+    );
+    ctx.bindMetadataEditors({
+      target,
+      tagsInput,
+      tagsFieldKey: `${annotationScope}:${target.id}:tags`,
+      customMetadataInput,
+      customMetadataFieldKey: `${annotationScope}:${target.id}:custom-metadata`,
+      statusMessage,
+      invalidate,
+      annotationScope,
+    });
+    bindCloseOnEnter(tagsInput);
+  }
+
   function getTensorContextTarget(tensorId) {
-    const tensor = typeof ctx.findTensorById === "function" ? ctx.findTensorById(tensorId) : null;
+    const tensor =
+      typeof ctx.findTensorById === "function" ? ctx.findTensorById(tensorId) : null;
     if (!tensor) {
       return null;
     }
@@ -116,6 +207,11 @@ export function registerCanvasContextMenu(ctx) {
             </button>
           </div>
         </div>
+        ${buildInlineMetadataEditor(ctx, {
+          target: tensor,
+          annotationScope: "tensor",
+          inputPrefix: "context-menu-tensor",
+        })}
       `,
       bind() {
         const nameInput = document.getElementById("context-menu-name-input");
@@ -124,24 +220,16 @@ export function registerCanvasContextMenu(ctx) {
         const deleteTensorButton = document.getElementById(
           "context-menu-delete-tensor-button"
         );
-        if (nameInput) {
-          const commitRename = () => {
-            ctx.propertyCommands.renameTensor({
-              tensor,
-              proposedName: nameInput.value,
-              invalidate: ctx.propertyInvalidation({ graph: true }),
-              statusMessage: `Updated tensor ${nameInput.value.trim()}.`,
-            });
-          };
-          nameInput.addEventListener("blur", commitRename);
-          nameInput.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") {
-              return;
-            }
-            event.preventDefault();
-            commitRename();
+
+        bindCommitOnBlurAndEnter(nameInput, () => {
+          ctx.propertyCommands.renameTensor({
+            tensor,
+            proposedName: nameInput.value,
+            invalidate: ctx.propertyInvalidation({ graph: true }),
+            statusMessage: `Updated tensor ${nameInput.value.trim()}.`,
           });
-        }
+        });
+
         if (addIndexButton) {
           addIndexButton.addEventListener("click", () => {
             ctx.propertyCommands.addTensorIndex({
@@ -150,19 +238,15 @@ export function registerCanvasContextMenu(ctx) {
               primaryId: tensor.id,
               statusMessage: `Added one index to ${tensor.name}.`,
             });
-            closeCanvasContextMenu();
+            renderCanvasContextMenu();
           });
         }
-        if (colorInput) {
-          colorInput.addEventListener("input", () => {
-            ctx.propertyCommands.updateTargetColor({
-              target: tensor,
-              nextColor: colorInput.value,
-              invalidate: ctx.propertyInvalidation({ graph: true, minimap: true }),
-              statusMessage: `Updated tensor ${tensor.name}.`,
-            });
-          });
-        }
+
+        bindColorInput(colorInput, {
+          target: tensor,
+          statusMessage: `Updated tensor ${tensor.name}.`,
+        });
+
         if (deleteTensorButton) {
           deleteTensorButton.addEventListener("click", () => {
             ctx.propertyCommands.deleteTensor({
@@ -173,25 +257,39 @@ export function registerCanvasContextMenu(ctx) {
             closeCanvasContextMenu();
           });
         }
+
+        bindInlineMetadataEditor({
+          target: tensor,
+          annotationScope: "tensor",
+          inputPrefix: "context-menu-tensor",
+          statusMessage: `Updated tensor ${tensor.name}.`,
+          invalidate: ctx.propertyInvalidation(),
+        });
       },
     };
   }
 
   function getIndexContextTarget(indexId) {
-    const located = typeof ctx.findIndexOwner === "function" ? ctx.findIndexOwner(indexId) : null;
+    const located =
+      typeof ctx.findIndexOwner === "function" ? ctx.findIndexOwner(indexId) : null;
     if (!located || !located.tensor || !located.index) {
       return null;
     }
     const { tensor, index } = located;
-    const indexPosition = Array.isArray(tensor.indices)
-      ? tensor.indices.findIndex((candidate) => candidate.id === index.id)
-      : -1;
+    const indices = Array.isArray(tensor.indices) ? tensor.indices : [];
+    const indexPosition = indices.findIndex((candidate) => candidate.id === index.id);
     const indexColor =
       typeof ctx.getMetadataColor === "function"
         ? ctx.getMetadataColor(
             index.metadata,
             typeof ctx.getIndexColor === "function"
-              ? ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId && ctx.findEdgeByIndexId(index.id)))
+              ? ctx.getIndexColor(
+                  index,
+                  Boolean(
+                    typeof ctx.findEdgeByIndexId === "function" &&
+                      ctx.findEdgeByIndexId(index.id)
+                  )
+                )
               : "#456cbf"
           )
         : "#456cbf";
@@ -243,9 +341,7 @@ export function registerCanvasContextMenu(ctx) {
               class="icon-button index-action-button"
               aria-label="Move index down"
               title="Move index down"
-              ${
-                indexPosition === tensor.indices.length - 1 ? "disabled" : ""
-              }
+              ${indexPosition === indices.length - 1 ? "disabled" : ""}
             >
               <span aria-hidden="true">&#8595;</span>
             </button>
@@ -260,6 +356,11 @@ export function registerCanvasContextMenu(ctx) {
             </button>
           </div>
         </div>
+        ${buildInlineMetadataEditor(ctx, {
+          target: index,
+          annotationScope: "index",
+          inputPrefix: "context-menu-index",
+        })}
       `,
       bind() {
         const nameInput = document.getElementById("context-menu-name-input");
@@ -271,58 +372,32 @@ export function registerCanvasContextMenu(ctx) {
           "context-menu-delete-index-button"
         );
 
-        if (nameInput) {
-          const commitRename = () => {
-            ctx.propertyCommands.renameIndex({
-              tensor,
-              index,
-              proposedName: nameInput.value,
-              invalidate: ctx.propertyInvalidation({ graph: true }),
-              statusMessage: `Updated index ${nameInput.value.trim()}.`,
-            });
-          };
-          nameInput.addEventListener("blur", commitRename);
-          nameInput.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") {
-              return;
-            }
-            event.preventDefault();
-            commitRename();
+        bindCommitOnBlurAndEnter(nameInput, () => {
+          ctx.propertyCommands.renameIndex({
+            tensor,
+            index,
+            proposedName: nameInput.value,
+            invalidate: ctx.propertyInvalidation({ graph: true }),
+            statusMessage: `Updated index ${nameInput.value.trim()}.`,
           });
-        }
+        });
 
-        if (dimensionInput) {
-          const commitDimension = () => {
-            ctx.propertyCommands.updateIndexDimension({
-              indexId: index.id,
-              rawValue: dimensionInput.value,
-              invalidate: ctx.propertyInvalidation({
-                analysis: true,
-                graph: true,
-              }),
-              statusMessage: `Updated index ${index.name}.`,
-            });
-          };
-          dimensionInput.addEventListener("blur", commitDimension);
-          dimensionInput.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") {
-              return;
-            }
-            event.preventDefault();
-            commitDimension();
+        bindCommitOnBlurAndEnter(dimensionInput, () => {
+          ctx.propertyCommands.updateIndexDimension({
+            indexId: index.id,
+            rawValue: dimensionInput.value,
+            invalidate: ctx.propertyInvalidation({
+              analysis: true,
+              graph: true,
+            }),
+            statusMessage: `Updated index ${index.name}.`,
           });
-        }
+        });
 
-        if (colorInput) {
-          colorInput.addEventListener("input", () => {
-            ctx.propertyCommands.updateTargetColor({
-              target: index,
-              nextColor: colorInput.value,
-              invalidate: ctx.propertyInvalidation({ graph: true, minimap: true }),
-              statusMessage: `Updated index ${index.name}.`,
-            });
-          });
-        }
+        bindColorInput(colorInput, {
+          target: index,
+          statusMessage: `Updated index ${index.name}.`,
+        });
 
         if (moveUpButton) {
           moveUpButton.addEventListener("click", () => {
@@ -374,12 +449,110 @@ export function registerCanvasContextMenu(ctx) {
             closeCanvasContextMenu();
           });
         }
+
+        bindInlineMetadataEditor({
+          target: index,
+          annotationScope: "index",
+          inputPrefix: "context-menu-index",
+          statusMessage: `Updated index ${index.name}.`,
+          invalidate: ctx.propertyInvalidation(),
+        });
+      },
+    };
+  }
+
+  function getEdgeContextTarget(edgeId) {
+    const edge =
+      typeof ctx.findEdgeById === "function" ? ctx.findEdgeById(edgeId) : null;
+    if (!edge) {
+      return null;
+    }
+    const edgeColor =
+      typeof ctx.getMetadataColor === "function"
+        ? ctx.getMetadataColor(edge.metadata, "#8da1c3")
+        : "#8da1c3";
+    return {
+      kind: "edge",
+      id: edge.id,
+      target: edge,
+      markup: `
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="field-group">
+            <input id="context-menu-name-input" value="${ctx.escapeHtml(edge.name || "")}" />
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label class="control-inline-color" for="context-menu-edge-color-input">
+              <input
+                id="context-menu-edge-color-input"
+                type="color"
+                aria-label="Choose bond tint"
+                title="Choose bond tint"
+                value="${ctx.escapeHtml(edgeColor)}"
+              />
+            </label>
+            <button
+              id="context-menu-delete-edge-button"
+              type="button"
+              class="icon-button danger"
+              aria-label="Delete bond"
+              title="Delete bond"
+            >
+              ${renderTrashIcon()}
+            </button>
+          </div>
+        </div>
+        ${buildInlineMetadataEditor(ctx, {
+          target: edge,
+          annotationScope: "edge",
+          inputPrefix: "context-menu-edge",
+        })}
+      `,
+      bind() {
+        const nameInput = document.getElementById("context-menu-name-input");
+        const colorInput = document.getElementById("context-menu-edge-color-input");
+        const deleteEdgeButton = document.getElementById(
+          "context-menu-delete-edge-button"
+        );
+
+        bindCommitOnBlurAndEnter(nameInput, () => {
+          ctx.propertyCommands.renameEdge({
+            edge,
+            proposedName: nameInput.value,
+            invalidate: ctx.propertyInvalidation({ graph: true }),
+            statusMessage: `Updated connection ${nameInput.value.trim()}.`,
+          });
+        });
+
+        bindColorInput(colorInput, {
+          target: edge,
+          statusMessage: `Updated connection ${edge.name}.`,
+        });
+
+        if (deleteEdgeButton) {
+          deleteEdgeButton.addEventListener("click", () => {
+            ctx.propertyCommands.deleteEdge({
+              edgeId: edge.id,
+              selectionIds: [],
+              statusMessage: `Deleted connection ${edge.name}.`,
+            });
+            closeCanvasContextMenu();
+          });
+        }
+
+        bindInlineMetadataEditor({
+          target: edge,
+          annotationScope: "edge",
+          inputPrefix: "context-menu-edge",
+          statusMessage: `Updated connection ${edge.name}.`,
+          invalidate: ctx.propertyInvalidation({ graph: false, minimap: false }),
+        });
       },
     };
   }
 
   function getGroupContextTarget(groupId) {
-    const group = typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
+    const group =
+      typeof ctx.findGroupById === "function" ? ctx.findGroupById(groupId) : null;
     if (!group) {
       return null;
     }
@@ -404,24 +577,14 @@ export function registerCanvasContextMenu(ctx) {
           "context-menu-toggle-group-button"
         );
 
-        if (nameInput) {
-          const commitRename = () => {
-            ctx.propertyCommands.renameGroup({
-              group,
-              proposedName: nameInput.value,
-              invalidate: ctx.propertyInvalidation({ overlays: true }),
-              statusMessage: `Updated group ${nameInput.value.trim()}.`,
-            });
-          };
-          nameInput.addEventListener("blur", commitRename);
-          nameInput.addEventListener("keydown", (event) => {
-            if (event.key !== "Enter") {
-              return;
-            }
-            event.preventDefault();
-            commitRename();
+        bindCommitOnBlurAndEnter(nameInput, () => {
+          ctx.propertyCommands.renameGroup({
+            group,
+            proposedName: nameInput.value,
+            invalidate: ctx.propertyInvalidation({ overlays: true }),
+            statusMessage: `Updated group ${nameInput.value.trim()}.`,
           });
-        }
+        });
 
         if (toggleGroupButton) {
           toggleGroupButton.addEventListener("click", () => {
@@ -444,6 +607,9 @@ export function registerCanvasContextMenu(ctx) {
     }
     if (menuState.kind === "index") {
       return getIndexContextTarget(menuState.id);
+    }
+    if (menuState.kind === "edge") {
+      return getEdgeContextTarget(menuState.id);
     }
     if (menuState.kind === "group") {
       return getGroupContextTarget(menuState.id);
