@@ -385,8 +385,9 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert 'content: "";' in body
     assert "border-right: 2px solid rgba(236, 242, 251, 0.78);" in body
     assert "border-bottom: 2px solid rgba(236, 242, 251, 0.78);" in body
+    assert "transform: translateY(-50%) rotate(-45deg);" in body
+    assert '.select-chevron-field[data-expanded="true"]::after {' in body
     assert "transform: translateY(-50%) rotate(45deg);" in body
-    assert '.template-select-field[data-expanded="true"]::after {' not in body
     assert 'content: "â€º";' not in body
     assert 'content: "âŒ„";' not in body
     assert ".template-parameter-panel select," in body
@@ -401,8 +402,12 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
 def test_css_asset_styles_grouped_export_and_code_generation_controls(
     editor_server: EditorServer,
 ) -> None:
+    html = request_text(f"{editor_server.base_url}/")
     body = request_text(f"{editor_server.base_url}/app.css")
 
+    assert 'id="engine-select-field"' in html
+    assert 'id="collection-format-select-field"' in html
+    assert 'class="code-format-picker select-chevron-field"' in html
     assert ".toolbar-menu {" in body
     assert ".toolbar-menu-panel {" in body
     assert "top: var(--toolbar-menu-top, 0px);" in body
@@ -414,6 +419,10 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".toolbar-menu-item-shortcut {" in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
+    assert ".code-format-picker.select-chevron-field::after {" in body
+    assert ".code-format-picker select {" in body
+    assert "appearance: none;" in body
+    assert "padding-right: 2.1rem;" in body
     assert ".code-header-row {" in body
     assert ".code-preview {" in body
     assert ".code-preview .token.keyword {" in body
@@ -432,6 +441,9 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
     assert 'role="separator"' in html
     assert "--sidebar-width: 360px;" in css_body
     assert ".sidebar-resize-handle {" in css_body
+    assert ".sidebar-toggle-button {" in css_body
+    assert "height: 2.5rem;" in css_body
+    assert "align-self: center;" in css_body
     assert ".sidebar-toggle-button svg {" in css_body
     assert (
         "grid-template-columns: minmax(0, 1fr) minmax(280px, var(--sidebar-width));"

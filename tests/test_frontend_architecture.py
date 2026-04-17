@@ -1810,6 +1810,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           linearPeriodicCellLabel: {{ textContent: "" }},
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
           templateSelectField: getButton("template-select-field"),
+          engineSelectField: getButton("engine-select-field"),
+          collectionFormatSelectField: getButton("collection-format-select-field"),
           templateSelect: {{
             value: "mps",
             addEventListener(type, handler) {{ this[type] = handler; }},
@@ -1935,6 +1937,22 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.templateSelect.change({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "false") {{
           throw new Error("Expected template select change to collapse the disclosure indicator.");
+        }}
+        dom.engineSelect.mousedown({{ target: dom.engineSelect }});
+        if (dom.engineSelectField.attributes["data-expanded"] !== "true") {{
+          throw new Error("Expected engine select mouse down to mark the disclosure as expanded.");
+        }}
+        dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
+        if (dom.engineSelectField.attributes["data-expanded"] !== "false") {{
+          throw new Error("Expected engine select change to collapse the disclosure indicator.");
+        }}
+        dom.collectionFormatSelect.mousedown({{ target: dom.collectionFormatSelect }});
+        if (dom.collectionFormatSelectField.attributes["data-expanded"] !== "true") {{
+          throw new Error("Expected collection format select mouse down to mark the disclosure as expanded.");
+        }}
+        dom.collectionFormatSelect.change({{ target: {{ value: "dict" }} }});
+        if (dom.collectionFormatSelectField.attributes["data-expanded"] !== "false") {{
+          throw new Error("Expected collection format select change to collapse the disclosure indicator.");
         }}
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);

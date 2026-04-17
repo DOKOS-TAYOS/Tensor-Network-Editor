@@ -37,6 +37,8 @@ export function createEditorShellBindings({
     linearPeriodicNextCellButton,
     templateSelectField,
     templateSelect,
+    engineSelectField,
+    collectionFormatSelectField,
     templateSettingsButton,
     templateSettingsPopover,
     templateGraphSizeInput,
@@ -120,21 +122,48 @@ export function createEditorShellBindings({
     });
   }
 
-  function readTemplateSelectExpanded() {
-    if (!templateSelectField) {
+  function readSelectChevronExpanded(fieldElement) {
+    if (!fieldElement) {
       return false;
     }
-    if (typeof templateSelectField.getAttribute === "function") {
-      return templateSelectField.getAttribute("data-expanded") === "true";
+    if (typeof fieldElement.getAttribute === "function") {
+      return fieldElement.getAttribute("data-expanded") === "true";
     }
-    return templateSelectField.attributes?.["data-expanded"] === "true";
+    return fieldElement.attributes?.["data-expanded"] === "true";
   }
 
-  function setTemplateSelectExpanded(isExpanded) {
-    if (!templateSelectField || typeof templateSelectField.setAttribute !== "function") {
+  function setSelectChevronExpanded(fieldElement, isExpanded) {
+    if (!fieldElement || typeof fieldElement.setAttribute !== "function") {
       return;
     }
-    templateSelectField.setAttribute("data-expanded", String(Boolean(isExpanded)));
+    fieldElement.setAttribute("data-expanded", String(Boolean(isExpanded)));
+  }
+
+  function bindSelectChevronDisclosure(fieldElement, selectElement) {
+    if (!fieldElement || !selectElement) {
+      return;
+    }
+    setSelectChevronExpanded(fieldElement, false);
+    bindListener(selectElement, "mousedown", () => {
+      setSelectChevronExpanded(
+        fieldElement,
+        !readSelectChevronExpanded(fieldElement)
+      );
+    });
+    bindListener(selectElement, "keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+        setSelectChevronExpanded(fieldElement, true);
+      }
+      if (["Escape", "Tab"].includes(event.key)) {
+        setSelectChevronExpanded(fieldElement, false);
+      }
+    });
+    bindListener(selectElement, "change", () => {
+      setSelectChevronExpanded(fieldElement, false);
+    });
+    bindListener(selectElement, "blur", () => {
+      setSelectChevronExpanded(fieldElement, false);
+    });
   }
 
   function attachToolbarHandlers() {
@@ -220,23 +249,14 @@ export function createEditorShellBindings({
     bindListener(linearPeriodicNextCellButton, "click", () => {
       actions.switchLinearPeriodicCell(1);
     });
-    setTemplateSelectExpanded(false);
-    bindListener(templateSelect, "mousedown", () => {
-      setTemplateSelectExpanded(!readTemplateSelectExpanded());
-    });
-    bindListener(templateSelect, "keydown", (event) => {
-      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
-        setTemplateSelectExpanded(true);
-      }
-      if (["Escape", "Tab"].includes(event.key)) {
-        setTemplateSelectExpanded(false);
-      }
-    });
-    bindListener(templateSelect, "blur", () => {
-      setTemplateSelectExpanded(false);
-    });
+    bindSelectChevronDisclosure(templateSelectField, templateSelect);
+    bindSelectChevronDisclosure(engineSelectField, engineSelect);
+    bindSelectChevronDisclosure(
+      collectionFormatSelectField,
+      collectionFormatSelect
+    );
     bindListener(templateSelect, "change", (event) => {
-      setTemplateSelectExpanded(false);
+      setSelectChevronExpanded(templateSelectField, false);
       actions.handleTemplateSelectionChange(event);
     });
     bindListener(templateGraphSizeInput, "change", actions.handleTemplateParameterInput);
@@ -286,6 +306,7 @@ export function createEditorShellBindings({
       actions.toggleTemplateManager(false)
     );
     bindListener(engineSelect, "change", (event) => {
+      setSelectChevronExpanded(engineSelectField, false);
       store.setSelectedEngine(event.target.value);
       actions.enforceLinearPeriodicEngineSupport();
       actions.renderPlanner();
@@ -296,6 +317,7 @@ export function createEditorShellBindings({
       );
     });
     bindListener(collectionFormatSelect, "change", (event) => {
+      setSelectChevronExpanded(collectionFormatSelectField, false);
       store.setSelectedCollectionFormat(event.target.value);
     });
     bindListener(documentRef, "mousedown", (event) => {

@@ -427,9 +427,13 @@ select {
   border-right: 2px solid rgba(236, 242, 251, 0.78);
   border-bottom: 2px solid rgba(236, 242, 251, 0.78);
   pointer-events: none;
-  transform: translateY(-50%) rotate(45deg);
+  transform: translateY(-50%) rotate(-45deg);
   transform-origin: center;
-  transition: border-color 0.12s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.select-chevron-field[data-expanded="true"]::after {
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .select-chevron-field:focus-within::after {
@@ -1124,10 +1128,12 @@ select {
 .sidebar-toggle-button {
   width: 2.5rem;
   min-width: 2.5rem;
+  height: 2.5rem;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   font-weight: 700;
 }
 
@@ -1868,12 +1874,21 @@ textarea[disabled] {
 }
 
 .code-format-picker {
+  position: relative;
   display: inline-flex;
   align-items: center;
 }
 
+.code-format-picker.select-chevron-field::after {
+  top: 50%;
+}
+
 .code-format-picker select {
   min-width: 8rem;
+  padding-right: 2.1rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
 .code-output-shell {

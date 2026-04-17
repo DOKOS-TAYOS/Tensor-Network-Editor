@@ -39,6 +39,68 @@ export function registerMetadataFilters(ctx) {
   const { canvasTools } = ctx.dom;
   let shouldFocusSearchInput = false;
 
+  function bindListener(target, eventName, handler) {
+    if (!target || typeof target.addEventListener !== "function") {
+      return;
+    }
+    target.addEventListener(eventName, handler);
+  }
+
+  function readSelectChevronExpanded(fieldElement) {
+    if (!fieldElement) {
+      return false;
+    }
+    if (typeof fieldElement.getAttribute === "function") {
+      return fieldElement.getAttribute("data-expanded") === "true";
+    }
+    return fieldElement.attributes?.["data-expanded"] === "true";
+  }
+
+  function setSelectChevronExpanded(
+    fieldElement,
+    isExpanded,
+    selectElement = null
+  ) {
+    if (!fieldElement || typeof fieldElement.setAttribute !== "function") {
+      if (selectElement && selectElement.dataset) {
+        selectElement.dataset.expanded = String(Boolean(isExpanded));
+      }
+      return;
+    }
+    fieldElement.setAttribute("data-expanded", String(Boolean(isExpanded)));
+    if (selectElement && selectElement.dataset) {
+      selectElement.dataset.expanded = String(Boolean(isExpanded));
+    }
+  }
+
+  function bindSelectChevronDisclosure(selectElement, fieldElement) {
+    if (!selectElement) {
+      return;
+    }
+    setSelectChevronExpanded(fieldElement, false, selectElement);
+    bindListener(selectElement, "mousedown", () => {
+      setSelectChevronExpanded(
+        fieldElement,
+        !readSelectChevronExpanded(fieldElement),
+        selectElement
+      );
+    });
+    bindListener(selectElement, "keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+        setSelectChevronExpanded(fieldElement, true, selectElement);
+      }
+      if (["Escape", "Tab"].includes(event.key)) {
+        setSelectChevronExpanded(fieldElement, false, selectElement);
+      }
+    });
+    bindListener(selectElement, "change", () => {
+      setSelectChevronExpanded(fieldElement, false, selectElement);
+    });
+    bindListener(selectElement, "blur", () => {
+      setSelectChevronExpanded(fieldElement, false, selectElement);
+    });
+  }
+
   function normalizeMetadataFilters(filters = state.metadataFilters) {
     const scope =
       filters && (filters.scope === "index" || filters.scope === "bond")
@@ -372,9 +434,13 @@ export function registerMetadataFilters(ctx) {
       filters.scope
     );
     return `
-      <div class="canvas-tool-popover" data-canvas-tool-popover="filter">
+        <div class="canvas-tool-popover" data-canvas-tool-popover="filter">
         <div class="canvas-tool-popover-header">
-          <div class="canvas-tool-scope-field select-chevron-field">
+          <div
+            id="canvas-metadata-filter-scope-field"
+            class="canvas-tool-scope-field select-chevron-field"
+            data-expanded="false"
+          >
             <select id="canvas-metadata-filter-scope-select" aria-label="Filter scope">
               <option value="tensor"${
                 filters.scope === "tensor" ? " selected" : ""
@@ -454,7 +520,11 @@ export function registerMetadataFilters(ctx) {
     return `
       <div class="canvas-tool-popover" data-canvas-tool-popover="search">
         <div class="canvas-tool-popover-header">
-          <div class="canvas-tool-scope-field select-chevron-field">
+          <div
+            id="canvas-name-search-scope-field"
+            class="canvas-tool-scope-field select-chevron-field"
+            data-expanded="false"
+          >
             <select id="canvas-name-search-scope-select" aria-label="Search scope">
               <option value="tensor"${
                 search.scope === "tensor" ? " selected" : ""
@@ -539,6 +609,9 @@ export function registerMetadataFilters(ctx) {
     const filterSelectAllButton = document.getElementById(
       "canvas-metadata-filter-select-all-button"
     );
+    const filterScopeField = document.getElementById(
+      "canvas-metadata-filter-scope-field"
+    );
     const filterClearButton = document.getElementById(
       "canvas-metadata-filter-clear-button"
     );
@@ -548,7 +621,13 @@ export function registerMetadataFilters(ctx) {
     const searchScopeSelect = document.getElementById(
       "canvas-name-search-scope-select"
     );
+    const searchScopeField = document.getElementById(
+      "canvas-name-search-scope-field"
+    );
     const searchInput = document.getElementById("canvas-name-search-input");
+
+    bindSelectChevronDisclosure(filterScopeSelect, filterScopeField);
+    bindSelectChevronDisclosure(searchScopeSelect, searchScopeField);
 
     if (filterButton) {
       filterButton.addEventListener("click", () => {

@@ -3939,6 +3939,13 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         if (!document.getElementById("canvas-metadata-filter-tag-not-specified")) {
           throw new Error("Expected every filter scope to expose the Not specified checkbox.");
         }
+        document.getElementById("canvas-metadata-filter-scope-select").dispatchEvent("mousedown");
+        if (
+          document.getElementById("canvas-metadata-filter-scope-select").dataset.expanded
+          !== "true"
+        ) {
+          throw new Error("Expected the metadata filter scope chevron to expand while the select is opening.");
+        }
 
         commitCheckbox(document.getElementById("canvas-metadata-filter-tag-block"), true);
         if (JSON.stringify(ctx.state.metadataFilters.selectedTags) !== JSON.stringify(["block"])) {
@@ -3974,6 +3981,12 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         }
 
         commitSelect(document.getElementById("canvas-metadata-filter-scope-select"), "index");
+        if (
+          document.getElementById("canvas-metadata-filter-scope-select").dataset.expanded
+          !== "false"
+        ) {
+          throw new Error("Expected the metadata filter scope chevron to collapse after changing the scope.");
+        }
         commitCheckbox(document.getElementById("canvas-metadata-filter-tag-not-specified"), true);
         const unspecifiedHighlight = ctx.getMetadataFilterHighlight();
         if (ctx.getMetadataFilterEntityState("index", "index_c", unspecifiedHighlight) !== "match") {
@@ -3991,7 +4004,20 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         }
 
         document.getElementById("canvas-name-search-button").click();
+        document.getElementById("canvas-name-search-scope-select").dispatchEvent("mousedown");
+        if (
+          document.getElementById("canvas-name-search-scope-select").dataset.expanded
+          !== "true"
+        ) {
+          throw new Error("Expected the name search scope chevron to expand while the select is opening.");
+        }
         commitSelect(document.getElementById("canvas-name-search-scope-select"), "bond");
+        if (
+          document.getElementById("canvas-name-search-scope-select").dataset.expanded
+          !== "false"
+        ) {
+          throw new Error("Expected the name search scope chevron to collapse after changing the scope.");
+        }
         const searchInput = document.getElementById("canvas-name-search-input");
         if (!searchInput) {
           throw new Error("Expected the search popover to expose its input.");

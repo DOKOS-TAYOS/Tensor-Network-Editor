@@ -5,7 +5,11 @@ export function getDomRefs(document) {
     propertiesPanel: document.getElementById("properties-panel"),
     generatedCode: document.getElementById("generated-code"),
     generatedCodeView: document.getElementById("generated-code-view"),
+    engineSelectField: document.getElementById("engine-select-field"),
     engineSelect: document.getElementById("engine-select"),
+    collectionFormatSelectField: document.getElementById(
+      "collection-format-select-field"
+    ),
     collectionFormatSelect: document.getElementById("collection-format-select"),
     fileMenuButton: document.getElementById("file-menu-button"),
     fileMenuPanel: document.getElementById("file-menu-panel"),
