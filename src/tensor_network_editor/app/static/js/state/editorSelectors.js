@@ -20,6 +20,10 @@ export function createEditorSelectors({ store }) {
     return getTemplateSource(templateName) === "project";
   }
 
+  function isSessionTemplate(templateName) {
+    return getTemplateSource(templateName) === "session";
+  }
+
   function hasTemplateCatalogWarnings() {
     return Array.isArray(getState().templateCatalogWarnings)
       && getState().templateCatalogWarnings.length > 0;
@@ -37,6 +41,7 @@ export function createEditorSelectors({ store }) {
     getTemplateDefinition: getTemplateDefinitionByName,
     getTemplateSource,
     isProjectTemplate,
+    isSessionTemplate,
     hasTemplateCatalogWarnings,
     getSelectedEngine,
     getSelectedCollectionFormat,

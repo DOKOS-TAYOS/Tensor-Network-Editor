@@ -20,6 +20,78 @@ const COLLECTION_FORMAT_LABELS = {
   dict: "Dictionary",
 };
 
+const SESSION_TEMPLATE_PREFIX = "session::";
+const TEMPLATE_SOURCE_LABELS = {
+  session: "Session",
+  project: "Project",
+  global: "Built-in",
+};
+const TEMPLATE_PARAMETER_DEFAULTS = {
+  graph_size: 1,
+  bond_dimension: 1,
+  physical_dimension: 1,
+};
+
+function buildSessionTemplateName(templateId) {
+  return `${SESSION_TEMPLATE_PREFIX}${templateId}`;
+}
+
+function getTemplateSourceLabel(source) {
+  return TEMPLATE_SOURCE_LABELS[source] || TEMPLATE_SOURCE_LABELS.global;
+}
+
+function isSessionTemplateName(templateName) {
+  return typeof templateName === "string"
+    && templateName.startsWith(SESSION_TEMPLATE_PREFIX);
+}
+
+function getSessionTemplateEntry(sessionTemplates, templateName) {
+  if (!isSessionTemplateName(templateName) || !Array.isArray(sessionTemplates)) {
+    return null;
+  }
+  return (
+    sessionTemplates.find((entry) => entry && entry.templateName === templateName) || null
+  );
+}
+
+function buildSessionTemplateDefinition(sessionTemplateEntry) {
+  return {
+    display_name: sessionTemplateEntry.displayName,
+    graph_size_label: "Tensors",
+    defaults: { ...TEMPLATE_PARAMETER_DEFAULTS },
+    minimums: { ...TEMPLATE_PARAMETER_DEFAULTS },
+    supports_parameters: false,
+    source: "session",
+  };
+}
+
+function buildMergedTemplateNames(state) {
+  const sessionTemplateNames = Array.isArray(state.sessionTemplates)
+    ? state.sessionTemplates.map((entry) => entry.templateName)
+    : [];
+  const catalogTemplateNames = Array.isArray(state.catalogTemplateNames)
+    ? [...state.catalogTemplateNames]
+    : [];
+  const projectTemplateNames = catalogTemplateNames.filter((templateName) => {
+    const definition = state.catalogTemplateDefinitions[templateName];
+    return definition && definition.source === "project";
+  });
+  const builtinTemplateNames = catalogTemplateNames.filter(
+    (templateName) => !projectTemplateNames.includes(templateName)
+  );
+  return [...sessionTemplateNames, ...projectTemplateNames, ...builtinTemplateNames];
+}
+
+function buildMergedTemplateDefinitions(state) {
+  const mergedDefinitions = {
+    ...(state.catalogTemplateDefinitions || {}),
+  };
+  (state.sessionTemplates || []).forEach((entry) => {
+    mergedDefinitions[entry.templateName] = buildSessionTemplateDefinition(entry);
+  });
+  return mergedDefinitions;
+}
+
 export function formatEngineLabel(engineName) {
   return Object.prototype.hasOwnProperty.call(ENGINE_LABELS, engineName)
     ? ENGINE_LABELS[engineName]
@@ -57,9 +129,9 @@ export function formatCollectionFormatLabel(collectionFormat) {
 
 export function getTemplateDefinition(templateDefinitions, templateName) {
   if (
-    !templateName ||
-    !templateDefinitions ||
-    typeof templateDefinitions !== "object"
+    !templateName
+    || !templateDefinitions
+    || typeof templateDefinitions !== "object"
   ) {
     return null;
   }
@@ -69,9 +141,9 @@ export function getTemplateDefinition(templateDefinitions, templateName) {
 export function formatTemplateLabel(templateName, templateDefinitions) {
   const definition = getTemplateDefinition(templateDefinitions, templateName);
   if (
-    definition &&
-    typeof definition.display_name === "string" &&
-    definition.display_name
+    definition
+    && typeof definition.display_name === "string"
+    && definition.display_name
   ) {
     return definition.display_name;
   }
@@ -139,6 +211,23 @@ export function createTemplateOptionHelpers({
       : "global";
   }
 
+  function getTemplateSpec(templateName = templateSelect.value) {
+    const sessionTemplateEntry = getSessionTemplateEntry(
+      state.sessionTemplates,
+      templateName
+    );
+    return sessionTemplateEntry ? structuredClone(sessionTemplateEntry.spec) : null;
+  }
+
+  function listTemplateEntries() {
+    return state.availableTemplates.map((templateName) => ({
+      templateName,
+      displayName: formatTemplateLabel(templateName, state.templateDefinitions),
+      source: getTemplateSource(templateName),
+      spec: getTemplateSpec(templateName),
+    }));
+  }
+
   function populateEngineOptions(engines) {
     engineSelect.innerHTML = "";
     sortEngineNamesForDisplay(engines).forEach((engineName) => {
@@ -171,31 +260,42 @@ export function createTemplateOptionHelpers({
 
   function populateTemplateOptions(templateNames) {
     templateSelect.innerHTML = "";
+    const groupedTemplateNames = {
+      session: [],
+      project: [],
+      global: [],
+    };
     templateNames.forEach((templateName) => {
-      const option = document.createElement("option");
-      option.value = templateName;
-      option.textContent = formatTemplateLabel(
-        templateName,
-        state.templateDefinitions
-      );
-      templateSelect.appendChild(option);
+      groupedTemplateNames[getTemplateSource(templateName)].push(templateName);
+    });
+    Object.entries(groupedTemplateNames).forEach(([source, names]) => {
+      if (!names.length) {
+        return;
+      }
+      const optgroup = document.createElement("optgroup");
+      optgroup.label = getTemplateSourceLabel(source);
+      names.forEach((templateName) => {
+        const option = document.createElement("option");
+        option.value = templateName;
+        option.textContent = formatTemplateLabel(
+          templateName,
+          state.templateDefinitions
+        );
+        optgroup.appendChild(option);
+      });
+      templateSelect.appendChild(optgroup);
     });
     if (templateNames.length && !templateSelect.value) {
       templateSelect.value = templateNames[0];
     }
   }
 
-  function applyTemplateCatalogPayload({
-    templateNames,
-    templateDefinitions,
+  function rebuildTemplateCatalog({
     selectedTemplate = null,
-    templateCatalogWarnings = [],
-  }) {
-    const nextTemplateNames = Array.isArray(templateNames) ? [...templateNames] : [];
-    const nextTemplateDefinitions =
-      templateDefinitions && typeof templateDefinitions === "object"
-        ? { ...templateDefinitions }
-        : {};
+    templateCatalogWarnings = null,
+  } = {}) {
+    const nextTemplateNames = buildMergedTemplateNames(state);
+    const nextTemplateDefinitions = buildMergedTemplateDefinitions(state);
     const previousParameters = state.templateParametersByTemplate || {};
     const nextParameters = buildTemplateParameterState(
       nextTemplateNames,
@@ -211,16 +311,15 @@ export function createTemplateOptionHelpers({
     });
     state.availableTemplates = nextTemplateNames;
     state.templateDefinitions = nextTemplateDefinitions;
-    state.templateCatalogWarnings = Array.isArray(templateCatalogWarnings)
-      ? [...templateCatalogWarnings]
-      : [];
+    if (templateCatalogWarnings !== null) {
+      state.templateCatalogWarnings = Array.isArray(templateCatalogWarnings)
+        ? [...templateCatalogWarnings]
+        : [];
+    }
     state.templateParametersByTemplate = nextParameters;
     const currentTemplateValue = templateSelect.value;
     populateTemplateOptions(nextTemplateNames);
-    if (
-      selectedTemplate &&
-      nextTemplateNames.includes(selectedTemplate)
-    ) {
+    if (selectedTemplate && nextTemplateNames.includes(selectedTemplate)) {
       templateSelect.value = selectedTemplate;
     } else if (nextTemplateNames.includes(currentTemplateValue)) {
       templateSelect.value = currentTemplateValue;
@@ -231,6 +330,23 @@ export function createTemplateOptionHelpers({
     }
     syncTemplateParameterControls(templateSelect.value);
     updateToolbarState();
+  }
+
+  function applyTemplateCatalogPayload({
+    templateNames,
+    templateDefinitions,
+    selectedTemplate = null,
+    templateCatalogWarnings = [],
+  }) {
+    state.catalogTemplateNames = Array.isArray(templateNames) ? [...templateNames] : [];
+    state.catalogTemplateDefinitions =
+      templateDefinitions && typeof templateDefinitions === "object"
+        ? { ...templateDefinitions }
+        : {};
+    rebuildTemplateCatalog({
+      selectedTemplate,
+      templateCatalogWarnings,
+    });
   }
 
   function syncTemplateParameterControls(templateName = templateSelect.value) {
@@ -259,8 +375,8 @@ export function createTemplateOptionHelpers({
     const minimums = definition.minimums || {};
     const defaults = definition.defaults || {};
     const parameters =
-      state.templateParametersByTemplate[templateName] ||
-      buildTemplateParameterState([templateName], {
+      state.templateParametersByTemplate[templateName]
+      || buildTemplateParameterState([templateName], {
         [templateName]: definition,
       })[templateName];
     templateGraphSizeLabel.textContent = `Graph size (${
@@ -366,6 +482,95 @@ export function createTemplateOptionHelpers({
     persistTemplateParametersFromControls();
   }
 
+  function hasTemplateDisplayName(displayName, excludedTemplateName = null) {
+    const normalizedDisplayName =
+      typeof displayName === "string" ? displayName.trim() : "";
+    if (!normalizedDisplayName) {
+      return false;
+    }
+    return listTemplateEntries().some(
+      (entry) =>
+        entry.templateName !== excludedTemplateName
+        && entry.displayName === normalizedDisplayName
+    );
+  }
+
+  function getNextSessionTemplateDisplayName(baseDisplayName = "Selection Template") {
+    let candidateDisplayName = baseDisplayName;
+    let suffix = 2;
+    while (hasTemplateDisplayName(candidateDisplayName)) {
+      candidateDisplayName = `${baseDisplayName} ${suffix}`;
+      suffix += 1;
+    }
+    return candidateDisplayName;
+  }
+
+  function addSessionTemplate({ displayName, spec, selected = true }) {
+    const normalizedDisplayName =
+      typeof displayName === "string" ? displayName.trim() : "";
+    if (!normalizedDisplayName || !spec) {
+      return { ok: false, reason: "invalid" };
+    }
+    if (hasTemplateDisplayName(normalizedDisplayName)) {
+      return { ok: false, reason: "duplicate" };
+    }
+    const templateId = `template_${state.nextSessionTemplateId}`;
+    state.nextSessionTemplateId += 1;
+    const templateName = buildSessionTemplateName(templateId);
+    state.sessionTemplates = [
+      ...state.sessionTemplates,
+      {
+        id: templateId,
+        templateName,
+        displayName: normalizedDisplayName,
+        spec: structuredClone(spec),
+      },
+    ];
+    rebuildTemplateCatalog({
+      selectedTemplate: selected ? templateName : templateSelect.value,
+    });
+    return {
+      ok: true,
+      templateName,
+      displayName: normalizedDisplayName,
+    };
+  }
+
+  function updateSessionTemplateDisplayNames(updates) {
+    const updateMap = new Map(
+      (Array.isArray(updates) ? updates : []).map((update) => [
+        update.templateName,
+        update.displayName,
+      ])
+    );
+    state.sessionTemplates = state.sessionTemplates.map((entry) =>
+      updateMap.has(entry.templateName)
+        ? {
+            ...entry,
+            displayName: updateMap.get(entry.templateName).trim(),
+          }
+        : entry
+    );
+    rebuildTemplateCatalog({
+      selectedTemplate: templateSelect.value,
+    });
+  }
+
+  function removeSessionTemplate(templateName) {
+    if (!isSessionTemplateName(templateName)) {
+      return false;
+    }
+    const nextSessionTemplates = state.sessionTemplates.filter(
+      (entry) => entry.templateName !== templateName
+    );
+    if (nextSessionTemplates.length === state.sessionTemplates.length) {
+      return false;
+    }
+    state.sessionTemplates = nextSessionTemplates;
+    rebuildTemplateCatalog();
+    return true;
+  }
+
   return {
     populateEngineOptions,
     formatEngineLabel,
@@ -376,13 +581,22 @@ export function createTemplateOptionHelpers({
       formatTemplateLabel(templateName, state.templateDefinitions),
     getTemplateDefinition: getStateTemplateDefinition,
     getTemplateSource,
+    getTemplateSpec,
+    listTemplateEntries,
     buildTemplateParameterState: (templateNames, templateDefinitions) =>
       buildTemplateParameterState(templateNames, templateDefinitions),
     applyTemplateCatalogPayload,
+    rebuildTemplateCatalog,
     syncTemplateParameterControls,
     readTemplateParametersFromControls,
     persistTemplateParametersFromControls,
     handleTemplateSelectionChange,
     handleTemplateParameterInput,
+    hasTemplateDisplayName,
+    getNextSessionTemplateDisplayName,
+    addSessionTemplate,
+    updateSessionTemplateDisplayNames,
+    removeSessionTemplate,
+    isSessionTemplateName,
   };
 }

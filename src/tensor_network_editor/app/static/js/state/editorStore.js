@@ -13,6 +13,12 @@ export function createEditorStore(state) {
     return state.schemaVersion;
   }
 
+  function setAppMetadata(appMetadata) {
+    state.appMetadata =
+      appMetadata && typeof appMetadata === "object" ? { ...appMetadata } : {};
+    return state.appMetadata;
+  }
+
   function setAvailableCollectionFormats(collectionFormats) {
     state.availableCollectionFormats = Array.isArray(collectionFormats)
       ? [...collectionFormats]
@@ -58,6 +64,11 @@ export function createEditorStore(state) {
     templateDefinitions,
     templateCatalogWarnings,
   }) {
+    state.catalogTemplateNames = Array.isArray(templateNames) ? [...templateNames] : [];
+    state.catalogTemplateDefinitions =
+      templateDefinitions && typeof templateDefinitions === "object"
+        ? { ...templateDefinitions }
+        : {};
     state.availableTemplates = Array.isArray(templateNames) ? [...templateNames] : [];
     state.templateDefinitions =
       templateDefinitions && typeof templateDefinitions === "object"
@@ -77,6 +88,7 @@ export function createEditorStore(state) {
     getState,
     setSpec,
     setSchemaVersion,
+    setAppMetadata,
     setAvailableCollectionFormats,
     setAnnotationDefinitions,
     setSelectedEngine,

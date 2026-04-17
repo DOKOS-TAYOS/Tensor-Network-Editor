@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 from .._annotation_catalog import serialize_annotation_definitions
 from .._contraction_analysis_types import ContractionAnalysisResult
+from .._version import __version__
 from ..analysis import analyze_contraction
 from ..codegen.registry import (
     engine_name_to_text,
@@ -42,6 +43,11 @@ if TYPE_CHECKING:
     from .session import EditorSession
 
 
+REPOSITORY_URL = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+LICENSE_NAME = "MIT"
+AUTHOR_NAME = "Alejandro Mata Ali"
+
+
 def build_bootstrap_payload(session: EditorSession) -> JsonDict:
     """Build the initial payload used to bootstrap the browser client."""
     return {
@@ -58,10 +64,21 @@ def build_bootstrap_payload(session: EditorSession) -> JsonDict:
             JSONValue,
             serialize_annotation_definitions(),
         ),
+        "app_metadata": build_app_metadata_payload(),
         "spec": {
             "schema_version": SCHEMA_VERSION,
             "network": session.initial_spec.to_dict(),
         },
+    }
+
+
+def build_app_metadata_payload() -> JsonDict:
+    """Build static application metadata for frontend About dialogs."""
+    return {
+        "repository_url": REPOSITORY_URL,
+        "version": __version__,
+        "license_name": LICENSE_NAME,
+        "author_name": AUTHOR_NAME,
     }
 
 

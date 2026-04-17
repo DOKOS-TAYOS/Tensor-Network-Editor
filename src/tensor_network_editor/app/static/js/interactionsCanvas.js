@@ -7,7 +7,7 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
   }
 
   function handleCanvasWheel(event) {
-    if (!state.cy || state.isHelpOpen) {
+    if (!state.cy || state.isHelpOpen || state.isTemplateManagerOpen) {
       return;
     }
     if (event.ctrlKey || event.metaKey) {
@@ -44,7 +44,7 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
   }
 
   function handleCanvasMouseDown(event) {
-    if (state.isHelpOpen) {
+    if (state.isHelpOpen || state.isTemplateManagerOpen) {
       return;
     }
     const closestTarget =

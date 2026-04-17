@@ -44,6 +44,21 @@ export function createEditorActionGroups(ctx) {
       applyDesignChange: (mutate, options) => ctx.applyDesignChange(mutate, options),
       bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
       formatTemplateLabel: (templateName) => ctx.formatTemplateLabel(templateName),
+      getTemplateSource: (templateName) => ctx.getTemplateSource(templateName),
+      getTemplateSpec: (templateName) => ctx.getTemplateSpec(templateName),
+      listTemplateEntries: () => ctx.listTemplateEntries(),
+      hasTemplateDisplayName: (displayName, excludedTemplateName) =>
+        ctx.hasTemplateDisplayName(displayName, excludedTemplateName),
+      getNextSessionTemplateDisplayName: (baseDisplayName) =>
+        ctx.getNextSessionTemplateDisplayName(baseDisplayName),
+      addSessionTemplate: (payload) => ctx.addSessionTemplate(payload),
+      updateSessionTemplateDisplayNames: (updates) =>
+        ctx.updateSessionTemplateDisplayNames(updates),
+      removeSessionTemplate: (templateName) => ctx.removeSessionTemplate(templateName),
+      toggleTemplateManager: (forceOpen) => ctx.toggleTemplateManager(forceOpen),
+      syncTemplateManagerModalState: () => ctx.syncTemplateManagerModalState(),
+      setTemplateManagerValidationMessage: (message) =>
+        ctx.setTemplateManagerValidationMessage(message),
       persistTemplateParametersFromControls: () =>
         ctx.persistTemplateParametersFromControls(),
       uniquifyImportedSpec: (spec, prefix) => ctx.uniquifyImportedSpec(spec, prefix),
@@ -123,6 +138,7 @@ export function createEditorActionGroups(ctx) {
         "createGroupFromSelection"
       ),
       addNoteAtCenter: resolveOptionalAction(ctx, "addNoteAtCenter"),
+      toggleTemplateManager: resolveOptionalAction(ctx, "toggleTemplateManager"),
       toggleLinearPeriodicMode: resolveOptionalAction(
         ctx,
         "toggleLinearPeriodicMode"

@@ -9,99 +9,203 @@
   <body>
     <div class="app-shell">
       <header class="toolbar">
-        <div class="toolbar-group">
-          <h1 class="toolbar-title">
-            <a
-              class="toolbar-title-link"
-              href="https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Tensor Network Editor
-            </a>
-          </h1>
-          <button id="new-design-button" type="button">New</button>
-          <button id="save-button" type="button" class="button-accent-positive">Save</button>
-          <div class="toolbar-menu">
-            <button
-              id="load-button"
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded="false"
-            >
-              Load
-            </button>
-            <div id="load-menu-panel" class="toolbar-menu-panel" role="menu" hidden>
-              <button id="load-design-menu-item" type="button" role="menuitem">
-                Load tensor network
+        <div class="toolbar-scroll-shell">
+          <div class="toolbar-group toolbar-group-primary">
+            <h1 class="toolbar-title">
+              <a
+                class="toolbar-title-link"
+                href="https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Tensor Network Editor
+              </a>
+            </h1>
+            <nav class="toolbar-menubar" aria-label="Editor menu">
+              <div class="toolbar-menu toolbar-menubar-menu">
+                <button
+                  id="file-menu-button"
+                  class="toolbar-menubar-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  File
+                </button>
+                <div id="file-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                  <button id="new-design-button" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">New tensor network</span>
+                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+N</span>
+                  </button>
+                  <button id="save-button" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Save tensor network</span>
+                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+S</span>
+                  </button>
+                  <button id="load-design-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Load tensor network</span>
+                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+L</span>
+                  </button>
+                  <div class="toolbar-menu-separator" role="separator"></div>
+                  <button id="export-python-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Export to .py</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="export-png-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Export to .png</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="export-svg-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Export to .svg</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="toolbar-menu toolbar-menubar-menu">
+                <button
+                  id="modes-menu-button"
+                  class="toolbar-menubar-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Modes
+                </button>
+                <div id="modes-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                  <button id="single-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitemradio">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Single</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="linear-periodic-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitemradio">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">For unidimensional</span>
+                    <span class="toolbar-menu-item-shortcut">F</span>
+                  </button>
+                  <button id="grid-periodic-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitem" disabled>
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">For bidimensional</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="toolbar-menu toolbar-menubar-menu">
+                <button
+                  id="templates-menu-button"
+                  class="toolbar-menubar-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Templates
+                </button>
+                <div id="templates-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                  <button id="save-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Save template</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="load-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Load template</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="export-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Export template</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <div class="toolbar-menu-separator" role="separator"></div>
+                  <button id="edit-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Edit template</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="toolbar-menu toolbar-menubar-menu">
+                <button
+                  id="help-menu-button"
+                  class="toolbar-menubar-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Help
+                </button>
+                <div id="help-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                  <button id="help-info-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Info</span>
+                    <span class="toolbar-menu-item-shortcut">?</span>
+                  </button>
+                  <button id="help-shortcuts-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">Shortcuts</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                  <button id="help-about-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-label">About</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
+                  </button>
+                </div>
+              </div>
+            </nav>
+            <select id="export-format-select" aria-label="Export format" hidden>
+              <option value="py">Python (.py)</option>
+              <option value="png">PNG</option>
+              <option value="svg">SVG</option>
+            </select>
+            <div class="toolbar-mode-controls" hidden>
+              <button
+                id="linear-periodic-previous-cell-button"
+                type="button"
+                aria-label="Previous cell"
+                title="Previous cell"
+              >
+                &lt;
               </button>
-              <button id="load-subnetwork-menu-item" type="button" role="menuitem">
-                Load subnetwork
+              <span id="linear-periodic-cell-label" class="toolbar-mode-label" aria-live="polite">
+                Single
+              </span>
+              <button
+                id="linear-periodic-next-cell-button"
+                type="button"
+                aria-label="Next cell"
+                title="Next cell"
+              >
+                &gt;
               </button>
             </div>
+            <input
+              id="load-input"
+              type="file"
+              accept="application/json,.json,.py,text/x-python,text/plain"
+              hidden
+            />
+            <input
+              id="subnetwork-load-input"
+              type="file"
+              accept="application/json,.json"
+              hidden
+            />
+            <input
+              id="template-load-input"
+              type="file"
+              accept="application/json,.json"
+              multiple
+              hidden
+            />
           </div>
-          <button id="rename-template-button" type="button">Rename</button>
-          <div class="toolbar-menu">
-            <button
-              id="export-button"
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded="false"
-            >
-              Export
-            </button>
-            <div id="export-menu-panel" class="toolbar-menu-panel" role="menu" hidden>
-              <button id="export-python-menu-item" type="button" role="menuitem">
-                Export as Python
-              </button>
-              <button id="export-png-menu-item" type="button" role="menuitem">
-                Export as PNG
-              </button>
-              <button id="export-svg-menu-item" type="button" role="menuitem">
-                Export as SVG
-              </button>
-            </div>
-          </div>
-          <button id="help-button" type="button" class="icon-button toolbar-icon-button" aria-label="Help" title="Help">?</button>
-          <select id="export-format-select" aria-label="Export format" hidden>
-            <option value="py">Python (.py)</option>
-            <option value="png">PNG</option>
-            <option value="svg">SVG</option>
-          </select>
-          <div class="toolbar-mode-controls">
-            <button id="toggle-linear-periodic-button" type="button">For</button>
-            <button
-              id="linear-periodic-previous-cell-button"
-              type="button"
-              aria-label="Previous cell"
-              title="Previous cell"
-            >
-              &lt;
-            </button>
-            <span id="linear-periodic-cell-label" class="toolbar-mode-label" aria-live="polite">
-              Normal
-            </span>
-            <button
-              id="linear-periodic-next-cell-button"
-              type="button"
-              aria-label="Next cell"
-              title="Next cell"
-            >
-              &gt;
-            </button>
-          </div>
-          <input
-            id="load-input"
-            type="file"
-            accept="application/json,.json,.py,text/x-python,text/plain"
-            hidden
-          />
-          <input
-            id="subnetwork-load-input"
-            type="file"
-            accept="application/json,.json"
-            hidden
-          />
         </div>
         <div class="toolbar-group toolbar-group-right">
           <button
@@ -132,97 +236,88 @@
       <main id="workspace" class="workspace">
         <section class="canvas-panel">
           <div class="panel-heading canvas-titlebar">
-            <div class="title-button-row">
-              <div class="title-control-group title-control-group-primary">
-                <button
-                  id="add-tensor-button"
-                  type="button"
-                  class="icon-button toolbar-icon-button button-accent-insert"
-                  aria-label="Add tensor"
-                  title="Add tensor"
-                >
-                  +
-                </button>
-                <button
-                  id="delete-button"
-                  type="button"
-                  class="icon-button toolbar-icon-button danger"
-                  aria-label="Delete"
-                  title="Delete"
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                    <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
-                  </svg>
-                </button>
-                <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
-                <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
-                <button id="connect-button" type="button" class="button-accent-cool">Connect</button>
-                <button id="create-group-button" type="button">Group</button>
-                <button
-                  id="add-note-button"
-                  type="button"
-                  class="icon-button"
-                  aria-label="Add note"
-                  title="Add note"
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                    <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>
-                  </svg>
-                </button>
-              </div>
-              <div class="title-control-divider" aria-hidden="true"></div>
-              <div class="title-control-group title-control-group-template">
-                <label class="template-parameter-field template-select-field" for="template-select">
-                  <span class="template-parameter-title">Template</span>
-                  <select id="template-select"></select>
-                </label>
-                <div class="template-settings-shell">
-                  <button id="template-settings-button" type="button" aria-label="Template settings" title="Template settings" aria-haspopup="dialog" aria-expanded="false">
-                    ...
+            <div class="title-button-scroll-shell">
+              <div class="title-button-row">
+                <div class="title-control-group title-control-group-primary">
+                  <button
+                    id="add-tensor-button"
+                    type="button"
+                    class="icon-button toolbar-icon-button button-accent-insert"
+                    aria-label="Add tensor"
+                    title="Add tensor"
+                  >
+                    +
                   </button>
-                  <div id="template-settings-popover" class="template-settings-popover" hidden>
-                    <div id="template-parameter-panel" class="template-parameter-panel">
-                      <label
-                        id="template-graph-size-field"
-                        class="template-parameter-field template-number-field"
-                        for="template-graph-size-input"
-                      >
-                        <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
-                        <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
-                      </label>
-                      <label
-                        id="template-bond-dimension-field"
-                        class="template-parameter-field template-number-field"
-                        for="template-bond-dimension-input"
-                      >
-                        <span class="template-parameter-title">Bond dimension</span>
-                        <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                      </label>
-                      <label
-                        id="template-physical-dimension-field"
-                        class="template-parameter-field template-number-field"
-                        for="template-physical-dimension-input"
-                      >
-                        <span class="template-parameter-title">Physical dimension</span>
-                        <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
-                      </label>
+                  <button
+                    id="delete-button"
+                    type="button"
+                    class="icon-button toolbar-icon-button danger"
+                    aria-label="Delete"
+                    title="Delete"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+                    </svg>
+                  </button>
+                  <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
+                  <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
+                  <button id="connect-button" type="button" class="button-accent-cool">Connect</button>
+                  <button id="create-group-button" type="button">Group</button>
+                  <button
+                    id="add-note-button"
+                    type="button"
+                    class="icon-button"
+                    aria-label="Add note"
+                    title="Add note"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="title-control-divider" aria-hidden="true"></div>
+                <div class="title-control-group title-control-group-template">
+                  <label class="template-parameter-field template-select-field" for="template-select">
+                    <span class="template-parameter-title">Template</span>
+                    <select id="template-select"></select>
+                  </label>
+                  <div class="template-settings-shell">
+                    <button id="template-settings-button" type="button" aria-label="Template settings" title="Template settings" aria-haspopup="dialog" aria-expanded="false">
+                      ...
+                    </button>
+                    <div id="template-settings-popover" class="template-settings-popover" hidden>
+                      <div id="template-parameter-panel" class="template-parameter-panel">
+                        <label
+                          id="template-graph-size-field"
+                          class="template-parameter-field template-number-field"
+                          for="template-graph-size-input"
+                        >
+                          <span id="template-graph-size-label" class="template-parameter-title">Graph size (Sites)</span>
+                          <input id="template-graph-size-input" type="number" min="2" step="1" inputmode="numeric" />
+                        </label>
+                        <label
+                          id="template-bond-dimension-field"
+                          class="template-parameter-field template-number-field"
+                          for="template-bond-dimension-input"
+                        >
+                          <span class="template-parameter-title">Bond dimension</span>
+                          <input id="template-bond-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                        </label>
+                        <label
+                          id="template-physical-dimension-field"
+                          class="template-parameter-field template-number-field"
+                          for="template-physical-dimension-input"
+                        >
+                          <span class="template-parameter-title">Physical dimension</span>
+                          <input id="template-physical-dimension-input" type="number" min="1" step="1" inputmode="numeric" />
+                        </label>
+                      </div>
                     </div>
                   </div>
+                  <button id="insert-template-button" type="button" class="button-accent-insert">+</button>
+                  <button id="reflow-imported-button" type="button">Reflow</button>
+                  <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
                 </div>
-                <button id="insert-template-button" type="button" class="button-accent-insert">+</button>
-                <button
-                  id="delete-template-button"
-                  type="button"
-                  class="icon-button danger"
-                  aria-label="Delete template"
-                  title="Delete template"
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                    <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
-                  </svg>
-                </button>
-                <button id="reflow-imported-button" type="button">Reflow</button>
-                <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
               </div>
             </div>
           </div>
@@ -386,13 +481,13 @@
       <section class="help-dialog">
         <div class="help-dialog-header">
           <div>
-            <h2 id="help-title">How to use the editor</h2>
-            <p class="help-note">A quick guide for navigation, metadata, templates, engines, selection, notes, the Contract planner, exports, and shortcuts.</p>
+            <h2 id="help-title">Help</h2>
+            <p id="help-note" class="help-note">Use the menu to switch between Info, Shortcuts, and About.</p>
           </div>
           <button id="help-close-button" type="button" aria-label="Close help">Close</button>
         </div>
 
-        <div class="help-sections">
+        <div id="help-info-section" class="help-sections">
           <section class="help-section">
             <h3>Navigation</h3>
             <ul>
@@ -456,7 +551,7 @@
           </section>
         </div>
 
-        <section class="help-shortcuts">
+        <section id="help-shortcuts-section" class="help-shortcuts" hidden>
           <h3>Shortcuts</h3>
           <div class="help-shortcut-grid">
             <div><strong>Ctrl/Cmd+Z</strong><span>Undo</span></div>
@@ -492,6 +587,43 @@
             <div><strong>Right drag</strong><span>Box select many elements</span></div>
           </div>
         </section>
+
+        <section id="help-about-section" class="help-shortcuts" hidden>
+          <h3>About</h3>
+          <div class="help-shortcut-grid help-about-grid">
+            <div>
+              <strong>Repository</strong>
+              <span><a id="about-repository-link" href="#" target="_blank" rel="noreferrer">-</a></span>
+            </div>
+            <div>
+              <strong>Version</strong>
+              <span id="about-version">-</span>
+            </div>
+            <div>
+              <strong>License</strong>
+              <span id="about-license">-</span>
+            </div>
+            <div>
+              <strong>Author</strong>
+              <span id="about-author">-</span>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <div id="template-manager-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="template-manager-title">
+      <div id="template-manager-backdrop" class="help-backdrop"></div>
+      <section class="help-dialog template-manager-dialog">
+        <div class="help-dialog-header">
+          <div>
+            <h2 id="template-manager-title">Edit templates</h2>
+            <p class="help-note">Session templates can be renamed or deleted here. Built-in and project templates are read-only.</p>
+          </div>
+          <button id="template-manager-close-button" type="button" aria-label="Close template editor">Close</button>
+        </div>
+        <p id="template-manager-error" class="template-manager-error" hidden></p>
+        <div id="template-manager-list" class="template-manager-list"></div>
       </section>
     </div>
 

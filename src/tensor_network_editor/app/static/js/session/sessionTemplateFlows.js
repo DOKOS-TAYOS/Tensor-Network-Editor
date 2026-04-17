@@ -1,3 +1,27 @@
+function extractFileStem(filename) {
+  if (typeof filename !== "string" || !filename.trim()) {
+    return "template";
+  }
+  const trimmedFilename = filename.trim();
+  const lastDotIndex = trimmedFilename.lastIndexOf(".");
+  return lastDotIndex > 0
+    ? trimmedFilename.slice(0, lastDotIndex)
+    : trimmedFilename;
+}
+
+function buildExportTemplatePayload(displayName, serializedSpec, sanitizeFilename) {
+  return {
+    schema_version: 1,
+    templates: [
+      {
+        name: sanitizeFilename(displayName).replaceAll("-", "_") || "template",
+        display_name: displayName,
+        spec: serializedSpec,
+      },
+    ],
+  };
+}
+
 export function createSessionTemplateFlows({
   dom,
   state,
@@ -8,54 +32,18 @@ export function createSessionTemplateFlows({
   sessionUi,
   actions,
 }) {
-  const { subnetworkLoadInput, templateSelect } = dom;
+  const {
+    subnetworkLoadInput,
+    templateLoadInput,
+    templateManagerList,
+  } = dom;
   const sessionService = services.session;
-  const templateCatalogService = services.templateCatalog;
   const subnetworkService = services.subnetwork;
-
-  function applyTemplateCatalogUpdate(
-    payload,
-    successMessage = "Updated the template catalog."
-  ) {
-    commands.applyTemplateCatalogUpdate(payload, successMessage);
-  }
-
-  function requestTemplateName(defaultTemplateName = "fragment_template") {
-    const proposedName = sessionUi.promptText(
-      "Choose a template name using lowercase letters, digits, and underscores.",
-      defaultTemplateName
-    );
-    if (typeof proposedName !== "string") {
-      return null;
-    }
-    const normalizedName = proposedName.trim();
-    return normalizedName || null;
-  }
-
-  function confirmTemplateOverwrite(templateName, operationLabel) {
-    return sessionUi.confirmAction(
-      `${operationLabel} '${actions.formatTemplateLabel(templateName)}'? This replaces the existing project template.`
-    );
-  }
-
-  function resolveTemplateOverwriteDecision(templateName, operationLabel) {
-    const existingDefinition = selectors.getTemplateDefinition(templateName);
-    if (!existingDefinition) {
-      return { overwrite: false };
-    }
-    if (!selectors.isProjectTemplate(templateName)) {
-      actions.setStatus(
-        `Template '${templateName}' is registered globally and cannot be replaced.`,
-        "error"
-      );
-      return null;
-    }
-    if (!confirmTemplateOverwrite(templateName, operationLabel)) {
-      actions.setStatus(`${operationLabel} cancelled.`);
-      return null;
-    }
-    return { overwrite: true };
-  }
+  let templateManagerDraft = null;
+  const documentRef =
+    templateManagerList && templateManagerList.ownerDocument
+      ? templateManagerList.ownerDocument
+      : globalThis.document;
 
   function getGroupById(groupId) {
     return actions.findGroupById(groupId);
@@ -69,6 +57,12 @@ export function createSessionTemplateFlows({
     return actions.suggestTensorPosition(actions.viewportCenterPosition());
   }
 
+  function getCurrentTemplateName() {
+    return typeof dom.templateSelect.value === "string"
+      ? dom.templateSelect.value.trim()
+      : "";
+  }
+
   function openSubnetworkPicker() {
     if (actions.isLinearPeriodicMode()) {
       actions.setStatus(
@@ -78,6 +72,39 @@ export function createSessionTemplateFlows({
       return;
     }
     sessionUi.openFilePicker(subnetworkLoadInput);
+  }
+
+  async function extractTemplateSpecByTensorIds(tensorIds, emptySelectionMessage) {
+    if (actions.isLinearPeriodicMode()) {
+      actions.setStatus(
+        "Templates are only available in normal graph mode.",
+        "error"
+      );
+      return null;
+    }
+    if (!Array.isArray(tensorIds) || !tensorIds.length) {
+      actions.setStatus(emptySelectionMessage);
+      return null;
+    }
+    try {
+      const payload = await subnetworkService.extractSubnetwork({
+        serializedSpec: actions.serializeCurrentSpec({
+          persistViewSnapshots: false,
+        }),
+        tensorIds,
+      });
+      if (!payload.ok) {
+        actions.setStatus(
+          payload.message || actions.formatIssues(payload.issues),
+          "error"
+        );
+        return null;
+      }
+      return payload.spec;
+    } catch (error) {
+      actions.setStatus(`Could not prepare the template: ${error.message}`, "error");
+      return null;
+    }
   }
 
   async function exportSubnetworkByTensorIds(
@@ -136,60 +163,34 @@ export function createSessionTemplateFlows({
     await exportSubnetworkByTensorIds(group.tensor_ids, group.name || "group");
   }
 
-  async function promoteSubnetworkByTensorIds(
-    tensorIds,
-    defaultTemplateName = "fragment_template"
-  ) {
-    if (actions.isLinearPeriodicMode()) {
-      actions.setStatus(
-        "Template promotion is only available in normal graph mode.",
-        "error"
-      );
-      return;
-    }
-    if (!Array.isArray(tensorIds) || !tensorIds.length) {
-      actions.setStatus("Select one or more tensors to promote as a template.");
-      return;
-    }
-    const templateName = requestTemplateName(defaultTemplateName);
-    if (!templateName) {
-      actions.setStatus("Template promotion cancelled.");
-      return;
-    }
-    const overwriteDecision = resolveTemplateOverwriteDecision(
-      templateName,
-      "Replace template"
+  async function saveTemplateByTensorIds(tensorIds, baseDisplayName) {
+    const serializedSpec = await extractTemplateSpecByTensorIds(
+      tensorIds,
+      "Select one or more tensors to save as a template."
     );
-    if (overwriteDecision === null) {
+    if (!serializedSpec) {
       return;
     }
-    try {
-      const payload = await templateCatalogService.promoteTemplate({
-        serializedSpec: actions.serializeCurrentSpec({
-          persistViewSnapshots: false,
-        }),
-        tensorIds,
-        templateName,
-        overwrite: overwriteDecision.overwrite,
-      });
-      if (!payload.ok) {
-        actions.setStatus(
-          payload.message || actions.formatIssues(payload.issues),
-          "error"
-        );
-        return;
-      }
-      applyTemplateCatalogUpdate(
-        payload,
-        `Saved ${actions.formatTemplateLabel(templateName)} to the template catalog.`
-      );
-    } catch (error) {
-      actions.setStatus(`Could not save the template: ${error.message}`, "error");
+    const resolvedDisplayName = actions.getNextSessionTemplateDisplayName(
+      baseDisplayName
+    );
+    const addResult = actions.addSessionTemplate({
+      displayName: resolvedDisplayName,
+      spec: serializedSpec,
+    });
+    if (!addResult.ok) {
+      actions.setStatus("Could not save the selected template.", "error");
+      return;
     }
+    actions.setStatus(`Saved ${resolvedDisplayName} for this session.`, "success");
+  }
+
+  async function saveSelectionAsSessionTemplate() {
+    await saveTemplateByTensorIds(getSelectedTensorIds(), "Selection Template");
   }
 
   async function promoteSelectedSubnetworkToTemplate() {
-    await promoteSubnetworkByTensorIds(getSelectedTensorIds(), "selection_template");
+    await saveSelectionAsSessionTemplate();
   }
 
   async function promoteGroupToTemplate(groupId) {
@@ -198,109 +199,329 @@ export function createSessionTemplateFlows({
       actions.setStatus("This group does not contain any tensors to promote.", "error");
       return;
     }
-    await promoteSubnetworkByTensorIds(
-      group.tensor_ids,
-      typeof group.name === "string" && group.name
-        ? actions.sanitizeFilename(group.name).replaceAll("-", "_")
-        : "group_template"
-    );
+    const baseDisplayName =
+      typeof group.name === "string" && group.name.trim()
+        ? group.name.trim()
+        : "Group Template";
+    await saveTemplateByTensorIds(group.tensor_ids, baseDisplayName);
   }
 
-  function getCurrentTemplateName() {
-    return typeof templateSelect.value === "string" ? templateSelect.value.trim() : "";
+  function openSessionTemplatePicker() {
+    sessionUi.openFilePicker(templateLoadInput);
   }
 
-  async function renameSelectedTemplate() {
-    const currentTemplateName = getCurrentTemplateName();
-    if (!currentTemplateName) {
-      actions.setStatus("Choose a template first.");
-      return;
-    }
-    if (!selectors.isProjectTemplate(currentTemplateName)) {
-      actions.setStatus(
-        "Only project-local templates can be renamed from the editor.",
-        "error"
-      );
-      return;
-    }
-    const newTemplateName = requestTemplateName(currentTemplateName);
-    if (!newTemplateName) {
-      actions.setStatus("Template rename cancelled.");
-      return;
-    }
-    if (newTemplateName === currentTemplateName) {
-      actions.setStatus("Template name unchanged.");
-      return;
-    }
-    const overwriteDecision = resolveTemplateOverwriteDecision(
-      newTemplateName,
-      "Replace template"
-    );
-    if (overwriteDecision === null) {
-      return;
-    }
-    try {
-      const payload = await templateCatalogService.renameTemplate({
-        templateName: currentTemplateName,
-        newTemplateName,
-        overwrite: overwriteDecision.overwrite,
-      });
-      if (!payload.ok) {
-        actions.setStatus(
-          payload.message || actions.formatIssues(payload.issues),
-          "error"
-        );
-        return;
-      }
-      applyTemplateCatalogUpdate(
-        payload,
-        `Renamed ${actions.formatTemplateLabel(newTemplateName)}.`
-      );
-    } catch (error) {
-      actions.setStatus(`Could not rename the template: ${error.message}`, "error");
-    }
-  }
-
-  async function deleteSelectedTemplate() {
-    const currentTemplateName = getCurrentTemplateName();
-    if (!currentTemplateName) {
-      actions.setStatus("Choose a template first.");
-      return;
-    }
-    if (!selectors.isProjectTemplate(currentTemplateName)) {
-      actions.setStatus(
-        "Only project-local templates can be deleted from the editor.",
-        "error"
-      );
-      return;
-    }
-    const currentTemplateLabel = actions.formatTemplateLabel(currentTemplateName);
+  function normalizeSerializedSpec(parsedValue) {
     if (
-      !sessionUi.confirmAction(
-        `Delete template '${currentTemplateLabel}' from this project?`
-      )
+      parsedValue
+      && typeof parsedValue === "object"
+      && parsedValue.network
+      && typeof parsedValue.network === "object"
     ) {
-      actions.setStatus("Template deletion cancelled.");
+      return parsedValue;
+    }
+    if (
+      parsedValue
+      && typeof parsedValue === "object"
+      && parsedValue.spec
+      && typeof parsedValue.spec === "object"
+      && parsedValue.spec.network
+      && typeof parsedValue.spec.network === "object"
+    ) {
+      return parsedValue.spec;
+    }
+    return null;
+  }
+
+  function buildTemplateImportsFromFile(parsedValue, filename) {
+    const templateEntries = [];
+    if (
+      parsedValue
+      && typeof parsedValue === "object"
+      && Array.isArray(parsedValue.templates)
+    ) {
+      parsedValue.templates.forEach((entry, index) => {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        const serializedSpec = normalizeSerializedSpec(entry.spec || entry);
+        if (!serializedSpec) {
+          return;
+        }
+        const displayName =
+          (typeof entry.display_name === "string" && entry.display_name.trim())
+          || (typeof entry.displayName === "string" && entry.displayName.trim())
+          || (typeof entry.name === "string" && entry.name.trim())
+          || (serializedSpec.network
+            && typeof serializedSpec.network.name === "string"
+            && serializedSpec.network.name.trim())
+          || `${extractFileStem(filename)} ${index + 1}`;
+        templateEntries.push({
+          displayName,
+          serializedSpec,
+        });
+      });
+      return templateEntries;
+    }
+    const serializedSpec = normalizeSerializedSpec(parsedValue);
+    if (!serializedSpec) {
+      return templateEntries;
+    }
+    const displayName =
+      (parsedValue
+        && typeof parsedValue === "object"
+        && typeof parsedValue.display_name === "string"
+        && parsedValue.display_name.trim())
+      || (serializedSpec.network
+        && typeof serializedSpec.network.name === "string"
+        && serializedSpec.network.name.trim())
+      || extractFileStem(filename);
+    templateEntries.push({
+      displayName,
+      serializedSpec,
+    });
+    return templateEntries;
+  }
+
+  async function loadSessionTemplatesFromFile(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) {
       return;
     }
+    let loadedCount = 0;
+    let duplicateCount = 0;
+    let invalidCount = 0;
+    const reservedDisplayNames = new Set(
+      actions.listTemplateEntries().map((entry) => entry.displayName)
+    );
+
     try {
-      const payload = await templateCatalogService.deleteTemplate({
-        templateName: currentTemplateName,
-      });
-      if (!payload.ok) {
-        actions.setStatus(
-          payload.message || actions.formatIssues(payload.issues),
-          "error"
-        );
+      for (const file of files) {
+        const fileText = await sessionUi.requestFileText(file, "utf-8");
+        const parsedValue = JSON.parse(fileText);
+        const templateImports = buildTemplateImportsFromFile(parsedValue, file.name);
+        for (const templateImport of templateImports) {
+          const displayName = templateImport.displayName.trim();
+          if (!displayName || reservedDisplayNames.has(displayName)) {
+            duplicateCount += 1;
+            continue;
+          }
+          const validationResponse = await sessionService.validateSerializedSpec(
+            templateImport.serializedSpec
+          );
+          if (!validationResponse.ok) {
+            invalidCount += 1;
+            continue;
+          }
+          const addResult = actions.addSessionTemplate({
+            displayName,
+            spec: validationResponse.spec,
+            selected: false,
+          });
+          if (!addResult.ok) {
+            duplicateCount += 1;
+            continue;
+          }
+          reservedDisplayNames.add(displayName);
+          loadedCount += 1;
+        }
+      }
+      if (!loadedCount && !duplicateCount && !invalidCount) {
+        actions.setStatus("No reusable templates were found in the selected files.", "error");
         return;
       }
-      applyTemplateCatalogUpdate(
-        payload,
-        `Deleted ${currentTemplateLabel} from the template catalog.`
-      );
+      const summaryParts = [];
+      if (loadedCount) {
+        summaryParts.push(`Loaded ${loadedCount} template(s)`);
+      }
+      if (duplicateCount) {
+        summaryParts.push(`skipped ${duplicateCount} duplicate name(s)`);
+      }
+      if (invalidCount) {
+        summaryParts.push(`skipped ${invalidCount} invalid template(s)`);
+      }
+      actions.setStatus(`${summaryParts.join(", ")}.`, loadedCount ? "success" : "error");
     } catch (error) {
-      actions.setStatus(`Could not delete the template: ${error.message}`, "error");
+      actions.setStatus(`Could not load templates: ${error.message}`, "error");
+    } finally {
+      if (templateLoadInput) {
+        templateLoadInput.value = "";
+      }
     }
+  }
+
+  async function exportSelectedTemplateSpec() {
+    const serializedSpec = await extractTemplateSpecByTensorIds(
+      getSelectedTensorIds(),
+      "Select one or more tensors to export as a template."
+    );
+    if (!serializedSpec) {
+      return;
+    }
+    const displayName =
+      (serializedSpec.network
+        && typeof serializedSpec.network.name === "string"
+        && serializedSpec.network.name.trim())
+      || "Selection Template";
+    const payload = buildExportTemplatePayload(
+      displayName,
+      serializedSpec,
+      actions.sanitizeFilename
+    );
+    sessionUi.downloadText(
+      `${actions.sanitizeFilename(displayName || "template")}.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8"
+    );
+    actions.setStatus(`Exported ${displayName} as a reusable template.`, "success");
+  }
+
+  function buildTemplateManagerRow(entry) {
+    const row = documentRef.createElement("div");
+    const nameField = documentRef.createElement("label");
+    const nameLabel = documentRef.createElement("span");
+    const nameInput = documentRef.createElement("input");
+    const sourceBadge = documentRef.createElement("span");
+    row.className = "template-manager-row";
+    if (entry.source !== "session") {
+      row.classList.add("is-locked");
+    }
+    nameLabel.textContent = "Template name";
+    nameInput.value =
+      entry.source === "session"
+        ? templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName
+        : entry.displayName;
+    nameInput.dataset.templateName = entry.templateName;
+    nameInput.disabled = entry.source !== "session";
+    sourceBadge.className = "template-manager-source";
+    sourceBadge.textContent =
+      entry.source === "session"
+        ? "Session"
+        : entry.source === "project"
+          ? "Project"
+          : "Built-in";
+    nameField.append(nameLabel, nameInput);
+    row.append(nameField, sourceBadge);
+    if (entry.source === "session") {
+      const deleteButton = documentRef.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "icon-button danger";
+      deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => {
+        templateManagerDraft.deletedTemplateNames.add(entry.templateName);
+        renderTemplateManager();
+      });
+      row.appendChild(deleteButton);
+    } else {
+      const lockedBadge = documentRef.createElement("span");
+      lockedBadge.className = "template-manager-source";
+      lockedBadge.textContent = "Locked";
+      row.appendChild(lockedBadge);
+    }
+    return row;
+  }
+
+  function renderTemplateManager() {
+    if (!templateManagerList) {
+      return;
+    }
+    templateManagerList.innerHTML = "";
+    actions.listTemplateEntries().forEach((entry) => {
+      if (
+        entry.source === "session"
+        && templateManagerDraft.deletedTemplateNames.has(entry.templateName)
+      ) {
+        return;
+      }
+      templateManagerList.appendChild(buildTemplateManagerRow(entry));
+    });
+  }
+
+  function openTemplateManager() {
+    const sessionEntries = actions
+      .listTemplateEntries()
+      .filter((entry) => entry.source === "session");
+    templateManagerDraft = {
+      nameByTemplateName: new Map(
+        sessionEntries.map((entry) => [entry.templateName, entry.displayName])
+      ),
+      deletedTemplateNames: new Set(),
+    };
+    state.isTemplateManagerOpen = true;
+    actions.syncTemplateManagerModalState();
+    actions.setTemplateManagerValidationMessage("");
+    renderTemplateManager();
+  }
+
+  function collectTemplateManagerUpdates() {
+    const sessionEntries = actions
+      .listTemplateEntries()
+      .filter((entry) => entry.source === "session");
+    return sessionEntries
+      .filter((entry) => !templateManagerDraft.deletedTemplateNames.has(entry.templateName))
+      .map((entry) => {
+        const input = templateManagerList.querySelector(
+          `input[data-template-name="${entry.templateName}"]`
+        );
+        return {
+          templateName: entry.templateName,
+          displayName:
+            input && typeof input.value === "string" ? input.value.trim() : entry.displayName,
+        };
+      });
+  }
+
+  function validateTemplateManagerUpdates(updates) {
+    const lockedDisplayNames = new Set(
+      actions
+        .listTemplateEntries()
+        .filter((entry) => entry.source !== "session")
+        .map((entry) => entry.displayName)
+    );
+    const seenSessionNames = new Set();
+    for (const update of updates) {
+      if (!update.displayName) {
+        return "Template names cannot be empty.";
+      }
+      if (lockedDisplayNames.has(update.displayName) || seenSessionNames.has(update.displayName)) {
+        return `Template name '${update.displayName}' is already in use.`;
+      }
+      seenSessionNames.add(update.displayName);
+    }
+    return "";
+  }
+
+  function closeTemplateManager() {
+    if (!state.isTemplateManagerOpen) {
+      return false;
+    }
+    const updates = collectTemplateManagerUpdates();
+    const validationMessage = validateTemplateManagerUpdates(updates);
+    if (validationMessage) {
+      actions.setTemplateManagerValidationMessage(validationMessage);
+      return true;
+    }
+    templateManagerDraft.deletedTemplateNames.forEach((templateName) => {
+      actions.removeSessionTemplate(templateName);
+    });
+    actions.updateSessionTemplateDisplayNames(updates);
+    state.isTemplateManagerOpen = false;
+    templateManagerDraft = null;
+    actions.setTemplateManagerValidationMessage("");
+    actions.syncTemplateManagerModalState();
+    actions.updateToolbarState();
+    actions.setStatus("Updated session templates.", "success");
+    return false;
+  }
+
+  function toggleTemplateManager(forceOpen) {
+    const shouldOpen =
+      typeof forceOpen === "boolean" ? forceOpen : !state.isTemplateManagerOpen;
+    if (shouldOpen) {
+      openTemplateManager();
+      return true;
+    }
+    return closeTemplateManager();
   }
 
   async function loadSubnetworkFromFile(event) {
@@ -354,19 +575,31 @@ export function createSessionTemplateFlows({
   }
 
   async function insertTemplate() {
-    const templateName = templateSelect.value;
+    const templateName = dom.templateSelect.value;
     if (!templateName) {
       actions.setStatus("Choose a template first.");
       return;
     }
-    const parameters = actions.persistTemplateParametersFromControls();
+    const templateSource = actions.getTemplateSource(templateName);
     try {
-      const payload = await sessionService.buildTemplate({
-        templateName,
-        parameters,
-      });
+      let importedNetwork = null;
+      if (templateSource === "session") {
+        const serializedSpec = actions.getTemplateSpec(templateName);
+        if (!serializedSpec || !serializedSpec.network) {
+          actions.setStatus("Could not read the selected session template.", "error");
+          return;
+        }
+        importedNetwork = serializedSpec.network;
+      } else {
+        const parameters = actions.persistTemplateParametersFromControls();
+        const payload = await sessionService.buildTemplate({
+          templateName,
+          parameters,
+        });
+        importedNetwork = payload.spec.network;
+      }
       const importedSpec = actions.uniquifyImportedSpec(
-        payload.spec.network,
+        importedNetwork,
         actions.makeId("template")
       );
       const translatedSpec = actions.translateImportedSpec(
@@ -396,12 +629,90 @@ export function createSessionTemplateFlows({
     }
   }
 
+  async function renameSelectedTemplate() {
+    const currentTemplateName = getCurrentTemplateName();
+    if (!currentTemplateName) {
+      actions.setStatus("Choose a template first.");
+      return;
+    }
+    if (!selectors.isSessionTemplate(currentTemplateName)) {
+      actions.setStatus(
+        "Built-in and project templates are read-only in this editor.",
+        "error"
+      );
+      return;
+    }
+    const currentEntry = actions
+      .listTemplateEntries()
+      .find((entry) => entry.templateName === currentTemplateName);
+    const nextDisplayName = sessionUi.promptText(
+      "Choose a new name for this session template.",
+      currentEntry ? currentEntry.displayName : ""
+    );
+    if (typeof nextDisplayName !== "string") {
+      actions.setStatus("Template rename cancelled.");
+      return;
+    }
+    const trimmedDisplayName = nextDisplayName.trim();
+    if (!trimmedDisplayName) {
+      actions.setStatus("Template names cannot be empty.", "error");
+      return;
+    }
+    if (actions.hasTemplateDisplayName(trimmedDisplayName, currentTemplateName)) {
+      actions.setStatus(
+        `Template name '${trimmedDisplayName}' is already in use.`,
+        "error"
+      );
+      return;
+    }
+    actions.updateSessionTemplateDisplayNames([
+      {
+        templateName: currentTemplateName,
+        displayName: trimmedDisplayName,
+      },
+    ]);
+    actions.setStatus(`Renamed the template to ${trimmedDisplayName}.`, "success");
+  }
+
+  async function deleteSelectedTemplate() {
+    const currentTemplateName = getCurrentTemplateName();
+    if (!currentTemplateName) {
+      actions.setStatus("Choose a template first.");
+      return;
+    }
+    if (!selectors.isSessionTemplate(currentTemplateName)) {
+      actions.setStatus(
+        "Built-in and project templates are read-only in this editor.",
+        "error"
+      );
+      return;
+    }
+    const currentEntry = actions
+      .listTemplateEntries()
+      .find((entry) => entry.templateName === currentTemplateName);
+    if (
+      !sessionUi.confirmAction(
+        `Delete '${currentEntry ? currentEntry.displayName : "this template"}' from this session?`
+      )
+    ) {
+      actions.setStatus("Template deletion cancelled.");
+      return;
+    }
+    actions.removeSessionTemplate(currentTemplateName);
+    actions.setStatus("Deleted the session template.", "success");
+  }
+
   return {
     openSubnetworkPicker,
     exportSelectedSubnetwork,
     exportGroupSubnetwork,
+    saveSelectionAsSessionTemplate,
+    openSessionTemplatePicker,
+    loadSessionTemplatesFromFile,
+    exportSelectedTemplateSpec,
     promoteSelectedSubnetworkToTemplate,
     promoteGroupToTemplate,
+    toggleTemplateManager,
     renameSelectedTemplate,
     deleteSelectedTemplate,
     loadSubnetworkFromFile,

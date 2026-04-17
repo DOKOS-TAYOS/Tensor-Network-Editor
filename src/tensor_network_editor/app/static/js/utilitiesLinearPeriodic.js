@@ -729,6 +729,14 @@ export function createUtilityLinearPeriodicBindings({
     }
   }
 
+  function setLinearPeriodicMode(enabled) {
+    const shouldEnable = Boolean(enabled);
+    if (shouldEnable === isLinearPeriodicMode()) {
+      return;
+    }
+    toggleLinearPeriodicMode();
+  }
+
   return {
     getLinearPeriodicReservedOperandId,
     isLinearPeriodicReservedOperandId,
@@ -750,6 +758,7 @@ export function createUtilityLinearPeriodicBindings({
     buildSerializedSpec: runtime.buildSerializedSpec,
     switchLinearPeriodicCell,
     toggleLinearPeriodicMode,
+    setLinearPeriodicMode,
     syncLinearPeriodicBoundaryTensors,
     enforceLinearPeriodicEngineSupport,
   };

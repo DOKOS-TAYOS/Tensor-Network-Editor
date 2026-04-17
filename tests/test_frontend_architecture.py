@@ -1659,6 +1659,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             state.schemaVersion = schemaVersion;
             storeCalls.push({{ step: "setSchemaVersion", schemaVersion }});
           }},
+          setAppMetadata(appMetadata) {{
+            state.appMetadata = appMetadata;
+            storeCalls.push({{ step: "setAppMetadata", appMetadata }});
+          }},
           setAvailableCollectionFormats(collectionFormats) {{
             state.availableCollectionFormats = [...collectionFormats];
             storeCalls.push({{ step: "setAvailableCollectionFormats", collectionFormats }});
@@ -1691,6 +1695,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
                 template_definitions: {{ mps: {{ display_name: "MPS" }} }},
                 template_catalog_warnings: ["Template warning"],
                 annotation_definitions: {{ tensor: [] }},
+                app_metadata: {{ version: "0.2.2" }},
                 default_engine: "quimb",
                 default_collection_format: "dict",
                 engines: ["quimb", "cotengra"],
@@ -1778,22 +1783,29 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
 
         const dom = {{
           addNoteButton: getButton("add-note-button"),
-          loadButton: getButton("load-button"),
-          loadMenuPanel: getButton("load-menu-panel"),
+          fileMenuButton: getButton("file-menu-button"),
+          fileMenuPanel: getButton("file-menu-panel"),
+          modesMenuButton: getButton("modes-menu-button"),
+          modesMenuPanel: getButton("modes-menu-panel"),
+          templatesMenuButton: getButton("templates-menu-button"),
+          templatesMenuPanel: getButton("templates-menu-panel"),
+          helpMenuButton: getButton("help-menu-button"),
+          helpMenuPanel: getButton("help-menu-panel"),
+          newDesignButton: getButton("new-design-button"),
+          saveButton: getButton("save-button"),
           loadDesignMenuItem: getButton("load-design-menu-item"),
-          loadSubnetworkMenuItem: getButton("load-subnetwork-menu-item"),
           connectButton: getButton("connect-button"),
           loadInput: {{ click() {{ flowEvents.push("loadInput.click"); }}, addEventListener(type, handler) {{ this[type] = handler; }} }},
           subnetworkLoadInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateLoadInput: {{ addEventListener(type, handler) {{ this[type] = handler; }}, click() {{ flowEvents.push("templateLoadInput.click"); }} }},
           undoButton: getButton("undo-button"),
           redoButton: getButton("redo-button"),
-          exportButton: getButton("export-button"),
-          exportMenuPanel: getButton("export-menu-panel"),
           exportPythonMenuItem: getButton("export-python-menu-item"),
           exportPngMenuItem: getButton("export-png-menu-item"),
           exportSvgMenuItem: getButton("export-svg-menu-item"),
           exportFormatSelect: {{ value: "py", addEventListener(type, handler) {{ this[type] = handler; }} }},
-          toggleLinearPeriodicButton: getButton("toggle-linear-periodic-button"),
+          singleModeMenuItem: getButton("single-mode-menu-item"),
+          linearPeriodicModeMenuItem: getButton("linear-periodic-mode-menu-item"),
           linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
           linearPeriodicCellLabel: {{ textContent: "" }},
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
@@ -1804,14 +1816,20 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           templateBondDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           insertTemplateButton: getButton("insert-template-button"),
-          renameTemplateButton: getButton("rename-template-button"),
-          deleteTemplateButton: getButton("delete-template-button"),
+          saveSessionTemplateMenuItem: getButton("save-session-template-menu-item"),
+          loadSessionTemplateMenuItem: getButton("load-session-template-menu-item"),
+          exportSessionTemplateMenuItem: getButton("export-session-template-menu-item"),
+          editSessionTemplateMenuItem: getButton("edit-session-template-menu-item"),
           reflowImportedButton: getButton("reflow-imported-button"),
           createGroupButton: getButton("create-group-button"),
-          helpButton: getButton("help-button"),
+          helpInfoMenuItem: getButton("help-info-menu-item"),
+          helpShortcutsMenuItem: getButton("help-shortcuts-menu-item"),
+          helpAboutMenuItem: getButton("help-about-menu-item"),
           helpModal: {{ classList: {{ add() {{}}, remove() {{}} }} }},
           helpBackdrop: getButton("help-backdrop"),
           helpCloseButton: getButton("help-close-button"),
+          templateManagerBackdrop: getButton("template-manager-backdrop"),
+          templateManagerCloseButton: getButton("template-manager-close-button"),
           canvasShell: {{ addEventListener(type, handler) {{ this[type] = handler; }}, getBoundingClientRect() {{ return {{ left: 0, top: 0, width: 1000, height: 800 }}; }} }},
           minimapCanvas: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           engineSelect: {{ value: "cotengra", addEventListener(type, handler) {{ this[type] = handler; }} }},
@@ -1832,6 +1850,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           performRedo: () => flowEvents.push("performRedo"),
           downloadSelectedExport: () => flowEvents.push("downloadSelectedExport"),
           downloadExportAs: (format) => flowEvents.push(`downloadExportAs:${{format}}`),
+          openToolbarMenu: (menuName) => flowEvents.push(`openToolbarMenu:${{menuName}}`),
           toggleToolbarMenu: (menuName) => flowEvents.push(`toggleToolbarMenu:${{menuName}}`),
           closeTransientToolbarUi: () => {{
             flowEvents.push("closeTransientToolbarUi");
@@ -1841,17 +1860,28 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             flowEvents.push("toggleTemplateSettingsPopover"),
           updateToolbarState: () => flowEvents.push("updateToolbarState"),
           toggleLinearPeriodicMode: () => flowEvents.push("toggleLinearPeriodicMode"),
+          setLinearPeriodicMode: (enabled) =>
+            flowEvents.push(`setLinearPeriodicMode:${{enabled}}`),
           switchLinearPeriodicCell: (direction) =>
             flowEvents.push(`switchLinearPeriodicCell:${{direction}}`),
           handleTemplateSelectionChange: () => flowEvents.push("handleTemplateSelectionChange"),
           handleTemplateParameterInput: () => flowEvents.push("handleTemplateParameterInput"),
           insertTemplate: () => flowEvents.push("insertTemplate"),
           openSubnetworkPicker: () => flowEvents.push("openSubnetworkPicker"),
+          saveSelectionAsSessionTemplate: () =>
+            flowEvents.push("saveSelectionAsSessionTemplate"),
+          openSessionTemplatePicker: () =>
+            flowEvents.push("openSessionTemplatePicker"),
+          exportSelectedTemplateSpec: () =>
+            flowEvents.push("exportSelectedTemplateSpec"),
+          toggleTemplateManager: (isOpen) =>
+            flowEvents.push(`toggleTemplateManager:${{isOpen}}`),
           renameSelectedTemplate: () => flowEvents.push("renameSelectedTemplate"),
           deleteSelectedTemplate: () => flowEvents.push("deleteSelectedTemplate"),
           reflowLastImportedTensors: () => flowEvents.push("reflowLastImportedTensors"),
           createGroupFromSelection: () => flowEvents.push("createGroupFromSelection"),
           toggleHelpModal: (isOpen) => flowEvents.push(`toggleHelpModal:${{isOpen}}`),
+          openHelpSection: (section) => flowEvents.push(`openHelpSection:${{section}}`),
           enforceLinearPeriodicEngineSupport: () =>
             flowEvents.push("binding.enforceLinearPeriodicEngineSupport"),
           renderPlanner: () => flowEvents.push("binding.renderPlanner"),
@@ -1859,6 +1889,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           setStatus: (message, level) => flowEvents.push({{ bindingStatus: message, level }}),
           loadDesignFromFile: () => flowEvents.push("loadDesignFromFile"),
           loadSubnetworkFromFile: () => flowEvents.push("loadSubnetworkFromFile"),
+          loadSessionTemplatesFromFile: () =>
+            flowEvents.push("loadSessionTemplatesFromFile"),
           handleKeydown: () => flowEvents.push("handleKeydown"),
           sendCancelBeacon: () => flowEvents.push("sendCancelBeacon"),
           handleWindowResize: () => flowEvents.push("handleWindowResize"),
@@ -1885,21 +1917,33 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         shellBindings.attachToolbarHandlers();
         getButton("generate-button").click();
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
-        dom.loadButton.click();
-        dom.loadSubnetworkMenuItem.click();
+        dom.fileMenuButton.click();
         dom.exportPngMenuItem.click();
+        dom.saveSessionTemplateMenuItem.click();
+        dom.loadSessionTemplateMenuItem.click();
+        dom.editSessionTemplateMenuItem.click();
+        dom.helpInfoMenuItem.click();
         dom.templateSettingsButton.click();
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
         }}
-        if (!flowEvents.includes("toggleToolbarMenu:load")) {{
-          throw new Error(`Expected the Load button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);
-        }}
-        if (!flowEvents.includes("openSubnetworkPicker")) {{
-          throw new Error(`Expected the Load submenu to invoke subnetwork loading, received ${{JSON.stringify(flowEvents)}}.`);
+        if (!flowEvents.includes("toggleToolbarMenu:file")) {{
+          throw new Error(`Expected the File button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("downloadExportAs:png")) {{
-          throw new Error(`Expected the Export submenu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);
+          throw new Error(`Expected the File menu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("saveSelectionAsSessionTemplate")) {{
+          throw new Error(`Expected the Templates menu to save selection templates, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("openSessionTemplatePicker")) {{
+          throw new Error(`Expected the Templates menu to open the template file picker, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("toggleTemplateManager:true")) {{
+          throw new Error(`Expected the Templates menu to open the template manager, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("openHelpSection:info")) {{
+          throw new Error(`Expected the Help menu to open the requested help section, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("toggleTemplateSettingsPopover")) {{
           throw new Error(`Expected the template settings button to toggle its popover, received ${{JSON.stringify(flowEvents)}}.`);

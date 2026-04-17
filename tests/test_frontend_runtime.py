@@ -4998,6 +4998,24 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                     ctx.applyDesignChange(mutate, options),
                   bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
                   formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+                  getTemplateSource: (templateName) => ctx.getTemplateSource(templateName),
+                  getTemplateSpec: (templateName) => ctx.getTemplateSpec(templateName),
+                  listTemplateEntries: () => ctx.listTemplateEntries(),
+                  hasTemplateDisplayName: (displayName, excludedTemplateName) =>
+                    ctx.hasTemplateDisplayName(displayName, excludedTemplateName),
+                  getNextSessionTemplateDisplayName: (baseDisplayName) =>
+                    ctx.getNextSessionTemplateDisplayName(baseDisplayName),
+                  addSessionTemplate: (payload) => ctx.addSessionTemplate(payload),
+                  updateSessionTemplateDisplayNames: (updates) =>
+                    ctx.updateSessionTemplateDisplayNames(updates),
+                  removeSessionTemplate: (templateName) =>
+                    ctx.removeSessionTemplate(templateName),
+                  toggleTemplateManager: (forceOpen) =>
+                    ctx.toggleTemplateManager(forceOpen),
+                  syncTemplateManagerModalState: () =>
+                    ctx.syncTemplateManagerModalState(),
+                  setTemplateManagerValidationMessage: (message) =>
+                    ctx.setTemplateManagerValidationMessage(message),
                   persistTemplateParametersFromControls: () =>
                     ctx.persistTemplateParametersFromControls(),
                   uniquifyImportedSpec: (spec, prefix) =>
@@ -5748,6 +5766,24 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                     ctx.applyDesignChange(mutate, options),
                   bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
                   formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+                  getTemplateSource: (templateName) => ctx.getTemplateSource(templateName),
+                  getTemplateSpec: (templateName) => ctx.getTemplateSpec(templateName),
+                  listTemplateEntries: () => ctx.listTemplateEntries(),
+                  hasTemplateDisplayName: (displayName, excludedTemplateName) =>
+                    ctx.hasTemplateDisplayName(displayName, excludedTemplateName),
+                  getNextSessionTemplateDisplayName: (baseDisplayName) =>
+                    ctx.getNextSessionTemplateDisplayName(baseDisplayName),
+                  addSessionTemplate: (payload) => ctx.addSessionTemplate(payload),
+                  updateSessionTemplateDisplayNames: (updates) =>
+                    ctx.updateSessionTemplateDisplayNames(updates),
+                  removeSessionTemplate: (templateName) =>
+                    ctx.removeSessionTemplate(templateName),
+                  toggleTemplateManager: (forceOpen) =>
+                    ctx.toggleTemplateManager(forceOpen),
+                  syncTemplateManagerModalState: () =>
+                    ctx.syncTemplateManagerModalState(),
+                  setTemplateManagerValidationMessage: (message) =>
+                    ctx.setTemplateManagerValidationMessage(message),
                   persistTemplateParametersFromControls: () =>
                     ctx.persistTemplateParametersFromControls(),
                   uniquifyImportedSpec: (spec, prefix) =>
@@ -5950,13 +5986,19 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             }
 
             await ctx.promoteSelectedSubnetworkToTemplate();
-            if (!apiCalls.some((call) => call.path === "/api/template/promote")) {
-              throw new Error("Promote Selection to Template did not call the promote template API.");
+            const promotedSessionTemplate = ctx.state.availableTemplates.find((templateName) =>
+              templateName.startsWith("session::")
+            );
+            if (!promotedSessionTemplate) {
+              throw new Error("Promote Selection to Template did not add a session template.");
             }
-            if (!ctx.state.availableTemplates.includes("selection_fragment")) {
-              throw new Error("Promoted template was not added to the available template list.");
+            const promotedEntry = ctx.listTemplateEntries().find(
+              (entry) => entry.templateName === promotedSessionTemplate
+            );
+            if (!promotedEntry || promotedEntry.displayName !== "Selection Template") {
+              throw new Error(`Expected the promoted session template to use the automatic Selection Template name, received ${JSON.stringify(promotedEntry)}.`);
             }
-            if (ctx.dom.templateSelect.value !== "selection_fragment") {
+            if (ctx.dom.templateSelect.value !== promotedSessionTemplate) {
               throw new Error(`Expected promoted template to become selected, received ${ctx.dom.templateSelect.value}.`);
             }
 
@@ -5995,6 +6037,14 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               throw new Error(`Prepared subnetwork insertion should track the imported tensor ids, received ${ctx.state.lastImportedTensorIds.join(",")}.`);
             }
 
+            await ctx.insertTemplate();
+            const importedSessionTemplateIds = [...ctx.state.lastImportedTensorIds];
+            if (importedSessionTemplateIds.length !== 1) {
+              throw new Error(`Expected session template insertion to track one imported tensor, received ${importedSessionTemplateIds.join(",")}.`);
+            }
+
+            ctx.dom.templateSelect.value = "mps";
+            ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
             await ctx.insertTemplate();
             const importedTemplateIds = [...ctx.state.lastImportedTensorIds];
             if (importedTemplateIds.length !== 3) {
@@ -6244,6 +6294,33 @@ def _write_template_catalog_management_runtime_regression_script(
           apiGet: async () => null,
           apiPost: async (path, payload) => {
             apiCalls.push({ path, payload });
+            if (path === "/api/subnetwork/extract") {
+              return {
+                ok: true,
+                spec: {
+                  schema_version: 4,
+                  network: {
+                    id: "selection_fragment",
+                    name: "Selection Fragment",
+                    tensors: [
+                      {
+                        id: "fragment_a",
+                        name: "Fragment A",
+                        position: { x: 140, y: 180 },
+                        size: { width: 180, height: 108 },
+                        indices: [],
+                        metadata: {},
+                      },
+                    ],
+                    groups: [],
+                    edges: [],
+                    notes: [],
+                    contraction_plan: null,
+                    metadata: {},
+                  },
+                },
+              };
+            }
             if (path === "/api/template/promote") {
               return {
                 ok: true,
@@ -6553,6 +6630,24 @@ def _write_template_catalog_management_runtime_regression_script(
                 ctx.applyDesignChange(mutate, options),
               bringTensorToFront: (tensorId) => ctx.bringTensorToFront(tensorId),
               formatTemplateLabel: (value) => ctx.formatTemplateLabel(value),
+              getTemplateSource: (templateName) => ctx.getTemplateSource(templateName),
+              getTemplateSpec: (templateName) => ctx.getTemplateSpec(templateName),
+              listTemplateEntries: () => ctx.listTemplateEntries(),
+              hasTemplateDisplayName: (displayName, excludedTemplateName) =>
+                ctx.hasTemplateDisplayName(displayName, excludedTemplateName),
+              getNextSessionTemplateDisplayName: (baseDisplayName) =>
+                ctx.getNextSessionTemplateDisplayName(baseDisplayName),
+              addSessionTemplate: (payload) => ctx.addSessionTemplate(payload),
+              updateSessionTemplateDisplayNames: (updates) =>
+                ctx.updateSessionTemplateDisplayNames(updates),
+              removeSessionTemplate: (templateName) =>
+                ctx.removeSessionTemplate(templateName),
+              toggleTemplateManager: (forceOpen) =>
+                ctx.toggleTemplateManager(forceOpen),
+              syncTemplateManagerModalState: () =>
+                ctx.syncTemplateManagerModalState(),
+              setTemplateManagerValidationMessage: (message) =>
+                ctx.setTemplateManagerValidationMessage(message),
               persistTemplateParametersFromControls: () =>
                 ctx.persistTemplateParametersFromControls(),
               uniquifyImportedSpec: (spec, prefix) =>
@@ -6647,64 +6742,50 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!ctx.dom.templateCatalogWarning.title.includes("Second warning")) {
           throw new Error("Template catalog warning title should include the full warning list.");
         }
-        if (!ctx.dom.renameTemplateButton.disabled || !ctx.dom.deleteTemplateButton.disabled) {
-          throw new Error("Rename/Delete should stay disabled for globally registered templates.");
-        }
-
-        ctx.dom.templateSelect.value = "project_fragment";
-        ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
-        if (ctx.dom.renameTemplateButton.disabled || ctx.dom.deleteTemplateButton.disabled) {
-          throw new Error("Rename/Delete should be enabled for project-local templates.");
-        }
-
-        ctx.window.prompt = createPromptQueue(["project_fragment"]);
         await ctx.promoteSelectedSubnetworkToTemplate();
-        const overwritePromoteCall = apiCalls.findLast((call) => call.path === "/api/template/promote");
-        if (!overwritePromoteCall || overwritePromoteCall.payload.overwrite !== true) {
-          throw new Error("Promoting over an existing project template should resend the API request with overwrite=true.");
+        const firstSessionTemplate = ctx.state.availableTemplates.find((templateName) =>
+          templateName.startsWith("session::")
+        );
+        if (!firstSessionTemplate) {
+          throw new Error("Promote Selection should add a session template.");
         }
-        if (!confirmMessages.length) {
-          throw new Error("Overwriting a project template should require user confirmation.");
+        const firstSessionEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.templateName === firstSessionTemplate
+        );
+        if (!firstSessionEntry || firstSessionEntry.displayName !== "Selection Template") {
+          throw new Error(`Expected the first session template to use the automatic Selection Template name, received ${JSON.stringify(firstSessionEntry)}.`);
         }
-
-        const promoteCallCount = apiCalls.filter((call) => call.path === "/api/template/promote").length;
-        ctx.window.prompt = createPromptQueue(["mps"]);
         await ctx.promoteSelectedSubnetworkToTemplate();
-        const promoteCallCountAfterGlobal = apiCalls.filter((call) => call.path === "/api/template/promote").length;
-        if (promoteCallCountAfterGlobal !== promoteCallCount) {
-          throw new Error("Promoting over a global template should be blocked before the API call.");
-        }
-        if (!ctx.dom.statusMessage.textContent.includes("global")) {
-          throw new Error(`Expected a global-template error message, received ${ctx.dom.statusMessage.textContent}.`);
+        const secondSessionEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.displayName === "Selection Template 2"
+        );
+        if (!secondSessionEntry) {
+          throw new Error("Saving the same selection twice should suffix the session template name.");
         }
 
-        ctx.dom.templateSelect.value = "project_fragment";
+        ctx.dom.templateSelect.value = firstSessionTemplate;
         ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
-        ctx.window.prompt = createPromptQueue(["renamed_fragment"]);
+        ctx.window.prompt = createPromptQueue(["Renamed Session Fragment"]);
         await ctx.renameSelectedTemplate();
-        const renameCall = apiCalls.find((call) => call.path === "/api/template/rename");
-        if (!renameCall || renameCall.payload.new_template_name !== "renamed_fragment") {
-          throw new Error("Rename Template should call the rename API with the requested new name.");
+        const renamedEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.templateName === firstSessionTemplate
+        );
+        if (!renamedEntry || renamedEntry.displayName !== "Renamed Session Fragment") {
+          throw new Error("Rename Template should update the selected session template locally.");
         }
-        if (!ctx.state.availableTemplates.includes("renamed_fragment")) {
-          throw new Error("Rename Template should update the available template list.");
-        }
-        if (ctx.dom.templateSelect.value !== "renamed_fragment") {
+        if (ctx.dom.templateSelect.value !== firstSessionTemplate) {
           throw new Error(`Expected the renamed template to stay selected, received ${ctx.dom.templateSelect.value}.`);
         }
 
         await ctx.deleteSelectedTemplate();
-        if (!deleteResponseUsed) {
-          throw new Error("Delete Template should call the delete API.");
+        if (ctx.state.availableTemplates.includes(firstSessionTemplate)) {
+          throw new Error("Delete Template should remove the selected session template.");
         }
-        if (ctx.dom.templateSelect.value !== "project_second") {
-          throw new Error(`Expected delete to fall back to the next project template, received ${ctx.dom.templateSelect.value}.`);
+        if (ctx.dom.templateSelect.value !== secondSessionEntry.templateName) {
+          throw new Error(`Expected delete to fall back to the next session template, received ${ctx.dom.templateSelect.value}.`);
         }
-        if (ctx.dom.templateCatalogWarning.hidden !== true) {
-          throw new Error("Template catalog warning should hide once the catalog reloads without warnings.");
-        }
-        if (ctx.state.templateDefinitions.project_second.source !== "project") {
-          throw new Error("Project-local template metadata should preserve source='project' after updates.");
+        if (ctx.state.templateDefinitions.project_fragment.source !== "project") {
+          throw new Error("Project template metadata should remain read-only and keep source='project'.");
         }
         """
     )

@@ -10,22 +10,29 @@ export function createEditorShellBindings({
 }) {
   const {
     addNoteButton,
-    loadButton,
-    loadMenuPanel,
+    fileMenuButton,
+    fileMenuPanel,
+    modesMenuButton,
+    modesMenuPanel,
+    templatesMenuButton,
+    templatesMenuPanel,
+    helpMenuButton,
+    helpMenuPanel,
+    newDesignButton,
+    saveButton,
     loadDesignMenuItem,
-    loadSubnetworkMenuItem,
     connectButton,
     loadInput,
     subnetworkLoadInput,
+    templateLoadInput,
     undoButton,
     redoButton,
-    exportButton,
-    exportMenuPanel,
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
     exportFormatSelect,
-    toggleLinearPeriodicButton,
+    singleModeMenuItem,
+    linearPeriodicModeMenuItem,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
     templateSelect,
@@ -35,18 +42,31 @@ export function createEditorShellBindings({
     templateBondDimensionInput,
     templatePhysicalDimensionInput,
     insertTemplateButton,
-    renameTemplateButton,
-    deleteTemplateButton,
+    saveSessionTemplateMenuItem,
+    loadSessionTemplateMenuItem,
+    exportSessionTemplateMenuItem,
+    editSessionTemplateMenuItem,
     reflowImportedButton,
     createGroupButton,
-    helpButton,
+    helpInfoMenuItem,
+    helpShortcutsMenuItem,
+    helpAboutMenuItem,
     helpBackdrop,
     helpCloseButton,
+    templateManagerBackdrop,
+    templateManagerCloseButton,
     canvasShell,
     minimapCanvas,
     engineSelect,
     collectionFormatSelect,
   } = dom;
+
+  const toolbarMenus = [
+    { name: "file", button: fileMenuButton, panel: fileMenuPanel },
+    { name: "modes", button: modesMenuButton, panel: modesMenuPanel },
+    { name: "templates", button: templatesMenuButton, panel: templatesMenuPanel },
+    { name: "help", button: helpMenuButton, panel: helpMenuPanel },
+  ];
 
   function bindListener(target, eventName, handler, options) {
     if (!target || typeof target.addEventListener !== "function") {
@@ -77,13 +97,26 @@ export function createEditorShellBindings({
 
   function isWithinTransientToolbarUi(target) {
     return [
-      loadButton,
-      loadMenuPanel,
-      exportButton,
-      exportMenuPanel,
+      ...toolbarMenus.flatMap((menu) => [menu.button, menu.panel]),
       templateSettingsButton,
       templateSettingsPopover,
     ].some((element) => targetWithinElement(target, element));
+  }
+
+  function bindMenubarMenu(menuName, button, panel) {
+    bindListener(button, "click", () => {
+      actions.toggleToolbarMenu(menuName);
+    });
+    bindListener(button, "mouseenter", () => {
+      if (state.openToolbarMenu && state.openToolbarMenu !== menuName) {
+        actions.openToolbarMenu(menuName);
+      }
+    });
+    bindListener(panel, "mouseenter", () => {
+      if (state.openToolbarMenu && state.openToolbarMenu !== menuName) {
+        actions.openToolbarMenu(menuName);
+      }
+    });
   }
 
   function attachToolbarHandlers() {
@@ -93,31 +126,44 @@ export function createEditorShellBindings({
     shortcutTooltip.applyShortcutHint("add-note-button", "Add note", "P");
     shortcutTooltip.applyShortcutHint("connect-button", "Connect", "C");
     shortcutTooltip.applyShortcutHint("delete-button", "Delete", "Delete");
-    shortcutTooltip.applyShortcutHint("save-button", "Save", "Ctrl/Cmd+S");
-    shortcutTooltip.applyShortcutHint("load-button", "Load", "Ctrl/Cmd+L");
+    shortcutTooltip.applyShortcutHint("save-button", "Save tensor network", "Ctrl/Cmd+S");
+    shortcutTooltip.applyShortcutHint(
+      "load-design-menu-item",
+      "Load tensor network",
+      "Ctrl/Cmd+L"
+    );
     shortcutTooltip.applyShortcutHint("generate-button", "Generate code", "Shift+G");
-    shortcutTooltip.applyShortcutHint("toggle-linear-periodic-button", "For mode", "F");
+    shortcutTooltip.applyShortcutHint(
+      "linear-periodic-mode-menu-item",
+      "For unidimensional",
+      "F"
+    );
     shortcutTooltip.applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
     shortcutTooltip.applyShortcutHint("redo-button", "Redo", redoShortcutLabel);
-    shortcutTooltip.applyShortcutHint("help-button", "Help", "?");
+    shortcutTooltip.applyShortcutHint("help-info-menu-item", "Info", "?");
     shortcutTooltip.attachShortcutTooltipHandlers();
 
-    bindListener(documentRef.getElementById("new-design-button"), "click", actions.handleNewDesign);
+    toolbarMenus.forEach((menu) => {
+      bindMenubarMenu(menu.name, menu.button, menu.panel);
+    });
+
+    bindListener(newDesignButton, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.handleNewDesign();
+    });
     bindListener(documentRef.getElementById("add-tensor-button"), "click", actions.addTensorAtCenter);
     bindListener(addNoteButton, "click", actions.addNoteAtCenter);
     bindListener(connectButton, "click", actions.toggleConnectMode);
     bindListener(documentRef.getElementById("delete-button"), "click", actions.deleteSelection);
-    bindListener(documentRef.getElementById("save-button"), "click", actions.saveDesign);
-    bindListener(loadButton, "click", () => {
-      actions.toggleToolbarMenu("load");
+    bindListener(saveButton, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.saveDesign();
     });
     bindListener(loadDesignMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
-      loadInput.click();
-    });
-    bindListener(loadSubnetworkMenuItem, "click", () => {
-      actions.closeTransientToolbarUi();
-      actions.openSubnetworkPicker();
+      if (loadInput && typeof loadInput.click === "function") {
+        loadInput.click();
+      }
     });
     bindListener(documentRef.getElementById("generate-button"), "click", actions.generateCode);
     bindListener(documentRef.getElementById("done-button"), "click", actions.completeEditor);
@@ -125,9 +171,6 @@ export function createEditorShellBindings({
     bindListener(documentRef.getElementById("copy-code-button"), "click", actions.copyGeneratedCode);
     bindListener(undoButton, "click", actions.performUndo);
     bindListener(redoButton, "click", actions.performRedo);
-    bindListener(exportButton, "click", () => {
-      actions.toggleToolbarMenu("export");
-    });
     bindListener(exportPythonMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("py");
@@ -143,7 +186,16 @@ export function createEditorShellBindings({
     bindListener(exportFormatSelect, "change", () => {
       actions.updateToolbarState();
     });
-    bindListener(toggleLinearPeriodicButton, "click", actions.toggleLinearPeriodicMode);
+    bindListener(singleModeMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.setLinearPeriodicMode(false);
+      actions.updateToolbarState();
+    });
+    bindListener(linearPeriodicModeMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.setLinearPeriodicMode(true);
+      actions.updateToolbarState();
+    });
     bindListener(linearPeriodicPreviousCellButton, "click", () => {
       actions.switchLinearPeriodicCell(-1);
     });
@@ -162,13 +214,41 @@ export function createEditorShellBindings({
       actions.toggleTemplateSettingsPopover();
     });
     bindListener(insertTemplateButton, "click", actions.insertTemplate);
-    bindListener(renameTemplateButton, "click", actions.renameSelectedTemplate);
-    bindListener(deleteTemplateButton, "click", actions.deleteSelectedTemplate);
+    bindListener(saveSessionTemplateMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.saveSelectionAsSessionTemplate();
+    });
+    bindListener(loadSessionTemplateMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.openSessionTemplatePicker();
+    });
+    bindListener(exportSessionTemplateMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.exportSelectedTemplateSpec();
+    });
+    bindListener(editSessionTemplateMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.toggleTemplateManager(true);
+    });
     bindListener(reflowImportedButton, "click", actions.reflowLastImportedTensors);
     bindListener(createGroupButton, "click", actions.createGroupFromSelection);
-    bindListener(helpButton, "click", () => actions.toggleHelpModal(true));
+    bindListener(helpInfoMenuItem, "click", () => {
+      actions.openHelpSection("info");
+    });
+    bindListener(helpShortcutsMenuItem, "click", () => {
+      actions.openHelpSection("shortcuts");
+    });
+    bindListener(helpAboutMenuItem, "click", () => {
+      actions.openHelpSection("about");
+    });
     bindListener(helpBackdrop, "click", () => actions.toggleHelpModal(false));
     bindListener(helpCloseButton, "click", () => actions.toggleHelpModal(false));
+    bindListener(templateManagerBackdrop, "click", () =>
+      actions.toggleTemplateManager(false)
+    );
+    bindListener(templateManagerCloseButton, "click", () =>
+      actions.toggleTemplateManager(false)
+    );
     bindListener(engineSelect, "change", (event) => {
       store.setSelectedEngine(event.target.value);
       actions.enforceLinearPeriodicEngineSupport();
@@ -189,6 +269,7 @@ export function createEditorShellBindings({
     });
     bindListener(loadInput, "change", actions.loadDesignFromFile);
     bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);
+    bindListener(templateLoadInput, "change", actions.loadSessionTemplatesFromFile);
     bindListener(windowRef, "keydown", actions.handleKeydown);
     bindListener(windowRef, "beforeunload", actions.sendCancelBeacon);
     bindListener(windowRef, "pagehide", actions.sendCancelBeacon);

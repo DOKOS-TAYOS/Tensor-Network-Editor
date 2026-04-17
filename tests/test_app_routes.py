@@ -54,6 +54,12 @@ def test_bootstrap_returns_session_contract(
     assert list(payload["annotation_definitions"]) == ["tensor", "index"]
     assert payload["annotation_definitions"]["tensor"][0]["key"] == "role"
     assert payload["annotation_definitions"]["index"][0]["key"] == "leg_kind"
+    assert payload["app_metadata"] == {
+        "repository_url": "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor",
+        "version": "0.2.2",
+        "license_name": "MIT",
+        "author_name": "Alejandro Mata Ali",
+    }
 
 
 def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:

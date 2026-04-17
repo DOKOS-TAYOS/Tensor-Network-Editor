@@ -14,7 +14,7 @@ export function createInteractionShortcutBindings({
   runtime,
   shortcutActions = {},
 }) {
-  const { engineSelect, helpCloseButton, helpModal, loadInput } = dom;
+  const { engineSelect, loadInput } = dom;
   const resolvedShortcutActions = {
     toggleSidebarCollapsed:
       shortcutActions.toggleSidebarCollapsed ||
@@ -68,6 +68,9 @@ export function createInteractionShortcutBindings({
       resolveContextAction(ctx, "selectAllTensors"),
     addNoteAtCenter:
       shortcutActions.addNoteAtCenter || resolveContextAction(ctx, "addNoteAtCenter"),
+    toggleTemplateManager:
+      shortcutActions.toggleTemplateManager
+      || resolveContextAction(ctx, "toggleTemplateManager"),
     toggleLinearPeriodicMode:
       shortcutActions.toggleLinearPeriodicMode ||
       resolveContextAction(ctx, "toggleLinearPeriodicMode"),
@@ -91,6 +94,7 @@ export function createInteractionShortcutBindings({
     createGroupFromSelection,
     selectAllTensors,
     addNoteAtCenter,
+    toggleTemplateManager,
     toggleLinearPeriodicMode,
   } = resolvedShortcutActions;
 
@@ -138,14 +142,6 @@ export function createInteractionShortcutBindings({
     ctx.setStatus(state.minimapHidden ? "Minimap hidden." : "Minimap shown.");
   }
 
-  function toggleHelpModal(forceOpen) {
-    state.isHelpOpen = typeof forceOpen === "boolean" ? forceOpen : !state.isHelpOpen;
-    helpModal.classList.toggle("is-hidden", !state.isHelpOpen);
-    if (state.isHelpOpen) {
-      helpCloseButton.focus();
-    }
-  }
-
   function handleKeydown(event) {
     const activeElement = ctx.document.activeElement;
     const inTextInput = ctx.isTextInput(event.target) || ctx.isTextInput(activeElement);
@@ -158,8 +154,12 @@ export function createInteractionShortcutBindings({
       if (closeTransientToolbarUi()) {
         return;
       }
+      if (state.isTemplateManagerOpen) {
+        toggleTemplateManager(false);
+        return;
+      }
       if (state.isHelpOpen) {
-        toggleHelpModal(false);
+        ctx.toggleHelpModal(false);
         return;
       }
       if (state.boxSelection) {
@@ -350,7 +350,11 @@ export function createInteractionShortcutBindings({
     }
     if (event.key === "?") {
       event.preventDefault();
-      toggleHelpModal(true);
+      if (typeof ctx.openHelpSection === "function") {
+        ctx.openHelpSection("info");
+        return;
+      }
+      ctx.toggleHelpModal(true, "info");
     }
   }
 
@@ -377,7 +381,6 @@ export function createInteractionShortcutBindings({
     acceptAutomaticShortcut,
     toggleSidebarVisibility,
     handleKeydown,
-    toggleHelpModal,
     sendCancelBeacon,
     handleWindowResize,
   };

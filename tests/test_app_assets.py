@@ -79,11 +79,23 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert '<h1 class="toolbar-title">' in html
     assert 'href="https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"' in html
     assert 'class="toolbar-title-link"' in html
-    assert '<div class="title-main">' not in html
+    assert 'class="toolbar-scroll-shell"' in html
+    assert 'class="toolbar-menubar"' in html
+    assert 'id="file-menu-button"' in html
+    assert 'id="modes-menu-button"' in html
+    assert 'id="templates-menu-button"' in html
+    assert 'id="help-menu-button"' in html
+    assert 'id="file-menu-panel"' in html
+    assert 'id="modes-menu-panel"' in html
+    assert 'id="templates-menu-panel"' in html
+    assert 'id="help-menu-panel"' in html
+    assert 'id="load-button"' not in html
+    assert 'id="export-button"' not in html
+    assert 'id="help-button"' not in html
     assert 'class="title-control-divider"' in html
     assert 'class="title-control-group title-control-group-template"' in html
     assert html.index('class="toolbar-title-link"') < html.index(
-        'id="new-design-button"'
+        'id="file-menu-button"'
     )
 
     add_index = html.index('id="add-tensor-button"')
@@ -107,12 +119,12 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
 
-    assert 'id="export-button"' in html
-    assert 'id="export-menu-panel"' in html
+    assert 'id="file-menu-panel"' in html
+    assert 'id="load-design-menu-item"' in html
     assert 'id="export-python-menu-item"' in html
     assert 'id="export-png-menu-item"' in html
     assert 'id="export-svg-menu-item"' in html
-    assert html.index('id="export-button"') < html.index('id="export-menu-panel"')
+    assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
 
     code_pane_index = html.index('id="sidebar-pane-code"')
     engine_index = html.index('id="engine-select"')
@@ -151,11 +163,14 @@ def test_root_exposes_linear_periodic_toolbar_controls(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
 
-    assert 'id="toggle-linear-periodic-button"' in html
+    assert 'id="modes-menu-panel"' in html
+    assert 'id="single-mode-menu-item"' in html
+    assert 'id="linear-periodic-mode-menu-item"' in html
+    assert 'id="grid-periodic-mode-menu-item"' in html
     assert 'id="linear-periodic-previous-cell-button"' in html
     assert 'id="linear-periodic-cell-label"' in html
     assert 'id="linear-periodic-next-cell-button"' in html
-    assert ">For<" in html
+    assert ">For unidimensional<" in html
 
 
 def test_main_module_is_served_from_static_directory(
@@ -376,7 +391,10 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
 
     assert ".toolbar-menu {" in body
     assert ".toolbar-menu-panel {" in body
-    assert ".toolbar-menu-panel button {" in body
+    assert ".toolbar-menubar {" in body
+    assert ".toolbar-menubar-button {" in body
+    assert ".toolbar-menu-item {" in body
+    assert ".toolbar-menu-item-shortcut {" in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
     assert ".code-header-row {" in body
@@ -869,7 +887,7 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
     assert "ctx.ensureContractionViewSnapshots();" in utilities_body
 
 
-def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
+def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_menus(
     editor_server: EditorServer,
 ) -> None:
     bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
@@ -888,8 +906,16 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
         'codeGenerationWarning: document.getElementById("code-generation-warning")'
         in dom_body
     )
-    assert 'exportButton: document.getElementById("export-button")' in dom_body
-    assert 'exportMenuPanel: document.getElementById("export-menu-panel")' in dom_body
+    assert 'fileMenuButton: document.getElementById("file-menu-button")' in dom_body
+    assert 'fileMenuPanel: document.getElementById("file-menu-panel")' in dom_body
+    assert (
+        'templatesMenuButton: document.getElementById("templates-menu-button")'
+        in dom_body
+    )
+    assert (
+        'templatesMenuPanel: document.getElementById("templates-menu-panel")'
+        in dom_body
+    )
     assert (
         'exportPythonMenuItem: document.getElementById("export-python-menu-item")'
         in dom_body
@@ -901,15 +927,29 @@ def test_toolbar_assets_route_export_actions_through_a_single_picker_and_button(
         'exportSvgMenuItem: document.getElementById("export-svg-menu-item")' in dom_body
     )
     assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
-    assert 'bindListener(exportButton, "click", () => {' in shell_bindings_body
+    assert "bindMenubarMenu(menu.name, menu.button, menu.panel);" in shell_bindings_body
     assert 'bindListener(exportPythonMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportPngMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportSvgMenuItem, "click", () => {' in shell_bindings_body
+    assert (
+        'bindListener(saveSessionTemplateMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(loadSessionTemplateMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(editSessionTemplateMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
     assert "async function downloadSelectedExport()" in interactions_body
     assert "async function downloadExportAs(format)" in interactions_body
     assert "const previousFormat = exportFormatSelect.value;" in interactions_body
     assert "await downloadSelectedExport();" in interactions_body
-    assert "exportButton.disabled =" in utilities_body
+    assert "exportPythonMenuItem.disabled =" in utilities_body
+    assert "exportPngMenuItem.disabled =" in utilities_body
+    assert "exportSvgMenuItem.disabled =" in utilities_body
 
 
 def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_operands(
@@ -960,14 +1000,8 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
 
-    assert 'id="load-subnetwork-menu-item"' in html
     assert 'id="reflow-imported-button"' in html
     assert 'id="subnetwork-load-input"' in html
-    assert 'loadButton: document.getElementById("load-button")' in dom_body
-    assert (
-        'loadSubnetworkMenuItem: document.getElementById("load-subnetwork-menu-item")'
-        in dom_body
-    )
     assert (
         'reflowImportedButton: document.getElementById("reflow-imported-button")'
         in dom_body
@@ -977,16 +1011,13 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         in dom_body
     )
     assert (
-        'bindListener(loadSubnetworkMenuItem, "click", () => {' in shell_bindings_body
-    )
-    assert (
         'bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);'
         in shell_bindings_body
     )
     assert 'id="insert-subnetwork-button"' not in html
     assert '"/api/subnetwork/extract"' in interactions_body
     assert '"/api/subnetwork/prepare-insert"' in interactions_body
-    assert '"/api/template/promote"' in interactions_body
+    assert "saveSelectionAsSessionTemplate" in interactions_body
     assert 'id="extract-selection-button"' in overview_body + overview_markup_body
     assert (
         'id="promote-selection-template-button"' in overview_body + overview_markup_body
@@ -1018,25 +1049,19 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         html,
     )
     assert re.search(
-        r'<button id="rename-template-button"[^>]*>\s*Rename\s*</button>',
-        html,
-    )
-    assert re.search(
         r'<button id="reflow-imported-button"[^>]*>\s*Reflow\s*</button>',
         html,
     )
-    assert 'id="rename-template-button"' in html
-    assert 'id="delete-template-button"' in html
+    assert 'id="save-session-template-menu-item"' in html
+    assert 'id="load-session-template-menu-item"' in html
+    assert 'id="export-session-template-menu-item"' in html
+    assert 'id="edit-session-template-menu-item"' in html
+    assert 'id="template-load-input"' in html
+    assert 'id="template-manager-modal"' in html
+    assert 'id="template-manager-list"' in html
     assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
-    assert 'aria-label="Delete template"' in html
     assert 'id="insert-subnetwork-button"' not in html
-    assert html.index('id="load-button"') < html.index('id="rename-template-button"')
-    assert html.index('id="rename-template-button"') < html.index('id="help-button"')
-    assert (
-        'renameTemplateButton: document.getElementById("rename-template-button")'
-        in dom_body
-    )
     assert (
         'templateSettingsButton: document.getElementById("template-settings-button")'
         in dom_body
@@ -1046,7 +1071,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert (
-        'deleteTemplateButton: document.getElementById("delete-template-button")'
+        'templateLoadInput: document.getElementById("template-load-input")' in dom_body
+    )
+    assert (
+        'templateManagerModal: document.getElementById("template-manager-modal")'
         in dom_body
     )
     assert (
@@ -1054,14 +1082,18 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert (
-        'bindListener(renameTemplateButton, "click", actions.renameSelectedTemplate);'
+        'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
     )
     assert (
         'bindListener(templateSettingsButton, "click", () => {' in shell_bindings_body
     )
     assert (
-        'bindListener(deleteTemplateButton, "click", actions.deleteSelectedTemplate);'
+        'bindListener(loadSessionTemplateMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(editSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
     )
     assert (
@@ -1072,8 +1104,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         'actions.setStatus(state.templateCatalogWarnings[0], "error");'
         in bootstrap_flow_body
     )
-    assert '"/api/template/rename"' in interactions_body
-    assert '"/api/template/delete"' in interactions_body
+    assert "loadSessionTemplatesFromFile" in interactions_body
+    assert "exportSelectedTemplateSpec" in interactions_body
+    assert "toggleTemplateManager" in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_body
 
 

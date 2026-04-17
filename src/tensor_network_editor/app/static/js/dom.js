@@ -7,26 +7,41 @@ export function getDomRefs(document) {
     generatedCodeView: document.getElementById("generated-code-view"),
     engineSelect: document.getElementById("engine-select"),
     collectionFormatSelect: document.getElementById("collection-format-select"),
-    loadButton: document.getElementById("load-button"),
-    loadMenuPanel: document.getElementById("load-menu-panel"),
+    fileMenuButton: document.getElementById("file-menu-button"),
+    fileMenuPanel: document.getElementById("file-menu-panel"),
+    modesMenuButton: document.getElementById("modes-menu-button"),
+    modesMenuPanel: document.getElementById("modes-menu-panel"),
+    templatesMenuButton: document.getElementById("templates-menu-button"),
+    templatesMenuPanel: document.getElementById("templates-menu-panel"),
+    helpMenuButton: document.getElementById("help-menu-button"),
+    helpMenuPanel: document.getElementById("help-menu-panel"),
+    newDesignButton: document.getElementById("new-design-button"),
+    saveButton: document.getElementById("save-button"),
     loadDesignMenuItem: document.getElementById("load-design-menu-item"),
-    loadSubnetworkMenuItem: document.getElementById("load-subnetwork-menu-item"),
     exportFormatSelect: document.getElementById("export-format-select"),
     addNoteButton: document.getElementById("add-note-button"),
     connectButton: document.getElementById("connect-button"),
     loadInput: document.getElementById("load-input"),
     subnetworkLoadInput: document.getElementById("subnetwork-load-input"),
+    templateLoadInput: document.getElementById("template-load-input"),
     undoButton: document.getElementById("undo-button"),
     redoButton: document.getElementById("redo-button"),
-    exportButton: document.getElementById("export-button"),
-    exportMenuPanel: document.getElementById("export-menu-panel"),
     exportPythonMenuItem: document.getElementById("export-python-menu-item"),
     exportPngMenuItem: document.getElementById("export-png-menu-item"),
     exportSvgMenuItem: document.getElementById("export-svg-menu-item"),
-    toggleLinearPeriodicButton: document.getElementById("toggle-linear-periodic-button"),
-    linearPeriodicPreviousCellButton: document.getElementById("linear-periodic-previous-cell-button"),
+    singleModeMenuItem: document.getElementById("single-mode-menu-item"),
+    linearPeriodicModeMenuItem: document.getElementById(
+      "linear-periodic-mode-menu-item"
+    ),
+    gridPeriodicModeMenuItem: document.getElementById("grid-periodic-mode-menu-item"),
+    toolbarModeControls: document.querySelector(".toolbar-mode-controls"),
+    linearPeriodicPreviousCellButton: document.getElementById(
+      "linear-periodic-previous-cell-button"
+    ),
     linearPeriodicCellLabel: document.getElementById("linear-periodic-cell-label"),
-    linearPeriodicNextCellButton: document.getElementById("linear-periodic-next-cell-button"),
+    linearPeriodicNextCellButton: document.getElementById(
+      "linear-periodic-next-cell-button"
+    ),
     templateSelect: document.getElementById("template-select"),
     templateSettingsButton: document.getElementById("template-settings-button"),
     templateSettingsPopover: document.getElementById("template-settings-popover"),
@@ -34,20 +49,56 @@ export function getDomRefs(document) {
     templateGraphSizeField: document.getElementById("template-graph-size-field"),
     templateGraphSizeLabel: document.getElementById("template-graph-size-label"),
     templateGraphSizeInput: document.getElementById("template-graph-size-input"),
-    templateBondDimensionField: document.getElementById("template-bond-dimension-field"),
-    templateBondDimensionInput: document.getElementById("template-bond-dimension-input"),
-    templatePhysicalDimensionField: document.getElementById("template-physical-dimension-field"),
-    templatePhysicalDimensionInput: document.getElementById("template-physical-dimension-input"),
+    templateBondDimensionField: document.getElementById(
+      "template-bond-dimension-field"
+    ),
+    templateBondDimensionInput: document.getElementById(
+      "template-bond-dimension-input"
+    ),
+    templatePhysicalDimensionField: document.getElementById(
+      "template-physical-dimension-field"
+    ),
+    templatePhysicalDimensionInput: document.getElementById(
+      "template-physical-dimension-input"
+    ),
     insertTemplateButton: document.getElementById("insert-template-button"),
-    renameTemplateButton: document.getElementById("rename-template-button"),
-    deleteTemplateButton: document.getElementById("delete-template-button"),
+    saveSessionTemplateMenuItem: document.getElementById(
+      "save-session-template-menu-item"
+    ),
+    loadSessionTemplateMenuItem: document.getElementById(
+      "load-session-template-menu-item"
+    ),
+    exportSessionTemplateMenuItem: document.getElementById(
+      "export-session-template-menu-item"
+    ),
+    editSessionTemplateMenuItem: document.getElementById(
+      "edit-session-template-menu-item"
+    ),
     templateCatalogWarning: document.getElementById("template-catalog-warning"),
     reflowImportedButton: document.getElementById("reflow-imported-button"),
     createGroupButton: document.getElementById("create-group-button"),
-    helpButton: document.getElementById("help-button"),
+    helpInfoMenuItem: document.getElementById("help-info-menu-item"),
+    helpShortcutsMenuItem: document.getElementById("help-shortcuts-menu-item"),
+    helpAboutMenuItem: document.getElementById("help-about-menu-item"),
     helpModal: document.getElementById("help-modal"),
     helpBackdrop: document.getElementById("help-backdrop"),
     helpCloseButton: document.getElementById("help-close-button"),
+    helpTitle: document.getElementById("help-title"),
+    helpNote: document.getElementById("help-note"),
+    helpInfoSection: document.getElementById("help-info-section"),
+    helpShortcutsSection: document.getElementById("help-shortcuts-section"),
+    helpAboutSection: document.getElementById("help-about-section"),
+    aboutRepositoryLink: document.getElementById("about-repository-link"),
+    aboutVersion: document.getElementById("about-version"),
+    aboutLicense: document.getElementById("about-license"),
+    aboutAuthor: document.getElementById("about-author"),
+    templateManagerModal: document.getElementById("template-manager-modal"),
+    templateManagerBackdrop: document.getElementById("template-manager-backdrop"),
+    templateManagerCloseButton: document.getElementById(
+      "template-manager-close-button"
+    ),
+    templateManagerError: document.getElementById("template-manager-error"),
+    templateManagerList: document.getElementById("template-manager-list"),
     canvasShell: document.getElementById("canvas-shell"),
     groupLayer: document.getElementById("group-layer"),
     resizeLayer: document.getElementById("resize-layer"),

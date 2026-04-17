@@ -143,13 +143,21 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 1rem 1.25rem;
+  padding: 0.45rem 1rem;
   border-bottom: 1px solid rgba(44, 52, 72, 0.95);
   backdrop-filter: blur(10px);
-  background: rgba(17, 20, 29, 0.92);
-  overflow-x: auto;
+  background: rgba(19, 21, 26, 0.96);
+  overflow: visible;
   position: relative;
-  z-index: 20;
+  z-index: 60;
+}
+
+.toolbar-scroll-shell {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 0.1rem;
 }
 
 .toolbar-group {
@@ -159,10 +167,14 @@ select {
   flex-shrink: 0;
 }
 
+.toolbar-group-primary {
+  min-width: max-content;
+}
+
 .toolbar-title {
   margin: 0 0.35rem 0 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.35rem;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -182,50 +194,148 @@ select {
   margin-left: auto;
 }
 
+.toolbar-menubar {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
 .toolbar-menu {
   position: relative;
   display: flex;
   align-items: center;
 }
 
+.toolbar-menubar-menu {
+  flex-shrink: 0;
+}
+
+.toolbar-menubar-button {
+  min-width: auto;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.toolbar-menubar-button:hover {
+  transform: none;
+  border-color: rgba(76, 92, 120, 0.64);
+  background: rgba(36, 40, 48, 0.96);
+}
+
+.toolbar-menu > .toolbar-menubar-button[aria-expanded="true"] {
+  border-color: rgba(76, 92, 120, 0.84);
+  background: rgba(46, 49, 58, 0.98);
+}
+
 .toolbar-menu-panel {
   position: absolute;
-  top: calc(100% + 0.45rem);
+  top: calc(100% + 0.2rem);
   left: 0;
-  min-width: 13rem;
-  padding: 0.35rem;
-  border-radius: 8px;
-  border: 1px solid rgba(76, 92, 120, 0.92);
-  background: rgba(18, 24, 36, 0.98);
+  min-width: 15rem;
+  padding: 0.3rem;
+  border-radius: 6px;
+  border: 1px solid rgba(82, 86, 97, 0.98);
+  background: rgba(31, 31, 31, 0.99);
   box-shadow: var(--shadow);
   display: grid;
-  gap: 0.15rem;
-  z-index: 30;
+  gap: 0.1rem;
+  z-index: 90;
 }
 
 .toolbar-menu-panel[hidden] {
   display: none;
 }
 
-.toolbar-menu-panel button {
+.toolbar-menu-item {
   width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.65rem;
+  padding: 0.42rem 0.55rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   text-align: left;
-  justify-content: flex-start;
-  color: var(--ink);
+  color: #f3f5f8;
+  font-size: 0.92rem;
 }
 
-.toolbar-menu-panel button:hover {
+.toolbar-menu-item:hover {
   transform: none;
-  background: rgba(34, 49, 73, 0.96);
   border-color: transparent;
+  background: #0e639c;
 }
 
-.toolbar-menu > button[aria-expanded="true"] {
-  border-color: var(--accent);
-  background: rgba(97, 168, 255, 0.14);
+.toolbar-menu-item-check {
+  width: 1rem;
+  color: #f3f5f8;
+}
+
+.toolbar-menu-item.is-checked .toolbar-menu-item-check::before {
+  content: "\2713";
+}
+
+.toolbar-menu-item-label {
+  min-width: 0;
+}
+
+.toolbar-menu-item-shortcut {
+  color: rgba(231, 235, 241, 0.7);
+  font-size: 0.84rem;
+  justify-self: end;
+}
+
+.toolbar-menu-item:disabled,
+.toolbar-menu-item[disabled] {
+  opacity: 1;
+  color: rgba(189, 196, 208, 0.45);
+  cursor: not-allowed;
+}
+
+.toolbar-menu-item:disabled .toolbar-menu-item-shortcut,
+.toolbar-menu-item[disabled] .toolbar-menu-item-shortcut {
+  color: rgba(189, 196, 208, 0.35);
+}
+
+.toolbar-menu-item:disabled:hover,
+.toolbar-menu-item[disabled]:hover {
+  background: transparent;
+}
+
+.toolbar-menu-separator {
+  height: 1px;
+  margin: 0.25rem 0.15rem;
+  background: rgba(89, 95, 110, 0.72);
+}
+
+.toolbar-mode-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.3rem;
+}
+
+.toolbar-mode-controls[hidden] {
+  display: none;
+}
+
+.toolbar-mode-controls button {
+  min-width: 2rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+}
+
+.toolbar-mode-label {
+  min-width: 7.5rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-align: center;
 }
 
 .template-parameter-panel {
@@ -252,7 +362,7 @@ select {
   border: 1px solid rgba(76, 92, 120, 0.92);
   background: rgba(14, 20, 30, 0.98);
   box-shadow: var(--shadow);
-  z-index: 30;
+  z-index: 80;
 }
 
 .template-settings-popover[hidden] {
@@ -346,11 +456,19 @@ select {
 .panel-heading {
   padding: 1.25rem 1.25rem 0.25rem;
   position: relative;
-  z-index: 2;
+  z-index: 50;
 }
 
 .canvas-titlebar {
   display: block;
+  overflow: visible;
+}
+
+.title-button-scroll-shell {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 0.2rem;
 }
 
 .title-button-row {
@@ -359,9 +477,8 @@ select {
   justify-content: flex-start;
   gap: 0.75rem;
   align-items: flex-end;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.2rem;
+  overflow: visible;
+  min-width: max-content;
   width: 100%;
 }
 
@@ -1813,7 +1930,7 @@ textarea[disabled] {
 .help-modal {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 200;
 }
 
 .help-backdrop {
@@ -1899,6 +2016,60 @@ textarea[disabled] {
   font-size: 0.9rem;
 }
 
+.help-about-grid a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.template-manager-dialog {
+  display: grid;
+  gap: 1rem;
+}
+
+.template-manager-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.template-manager-list {
+  display: grid;
+  gap: 0.75rem;
+  max-height: min(60dvh, 560px);
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.template-manager-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid rgba(44, 52, 72, 0.95);
+  background: rgba(13, 18, 27, 0.84);
+}
+
+.template-manager-row.is-locked {
+  opacity: 0.82;
+}
+
+.template-manager-row label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.template-manager-row input {
+  width: 100%;
+}
+
+.template-manager-source {
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-transform: capitalize;
+}
+
 @media (max-width: 1100px) {
   body {
     overflow: auto;
@@ -1912,6 +2083,10 @@ textarea[disabled] {
 
   .toolbar {
     flex-wrap: wrap;
+  }
+
+  .toolbar-scroll-shell {
+    overflow: visible;
   }
 
   .workspace {
@@ -1955,10 +2130,12 @@ textarea[disabled] {
     min-width: 0;
   }
 
+  .title-button-scroll-shell,
   .title-button-row {
     flex-wrap: wrap;
     align-items: stretch;
     overflow: visible;
+    min-width: 0;
   }
 
   .title-control-group {

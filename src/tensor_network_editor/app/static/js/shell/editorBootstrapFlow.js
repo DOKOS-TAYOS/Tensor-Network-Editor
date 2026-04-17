@@ -11,6 +11,14 @@ export function createEditorBootstrapFlow({
     const payload = await sessionService.loadBootstrap();
     store.setSpec(actions.normalizeSpec(payload.spec.network));
     store.setSchemaVersion(payload.schema_version);
+    if (typeof store.setAppMetadata === "function") {
+      store.setAppMetadata(payload.app_metadata);
+    } else {
+      state.appMetadata =
+        payload.app_metadata && typeof payload.app_metadata === "object"
+          ? { ...payload.app_metadata }
+          : {};
+    }
     store.setAvailableCollectionFormats(
       Array.isArray(payload.collection_formats) ? payload.collection_formats : ["list"]
     );
