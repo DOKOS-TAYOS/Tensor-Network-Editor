@@ -2042,6 +2042,10 @@ textarea[disabled] {
   padding-right: 5.5rem;
 }
 
+.help-dialog-header[hidden] {
+  display: none;
+}
+
 .help-dialog-header h2,
 .help-section h3,
 .help-shortcuts h3 {
@@ -2053,6 +2057,10 @@ textarea[disabled] {
   display: grid;
   gap: 0.9rem;
   margin-top: 1rem;
+}
+
+.help-sections[hidden] {
+  display: none;
 }
 
 .help-section {
@@ -2073,6 +2081,10 @@ textarea[disabled] {
   border-radius: 18px;
   border: 1px solid rgba(44, 52, 72, 0.95);
   background: rgba(13, 18, 27, 0.84);
+}
+
+.help-shortcuts[hidden] {
+  display: none;
 }
 
 .help-shortcut-grid {

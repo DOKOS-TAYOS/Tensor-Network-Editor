@@ -1047,6 +1047,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     editor_server: EditorServer,
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
+    body = request_text(f"{editor_server.base_url}/app.css")
     dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
     bootstrap_flow_body = request_text(
         f"{editor_server.base_url}/js/shell/editorBootstrapFlow.js"
@@ -1113,6 +1114,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert 'helpSharedHeader: document.getElementById("help-shared-header")' in dom_body
+    assert ".help-dialog-header[hidden] {" in body
+    assert ".help-sections[hidden] {" in body
+    assert ".help-shortcuts[hidden] {" in body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
