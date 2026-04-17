@@ -2776,6 +2776,150 @@ def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Pa
     return script_path
 
 
+def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "shift_only_shortcut_runtime_regression.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "interactionsShortcuts.js": "interactionsShortcuts.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, shortcutsModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createEvent({
+              key,
+              altKey = false,
+              ctrlKey = false,
+              metaKey = false,
+              shiftKey = false,
+            }) {
+              return {
+                key,
+                altKey,
+                ctrlKey,
+                metaKey,
+                shiftKey,
+                preventDefaultCalls: 0,
+                preventDefault() {
+                  this.preventDefaultCalls += 1;
+                },
+                target: null,
+              };
+            }
+
+            const shortcutCalls = [];
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [],
+              },
+              dom: {
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                generatedCode: {},
+                engineSelect: { options: [], value: "tensornetwork" },
+                connectButton: {},
+                loadInput: { click() {} },
+                undoButton: {},
+                redoButton: {},
+                helpCloseButton: { focus() {} },
+                helpModal: { classList: createClassList() },
+              },
+              document: {
+                activeElement: null,
+              },
+              isTextInput() {
+                return false;
+              },
+              setStatus() {},
+              generateCode() {
+                shortcutCalls.push({ kind: "generate-code" });
+              },
+            };
+            ctx.state.spec = { contraction_plan: { id: "plan_demo" } };
+
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state: ctx.state,
+                dom: ctx.dom,
+                runtime: {},
+                shortcutActions: {
+                  toggleMinimapVisibility() {
+                    shortcutCalls.push({ kind: "toggle-minimap" });
+                  },
+                  trimContractionPlan(stepCount) {
+                    shortcutCalls.push({ kind: "trim-plan", stepCount });
+                  },
+                },
+              })
+            );
+
+            const ctrlShiftMEvent = createEvent({ key: "M", ctrlKey: true, shiftKey: true });
+            ctx.handleKeydown(ctrlShiftMEvent);
+            if (ctrlShiftMEvent.preventDefaultCalls !== 0) {
+              throw new Error("Ctrl+Shift+M should not hijack the exact Shift+M minimap shortcut.");
+            }
+
+            const altShiftGEvent = createEvent({ key: "G", altKey: true, shiftKey: true });
+            ctx.handleKeydown(altShiftGEvent);
+            if (altShiftGEvent.preventDefaultCalls !== 0) {
+              throw new Error("Alt+Shift+G should not hijack the exact Shift+G generate shortcut.");
+            }
+
+            const metaShiftREvent = createEvent({ key: "R", metaKey: true, shiftKey: true });
+            ctx.handleKeydown(metaShiftREvent);
+            if (metaShiftREvent.preventDefaultCalls !== 0) {
+              throw new Error("Cmd+Shift+R should not hijack the exact Shift+R reset shortcut.");
+            }
+
+            if (shortcutCalls.length !== 0) {
+              throw new Error(
+                `Shift-only shortcuts should ignore extra modifiers, received ${JSON.stringify(shortcutCalls)}.`
+              );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "metadata_properties_runtime_regression.mjs"
     state_module_path = (
@@ -4045,6 +4189,24 @@ def test_planner_auto_shortcuts_keep_ctrl_a_for_canvas_tensor_selection(
 
     assert completed_process.returncode == 0, (
         "The planner auto-shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_shift_only_shortcuts_ignore_extra_modifiers(tmp_path: Path) -> None:
+    script_path = _write_shift_only_shortcut_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The shift-only shortcut runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

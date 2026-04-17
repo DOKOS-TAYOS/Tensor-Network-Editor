@@ -55,6 +55,16 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
         "app/static/*.html",
         "app/static/*.css",
         "app/static/js/*.js",
+        "app/static/js/actions/*.js",
+        "app/static/js/interactions/*.js",
+        "app/static/js/planner/*.js",
+        "app/static/js/properties/*.js",
+        "app/static/js/services/*.js",
+        "app/static/js/session/*.js",
+        "app/static/js/shell/*.js",
+        "app/static/js/spec/*.js",
+        "app/static/js/state/*.js",
+        "app/static/js/views/*.js",
         "app/static/vendor/*.js",
     } <= package_data
     assert "app/static/*.js" not in package_data

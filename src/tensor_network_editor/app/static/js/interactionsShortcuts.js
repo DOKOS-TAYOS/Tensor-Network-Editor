@@ -1,5 +1,3 @@
-function noop() {}
-
 function resolveContextAction(ctx, name) {
   return (...args) => {
     if (typeof ctx[name] === "function") {
@@ -72,24 +70,24 @@ export function createInteractionShortcutBindings({
       resolveContextAction(ctx, "toggleLinearPeriodicMode"),
   };
   const {
-    toggleSidebarCollapsed = noop,
-    setActiveSidebarTab = noop,
-    enforceLinearPeriodicEngineSupport = noop,
-    renderPlanner = noop,
-    startAutomaticPreview = noop,
-    acceptAutomaticPlan = noop,
-    toggleMinimapVisibility = noop,
-    syncPendingInteractionClasses = noop,
-    clearAutomaticPreview = noop,
-    clearPastInspection = noop,
-    copySelectedSubgraphToClipboard = noop,
-    pasteClipboardToCanvas = noop,
-    trimContractionPlan = noop,
-    togglePlannerMode = noop,
-    createGroupFromSelection = noop,
-    selectAllTensors = noop,
-    addNoteAtCenter = noop,
-    toggleLinearPeriodicMode = noop,
+    toggleSidebarCollapsed,
+    setActiveSidebarTab,
+    enforceLinearPeriodicEngineSupport,
+    renderPlanner,
+    startAutomaticPreview,
+    acceptAutomaticPlan,
+    toggleMinimapVisibility,
+    syncPendingInteractionClasses,
+    clearAutomaticPreview,
+    clearPastInspection,
+    copySelectedSubgraphToClipboard,
+    pasteClipboardToCanvas,
+    trimContractionPlan,
+    togglePlannerMode,
+    createGroupFromSelection,
+    selectAllTensors,
+    addNoteAtCenter,
+    toggleLinearPeriodicMode,
   } = resolvedShortcutActions;
 
   function openSidebarTab(tabName) {
@@ -268,7 +266,7 @@ export function createInteractionShortcutBindings({
       pasteClipboardToCanvas();
       return;
     }
-    if (event.shiftKey && lowerKey === "r") {
+    if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "r") {
       event.preventDefault();
       if (state.spec.contraction_plan) {
         trimContractionPlan(0);
@@ -292,7 +290,7 @@ export function createInteractionShortcutBindings({
       toggleAutomaticPreview("automaticFuture");
       return;
     }
-    if (event.shiftKey && lowerKey === "m") {
+    if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "m") {
       event.preventDefault();
       toggleMinimapShortcut();
       return;
@@ -303,7 +301,7 @@ export function createInteractionShortcutBindings({
       togglePlannerMode();
       return;
     }
-    if (event.shiftKey && lowerKey === "g") {
+    if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "g") {
       event.preventDefault();
       ctx.generateCode();
       return;

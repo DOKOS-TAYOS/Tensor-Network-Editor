@@ -289,9 +289,15 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert 'if (hasSystemModifier && lowerKey === "n") {' not in body
     assert 'if (!hasAnyModifier && lowerKey === "s") {' in body
     assert "toggleSidebarCollapsed();" in body
-    assert 'if (event.shiftKey && lowerKey === "m") {' in body
+    assert (
+        'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "m") {'
+        in body
+    )
     assert "toggleMinimapVisibility();" in body
-    assert 'if (event.shiftKey && lowerKey === "r") {' in body
+    assert (
+        'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "r") {'
+        in body
+    )
     assert "trimContractionPlan(0);" in body
     assert 'if (!hasAnyModifier && lowerKey === "f") {' in body
     assert "toggleLinearPeriodicMode();" in body
@@ -299,6 +305,10 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert 'if (!hasSystemModifier && event.altKey && lowerKey === "a") {' in body
     assert 'if (hasSystemModifier && lowerKey === "a") {' in body
     assert "selectAllTensors();" in body
+    assert (
+        'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "g") {'
+        in body
+    )
     assert "Alt+A" in html
     assert "Ctrl/Cmd+A" in html
     assert "Ctrl/Cmd+Alt+A" in html

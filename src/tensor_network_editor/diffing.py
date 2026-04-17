@@ -130,8 +130,8 @@ def _diff_named_entities(
     before: Iterable[_DiffableEntity], after: Iterable[_DiffableEntity]
 ) -> DiffEntityChanges:
     """Diff two entity collections that expose ``id`` and ``to_dict``."""
-    before_by_id = {_entity_id(item): item for item in before}
-    after_by_id = {_entity_id(item): item for item in after}
+    before_by_id = {item.id: item for item in before}
+    after_by_id = {item.id: item for item in after}
     shared_ids = sorted(before_by_id.keys() & after_by_id.keys())
     return DiffEntityChanges(
         added=sorted(after_by_id.keys() - before_by_id.keys()),
@@ -139,8 +139,7 @@ def _diff_named_entities(
         changed=[
             entity_id
             for entity_id in shared_ids
-            if _entity_payload(before_by_id[entity_id])
-            != _entity_payload(after_by_id[entity_id])
+            if before_by_id[entity_id].to_dict() != after_by_id[entity_id].to_dict()
         ],
     )
 
@@ -174,8 +173,8 @@ def _semantic_diff_named_entities(
 ) -> list[SemanticDiffEntry]:
     """Build semantic diff entries for a family of named entities."""
     entries: list[SemanticDiffEntry] = []
-    before_by_id = {_entity_id(item): item for item in before}
-    after_by_id = {_entity_id(item): item for item in after}
+    before_by_id = {item.id: item for item in before}
+    after_by_id = {item.id: item for item in after}
     for entity_id in sorted(before_by_id.keys() - after_by_id.keys()):
         entries.append(_build_simple_semantic_entry(entity_type, entity_id, "removed"))
     for entity_id in sorted(after_by_id.keys() - before_by_id.keys()):
@@ -534,16 +533,6 @@ def _unique_field_paths(paths: Iterable[str]) -> list[str]:
         seen_paths.add(path)
         ordered_paths.append(path)
     return ordered_paths
-
-
-def _entity_id(entity: _DiffableEntity) -> str:
-    """Read the ``id`` attribute from one serializable entity."""
-    return entity.id
-
-
-def _entity_payload(entity: _DiffableEntity) -> dict[str, JSONValue]:
-    """Serialize one entity for diff comparison."""
-    return entity.to_dict()
 
 
 _STANDARD_SEMANTIC_ENTITY_CONFIGS: tuple[_SemanticEntityConfig, ...] = (
