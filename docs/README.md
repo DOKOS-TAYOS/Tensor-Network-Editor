@@ -10,6 +10,7 @@ avoid reading one huge document from top to bottom.
 - Installing or setting up extras: read [installation.md](installation.md).
 - Using the visual editor regularly: read [user-guide.md](user-guide.md).
 - Calling the package from Python: read [api.md](api.md).
+- Extending templates or code generators: read [api.md](api.md).
 - Building specs by hand: read [data-models.md](data-models.md).
 - Working from the terminal or CI: read [cli.md](cli.md).
 - Something is not working: read [troubleshooting.md](troubleshooting.md).

@@ -95,6 +95,7 @@ def generate_graph_linear_periodic_code(
     )
 
     def _render_one_cell(cell_name: LinearPeriodicCellName) -> list[str]:
+        """Render helper lines for one chain cell in the selected mode."""
         helper_signature, helper_name = helper_signature_by_cell_name[cell_name]
         if uses_carry_mode:
             return _render_carry_cell_helper(

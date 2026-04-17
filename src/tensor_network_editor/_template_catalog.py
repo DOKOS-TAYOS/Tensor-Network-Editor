@@ -199,6 +199,7 @@ def register_static_template(
     )
 
     def build_static_template(_parameters: TemplateParameters) -> NetworkSpec:
+        """Return a detached copy of the validated static template spec."""
         return deepcopy(normalized_spec)
 
     register_template(

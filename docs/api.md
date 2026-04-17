@@ -11,6 +11,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Save and Load Designs](#save-and-load-designs)
 - [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
 - [Templates](#templates)
+- [Extension Hooks](#extension-hooks)
 - [Errors](#errors)
 - [Small Complete Example](#small-complete-example)
 
@@ -256,6 +257,102 @@ The package root only re-exports `build_template_spec(...)` and
 
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
+
+## Extension Hooks
+
+The package also exposes a few registration hooks when you want to extend the
+editor instead of only consuming it.
+
+Inspect registered generator names:
+
+```python
+from tensor_network_editor import list_generator_names
+
+
+print(list_generator_names())
+```
+
+Register a fixed project template from an existing `NetworkSpec`:
+
+```python
+from tensor_network_editor import NetworkSpec, register_static_template
+
+
+spec = NetworkSpec(name="Reference cell")
+register_static_template(
+    "reference_cell",
+    "Reference Cell",
+    spec,
+    overwrite=True,
+)
+```
+
+Register a parameterized template builder:
+
+```python
+from tensor_network_editor import NetworkSpec
+from tensor_network_editor.templates import (
+    TemplateDefinition,
+    TemplateParameters,
+    register_template,
+)
+
+
+def build_demo_template(parameters: TemplateParameters) -> NetworkSpec:
+    return NetworkSpec(
+        name=f"Demo ({parameters.graph_size})",
+    )
+
+
+register_template(
+    "demo_template",
+    TemplateDefinition(
+        name="demo_template",
+        display_name="Demo Template",
+        graph_size_label="Sites",
+        defaults=TemplateParameters(
+            graph_size=4,
+            bond_dimension=2,
+            physical_dimension=2,
+        ),
+    ),
+    build_demo_template,
+    overwrite=True,
+)
+```
+
+Register a custom backend code generator:
+
+```python
+from tensor_network_editor import (
+    CodegenResult,
+    NetworkSpec,
+    TensorCollectionFormat,
+    register_generator,
+)
+from tensor_network_editor.codegen.base import CodeGenerator
+
+
+class MyGenerator(CodeGenerator):
+    @property
+    def engine(self) -> str:
+        return "my_backend"
+
+    def generate(
+        self,
+        spec: NetworkSpec,
+        *,
+        collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    ) -> CodegenResult:
+        del spec, collection_format
+        return CodegenResult(engine="my_backend", code="# custom backend")
+
+
+register_generator("my_backend", MyGenerator(), overwrite=True)
+```
+
+Registration names must use lowercase letters, digits, and underscores. Use
+`overwrite=True` only when you intentionally want to replace an existing entry.
 
 ## Errors
 

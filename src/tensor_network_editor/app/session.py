@@ -350,6 +350,7 @@ def launch_editor_session(
             previous_sigint_handler = signal.getsignal(signal.SIGINT)
 
             def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+                """Cancel the session before re-raising Ctrl+C as KeyboardInterrupt."""
                 session.cancel()
                 raise KeyboardInterrupt
 
