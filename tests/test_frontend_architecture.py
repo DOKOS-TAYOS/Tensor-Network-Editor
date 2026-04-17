@@ -1894,6 +1894,226 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_note_button_creates_a_single_note_when_features_and_shell_bindings_are_active(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "note_button_single_creation.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const notesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "notes.js")!r}).href;
+        const shellBindingsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorShellBindings.js")!r}).href;
+
+        const [notesModule, shellBindingsModule] = await Promise.all([
+          import(notesUrl),
+          import(shellBindingsUrl),
+        ]);
+
+        function createClassList() {{
+          return {{
+            add() {{}},
+            remove() {{}},
+            toggle() {{}},
+          }};
+        }}
+
+        function createButton(id = "") {{
+          return {{
+            id,
+            disabled: false,
+            classList: createClassList(),
+            listeners: {{}},
+            addEventListener(type, handler) {{
+              if (!this.listeners[type]) {{
+                this.listeners[type] = [];
+              }}
+              this.listeners[type].push(handler);
+            }},
+            click() {{
+              for (const handler of this.listeners.click || []) {{
+                handler({{ target: this, preventDefault() {{}}, stopPropagation() {{}} }});
+              }}
+            }},
+          }};
+        }}
+
+        const buttonRegistry = new Map();
+        const getButton = (id) => {{
+          if (!buttonRegistry.has(id)) {{
+            buttonRegistry.set(id, createButton(id));
+          }}
+          return buttonRegistry.get(id);
+        }};
+
+        let nextId = 1;
+        const state = {{
+          spec: {{ notes: [] }},
+          noteById: {{}},
+          selectionIds: [],
+          selectedEngine: "tensornetwork",
+        }};
+        const addNoteButton = getButton("add-note-button");
+        const ctx = {{
+          state,
+          constants: {{
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 152,
+            NOTE_MIN_WIDTH: 176,
+            NOTE_MIN_HEIGHT: 152,
+            NOTE_COLLAPSED_SIZE: 40,
+          }},
+          dom: {{
+            addNoteButton,
+            notesLayer: {{
+              innerHTML: "",
+              appendChild() {{}},
+            }},
+          }},
+          viewportCenterPosition() {{
+            return {{ x: 400, y: 300 }};
+          }},
+          makeId(prefix) {{
+            return `${{prefix}}_${{nextId++}}`;
+          }},
+          applyDesignChange(mutator, options = {{}}) {{
+            mutator();
+            if (options.invalidate && options.invalidate.lookups) {{
+              this.ensureSpecLookups();
+            }}
+          }},
+          ensureSpecLookups() {{
+            state.noteById = Object.fromEntries(
+              state.spec.notes.map((note) => [note.id, note])
+            );
+          }},
+        }};
+
+        notesModule.registerNotesFeature(ctx);
+
+        const shellBindings = shellBindingsModule.createEditorShellBindings({{
+          state,
+          store: {{
+            setSelectedEngine() {{}},
+            setSelectedCollectionFormat() {{}},
+          }},
+          dom: {{
+            addNoteButton,
+            connectButton: getButton("connect-button"),
+            loadInput: {{ click() {{}}, addEventListener() {{}} }},
+            subnetworkLoadInput: {{ addEventListener() {{}} }},
+            undoButton: getButton("undo-button"),
+            redoButton: getButton("redo-button"),
+            exportButton: getButton("export-button"),
+            exportFormatSelect: {{ addEventListener() {{}} }},
+            toggleLinearPeriodicButton: getButton("toggle-linear-periodic-button"),
+            linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
+            linearPeriodicCellLabel: {{ textContent: "" }},
+            linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
+            templateSelect: {{ addEventListener() {{}} }},
+            templateGraphSizeInput: {{ addEventListener() {{}} }},
+            templateBondDimensionInput: {{ addEventListener() {{}} }},
+            templatePhysicalDimensionInput: {{ addEventListener() {{}} }},
+            insertTemplateButton: getButton("insert-template-button"),
+            insertSubnetworkButton: getButton("insert-subnetwork-button"),
+            renameTemplateButton: getButton("rename-template-button"),
+            deleteTemplateButton: getButton("delete-template-button"),
+            reflowImportedButton: getButton("reflow-imported-button"),
+            createGroupButton: getButton("create-group-button"),
+            helpButton: getButton("help-button"),
+            helpModal: {{ classList: createClassList() }},
+            helpBackdrop: getButton("help-backdrop"),
+            helpCloseButton: getButton("help-close-button"),
+            canvasShell: {{
+              addEventListener() {{}},
+              getBoundingClientRect() {{
+                return {{ left: 0, top: 0, width: 1000, height: 800 }};
+              }},
+            }},
+            minimapCanvas: {{ addEventListener() {{}} }},
+            engineSelect: {{ addEventListener() {{}} }},
+            collectionFormatSelect: {{ addEventListener() {{}} }},
+          }},
+          documentRef: {{
+            getElementById: (id) => getButton(id),
+          }},
+          windowRef: {{
+            addEventListener() {{}},
+          }},
+          actions: {{
+            handleNewDesign() {{}},
+            addTensorAtCenter() {{}},
+            addNoteAtCenter() {{
+              ctx.addNoteAtCenter();
+            }},
+            toggleConnectMode() {{}},
+            deleteSelection() {{}},
+            saveDesign() {{}},
+            generateCode() {{}},
+            completeEditor() {{}},
+            cancelEditor() {{}},
+            copyGeneratedCode() {{}},
+            performUndo() {{}},
+            performRedo() {{}},
+            downloadSelectedExport() {{}},
+            updateToolbarState() {{}},
+            toggleLinearPeriodicMode() {{}},
+            switchLinearPeriodicCell() {{}},
+            handleTemplateSelectionChange() {{}},
+            handleTemplateParameterInput() {{}},
+            insertTemplate() {{}},
+            openSubnetworkPicker() {{}},
+            renameSelectedTemplate() {{}},
+            deleteSelectedTemplate() {{}},
+            reflowLastImportedTensors() {{}},
+            createGroupFromSelection() {{}},
+            toggleHelpModal() {{}},
+            enforceLinearPeriodicEngineSupport() {{}},
+            renderPlanner() {{}},
+            formatEngineLabel(engine) {{
+              return String(engine);
+            }},
+            setStatus() {{}},
+            loadDesignFromFile() {{}},
+            loadSubnetworkFromFile() {{}},
+            handleKeydown() {{}},
+            sendCancelBeacon() {{}},
+            handleWindowResize() {{}},
+            handleGlobalMouseMove() {{}},
+            handleGlobalMouseUp() {{}},
+            handleCanvasContextMenu() {{}},
+            handleCanvasWheel() {{}},
+            handleCanvasMouseDown() {{}},
+            handleMinimapMouseDown() {{}},
+          }},
+          shortcutTooltip: {{
+            applyShortcutHint() {{}},
+            attachShortcutTooltipHandlers() {{}},
+          }},
+        }});
+
+        shellBindings.attachToolbarHandlers();
+        addNoteButton.click();
+
+        if (state.spec.notes.length !== 1) {{
+          throw new Error(
+            `Expected one note after a toolbar click, received ${{state.spec.notes.length}} notes.`
+          );
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The note creation runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_shell_helper_modules_expose_explicit_ui_and_invalidation_adapters(
     tmp_path: Path,
 ) -> None:

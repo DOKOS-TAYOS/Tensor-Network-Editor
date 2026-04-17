@@ -751,11 +751,6 @@ export function registerNotesFeature(ctx) {
     );
   }
 
-
-  if (addNoteButton) {
-    addNoteButton.addEventListener("click", addNoteAtCenter);
-  }
-
   Object.assign(ctx, {
     addNoteAtCenter,
     createNote,
