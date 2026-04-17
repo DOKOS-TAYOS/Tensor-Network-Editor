@@ -60,6 +60,11 @@ def build_blank_network_spec() -> NetworkSpec:
     return NetworkSpec(name="Untitled Network")
 
 
+def _print_editor_url(base_url: str) -> None:
+    """Print the local editor URL for manual browser opening."""
+    print(f"Open the editor at {base_url}", flush=True)
+
+
 class EditorSession:
     """Mutable session state shared between the HTTP server and the caller."""
 
@@ -354,15 +359,20 @@ def launch_editor_session(
         server_started = True
         if _on_server_ready is not None:
             _on_server_ready(server.base_url)
+        should_print_editor_url = not open_browser
         if open_browser:
             LOGGER.info("Opening browser at %s", server.base_url)
             try:
                 opened = webbrowser.open(server.base_url)
             except Exception:  # pragma: no cover - platform dependent browser errors
                 LOGGER.exception("Failed to open the system browser for the editor.")
+                should_print_editor_url = True
             else:
                 if not opened:
                     LOGGER.warning("Browser open request was not acknowledged.")
+                    should_print_editor_url = True
+        if should_print_editor_url:
+            _print_editor_url(server.base_url)
         return wait_for_editor_result(session)
     except KeyboardInterrupt:
         LOGGER.info("Editor session interrupted by keyboard input")

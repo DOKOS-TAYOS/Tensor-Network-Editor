@@ -2,56 +2,11 @@ import { createPlannerCommands } from "./actions/plannerCommands.js";
 import { createPlannerAnalysisService } from "./services/plannerAnalysisService.js";
 import { createPlannerAutomaticSupport } from "./plannerAutomaticSupport.js";
 import {
-  getPlannerStepId as getPlannerStepIdFromSelectors,
   buildPlannerOperandState as buildPlannerOperandStateFromSelectors,
   buildPlannerSeedOperands as buildPlannerSeedOperandsFromSelectors,
   buildPreviewOrderByVisibleTensorId as buildPreviewOrderByVisibleTensorIdFromSelectors,
   getAutomaticAnalysisByMode as getAutomaticAnalysisByModeFromSelectors,
 } from "./state/plannerSelectors.js";
-
-export function getPlannerStepId(step) {
-  return getPlannerStepIdFromSelectors(step);
-}
-
-export function buildPlannerSeedOperands({
-  tensors,
-  specTensors,
-  isLinearPeriodicMode,
-  isLinearPeriodicBoundaryTensor,
-  getLinearPeriodicReservedOperandIdForTensor,
-}) {
-  return buildPlannerSeedOperandsFromSelectors({
-    tensors,
-    specTensors,
-    isLinearPeriodicMode,
-    isLinearPeriodicBoundaryTensor,
-    getLinearPeriodicReservedOperandIdForTensor,
-  });
-}
-
-export function buildPlannerOperandState({
-  tensors,
-  steps,
-  seedOperands,
-  previousOperandId,
-  nextOperandId,
-}) {
-  return buildPlannerOperandStateFromSelectors({
-    tensors,
-    steps,
-    seedOperands,
-    previousOperandId,
-    nextOperandId,
-  });
-}
-
-export function buildPreviewOrderByVisibleTensorId(visibleTensors, steps) {
-  return buildPreviewOrderByVisibleTensorIdFromSelectors(visibleTensors, steps);
-}
-
-export function getAutomaticAnalysisByMode(payload, mode) {
-  return getAutomaticAnalysisByModeFromSelectors(payload, mode);
-}
 
 export function createPlannerSupport({
   ctx,
@@ -486,7 +441,7 @@ export function createPlannerSupport({
     trimContractionPlan,
     togglePlannerMode,
     refreshContractionAnalysis,
-    getAutomaticAnalysisByMode,
+    getAutomaticAnalysisByMode: getAutomaticAnalysisByModeFromSelectors,
     togglePlannerDisclosure,
     clearAutomaticPreview: automaticPlannerSupport.clearAutomaticPreview,
     startAutomaticPreview: automaticPlannerSupport.startAutomaticPreview,

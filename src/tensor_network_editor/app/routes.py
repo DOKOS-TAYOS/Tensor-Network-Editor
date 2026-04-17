@@ -7,7 +7,12 @@ from http import HTTPStatus
 from typing import Literal
 
 from .._contraction_analysis_types import ContractionAnalysisResult
-from ..errors import CodeGenerationError, SerializationError, SpecValidationError
+from ..errors import (
+    CodeGenerationError,
+    PackageIOError,
+    SerializationError,
+    SpecValidationError,
+)
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec
@@ -261,6 +266,8 @@ def _handle_session_codegen_request(
     except SerializationError as exc:
         return bad_request_response(str(exc))
     except CodeGenerationError as exc:
+        return bad_request_response(str(exc))
+    except PackageIOError as exc:
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
         return issues_response(exc.issues)

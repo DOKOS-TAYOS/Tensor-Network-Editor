@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 from queue import Queue
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 
@@ -293,6 +294,95 @@ def test_launch_editor_session_start_failure_restores_sigint_and_does_not_stop(
     assert callable(installed_handlers[0])
     assert installed_handlers[1] is previous_handler
     assert FailingEditorServer.stop_calls == 0
+
+
+def test_launch_editor_session_prints_local_url_when_browser_is_disabled(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    def fake_wait_for_editor_result(_session: object) -> None:
+        return None
+
+    class FakeThread:
+        name = "worker"
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        fake_wait_for_editor_result,
+    )
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    result = session_module.launch_editor_session(open_browser=False)
+
+    assert result is None
+    assert "http://127.0.0.1:43210" in capsys.readouterr().out
+
+
+def test_launch_editor_session_prints_local_url_when_browser_open_fails(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    def fake_wait_for_editor_result(_session: object) -> None:
+        return None
+
+    class FakeThread:
+        name = "worker"
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        fake_wait_for_editor_result,
+    )
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    with patch.object(
+        session_module.webbrowser,
+        "open",
+        side_effect=OSError("no browser"),
+    ):
+        result = session_module.launch_editor_session(open_browser=True)
+
+    assert result is None
+    assert "http://127.0.0.1:43210" in capsys.readouterr().out
 
 
 def test_launch_tensor_network_editor_passes_template_catalog_path(

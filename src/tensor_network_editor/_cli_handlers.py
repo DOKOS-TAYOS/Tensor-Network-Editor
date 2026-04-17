@@ -31,13 +31,26 @@ def handle_edit_command(
     launch_tensor_network_editor: Callable[..., object],
 ) -> int:
     """Launch the browser editor using explicit edit arguments."""
+    loaded_spec_path = Path(args.load).resolve() if args.load else None
     initial_spec = load_spec(args.load) if args.load else None
+    code_path: str | Path | None = args.save_code
+    if loaded_spec_path is not None and args.save_code:
+        candidate_code_path = Path(args.save_code)
+        if not candidate_code_path.is_absolute():
+            code_path = loaded_spec_path.parent / candidate_code_path
+    launch_kwargs: dict[str, object] = {
+        "initial_spec": initial_spec,
+        "default_engine": EngineName(args.engine),
+        "open_browser": not args.no_browser,
+        "print_code": args.print_code,
+        "code_path": code_path,
+    }
+    if loaded_spec_path is not None:
+        launch_kwargs["template_catalog_path"] = (
+            loaded_spec_path.parent / ".tensor-network-editor" / "templates.json"
+        )
     launch_tensor_network_editor(
-        initial_spec=initial_spec,
-        default_engine=EngineName(args.engine),
-        open_browser=not args.no_browser,
-        print_code=args.print_code,
-        code_path=args.save_code,
+        **launch_kwargs,
     )
     return 0
 

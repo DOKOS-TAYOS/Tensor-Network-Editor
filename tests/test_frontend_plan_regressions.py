@@ -14,14 +14,15 @@ from tensor_network_editor.templates import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PLANNER_SUPPORT_PATH = (
+PLANNER_SELECTORS_PATH = (
     REPO_ROOT
     / "src"
     / "tensor_network_editor"
     / "app"
     / "static"
     / "js"
-    / "plannerSupport.js"
+    / "state"
+    / "plannerSelectors.js"
 )
 GRAPH_RENDER_PATH = (
     REPO_ROOT
@@ -2487,9 +2488,9 @@ def test_planner_first_build_limits_membership_scans(tmp_path: Path) -> None:
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const plannerSupportModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SUPPORT_PATH))}).href;
+        const plannerSelectorsModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SELECTORS_PATH))}).href;
         const {{ buildPlannerOperandState, buildPlannerSeedOperands }} = await import(
-          plannerSupportModuleUrl
+          plannerSelectorsModuleUrl
         );
 
         function buildPlannerData(tensorCount) {{
@@ -2593,8 +2594,8 @@ def test_preview_orders_stay_stable_without_visible_tensor_quadratic_scans(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const plannerSupportModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SUPPORT_PATH))}).href;
-        const {{ buildPreviewOrderByVisibleTensorId }} = await import(plannerSupportModuleUrl);
+        const plannerSelectorsModuleUrl = pathToFileURL({json.dumps(str(PLANNER_SELECTORS_PATH))}).href;
+        const {{ buildPreviewOrderByVisibleTensorId }} = await import(plannerSelectorsModuleUrl);
 
         function buildVisibleTensors(tensorCount) {{
           return Array.from({{ length: tensorCount }}, (_, index) => ({{

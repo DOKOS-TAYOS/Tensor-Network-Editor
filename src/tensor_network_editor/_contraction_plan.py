@@ -95,20 +95,6 @@ def build_dimension_by_label(prepared: PreparedNetwork) -> dict[str, int]:
     return prepare_contraction_inputs(prepared).dimension_by_label
 
 
-def build_initial_operand_labels(
-    prepared: PreparedNetwork,
-) -> dict[str, tuple[str, ...]]:
-    """Build the starting label tuple for each tensor operand."""
-    return prepare_contraction_inputs(prepared).initial_operands
-
-
-def build_initial_operand_axis_names(
-    prepared: PreparedNetwork,
-) -> dict[str, tuple[str, ...]]:
-    """Build the starting axis-name tuple for each tensor operand."""
-    return prepare_contraction_inputs(prepared).initial_axis_names
-
-
 def simulate_contraction_plan(
     *,
     initial_operand_ids: tuple[str, ...],

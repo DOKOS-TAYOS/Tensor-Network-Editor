@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from http.client import HTTPConnection
 from collections.abc import Callable
+from http.client import HTTPConnection
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
@@ -488,6 +488,35 @@ def test_complete_route_accepts_collection_format(
     assert result is not None
     assert result.codegen is not None
     assert "tensor_rows = []" in result.codegen.code
+
+
+def test_complete_route_reports_code_output_write_errors_as_bad_request(
+    tmp_path: Path,
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            code_path=tmp_path / "missing_parent" / "generated.py",
+        )
+    )
+    server.start()
+    try:
+        status, payload = request_json_with_status(
+            f"{server.base_url}/api/complete",
+            method="POST",
+            payload={
+                "engine": EngineName.EINSUM_NUMPY.value,
+                "spec": serialized_sample_spec,
+            },
+        )
+    finally:
+        server.stop()
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "Could not write generated Python code" in payload["message"]
 
 
 def test_cancel_route_ends_session_without_result(

@@ -206,8 +206,66 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
         "default_engine": EngineName.EINSUM_NUMPY,
         "open_browser": False,
         "print_code": True,
-        "code_path": "generated.py",
+        "code_path": Path("saved-network.json").resolve().parent / "generated.py",
+        "template_catalog_path": Path("saved-network.json").resolve().parent
+        / ".tensor-network-editor"
+        / "templates.json",
     }
+
+
+def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
+    tmp_path: Path,
+    sample_spec: NetworkSpec,
+) -> None:
+    design_path = tmp_path / "project_a" / "saved-network.json"
+    design_path.parent.mkdir(parents=True)
+    design_path.write_text("{}", encoding="utf-8")
+
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+    ):
+        exit_code = main(["edit", "--load", str(design_path), "--no-browser"])
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with(str(design_path))
+    assert launch_mock.call_args.kwargs["template_catalog_path"] == (
+        design_path.parent / ".tensor-network-editor" / "templates.json"
+    )
+
+
+def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
+    tmp_path: Path,
+    sample_spec: NetworkSpec,
+) -> None:
+    design_path = tmp_path / "project_a" / "saved-network.json"
+    design_path.parent.mkdir(parents=True)
+    design_path.write_text("{}", encoding="utf-8")
+
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+    ):
+        exit_code = main(
+            [
+                "edit",
+                "--load",
+                str(design_path),
+                "--save-code",
+                "generated.py",
+                "--no-browser",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with(str(design_path))
+    assert (
+        launch_mock.call_args.kwargs["code_path"] == design_path.parent / "generated.py"
+    )
 
 
 def test_main_returns_130_on_keyboard_interrupt() -> None:
@@ -234,6 +292,11 @@ def test_edit_subcommand_loads_initial_spec(sample_spec: NetworkSpec) -> None:
     load_mock.assert_called_once_with("saved-network.json")
     assert launch_mock.call_args.kwargs["initial_spec"] is sample_spec
     assert launch_mock.call_args.kwargs["open_browser"] is False
+    assert launch_mock.call_args.kwargs["template_catalog_path"] == (
+        Path("saved-network.json").resolve().parent
+        / ".tensor-network-editor"
+        / "templates.json"
+    )
 
 
 def test_validate_subcommand_returns_json_and_exit_code_1(
