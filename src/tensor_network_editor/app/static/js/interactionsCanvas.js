@@ -48,6 +48,8 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
       return;
     }
     if (
+      event.target.closest(".canvas-context-menu") ||
+      event.target.closest(".canvas-tools") ||
       event.target.closest(".resize-handle") ||
       event.target.closest(".group-overlay") ||
       event.target.closest(".canvas-note")

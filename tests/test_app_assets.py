@@ -545,6 +545,7 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "getMetadataFilterEntityState" in minimap_body
     assert ".canvas-tool-popover" in css_body
     assert "bottom: calc(100% +" in css_body
+    assert "flex-wrap: wrap;" in css_body
     assert "transform: rotate(90deg)" in css_body
     assert ".metadata-editor-disclosure" in css_body
     assert "overflow: visible;" in css_body
@@ -567,10 +568,15 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert "function openCanvasContextMenu(" in context_menu_body
     assert 'id="context-menu-name-input"' in context_menu_body
     assert 'id="context-menu-add-index-button"' in context_menu_body
+    assert 'id="context-menu-tensor-color-input"' in context_menu_body
+    assert 'id="context-menu-delete-tensor-button"' in context_menu_body
     assert 'id="context-menu-dimension-input"' in context_menu_body
+    assert 'id="context-menu-index-color-input"' in context_menu_body
     assert 'id="context-menu-move-up-button"' in context_menu_body
     assert 'id="context-menu-move-down-button"' in context_menu_body
+    assert 'id="context-menu-delete-index-button"' in context_menu_body
     assert 'id="context-menu-toggle-group-button"' in context_menu_body
+    assert "canvas-context-menu-title" not in context_menu_body
     assert 'state.cy.on("cxttap"' in graph_body
     assert 'addEventListener("contextmenu"' in overlays_body
 

@@ -843,10 +843,11 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
 
         function createFakeDocument() {{
           const elements = new Map();
+          const listeners = {{}};
           return {{
             registerHtml(html) {{
               elements.clear();
-              const tagPattern = /<(input|button)[^>]*id="([^"]+)"[^>]*>/g;
+              const tagPattern = /<(input|button|label|div)[^>]*id="([^"]+)"[^>]*>/g;
               let tagMatch = tagPattern.exec(html);
               while (tagMatch) {{
                 elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
@@ -856,7 +857,14 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             getElementById(id) {{
               return elements.get(id) || null;
             }},
-            addEventListener() {{}},
+            addEventListener(eventName, listener) {{
+              listeners[eventName] = listener;
+            }},
+            dispatchEvent(eventName, event = {{}}) {{
+              if (listeners[eventName]) {{
+                listeners[eventName](event);
+              }}
+            }},
             createElement(tagName) {{
               return createFakeElement(null, tagName);
             }},
@@ -866,6 +874,9 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         function createRoot(document) {{
           let html = "";
           return {{
+            getBoundingClientRect() {{
+              return {{ left: 100, top: 200, width: 800, height: 600 }};
+            }},
             get innerHTML() {{
               return html;
             }},
@@ -882,11 +893,12 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         const tensor = {{
           id: "tensor_a",
           name: "Tensor A",
+          size: {{ width: 140, height: 84 }},
           indices: [
-            {{ id: "index_left", name: "left", dimension: 2, metadata: {{}} }},
+            {{ id: "index_left", name: "left", dimension: 2, metadata: {{ color: "#123456" }} }},
             {{ id: "index_right", name: "right", dimension: 3, metadata: {{}} }},
           ],
-          metadata: {{}},
+          metadata: {{ color: "#345678" }},
         }};
         const group = {{
           id: "group_a",
@@ -910,6 +922,12 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             addEventListener() {{}},
           }},
           escapeHtml: (value) => String(value),
+          asFiniteNumber: (value, fallback = 1) => {{
+            const candidate = Number(value);
+            return Number.isFinite(candidate) ? candidate : fallback;
+          }},
+          getMetadataColor: (metadata, fallbackColor) =>
+            metadata && metadata.color ? metadata.color : fallbackColor,
           render: () => contextMenuEvents.push("render"),
           setSelection: (selectionIds, options = {{}}) =>
             contextMenuEvents.push({{ selectionIds, primaryId: options.primaryId || null }}),
@@ -932,6 +950,15 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             moveTensorIndex: (payload) => {{
               contextMenuEvents.push(`moveTensorIndex:${{payload.direction}}`);
             }},
+            updateTargetColor: (payload) => {{
+              contextMenuEvents.push(`updateTargetColor:${{payload.target.id}}:${{payload.nextColor}}`);
+            }},
+            deleteTensor: (payload) => {{
+              contextMenuEvents.push(`deleteTensor:${{payload.tensorId}}`);
+            }},
+            deleteTensorIndex: (payload) => {{
+              contextMenuEvents.push(`deleteTensorIndex:${{payload.indexId}}`);
+            }},
             renameGroup: (payload) => {{
               contextMenuEvents.push(`renameGroup:${{payload.proposedName}}`);
               return true;
@@ -951,17 +978,51 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
 
         canvasContextMenuModule.registerCanvasContextMenu(ctx);
 
-        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 10, clientY: 20 }});
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 220 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-button"')) {{
           throw new Error("Expected the tensor context menu to expose the add-index action.");
         }}
+        if (!contextMenuRoot.innerHTML.includes('style="left: 10px; top: 20px;"')) {{
+          throw new Error(`Expected the context menu to anchor to the cursor inside the canvas overlay, received HTML:\\n${{contextMenuRoot.innerHTML}}`);
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-tensor-color-input"')) {{
+          throw new Error("Expected the tensor context menu to expose the color picker.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-tensor-button"')) {{
+          throw new Error("Expected the tensor context menu to expose deletion.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Indices</span>")) {{
+          throw new Error("Expected the tensor context menu to expose the index count chip.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Total elements</span>")) {{
+          throw new Error("Expected the tensor context menu to expose the total elements chip.");
+        }}
+        if (contextMenuRoot.innerHTML.includes("canvas-context-menu-title")) {{
+          throw new Error("The context menu should no longer render a title bar.");
+        }}
+        if (contextMenuRoot.innerHTML.includes(">Name<")) {{
+          throw new Error("The context menu should no longer render the explicit Name label.");
+        }}
         document.getElementById("context-menu-add-index-button").click();
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 220 }});
+        document.getElementById("context-menu-delete-tensor-button").click();
 
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-dimension-input"')) {{
           throw new Error("Expected the index context menu to expose the dimension editor.");
         }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-index-color-input"')) {{
+          throw new Error("Expected the index context menu to expose the color picker.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-index-button"')) {{
+          throw new Error("Expected the index context menu to expose deletion.");
+        }}
+        if (contextMenuRoot.innerHTML.includes(">Dimension<")) {{
+          throw new Error("The index context menu should no longer render the explicit Dimension label.");
+        }}
         document.getElementById("context-menu-move-up-button").click();
+        ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
+        document.getElementById("context-menu-delete-index-button").click();
 
         ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-toggle-group-button"')) {{
@@ -972,6 +1033,8 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         if (
           !contextMenuEvents.includes("addTensorIndex:tensor_a") ||
           !contextMenuEvents.includes("moveTensorIndex:-1") ||
+          !contextMenuEvents.includes("deleteTensor:tensor_a") ||
+          !contextMenuEvents.includes("deleteTensorIndex:index_left") ||
           !contextMenuEvents.includes("toggleGroupCollapse:group_a")
         ) {{
           throw new Error(`Expected the context menu to reuse injected actions, received ${{JSON.stringify(contextMenuEvents)}}.`);

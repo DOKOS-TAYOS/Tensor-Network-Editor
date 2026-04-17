@@ -1,7 +1,48 @@
-function buildMenuPositionStyle(menuState) {
-  const left = Number.isFinite(menuState && menuState.clientX) ? menuState.clientX : 0;
-  const top = Number.isFinite(menuState && menuState.clientY) ? menuState.clientY : 0;
+function buildMenuPositionStyle(menuState, rootElement) {
+  const rootRect =
+    rootElement && typeof rootElement.getBoundingClientRect === "function"
+      ? rootElement.getBoundingClientRect()
+      : { left: 0, top: 0 };
+  const left = Number.isFinite(menuState && menuState.clientX)
+    ? menuState.clientX - rootRect.left
+    : 0;
+  const top = Number.isFinite(menuState && menuState.clientY)
+    ? menuState.clientY - rootRect.top
+    : 0;
   return `left: ${left}px; top: ${top}px;`;
+}
+
+function asFiniteNumber(ctx, value, fallback = 1) {
+  if (typeof ctx.asFiniteNumber === "function") {
+    return ctx.asFiniteNumber(value, fallback);
+  }
+  const candidate = Number(value);
+  return Number.isFinite(candidate) ? candidate : fallback;
+}
+
+function normalizeElementDimension(ctx, value) {
+  return BigInt(Math.max(1, Math.round(asFiniteNumber(ctx, value, 1))));
+}
+
+function formatTotalElementCount(totalElementCount) {
+  return totalElementCount === null ? "" : totalElementCount.toString();
+}
+
+function getTensorTotalElementCount(ctx, tensor) {
+  const indices = Array.isArray(tensor && tensor.indices) ? tensor.indices : [];
+  return indices.reduce(
+    (product, index) =>
+      product * normalizeElementDimension(ctx, index.dimension),
+    1n
+  );
+}
+
+function renderTrashIcon() {
+  return `
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+    </svg>
+  `;
 }
 
 export function registerCanvasContextMenu(ctx) {
@@ -21,23 +62,68 @@ export function registerCanvasContextMenu(ctx) {
     if (!tensor) {
       return null;
     }
+    const totalElementCount = getTensorTotalElementCount(ctx, tensor);
+    const tensorColor =
+      typeof ctx.getMetadataColor === "function"
+        ? ctx.getMetadataColor(tensor.metadata, "#18212c")
+        : "#18212c";
     return {
       kind: "tensor",
       id: tensor.id,
       target: tensor,
-      title: tensor.name,
       markup: `
-        <div class="canvas-context-menu-section">
-          <label class="field-group" for="context-menu-name-input">
-            <span>Name</span>
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="field-group">
             <input id="context-menu-name-input" value="${ctx.escapeHtml(tensor.name)}" />
-          </label>
-          <button id="context-menu-add-index-button" type="button">Add index</button>
+          </div>
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Indices</span>
+              <strong>${Array.isArray(tensor.indices) ? tensor.indices.length : 0}</strong>
+            </div>
+            <div class="properties-chip">
+              <span>Total elements</span>
+              <strong>${formatTotalElementCount(totalElementCount)}</strong>
+            </div>
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <button
+              id="context-menu-add-index-button"
+              type="button"
+              class="icon-button button-accent-insert"
+              aria-label="Add index"
+              title="Add index"
+            >
+              +
+            </button>
+            <label class="control-inline-color" for="context-menu-tensor-color-input">
+              <input
+                id="context-menu-tensor-color-input"
+                type="color"
+                aria-label="Choose tensor tint"
+                title="Choose tensor tint"
+                value="${ctx.escapeHtml(tensorColor)}"
+              />
+            </label>
+            <button
+              id="context-menu-delete-tensor-button"
+              type="button"
+              class="icon-button danger"
+              aria-label="Delete tensor"
+              title="Delete tensor"
+            >
+              ${renderTrashIcon()}
+            </button>
+          </div>
         </div>
       `,
       bind() {
         const nameInput = document.getElementById("context-menu-name-input");
         const addIndexButton = document.getElementById("context-menu-add-index-button");
+        const colorInput = document.getElementById("context-menu-tensor-color-input");
+        const deleteTensorButton = document.getElementById(
+          "context-menu-delete-tensor-button"
+        );
         if (nameInput) {
           const commitRename = () => {
             ctx.propertyCommands.renameTensor({
@@ -54,7 +140,6 @@ export function registerCanvasContextMenu(ctx) {
             }
             event.preventDefault();
             commitRename();
-            closeCanvasContextMenu();
           });
         }
         if (addIndexButton) {
@@ -64,6 +149,26 @@ export function registerCanvasContextMenu(ctx) {
               selectionIds: [tensor.id],
               primaryId: tensor.id,
               statusMessage: `Added one index to ${tensor.name}.`,
+            });
+            closeCanvasContextMenu();
+          });
+        }
+        if (colorInput) {
+          colorInput.addEventListener("input", () => {
+            ctx.propertyCommands.updateTargetColor({
+              target: tensor,
+              nextColor: colorInput.value,
+              invalidate: ctx.propertyInvalidation({ graph: true, minimap: true }),
+              statusMessage: `Updated tensor ${tensor.name}.`,
+            });
+          });
+        }
+        if (deleteTensorButton) {
+          deleteTensorButton.addEventListener("click", () => {
+            ctx.propertyCommands.deleteTensor({
+              tensorId: tensor.id,
+              selectionIds: [],
+              statusMessage: `Deleted tensor ${tensor.name}.`,
             });
             closeCanvasContextMenu();
           });
@@ -81,39 +186,90 @@ export function registerCanvasContextMenu(ctx) {
     const indexPosition = Array.isArray(tensor.indices)
       ? tensor.indices.findIndex((candidate) => candidate.id === index.id)
       : -1;
+    const indexColor =
+      typeof ctx.getMetadataColor === "function"
+        ? ctx.getMetadataColor(
+            index.metadata,
+            typeof ctx.getIndexColor === "function"
+              ? ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId && ctx.findEdgeByIndexId(index.id)))
+              : "#456cbf"
+          )
+        : "#456cbf";
 
     return {
       kind: "index",
       id: index.id,
       target: index,
-      title: index.name,
       markup: `
-        <div class="canvas-context-menu-section">
-          <label class="field-group" for="context-menu-name-input">
-            <span>Name</span>
-            <input id="context-menu-name-input" value="${ctx.escapeHtml(index.name)}" />
-          </label>
-          <label class="field-group" for="context-menu-dimension-input">
-            <span>Dimension</span>
-            <input
-              id="context-menu-dimension-input"
-              type="number"
-              min="1"
-              step="1"
-              value="${index.dimension}"
-            />
-          </label>
-          <div class="canvas-context-menu-actions">
-            <button id="context-menu-move-up-button" type="button">Move up</button>
-            <button id="context-menu-move-down-button" type="button">Move down</button>
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="field-row canvas-context-menu-index-fields">
+            <div class="field-group">
+              <input id="context-menu-name-input" value="${ctx.escapeHtml(index.name)}" />
+            </div>
+            <div class="field-group compact-number-field">
+              <input
+                id="context-menu-dimension-input"
+                type="number"
+                min="1"
+                step="1"
+                value="${index.dimension}"
+                aria-label="Index dimension"
+              />
+            </div>
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label class="control-inline-color" for="context-menu-index-color-input">
+              <input
+                id="context-menu-index-color-input"
+                type="color"
+                aria-label="Choose index tint"
+                title="Choose index tint"
+                value="${ctx.escapeHtml(indexColor)}"
+              />
+            </label>
+            <button
+              id="context-menu-move-up-button"
+              type="button"
+              class="icon-button index-action-button"
+              aria-label="Move index up"
+              title="Move index up"
+              ${indexPosition === 0 ? "disabled" : ""}
+            >
+              <span aria-hidden="true">&#8593;</span>
+            </button>
+            <button
+              id="context-menu-move-down-button"
+              type="button"
+              class="icon-button index-action-button"
+              aria-label="Move index down"
+              title="Move index down"
+              ${
+                indexPosition === tensor.indices.length - 1 ? "disabled" : ""
+              }
+            >
+              <span aria-hidden="true">&#8595;</span>
+            </button>
+            <button
+              id="context-menu-delete-index-button"
+              type="button"
+              class="icon-button index-action-button danger"
+              aria-label="Delete index"
+              title="Delete index"
+            >
+              ${renderTrashIcon()}
+            </button>
           </div>
         </div>
       `,
       bind() {
         const nameInput = document.getElementById("context-menu-name-input");
         const dimensionInput = document.getElementById("context-menu-dimension-input");
+        const colorInput = document.getElementById("context-menu-index-color-input");
         const moveUpButton = document.getElementById("context-menu-move-up-button");
         const moveDownButton = document.getElementById("context-menu-move-down-button");
+        const deleteIndexButton = document.getElementById(
+          "context-menu-delete-index-button"
+        );
 
         if (nameInput) {
           const commitRename = () => {
@@ -132,7 +288,6 @@ export function registerCanvasContextMenu(ctx) {
             }
             event.preventDefault();
             commitRename();
-            closeCanvasContextMenu();
           });
         }
 
@@ -155,7 +310,17 @@ export function registerCanvasContextMenu(ctx) {
             }
             event.preventDefault();
             commitDimension();
-            closeCanvasContextMenu();
+          });
+        }
+
+        if (colorInput) {
+          colorInput.addEventListener("input", () => {
+            ctx.propertyCommands.updateTargetColor({
+              target: index,
+              nextColor: colorInput.value,
+              invalidate: ctx.propertyInvalidation({ graph: true, minimap: true }),
+              statusMessage: `Updated index ${index.name}.`,
+            });
           });
         }
 
@@ -196,6 +361,19 @@ export function registerCanvasContextMenu(ctx) {
             closeCanvasContextMenu();
           });
         }
+
+        if (deleteIndexButton) {
+          deleteIndexButton.addEventListener("click", () => {
+            ctx.propertyCommands.deleteTensorIndex({
+              tensorId: tensor.id,
+              indexId: index.id,
+              primaryId: tensor.id,
+              selectionIds: [tensor.id],
+              statusMessage: `Deleted index ${index.name}.`,
+            });
+            closeCanvasContextMenu();
+          });
+        }
       },
     };
   }
@@ -210,13 +388,11 @@ export function registerCanvasContextMenu(ctx) {
       kind: "group",
       id: group.id,
       target: group,
-      title: group.name,
       markup: `
-        <div class="canvas-context-menu-section">
-          <label class="field-group" for="context-menu-name-input">
-            <span>Name</span>
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="field-group">
             <input id="context-menu-name-input" value="${ctx.escapeHtml(group.name)}" />
-          </label>
+          </div>
           <button id="context-menu-toggle-group-button" type="button">
             ${isCollapsed ? "Expand" : "Collapse"}
           </button>
@@ -244,7 +420,6 @@ export function registerCanvasContextMenu(ctx) {
             }
             event.preventDefault();
             commitRename();
-            closeCanvasContextMenu();
           });
         }
 
@@ -289,10 +464,10 @@ export function registerCanvasContextMenu(ctx) {
 
     canvasContextMenuRoot.innerHTML = `
       <div class="canvas-context-menu-scrim"></div>
-      <div class="canvas-context-menu" style="${buildMenuPositionStyle(menuState)}">
-        <div class="canvas-context-menu-title">${ctx.escapeHtml(
-          resolvedTarget.title
-        )}</div>
+      <div class="canvas-context-menu" style="${buildMenuPositionStyle(
+        menuState,
+        canvasContextMenuRoot
+      )}">
         ${resolvedTarget.markup}
       </div>
     `;

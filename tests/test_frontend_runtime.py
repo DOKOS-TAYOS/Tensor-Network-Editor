@@ -2257,6 +2257,7 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
             classList: createClassList(),
             style: {},
             listeners: {},
+            ownerDocument: null,
             addEventListener(eventName, listener) {
               if (!this.listeners[eventName]) {
                 this.listeners[eventName] = [];
@@ -2827,6 +2828,11 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
             click() {
               this.dispatchEvent("click");
             },
+            focus() {
+              if (this.ownerDocument) {
+                this.ownerDocument.activeElement = this;
+              }
+            },
             setAttribute() {},
             removeAttribute() {},
             appendChild() {},
@@ -2836,12 +2842,15 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         function createFakeDocument() {
           const elements = new Map();
           return {
+            activeElement: null,
             registerHtml(html) {
               elements.clear();
               const tagPattern = /<(input|select|button)[^>]*id="([^"]+)"[^>]*>/g;
               let tagMatch = tagPattern.exec(html);
               while (tagMatch) {
-                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                const element = createFakeElement(tagMatch[2], tagMatch[1]);
+                element.ownerDocument = this;
+                elements.set(tagMatch[2], element);
                 tagMatch = tagPattern.exec(html);
               }
             },
@@ -2849,7 +2858,9 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
               return elements.get(id) || null;
             },
             createElement(tagName) {
-              return createFakeElement(null, tagName);
+              const element = createFakeElement(null, tagName);
+              element.ownerDocument = this;
+              return element;
             },
           };
         }
@@ -3167,7 +3178,11 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         }
         searchInput.value = "bond_ab";
         searchInput.dispatchEvent("input");
+        document.activeElement = null;
         searchInput.dispatchEvent("blur");
+        if (document.activeElement) {
+          throw new Error("Leaving the name search input should not immediately steal focus back.");
+        }
         const searchHighlight = ctx.getMetadataFilterHighlight();
         if (ctx.getMetadataFilterEntityState("edge", "edge_ab", searchHighlight) !== "match") {
           throw new Error("Expected the bond search to match the edge by exact name.");
@@ -4008,6 +4023,24 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             }
             if (rightMouseEvent.preventDefaultCalls !== 0 || rightMouseEvent.stopPropagationCalls !== 0) {
               throw new Error("Right mouse down on the canvas should not swallow the Cytoscape context-menu path.");
+            }
+
+            let closeCanvasContextMenuCalls = 0;
+            ctx.closeCanvasContextMenu = () => {
+              closeCanvasContextMenuCalls += 1;
+            };
+            runtime.handleCanvasMouseDown({
+              button: 0,
+              clientX: 44,
+              clientY: 55,
+              target: {
+                closest(selector) {
+                  return selector === ".canvas-context-menu" ? {} : null;
+                },
+              },
+            });
+            if (closeCanvasContextMenuCalls !== 0) {
+              throw new Error("Mouse interactions inside the canvas context menu should not close it.");
             }
 
             Object.assign(runtime, createInteractionShortcutBindings(env));

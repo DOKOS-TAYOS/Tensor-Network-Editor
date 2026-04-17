@@ -459,8 +459,9 @@ select {
 .canvas-tool-popover-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .canvas-tool-popover-header select {
@@ -471,6 +472,8 @@ select {
   display: inline-flex;
   gap: 0.35rem;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .canvas-tool-checkbox-list {
@@ -504,7 +507,7 @@ select {
 .canvas-context-menu {
   position: absolute;
   min-width: 220px;
-  max-width: min(280px, calc(100vw - 2rem));
+  max-width: min(320px, calc(100vw - 2rem));
   padding: 0.8rem;
   border-radius: 8px;
   border: 1px solid rgba(76, 92, 120, 0.92);
@@ -515,11 +518,8 @@ select {
   pointer-events: auto;
 }
 
-.canvas-context-menu-title {
-  font-size: 0.8rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.canvas-context-menu input {
+  width: 100%;
 }
 
 .canvas-context-menu-section {
@@ -527,9 +527,22 @@ select {
   gap: 0.7rem;
 }
 
+.canvas-context-menu-input-stack {
+  gap: 0.75rem;
+}
+
+.canvas-context-menu-index-fields {
+  grid-template-columns: minmax(0, 1fr) 96px;
+}
+
+.canvas-context-menu-stats .properties-chip {
+  min-width: 120px;
+}
+
 .canvas-context-menu-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .canvas-context-menu .field-group span {

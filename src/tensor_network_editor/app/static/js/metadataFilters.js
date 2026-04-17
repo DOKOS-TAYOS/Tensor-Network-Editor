@@ -37,6 +37,7 @@ export function registerMetadataFilters(ctx) {
   const state = ctx.state;
   const { document } = ctx;
   const { canvasTools } = ctx.dom;
+  let shouldFocusSearchInput = false;
 
   function normalizeMetadataFilters(filters = state.metadataFilters) {
     const scope =
@@ -549,6 +550,7 @@ export function registerMetadataFilters(ctx) {
       filterButton.addEventListener("click", () => {
         const nextPopover =
           state.openCanvasToolPopover === "filter" ? null : "filter";
+        shouldFocusSearchInput = false;
         state.openCanvasToolPopover = nextPopover;
         state.nameSearch = {
           ...normalizeNameSearch(),
@@ -563,6 +565,7 @@ export function registerMetadataFilters(ctx) {
       searchButton.addEventListener("click", () => {
         const nextPopover =
           state.openCanvasToolPopover === "search" ? null : "search";
+        shouldFocusSearchInput = nextPopover === "search";
         state.openCanvasToolPopover = nextPopover;
         state.metadataFilters = {
           ...normalizeMetadataFilters(),
@@ -664,16 +667,15 @@ export function registerMetadataFilters(ctx) {
           { renderPanel: false }
         );
       });
-      searchInput.addEventListener("blur", () => {
-        updateNameSearch({
-          query: searchInput.value,
-          enabled: Boolean(normalizeText(searchInput.value)),
-        });
-      });
-      if (state.openCanvasToolPopover === "search" && typeof searchInput.focus === "function") {
+      if (
+        shouldFocusSearchInput &&
+        state.openCanvasToolPopover === "search" &&
+        typeof searchInput.focus === "function"
+      ) {
         searchInput.focus();
       }
     }
+    shouldFocusSearchInput = false;
   }
 
   function updateMetadataFilters(updates, options = {}) {
