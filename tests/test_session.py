@@ -157,10 +157,27 @@ def test_wait_for_editor_result_delegates_to_session_once() -> None:
 
     session = FakeSession()
 
-    result = wait_for_editor_result(session, poll_interval=0.05)
+    result = wait_for_editor_result(session)
 
     assert result is None
     assert session.calls == [None]
+
+
+def test_wait_for_editor_result_warns_when_poll_interval_is_passed() -> None:
+    class FakeSession:
+        def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
+            assert timeout is None
+            return None
+
+    session = FakeSession()
+
+    with pytest.warns(
+        DeprecationWarning,
+        match="poll_interval=.*deprecated and has no effect",
+    ):
+        result = wait_for_editor_result(session, poll_interval=0.05)
+
+    assert result is None
 
 
 def test_launch_tensor_network_editor_waits_for_complete(

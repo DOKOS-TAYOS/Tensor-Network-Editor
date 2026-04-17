@@ -31,6 +31,10 @@ def test_python_roundtrip_internal_ast_helpers_parse_supported_references() -> N
     assert _parse_tensor_reference_string("tensors_dict['tensor_a']") == (
         "dict:tensor_a"
     )
+    assert _parse_tensor_reference_string('tensors_dict["tensor_a"]') == (
+        "dict:tensor_a"
+    )
+    assert _parse_tensor_reference_string("tensors_dict['']") == "dict:"
 
 
 def test_python_roundtrip_internal_build_helpers_resolve_inline_zeros() -> None:

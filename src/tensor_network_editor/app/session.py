@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+import warnings
 import webbrowser
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -42,6 +43,8 @@ from ._services import (
 
 LOGGER = logging.getLogger(__name__)
 SignalHandler = Callable[[int, FrameType | None], Any]
+_DEPRECATED_POLL_INTERVAL_SENTINEL = object()
+_POLL_INTERVAL_REMOVAL_DATE = "2026-10-01"
 
 
 class SupportsWaitForResult(Protocol):
@@ -260,20 +263,28 @@ class EditorSession:
 def wait_for_editor_result(
     session: SupportsWaitForResult,
     *,
-    poll_interval: float = 0.2,
+    poll_interval: float | object = _DEPRECATED_POLL_INTERVAL_SENTINEL,
 ) -> EditorResult | None:
     """Wait for an editor session result using the session's blocking API.
 
     Args:
         session: Session-like object that can block until a result is available.
-        poll_interval: Present for API compatibility with older polling-based
-            callers.
+        poll_interval: Deprecated compatibility argument kept for older
+            polling-based callers. It has no effect and is scheduled for
+            removal on 2026-10-01.
 
     Returns:
-        The final editor result, or ``None`` if the underlying session reports a
-        timeout.
+        The final editor result, or ``None`` when the caller specifies a
+        timeout through the underlying session API.
     """
-    del poll_interval
+    if poll_interval is not _DEPRECATED_POLL_INTERVAL_SENTINEL:
+        warnings.warn(
+            "wait_for_editor_result(..., poll_interval=...) is deprecated and has "
+            "no effect. Remove this argument; it will be removed on "
+            f"{_POLL_INTERVAL_REMOVAL_DATE}.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     return session.wait_for_result(timeout=None)
 
 

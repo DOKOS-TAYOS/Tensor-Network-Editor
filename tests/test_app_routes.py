@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from http.client import HTTPConnection
 from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -170,6 +172,35 @@ def test_validate_route_rejects_invalid_json_with_400(
     assert payload == {"ok": False, "message": "Request body contains invalid JSON."}
 
 
+def test_validate_route_rejects_non_integer_content_length_with_400(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = _post_validate_with_raw_content_length(
+        editor_server,
+        content_length="abc",
+        body=b"{}",
+    )
+
+    assert status == 400
+    assert payload == {"ok": False, "message": "Invalid Content-Length header."}
+
+
+def test_validate_route_rejects_negative_content_length_with_400(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = _post_validate_with_raw_content_length(
+        editor_server,
+        content_length="-1",
+        body=b"{}",
+    )
+
+    assert status == 400
+    assert payload == {
+        "ok": False,
+        "message": "Invalid Content-Length header: must be >= 0.",
+    }
+
+
 def test_validate_route_rejects_non_object_json_payload_with_400(
     editor_server: EditorServer,
 ) -> None:
@@ -200,6 +231,29 @@ def test_validate_route_rejects_legacy_schema_versions(
     assert status == 400
     assert payload["ok"] is False
     assert "Unsupported schema version" in payload["message"]
+
+
+def _post_validate_with_raw_content_length(
+    editor_server: EditorServer, content_length: str, body: bytes
+) -> tuple[int, dict[str, object]]:
+    parsed = urlparse(editor_server.base_url)
+    host = parsed.hostname
+    port = parsed.port
+    if host is None or port is None:
+        raise AssertionError(f"Unexpected editor base URL: {editor_server.base_url}")
+    connection = HTTPConnection(host, port, timeout=5)
+    try:
+        connection.putrequest("POST", "/api/validate")
+        connection.putheader("Content-Type", "application/json")
+        connection.putheader("Content-Length", content_length)
+        connection.endheaders()
+        if body:
+            connection.send(body)
+        response = connection.getresponse()
+        response_payload = json.loads(response.read().decode("utf-8"))
+        return response.status, cast(dict[str, object], response_payload)
+    finally:
+        connection.close()
 
 
 def test_generate_route_uses_default_engine_when_missing(

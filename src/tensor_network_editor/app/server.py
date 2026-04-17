@@ -25,6 +25,7 @@ from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
 _SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
+_MAX_REQUEST_BODY_BYTES: int = 1_048_576
 
 
 @dataclass(slots=True, frozen=True)
@@ -116,7 +117,16 @@ class EditorServer:
             def do_POST(self) -> None:
                 """Handle one HTTP POST request for the editor JSON API."""
                 parsed = urlparse(self.path)
-                body = self._read_request_body()
+                try:
+                    body = self._read_request_body()
+                except ValueError as exc:
+                    LOGGER.warning(
+                        "Rejected malformed request body for %s: %s",
+                        parsed.path,
+                        exc,
+                    )
+                    self._write_response(bad_request_response(str(exc)))
+                    return
                 try:
                     payload = read_json(body)
                 except ValueError as exc:
@@ -228,7 +238,16 @@ class EditorServer:
                 return guessed_type
 
             def _read_request_body(self) -> bytes:
-                return self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                content_length_text = self.headers.get("Content-Length", "0")
+                try:
+                    content_length = int(content_length_text)
+                except ValueError as exc:
+                    raise ValueError("Invalid Content-Length header.") from exc
+                if content_length < 0:
+                    raise ValueError("Invalid Content-Length header: must be >= 0.")
+                if content_length > _MAX_REQUEST_BODY_BYTES:
+                    raise ValueError("Request body exceeds maximum allowed size.")
+                return self.rfile.read(content_length)
 
             def _write_response(self, response: JsonResponse | _BinaryResponse) -> None:
                 if isinstance(response, _BinaryResponse):

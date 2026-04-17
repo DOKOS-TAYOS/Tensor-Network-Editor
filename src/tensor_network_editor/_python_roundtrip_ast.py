@@ -141,7 +141,7 @@ def _parse_tensor_reference_string(expression: str | None) -> str | None:
     if matrix_match is not None:
         return f"matrix:{matrix_match.group(1)}:{matrix_match.group(2)}"
 
-    dict_match = re.fullmatch(r"""tensors_dict\[(["'])(.+)\1\]""", expression)
+    dict_match = re.fullmatch(r"""tensors_dict\[(["'])(.*)\1\]""", expression)
     if dict_match is not None:
         return f"dict:{dict_match.group(2)}"
 
