@@ -171,6 +171,12 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert 'id="linear-periodic-cell-label"' in html
     assert 'id="linear-periodic-next-cell-button"' in html
     assert ">For unidimensional<" in html
+    assert html.index('class="title-button-row"') < html.index(
+        'class="toolbar-mode-controls"'
+    )
+    assert html.index('class="toolbar-mode-controls"') < html.index(
+        'id="template-select-field"'
+    )
 
 
 def test_main_module_is_served_from_static_directory(
@@ -370,8 +376,10 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "--toolbar-height:" in body
     assert ".toolbar-title-link {" in body
     assert ".title-control-divider {" in body
+    assert ".title-control-group-mode {" in body
     assert ".title-control-group-template {" in body
     assert "margin-left: auto;" in body
+    assert "margin-right: auto;" in body
     assert ".title-button-row {" in body
     assert "align-items: flex-end;" in body
     assert ".title-button-row button {" in body
@@ -1105,6 +1113,8 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'aria-haspopup="dialog"' in html
     assert 'id="reflow-layout-popover"' in html
     assert 'id="reflow-align-left-button"' in html
+    assert 'id="reflow-indices-left-button"' in html
+    assert 'id="reflow-indices-reset-button"' in html
     assert 'id="reflow-arrange-chain-button"' in html
     assert 'id="reflow-distribute-horizontal-button"' in html
     assert 'id="reflow-snap-grid-button"' in html
@@ -1120,6 +1130,20 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="insert-subnetwork-button"' not in html
     assert 'id="help-shared-header"' in html
     assert 'class="help-close-icon"' in html
+    assert re.search(
+        r'<div class="button-row reflow-align-row">[\s\S]*id="reflow-align-left-button"[\s\S]*id="reflow-align-right-button"[\s\S]*id="reflow-align-top-button"[\s\S]*id="reflow-align-middle-button"[\s\S]*id="reflow-align-bottom-button"',
+        html,
+    )
+    assert re.search(
+        r'Indices[\s\S]*<div class="button-row reflow-align-row reflow-indices-row">[\s\S]*id="reflow-indices-left-button"[\s\S]*id="reflow-indices-right-button"[\s\S]*id="reflow-indices-top-button"[\s\S]*id="reflow-indices-reset-button"[\s\S]*id="reflow-indices-bottom-button"',
+        html,
+    )
+    assert 'aria-label="Align left"' in html
+    assert 'aria-label="Align middle"' in html
+    assert 'aria-label="Move indices left"' in html
+    assert re.search(r">\s*Reset\s*<", html)
+    assert "&larr;" in html
+    assert "&#8857;" in html
     assert not re.search(
         r'<button id="help-close-button"[^>]*>\s*Close\s*</button>',
         html,
@@ -1157,6 +1181,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert (
         'reflowAlignLeftButton: document.getElementById("reflow-align-left-button")'
+        in dom_body
+    )
+    assert (
+        'reflowIndicesLeftButton: document.getElementById("reflow-indices-left-button")'
         in dom_body
     )
     assert (
@@ -1201,8 +1229,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert "toggleReflowLayoutPopover" in shell_bindings_body
     assert "reflowAlignLeftButton" in shell_bindings_body
+    assert "reflowIndicesLeftButton" in shell_bindings_body
     assert "reflowArrangeGridButton" in shell_bindings_body
     assert "reflowDistributeVerticalButton" in shell_bindings_body
+    assert "applyReflowIndicesAction" in shell_bindings_body
     assert (
         'bindListener(loadSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1224,6 +1254,8 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "toggleTemplateManager" in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_body
     assert "function toggleReflowLayoutPopover()" in utilities_ui_body
+    assert "sessionUi.promptText(" in session_template_body
+    assert "Choose a name for this template." in session_template_body
 
 
 def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
@@ -1246,6 +1278,7 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     assert "function distributeSelectedTensors(" in layout_body
     assert "function snapSelectedTensorsToGrid(" in layout_body
     assert "function applyReflowLayoutAction(" in layout_body
+    assert "function applyReflowIndicesAction(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
     assert "GRID_SNAP_SIZE" in utilities_body
     assert 'id="align-selection-left-button"' in overview_body + overview_markup_body
@@ -1257,6 +1290,9 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
         in overview_body + overview_markup_body
     )
     assert 'id="snap-selection-button"' in overview_body + overview_markup_body
+    assert 'class="button-row layout-align-row"' in overview_markup_body
+    assert 'aria-label="Align left"' in overview_markup_body
+    assert "&larr;" in overview_markup_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(

@@ -41,6 +41,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     reflowAlignTopButton,
     reflowAlignMiddleButton,
     reflowAlignBottomButton,
+    reflowIndicesLeftButton,
+    reflowIndicesRightButton,
+    reflowIndicesTopButton,
+    reflowIndicesResetButton,
+    reflowIndicesBottomButton,
     reflowArrangeChainButton,
     reflowArrangeTreeButton,
     reflowArrangeGridButton,
@@ -122,6 +127,18 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       return;
     }
     button.setAttribute("aria-expanded", String(isExpanded));
+  }
+
+  function setButtonGroupDisabled(buttons, isDisabled, title) {
+    buttons.forEach((button) => {
+      if (!button) {
+        return;
+      }
+      button.disabled = isDisabled;
+      if (typeof title === "string") {
+        button.title = title;
+      }
+    });
   }
 
   function setMenuItemChecked(menuItem, checked) {
@@ -279,7 +296,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
           leftVariable: "--reflow-layout-popover-left",
           topVariable: "--reflow-layout-popover-top",
           fallbackWidth: 360,
-          fallbackHeight: 280,
+          fallbackHeight: 340,
         });
       }
     }
@@ -524,6 +541,14 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       typeof ctx.getSelectedIdsByKind === "function"
         ? ctx.getSelectedIdsByKind("tensor")
         : [];
+    const selectedTensors = selectedTensorIds
+      .map((tensorId) =>
+        typeof ctx.findTensorById === "function" ? ctx.findTensorById(tensorId) : null
+      )
+      .filter(Boolean);
+    const hasSelectedIndices = selectedTensors.some(
+      (tensor) => Array.isArray(tensor.indices) && tensor.indices.length > 0
+    );
     runtime.enforceLinearPeriodicEngineSupport();
     syncCodeGenerationWarning();
     syncTemplateCatalogWarning();
@@ -562,12 +587,50 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       insertTemplateButton.disabled = !templateSelect.value;
     }
     if (reflowImportedButton) {
-      reflowImportedButton.disabled = selectedTensorIds.length < 2;
+      reflowImportedButton.disabled = selectedTensorIds.length === 0;
       reflowImportedButton.title =
-        selectedTensorIds.length < 2
-          ? "Select at least two tensors first."
-          : "Choose a layout for the selected tensors.";
+        selectedTensorIds.length === 0
+          ? "Select at least one tensor first."
+          : selectedTensorIds.length === 1
+            ? "Reflow indices for the selected tensor."
+            : "Choose a layout for the selected tensors or reflow their indices.";
     }
+    setButtonGroupDisabled(
+      [
+        reflowAlignLeftButton,
+        reflowAlignRightButton,
+        reflowAlignTopButton,
+        reflowAlignMiddleButton,
+        reflowAlignBottomButton,
+        reflowArrangeChainButton,
+        reflowArrangeTreeButton,
+        reflowArrangeGridButton,
+        reflowDistributeHorizontalButton,
+        reflowDistributeVerticalButton,
+        reflowSnapGridButton,
+      ],
+      selectedTensorIds.length < 2,
+      selectedTensorIds.length < 2
+        ? "Select at least two tensors first."
+        : "Reflow the selected tensors."
+    );
+    setButtonGroupDisabled(
+      [
+        reflowIndicesLeftButton,
+        reflowIndicesRightButton,
+        reflowIndicesTopButton,
+        reflowIndicesResetButton,
+        reflowIndicesBottomButton,
+      ],
+      selectedTensorIds.length === 0 || !hasSelectedIndices,
+      selectedTensorIds.length === 0
+        ? "Select at least one tensor first."
+        : !hasSelectedIndices
+          ? "The selected tensors have no indices to reflow."
+          : selectedTensorIds.length === 1
+            ? "Reflow indices for the selected tensor."
+            : "Reflow indices for the selected tensors."
+    );
     if (templateSettingsButton) {
       templateSettingsButton.disabled = !templateSelect.value || linearPeriodicMode;
       templateSettingsButton.title = !templateSelect.value
@@ -579,7 +642,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if ((!templateSelect.value || linearPeriodicMode) && state.isTemplateSettingsOpen) {
       state.isTemplateSettingsOpen = false;
     }
-    if (selectedTensorIds.length < 2 && state.isReflowLayoutOpen) {
+    if (selectedTensorIds.length === 0 && state.isReflowLayoutOpen) {
       state.isReflowLayoutOpen = false;
     }
     createGroupButton.disabled = selectedTensorIds.length < 2;

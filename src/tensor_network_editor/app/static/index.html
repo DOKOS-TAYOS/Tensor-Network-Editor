@@ -165,27 +165,6 @@
               <option value="png">PNG</option>
               <option value="svg">SVG</option>
             </select>
-            <div class="toolbar-mode-controls" hidden>
-              <button
-                id="linear-periodic-previous-cell-button"
-                type="button"
-                aria-label="Previous cell"
-                title="Previous cell"
-              >
-                &lt;
-              </button>
-              <span id="linear-periodic-cell-label" class="toolbar-mode-label" aria-live="polite">
-                Single
-              </span>
-              <button
-                id="linear-periodic-next-cell-button"
-                type="button"
-                aria-label="Next cell"
-                title="Next cell"
-              >
-                &gt;
-              </button>
-            </div>
             <input
               id="load-input"
               type="file"
@@ -276,6 +255,33 @@
                   </button>
                 </div>
                 <div class="title-control-divider" aria-hidden="true"></div>
+                <div class="title-control-group title-control-group-mode">
+                  <div class="toolbar-mode-controls" hidden>
+                    <button
+                      id="linear-periodic-previous-cell-button"
+                      type="button"
+                      aria-label="Previous cell"
+                      title="Previous cell"
+                    >
+                      &lt;
+                    </button>
+                    <span
+                      id="linear-periodic-cell-label"
+                      class="toolbar-mode-label"
+                      aria-live="polite"
+                    >
+                      Single
+                    </span>
+                    <button
+                      id="linear-periodic-next-cell-button"
+                      type="button"
+                      aria-label="Next cell"
+                      title="Next cell"
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                </div>
                 <div class="title-control-group title-control-group-template">
                   <label
                     id="template-select-field"
@@ -347,14 +353,47 @@
                     <div id="reflow-layout-popover" class="reflow-layout-popover" hidden>
                       <div class="reflow-layout-panel">
                         <div class="properties-section-heading">Layout</div>
-                        <div class="button-row">
-                          <button id="reflow-align-left-button" type="button">Left</button>
-                          <button id="reflow-align-right-button" type="button">Right</button>
-                        </div>
-                        <div class="button-row">
-                          <button id="reflow-align-top-button" type="button">Top</button>
-                          <button id="reflow-align-middle-button" type="button">Middle</button>
-                          <button id="reflow-align-bottom-button" type="button">Bottom</button>
+                        <div class="button-row reflow-align-row">
+                          <button
+                            id="reflow-align-left-button"
+                            type="button"
+                            aria-label="Align left"
+                            title="Align left"
+                          >
+                            &larr;
+                          </button>
+                          <button
+                            id="reflow-align-right-button"
+                            type="button"
+                            aria-label="Align right"
+                            title="Align right"
+                          >
+                            &rarr;
+                          </button>
+                          <button
+                            id="reflow-align-top-button"
+                            type="button"
+                            aria-label="Align top"
+                            title="Align top"
+                          >
+                            &uarr;
+                          </button>
+                          <button
+                            id="reflow-align-middle-button"
+                            type="button"
+                            aria-label="Align middle"
+                            title="Align middle"
+                          >
+                            &#8857;
+                          </button>
+                          <button
+                            id="reflow-align-bottom-button"
+                            type="button"
+                            aria-label="Align bottom"
+                            title="Align bottom"
+                          >
+                            &darr;
+                          </button>
                         </div>
                         <div class="button-row">
                           <button id="reflow-arrange-chain-button" type="button">Arrange Chain</button>
@@ -369,6 +408,50 @@
                             Distribute Vertically
                           </button>
                           <button id="reflow-snap-grid-button" type="button">Snap to Grid</button>
+                        </div>
+                        <div class="reflow-section-divider" aria-hidden="true"></div>
+                        <div class="reflow-section-caption">Indices</div>
+                        <div class="button-row reflow-align-row reflow-indices-row">
+                          <button
+                            id="reflow-indices-left-button"
+                            type="button"
+                            aria-label="Move indices left"
+                            title="Move indices left"
+                          >
+                            &larr;
+                          </button>
+                          <button
+                            id="reflow-indices-right-button"
+                            type="button"
+                            aria-label="Move indices right"
+                            title="Move indices right"
+                          >
+                            &rarr;
+                          </button>
+                          <button
+                            id="reflow-indices-top-button"
+                            type="button"
+                            aria-label="Move indices up"
+                            title="Move indices up"
+                          >
+                            &uarr;
+                          </button>
+                          <button
+                            id="reflow-indices-reset-button"
+                            type="button"
+                            aria-label="Reset index positions"
+                            title="Reset index positions"
+                          >
+                            Reset
+                          </button>
+                          <button
+                            id="reflow-indices-bottom-button"
+                            type="button"
+                            aria-label="Move indices down"
+                            title="Move indices down"
+                          >
+                            &darr;
+                          </button>
                         </div>
                       </div>
                     </div>

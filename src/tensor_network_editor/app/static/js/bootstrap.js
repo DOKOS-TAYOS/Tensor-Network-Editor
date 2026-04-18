@@ -57,6 +57,8 @@ function createShellActions(ctx) {
     renameSelectedTemplate: () => ctx.renameSelectedTemplate(),
     deleteSelectedTemplate: () => ctx.deleteSelectedTemplate(),
     applyReflowLayoutAction: (layoutAction) => ctx.applyReflowLayoutAction(layoutAction),
+    applyReflowIndicesAction: (layoutAction) =>
+      ctx.applyReflowIndicesAction(layoutAction),
     reflowLastImportedTensors: () => ctx.reflowLastImportedTensors(),
     createGroupFromSelection: () => ctx.createGroupFromSelection(),
     toggleHelpModal: (isOpen, section) => ctx.toggleHelpModal(isOpen, section),

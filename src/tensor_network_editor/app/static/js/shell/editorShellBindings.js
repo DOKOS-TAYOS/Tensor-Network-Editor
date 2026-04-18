@@ -56,6 +56,11 @@ export function createEditorShellBindings({
     reflowAlignTopButton,
     reflowAlignMiddleButton,
     reflowAlignBottomButton,
+    reflowIndicesLeftButton,
+    reflowIndicesRightButton,
+    reflowIndicesTopButton,
+    reflowIndicesResetButton,
+    reflowIndicesBottomButton,
     reflowArrangeChainButton,
     reflowArrangeTreeButton,
     reflowArrangeGridButton,
@@ -187,6 +192,12 @@ export function createEditorShellBindings({
         actions.closeTransientToolbarUi();
       });
     };
+    const bindReflowIndicesAction = (button, layoutAction) => {
+      bindListener(button, "click", () => {
+        actions.applyReflowIndicesAction(layoutAction);
+        actions.closeTransientToolbarUi();
+      });
+    };
 
     shortcutTooltip.applyShortcutHint("add-tensor-button", "Add tensor", "N");
     shortcutTooltip.applyShortcutHint("insert-template-button", "Insert template", "T");
@@ -315,6 +326,11 @@ export function createEditorShellBindings({
     bindReflowAction(reflowAlignTopButton, "top");
     bindReflowAction(reflowAlignMiddleButton, "middle");
     bindReflowAction(reflowAlignBottomButton, "bottom");
+    bindReflowIndicesAction(reflowIndicesLeftButton, "left");
+    bindReflowIndicesAction(reflowIndicesRightButton, "right");
+    bindReflowIndicesAction(reflowIndicesTopButton, "top");
+    bindReflowIndicesAction(reflowIndicesResetButton, "reset");
+    bindReflowIndicesAction(reflowIndicesBottomButton, "bottom");
     bindReflowAction(reflowArrangeChainButton, "chain");
     bindReflowAction(reflowArrangeTreeButton, "tree");
     bindReflowAction(reflowArrangeGridButton, "grid");

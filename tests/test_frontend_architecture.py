@@ -1990,6 +1990,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           reflowAlignTopButton: getButton("reflow-align-top-button"),
           reflowAlignMiddleButton: getButton("reflow-align-middle-button"),
           reflowAlignBottomButton: getButton("reflow-align-bottom-button"),
+          reflowIndicesLeftButton: getButton("reflow-indices-left-button"),
+          reflowIndicesRightButton: getButton("reflow-indices-right-button"),
+          reflowIndicesTopButton: getButton("reflow-indices-top-button"),
+          reflowIndicesResetButton: getButton("reflow-indices-reset-button"),
+          reflowIndicesBottomButton: getButton("reflow-indices-bottom-button"),
           reflowArrangeChainButton: getButton("reflow-arrange-chain-button"),
           reflowArrangeTreeButton: getButton("reflow-arrange-tree-button"),
           reflowArrangeGridButton: getButton("reflow-arrange-grid-button"),
@@ -2057,6 +2062,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           deleteSelectedTemplate: () => flowEvents.push("deleteSelectedTemplate"),
           applyReflowLayoutAction: (layoutAction) =>
             flowEvents.push(`applyReflowLayoutAction:${{layoutAction}}`),
+          applyReflowIndicesAction: (layoutAction) =>
+            flowEvents.push(`applyReflowIndicesAction:${{layoutAction}}`),
           reflowLastImportedTensors: () => flowEvents.push("reflowLastImportedTensors"),
           createGroupFromSelection: () => flowEvents.push("createGroupFromSelection"),
           toggleHelpModal: (isOpen) => flowEvents.push(`toggleHelpModal:${{isOpen}}`),
@@ -2105,6 +2112,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.templateSettingsButton.click();
         dom.reflowImportedButton.click();
         dom.reflowArrangeGridButton.click();
+        dom.reflowIndicesResetButton.click();
         dom.templateSelect.mousedown({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
@@ -2158,6 +2166,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("applyReflowLayoutAction:grid")) {{
           throw new Error(`Expected the Reflow popover actions to dispatch the requested layout, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("applyReflowIndicesAction:reset")) {{
+          throw new Error(`Expected the Reflow indices actions to dispatch the requested reflow, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("binding.enforceLinearPeriodicEngineSupport") || !flowEvents.includes("binding.renderPlanner")) {{
           throw new Error(`Expected engine change binding to run its injected actions, received ${{JSON.stringify(flowEvents)}}.`);

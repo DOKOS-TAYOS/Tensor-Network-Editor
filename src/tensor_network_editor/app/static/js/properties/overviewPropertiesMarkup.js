@@ -123,14 +123,47 @@ export function buildMultiSelectionPropertiesMarkup({
         tensorsOnly
           ? `
             <div class="properties-section-heading">Layout</div>
-            <div class="button-row">
-              <button id="align-selection-left-button" type="button">Left</button>
-              <button id="align-selection-right-button" type="button">Right</button>
-            </div>
-            <div class="button-row">
-              <button id="align-selection-top-button" type="button">Top</button>
-              <button id="align-selection-middle-button" type="button">Middle</button>
-              <button id="align-selection-bottom-button" type="button">Bottom</button>
+            <div class="button-row layout-align-row">
+              <button
+                id="align-selection-left-button"
+                type="button"
+                aria-label="Align left"
+                title="Align left"
+              >
+                &larr;
+              </button>
+              <button
+                id="align-selection-right-button"
+                type="button"
+                aria-label="Align right"
+                title="Align right"
+              >
+                &rarr;
+              </button>
+              <button
+                id="align-selection-top-button"
+                type="button"
+                aria-label="Align top"
+                title="Align top"
+              >
+                &uarr;
+              </button>
+              <button
+                id="align-selection-middle-button"
+                type="button"
+                aria-label="Align middle"
+                title="Align middle"
+              >
+                &#8857;
+              </button>
+              <button
+                id="align-selection-bottom-button"
+                type="button"
+                aria-label="Align bottom"
+                title="Align bottom"
+              >
+                &darr;
+              </button>
             </div>
             <div class="button-row">
               <button id="arrange-selection-chain-button" type="button">Arrange Chain</button>

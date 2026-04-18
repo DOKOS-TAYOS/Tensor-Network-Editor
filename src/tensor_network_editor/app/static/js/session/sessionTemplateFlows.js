@@ -179,9 +179,20 @@ export function createSessionTemplateFlows({
     if (!serializedSpec) {
       return;
     }
-    const resolvedDisplayName = actions.getNextSessionTemplateDisplayName(
-      baseDisplayName
+    const resolvedDisplayName = promptForTemplateDisplayName(
+      actions.getNextSessionTemplateDisplayName(baseDisplayName),
+      "Template save cancelled."
     );
+    if (!resolvedDisplayName) {
+      return;
+    }
+    if (actions.hasTemplateDisplayName(resolvedDisplayName)) {
+      actions.setStatus(
+        `Template name '${resolvedDisplayName}' is already in use.`,
+        "error"
+      );
+      return;
+    }
     const addResult = actions.addSessionTemplate({
       displayName: resolvedDisplayName,
       spec: serializedSpec,
@@ -365,11 +376,17 @@ export function createSessionTemplateFlows({
     if (!serializedSpec) {
       return;
     }
-    const displayName =
-      (serializedSpec.network
+    const displayName = promptForTemplateDisplayName(
+      (
+        serializedSpec.network
         && typeof serializedSpec.network.name === "string"
-        && serializedSpec.network.name.trim())
-      || "Selection Template";
+        && serializedSpec.network.name.trim()
+      ) || "Selection Template",
+      "Template export cancelled."
+    );
+    if (!displayName) {
+      return;
+    }
     const payload = buildExportTemplatePayload(
       displayName,
       serializedSpec,
@@ -381,6 +398,23 @@ export function createSessionTemplateFlows({
       "application/json;charset=utf-8"
     );
     actions.setStatus(`Exported ${displayName} as a reusable template.`, "success");
+  }
+
+  function promptForTemplateDisplayName(defaultDisplayName, cancelledStatus) {
+    const promptedDisplayName = sessionUi.promptText(
+      "Choose a name for this template.",
+      defaultDisplayName
+    );
+    if (typeof promptedDisplayName !== "string") {
+      actions.setStatus(cancelledStatus);
+      return null;
+    }
+    const trimmedDisplayName = promptedDisplayName.trim();
+    if (!trimmedDisplayName) {
+      actions.setStatus("Template names cannot be empty.", "error");
+      return null;
+    }
+    return trimmedDisplayName;
   }
 
   function buildTemplateManagerRow(entry) {

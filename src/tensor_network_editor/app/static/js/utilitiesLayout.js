@@ -19,6 +19,21 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     constants.LAYOUT_COMPONENT_GAP >= 0
       ? constants.LAYOUT_COMPONENT_GAP
       : 140;
+  const LAYOUT_NON_OVERLAP_GAP =
+    Number.isFinite(constants && constants.LAYOUT_NON_OVERLAP_GAP) &&
+    constants.LAYOUT_NON_OVERLAP_GAP >= 0
+      ? constants.LAYOUT_NON_OVERLAP_GAP
+      : 12;
+  const INDEX_RADIUS =
+    Number.isFinite(constants && constants.INDEX_RADIUS) &&
+    constants.INDEX_RADIUS >= 0
+      ? constants.INDEX_RADIUS
+      : 15;
+  const INDEX_PADDING =
+    Number.isFinite(constants && constants.INDEX_PADDING) &&
+    constants.INDEX_PADDING >= 0
+      ? constants.INDEX_PADDING
+      : 8;
 
   function getSelectedLayoutTensorIds() {
     return typeof ctx.getSelectedIdsByKind === "function"
@@ -71,6 +86,33 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     );
   }
 
+  function applyIndexLayoutChangeForIds(
+    tensorIds,
+    mutator,
+    statusMessage,
+    primaryId = state.primarySelectionId
+  ) {
+    if (
+      !Array.isArray(tensorIds) ||
+      tensorIds.length < 1 ||
+      typeof ctx.applyDesignChange !== "function"
+    ) {
+      return false;
+    }
+    ctx.applyDesignChange(mutator, {
+      invalidate: {
+        lookups: false,
+        analysis: false,
+      },
+      selectionIds: [...tensorIds],
+      primaryId: tensorIds.includes(primaryId)
+        ? primaryId
+        : tensorIds[tensorIds.length - 1],
+      statusMessage,
+    });
+    return true;
+  }
+
   function alignSelectedTensors(mode) {
     const tensors = getSelectedLayoutTensors();
     if (tensors.length < 2) {
@@ -90,23 +132,20 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
       bottom: "Aligned tensors to the bottom.",
     };
 
-    return applyTensorLayoutChange(() => {
-      tensors.forEach((tensor) => {
-        if (mode === "left") {
-          tensor.position.x = bounds.left + ctx.tensorWidth(tensor) / 2;
-        } else if (mode === "center") {
-          tensor.position.x = centerX;
-        } else if (mode === "right") {
-          tensor.position.x = bounds.right - ctx.tensorWidth(tensor) / 2;
-        } else if (mode === "top") {
-          tensor.position.y = bounds.top + ctx.tensorHeight(tensor) / 2;
-        } else if (mode === "middle") {
-          tensor.position.y = centerY;
-        } else if (mode === "bottom") {
-          tensor.position.y = bounds.bottom - ctx.tensorHeight(tensor) / 2;
-        }
-      });
-    }, statusLabels[mode] || "Aligned tensors.");
+    const targetPositions = buildAlignedTensorPositions(tensors, mode, {
+      bounds,
+      centerX,
+      centerY,
+    });
+    if (!targetPositions) {
+      ctx.setStatus(`Unknown alignment mode '${mode}'.`, "error");
+      return false;
+    }
+    return applyTensorPositions(
+      tensors.map((tensor) => tensor.id),
+      targetPositions,
+      statusLabels[mode] || "Aligned tensors."
+    );
   }
 
   function distributeSelectedTensors(axis) {
@@ -185,7 +224,13 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
 
   function applyReflowLayoutAction(layoutAction) {
     const action = typeof layoutAction === "string" ? layoutAction : "";
-    if (action === "left" || action === "right" || action === "top" || action === "middle" || action === "bottom") {
+    if (
+      action === "left" ||
+      action === "right" ||
+      action === "top" ||
+      action === "middle" ||
+      action === "bottom"
+    ) {
       return alignSelectedTensors(action);
     }
     if (action === "chain" || action === "tree" || action === "grid") {
@@ -202,6 +247,52 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     }
     ctx.setStatus(`Unknown reflow action '${action}'.`, "error");
     return false;
+  }
+
+  function applyReflowIndicesAction(layoutAction) {
+    const action = typeof layoutAction === "string" ? layoutAction : "";
+    const tensorIds = getSelectedLayoutTensorIds();
+    if (tensorIds.length < 1) {
+      ctx.setStatus("Select at least one tensor to reflow indices.");
+      return false;
+    }
+    const tensors = getLayoutTensorsById(tensorIds).filter(
+      (tensor) => Array.isArray(tensor.indices) && tensor.indices.length > 0
+    );
+    if (!tensors.length) {
+      ctx.setStatus("The selected tensors have no indices to reflow.");
+      return false;
+    }
+    const targetOffsets = buildReflowIndexOffsets(tensors, action);
+    if (!targetOffsets) {
+      ctx.setStatus(`Unknown index reflow action '${action}'.`, "error");
+      return false;
+    }
+    return applyIndexLayoutChangeForIds(
+      tensorIds,
+      () => {
+        tensors.forEach((tensor) => {
+          const tensorOffsets = targetOffsets[tensor.id];
+          if (!Array.isArray(tensorOffsets)) {
+            return;
+          }
+          tensor.indices.forEach((index, indexPosition) => {
+            const targetOffset = tensorOffsets[indexPosition];
+            if (!targetOffset) {
+              return;
+            }
+            index.offset = targetOffset;
+          });
+        });
+      },
+      {
+        left: "Moved selected tensor indices to the left.",
+        right: "Moved selected tensor indices to the right.",
+        top: "Moved selected tensor indices to the top.",
+        bottom: "Moved selected tensor indices to the bottom.",
+        reset: "Reset selected tensor indices.",
+      }[action] || "Reflowed the selected tensor indices."
+    );
   }
 
   function reflowLastImportedTensors() {
@@ -314,6 +405,205 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
       x: (importedBounds.left + importedBounds.right) / 2,
       y: (importedBounds.top + importedBounds.bottom) / 2,
     });
+  }
+
+  function buildAlignedTensorPositions(
+    tensors,
+    mode,
+    { bounds, centerX, centerY }
+  ) {
+    if (mode === "left" || mode === "center" || mode === "right") {
+      const packedYPositions = buildAlignedNonOverlappingAxisPositions(tensors, "y");
+      return Object.fromEntries(
+        tensors.map((tensor) => [
+          tensor.id,
+          {
+            x:
+              mode === "left"
+                ? bounds.left + ctx.tensorWidth(tensor) / 2
+                : mode === "right"
+                  ? bounds.right - ctx.tensorWidth(tensor) / 2
+                  : centerX,
+            y: packedYPositions[tensor.id],
+          },
+        ])
+      );
+    }
+    if (mode === "top" || mode === "middle" || mode === "bottom") {
+      const packedXPositions = buildAlignedNonOverlappingAxisPositions(tensors, "x");
+      return Object.fromEntries(
+        tensors.map((tensor) => [
+          tensor.id,
+          {
+            x: packedXPositions[tensor.id],
+            y:
+              mode === "top"
+                ? bounds.top + ctx.tensorHeight(tensor) / 2
+                : mode === "bottom"
+                  ? bounds.bottom - ctx.tensorHeight(tensor) / 2
+                  : centerY,
+          },
+        ])
+      );
+    }
+    return null;
+  }
+
+  function buildReflowIndexOffsets(tensors, mode) {
+    if (
+      mode !== "left" &&
+      mode !== "right" &&
+      mode !== "top" &&
+      mode !== "bottom" &&
+      mode !== "reset"
+    ) {
+      return null;
+    }
+    return Object.fromEntries(
+      tensors.map((tensor) => [tensor.id, buildTensorIndexOffsets(tensor, mode)])
+    );
+  }
+
+  function buildTensorIndexOffsets(tensor, mode) {
+    if (mode === "reset") {
+      return tensor.indices.map((index, indexPosition) =>
+        ctx.defaultIndexOffsetForOrder(indexPosition, tensor)
+      );
+    }
+
+    const leftOffset = -ctx.tensorWidth(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING;
+    const rightOffset = ctx.tensorWidth(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING;
+    const topOffset = -ctx.tensorHeight(tensor) / 2 + INDEX_RADIUS + INDEX_PADDING;
+    const bottomOffset = ctx.tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING;
+
+    if (mode === "left" || mode === "right") {
+      const yOffsets = buildDistributedIndexAxisOffsets(
+        tensor.indices.length,
+        topOffset,
+        bottomOffset
+      );
+      return yOffsets.map((offsetY) =>
+        ctx.clampIndexOffset(
+          {
+            x: mode === "left" ? leftOffset : rightOffset,
+            y: offsetY,
+          },
+          tensor
+        )
+      );
+    }
+
+    const xOffsets = buildDistributedIndexAxisOffsets(
+      tensor.indices.length,
+      leftOffset,
+      rightOffset
+    );
+    return xOffsets.map((offsetX) =>
+      ctx.clampIndexOffset(
+        {
+          x: offsetX,
+          y: mode === "top" ? topOffset : bottomOffset,
+        },
+        tensor
+      )
+    );
+  }
+
+  function buildDistributedIndexAxisOffsets(count, start, end) {
+    if (count <= 1) {
+      return [(start + end) / 2];
+    }
+    const step = (end - start) / (count - 1);
+    return Array.from({ length: count }, (_, index) => start + step * index);
+  }
+
+  function buildAlignedNonOverlappingAxisPositions(tensors, axis) {
+    const orderedTensors = [...tensors].sort((leftTensor, rightTensor) => {
+      const leftPrimary = axis === "y" ? leftTensor.position.y : leftTensor.position.x;
+      const rightPrimary =
+        axis === "y" ? rightTensor.position.y : rightTensor.position.x;
+      if (leftPrimary !== rightPrimary) {
+        return leftPrimary - rightPrimary;
+      }
+      const leftSecondary =
+        axis === "y" ? leftTensor.position.x : leftTensor.position.y;
+      const rightSecondary =
+        axis === "y" ? rightTensor.position.x : rightTensor.position.y;
+      return leftSecondary - rightSecondary;
+    });
+    if (!needsAlignmentPacking(orderedTensors, axis)) {
+      return Object.fromEntries(
+        orderedTensors.map((tensor) => [
+          tensor.id,
+          axis === "y" ? tensor.position.y : tensor.position.x,
+        ])
+      );
+    }
+
+    const packedAxisPositions = {};
+    let nextCenter = 0;
+    let previousHalfSize = 0;
+    orderedTensors.forEach((tensor, index) => {
+      const halfSize = getTensorHalfSize(tensor, axis);
+      if (index === 0) {
+        nextCenter = halfSize;
+      } else {
+        nextCenter += previousHalfSize + LAYOUT_NON_OVERLAP_GAP + halfSize;
+      }
+      packedAxisPositions[tensor.id] = nextCenter;
+      previousHalfSize = halfSize;
+    });
+
+    const packedBounds = computeAxisBounds(orderedTensors, packedAxisPositions, axis);
+    const originalBounds = computeTensorBounds(orderedTensors);
+    const targetAxisCenter =
+      axis === "y"
+        ? (originalBounds.top + originalBounds.bottom) / 2
+        : (originalBounds.left + originalBounds.right) / 2;
+    const packedAxisCenter = (packedBounds.start + packedBounds.end) / 2;
+    const delta = targetAxisCenter - packedAxisCenter;
+    return Object.fromEntries(
+      Object.entries(packedAxisPositions).map(([tensorId, position]) => [
+        tensorId,
+        position + delta,
+      ])
+    );
+  }
+
+  function needsAlignmentPacking(orderedTensors, axis) {
+    for (let index = 1; index < orderedTensors.length; index += 1) {
+      const previousTensor = orderedTensors[index - 1];
+      const currentTensor = orderedTensors[index];
+      const previousCenter =
+        axis === "y" ? previousTensor.position.y : previousTensor.position.x;
+      const currentCenter =
+        axis === "y" ? currentTensor.position.y : currentTensor.position.x;
+      const minimumCenterDistance =
+        getTensorHalfSize(previousTensor, axis) +
+        LAYOUT_NON_OVERLAP_GAP +
+        getTensorHalfSize(currentTensor, axis);
+      if (currentCenter - previousCenter < minimumCenterDistance) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function getTensorHalfSize(tensor, axis) {
+    return (
+      (axis === "y" ? ctx.tensorHeight(tensor) : ctx.tensorWidth(tensor)) / 2
+    );
+  }
+
+  function computeAxisBounds(tensors, axisPositions, axis) {
+    return {
+      start: Math.min(
+        ...tensors.map((tensor) => axisPositions[tensor.id] - getTensorHalfSize(tensor, axis))
+      ),
+      end: Math.max(
+        ...tensors.map((tensor) => axisPositions[tensor.id] + getTensorHalfSize(tensor, axis))
+      ),
+    };
   }
 
   function buildTreeComponentLayout(componentIds, adjacency, preferredRootId = null) {
@@ -646,6 +936,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   return {
     GRID_SNAP_SIZE,
     alignSelectedTensors,
+    applyReflowIndicesAction,
     applyReflowLayoutAction,
     arrangeSelectedTensors,
     distributeSelectedTensors,

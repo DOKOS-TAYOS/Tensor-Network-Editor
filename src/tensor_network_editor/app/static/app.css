@@ -436,6 +436,45 @@ select {
   justify-content: flex-start;
 }
 
+.reflow-section-divider {
+  height: 1px;
+  margin: 0.1rem 0 0.2rem;
+  background: rgba(76, 92, 120, 0.84);
+}
+
+.reflow-section-caption {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.reflow-align-row,
+.layout-align-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.reflow-align-row button,
+.layout-align-row button {
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.reflow-indices-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#reflow-indices-reset-button {
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
 .template-parameter-field {
   display: grid;
   grid-template-rows: auto var(--canvas-control-height);
@@ -593,8 +632,13 @@ select {
   padding-bottom: 0.05rem;
 }
 
-.title-control-group-template {
+.title-control-group-mode {
   margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 0.05rem;
+}
+
+.title-control-group-template {
   gap: 0.55rem;
 }
 
@@ -2316,6 +2360,11 @@ textarea[disabled] {
 
   .title-control-group-template {
     margin-left: 0;
+  }
+
+  .title-control-group-mode {
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .title-control-divider {

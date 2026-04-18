@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - Major structural refactor across the project (layout, modules, and responsibilities reorganized for clarity and maintainability).
 - Several rounds of performance work: repeated profiling, hot-path optimizations, and follow-up tuning after each pass.
+- The toolbar `Reflow` control now opens a layout popover and applies the chosen layout action to the current multi-tensor selection instead of only targeting the last imported template or subnetwork.
+- Multi-selection and group workflows now expose a more consistent action set across the sidebar and right-click menus, including extraction, template promotion, index insertion, color changes, grouping, and deletion.
+- The template manager uses a more compact icon-based delete action, the About panel now includes the project support link on YouTube, and the close icon styling in the help/about dialogs is now white for better contrast.
+- The README header now displays the transparent project logo using the repository-hosted image, while documentation images remain excluded from the published sdist and wheel artifacts.
+
+### Fixed
+
+- Right-clicking a tensor that already belongs to a multi-selection now preserves that selection and opens the selection action menu instead of collapsing to a single-tensor context menu.
 
 ## [0.2.2] - 2026-04-13
 

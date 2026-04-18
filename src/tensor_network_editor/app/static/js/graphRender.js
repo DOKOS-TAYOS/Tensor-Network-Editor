@@ -250,6 +250,13 @@ export function registerGraphRender(ctx) {
     });
 
     state.cy.on("tap", "node, edge", (event) => {
+      if (
+        event.originalEvent &&
+        Number.isFinite(event.originalEvent.button) &&
+        event.originalEvent.button === 2
+      ) {
+        return;
+      }
       if (typeof ctx.closeCanvasContextMenu === "function") {
         ctx.closeCanvasContextMenu();
       }
@@ -307,8 +314,20 @@ export function registerGraphRender(ctx) {
         event.originalEvent.stopPropagation();
       }
       if (typeof ctx.openCanvasContextMenu === "function") {
+        const selectedTensorIds =
+          kind === "tensor" && typeof ctx.getSelectedIdsByKind === "function"
+            ? ctx.getSelectedIdsByKind("tensor")
+            : [];
+        const menuKind =
+          kind === "tensor" &&
+          Array.isArray(state.selectionIds) &&
+          selectedTensorIds.length >= 2 &&
+          selectedTensorIds.length === state.selectionIds.length &&
+          selectedTensorIds.includes(element.id())
+            ? "selection"
+            : kind;
         ctx.openCanvasContextMenu({
-          kind,
+          kind: menuKind,
           id: element.id(),
           clientX:
             event.originalEvent && Number.isFinite(event.originalEvent.clientX)
@@ -323,6 +342,13 @@ export function registerGraphRender(ctx) {
     });
 
     state.cy.on("tap", (event) => {
+      if (
+        event.originalEvent &&
+        Number.isFinite(event.originalEvent.button) &&
+        event.originalEvent.button === 2
+      ) {
+        return;
+      }
       if (event.target === state.cy && !state.boxSelection) {
         if (typeof ctx.closeCanvasContextMenu === "function") {
           ctx.closeCanvasContextMenu();

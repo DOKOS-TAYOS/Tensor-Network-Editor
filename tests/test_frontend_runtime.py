@@ -4492,6 +4492,11 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 reflowAlignTopButton: createButton(),
                 reflowAlignMiddleButton: createButton(),
                 reflowAlignBottomButton: createButton(),
+                reflowIndicesLeftButton: createButton(),
+                reflowIndicesRightButton: createButton(),
+                reflowIndicesTopButton: createButton(),
+                reflowIndicesResetButton: createButton(),
+                reflowIndicesBottomButton: createButton(),
                 reflowArrangeChainButton: createButton(),
                 reflowArrangeTreeButton: createButton(),
                 reflowArrangeGridButton: createButton(),
@@ -4570,11 +4575,16 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 },
               },
               cytoscape: null,
-              getSelectedIdsByKind() {
-                return [];
+              getSelectedIdsByKind(kind) {
+                return kind === "tensor" ? [...ctx.state.selectionIds] : [];
               },
               getSelectedEntries() {
                 return [];
+              },
+              findTensorById(tensorId) {
+                return (
+                  ctx.state.spec?.tensors?.find((tensor) => tensor.id === tensorId) || null
+                );
               },
               renderOverlayDecorations() {},
               renderMinimap() {},
@@ -4616,6 +4626,53 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             ) {
               throw new Error("formatIssues should keep the first three messages.");
             }
+            ctx.state.spec = {
+              id: "network_demo",
+              name: "demo",
+              tensors: [
+                {
+                  id: "tensor_a",
+                  name: "A",
+                  position: { x: 100, y: 100 },
+                  size: { width: 140, height: 84 },
+                  indices: [
+                    {
+                      id: "tensor_a_i",
+                      name: "i",
+                      dimension: 2,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                  ],
+                  metadata: {},
+                },
+              ],
+              edges: [],
+              groups: [],
+              notes: [],
+              contraction_plan: null,
+              metadata: {},
+            };
+            ctx.dom.templateSelect.value = "mps";
+            ctx.state.availableTemplates = ["mps"];
+            ctx.state.selectionIds = ["tensor_a"];
+            ctx.state.primarySelectionId = "tensor_a";
+            runtime.updateToolbarState();
+            if (ctx.dom.reflowImportedButton.disabled) {
+              throw new Error("Reflow should stay enabled when one tensor is selected so indices can be reflowed.");
+            }
+            if (ctx.dom.reflowImportedButton.title !== "Reflow indices for the selected tensor.") {
+              throw new Error(
+                `Expected the single-selection Reflow tooltip to mention indices, received ${ctx.dom.reflowImportedButton.title}.`
+              );
+            }
+            ctx.state.selectionIds = [];
+            runtime.updateToolbarState();
+            if (!ctx.dom.reflowImportedButton.disabled) {
+              throw new Error("Reflow should disable again when no tensor is selected.");
+            }
+            ctx.state.selectionIds = ["tensor_a"];
+            runtime.updateToolbarState();
             runtime.openToolbarMenu("file");
             if (ctx.dom.fileMenuPanel.hidden !== false) {
               throw new Error("Opening a toolbar menu should reveal the floating menu panel.");
@@ -5946,6 +6003,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               state: ctx.state,
               dom: ctx.dom,
             };
+            const downloadEvents = [];
             Object.assign(
               ctx,
               createInteractionSessionBindings({
@@ -5955,7 +6013,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 services: ctx.services,
                 sessionUi: {
                   async copyText() {},
-                  downloadText() {},
+                  downloadText(filename, text, contentType) {
+                    downloadEvents.push({ filename, text, contentType });
+                  },
                   downloadBlob() {},
                   requestFileText: async (file) => file.text(),
                   openFilePicker(input) {
@@ -6139,13 +6199,102 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             ctx.state.selectionIds = ["tensor_a", "tensor_b", "tensor_c"];
             ctx.state.primarySelectionId = "tensor_c";
 
+            ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+            ctx.state.primarySelectionId = "tensor_b";
+            ctx.state.spec.tensors[0].indices[0].offset = { x: 12, y: -4 };
+            ctx.state.spec.tensors[1].indices[0].offset = { x: 16, y: -8 };
+            ctx.state.spec.tensors[1].indices[1].offset = { x: 20, y: 10 };
+            ctx.applyReflowIndicesAction("bottom");
+            const tensorAAfterIndexBottom = ctx.findTensorById("tensor_a");
+            const tensorBAfterIndexBottom = ctx.findTensorById("tensor_b");
+            const expectedBottomOffsetA =
+              tensorAAfterIndexBottom.size.height / 2
+              - ctx.constants.INDEX_RADIUS
+              - ctx.constants.INDEX_PADDING;
+            const expectedBottomOffsetB =
+              tensorBAfterIndexBottom.size.height / 2
+              - ctx.constants.INDEX_RADIUS
+              - ctx.constants.INDEX_PADDING;
+            if (!tensorAAfterIndexBottom.indices.every((index) => index.offset.y === expectedBottomOffsetA)) {
+              throw new Error("Bottom index reflow should pin tensor A indices to the lower edge.");
+            }
+            if (!tensorBAfterIndexBottom.indices.every((index) => index.offset.y === expectedBottomOffsetB)) {
+              throw new Error("Bottom index reflow should pin tensor B indices to the lower edge.");
+            }
+            if (ctx.state.selectionIds.join(",") !== "tensor_a,tensor_b") {
+              throw new Error("Index reflow should preserve the selected tensors.");
+            }
+
+            ctx.state.selectionIds = ["tensor_b"];
+            ctx.state.primarySelectionId = "tensor_b";
+            ctx.applyReflowIndicesAction("reset");
+            const tensorBAfterIndexReset = ctx.findTensorById("tensor_b");
+            const expectedResetOffsets = tensorBAfterIndexReset.indices.map((index, indexPosition) =>
+              ctx.defaultIndexOffsetForOrder(indexPosition, tensorBAfterIndexReset)
+            );
+            const actualResetOffsets = tensorBAfterIndexReset.indices.map((index) => index.offset);
+            if (JSON.stringify(actualResetOffsets) !== JSON.stringify(expectedResetOffsets)) {
+              throw new Error(
+                `Reset index reflow should restore the balanced default offsets, received ${JSON.stringify(actualResetOffsets)}.`
+              );
+            }
+
+            ctx.state.selectionIds = ["tensor_a", "tensor_b", "tensor_c"];
+            ctx.state.primarySelectionId = "tensor_c";
+
+            ctx.state.spec.tensors[0].position = { x: 83, y: 118 };
+            ctx.state.spec.tensors[1].position = { x: 247, y: 124 };
+            ctx.state.spec.tensors[2].position = { x: 431, y: 130 };
             ctx.alignSelectedTensors("left");
             const leftEdges = ctx.state.spec.tensors.map((tensor) => tensor.position.x - tensor.size.width / 2);
             if (!leftEdges.every((value) => value === leftEdges[0])) {
               throw new Error(`Expected aligned left edges, received ${leftEdges.join(", ")}`);
             }
+            const leftAlignedTensors = [...ctx.state.spec.tensors].sort(
+              (leftTensor, rightTensor) => leftTensor.position.y - rightTensor.position.y
+            );
+            for (let index = 1; index < leftAlignedTensors.length; index += 1) {
+              const previousTensor = leftAlignedTensors[index - 1];
+              const currentTensor = leftAlignedTensors[index];
+              const previousBottom =
+                previousTensor.position.y + previousTensor.size.height / 2;
+              const currentTop =
+                currentTensor.position.y - currentTensor.size.height / 2;
+              if (currentTop <= previousBottom) {
+                throw new Error(
+                  `Left alignment should avoid vertical overlap, received ${leftAlignedTensors.map((tensor) => tensor.position.y).join(", ")}.`
+                );
+              }
+            }
             if (ctx.state.selectionIds.join(",") !== "tensor_a,tensor_b,tensor_c") {
               throw new Error("Alignment should preserve the tensor selection.");
+            }
+
+            ctx.state.spec.tensors[0].position = { x: 120, y: 100 };
+            ctx.state.spec.tensors[1].position = { x: 126, y: 170 };
+            ctx.state.spec.tensors[2].position = { x: 132, y: 240 };
+            ctx.alignSelectedTensors("middle");
+            const middleCenters = ctx.state.spec.tensors.map((tensor) => tensor.position.y);
+            if (!middleCenters.every((value) => value === middleCenters[0])) {
+              throw new Error(
+                `Middle alignment should align vertical centers, received ${middleCenters.join(", ")}.`
+              );
+            }
+            const middleAlignedTensors = [...ctx.state.spec.tensors].sort(
+              (leftTensor, rightTensor) => leftTensor.position.x - rightTensor.position.x
+            );
+            for (let index = 1; index < middleAlignedTensors.length; index += 1) {
+              const previousTensor = middleAlignedTensors[index - 1];
+              const currentTensor = middleAlignedTensors[index];
+              const previousRight =
+                previousTensor.position.x + previousTensor.size.width / 2;
+              const currentLeft =
+                currentTensor.position.x - currentTensor.size.width / 2;
+              if (currentLeft <= previousRight) {
+                throw new Error(
+                  `Middle alignment should avoid horizontal overlap, received ${middleAlignedTensors.map((tensor) => tensor.position.x).join(", ")}.`
+                );
+              }
             }
 
             ctx.state.spec.tensors[0].position.x = 100;
@@ -6224,11 +6373,27 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             const promotedEntry = ctx.listTemplateEntries().find(
               (entry) => entry.templateName === promotedSessionTemplate
             );
-            if (!promotedEntry || promotedEntry.displayName !== "Selection Template") {
-              throw new Error(`Expected the promoted session template to use the automatic Selection Template name, received ${JSON.stringify(promotedEntry)}.`);
+            if (!promotedEntry || promotedEntry.displayName !== "selection_fragment") {
+              throw new Error(`Expected the promoted session template to use the prompted name, received ${JSON.stringify(promotedEntry)}.`);
             }
             if (ctx.dom.templateSelect.value !== promotedSessionTemplate) {
               throw new Error(`Expected promoted template to become selected, received ${ctx.dom.templateSelect.value}.`);
+            }
+
+            downloadEvents.length = 0;
+            ctx.window.prompt = createPromptQueue(["selection_fragment_file"]);
+            await ctx.exportSelectedTemplateSpec();
+            if (downloadEvents.length !== 1) {
+              throw new Error(`Expected one template export download, received ${downloadEvents.length}.`);
+            }
+            if (downloadEvents[0].filename !== "selection_fragment_file.json") {
+              throw new Error(`Expected the exported template filename to use the prompted name, received ${downloadEvents[0].filename}.`);
+            }
+            const exportedTemplatePayload = JSON.parse(downloadEvents[0].text);
+            if (exportedTemplatePayload.templates[0].display_name !== "selection_fragment_file") {
+              throw new Error(
+                `Expected the exported template payload to preserve the prompted display name, received ${JSON.stringify(exportedTemplatePayload.templates[0])}.`
+              );
             }
 
             ctx.insertPreparedSubnetwork(
@@ -6805,7 +6970,7 @@ def _write_template_catalog_management_runtime_regression_script(
               confirmMessages.push(message);
               return true;
             },
-            prompt: createPromptQueue([]),
+            prompt: createPromptQueue(["Session Fragment", "Session Fragment 2"]),
             Prism: null,
           },
           document: fakeDocument,
@@ -7070,15 +7235,15 @@ def _write_template_catalog_management_runtime_regression_script(
         const firstSessionEntry = ctx.listTemplateEntries().find(
           (entry) => entry.templateName === firstSessionTemplate
         );
-        if (!firstSessionEntry || firstSessionEntry.displayName !== "Selection Template") {
-          throw new Error(`Expected the first session template to use the automatic Selection Template name, received ${JSON.stringify(firstSessionEntry)}.`);
+        if (!firstSessionEntry || firstSessionEntry.displayName !== "Session Fragment") {
+          throw new Error(`Expected the first session template to use the prompted name, received ${JSON.stringify(firstSessionEntry)}.`);
         }
         await ctx.promoteSelectedSubnetworkToTemplate();
         const secondSessionEntry = ctx.listTemplateEntries().find(
-          (entry) => entry.displayName === "Selection Template 2"
+          (entry) => entry.displayName === "Session Fragment 2"
         );
         if (!secondSessionEntry) {
-          throw new Error("Saving the same selection twice should suffix the session template name.");
+          throw new Error("Saving the same selection twice should keep the prompted names.");
         }
         ctx.toggleTemplateManager(true);
         if (ctx.dom.templateManagerList.children.length !== 2) {
