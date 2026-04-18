@@ -1,6 +1,10 @@
 """Public package exports for Tensor Network Editor."""
 
 import logging
+import sys
+
+if sys.version_info < (3, 11):  # noqa: UP036 - explicit runtime guard for unsupported interpreters
+    raise RuntimeError("tensor-network-editor requires Python 3.11 or newer.")
 
 from ._version import __version__
 from .analysis import analyze_contraction, analyze_spec

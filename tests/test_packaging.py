@@ -4,11 +4,18 @@ import importlib.metadata
 import tomllib
 from pathlib import Path
 
+import pytest
+
 import tensor_network_editor
 
 
 def test_installed_distribution_exposes_public_metadata_contracts() -> None:
-    distribution = importlib.metadata.distribution("tensor-network-editor")
+    try:
+        distribution = importlib.metadata.distribution("tensor-network-editor")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip(
+            "Installed distribution metadata is unavailable in source-only test environments."
+        )
     project_urls = distribution.metadata.get_all("Project-URL") or []
 
     assert distribution.metadata["Name"] == "tensor-network-editor"
