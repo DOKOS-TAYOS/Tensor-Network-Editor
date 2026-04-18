@@ -28,6 +28,21 @@ _SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
 _MAX_REQUEST_BODY_BYTES: int = 1_048_576
 
 
+def _parse_content_length(content_length_text: str | None) -> int:
+    """Return a validated request body length from a Content-Length header."""
+    if content_length_text is None:
+        return 0
+    try:
+        content_length = int(content_length_text)
+    except ValueError as exc:
+        raise ValueError("Invalid Content-Length header.") from exc
+    if content_length < 0:
+        raise ValueError("Invalid Content-Length header: must be >= 0.")
+    if content_length > _MAX_REQUEST_BODY_BYTES:
+        raise ValueError("Request body exceeds maximum allowed size.")
+    return content_length
+
+
 @dataclass(slots=True, frozen=True)
 class _BinaryResponse:
     """Internal response container for pre-encoded bytes."""
@@ -245,15 +260,9 @@ class EditorServer:
 
             def _read_request_body(self) -> bytes:
                 """Read one request body after validating the Content-Length header."""
-                content_length_text = self.headers.get("Content-Length", "0")
-                try:
-                    content_length = int(content_length_text)
-                except ValueError as exc:
-                    raise ValueError("Invalid Content-Length header.") from exc
-                if content_length < 0:
-                    raise ValueError("Invalid Content-Length header: must be >= 0.")
-                if content_length > _MAX_REQUEST_BODY_BYTES:
-                    raise ValueError("Request body exceeds maximum allowed size.")
+                content_length = _parse_content_length(
+                    self.headers.get("Content-Length")
+                )
                 return self.rfile.read(content_length)
 
             def _write_response(self, response: JsonResponse | _BinaryResponse) -> None:

@@ -21,8 +21,7 @@ def test_app_protocol_tests_pass_targeted_pyright_check() -> None:
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "pyright",
+            "scripts/run_pyright.py",
             "tests/test_app_protocol.py",
         ],
         cwd=REPO_ROOT,

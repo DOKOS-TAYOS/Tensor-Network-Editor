@@ -23,6 +23,7 @@ from tests.factories import (
     build_linear_periodic_partial_carry_chain_spec,
     build_three_tensor_spec,
 )
+from tests.optional_backends import require_light_optional_module
 
 
 def build_four_tensor_chain_spec() -> NetworkSpec:
@@ -164,8 +165,9 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.automatic_past is not None
 
 
+@pytest.mark.optional_backend
 def test_analyze_contraction_uses_active_linear_periodic_cell_plan() -> None:
-    pytest.importorskip("opt_einsum")
+    require_light_optional_module("opt_einsum")
     spec = build_linear_periodic_partial_carry_chain_spec()
 
     result = analyze_contraction(spec)

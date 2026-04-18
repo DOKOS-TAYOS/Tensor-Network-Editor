@@ -24,6 +24,7 @@ from tests.factories import (
     build_sample_spec_without_plan,
     build_three_tensor_spec,
 )
+from tests.optional_backends import require_engine_backend
 
 
 def build_many_label_spec() -> NetworkSpec:
@@ -118,19 +119,7 @@ def test_render_remaining_operands_mapping_renders_joined_display_names() -> Non
 
 def _import_required_backend(engine: EngineName) -> None:
     """Skip execution tests when an optional backend is not installed."""
-    if engine is EngineName.TENSORNETWORK:
-        pytest.importorskip("numpy")
-        pytest.importorskip("tensornetwork")
-    elif engine is EngineName.QUIMB:
-        pytest.importorskip("numpy")
-        pytest.importorskip("quimb")
-    elif engine is EngineName.TENSORKROWCH:
-        pytest.importorskip("torch")
-        pytest.importorskip("tensorkrowch")
-    elif engine is EngineName.EINSUM_NUMPY:
-        pytest.importorskip("numpy")
-    elif engine is EngineName.EINSUM_TORCH:
-        pytest.importorskip("torch")
+    require_engine_backend(engine)
 
 
 def _execute_generated_code(code: str, *, n: int | None = None) -> dict[str, object]:
@@ -340,6 +329,7 @@ def test_tensorkrowch_codegen_uses_edges_list_for_connections() -> None:
     assert "tk.connect(" in result.code
 
 
+@pytest.mark.heavy_backend
 def test_tensorkrowch_codegen_executes_when_tensor_names_contain_spaces() -> None:
     _import_required_backend(EngineName.TENSORKROWCH)
     spec = NetworkSpec(
@@ -465,7 +455,10 @@ def test_linear_periodic_codegen_supports_remaining_backends(
 
 @pytest.mark.parametrize(
     "engine",
-    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+    [
+        pytest.param(EngineName.TENSORNETWORK, marks=pytest.mark.optional_backend),
+        pytest.param(EngineName.TENSORKROWCH, marks=pytest.mark.heavy_backend),
+    ],
 )
 def test_linear_periodic_codegen_executes_for_supported_backends(
     engine: EngineName,
@@ -481,7 +474,10 @@ def test_linear_periodic_codegen_executes_for_supported_backends(
 
 @pytest.mark.parametrize(
     "engine",
-    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+    [
+        pytest.param(EngineName.TENSORNETWORK, marks=pytest.mark.optional_backend),
+        pytest.param(EngineName.TENSORKROWCH, marks=pytest.mark.heavy_backend),
+    ],
 )
 @pytest.mark.parametrize(
     "spec_factory",
@@ -519,9 +515,21 @@ def test_linear_periodic_carry_codegen_threads_interface_payloads() -> None:
 @pytest.mark.parametrize(
     ("engine", "expected_names"),
     [
-        (EngineName.QUIMB, {"network", "open_inds"}),
-        (EngineName.EINSUM_NUMPY, {"result"}),
-        (EngineName.EINSUM_TORCH, {"result"}),
+        pytest.param(
+            EngineName.QUIMB,
+            {"network", "open_inds"},
+            marks=pytest.mark.optional_backend,
+        ),
+        pytest.param(
+            EngineName.EINSUM_NUMPY,
+            {"result"},
+            marks=pytest.mark.optional_backend,
+        ),
+        pytest.param(
+            EngineName.EINSUM_TORCH,
+            {"result"},
+            marks=pytest.mark.heavy_backend,
+        ),
     ],
 )
 def test_linear_periodic_codegen_executes_for_remaining_backends(
@@ -591,41 +599,47 @@ def test_linear_periodic_carry_codegen_supports_remaining_backends(
         "expect_non_empty_remaining_operands",
     ),
     [
-        (
+        pytest.param(
             EngineName.QUIMB,
             build_linear_periodic_carry_chain_spec,
             {"network", "open_inds", "result"},
             False,
+            marks=pytest.mark.optional_backend,
         ),
-        (
+        pytest.param(
             EngineName.QUIMB,
             build_linear_periodic_partial_carry_chain_spec,
             {"network", "open_inds", "result"},
             False,
+            marks=pytest.mark.optional_backend,
         ),
-        (
+        pytest.param(
             EngineName.EINSUM_NUMPY,
             build_linear_periodic_carry_chain_spec,
             {"result", "remaining_operands"},
             False,
+            marks=pytest.mark.optional_backend,
         ),
-        (
+        pytest.param(
             EngineName.EINSUM_NUMPY,
             build_linear_periodic_partial_carry_chain_spec,
             {"result", "remaining_operands"},
             True,
+            marks=pytest.mark.optional_backend,
         ),
-        (
+        pytest.param(
             EngineName.EINSUM_TORCH,
             build_linear_periodic_carry_chain_spec,
             {"result", "remaining_operands"},
             False,
+            marks=pytest.mark.heavy_backend,
         ),
-        (
+        pytest.param(
             EngineName.EINSUM_TORCH,
             build_linear_periodic_partial_carry_chain_spec,
             {"result", "remaining_operands"},
             True,
+            marks=pytest.mark.heavy_backend,
         ),
     ],
 )
@@ -743,14 +757,15 @@ def test_einsum_codegen_uses_integer_sublist_form_for_many_labels(
 
 @pytest.mark.parametrize(
     "engine",
-    [EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+    [
+        pytest.param(EngineName.EINSUM_NUMPY, marks=pytest.mark.optional_backend),
+        pytest.param(EngineName.EINSUM_TORCH, marks=pytest.mark.heavy_backend),
+    ],
 )
 def test_einsum_codegen_executes_for_empty_network(engine: EngineName) -> None:
     result = generate_code(build_empty_spec(), engine=engine)
     namespace: dict[str, object] = {}
-    module_name = "numpy" if engine is EngineName.EINSUM_NUMPY else "torch"
-
-    pytest.importorskip(module_name)
+    _import_required_backend(engine)
 
     exec(result.code, namespace, namespace)
 

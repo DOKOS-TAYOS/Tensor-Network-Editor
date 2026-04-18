@@ -3,10 +3,23 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
-  checks:
+  core:
+    name: Core (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -17,12 +30,13 @@ jobs:
         shell: pwsh
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
       - name: Create virtual environment
         run: |
@@ -45,6 +59,10 @@ jobs:
         run: |
           & $env:VENV_PYTHON -m ruff check .
 
+      - name: Check Ruff formatting
+        run: |
+          & $env:VENV_PYTHON -m ruff format --check .
+
       - name: Run MyPy
         run: |
           & $env:VENV_PYTHON -m mypy
@@ -55,7 +73,104 @@ jobs:
 
       - name: Run tests
         run: |
-          & $env:VENV_PYTHON -m pytest
+          & $env:VENV_PYTHON -m pytest -q
+
+  optional-backends:
+    name: Optional backends (balanced)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install balanced optional dependencies
+        run: |
+          & $env:VENV_PYTHON -m pip install --upgrade pip
+          & $env:VENV_PYTHON -m pip install -e ".[dev,planner,tensornetwork,quimb]"
+
+      - name: Verify balanced optional modules are importable
+        run: |
+          & $env:VENV_PYTHON -c "import importlib; [importlib.import_module(name) for name in ('numpy', 'opt_einsum', 'tensornetwork', 'quimb')]"
+
+      - name: Run optional backend tests
+        run: |
+          $env:TNE_REQUIRE_OPTIONAL_BACKENDS = "1"
+          & $env:VENV_PYTHON -m pytest -q -m optional_backend
+
+  browser-smoke:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install browser smoke dependencies
+        run: |
+          & $env:VENV_PYTHON -m pip install --upgrade pip
+          & $env:VENV_PYTHON -m pip install -e ".[dev]"
+          & $env:VENV_PYTHON -m pip install playwright
+          & $env:VENV_PYTHON -m playwright install --with-deps chromium
+
+      - name: Run browser smoke test
+        run: |
+          $env:TNE_RUN_BROWSER_SMOKE = "1"
+          & $env:VENV_PYTHON -m pytest -q -m browser
+
+  package:
+    name: Package smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create build virtual environment
+        run: |
+          python -m venv .venv
+          "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install build dependencies
+        run: |
+          & $env:VENV_PYTHON -m pip install --upgrade pip
+          & $env:VENV_PYTHON -m pip install -e ".[dev]"
 
       - name: Build distribution artifacts
         run: |
@@ -65,20 +180,53 @@ jobs:
         run: |
           & $env:VENV_PYTHON -m twine check dist/*
 
-      - name: Smoke test built wheel
+      - name: Smoke test built wheel in a clean environment
         run: |
-          & $env:VENV_PYTHON -m pip uninstall -y tensor-network-editor
           $wheel = (Get-ChildItem "dist/*.whl" | Select-Object -First 1).FullName
           if (-not $wheel) {
             throw "No wheel was produced in dist/."
           }
-          & $env:VENV_PYTHON -m pip install $wheel
-          & $env:VENV_PYTHON -c "import tensor_network_editor; print(tensor_network_editor.__file__)"
-          & $env:VENV_PYTHON -c "from importlib.metadata import distribution; names = {str(path) for path in (distribution('tensor-network-editor').files or [])}; assert any(name.endswith('licenses/THIRD_PARTY_LICENSES') for name in names), names"
-          & $env:VENV_PYTHON -m tensor_network_editor --help
+          python -m venv .wheel-smoke
+          $smokePython = ".wheel-smoke/bin/python"
+          & $smokePython -m pip install --upgrade pip
+          & $smokePython -m pip install pytest $wheel
+          $env:TNE_WHEEL_UNDER_TEST = $wheel
+          & $smokePython -m pytest -q tests/test_wheel_smoke.py
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: dist-${{ runner.os }}-py${{ matrix.python-version }}
+          name: dist-py3.12
           path: dist/
+
+  heavy-backends:
+    name: Heavy backends (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create virtual environment
+        run: |
+          python -m venv .venv
+          "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install heavy optional dependencies
+        run: |
+          & $env:VENV_PYTHON -m pip install --upgrade pip
+          & $env:VENV_PYTHON -m pip install -e ".[dev,tensorkrowch]"
+
+      - name: Run heavy backend tests
+        run: |
+          & $env:VENV_PYTHON -m pytest -q -m heavy_backend

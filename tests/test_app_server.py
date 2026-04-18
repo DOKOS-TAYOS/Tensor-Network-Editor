@@ -40,3 +40,24 @@ def test_binary_response_writer_uses_explicit_response_object(
         (HTTPStatus.OK, b"asset-body", "text/plain; charset=utf-8")
     ]
     assert response.body == b"asset-body"
+
+
+def test_parse_content_length_accepts_missing_and_positive_values() -> None:
+    assert app_server._parse_content_length(None) == 0
+    assert app_server._parse_content_length("0") == 0
+    assert app_server._parse_content_length("42") == 42
+
+
+def test_parse_content_length_rejects_malformed_values() -> None:
+    invalid_values = {
+        "abc": "Invalid Content-Length header.",
+        "-1": "Invalid Content-Length header: must be >= 0.",
+    }
+
+    for raw_value, expected_message in invalid_values.items():
+        try:
+            app_server._parse_content_length(raw_value)
+        except ValueError as exc:
+            assert str(exc) == expected_message
+        else:
+            raise AssertionError(f"Content-Length {raw_value!r} was accepted.")

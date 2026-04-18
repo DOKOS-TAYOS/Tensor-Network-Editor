@@ -82,6 +82,13 @@ tensor_network_editor = [
 [tool.pytest.ini_options]
 addopts = "-ra -p no:cacheprovider"
 testpaths = ["tests"]
+markers = [
+  "unit: fast tests for isolated Python behavior",
+  "integration: tests that cross process, HTTP, packaging, or CLI boundaries",
+  "optional_backend: tests that require balanced optional math backends",
+  "heavy_backend: tests that require heavy optional backends such as Torch or TensorKrowch",
+  "browser: browser-based smoke tests, enabled by TNE_RUN_BROWSER_SMOKE=1",
+]
 
 [tool.ruff]
 src = ["src", "tests", "examples"]

@@ -127,11 +127,50 @@ Useful development checks:
 ```bash
 python -m ruff check . --fix
 python -m ruff format .
+python -m ruff format --check .
 python -m mypy
 python -m pyright
 python -m pytest
 python -m build
 python -m twine check dist/*
+```
+
+Optional backend checks used by CI:
+
+PowerShell:
+
+```powershell
+python -m pip install -e ".[dev,planner,tensornetwork,quimb]"
+$env:TNE_REQUIRE_OPTIONAL_BACKENDS = "1"
+python -m pytest -q -m optional_backend
+Remove-Item Env:\TNE_REQUIRE_OPTIONAL_BACKENDS
+```
+
+Bash:
+
+```bash
+python -m pip install -e ".[dev,planner,tensornetwork,quimb]"
+TNE_REQUIRE_OPTIONAL_BACKENDS=1 python -m pytest -q -m optional_backend
+```
+
+Browser smoke checks need Playwright and a browser install:
+
+PowerShell:
+
+```powershell
+python -m pip install playwright
+python -m playwright install chromium
+$env:TNE_RUN_BROWSER_SMOKE = "1"
+python -m pytest -q -m browser
+Remove-Item Env:\TNE_RUN_BROWSER_SMOKE
+```
+
+Bash:
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+TNE_RUN_BROWSER_SMOKE=1 python -m pytest -q -m browser
 ```
 
 If you change package metadata such as the version, rerun the editable install
