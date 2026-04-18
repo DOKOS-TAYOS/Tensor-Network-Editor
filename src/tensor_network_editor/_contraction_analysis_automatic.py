@@ -199,10 +199,10 @@ def _analyze_automatic_operands(
         label: ascii_letters[offset]
         for offset, label in enumerate(label_order[: len(ascii_letters)])
     }
-    label_counts = {
-        label: sum(operand_labels.count(label) for operand_labels in operands.values())
-        for label in label_order
-    }
+    label_counts = {label: 0 for label in label_order}
+    for operand_id in operand_order:
+        for label in operands[operand_id]:
+            label_counts[label] += 1
     output_labels = [label for label in label_order if label_counts[label] == 1]
     equation = (
         ",".join(
@@ -266,8 +266,12 @@ def _analyze_automatic_operands(
         peak_intermediate_size = max(
             peak_intermediate_size, step_result.intermediate_size
         )
-        for operand_index in sorted(indices, reverse=True):
-            remaining_order.pop(operand_index)
+        if indices[0] > indices[1]:
+            higher_index, lower_index = indices[0], indices[1]
+        else:
+            higher_index, lower_index = indices[1], indices[0]
+        remaining_order.pop(higher_index)
+        remaining_order.pop(lower_index)
         remaining_order.append(step_id)
 
     status = "complete" if len(remaining_operands) <= 1 else "incomplete"
