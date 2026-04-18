@@ -111,7 +111,6 @@ def simulate_contraction_plan(
         (operand_id, initial_axis_names[operand_id])
         for operand_id in initial_operand_ids
     )
-    remaining_operand_ids = list(initial_operand_ids)
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]] = {
         operand_id: (operand_id,) for operand_id in initial_operand_ids
     }
@@ -119,7 +118,7 @@ def simulate_contraction_plan(
     if plan is None or not plan.steps:
         return SimulatedContractionPlan(
             steps=[],
-            remaining_operand_ids=tuple(remaining_operand_ids),
+            remaining_operand_ids=tuple(remaining_operands),
             remaining_operands=remaining_operands,
             remaining_axis_names=remaining_axis_names,
             source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
@@ -156,13 +155,10 @@ def simulate_contraction_plan(
             left_source_tensor_ids,
             right_source_tensor_ids,
         )
-        remaining_operand_ids.remove(step.left_operand_id)
-        remaining_operand_ids.remove(step.right_operand_id)
-        remaining_operand_ids.insert(0, step.id)
 
     return SimulatedContractionPlan(
         steps=step_results,
-        remaining_operand_ids=tuple(remaining_operand_ids),
+        remaining_operand_ids=tuple(remaining_operands),
         remaining_operands=dict(remaining_operands),
         remaining_axis_names=dict(remaining_axis_names),
         source_tensor_ids_by_operand_id=source_tensor_ids_by_operand_id,
@@ -180,13 +176,13 @@ def simulate_contraction_step(
 ) -> SimulatedContractionStep:
     """Simulate one pairwise contraction step using label metadata only."""
     right_label_set = set(right_labels)
+    left_label_set = set(left_labels)
     contracted_labels = tuple(
         label for label in left_labels if label in right_label_set
     )
-    contracted_label_set = set(contracted_labels)
     surviving_labels = tuple(
-        label for label in left_labels if label not in contracted_label_set
-    ) + tuple(label for label in right_labels if label not in contracted_label_set)
+        label for label in left_labels if label not in right_label_set
+    ) + tuple(label for label in right_labels if label not in left_label_set)
     union_labels = tuple(dict.fromkeys(left_labels + right_labels))
     result_shape = tuple(dimension_by_label[label] for label in surviving_labels)
     estimated_macs = _product(dimension_by_label[label] for label in union_labels)
