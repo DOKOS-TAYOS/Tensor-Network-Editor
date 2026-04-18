@@ -52,6 +52,17 @@ function getTotalElementCountForTensorIds(ctx, tensorIds) {
   return resolvedTensorCount ? totalElementCount : null;
 }
 
+function getIndexCountForTensorIds(ctx, tensorIds) {
+  return [...new Set(Array.isArray(tensorIds) ? tensorIds : [])].reduce(
+    (sum, tensorId) => {
+      const tensor =
+        typeof ctx.findTensorById === "function" ? ctx.findTensorById(tensorId) : null;
+      return sum + (Array.isArray(tensor && tensor.indices) ? tensor.indices.length : 0);
+    },
+    0
+  );
+}
+
 function renderTrashIcon() {
   return `
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -193,16 +204,18 @@ export function registerCanvasContextMenu(ctx) {
     return (
       Array.isArray(state.selectionIds) &&
       selectedTensorIds.length >= 2 &&
-      selectedTensorIds.length === state.selectionIds.length &&
       selectedTensorIds.includes(tensorId)
     );
   }
 
   function getSelectionContextTarget(anchorTensorId) {
     const selectedTensorIds = getSelectedTensorIdsForContext();
-    if (!selectedTensorIds.length || !selectedTensorIds.includes(anchorTensorId)) {
+    if (selectedTensorIds.length < 2 || !selectedTensorIds.includes(anchorTensorId)) {
       return null;
     }
+    const tensorCount = selectedTensorIds.length;
+    const indexCount = getIndexCountForTensorIds(ctx, selectedTensorIds);
+    const totalElementCount = getTotalElementCountForTensorIds(ctx, selectedTensorIds);
     const selectedEntries =
       typeof ctx.getSelectedEntries === "function" ? ctx.getSelectedEntries() : [];
     const selectionColor =
@@ -215,6 +228,26 @@ export function registerCanvasContextMenu(ctx) {
       target: null,
       markup: `
         <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Tensors</span>
+              <strong>${tensorCount}</strong>
+            </div>
+            <div class="properties-chip">
+              <span>Indices</span>
+              <strong>${indexCount}</strong>
+            </div>
+            ${
+              totalElementCount !== null
+                ? `
+                  <div class="properties-chip">
+                    <span>Total elements</span>
+                    <strong>${formatTotalElementCount(totalElementCount)}</strong>
+                  </div>
+                `
+                : ""
+            }
+          </div>
           <div class="button-row canvas-context-menu-actions">
             <button
               id="context-menu-add-index-to-selection-button"

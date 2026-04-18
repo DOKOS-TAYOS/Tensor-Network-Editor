@@ -449,28 +449,45 @@ select {
   line-height: 1.2;
 }
 
-.reflow-align-row,
-.layout-align-row {
+.reflow-align-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(5, var(--canvas-control-height));
+  justify-content: flex-start;
 }
 
-.reflow-align-row button,
-.layout-align-row button {
-  min-width: 0;
+.reflow-align-row button {
+  width: var(--canvas-control-height);
+  min-width: var(--canvas-control-height);
+  aspect-ratio: 1 / 1;
   padding-left: 0;
   padding-right: 0;
   font-size: 1rem;
   line-height: 1;
-}
-
-.reflow-indices-row button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
+.reflow-action-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reflow-indices-row {
+  grid-template-columns:
+    var(--canvas-control-height)
+    var(--canvas-control-height)
+    var(--canvas-control-height)
+    max-content
+    var(--canvas-control-height);
+}
+
 #reflow-indices-reset-button {
+  width: auto;
+  min-width: calc(var(--canvas-control-height) * 1.35);
+  aspect-ratio: auto;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
   font-size: 0.78rem;
   line-height: 1.1;
 }

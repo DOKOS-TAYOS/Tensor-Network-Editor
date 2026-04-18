@@ -358,7 +358,7 @@
                             id="reflow-align-left-button"
                             type="button"
                             aria-label="Align left"
-                            title="Align left"
+                            title="Align left: place selected tensors on the same left edge while keeping them separated."
                           >
                             &larr;
                           </button>
@@ -366,7 +366,7 @@
                             id="reflow-align-right-button"
                             type="button"
                             aria-label="Align right"
-                            title="Align right"
+                            title="Align right: place selected tensors on the same right edge while keeping them separated."
                           >
                             &rarr;
                           </button>
@@ -374,7 +374,7 @@
                             id="reflow-align-top-button"
                             type="button"
                             aria-label="Align top"
-                            title="Align top"
+                            title="Align top: place selected tensors on the same top edge while keeping them separated."
                           >
                             &uarr;
                           </button>
@@ -382,7 +382,7 @@
                             id="reflow-align-middle-button"
                             type="button"
                             aria-label="Align middle"
-                            title="Align middle"
+                            title="Align middle: place selected tensors on the same horizontal midline while keeping them separated."
                           >
                             &#8857;
                           </button>
@@ -390,24 +390,40 @@
                             id="reflow-align-bottom-button"
                             type="button"
                             aria-label="Align bottom"
-                            title="Align bottom"
+                            title="Align bottom: place selected tensors on the same bottom edge while keeping them separated."
                           >
                             &darr;
                           </button>
                         </div>
-                        <div class="button-row">
-                          <button id="reflow-arrange-chain-button" type="button">Arrange Chain</button>
-                          <button id="reflow-arrange-tree-button" type="button">Arrange Tree</button>
-                          <button id="reflow-arrange-grid-button" type="button">Arrange Grid</button>
-                        </div>
-                        <div class="button-row">
-                          <button id="reflow-distribute-horizontal-button" type="button">
-                            Distribute Horizontally
+                        <div class="button-row reflow-action-row">
+                          <button
+                            id="reflow-arrange-chain-button"
+                            type="button"
+                            title="Chain: place selected tensors in one ordered row, following bonds when present."
+                          >
+                            Chain
                           </button>
-                          <button id="reflow-distribute-vertical-button" type="button">
-                            Distribute Vertically
+                          <button
+                            id="reflow-arrange-tree-button"
+                            type="button"
+                            title="Tree: place selected tensors in levels under a root, using bonds when possible."
+                          >
+                            Tree
                           </button>
-                          <button id="reflow-snap-grid-button" type="button">Snap to Grid</button>
+                          <button
+                            id="reflow-arrange-grid-button"
+                            type="button"
+                            title="Grid: place selected tensors on an even grid, keeping nearby order stable."
+                          >
+                            Grid
+                          </button>
+                          <button
+                            id="reflow-snap-grid-button"
+                            type="button"
+                            title="Snap to Grid: move each selected tensor to the nearest canvas grid point."
+                          >
+                            Snap to Grid
+                          </button>
                         </div>
                         <div class="reflow-section-divider" aria-hidden="true"></div>
                         <div class="reflow-section-caption">Indices</div>
@@ -416,7 +432,7 @@
                             id="reflow-indices-left-button"
                             type="button"
                             aria-label="Move indices left"
-                            title="Move indices left"
+                            title="Indices left: move selected tensor indices to the left side of each tensor."
                           >
                             &larr;
                           </button>
@@ -424,7 +440,7 @@
                             id="reflow-indices-right-button"
                             type="button"
                             aria-label="Move indices right"
-                            title="Move indices right"
+                            title="Indices right: move selected tensor indices to the right side of each tensor."
                           >
                             &rarr;
                           </button>
@@ -432,7 +448,7 @@
                             id="reflow-indices-top-button"
                             type="button"
                             aria-label="Move indices up"
-                            title="Move indices up"
+                            title="Indices top: move selected tensor indices to the top side of each tensor."
                           >
                             &uarr;
                           </button>
@@ -440,7 +456,7 @@
                             id="reflow-indices-reset-button"
                             type="button"
                             aria-label="Reset index positions"
-                            title="Reset index positions"
+                            title="Indices reset: redistribute selected tensor indices evenly around each tensor."
                           >
                             Reset
                           </button>
@@ -448,7 +464,7 @@
                             id="reflow-indices-bottom-button"
                             type="button"
                             aria-label="Move indices down"
-                            title="Move indices down"
+                            title="Indices bottom: move selected tensor indices to the bottom side of each tensor."
                           >
                             &darr;
                           </button>

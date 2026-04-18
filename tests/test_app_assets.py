@@ -1116,8 +1116,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="reflow-indices-left-button"' in html
     assert 'id="reflow-indices-reset-button"' in html
     assert 'id="reflow-arrange-chain-button"' in html
-    assert 'id="reflow-distribute-horizontal-button"' in html
     assert 'id="reflow-snap-grid-button"' in html
+    assert 'id="reflow-distribute-horizontal-button"' not in html
+    assert 'id="reflow-distribute-vertical-button"' not in html
     assert 'id="save-session-template-menu-item"' in html
     assert 'id="load-session-template-menu-item"' in html
     assert 'id="export-session-template-menu-item"' in html
@@ -1135,15 +1136,46 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         html,
     )
     assert re.search(
+        r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
+        html,
+    )
+    assert re.search(
         r'Indices[\s\S]*<div class="button-row reflow-align-row reflow-indices-row">[\s\S]*id="reflow-indices-left-button"[\s\S]*id="reflow-indices-right-button"[\s\S]*id="reflow-indices-top-button"[\s\S]*id="reflow-indices-reset-button"[\s\S]*id="reflow-indices-bottom-button"',
         html,
     )
     assert 'aria-label="Align left"' in html
     assert 'aria-label="Align middle"' in html
     assert 'aria-label="Move indices left"' in html
+    assert (
+        'title="Align left: place selected tensors on the same left edge while keeping them separated."'
+        in html
+    )
+    assert (
+        'title="Chain: place selected tensors in one ordered row, following bonds when present."'
+        in html
+    )
+    assert (
+        'title="Tree: place selected tensors in levels under a root, using bonds when possible."'
+        in html
+    )
+    assert (
+        'title="Grid: place selected tensors on an even grid, keeping nearby order stable."'
+        in html
+    )
+    assert (
+        'title="Snap to Grid: move each selected tensor to the nearest canvas grid point."'
+        in html
+    )
+    assert (
+        'title="Indices reset: redistribute selected tensor indices evenly around each tensor."'
+        in html
+    )
     assert re.search(r">\s*Reset\s*<", html)
     assert "&larr;" in html
     assert "&#8857;" in html
+    assert "Arrange Chain" not in html
+    assert "Distribute Horizontally" not in html
+    assert "Distribute Vertically" not in html
     assert not re.search(
         r'<button id="help-close-button"[^>]*>\s*Close\s*</button>',
         html,
@@ -1231,7 +1263,6 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "reflowAlignLeftButton" in shell_bindings_body
     assert "reflowIndicesLeftButton" in shell_bindings_body
     assert "reflowArrangeGridButton" in shell_bindings_body
-    assert "reflowDistributeVerticalButton" in shell_bindings_body
     assert "applyReflowIndicesAction" in shell_bindings_body
     assert (
         'bindListener(loadSessionTemplateMenuItem, "click", () => {'
@@ -1256,9 +1287,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "function toggleReflowLayoutPopover()" in utilities_ui_body
     assert "sessionUi.promptText(" in session_template_body
     assert "Choose a name for this template." in session_template_body
+    assert "Choose a name for this subnetwork." in session_template_body
 
 
-def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
+def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     editor_server: EditorServer,
 ) -> None:
     utilities_body = request_utilities_runtime_bundle(editor_server)
@@ -1270,6 +1302,11 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
     )
+    overview_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesBindings.js"
+    )
+    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'from "./utilitiesLayout.js"' in utilities_module_body
     assert "createUtilityLayoutBindings" in layout_body
@@ -1281,18 +1318,32 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     assert "function applyReflowIndicesAction(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
     assert "GRID_SNAP_SIZE" in utilities_body
-    assert 'id="align-selection-left-button"' in overview_body + overview_markup_body
-    assert 'id="arrange-selection-chain-button"' in overview_body + overview_markup_body
-    assert 'id="arrange-selection-tree-button"' in overview_body + overview_markup_body
-    assert 'id="arrange-selection-grid-button"' in overview_body + overview_markup_body
+    assert 'id="add-index-to-selection-button"' in overview_body + overview_markup_body
+    assert 'id="extract-selection-button"' in overview_body + overview_markup_body
+    assert (
+        'id="promote-selection-template-button"' in overview_body + overview_markup_body
+    )
+    assert 'id="group-selection-button"' in overview_body + overview_markup_body
+    assert (
+        'id="align-selection-left-button"' not in overview_body + overview_markup_body
+    )
+    assert (
+        'id="arrange-selection-chain-button"'
+        not in overview_body + overview_markup_body
+    )
+    assert 'id="snap-selection-button"' not in overview_body + overview_markup_body
     assert (
         'id="distribute-selection-horizontal-button"'
-        in overview_body + overview_markup_body
+        not in overview_body + overview_markup_body
     )
-    assert 'id="snap-selection-button"' in overview_body + overview_markup_body
-    assert 'class="button-row layout-align-row"' in overview_markup_body
-    assert 'aria-label="Align left"' in overview_markup_body
-    assert "&larr;" in overview_markup_body
+    assert "Arrange Chain" not in overview_markup_body
+    assert "Distribute Horizontally" not in overview_markup_body
+    assert 'class="button-row layout-align-row"' not in overview_markup_body
+    assert "createGroupFromSelection" in properties_body
+    assert 'bindClick("group-selection-button"' in overview_bindings_body
+    assert ".reflow-action-row {" in css_body
+    assert "grid-template-columns: repeat(5, var(--canvas-control-height));" in css_body
+    assert "aspect-ratio: 1 / 1;" in css_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(

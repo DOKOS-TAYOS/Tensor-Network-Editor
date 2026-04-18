@@ -54,6 +54,7 @@ export function createOverviewPropertiesRenderers({
     ).length;
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
+    const hasMultipleTensors = baseTensorCount > 1;
     const linearPeriodicMode = actions.isLinearPeriodicMode();
     const batchColor = actions.getBatchColorValue(selectedEntries);
     const totalElementCount = getSelectionTotalElementCount(selectedEntries);
@@ -66,7 +67,7 @@ export function createOverviewPropertiesRenderers({
       edgeCount,
       groupCount,
       noteCount,
-      tensorsOnly,
+      hasMultipleTensors,
       linearPeriodicMode,
       batchColor,
       totalElementCount,
@@ -78,7 +79,7 @@ export function createOverviewPropertiesRenderers({
       state,
       selectedEntries,
       batchColor,
-      tensorsOnly,
+      hasMultipleTensors,
     });
   }
 

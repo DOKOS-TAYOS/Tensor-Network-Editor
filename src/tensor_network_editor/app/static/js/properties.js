@@ -22,6 +22,7 @@ function createPropertyActions(ctx) {
     snapSelectedTensorsToGrid: () => ctx.snapSelectedTensorsToGrid(),
     exportSelectedSubnetwork: () => ctx.exportSelectedSubnetwork(),
     promoteSelectedSubnetworkToTemplate: () => ctx.promoteSelectedSubnetworkToTemplate(),
+    createGroupFromSelection: () => ctx.createGroupFromSelection(),
     findGroupById: (groupId) => ctx.findGroupById(groupId),
     findEdgeById: (edgeId) => ctx.findEdgeById(edgeId),
     findNoteById: (noteId) => ctx.findNoteById(noteId),

@@ -47,7 +47,7 @@ export function buildMultiSelectionPropertiesMarkup({
   edgeCount,
   groupCount,
   noteCount,
-  tensorsOnly,
+  hasMultipleTensors,
   linearPeriodicMode,
   batchColor,
   totalElementCount,
@@ -94,12 +94,36 @@ export function buildMultiSelectionPropertiesMarkup({
           }
         </div>
       </div>
+      ${
+        hasMultipleTensors
+          ? `
+            <div class="button-row selection-tensor-actions-row">
+              <button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>
+              <button
+                id="extract-selection-button"
+                type="button"
+                ${linearPeriodicMode ? "disabled" : ""}
+              >
+                Extract Selection
+              </button>
+              <button
+                id="promote-selection-template-button"
+                type="button"
+                ${linearPeriodicMode ? "disabled" : ""}
+              >
+                Promote to Template
+              </button>
+              <button id="group-selection-button" type="button">Group</button>
+            </div>
+            ${
+              linearPeriodicMode
+                ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
+                : ""
+            }
+          `
+          : ""
+      }
       <div class="button-row">
-        ${
-          tensorsOnly
-            ? '<button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>'
-            : ""
-        }
         <label class="control-inline-color" for="multi-color-input">
           <input
             id="multi-color-input"
@@ -119,99 +143,6 @@ export function buildMultiSelectionPropertiesMarkup({
           ${renderTrashIcon()}
         </button>
       </div>
-      ${
-        tensorsOnly
-          ? `
-            <div class="properties-section-heading">Layout</div>
-            <div class="button-row layout-align-row">
-              <button
-                id="align-selection-left-button"
-                type="button"
-                aria-label="Align left"
-                title="Align left"
-              >
-                &larr;
-              </button>
-              <button
-                id="align-selection-right-button"
-                type="button"
-                aria-label="Align right"
-                title="Align right"
-              >
-                &rarr;
-              </button>
-              <button
-                id="align-selection-top-button"
-                type="button"
-                aria-label="Align top"
-                title="Align top"
-              >
-                &uarr;
-              </button>
-              <button
-                id="align-selection-middle-button"
-                type="button"
-                aria-label="Align middle"
-                title="Align middle"
-              >
-                &#8857;
-              </button>
-              <button
-                id="align-selection-bottom-button"
-                type="button"
-                aria-label="Align bottom"
-                title="Align bottom"
-              >
-                &darr;
-              </button>
-            </div>
-            <div class="button-row">
-              <button id="arrange-selection-chain-button" type="button">Arrange Chain</button>
-              <button id="arrange-selection-tree-button" type="button">Arrange Tree</button>
-              <button id="arrange-selection-grid-button" type="button">Arrange Grid</button>
-            </div>
-            <div class="button-row">
-              <button
-                id="distribute-selection-horizontal-button"
-                type="button"
-                ${baseTensorCount < 3 ? "disabled" : ""}
-              >
-                Distribute Horizontally
-              </button>
-              <button
-                id="distribute-selection-vertical-button"
-                type="button"
-                ${baseTensorCount < 3 ? "disabled" : ""}
-              >
-                Distribute Vertically
-              </button>
-              <button id="snap-selection-button" type="button">Snap to Grid</button>
-            </div>
-            <div class="properties-section-heading">Subnetwork</div>
-            <div class="button-row">
-              <button
-                id="extract-selection-button"
-                type="button"
-                ${linearPeriodicMode ? "disabled" : ""}
-              >
-                Extract Selection
-              </button>
-              <button
-                id="promote-selection-template-button"
-                type="button"
-                ${linearPeriodicMode ? "disabled" : ""}
-              >
-                Promote Selection to Template
-              </button>
-            </div>
-            ${
-              linearPeriodicMode
-                ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
-                : ""
-            }
-          `
-          : ""
-      }
       <p class="property-meta">
         Drag any selected tensor to move the selected tensor group together.
       </p>

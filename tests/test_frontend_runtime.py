@@ -3165,13 +3165,32 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
                   },
                 ],
               },
+              {
+                id: "tensor_b",
+                name: "Tensor B",
+                position: { x: 320, y: 140 },
+                size: { width: 140, height: 84 },
+                metadata: {
+                  color: "#654321",
+                  tags: ["paired"],
+                },
+                indices: [
+                  {
+                    id: "index_c",
+                    name: "bond",
+                    dimension: 3,
+                    offset: { x: -38, y: 0 },
+                    metadata: {},
+                  },
+                ],
+              },
             ],
             edges: [
               {
                 id: "edge_ab",
                 name: "bond_ab",
-                left: { tensor_id: "tensor_a", index_id: "index_a" },
-                right: { tensor_id: "tensor_a", index_id: "index_b" },
+                left: { tensor_id: "tensor_a", index_id: "index_b" },
+                right: { tensor_id: "tensor_b", index_id: "index_c" },
                 metadata: {},
               },
             ],
@@ -3525,6 +3544,22 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         ctx.setSelection(["edge_ab"], { primaryId: "edge_ab" });
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting a connection should render the metadata disclosure.");
+        }
+        ctx.setSelection(["tensor_a", "tensor_b", "index_a", "edge_ab"], { primaryId: "tensor_b" });
+        if (!propertiesPanel.innerHTML.includes('id="add-index-to-selection-button"')) {
+          throw new Error("A mixed selection with multiple tensors should still expose Add Index to Tensors.");
+        }
+        if (!propertiesPanel.innerHTML.includes('id="extract-selection-button"')) {
+          throw new Error("A mixed selection with multiple tensors should still expose Extract Selection.");
+        }
+        if (!propertiesPanel.innerHTML.includes('id="promote-selection-template-button"')) {
+          throw new Error("A mixed selection with multiple tensors should still expose Promote to Template.");
+        }
+        if (!propertiesPanel.innerHTML.includes('id="group-selection-button"')) {
+          throw new Error("A mixed selection with multiple tensors should still expose Group.");
+        }
+        if (propertiesPanel.innerHTML.includes('id="align-selection-left-button"')) {
+          throw new Error("The Selection panel should no longer render tensor reflow controls.");
         }
         ctx.renderNoteProperties("note_a");
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
@@ -5921,7 +5956,10 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 setTimeout,
                 clearTimeout,
                 confirm: () => true,
-                prompt: createPromptQueue(["selection_fragment"]),
+                prompt: createPromptQueue([
+                  "selection_fragment_export",
+                  "selection_fragment",
+                ]),
                 Prism: null,
               },
               document: {
@@ -6204,6 +6242,29 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             ctx.state.spec.tensors[0].indices[0].offset = { x: 12, y: -4 };
             ctx.state.spec.tensors[1].indices[0].offset = { x: 16, y: -8 };
             ctx.state.spec.tensors[1].indices[1].offset = { x: 20, y: 10 };
+            ctx.state.spec.tensors[1].indices.push(
+              {
+                id: "tensor_b_extra_1",
+                name: "z1",
+                dimension: 7,
+                offset: { x: 0, y: 0 },
+                metadata: {},
+              },
+              {
+                id: "tensor_b_extra_2",
+                name: "z2",
+                dimension: 11,
+                offset: { x: 0, y: 0 },
+                metadata: {},
+              },
+              {
+                id: "tensor_b_extra_3",
+                name: "z3",
+                dimension: 13,
+                offset: { x: 0, y: 0 },
+                metadata: {},
+              }
+            );
             ctx.applyReflowIndicesAction("bottom");
             const tensorAAfterIndexBottom = ctx.findTensorById("tensor_a");
             const tensorBAfterIndexBottom = ctx.findTensorById("tensor_b");
@@ -6218,8 +6279,13 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             if (!tensorAAfterIndexBottom.indices.every((index) => index.offset.y === expectedBottomOffsetA)) {
               throw new Error("Bottom index reflow should pin tensor A indices to the lower edge.");
             }
-            if (!tensorBAfterIndexBottom.indices.every((index) => index.offset.y === expectedBottomOffsetB)) {
-              throw new Error("Bottom index reflow should pin tensor B indices to the lower edge.");
+            const uniqueTensorBIndexRows = new Set(
+              tensorBAfterIndexBottom.indices.map((index) => index.offset.y)
+            );
+            if (uniqueTensorBIndexRows.size < 2) {
+              throw new Error(
+                "Crowded bottom index reflow should use multiple rows when one edge is too cramped."
+              );
             }
             if (ctx.state.selectionIds.join(",") !== "tensor_a,tensor_b") {
               throw new Error("Index reflow should preserve the selected tensors.");
@@ -6260,9 +6326,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 previousTensor.position.y + previousTensor.size.height / 2;
               const currentTop =
                 currentTensor.position.y - currentTensor.size.height / 2;
-              if (currentTop <= previousBottom) {
+              if (currentTop - previousBottom < 32) {
                 throw new Error(
-                  `Left alignment should avoid vertical overlap, received ${leftAlignedTensors.map((tensor) => tensor.position.y).join(", ")}.`
+                  `Left alignment should keep a visible vertical gap, received ${leftAlignedTensors.map((tensor) => tensor.position.y).join(", ")}.`
                 );
               }
             }
@@ -6290,9 +6356,9 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
                 previousTensor.position.x + previousTensor.size.width / 2;
               const currentLeft =
                 currentTensor.position.x - currentTensor.size.width / 2;
-              if (currentLeft <= previousRight) {
+              if (currentLeft - previousRight < 32) {
                 throw new Error(
-                  `Middle alignment should avoid horizontal overlap, received ${middleAlignedTensors.map((tensor) => tensor.position.x).join(", ")}.`
+                  `Middle alignment should keep a visible horizontal gap, received ${middleAlignedTensors.map((tensor) => tensor.position.x).join(", ")}.`
                 );
               }
             }
@@ -6335,21 +6401,71 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
 
             ctx.applyDesignChange(
               () => {
+                const tensorCForBranch = ctx.findTensorById("tensor_c");
+                tensorCForBranch.indices.push({
+                  id: "tensor_c_z",
+                  name: "z",
+                  dimension: 7,
+                  offset: { x: 0, y: 0 },
+                  metadata: {},
+                });
                 ctx.state.spec.tensors.push({
                   id: "tensor_d",
                   name: "D",
                   position: { x: 540, y: 360 },
                   size: { width: 180, height: 108 },
-                  indices: [],
+                  indices: [
+                    {
+                      id: "tensor_d_z",
+                      name: "z",
+                      dimension: 7,
+                      offset: { x: 0, y: 0 },
+                      metadata: {},
+                    },
+                  ],
+                  metadata: {},
+                });
+                ctx.state.spec.edges.push({
+                  id: "edge_cd",
+                  name: "bond_cd",
+                  left: { tensor_id: "tensor_c", index_id: "tensor_c_z" },
+                  right: { tensor_id: "tensor_d", index_id: "tensor_d_z" },
                   metadata: {},
                 });
               },
               {
                 selectionIds: ["tensor_a", "tensor_b", "tensor_c", "tensor_d"],
-                primaryId: "tensor_d",
-                statusMessage: "Added tensor D for grid testing.",
+                primaryId: "tensor_b",
+                statusMessage: "Added tensor D for tree testing.",
               }
             );
+            ctx.arrangeSelectedTensors("tree");
+            const branchedTensorB = ctx.findTensorById("tensor_b");
+            const branchedTensorA = ctx.findTensorById("tensor_a");
+            const branchedTensorC = ctx.findTensorById("tensor_c");
+            const branchedTensorD = ctx.findTensorById("tensor_d");
+            if (
+              !(
+                branchedTensorB.position.y < branchedTensorA.position.y
+                && branchedTensorB.position.y < branchedTensorC.position.y
+                && branchedTensorC.position.y < branchedTensorD.position.y
+              )
+            ) {
+              throw new Error(
+                "Arrange Tree should keep branched descendants below their parent tensors."
+              );
+            }
+            if (
+              !(
+                Math.abs(branchedTensorD.position.x - branchedTensorC.position.x)
+                < Math.abs(branchedTensorD.position.x - branchedTensorA.position.x)
+              )
+            ) {
+              throw new Error(
+                "Arrange Tree should keep a descendant closer to its parent branch than to an unrelated sibling branch."
+              );
+            }
+
             ctx.arrangeSelectedTensors("grid");
             const gridSelection = ctx.state.selectionIds.map((tensorId) => ctx.findTensorById(tensorId));
             const uniqueGridXs = new Set(gridSelection.map((tensor) => tensor.position.x));
@@ -6358,9 +6474,59 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               throw new Error("Arrange Grid should place four tensors on a 2x2 grid.");
             }
 
+            ctx.state.spec.edges = [];
+            ctx.state.spec.tensors[0].position = { x: 140, y: 180 };
+            ctx.state.spec.tensors[1].position = { x: 280, y: 120 };
+            ctx.state.spec.tensors[2].position = { x: 430, y: 260 };
+            ctx.state.spec.tensors[3].position = { x: 610, y: 200 };
+            ctx.state.selectionIds = ["tensor_a", "tensor_b", "tensor_c", "tensor_d"];
+            ctx.state.primarySelectionId = "tensor_b";
+            ctx.arrangeSelectedTensors("tree");
+            const noBondTreeTensors = ctx.state.selectionIds.map((tensorId) => ctx.findTensorById(tensorId));
+            const noBondTreeYs = noBondTreeTensors.map((tensor) => tensor.position.y);
+            const noBondTreeRoot = ctx.findTensorById("tensor_b");
+            if (!(new Set(noBondTreeYs).size > 1)) {
+              throw new Error(
+                `Arrange Tree without bonds should still create multiple levels, received ${noBondTreeYs.join(", ")}.`
+              );
+            }
+            if (!noBondTreeTensors.every((tensor) => tensor.id === "tensor_b" || noBondTreeRoot.position.y < tensor.position.y)) {
+              throw new Error(
+                "Arrange Tree without bonds should place the primary tensor above the remaining tensors."
+              );
+            }
+
+            ctx.state.spec.tensors[0].position = { x: 120, y: 300 };
+            ctx.state.spec.tensors[1].position = { x: 270, y: 110 };
+            ctx.state.spec.tensors[2].position = { x: 520, y: 280 };
+            ctx.state.spec.tensors[3].position = { x: 700, y: 190 };
+            ctx.arrangeSelectedTensors("grid");
+            const noBondGridSelection = ctx.state.selectionIds.map((tensorId) => ctx.findTensorById(tensorId));
+            const noBondGridXs = new Set(noBondGridSelection.map((tensor) => tensor.position.x));
+            const noBondGridYs = new Set(noBondGridSelection.map((tensor) => tensor.position.y));
+            if (!(noBondGridXs.size === 2 && noBondGridYs.size === 2)) {
+              throw new Error(
+                `Arrange Grid without bonds should still place four tensors on a 2x2 grid, received x=${[...noBondGridXs].join(",")} y=${[...noBondGridYs].join(",")}.`
+              );
+            }
+
             await ctx.exportSelectedSubnetwork();
             if (!apiCalls.some((call) => call.path === "/api/subnetwork/extract")) {
               throw new Error("Selection export did not call the extract subnetwork API.");
+            }
+            if (downloadEvents.length !== 1) {
+              throw new Error(`Expected one subnetwork export download, received ${downloadEvents.length}.`);
+            }
+            if (downloadEvents[0].filename !== "selection_fragment_export.json") {
+              throw new Error(
+                `Expected the exported subnetwork filename to use the prompted name, received ${downloadEvents[0].filename}.`
+              );
+            }
+            const exportedSubnetworkPayload = JSON.parse(downloadEvents[0].text);
+            if (exportedSubnetworkPayload.network.name !== "selection_fragment_export") {
+              throw new Error(
+                `Expected the exported subnetwork payload to use the prompted name, received ${JSON.stringify(exportedSubnetworkPayload.network)}.`
+              );
             }
 
             await ctx.promoteSelectedSubnetworkToTemplate();

@@ -23,7 +23,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     Number.isFinite(constants && constants.LAYOUT_NON_OVERLAP_GAP) &&
     constants.LAYOUT_NON_OVERLAP_GAP >= 0
       ? constants.LAYOUT_NON_OVERLAP_GAP
-      : 12;
+      : 36;
   const INDEX_RADIUS =
     Number.isFinite(constants && constants.INDEX_RADIUS) &&
     constants.INDEX_RADIUS >= 0
@@ -34,6 +34,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     constants.INDEX_PADDING >= 0
       ? constants.INDEX_PADDING
       : 8;
+  const INDEX_REFLOW_GAP = INDEX_RADIUS * 2 + Math.max(INDEX_PADDING, 8);
 
   function getSelectedLayoutTensorIds() {
     return typeof ctx.getSelectedIdsByKind === "function"
@@ -333,42 +334,23 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   function buildArrangedSelectionPositions(tensorIds, mode) {
     const tensors = getLayoutTensorsById(tensorIds);
     const targetCenter = computeTensorBounds(tensors);
-    if (mode === "chain") {
-      const adjacency = buildTensorAdjacency(tensorIds);
-      const orderedIds = isPathComponent(tensorIds, adjacency)
-        ? buildPathOrder(tensorIds, adjacency)
-        : sortTensorIdsByPosition(tensorIds);
+    const adjacency = buildTensorAdjacency(tensorIds);
+    const internalEdgeCount = getInternalEdgeCount(tensorIds, adjacency);
+    if (mode === "grid" && internalEdgeCount === 0) {
       return centerLayoutPositions(
-        buildChainLocalPositions(orderedIds),
-        orderedIds,
+        buildGridLocalPositions(sortTensorIdsByPosition(tensorIds)),
+        tensorIds,
         {
           x: (targetCenter.left + targetCenter.right) / 2,
           y: (targetCenter.top + targetCenter.bottom) / 2,
         }
       );
     }
-    if (mode === "grid") {
-      const orderedIds = sortTensorIdsByPosition(tensorIds);
+    if (mode === "tree" && internalEdgeCount === 0) {
       return centerLayoutPositions(
-        buildGridLocalPositions(orderedIds),
-        orderedIds,
-        {
-          x: (targetCenter.left + targetCenter.right) / 2,
-          y: (targetCenter.top + targetCenter.bottom) / 2,
-        }
-      );
-    }
-    if (mode === "tree") {
-      return centerPackedComponentLayouts(
-        buildConnectedComponents(tensorIds, buildTensorAdjacency(tensorIds)).map(
-          (componentIds) =>
-            buildTreeComponentLayout(
-              componentIds,
-              buildTensorAdjacency(componentIds),
-              componentIds.includes(state.primarySelectionId)
-                ? state.primarySelectionId
-                : null
-            )
+        buildSyntheticTreeLocalPositions(
+          tensorIds,
+          tensorIds.includes(state.primarySelectionId) ? state.primarySelectionId : null
         ),
         tensorIds,
         {
@@ -377,7 +359,24 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
         }
       );
     }
-    return null;
+    const componentLayouts = buildConnectedComponents(tensorIds, adjacency).map(
+      (componentIds) =>
+        buildSelectionComponentLayout(
+          componentIds,
+          adjacency,
+          mode,
+          componentIds.includes(state.primarySelectionId)
+            ? state.primarySelectionId
+            : null
+        )
+    );
+    if (!componentLayouts.every(Boolean)) {
+      return null;
+    }
+    return centerPackedComponentLayouts(componentLayouts, tensorIds, {
+      x: (targetCenter.left + targetCenter.right) / 2,
+      y: (targetCenter.top + targetCenter.bottom) / 2,
+    });
   }
 
   function buildImportedReflowPositions(tensorIds) {
@@ -395,7 +394,9 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
         }
         return buildComponentLayoutFromLocalPositions(
           componentIds,
-          buildGridLocalPositions(sortTensorIdsByPosition(componentIds))
+          buildGridLocalPositions(
+            buildComponentTraversalOrder(componentIds, adjacency)
+          )
         );
       }
     );
@@ -477,36 +478,60 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     const bottomOffset = ctx.tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING;
 
     if (mode === "left" || mode === "right") {
-      const yOffsets = buildDistributedIndexAxisOffsets(
+      return buildPackedBoundaryIndexOffsets(
+        tensor,
         tensor.indices.length,
         topOffset,
-        bottomOffset
-      );
-      return yOffsets.map((offsetY) =>
-        ctx.clampIndexOffset(
-          {
-            x: mode === "left" ? leftOffset : rightOffset,
-            y: offsetY,
-          },
-          tensor
-        )
+        bottomOffset,
+        (offsetAlongEdge, bandIndex) => ({
+          x:
+            (mode === "left" ? leftOffset : rightOffset) +
+            (mode === "left" ? 1 : -1) * bandIndex * INDEX_REFLOW_GAP,
+          y: offsetAlongEdge,
+        })
       );
     }
 
-    const xOffsets = buildDistributedIndexAxisOffsets(
+    return buildPackedBoundaryIndexOffsets(
+      tensor,
       tensor.indices.length,
       leftOffset,
-      rightOffset
+      rightOffset,
+      (offsetAlongEdge, bandIndex) => ({
+        x: offsetAlongEdge,
+        y:
+          (mode === "top" ? topOffset : bottomOffset) +
+          (mode === "top" ? 1 : -1) * bandIndex * INDEX_REFLOW_GAP,
+      })
     );
-    return xOffsets.map((offsetX) =>
-      ctx.clampIndexOffset(
-        {
-          x: offsetX,
-          y: mode === "top" ? topOffset : bottomOffset,
-        },
-        tensor
+  }
+
+  function buildPackedBoundaryIndexOffsets(
+    tensor,
+    count,
+    start,
+    end,
+    offsetBuilder
+  ) {
+    return buildIndexBands(count, start, end).flatMap((bandOffsets, bandIndex) =>
+      bandOffsets.map((offsetAlongEdge) =>
+        ctx.clampIndexOffset(offsetBuilder(offsetAlongEdge, bandIndex), tensor)
       )
     );
+  }
+
+  function buildIndexBands(count, start, end) {
+    if (count <= 0) {
+      return [];
+    }
+    const span = Math.abs(end - start);
+    const maxPerBand = Math.max(1, Math.floor(span / INDEX_REFLOW_GAP) + 1);
+    const bands = [];
+    for (let index = 0; index < count; index += maxPerBand) {
+      const bandCount = Math.min(maxPerBand, count - index);
+      bands.push(buildDistributedIndexAxisOffsets(bandCount, start, end));
+    }
+    return bands;
   }
 
   function buildDistributedIndexAxisOffsets(count, start, end) {
@@ -607,45 +632,12 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   }
 
   function buildTreeComponentLayout(componentIds, adjacency, preferredRootId = null) {
-    const sortedIds = sortTensorIdsByPosition(componentIds);
-    const rootId =
-      preferredRootId && componentIds.includes(preferredRootId)
-        ? preferredRootId
-        : sortedIds[0];
-    const levels = buildBreadthFirstLevels(rootId, adjacency);
-    const levelHeights = levels.map((levelIds) =>
-      Math.max(...levelIds.map((tensorId) => ctx.tensorHeight(ctx.findTensorById(tensorId))))
+    const { rootId, childrenById } = buildSpanningTree(
+      componentIds,
+      adjacency,
+      preferredRootId
     );
-    const rowLayouts = levels.map((levelIds) =>
-      buildHorizontalRowPositions(
-        [...levelIds].sort((leftId, rightId) => {
-          const leftTensor = ctx.findTensorById(leftId);
-          const rightTensor = ctx.findTensorById(rightId);
-          if (!leftTensor || !rightTensor) {
-            return 0;
-          }
-          if (leftTensor.position.x !== rightTensor.position.x) {
-            return leftTensor.position.x - rightTensor.position.x;
-          }
-          return leftTensor.position.y - rightTensor.position.y;
-        })
-      )
-    );
-    const maxRowWidth = Math.max(...rowLayouts.map((layout) => layout.width));
-    const positions = {};
-    let top = 0;
-    rowLayouts.forEach((layout, levelIndex) => {
-      const offsetX = (maxRowWidth - layout.width) / 2;
-      const rowHeight = levelHeights[levelIndex];
-      Object.entries(layout.positions).forEach(([tensorId, position]) => {
-        positions[tensorId] = {
-          x: position.x + offsetX,
-          y: top + rowHeight / 2,
-        };
-      });
-      top += rowHeight + LAYOUT_VERTICAL_GAP;
-    });
-    return buildComponentLayoutFromLocalPositions(componentIds, positions);
+    return buildTreeSubtreeLayout(rootId, childrenById);
   }
 
   function buildComponentLayoutFromLocalPositions(componentIds, localPositions) {
@@ -758,6 +750,30 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     return positions;
   }
 
+  function buildSyntheticTreeLocalPositions(tensorIds, preferredRootId = null) {
+    const sortedIds = sortTensorIdsByPosition(tensorIds);
+    const rootId =
+      preferredRootId && tensorIds.includes(preferredRootId)
+        ? preferredRootId
+        : sortedIds[0];
+    const remainingIds = sortedIds.filter((tensorId) => tensorId !== rootId);
+    const childrenById = new Map(tensorIds.map((tensorId) => [tensorId, []]));
+    const parentQueue = [rootId];
+    let parentIndex = 0;
+    remainingIds.forEach((tensorId) => {
+      while (
+        parentIndex < parentQueue.length &&
+        (childrenById.get(parentQueue[parentIndex]) || []).length >= 2
+      ) {
+        parentIndex += 1;
+      }
+      const parentId = parentQueue[parentIndex] || rootId;
+      childrenById.get(parentId).push(tensorId);
+      parentQueue.push(tensorId);
+    });
+    return buildTreeSubtreeLayout(rootId, childrenById).positions;
+  }
+
   function buildBreadthFirstLevels(rootId, adjacency) {
     const levels = [];
     const visited = new Set([rootId]);
@@ -825,8 +841,10 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   }
 
   function buildPathOrder(tensorIds, adjacency) {
-    const endpoints = tensorIds.filter(
-      (tensorId) => (adjacency.get(tensorId) || []).length <= 1
+    const endpoints = sortTensorIdsByPosition(
+      tensorIds.filter(
+        (tensorId) => (adjacency.get(tensorId) || []).length <= 1
+      )
     );
     if (!endpoints.length) {
       return sortTensorIdsByPosition(tensorIds);
@@ -857,6 +875,158 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     return (
       tensorIds.length > 1 &&
       getInternalEdgeCount(tensorIds, adjacency) === tensorIds.length - 1
+    );
+  }
+
+  function buildSelectionComponentLayout(
+    componentIds,
+    adjacency,
+    mode,
+    preferredRootId = null
+  ) {
+    if (mode === "tree") {
+      return buildTreeComponentLayout(componentIds, adjacency, preferredRootId);
+    }
+    const orderedIds = buildComponentTraversalOrder(
+      componentIds,
+      adjacency,
+      preferredRootId
+    );
+    if (mode === "chain") {
+      return buildComponentLayoutFromLocalPositions(
+        componentIds,
+        buildChainLocalPositions(orderedIds)
+      );
+    }
+    if (mode === "grid") {
+      return buildComponentLayoutFromLocalPositions(
+        componentIds,
+        buildGridLocalPositions(orderedIds)
+      );
+    }
+    return null;
+  }
+
+  function buildComponentTraversalOrder(
+    componentIds,
+    adjacency,
+    preferredRootId = null
+  ) {
+    if (componentIds.length <= 1) {
+      return [...componentIds];
+    }
+    if (isPathComponent(componentIds, adjacency)) {
+      return buildPathOrder(componentIds, adjacency);
+    }
+    const { rootId, childrenById } = buildSpanningTree(
+      componentIds,
+      adjacency,
+      preferredRootId
+    );
+    const orderedIds = [];
+    function visitSubtree(tensorId) {
+      orderedIds.push(tensorId);
+      (childrenById.get(tensorId) || []).forEach((childId) => {
+        visitSubtree(childId);
+      });
+    }
+    visitSubtree(rootId);
+    return orderedIds;
+  }
+
+  function buildSpanningTree(componentIds, adjacency, preferredRootId = null) {
+    const rootId = resolveComponentRootId(componentIds, adjacency, preferredRootId);
+    const childrenById = new Map(componentIds.map((tensorId) => [tensorId, []]));
+    const visited = new Set([rootId]);
+    const queue = [rootId];
+    while (queue.length) {
+      const currentId = queue.shift();
+      sortTensorIdsByPosition(adjacency.get(currentId) || []).forEach((neighborId) => {
+        if (!childrenById.has(neighborId) || visited.has(neighborId)) {
+          return;
+        }
+        visited.add(neighborId);
+        childrenById.get(currentId).push(neighborId);
+        queue.push(neighborId);
+      });
+    }
+    return {
+      rootId,
+      childrenById,
+    };
+  }
+
+  function resolveComponentRootId(componentIds, adjacency, preferredRootId = null) {
+    if (preferredRootId && componentIds.includes(preferredRootId)) {
+      return preferredRootId;
+    }
+    const endpointIds = componentIds.filter(
+      (tensorId) => (adjacency.get(tensorId) || []).length <= 1
+    );
+    if (endpointIds.length) {
+      return sortTensorIdsByPosition(endpointIds)[0];
+    }
+    return sortTensorIdsByPosition(componentIds)[0];
+  }
+
+  function buildTreeSubtreeLayout(rootId, childrenById) {
+    const rootTensor = ctx.findTensorById(rootId);
+    const rootWidth = ctx.tensorWidth(rootTensor);
+    const rootHeight = ctx.tensorHeight(rootTensor);
+    const childIds = childrenById.get(rootId) || [];
+    if (!childIds.length) {
+      return buildComponentLayoutFromLocalPositions([rootId], {
+        [rootId]: {
+          x: rootWidth / 2,
+          y: rootHeight / 2,
+        },
+      });
+    }
+
+    const childLayouts = childIds.map((childId) =>
+      buildTreeSubtreeLayout(childId, childrenById)
+    );
+    const packedChildPositions = {};
+    let childLeft = 0;
+    childLayouts.forEach((layout, index) => {
+      const deltaX = childLeft - layout.bounds.left;
+      const deltaY = rootHeight + LAYOUT_VERTICAL_GAP - layout.bounds.top;
+      layout.ids.forEach((tensorId) => {
+        const position = layout.positions[tensorId];
+        packedChildPositions[tensorId] = {
+          x: position.x + deltaX,
+          y: position.y + deltaY,
+        };
+      });
+      childLeft += layout.width;
+      if (index < childLayouts.length - 1) {
+        childLeft += LAYOUT_HORIZONTAL_GAP;
+      }
+    });
+
+    const childBounds = computePositionBounds(
+      Object.keys(packedChildPositions),
+      packedChildPositions
+    );
+    const childBandWidth = childBounds.right - childBounds.left;
+    const totalWidth = Math.max(rootWidth, childBandWidth);
+    const childOffsetX = (totalWidth - childBandWidth) / 2 - childBounds.left;
+    const positions = {
+      [rootId]: {
+        x: totalWidth / 2,
+        y: rootHeight / 2,
+      },
+    };
+    Object.entries(packedChildPositions).forEach(([tensorId, position]) => {
+      positions[tensorId] = {
+        x: position.x + childOffsetX,
+        y: position.y,
+      };
+    });
+
+    return buildComponentLayoutFromLocalPositions(
+      [rootId, ...childLayouts.flatMap((layout) => layout.ids)],
+      positions
     );
   }
 

@@ -46,7 +46,12 @@ export function createOverviewPropertiesBindings({
     });
   }
 
-  function bindMultiSelectionProperties({ state, selectedEntries, batchColor, tensorsOnly }) {
+  function bindMultiSelectionProperties({
+    state,
+    selectedEntries,
+    batchColor,
+    hasMultipleTensors,
+  }) {
     const multiColorInput = documentRef.getElementById("multi-color-input");
     bindImmediateAutosave(
       multiColorInput,
@@ -81,41 +86,15 @@ export function createOverviewPropertiesBindings({
       commands.deleteCurrentSelection();
     });
 
-    if (!tensorsOnly) {
+    if (!hasMultipleTensors) {
       return;
     }
 
-    bindClick("align-selection-left-button", () => actions.alignSelectedTensors("left"));
-    bindClick("align-selection-right-button", () =>
-      actions.alignSelectedTensors("right")
-    );
-    bindClick("align-selection-top-button", () => actions.alignSelectedTensors("top"));
-    bindClick("align-selection-middle-button", () =>
-      actions.alignSelectedTensors("middle")
-    );
-    bindClick("align-selection-bottom-button", () =>
-      actions.alignSelectedTensors("bottom")
-    );
-    bindClick("arrange-selection-chain-button", () =>
-      actions.arrangeSelectedTensors("chain")
-    );
-    bindClick("arrange-selection-tree-button", () =>
-      actions.arrangeSelectedTensors("tree")
-    );
-    bindClick("arrange-selection-grid-button", () =>
-      actions.arrangeSelectedTensors("grid")
-    );
-    bindClick("distribute-selection-horizontal-button", () =>
-      actions.distributeSelectedTensors("horizontal")
-    );
-    bindClick("distribute-selection-vertical-button", () =>
-      actions.distributeSelectedTensors("vertical")
-    );
-    bindClick("snap-selection-button", () => actions.snapSelectedTensorsToGrid());
     bindClick("extract-selection-button", () => actions.exportSelectedSubnetwork());
     bindClick("promote-selection-template-button", () =>
       actions.promoteSelectedSubnetworkToTemplate()
     );
+    bindClick("group-selection-button", () => actions.createGroupFromSelection());
   }
 
   return {

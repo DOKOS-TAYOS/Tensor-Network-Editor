@@ -322,7 +322,6 @@ export function registerGraphRender(ctx) {
           kind === "tensor" &&
           Array.isArray(state.selectionIds) &&
           selectedTensorIds.length >= 2 &&
-          selectedTensorIds.length === state.selectionIds.length &&
           selectedTensorIds.includes(element.id())
             ? "selection"
             : kind;

@@ -1198,7 +1198,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         }}
         document.getElementById("context-menu-delete-tensor-button").click();
 
-        ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+        ctx.state.selectionIds = ["tensor_a", "tensor_b", "index_left", "edge_ab"];
         ctx.state.primarySelectionId = "tensor_b";
         const selectionEventCountBefore = contextMenuEvents.filter(
           (entry) => typeof entry === "object" && entry.selectionIds
@@ -1206,6 +1206,15 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-to-selection-button"')) {{
           throw new Error("Expected a selected tensor to open the selection mini menu.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Tensors</span>")) {{
+          throw new Error("Expected the selection mini menu to expose the tensor count chip.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Indices</span>")) {{
+          throw new Error("Expected the selection mini menu to expose the index count chip.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Total elements</span>")) {{
+          throw new Error("Expected the selection mini menu to expose the total element count chip.");
         }}
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-extract-selection-button"')) {{
           throw new Error("Expected the selection mini menu to expose extraction.");
@@ -1224,6 +1233,15 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         }}
         if (contextMenuRoot.innerHTML.includes('id="context-menu-name-input"')) {{
           throw new Error("The selection mini menu should not render the single-tensor rename field.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes("<strong>2</strong>")) {{
+          throw new Error("Expected the selection mini menu to report two selected tensors.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes("<strong>3</strong>")) {{
+          throw new Error("Expected the selection mini menu to report three tensor indices.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes("<strong>11</strong>")) {{
+          throw new Error("Expected the selection mini menu to report the selected total element count.");
         }}
         const selectionEventCountAfter = contextMenuEvents.filter(
           (entry) => typeof entry === "object" && entry.selectionIds
@@ -1330,7 +1348,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         if (
           !contextMenuEvents.includes("addTensorIndex:tensor_a") ||
           !contextMenuEvents.includes("applySelectionColor:#aa5500") ||
-          !contextMenuEvents.includes("addIndexToSelectedTensors::tensor_a,tensor_b") ||
+          !contextMenuEvents.includes("addIndexToSelectedTensors::tensor_a,tensor_b,index_left,edge_ab") ||
           !contextMenuEvents.includes("exportSelectedSubnetwork") ||
           !contextMenuEvents.includes("promoteSelectedSubnetworkToTemplate") ||
           !contextMenuEvents.includes("createGroupFromSelection") ||

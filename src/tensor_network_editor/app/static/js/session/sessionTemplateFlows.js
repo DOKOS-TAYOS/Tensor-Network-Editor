@@ -144,13 +144,30 @@ export function createSessionTemplateFlows({
         );
         return;
       }
+      const resolvedDisplayName = promptForSubnetworkName(
+        (
+          payload.spec
+          && payload.spec.network
+          && typeof payload.spec.network.name === "string"
+          && payload.spec.network.name.trim()
+        )
+          || label
+          || "subnetwork",
+        "Subnetwork export cancelled."
+      );
+      if (!resolvedDisplayName) {
+        return;
+      }
+      if (payload.spec && payload.spec.network) {
+        payload.spec.network.name = resolvedDisplayName;
+      }
       sessionUi.downloadText(
-        `${actions.sanitizeFilename(label || payload.spec.network.name || "subnetwork")}.json`,
+        `${actions.sanitizeFilename(resolvedDisplayName || "subnetwork")}.json`,
         JSON.stringify(payload.spec, null, 2),
         "application/json;charset=utf-8"
       );
       actions.setStatus(
-        `Saved ${payload.spec.network.name || "subnetwork"} as JSON.`,
+        `Saved ${resolvedDisplayName} as JSON.`,
         "success"
       );
     } catch (error) {
@@ -412,6 +429,23 @@ export function createSessionTemplateFlows({
     const trimmedDisplayName = promptedDisplayName.trim();
     if (!trimmedDisplayName) {
       actions.setStatus("Template names cannot be empty.", "error");
+      return null;
+    }
+    return trimmedDisplayName;
+  }
+
+  function promptForSubnetworkName(defaultDisplayName, cancelledStatus) {
+    const promptedDisplayName = sessionUi.promptText(
+      "Choose a name for this subnetwork.",
+      defaultDisplayName
+    );
+    if (typeof promptedDisplayName !== "string") {
+      actions.setStatus(cancelledStatus);
+      return null;
+    }
+    const trimmedDisplayName = promptedDisplayName.trim();
+    if (!trimmedDisplayName) {
+      actions.setStatus("Subnetwork names cannot be empty.", "error");
       return null;
     }
     return trimmedDisplayName;
