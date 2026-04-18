@@ -74,7 +74,8 @@ export function createEditorShellBindings({
     helpBackdrop,
     helpCloseButton,
     templateManagerBackdrop,
-    templateManagerCloseButton,
+    templateManagerSaveButton,
+    templateManagerDiscardButton,
     canvasShell,
     minimapCanvas,
     engineSelect,
@@ -199,27 +200,84 @@ export function createEditorShellBindings({
       });
     };
 
-    shortcutTooltip.applyShortcutHint("add-tensor-button", "Add tensor", "N");
-    shortcutTooltip.applyShortcutHint("insert-template-button", "Insert template", "T");
-    shortcutTooltip.applyShortcutHint("create-group-button", "Group", "G");
-    shortcutTooltip.applyShortcutHint("add-note-button", "Add note", "P");
-    shortcutTooltip.applyShortcutHint("connect-button", "Connect", "C");
-    shortcutTooltip.applyShortcutHint("delete-button", "Delete", "Delete");
-    shortcutTooltip.applyShortcutHint("save-button", "Save tensor network", "Ctrl/Cmd+S");
+    shortcutTooltip.applyShortcutHint(
+      "add-tensor-button",
+      "Add tensor",
+      "N",
+      "Place a new tensor at the center of the canvas."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "insert-template-button",
+      "Insert template",
+      "T",
+      "Insert the selected template on the canvas."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "create-group-button",
+      "Group",
+      "G",
+      "Wrap the selected tensors in a movable group."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "add-note-button",
+      "Add note",
+      "P",
+      "Place a new note at the center of the canvas."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "connect-button",
+      "Connect",
+      "C",
+      "Link two open indices that share the same dimension."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "delete-button",
+      "Delete",
+      "Delete",
+      "Remove the current selection from the canvas."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "save-button",
+      "Save tensor network",
+      "Ctrl/Cmd+S",
+      "Download the current design as JSON."
+    );
     shortcutTooltip.applyShortcutHint(
       "load-design-menu-item",
       "Load tensor network",
-      "Ctrl/Cmd+L"
+      "Ctrl/Cmd+L",
+      "Open a saved design from disk."
     );
-    shortcutTooltip.applyShortcutHint("generate-button", "Generate code", "Shift+G");
+    shortcutTooltip.applyShortcutHint(
+      "generate-button",
+      "Generate code",
+      "Shift+G",
+      "Build the current network with the selected engine."
+    );
     shortcutTooltip.applyShortcutHint(
       "linear-periodic-mode-menu-item",
       "For unidimensional",
-      "F"
+      "F",
+      "Switch between single mode and the three-cell chain workflow."
     );
-    shortcutTooltip.applyShortcutHint("undo-button", "Undo", "Ctrl/Cmd+Z");
-    shortcutTooltip.applyShortcutHint("redo-button", "Redo", redoShortcutLabel);
-    shortcutTooltip.applyShortcutHint("help-info-menu-item", "Info", "?");
+    shortcutTooltip.applyShortcutHint(
+      "undo-button",
+      "Undo",
+      "Ctrl/Cmd+Z",
+      "Revert the latest design change."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "redo-button",
+      "Redo",
+      redoShortcutLabel,
+      "Restore the latest undone design change."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "help-info-menu-item",
+      "Info",
+      "?",
+      "Open the editor guide."
+    );
     shortcutTooltip.attachShortcutTooltipHandlers();
 
     toolbarMenus.forEach((menu) => {
@@ -352,9 +410,16 @@ export function createEditorShellBindings({
     bindListener(templateManagerBackdrop, "click", () =>
       actions.toggleTemplateManager(false)
     );
-    bindListener(templateManagerCloseButton, "click", () =>
-      actions.toggleTemplateManager(false)
-    );
+    bindListener(templateManagerSaveButton, "click", () => {
+      if (typeof actions.saveTemplateManagerChanges === "function") {
+        actions.saveTemplateManagerChanges();
+      }
+    });
+    bindListener(templateManagerDiscardButton, "click", () => {
+      if (typeof actions.discardTemplateManagerChanges === "function") {
+        actions.discardTemplateManagerChanges();
+      }
+    });
     bindListener(engineSelect, "change", (event) => {
       setSelectChevronExpanded(engineSelectField, false);
       store.setSelectedEngine(event.target.value);

@@ -549,7 +549,7 @@ export function createSessionTemplateFlows({
     return "";
   }
 
-  function closeTemplateManager() {
+  function saveTemplateManagerChanges() {
     if (!state.isTemplateManagerOpen) {
       return false;
     }
@@ -572,6 +572,19 @@ export function createSessionTemplateFlows({
     return false;
   }
 
+  function discardTemplateManagerChanges() {
+    if (!state.isTemplateManagerOpen) {
+      return false;
+    }
+    state.isTemplateManagerOpen = false;
+    templateManagerDraft = null;
+    actions.setTemplateManagerValidationMessage("");
+    actions.syncTemplateManagerModalState();
+    actions.updateToolbarState();
+    actions.setStatus("Discarded template changes.");
+    return false;
+  }
+
   function toggleTemplateManager(forceOpen) {
     const shouldOpen =
       typeof forceOpen === "boolean" ? forceOpen : !state.isTemplateManagerOpen;
@@ -579,7 +592,7 @@ export function createSessionTemplateFlows({
       openTemplateManager();
       return true;
     }
-    return closeTemplateManager();
+    return discardTemplateManagerChanges();
   }
 
   async function loadSubnetworkFromFile(event) {
@@ -771,6 +784,8 @@ export function createSessionTemplateFlows({
     promoteSelectedSubnetworkToTemplate,
     promoteGroupToTemplate,
     toggleTemplateManager,
+    saveTemplateManagerChanges,
+    discardTemplateManagerChanges,
     renameSelectedTemplate,
     deleteSelectedTemplate,
     loadSubnetworkFromFile,

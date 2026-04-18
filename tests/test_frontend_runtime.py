@@ -6909,7 +6909,8 @@ def _write_template_catalog_management_runtime_regression_script(
             deleteTemplateButton: createButton(),
             templateManagerModal: { classList: createClassList() },
             templateManagerBackdrop: createButton(),
-            templateManagerCloseButton: createButton(),
+            templateManagerSaveButton: createButton(),
+            templateManagerDiscardButton: createButton(),
             templateManagerError: {
               hidden: true,
               textContent: "",
@@ -7446,9 +7447,29 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!firstManagerInput) {
           throw new Error("Expected the session template row to remain editable in the manager.");
         }
-        firstManagerInput.value = "Project Fragment";
-        if (ctx.toggleTemplateManager(false) !== true) {
-          throw new Error("Closing the template manager with a duplicate locked name should be blocked.");
+        firstManagerInput.value = "Discarded Rename";
+        if (ctx.discardTemplateManagerChanges() !== false) {
+          throw new Error("Discarding template manager edits should close the manager without saving.");
+        }
+        const discardedEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.templateName === firstSessionTemplate
+        );
+        if (!discardedEntry || discardedEntry.displayName !== "Session Fragment") {
+          throw new Error(
+            `Discarding template manager edits should keep the original session template name, received ${JSON.stringify(discardedEntry)}.`
+          );
+        }
+
+        ctx.toggleTemplateManager(true);
+        const reopenedFirstManagerInput = ctx.dom.templateManagerList.querySelector(
+          `input[data-template-name="${firstSessionTemplate}"]`
+        );
+        if (!reopenedFirstManagerInput) {
+          throw new Error("Expected the template manager to re-open with the session template row.");
+        }
+        reopenedFirstManagerInput.value = "Project Fragment";
+        if (ctx.saveTemplateManagerChanges() !== true) {
+          throw new Error("Saving the template manager with a duplicate locked name should be blocked.");
         }
         if (!ctx.state.isTemplateManagerOpen) {
           throw new Error("The template manager should stay open when validation fails.");
@@ -7461,9 +7482,9 @@ def _write_template_catalog_management_runtime_regression_script(
             `Expected duplicate-name validation against hidden locked templates, received ${ctx.dom.templateManagerError.textContent}.`
           );
         }
-        firstManagerInput.value = "Manager Rename";
-        if (ctx.toggleTemplateManager(false) !== false) {
-          throw new Error("Closing the template manager with valid session names should succeed.");
+        reopenedFirstManagerInput.value = "Manager Rename";
+        if (ctx.saveTemplateManagerChanges() !== false) {
+          throw new Error("Saving the template manager with valid session names should succeed.");
         }
         const managerRenamedEntry = ctx.listTemplateEntries().find(
           (entry) => entry.templateName === firstSessionTemplate

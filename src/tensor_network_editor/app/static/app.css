@@ -500,6 +500,11 @@ select {
   color: var(--muted);
 }
 
+.template-select-field {
+  grid-template-rows: var(--canvas-control-height);
+  gap: 0;
+}
+
 .template-parameter-title {
   color: var(--ink);
   font-size: 0.8rem;
@@ -532,6 +537,10 @@ select {
 
 .select-chevron-field:focus-within::after {
   border-color: var(--accent-strong);
+}
+
+.template-select-field::after {
+  top: 50%;
 }
 
 .template-select-field select {
@@ -2257,9 +2266,19 @@ textarea[disabled] {
   text-decoration: none;
 }
 
+.help-about-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .template-manager-dialog {
   display: grid;
   gap: 1rem;
+}
+
+.template-manager-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .template-manager-error {
@@ -2398,6 +2417,10 @@ textarea[disabled] {
     width: calc(100vw - 1rem);
     margin: 0.5rem auto;
     max-height: calc(100dvh - 1rem);
+  }
+
+  .help-about-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .planner-summary-grid {

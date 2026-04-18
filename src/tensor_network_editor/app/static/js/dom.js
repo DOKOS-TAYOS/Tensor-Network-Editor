@@ -117,12 +117,14 @@ export function getDomRefs(document) {
     helpAboutSection: document.getElementById("help-about-section"),
     aboutRepositoryLink: document.getElementById("about-repository-link"),
     aboutVersion: document.getElementById("about-version"),
+    aboutSchemaVersion: document.getElementById("about-schema-version"),
     aboutLicense: document.getElementById("about-license"),
     aboutAuthor: document.getElementById("about-author"),
     templateManagerModal: document.getElementById("template-manager-modal"),
     templateManagerBackdrop: document.getElementById("template-manager-backdrop"),
-    templateManagerCloseButton: document.getElementById(
-      "template-manager-close-button"
+    templateManagerSaveButton: document.getElementById("template-manager-save-button"),
+    templateManagerDiscardButton: document.getElementById(
+      "template-manager-discard-button"
     ),
     templateManagerError: document.getElementById("template-manager-error"),
     templateManagerList: document.getElementById("template-manager-list"),

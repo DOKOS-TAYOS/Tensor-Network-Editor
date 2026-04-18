@@ -8,14 +8,22 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
   let tooltipNode = null;
   let activeButton = null;
 
-  function applyShortcutHint(buttonId, label, shortcut) {
+  function applyShortcutHint(buttonId, label, shortcut, description = "") {
     const button = documentRef.getElementById(buttonId);
     if (!button) {
       return;
     }
     button.dataset.shortcut = shortcut;
     button.dataset.shortcutLabel = label;
-    button.setAttribute("aria-label", `${label} (${shortcut})`);
+    if (description) {
+      button.dataset.shortcutDescription = description;
+    } else {
+      delete button.dataset.shortcutDescription;
+    }
+    button.setAttribute(
+      "aria-label",
+      description ? `${label} (${shortcut}). ${description}` : `${label} (${shortcut})`
+    );
     button.removeAttribute("title");
   }
 
@@ -33,7 +41,16 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
   function formatTooltipText(button) {
     const label = button.dataset.shortcutLabel || String(button.textContent || "").trim();
     const shortcut = button.dataset.shortcut || "";
-    return label ? `${label} (${shortcut})` : shortcut;
+    const description = button.dataset.shortcutDescription || "";
+    if (!label) {
+      return shortcut;
+    }
+    if (!shortcut) {
+      return description ? `${label}: ${description}` : label;
+    }
+    return description
+      ? `${label} (${shortcut}): ${description}`
+      : `${label} (${shortcut})`;
   }
 
   function positionTooltip(button) {

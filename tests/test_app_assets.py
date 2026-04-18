@@ -68,6 +68,8 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert "<strong>S</strong><span>Toggle sidebar</span>" in html
     assert "<strong>Shift+M</strong><span>Toggle minimap</span>" in html
     assert "<strong>Shift+R</strong><span>Reset contraction path</span>" in html
+    assert "<strong>F</strong><span>Toggle For unidimensional mode</span>" in html
+    assert "Ctrl/Cmd+N" not in html
     assert headers["Content-Type"].startswith("text/html")
 
 
@@ -400,6 +402,11 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert 'content: "âŒ„";' not in body
     assert ".template-parameter-panel select," in body
     assert "height: var(--canvas-control-height);" in body
+    assert ".template-select-field {" in body
+    assert "grid-template-rows: var(--canvas-control-height);" in body
+    assert "gap: 0;" in body
+    assert ".template-select-field::after {" in body
+    assert "top: 50%;" in body
     assert ".template-select-field select {" in body
     assert "appearance: none;" in body
     assert "padding-right: 2.2rem;" in body
@@ -1130,11 +1137,16 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-load-input"' in html
     assert 'id="template-manager-modal"' in html
     assert 'id="template-manager-list"' in html
+    assert 'id="template-manager-save-button"' in html
+    assert 'id="template-manager-discard-button"' in html
+    assert 'id="template-manager-close-button"' not in html
     assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
+    assert 'id="about-schema-version"' in html
     assert 'id="insert-subnetwork-button"' not in html
     assert 'id="help-shared-header"' in html
     assert 'class="help-close-icon"' in html
+    assert '<span class="template-parameter-title">Template</span>' not in html
     assert re.search(
         r'<div class="button-row reflow-align-row">[\s\S]*id="reflow-align-left-button"[\s\S]*id="reflow-align-right-button"[\s\S]*id="reflow-align-top-button"[\s\S]*id="reflow-align-middle-button"[\s\S]*id="reflow-align-bottom-button"',
         html,
@@ -1198,6 +1210,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert about_section is not None
     assert "<h3>" not in about_section.group("body")
+    assert "Schema version" in about_section.group("body")
     assert "Support on YouTube" in about_section.group("body")
     assert 'href="https://www.youtube.com/@whenphysics"' in about_section.group("body")
     assert (
@@ -1232,14 +1245,22 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert (
+        'aboutSchemaVersion: document.getElementById("about-schema-version")'
+        in dom_body
+    )
+    assert (
         'templateManagerModal: document.getElementById("template-manager-modal")'
         in dom_body
     )
+    assert "templateManagerSaveButton: document.getElementById(" in dom_body
+    assert "templateManagerDiscardButton: document.getElementById(" in dom_body
     assert (
         'templateCatalogWarning: document.getElementById("template-catalog-warning")'
         in dom_body
     )
     assert 'helpSharedHeader: document.getElementById("help-shared-header")' in dom_body
+    assert ".help-about-grid {" in body
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in body
     assert ".help-dialog-close {" in body
     assert "width: 2.2rem;" in body
     assert "min-width: 2.2rem;" in body

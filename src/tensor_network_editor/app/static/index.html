@@ -33,10 +33,16 @@
                   File
                 </button>
                 <div id="file-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
-                  <button id="new-design-button" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="new-design-button"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Start a new empty tensor network after confirmation."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">New tensor network</span>
-                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+N</span>
+                    <span class="toolbar-menu-item-shortcut"></span>
                   </button>
                   <button id="save-button" class="toolbar-menu-item" type="button" role="menuitem">
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
@@ -49,17 +55,35 @@
                     <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+L</span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
-                  <button id="export-python-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="export-python-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the current design as a Python script."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Export to .py</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
-                  <button id="export-png-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="export-png-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the current design as a PNG image."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Export to .png</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
-                  <button id="export-svg-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="export-svg-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the current design as an SVG image."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Export to .svg</span>
                     <span class="toolbar-menu-item-shortcut"></span>
@@ -78,7 +102,13 @@
                   Modes
                 </button>
                 <div id="modes-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
-                  <button id="single-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitemradio">
+                  <button
+                    id="single-mode-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Edit one tensor network on a single canvas."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Single</span>
                     <span class="toolbar-menu-item-shortcut"></span>
@@ -88,7 +118,14 @@
                     <span class="toolbar-menu-item-label">For unidimensional</span>
                     <span class="toolbar-menu-item-shortcut">F</span>
                   </button>
-                  <button id="grid-periodic-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitem" disabled>
+                  <button
+                    id="grid-periodic-mode-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Bidimensional periodic mode is not available yet."
+                    disabled
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">For bidimensional</span>
                     <span class="toolbar-menu-item-shortcut"></span>
@@ -107,23 +144,47 @@
                   Templates
                 </button>
                 <div id="templates-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
-                  <button id="save-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="save-session-template-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Save the selected tensors as a session template."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Save template</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
-                  <button id="load-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="load-session-template-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Load session templates from a JSON file."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Load template</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
-                  <button id="export-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="export-session-template-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the selected session template as JSON."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Export template</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
-                  <button id="edit-session-template-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="edit-session-template-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Rename or delete session templates."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Edit template</span>
                     <span class="toolbar-menu-item-shortcut"></span>
@@ -147,12 +208,24 @@
                     <span class="toolbar-menu-item-label">Info</span>
                     <span class="toolbar-menu-item-shortcut">?</span>
                   </button>
-                  <button id="help-shortcuts-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="help-shortcuts-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Open the keyboard shortcuts list."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">Shortcuts</span>
                     <span class="toolbar-menu-item-shortcut"></span>
                   </button>
-                  <button id="help-about-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="help-about-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Open application information."
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-label">About</span>
                     <span class="toolbar-menu-item-shortcut"></span>
@@ -289,8 +362,11 @@
                     for="template-select"
                     data-expanded="false"
                   >
-                    <span class="template-parameter-title">Template</span>
-                    <select id="template-select"></select>
+                    <select
+                      id="template-select"
+                      aria-label="Template"
+                      title="Choose a template to insert."
+                    ></select>
                   </label>
                   <div class="template-settings-shell">
                     <button
@@ -699,9 +775,11 @@
             <h3>Organize and edit</h3>
             <ul>
               <li>Templates insert ready-to-edit network layouts with the expected open legs and bond structure.</li>
+              <li>Use <strong>Template settings</strong> to adjust the selected template before inserting it, and use the <strong>Templates</strong> menu to save, load, export, or edit your session templates.</li>
               <li>Use <strong>Extract Selection</strong> or <strong>Extract Group</strong> to save a reusable JSON fragment, then use <strong>Insert Subnetwork</strong> to bring it back with fresh ids.</li>
               <li>Use <strong>Graph size</strong>, <strong>Bond dimension</strong>, and <strong>Physical dimension</strong> before inserting a template.</li>
               <li><strong>Graph size</strong> means sites for MPS and MPO, side length for PEPS, and depth for MERA or Binary Tree.</li>
+              <li>Use <strong>F</strong> or <strong>Modes &gt; For unidimensional</strong> to switch into the three-cell chain workflow, then move between <strong>Initial</strong>, <strong>Periodic</strong>, and <strong>Final</strong> with the arrow buttons.</li>
               <li>Choose the code engine that fits your workflow, including <strong>NumPy einsum</strong> and <strong>PyTorch einsum</strong>.</li>
               <li>Drag one selected tensor to move all selected tensors together.</li>
               <li>Use the Selection panel to align, distribute, or snap selected tensors to the grid.</li>
@@ -750,6 +828,7 @@
             <div><strong>P</strong><span>Add note</span></div>
             <div><strong>C</strong><span>Toggle connect mode</span></div>
             <div><strong>S</strong><span>Toggle sidebar</span></div>
+            <div><strong>F</strong><span>Toggle For unidimensional mode</span></div>
             <div><strong>M</strong><span>Open Planner and toggle manual scheme</span></div>
             <div><strong>Shift+M</strong><span>Toggle minimap</span></div>
             <div><strong>Alt+A</strong><span>Open Planner and toggle auto future preview</span></div>
@@ -785,12 +864,12 @@
               <span id="about-version">-</span>
             </div>
             <div>
-              <strong>License</strong>
-              <span id="about-license">-</span>
+              <strong>Schema version</strong>
+              <span id="about-schema-version">-</span>
             </div>
             <div>
-              <strong>Author</strong>
-              <span id="about-author">-</span>
+              <strong>License</strong>
+              <span id="about-license">-</span>
             </div>
             <div>
               <strong>Support on YouTube</strong>
@@ -799,6 +878,10 @@
                   youtube.com/@whenphysics
                 </a>
               </span>
+            </div>
+            <div>
+              <strong>Author</strong>
+              <span id="about-author">-</span>
             </div>
           </div>
         </section>
@@ -813,7 +896,30 @@
             <h2 id="template-manager-title">Edit templates</h2>
             <p class="help-note">Session templates can be renamed or deleted here. Built-in and project templates are read-only.</p>
           </div>
-          <button id="template-manager-close-button" type="button" aria-label="Close template editor">Close</button>
+          <div class="template-manager-header-actions">
+            <button
+              id="template-manager-save-button"
+              type="button"
+              class="icon-button toolbar-icon-button button-accent-positive"
+              aria-label="Save template changes"
+              title="Save template changes"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M13.78 4.72a.75.75 0 0 0-1.06-1.06L6.5 9.88 3.28 6.66a.75.75 0 0 0-1.06 1.06l3.75 3.75a.75.75 0 0 0 1.06 0z"/>
+              </svg>
+            </button>
+            <button
+              id="template-manager-discard-button"
+              type="button"
+              class="icon-button toolbar-icon-button danger"
+              aria-label="Discard template changes"
+              title="Discard template changes"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M4.22 3.16a.75.75 0 0 0-1.06 1.06L6.94 8l-3.78 3.78a.75.75 0 1 0 1.06 1.06L8 9.06l3.78 3.78a.75.75 0 0 0 1.06-1.06L9.06 8l3.78-3.78a.75.75 0 0 0-1.06-1.06L8 6.94z"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <p id="template-manager-error" class="template-manager-error" hidden></p>
         <div id="template-manager-list" class="template-manager-list"></div>

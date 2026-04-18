@@ -64,10 +64,12 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     helpAboutSection,
     aboutRepositoryLink,
     aboutVersion,
+    aboutSchemaVersion,
     aboutLicense,
     aboutAuthor,
     templateManagerModal,
-    templateManagerCloseButton,
+    templateManagerSaveButton,
+    templateManagerDiscardButton,
     templateManagerError,
   } = dom;
 
@@ -460,6 +462,12 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
           ? appMetadata.version
           : "-";
     }
+    if (aboutSchemaVersion) {
+      aboutSchemaVersion.textContent =
+        Number.isInteger(state.schemaVersion) || typeof state.schemaVersion === "string"
+          ? String(state.schemaVersion)
+          : "-";
+    }
     if (aboutLicense) {
       aboutLicense.textContent =
         typeof appMetadata.license_name === "string" && appMetadata.license_name
@@ -508,10 +516,15 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     if (state.isTemplateManagerOpen) {
       if (
-        templateManagerCloseButton
-        && typeof templateManagerCloseButton.focus === "function"
+        templateManagerSaveButton
+        && typeof templateManagerSaveButton.focus === "function"
       ) {
-        templateManagerCloseButton.focus();
+        templateManagerSaveButton.focus();
+      } else if (
+        templateManagerDiscardButton
+        && typeof templateManagerDiscardButton.focus === "function"
+      ) {
+        templateManagerDiscardButton.focus();
       }
     } else if (templateManagerError) {
       templateManagerError.hidden = true;

@@ -1951,9 +1951,20 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             }},
           }},
         }});
-        shortcutTooltip.applyShortcutHint("generate-button", "Generate code", "Shift+G");
+        shortcutTooltip.applyShortcutHint(
+          "generate-button",
+          "Generate code",
+          "Shift+G",
+          "Build the current network with the selected engine."
+        );
         if (getButton("generate-button").dataset.shortcut !== "Shift+G") {{
           throw new Error("Expected shortcut tooltip helper to set the shortcut dataset.");
+        }}
+        if (
+          getButton("generate-button").dataset.shortcutDescription
+          !== "Build the current network with the selected engine."
+        ) {{
+          throw new Error("Expected shortcut tooltip helper to keep the extra description.");
         }}
 
         const dom = {{
@@ -2027,7 +2038,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           helpBackdrop: getButton("help-backdrop"),
           helpCloseButton: getButton("help-close-button"),
           templateManagerBackdrop: getButton("template-manager-backdrop"),
-          templateManagerCloseButton: getButton("template-manager-close-button"),
+          templateManagerSaveButton: getButton("template-manager-save-button"),
+          templateManagerDiscardButton: getButton("template-manager-discard-button"),
           canvasShell: {{ addEventListener(type, handler) {{ this[type] = handler; }}, getBoundingClientRect() {{ return {{ left: 0, top: 0, width: 1000, height: 800 }}; }} }},
           minimapCanvas: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           engineSelect: {{ value: "cotengra", addEventListener(type, handler) {{ this[type] = handler; }} }},
@@ -2076,6 +2088,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             flowEvents.push("exportSelectedTemplateSpec"),
           toggleTemplateManager: (isOpen) =>
             flowEvents.push(`toggleTemplateManager:${{isOpen}}`),
+          saveTemplateManagerChanges: () =>
+            flowEvents.push("saveTemplateManagerChanges"),
+          discardTemplateManagerChanges: () =>
+            flowEvents.push("discardTemplateManagerChanges"),
           renameSelectedTemplate: () => flowEvents.push("renameSelectedTemplate"),
           deleteSelectedTemplate: () => flowEvents.push("deleteSelectedTemplate"),
           applyReflowLayoutAction: (layoutAction) =>
@@ -2131,6 +2147,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.reflowImportedButton.click();
         dom.reflowArrangeGridButton.click();
         dom.reflowIndicesResetButton.click();
+        dom.templateManagerSaveButton.click();
+        dom.templateManagerDiscardButton.click();
         dom.templateSelect.mousedown({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
@@ -2173,6 +2191,12 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         if (!flowEvents.includes("toggleTemplateManager:true")) {{
           throw new Error(`Expected the Templates menu to open the template manager, received ${{JSON.stringify(flowEvents)}}.`);
         }}
+        if (!flowEvents.includes("saveTemplateManagerChanges")) {{
+          throw new Error(`Expected the template manager save action to be wired, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("discardTemplateManagerChanges")) {{
+          throw new Error(`Expected the template manager discard action to be wired, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
         if (!flowEvents.includes("openHelpSection:info")) {{
           throw new Error(`Expected the Help menu to open the requested help section, received ${{JSON.stringify(flowEvents)}}.`);
         }}
@@ -2193,6 +2217,12 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.some((entry) => entry.bindingStatus === "Engine set to COTENGRA.")) {{
           throw new Error(`Expected engine change binding to set status through injected actions, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (
+          getButton("add-tensor-button").dataset.shortcutDescription
+          !== "Place a new tensor at the center of the canvas."
+        ) {{
+          throw new Error("Expected the toolbar shortcut hints to include button descriptions.");
         }}
         """,
     )

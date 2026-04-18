@@ -54,6 +54,8 @@ function createShellActions(ctx) {
     openSessionTemplatePicker: () => ctx.openSessionTemplatePicker(),
     exportSelectedTemplateSpec: () => ctx.exportSelectedTemplateSpec(),
     toggleTemplateManager: (forceOpen) => ctx.toggleTemplateManager(forceOpen),
+    saveTemplateManagerChanges: () => ctx.saveTemplateManagerChanges(),
+    discardTemplateManagerChanges: () => ctx.discardTemplateManagerChanges(),
     renameSelectedTemplate: () => ctx.renameSelectedTemplate(),
     deleteSelectedTemplate: () => ctx.deleteSelectedTemplate(),
     applyReflowLayoutAction: (layoutAction) => ctx.applyReflowLayoutAction(layoutAction),
