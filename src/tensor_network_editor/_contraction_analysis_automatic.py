@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import cache
 from importlib import import_module
 from string import ascii_letters
@@ -81,7 +81,7 @@ def _analyze_future_automatic_plan(
     """Analyze the greedy path that continues from the current manual state."""
     del initial_operands
     return _analyze_automatic_operands(
-        operand_order=list(manual_operand_state.active_operand_ids),
+        operand_order=manual_operand_state.active_operand_ids,
         operands=manual_operand_state.remaining_operands,
         dimension_by_label=dimension_by_label,
         step_id_prefix="auto_future_step_",
@@ -125,7 +125,7 @@ def _analyze_past_automatic_plan(
             root_operand_id, ()
         )
         analysis = _analyze_automatic_operands(
-            operand_order=list(root_tensor_ids),
+            operand_order=root_tensor_ids,
             operands={
                 tensor_id: initial_operands[tensor_id] for tensor_id in root_tensor_ids
             },
@@ -157,7 +157,7 @@ def _analyze_past_automatic_plan(
 
 def _analyze_automatic_operands(
     *,
-    operand_order: list[str],
+    operand_order: Sequence[str],
     operands: dict[str, tuple[str, ...]],
     dimension_by_label: dict[str, int],
     step_id_prefix: str,
@@ -184,9 +184,10 @@ def _analyze_automatic_operands(
             bytes_per_element=bytes_per_element,
         )
 
+    operand_ids = tuple(operand_order)
     label_order = list(
         dict.fromkeys(
-            label for operand_id in operand_order for label in operands[operand_id]
+            label for operand_id in operand_ids for label in operands[operand_id]
         )
     )
     if len(label_order) > len(ascii_letters):
@@ -200,21 +201,21 @@ def _analyze_automatic_operands(
         for offset, label in enumerate(label_order[: len(ascii_letters)])
     }
     label_counts = {label: 0 for label in label_order}
-    for operand_id in operand_order:
+    for operand_id in operand_ids:
         for label in operands[operand_id]:
             label_counts[label] += 1
     output_labels = [label for label in label_order if label_counts[label] == 1]
     equation = (
         ",".join(
             "".join(symbol_map[label] for label in operands[operand_id])
-            for operand_id in operand_order
+            for operand_id in operand_ids
         )
         + "->"
         + "".join(symbol_map[label] for label in output_labels)
     )
     shapes = [
         tuple(dimension_by_label[label] for label in operands[operand_id])
-        for operand_id in operand_order
+        for operand_id in operand_ids
     ]
 
     try:
@@ -230,7 +231,7 @@ def _analyze_automatic_operands(
             bytes_per_element=bytes_per_element,
         )
 
-    remaining_order = list(operand_order)
+    remaining_order = list(operand_ids)
     remaining_operands = dict(operands)
     steps: list[ContractionStepAnalysis] = []
     total_estimated_flops = 0

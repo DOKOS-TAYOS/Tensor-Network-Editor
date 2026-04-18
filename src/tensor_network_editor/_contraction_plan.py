@@ -177,13 +177,30 @@ def simulate_contraction_step(
     """Simulate one pairwise contraction step using label metadata only."""
     right_label_set = set(right_labels)
     left_label_set = set(left_labels)
-    contracted_labels = tuple(
-        label for label in left_labels if label in right_label_set
-    )
-    surviving_labels = tuple(
-        label for label in left_labels if label not in right_label_set
-    ) + tuple(label for label in right_labels if label not in left_label_set)
-    union_labels = tuple(dict.fromkeys(left_labels + right_labels))
+    contracted_labels_list: list[str] = []
+    surviving_labels_list: list[str] = []
+    union_labels_list: list[str] = []
+    seen_union_labels: set[str] = set()
+
+    for label in left_labels:
+        if label in right_label_set:
+            contracted_labels_list.append(label)
+        else:
+            surviving_labels_list.append(label)
+        if label not in seen_union_labels:
+            seen_union_labels.add(label)
+            union_labels_list.append(label)
+
+    for label in right_labels:
+        if label not in left_label_set:
+            surviving_labels_list.append(label)
+        if label not in seen_union_labels:
+            seen_union_labels.add(label)
+            union_labels_list.append(label)
+
+    contracted_labels = tuple(contracted_labels_list)
+    surviving_labels = tuple(surviving_labels_list)
+    union_labels = tuple(union_labels_list)
     result_shape = tuple(dimension_by_label[label] for label in surviving_labels)
     estimated_macs = _product(dimension_by_label[label] for label in union_labels)
     intermediate_size = _product(result_shape)

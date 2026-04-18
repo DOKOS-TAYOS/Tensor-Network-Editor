@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ._analysis import analyze_network
+from ._analysis import NetworkAnalysis, analyze_network
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
@@ -18,6 +18,14 @@ from .models import NetworkSpec, ValidationIssue
 
 def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
     """Collect all validation issues found in ``spec``."""
+    issues, _ = _validate_spec_with_analysis(spec)
+    return issues
+
+
+def _validate_spec_with_analysis(
+    spec: NetworkSpec,
+) -> tuple[list[ValidationIssue], NetworkAnalysis]:
+    """Validate ``spec`` and return both issues and the computed analysis."""
     issues: list[ValidationIssue] = []
     validate_network(spec, issues)
     analysis = analyze_network(spec)
@@ -52,12 +60,20 @@ def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
     if spec.linear_periodic_chain is not None:
         validate_linear_periodic_chain(spec.linear_periodic_chain, issues=issues)
 
-    return issues
+    return issues, analysis
 
 
 def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:
     """Return ``spec`` or raise ``SpecValidationError`` if it is invalid."""
-    issues = validate_spec(spec)
+    issues, _ = _validate_spec_with_analysis(spec)
     if issues:
         raise SpecValidationError(issues)
     return spec
+
+
+def ensure_valid_analysis(spec: NetworkSpec) -> NetworkAnalysis:
+    """Return validated analysis for ``spec`` or raise ``SpecValidationError``."""
+    issues, analysis = _validate_spec_with_analysis(spec)
+    if issues:
+        raise SpecValidationError(issues)
+    return analysis

@@ -69,7 +69,7 @@ def _analyze_prepared_contraction(
         bytes_per_element=bytes_per_element,
     )
     automatic_full = _analyze_automatic_operands(
-        operand_order=list(contraction_inputs.initial_operands),
+        operand_order=contraction_inputs.initial_operand_ids,
         operands=contraction_inputs.initial_operands,
         dimension_by_label=contraction_inputs.dimension_by_label,
         step_id_prefix="auto_full_step_",
