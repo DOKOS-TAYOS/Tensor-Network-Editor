@@ -26,48 +26,6 @@ class ManualOperandState:
     source_tensor_ids_by_operand_id: dict[str, tuple[str, ...]]
 
 
-def _build_manual_operand_state(
-    *,
-    spec: NetworkSpec,
-    initial_operands: dict[str, tuple[str, ...]],
-    initial_axis_names: dict[str, tuple[str, ...]],
-    dimension_by_label: dict[str, int],
-) -> ManualOperandState:
-    """Simulate the saved manual plan and keep its remaining operands."""
-    return _analyze_manual_plan_and_state(
-        spec=spec,
-        contraction_inputs=PreparedContractionInputs(
-            initial_operand_ids=tuple(initial_operands),
-            initial_operands=initial_operands,
-            initial_axis_names=initial_axis_names,
-            dimension_by_label=dimension_by_label,
-        ),
-        bytes_per_element=0,
-    )[1]
-
-
-def _analyze_manual_plan(
-    *,
-    spec: NetworkSpec,
-    initial_operands: dict[str, tuple[str, ...]],
-    dimension_by_label: dict[str, int],
-    bytes_per_element: int,
-) -> ManualContractionPlanAnalysis:
-    """Analyze the saved manual plan, or derive a trivial summary when absent."""
-    return _analyze_manual_plan_and_state(
-        spec=spec,
-        contraction_inputs=PreparedContractionInputs(
-            initial_operand_ids=tuple(initial_operands),
-            initial_operands=initial_operands,
-            initial_axis_names={
-                operand_id: labels for operand_id, labels in initial_operands.items()
-            },
-            dimension_by_label=dimension_by_label,
-        ),
-        bytes_per_element=bytes_per_element,
-    )[0]
-
-
 def _analyze_manual_plan_and_state(
     *,
     spec: NetworkSpec,

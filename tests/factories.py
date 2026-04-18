@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import cast
-
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.models import (
     CanvasNoteSpec,
@@ -961,4 +959,4 @@ def build_linear_periodic_partial_carry_chain_spec() -> NetworkSpec:
 
 
 def serialize_spec_payload(spec: NetworkSpec) -> JsonDict:
-    return cast(JsonDict, serialize_spec(spec))
+    return serialize_spec(spec)

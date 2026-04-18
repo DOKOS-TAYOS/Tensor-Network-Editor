@@ -29,9 +29,13 @@ from tests.factories import (
 
 
 def test_package_version_matches_installed_metadata() -> None:
-    assert tensor_network_editor.__version__ == importlib.metadata.version(
-        "tensor-network-editor"
-    )
+    try:
+        installed_version = importlib.metadata.version("tensor-network-editor")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip(
+            "Installed distribution metadata is unavailable in source-only test environments."
+        )
+    assert tensor_network_editor.__version__ == installed_version
 
 
 def test_package_logger_uses_null_handler() -> None:

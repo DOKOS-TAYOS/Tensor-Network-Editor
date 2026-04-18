@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -41,7 +41,7 @@ def request_json_with_status(
 
 def request_text(url: str) -> str:
     with urlopen(url, timeout=5) as response:
-        return response.read().decode("utf-8")
+        return cast(str, response.read().decode("utf-8"))
 
 
 def request_with_headers(url: str) -> tuple[str, dict[str, str]]:

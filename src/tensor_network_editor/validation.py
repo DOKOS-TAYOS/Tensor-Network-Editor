@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from ._analysis import NetworkAnalysis, analyze_network
+from typing import TYPE_CHECKING
+
+from ._analysis import analyze_network
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
@@ -14,6 +16,9 @@ from ._validation_entities import (
 from ._validation_linear_periodic import validate_linear_periodic_chain
 from .errors import SpecValidationError
 from .models import NetworkSpec, ValidationIssue
+
+if TYPE_CHECKING:
+    from ._analysis import NetworkAnalysis
 
 
 def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
@@ -69,11 +74,3 @@ def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:
     if issues:
         raise SpecValidationError(issues)
     return spec
-
-
-def ensure_valid_analysis(spec: NetworkSpec) -> NetworkAnalysis:
-    """Return validated analysis for ``spec`` or raise ``SpecValidationError``."""
-    issues, analysis = _validate_spec_with_analysis(spec)
-    if issues:
-        raise SpecValidationError(issues)
-    return analysis
