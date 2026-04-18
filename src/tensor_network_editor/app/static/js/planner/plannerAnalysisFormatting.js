@@ -9,7 +9,7 @@ export function formatNumber(value) {
   return Number(value || 0).toLocaleString();
 }
 
-export function normalizeShapeDimension(value) {
+function normalizeShapeDimension(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
     return null;
@@ -47,7 +47,7 @@ export function getAnalysisMemoryDtype(payload) {
   return "float64";
 }
 
-export function getMemoryBytesPerElement(memoryDtype) {
+function getMemoryBytesPerElement(memoryDtype) {
   switch (memoryDtype) {
     case "float16":
       return 2;

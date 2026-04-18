@@ -1,4 +1,4 @@
-export function cloneOperand(operand) {
+function cloneOperand(operand) {
   return {
     id: operand.id,
     name: operand.name,
@@ -9,7 +9,7 @@ export function cloneOperand(operand) {
   };
 }
 
-export function analyzeOperandPair(leftOperand, rightOperand) {
+function analyzeOperandPair(leftOperand, rightOperand) {
   if (!leftOperand || !rightOperand) {
     return null;
   }
@@ -28,7 +28,7 @@ export function analyzeOperandPair(leftOperand, rightOperand) {
   };
 }
 
-export function cloneSourceTensorIdsByOperandId(progression, stepCount) {
+function cloneSourceTensorIdsByOperandId(progression, stepCount) {
   const sourceTensorIdsByOperandId = {};
   progression.seedOperandIds.forEach((operandId) => {
     sourceTensorIdsByOperandId[operandId] = [
@@ -43,7 +43,7 @@ export function cloneSourceTensorIdsByOperandId(progression, stepCount) {
   return sourceTensorIdsByOperandId;
 }
 
-export function cloneStepAnalysis(stepAnalysis) {
+function cloneStepAnalysis(stepAnalysis) {
   return {
     ...stepAnalysis,
     sourceTensorIds: [...stepAnalysis.sourceTensorIds],

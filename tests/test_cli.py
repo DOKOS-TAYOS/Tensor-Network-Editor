@@ -9,6 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
+from tensor_network_editor._cli_formatters import (
+    _coerce_int,
+    _format_label_list,
+    _format_shape,
+)
 from tensor_network_editor._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     AutomaticContractionSummary,
@@ -24,12 +29,7 @@ from tensor_network_editor._headless_models import (
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
-from tensor_network_editor.cli import (
-    _coerce_int,
-    _format_label_list,
-    _format_shape,
-    main,
-)
+from tensor_network_editor.cli import main
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue

@@ -1,4 +1,4 @@
-export const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
+const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);
 
 export function createMetadataEditorSupport({
   annotationDefinitionsByScope = {},

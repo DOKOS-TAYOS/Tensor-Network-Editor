@@ -7,7 +7,6 @@ import sys
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-from . import _cli_formatters as _cli_formatters
 from ._cli_formatters import (
     print_analysis_text,
     print_diff_text,
@@ -48,10 +47,6 @@ from .templates import (
     serialize_template_definitions,
 )
 from .validation import validate_spec
-
-_coerce_int = _cli_formatters._coerce_int
-_format_label_list = _cli_formatters._format_label_list
-_format_shape = _cli_formatters._format_shape
 
 
 class _CommandHandler(Protocol):

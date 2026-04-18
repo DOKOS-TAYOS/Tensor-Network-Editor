@@ -98,7 +98,7 @@ export function formatEngineLabel(engineName) {
     : engineName;
 }
 
-export function sortEngineNamesForDisplay(engines) {
+function sortEngineNamesForDisplay(engines) {
   const preferredOrder = new Map(
     ENGINE_DISPLAY_ORDER.map((engineName, position) => [engineName, position])
   );
@@ -118,7 +118,7 @@ export function sortEngineNamesForDisplay(engines) {
   });
 }
 
-export function formatCollectionFormatLabel(collectionFormat) {
+function formatCollectionFormatLabel(collectionFormat) {
   return Object.prototype.hasOwnProperty.call(
     COLLECTION_FORMAT_LABELS,
     collectionFormat
@@ -150,7 +150,7 @@ export function formatTemplateLabel(templateName, templateDefinitions) {
   return templateName.replaceAll("_", " ");
 }
 
-export function sanitizeTemplateIntegerValue(value, fallback, minimum) {
+function sanitizeTemplateIntegerValue(value, fallback, minimum) {
   const numericValue = Number(value);
   if (!Number.isInteger(numericValue)) {
     return Math.max(minimum, fallback);
@@ -158,7 +158,7 @@ export function sanitizeTemplateIntegerValue(value, fallback, minimum) {
   return Math.max(minimum, numericValue);
 }
 
-export function buildTemplateParameterState(templateNames, templateDefinitions) {
+function buildTemplateParameterState(templateNames, templateDefinitions) {
   return Object.fromEntries(
     templateNames.map((templateName) => {
       const definition = getTemplateDefinition(templateDefinitions, templateName);

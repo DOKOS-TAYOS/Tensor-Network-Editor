@@ -557,6 +557,10 @@ def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete
     assert "function replaceActiveTagToken(" in metadata_body
     assert "{ scheduleOnInput: false }" in metadata_body
     assert (
+        'export const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
+        not in metadata_body
+    )
+    assert (
         'const RESERVED_METADATA_KEYS = new Set(["color", "collapsed", "tags"]);'
         in metadata_body
     )
@@ -1028,8 +1032,8 @@ def test_contraction_scene_assets_route_progression_and_snapshots_through_state_
 
     assert 'from "./state/contractionSceneProgression.js"' in contraction_body
     assert 'from "./state/contractionSceneSnapshots.js"' in contraction_body
-    assert "function cloneOperand(" not in contraction_body
-    assert "function analyzeOperandPair(" not in contraction_body
+    assert "export function cloneOperand(" not in contraction_body
+    assert "export function analyzeOperandPair(" not in contraction_body
     assert (
         "function buildContractionOperandProgressionUncached(" not in contraction_body
     )

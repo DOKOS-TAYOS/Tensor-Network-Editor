@@ -46,7 +46,10 @@ def coerce_int(value: object, *, field_name: str) -> int:
         numeric_value = Decimal(stripped_value)
     except InvalidOperation as exc:
         raise TypeError(f"{field_name} must be an integer.") from exc
-    if not numeric_value.is_finite() or numeric_value != numeric_value.to_integral_value():
+    if (
+        not numeric_value.is_finite()
+        or numeric_value != numeric_value.to_integral_value()
+    ):
         raise TypeError(f"{field_name} must be an integer.")
     return int(numeric_value)
 
@@ -95,10 +98,7 @@ def _coerce_json_value(value: object, *, field_name: str) -> JSONValue:
             raise TypeError(f"{field_name} must contain JSON-compatible values.")
         return value
     if isinstance(value, list):
-        return [
-            _coerce_json_value(item, field_name=field_name)
-            for item in value
-        ]
+        return [_coerce_json_value(item, field_name=field_name) for item in value]
     if isinstance(value, dict):
         normalized_object: dict[str, JSONValue] = {}
         for nested_key, nested_value in value.items():

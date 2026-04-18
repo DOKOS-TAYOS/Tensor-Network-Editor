@@ -1,4 +1,4 @@
-export function getPlannerStepId(step) {
+function getPlannerStepId(step) {
   if (!step || typeof step !== "object") {
     return null;
   }
