@@ -37,6 +37,21 @@ function getTensorTotalElementCount(ctx, tensor) {
   );
 }
 
+function getTotalElementCountForTensorIds(ctx, tensorIds) {
+  const uniqueTensorIds = [...new Set(Array.isArray(tensorIds) ? tensorIds : [])];
+  let resolvedTensorCount = 0;
+  const totalElementCount = uniqueTensorIds.reduce((sum, tensorId) => {
+    const tensor =
+      typeof ctx.findTensorById === "function" ? ctx.findTensorById(tensorId) : null;
+    if (!tensor) {
+      return sum;
+    }
+    resolvedTensorCount += 1;
+    return sum + getTensorTotalElementCount(ctx, tensor);
+  }, 0n);
+  return resolvedTensorCount ? totalElementCount : null;
+}
+
 function renderTrashIcon() {
   return `
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -120,6 +135,26 @@ export function registerCanvasContextMenu(ctx) {
     });
   }
 
+  function bindSelectionColorInput(element, { statusMessage }) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener("input", () => {
+      if (!ctx.propertyCommands || typeof ctx.propertyCommands.applySelectionColor !== "function") {
+        return;
+      }
+      ctx.propertyCommands.applySelectionColor({
+        nextColor: element.value,
+        invalidate: ctx.propertyInvalidation({
+          graph: true,
+          overlays: true,
+          minimap: true,
+        }),
+        statusMessage,
+      });
+    });
+  }
+
   function bindInlineMetadataEditor({
     target,
     annotationScope,
@@ -145,6 +180,164 @@ export function registerCanvasContextMenu(ctx) {
       annotationScope,
     });
     bindCloseOnEnter(tagsInput);
+  }
+
+  function getSelectedTensorIdsForContext() {
+    return typeof ctx.getSelectedIdsByKind === "function"
+      ? ctx.getSelectedIdsByKind("tensor")
+      : [];
+  }
+
+  function isMultiTensorSelectionContext(tensorId) {
+    const selectedTensorIds = getSelectedTensorIdsForContext();
+    return (
+      Array.isArray(state.selectionIds) &&
+      selectedTensorIds.length >= 2 &&
+      selectedTensorIds.length === state.selectionIds.length &&
+      selectedTensorIds.includes(tensorId)
+    );
+  }
+
+  function getSelectionContextTarget(anchorTensorId) {
+    const selectedTensorIds = getSelectedTensorIdsForContext();
+    if (!selectedTensorIds.length || !selectedTensorIds.includes(anchorTensorId)) {
+      return null;
+    }
+    const selectedEntries =
+      typeof ctx.getSelectedEntries === "function" ? ctx.getSelectedEntries() : [];
+    const selectionColor =
+      typeof ctx.getBatchColorValue === "function"
+        ? ctx.getBatchColorValue(selectedEntries) || "#456cbf"
+        : "#456cbf";
+    return {
+      kind: "selection",
+      id: anchorTensorId,
+      target: null,
+      markup: `
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="button-row canvas-context-menu-actions">
+            <button
+              id="context-menu-add-index-to-selection-button"
+              type="button"
+            >
+              Add index to tensors
+            </button>
+            <button
+              id="context-menu-extract-selection-button"
+              type="button"
+            >
+              Extract selection
+            </button>
+            <button
+              id="context-menu-promote-selection-template-button"
+              type="button"
+            >
+              Promote to template
+            </button>
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label class="control-inline-color" for="context-menu-selection-color-input">
+              <input
+                id="context-menu-selection-color-input"
+                type="color"
+                aria-label="Choose selection tint"
+                title="Choose selection tint"
+                value="${ctx.escapeHtml(selectionColor)}"
+              />
+            </label>
+            <button
+              id="context-menu-group-selection-button"
+              type="button"
+            >
+              Group
+            </button>
+            <button
+              id="context-menu-delete-selection-button"
+              type="button"
+              class="icon-button danger"
+              aria-label="Delete selection"
+              title="Delete selection"
+            >
+              ${renderTrashIcon()}
+            </button>
+          </div>
+        </div>
+      `,
+      bind() {
+        const addIndexButton = document.getElementById(
+          "context-menu-add-index-to-selection-button"
+        );
+        const extractButton = document.getElementById(
+          "context-menu-extract-selection-button"
+        );
+        const promoteButton = document.getElementById(
+          "context-menu-promote-selection-template-button"
+        );
+        const colorInput = document.getElementById(
+          "context-menu-selection-color-input"
+        );
+        const groupButton = document.getElementById(
+          "context-menu-group-selection-button"
+        );
+        const deleteButton = document.getElementById(
+          "context-menu-delete-selection-button"
+        );
+
+        bindSelectionColorInput(colorInput, {
+          statusMessage: "Updated the selection color.",
+        });
+
+        if (addIndexButton) {
+          addIndexButton.addEventListener("click", () => {
+            ctx.propertyCommands.addIndexToSelectedTensors({
+              selectionIds: [...state.selectionIds],
+              primaryId: state.primarySelectionId,
+              statusMessage: "Added one index to each selected tensor.",
+            });
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (extractButton) {
+          extractButton.addEventListener("click", () => {
+            if (typeof ctx.exportSelectedSubnetwork === "function") {
+              ctx.exportSelectedSubnetwork();
+            }
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (promoteButton) {
+          promoteButton.addEventListener("click", () => {
+            if (typeof ctx.promoteSelectedSubnetworkToTemplate === "function") {
+              ctx.promoteSelectedSubnetworkToTemplate();
+            }
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (groupButton) {
+          groupButton.addEventListener("click", () => {
+            if (typeof ctx.createGroupFromSelection === "function") {
+              ctx.createGroupFromSelection();
+            }
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (deleteButton) {
+          deleteButton.addEventListener("click", () => {
+            if (
+              ctx.propertyCommands &&
+              typeof ctx.propertyCommands.deleteCurrentSelection === "function"
+            ) {
+              ctx.propertyCommands.deleteCurrentSelection();
+            }
+            closeCanvasContextMenu();
+          });
+        }
+      },
+    };
   }
 
   function getTensorContextTarget(tensorId) {
@@ -557,6 +750,17 @@ export function registerCanvasContextMenu(ctx) {
       return null;
     }
     const isCollapsed = Boolean(group.metadata && group.metadata.collapsed);
+    const groupColor =
+      typeof ctx.getMetadataColor === "function"
+        ? ctx.getMetadataColor(group.metadata, "#61a8ff")
+        : "#61a8ff";
+    const memberTensorCount = Array.isArray(group.tensor_ids)
+      ? group.tensor_ids.length
+      : 0;
+    const totalElementCount = getTotalElementCountForTensorIds(
+      ctx,
+      Array.isArray(group.tensor_ids) ? group.tensor_ids : []
+    );
     return {
       kind: "group",
       id: group.id,
@@ -566,15 +770,87 @@ export function registerCanvasContextMenu(ctx) {
           <div class="field-group">
             <input id="context-menu-name-input" value="${ctx.escapeHtml(group.name)}" />
           </div>
-          <button id="context-menu-toggle-group-button" type="button">
-            ${isCollapsed ? "Expand" : "Collapse"}
-          </button>
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Member tensors</span>
+              <strong>${memberTensorCount}</strong>
+            </div>
+            ${
+              totalElementCount !== null
+                ? `
+                  <div class="properties-chip">
+                    <span>Total elements</span>
+                    <strong>${formatTotalElementCount(totalElementCount)}</strong>
+                  </div>
+                `
+                : ""
+            }
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label class="control-inline-color" for="context-menu-group-color-input">
+              <input
+                id="context-menu-group-color-input"
+                type="color"
+                aria-label="Choose group tint"
+                title="Choose group tint"
+                value="${ctx.escapeHtml(groupColor)}"
+              />
+            </label>
+            <button
+              id="context-menu-add-index-to-group-button"
+              type="button"
+            >
+              Add index to tensors
+            </button>
+            <button
+              id="context-menu-extract-group-button"
+              type="button"
+            >
+              Extract selection
+            </button>
+            <button
+              id="context-menu-promote-group-template-button"
+              type="button"
+            >
+              Promote to template
+            </button>
+            <button id="context-menu-toggle-group-button" type="button">
+              ${isCollapsed ? "Expand" : "Collapse"}
+            </button>
+            <button
+              id="context-menu-delete-group-button"
+              type="button"
+              class="icon-button danger"
+              aria-label="Delete group"
+              title="Delete group"
+            >
+              ${renderTrashIcon()}
+            </button>
+          </div>
         </div>
+        ${buildInlineMetadataEditor(ctx, {
+          target: group,
+          annotationScope: "group",
+          inputPrefix: "context-menu-group",
+        })}
       `,
       bind() {
         const nameInput = document.getElementById("context-menu-name-input");
+        const colorInput = document.getElementById("context-menu-group-color-input");
+        const addIndexToGroupButton = document.getElementById(
+          "context-menu-add-index-to-group-button"
+        );
+        const extractGroupButton = document.getElementById(
+          "context-menu-extract-group-button"
+        );
+        const promoteGroupTemplateButton = document.getElementById(
+          "context-menu-promote-group-template-button"
+        );
         const toggleGroupButton = document.getElementById(
           "context-menu-toggle-group-button"
+        );
+        const deleteGroupButton = document.getElementById(
+          "context-menu-delete-group-button"
         );
 
         bindCommitOnBlurAndEnter(nameInput, () => {
@@ -586,6 +862,41 @@ export function registerCanvasContextMenu(ctx) {
           });
         });
 
+        bindColorInput(colorInput, {
+          target: group,
+          statusMessage: `Updated group ${group.name}.`,
+        });
+
+        if (addIndexToGroupButton) {
+          addIndexToGroupButton.addEventListener("click", () => {
+            ctx.propertyCommands.addIndexToSelectedTensors({
+              tensorIds: [...group.tensor_ids],
+              selectionIds: [group.id],
+              primaryId: group.id,
+              statusMessage: "Added one index to each group tensor.",
+            });
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (extractGroupButton) {
+          extractGroupButton.addEventListener("click", () => {
+            if (typeof ctx.exportGroupSubnetwork === "function") {
+              ctx.exportGroupSubnetwork(group.id);
+            }
+            closeCanvasContextMenu();
+          });
+        }
+
+        if (promoteGroupTemplateButton) {
+          promoteGroupTemplateButton.addEventListener("click", () => {
+            if (typeof ctx.promoteGroupToTemplate === "function") {
+              ctx.promoteGroupToTemplate(group.id);
+            }
+            closeCanvasContextMenu();
+          });
+        }
+
         if (toggleGroupButton) {
           toggleGroupButton.addEventListener("click", () => {
             if (typeof ctx.toggleGroupCollapse === "function") {
@@ -594,6 +905,29 @@ export function registerCanvasContextMenu(ctx) {
             closeCanvasContextMenu();
           });
         }
+
+        if (deleteGroupButton) {
+          deleteGroupButton.addEventListener("click", () => {
+            ctx.propertyCommands.deleteGroup({
+              groupId: group.id,
+              invalidate: ctx.propertyInvalidation({
+                lookups: true,
+                overlays: true,
+              }),
+              selectionIds: [],
+              statusMessage: `Deleted group ${group.name}.`,
+            });
+            closeCanvasContextMenu();
+          });
+        }
+
+        bindInlineMetadataEditor({
+          target: group,
+          annotationScope: "group",
+          inputPrefix: "context-menu-group",
+          statusMessage: `Updated group ${group.name}.`,
+          invalidate: ctx.propertyInvalidation({ overlays: false }),
+        });
       },
     };
   }
@@ -603,7 +937,13 @@ export function registerCanvasContextMenu(ctx) {
       return null;
     }
     if (menuState.kind === "tensor") {
+      if (isMultiTensorSelectionContext(menuState.id)) {
+        return getSelectionContextTarget(menuState.id);
+      }
       return getTensorContextTarget(menuState.id);
+    }
+    if (menuState.kind === "selection") {
+      return getSelectionContextTarget(menuState.id);
     }
     if (menuState.kind === "index") {
       return getIndexContextTarget(menuState.id);
@@ -647,7 +987,10 @@ export function registerCanvasContextMenu(ctx) {
       closeCanvasContextMenu();
       return;
     }
-    if (typeof ctx.setSelection === "function") {
+    if (
+      resolvedTarget.kind !== "selection" &&
+      typeof ctx.setSelection === "function"
+    ) {
       ctx.setSelection([resolvedTarget.id], {
         primaryId: resolvedTarget.id,
       });

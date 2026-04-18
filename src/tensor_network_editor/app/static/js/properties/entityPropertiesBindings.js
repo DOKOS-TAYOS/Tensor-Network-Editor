@@ -51,6 +51,14 @@ export function createEntityPropertiesBindings({
       },
       "input"
     );
+    bindClick("add-index-to-group-button", () => {
+      commands.addIndexToSelectedTensors({
+        tensorIds: [...group.tensor_ids],
+        selectionIds: [group.id],
+        primaryId: group.id,
+        statusMessage: "Added one index to each group tensor.",
+      });
+    });
     bindClick("toggle-group-button", () => actions.toggleGroupCollapse(group.id));
     bindClick("extract-group-button", () => actions.exportGroupSubnetwork(group.id));
     bindClick("promote-group-template-button", () =>

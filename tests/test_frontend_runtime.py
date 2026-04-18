@@ -4470,7 +4470,34 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                   width: 280,
                   height: 220,
                 }),
+                reflowLayoutPopover: createButton({
+                  left: 0,
+                  top: 0,
+                  right: 360,
+                  bottom: 280,
+                  width: 360,
+                  height: 280,
+                }),
                 insertTemplateButton: createButton(),
+                reflowImportedButton: createButton({
+                  left: 812,
+                  top: 132,
+                  right: 876,
+                  bottom: 164,
+                  width: 64,
+                  height: 32,
+                }),
+                reflowAlignLeftButton: createButton(),
+                reflowAlignRightButton: createButton(),
+                reflowAlignTopButton: createButton(),
+                reflowAlignMiddleButton: createButton(),
+                reflowAlignBottomButton: createButton(),
+                reflowArrangeChainButton: createButton(),
+                reflowArrangeTreeButton: createButton(),
+                reflowArrangeGridButton: createButton(),
+                reflowDistributeHorizontalButton: createButton(),
+                reflowDistributeVerticalButton: createButton(),
+                reflowSnapGridButton: createButton(),
                 insertSubnetworkButton: createButton(),
                 createGroupButton: createButton(),
                 helpButton: createButton(),
@@ -4625,6 +4652,26 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             ) {
               throw new Error(
                 `Expected the template settings popover to sit below the three-dot button, received ${ctx.dom.templateSettingsPopover.style.getPropertyValue("--template-settings-popover-top")}.`
+              );
+            }
+            runtime.toggleReflowLayoutPopover();
+            if (ctx.dom.reflowLayoutPopover.hidden !== false) {
+              throw new Error("Opening the Reflow popover should reveal its floating overlay.");
+            }
+            if (
+              ctx.dom.reflowLayoutPopover.style.getPropertyValue("--reflow-layout-popover-left")
+              !== "516px"
+            ) {
+              throw new Error(
+                `Expected the Reflow popover to anchor to the Reflow button, received ${ctx.dom.reflowLayoutPopover.style.getPropertyValue("--reflow-layout-popover-left")}.`
+              );
+            }
+            if (
+              ctx.dom.reflowLayoutPopover.style.getPropertyValue("--reflow-layout-popover-top")
+              !== "168px"
+            ) {
+              throw new Error(
+                `Expected the Reflow popover to sit below the Reflow button, received ${ctx.dom.reflowLayoutPopover.style.getPropertyValue("--reflow-layout-popover-top")}.`
               );
             }
             runtime.openHelpSection("shortcuts");
@@ -7039,13 +7086,28 @@ def _write_template_catalog_management_runtime_regression_script(
             `Expected the template manager to show only session templates, received ${ctx.dom.templateManagerList.children.length} rows.`
           );
         }
-        const visibleManagerLabels = ctx.dom.templateManagerList.children
-          .map((row) => row.children[1] && row.children[1].textContent)
-          .filter(Boolean);
-        if (visibleManagerLabels.some((label) => label === "Project" || label === "Built-in")) {
-          throw new Error(
-            `Locked template labels should not appear in the template manager, received ${visibleManagerLabels.join(",")}.`
-          );
+        const firstManagerRow = ctx.dom.templateManagerList.children[0];
+        if (!firstManagerRow) {
+          throw new Error("Expected the template manager to render at least one editable row.");
+        }
+        const firstManagerLabel = firstManagerRow.children[0];
+        if (!firstManagerLabel || firstManagerLabel.children[0].textContent) {
+          throw new Error("Template manager rows should no longer show a visible Template name label.");
+        }
+        const firstManagerDeleteButton = firstManagerRow.children[1];
+        if (!firstManagerDeleteButton) {
+          throw new Error("Expected the template manager row to include a delete action.");
+        }
+        if (firstManagerDeleteButton.textContent) {
+          throw new Error("Template manager delete actions should be icon-only.");
+        }
+        if (!String(firstManagerDeleteButton.innerHTML || "").includes("<svg")) {
+          throw new Error("Template manager delete actions should render a trash icon.");
+        }
+        if (
+          !String(firstManagerDeleteButton.attributes["aria-label"] || "").includes("Delete")
+        ) {
+          throw new Error("Template manager delete actions should keep an accessible label.");
         }
         const firstManagerInput = ctx.dom.templateManagerList.querySelector(
           `input[data-template-name="${firstSessionTemplate}"]`

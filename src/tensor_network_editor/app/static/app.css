@@ -359,6 +359,12 @@ select {
   align-items: flex-end;
 }
 
+.reflow-layout-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+}
+
 .template-settings-button {
   color: rgba(194, 201, 214, 0.82);
   border-color: rgba(112, 124, 147, 0.44);
@@ -396,6 +402,38 @@ select {
 
 .template-settings-popover[hidden] {
   display: none;
+}
+
+.reflow-layout-popover {
+  position: fixed;
+  top: var(--reflow-layout-popover-top, 0px);
+  left: var(--reflow-layout-popover-left, 0px);
+  max-width: min(calc(100vw - 1rem), 28rem);
+  max-height: min(
+    70dvh,
+    calc(100dvh - var(--reflow-layout-popover-top, 0px) - 0.75rem)
+  );
+  overflow: auto;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(76, 92, 120, 0.92);
+  background: rgba(14, 20, 30, 0.98);
+  box-shadow: var(--shadow);
+  z-index: 220;
+}
+
+.reflow-layout-popover[hidden] {
+  display: none;
+}
+
+.reflow-layout-panel {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.reflow-layout-panel .button-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .template-parameter-field {
@@ -2061,14 +2099,14 @@ textarea[disabled] {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: rgba(255, 235, 239, 0.96);
+  color: #ffffff;
   background: rgba(98, 28, 36, 0.42);
   border: 1px solid rgba(203, 79, 92, 0.42);
 }
 
 .help-dialog-close:hover,
 .help-dialog-close:focus-visible {
-  color: #fff4f6;
+  color: #ffffff;
   border-color: rgba(234, 114, 126, 0.76);
   background: rgba(116, 34, 44, 0.56);
 }
@@ -2076,6 +2114,7 @@ textarea[disabled] {
 .help-close-icon {
   width: 0.82rem;
   height: 0.82rem;
+  fill: currentColor;
 }
 
 .help-dialog-header {
@@ -2177,7 +2216,7 @@ textarea[disabled] {
 
 .template-manager-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
   padding: 0.85rem 0.95rem;

@@ -45,6 +45,9 @@ export function buildGroupPropertiesMarkup({
             value="${escapeHtml(groupColor)}"
           />
         </label>
+        <button id="add-index-to-group-button" type="button">
+          Add Index to Tensors
+        </button>
         <button
           id="extract-group-button"
           type="button"

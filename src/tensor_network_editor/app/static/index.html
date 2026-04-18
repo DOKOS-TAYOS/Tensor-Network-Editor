@@ -335,7 +335,44 @@
                     </div>
                   </div>
                   <button id="insert-template-button" type="button" class="button-accent-insert">+</button>
-                  <button id="reflow-imported-button" type="button">Reflow</button>
+                  <div class="reflow-layout-shell">
+                    <button
+                      id="reflow-imported-button"
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded="false"
+                    >
+                      Reflow
+                    </button>
+                    <div id="reflow-layout-popover" class="reflow-layout-popover" hidden>
+                      <div class="reflow-layout-panel">
+                        <div class="properties-section-heading">Layout</div>
+                        <div class="button-row">
+                          <button id="reflow-align-left-button" type="button">Left</button>
+                          <button id="reflow-align-right-button" type="button">Right</button>
+                        </div>
+                        <div class="button-row">
+                          <button id="reflow-align-top-button" type="button">Top</button>
+                          <button id="reflow-align-middle-button" type="button">Middle</button>
+                          <button id="reflow-align-bottom-button" type="button">Bottom</button>
+                        </div>
+                        <div class="button-row">
+                          <button id="reflow-arrange-chain-button" type="button">Arrange Chain</button>
+                          <button id="reflow-arrange-tree-button" type="button">Arrange Tree</button>
+                          <button id="reflow-arrange-grid-button" type="button">Arrange Grid</button>
+                        </div>
+                        <div class="button-row">
+                          <button id="reflow-distribute-horizontal-button" type="button">
+                            Distribute Horizontally
+                          </button>
+                          <button id="reflow-distribute-vertical-button" type="button">
+                            Distribute Vertically
+                          </button>
+                          <button id="reflow-snap-grid-button" type="button">Snap to Grid</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
                 </div>
               </div>
@@ -655,6 +692,14 @@
             <div>
               <strong>Author</strong>
               <span id="about-author">-</span>
+            </div>
+            <div>
+              <strong>Support on YouTube</strong>
+              <span>
+                <a href="https://www.youtube.com/@whenphysics" target="_blank" rel="noreferrer">
+                  youtube.com/@whenphysics
+                </a>
+              </span>
             </div>
           </div>
         </section>

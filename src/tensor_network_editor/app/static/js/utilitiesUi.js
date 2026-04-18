@@ -28,6 +28,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     templateSelect,
     templateSettingsButton,
     templateSettingsPopover,
+    reflowLayoutPopover,
     insertTemplateButton,
     saveSessionTemplateMenuItem,
     loadSessionTemplateMenuItem,
@@ -35,6 +36,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     editSessionTemplateMenuItem,
     templateCatalogWarning,
     reflowImportedButton,
+    reflowAlignLeftButton,
+    reflowAlignRightButton,
+    reflowAlignTopButton,
+    reflowAlignMiddleButton,
+    reflowAlignBottomButton,
+    reflowArrangeChainButton,
+    reflowArrangeTreeButton,
+    reflowArrangeGridButton,
+    reflowDistributeHorizontalButton,
+    reflowDistributeVerticalButton,
+    reflowSnapGridButton,
     createGroupButton,
     generateButton,
     helpModal,
@@ -255,15 +267,36 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     setExpandedState(templateSettingsButton, isTemplateSettingsOpen);
     toggleElementClass(templateSettingsButton, "is-active", isTemplateSettingsOpen);
+    const isReflowLayoutOpen =
+      Boolean(state.isReflowLayoutOpen)
+      && reflowImportedButton
+      && !reflowImportedButton.disabled;
+    if (reflowLayoutPopover) {
+      reflowLayoutPopover.hidden = !isReflowLayoutOpen;
+      if (isReflowLayoutOpen) {
+        positionFloatingPanel(reflowLayoutPopover, reflowImportedButton, {
+          align: "right",
+          leftVariable: "--reflow-layout-popover-left",
+          topVariable: "--reflow-layout-popover-top",
+          fallbackWidth: 360,
+          fallbackHeight: 280,
+        });
+      }
+    }
+    setExpandedState(reflowImportedButton, isReflowLayoutOpen);
+    toggleElementClass(reflowImportedButton, "is-active", isReflowLayoutOpen);
   }
 
   function closeTransientToolbarUi() {
-    const hadOpenUi = Boolean(state.openToolbarMenu || state.isTemplateSettingsOpen);
+    const hadOpenUi = Boolean(
+      state.openToolbarMenu || state.isTemplateSettingsOpen || state.isReflowLayoutOpen
+    );
     if (!hadOpenUi) {
       return false;
     }
     state.openToolbarMenu = null;
     state.isTemplateSettingsOpen = false;
+    state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return true;
   }
@@ -274,6 +307,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     state.openToolbarMenu = menuName;
     state.isTemplateSettingsOpen = false;
+    state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return state.openToolbarMenu;
   }
@@ -284,6 +318,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     state.openToolbarMenu = state.openToolbarMenu === menuName ? null : menuName;
     state.isTemplateSettingsOpen = false;
+    state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return state.openToolbarMenu;
   }
@@ -294,8 +329,20 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     state.isTemplateSettingsOpen = !state.isTemplateSettingsOpen;
     state.openToolbarMenu = null;
+    state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return state.isTemplateSettingsOpen;
+  }
+
+  function toggleReflowLayoutPopover() {
+    if (!reflowImportedButton || reflowImportedButton.disabled) {
+      return state.isReflowLayoutOpen;
+    }
+    state.isReflowLayoutOpen = !state.isReflowLayoutOpen;
+    state.openToolbarMenu = null;
+    state.isTemplateSettingsOpen = false;
+    syncToolbarTransientUi();
+    return state.isReflowLayoutOpen;
   }
 
   function renderGeneratedCodePreview(code = state.generatedCode) {
@@ -430,6 +477,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     state.isHelpOpen = true;
     state.openToolbarMenu = null;
     state.isTemplateSettingsOpen = false;
+    state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     syncHelpModalState();
   }
@@ -476,11 +524,6 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       typeof ctx.getSelectedIdsByKind === "function"
         ? ctx.getSelectedIdsByKind("tensor")
         : [];
-    const activeImportedTensorIds = Array.isArray(state.lastImportedTensorIds)
-      ? state.lastImportedTensorIds.filter((tensorId) =>
-          Boolean(ctx.findTensorById(tensorId))
-        )
-      : [];
     runtime.enforceLinearPeriodicEngineSupport();
     syncCodeGenerationWarning();
     syncTemplateCatalogWarning();
@@ -519,11 +562,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       insertTemplateButton.disabled = !templateSelect.value;
     }
     if (reflowImportedButton) {
-      reflowImportedButton.disabled = activeImportedTensorIds.length < 2;
+      reflowImportedButton.disabled = selectedTensorIds.length < 2;
       reflowImportedButton.title =
-        activeImportedTensorIds.length < 2
-          ? "Insert a template or subnetwork first."
-          : "Reflow the last imported tensors.";
+        selectedTensorIds.length < 2
+          ? "Select at least two tensors first."
+          : "Choose a layout for the selected tensors.";
     }
     if (templateSettingsButton) {
       templateSettingsButton.disabled = !templateSelect.value || linearPeriodicMode;
@@ -535,6 +578,9 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     if ((!templateSelect.value || linearPeriodicMode) && state.isTemplateSettingsOpen) {
       state.isTemplateSettingsOpen = false;
+    }
+    if (selectedTensorIds.length < 2 && state.isReflowLayoutOpen) {
+      state.isReflowLayoutOpen = false;
     }
     createGroupButton.disabled = selectedTensorIds.length < 2;
     setMenuItemChecked(singleModeMenuItem, !linearPeriodicMode);
@@ -591,6 +637,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     openToolbarMenu,
     toggleToolbarMenu,
     toggleTemplateSettingsPopover,
+    toggleReflowLayoutPopover,
     renderGeneratedCodePreview,
     updateToolbarState,
     syncCodeGenerationWarning,

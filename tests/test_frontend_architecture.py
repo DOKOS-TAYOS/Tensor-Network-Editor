@@ -920,10 +920,21 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         const tensor = {{
           id: "tensor_a",
           name: "Tensor A",
+          position: {{ x: 120, y: 140 }},
           size: {{ width: 140, height: 84 }},
           indices: [
             {{ id: "index_left", name: "left", dimension: 2, metadata: {{ color: "#123456" }} }},
             {{ id: "index_right", name: "right", dimension: 3, metadata: {{}} }},
+          ],
+          metadata: {{ color: "#345678" }},
+        }};
+        const tensorB = {{
+          id: "tensor_b",
+          name: "Tensor B",
+          position: {{ x: 320, y: 180 }},
+          size: {{ width: 140, height: 84 }},
+          indices: [
+            {{ id: "index_up", name: "up", dimension: 5, metadata: {{}} }},
           ],
           metadata: {{ color: "#345678" }},
         }};
@@ -935,17 +946,23 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         const group = {{
           id: "group_a",
           name: "Group A",
-          tensor_ids: ["tensor_a"],
+          tensor_ids: ["tensor_a", "tensor_b"],
           metadata: {{}},
+        }};
+        const tensorsById = {{
+          tensor_a: tensor,
+          tensor_b: tensorB,
         }};
         const ctx = {{
           state: {{
             spec: {{
-              tensors: [tensor],
+              tensors: [tensor, tensorB],
               edges: [edge],
               groups: [group],
             }},
             canvasContextMenu: null,
+            selectionIds: [],
+            primarySelectionId: null,
           }},
           document,
           dom: {{
@@ -990,8 +1007,24 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           getMetadataColor: (metadata, fallbackColor) =>
             metadata && metadata.color ? metadata.color : fallbackColor,
           render: () => contextMenuEvents.push("render"),
-          setSelection: (selectionIds, options = {{}}) =>
-            contextMenuEvents.push({{ selectionIds, primaryId: options.primaryId || null }}),
+          setSelection: (selectionIds, options = {{}}) => {{
+            ctx.state.selectionIds = [...selectionIds];
+            ctx.state.primarySelectionId =
+              options.primaryId || selectionIds[selectionIds.length - 1] || null;
+            contextMenuEvents.push({{
+              selectionIds,
+              primaryId: options.primaryId || null,
+            }});
+          }},
+          getSelectedIdsByKind: (kind) =>
+            kind === "tensor"
+              ? ctx.state.selectionIds.filter((selectionId) => Boolean(tensorsById[selectionId]))
+              : [],
+          getSelectedEntries: () =>
+            ctx.state.selectionIds
+              .map((selectionId) => tensorsById[selectionId] || null)
+              .filter(Boolean),
+          getBatchColorValue: () => "#345678",
           propertyCommands: {{
             renameTensor: (payload) => {{
               contextMenuEvents.push(`renameTensor:${{payload.proposedName}}`);
@@ -1014,11 +1047,22 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             updateTargetColor: (payload) => {{
               contextMenuEvents.push(`updateTargetColor:${{payload.target.id}}:${{payload.nextColor}}`);
             }},
+            applySelectionColor: (payload) => {{
+              contextMenuEvents.push(`applySelectionColor:${{payload.nextColor}}`);
+            }},
             deleteTensor: (payload) => {{
               contextMenuEvents.push(`deleteTensor:${{payload.tensorId}}`);
             }},
+            deleteCurrentSelection: () => {{
+              contextMenuEvents.push("deleteCurrentSelection");
+            }},
             deleteTensorIndex: (payload) => {{
               contextMenuEvents.push(`deleteTensorIndex:${{payload.indexId}}`);
+            }},
+            addIndexToSelectedTensors: (payload) => {{
+              contextMenuEvents.push(
+                `addIndexToSelectedTensors:${{(payload.tensorIds || []).join(",")}}:${{(payload.selectionIds || []).join(",")}}`
+              );
             }},
             renameEdge: (payload) => {{
               contextMenuEvents.push(`renameEdge:${{payload.proposedName}}`);
@@ -1031,15 +1075,33 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
               contextMenuEvents.push(`renameGroup:${{payload.proposedName}}`);
               return true;
             }},
+            deleteGroup: (payload) => {{
+              contextMenuEvents.push(`deleteGroup:${{payload.groupId}}`);
+            }},
           }},
           propertyInvalidation: () => ({{ graph: true }}),
-          findTensorById: (tensorId) => (tensorId === tensor.id ? tensor : null),
+          findTensorById: (tensorId) => tensorsById[tensorId] || null,
           findEdgeById: (edgeId) => (edgeId === edge.id ? edge : null),
           findIndexOwner: (indexId) => {{
             const index = tensor.indices.find((candidate) => candidate.id === indexId) || null;
             return index ? {{ tensor, index }} : null;
           }},
           findGroupById: (groupId) => (groupId === group.id ? group : null),
+          exportSelectedSubnetwork: () => {{
+            contextMenuEvents.push("exportSelectedSubnetwork");
+          }},
+          exportGroupSubnetwork: (groupId) => {{
+            contextMenuEvents.push(`exportGroupSubnetwork:${{groupId}}`);
+          }},
+          promoteSelectedSubnetworkToTemplate: () => {{
+            contextMenuEvents.push("promoteSelectedSubnetworkToTemplate");
+          }},
+          createGroupFromSelection: () => {{
+            contextMenuEvents.push("createGroupFromSelection");
+          }},
+          promoteGroupToTemplate: (groupId) => {{
+            contextMenuEvents.push(`promoteGroupToTemplate:${{groupId}}`);
+          }},
           toggleGroupCollapse: (groupId) => {{
             contextMenuEvents.push(`toggleGroupCollapse:${{groupId}}`);
           }},
@@ -1136,6 +1198,56 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         }}
         document.getElementById("context-menu-delete-tensor-button").click();
 
+        ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+        ctx.state.primarySelectionId = "tensor_b";
+        const selectionEventCountBefore = contextMenuEvents.filter(
+          (entry) => typeof entry === "object" && entry.selectionIds
+        ).length;
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-to-selection-button"')) {{
+          throw new Error("Expected a selected tensor to open the selection mini menu.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-extract-selection-button"')) {{
+          throw new Error("Expected the selection mini menu to expose extraction.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-promote-selection-template-button"')) {{
+          throw new Error("Expected the selection mini menu to expose promotion to template.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-selection-color-input"')) {{
+          throw new Error("Expected the selection mini menu to expose color updates.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-group-selection-button"')) {{
+          throw new Error("Expected the selection mini menu to expose grouping.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-selection-button"')) {{
+          throw new Error("Expected the selection mini menu to expose deletion.");
+        }}
+        if (contextMenuRoot.innerHTML.includes('id="context-menu-name-input"')) {{
+          throw new Error("The selection mini menu should not render the single-tensor rename field.");
+        }}
+        const selectionEventCountAfter = contextMenuEvents.filter(
+          (entry) => typeof entry === "object" && entry.selectionIds
+        ).length;
+        if (selectionEventCountAfter !== selectionEventCountBefore) {{
+          throw new Error("Opening the selection mini menu should preserve the existing multi-selection.");
+        }}
+
+        const selectionColorInput = document.getElementById(
+          "context-menu-selection-color-input"
+        );
+        selectionColorInput.value = "#aa5500";
+        selectionColorInput.dispatchEvent("input");
+
+        document.getElementById("context-menu-add-index-to-selection-button").click();
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        document.getElementById("context-menu-extract-selection-button").click();
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        document.getElementById("context-menu-promote-selection-template-button").click();
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        document.getElementById("context-menu-group-selection-button").click();
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        document.getElementById("context-menu-delete-selection-button").click();
+
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-dimension-input"')) {{
           throw new Error("Expected the index context menu to expose the dimension editor.");
@@ -1175,17 +1287,62 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         document.getElementById("context-menu-delete-edge-button").click();
 
         ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-group-color-input"')) {{
+          throw new Error("Expected the group context menu to expose the color picker.");
+        }}
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-toggle-group-button"')) {{
           throw new Error("Expected the group context menu to expose the collapse toggle.");
         }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-to-group-button"')) {{
+          throw new Error("Expected the group context menu to expose index insertion for member tensors.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-extract-group-button"')) {{
+          throw new Error("Expected the group context menu to expose extraction.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-promote-group-template-button"')) {{
+          throw new Error("Expected the group context menu to expose promotion to template.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-group-button"')) {{
+          throw new Error("Expected the group context menu to expose deletion.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Member tensors</span>")) {{
+          throw new Error("Expected the group context menu to expose the member tensor count chip.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes(">Total elements</span>")) {{
+          throw new Error("Expected the group context menu to expose the total elements chip.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-group-tags-input"')) {{
+          throw new Error("Expected the group context menu to expose inline metadata tags.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-group-custom-metadata-input"')) {{
+          throw new Error("Expected the group context menu to expose inline custom metadata.");
+        }}
+        document.getElementById("context-menu-add-index-to-group-button").click();
+        ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
+        document.getElementById("context-menu-extract-group-button").click();
+        ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
+        document.getElementById("context-menu-promote-group-template-button").click();
+        ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
+        document.getElementById("context-menu-delete-group-button").click();
+        ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
         document.getElementById("context-menu-toggle-group-button").click();
 
         if (
           !contextMenuEvents.includes("addTensorIndex:tensor_a") ||
+          !contextMenuEvents.includes("applySelectionColor:#aa5500") ||
+          !contextMenuEvents.includes("addIndexToSelectedTensors::tensor_a,tensor_b") ||
+          !contextMenuEvents.includes("exportSelectedSubnetwork") ||
+          !contextMenuEvents.includes("promoteSelectedSubnetworkToTemplate") ||
+          !contextMenuEvents.includes("createGroupFromSelection") ||
+          !contextMenuEvents.includes("deleteCurrentSelection") ||
           !contextMenuEvents.includes("moveTensorIndex:-1") ||
           !contextMenuEvents.includes("deleteTensor:tensor_a") ||
           !contextMenuEvents.includes("deleteTensorIndex:index_left") ||
           !contextMenuEvents.includes("deleteEdge:edge_ab") ||
+          !contextMenuEvents.includes("addIndexToSelectedTensors:tensor_a,tensor_b:group_a") ||
+          !contextMenuEvents.includes("exportGroupSubnetwork:group_a") ||
+          !contextMenuEvents.includes("promoteGroupToTemplate:group_a") ||
+          !contextMenuEvents.includes("deleteGroup:group_a") ||
           !contextMenuEvents.includes("toggleGroupCollapse:group_a")
         ) {{
           throw new Error(`Expected the context menu to reuse injected actions, received ${{JSON.stringify(contextMenuEvents)}}.`);
@@ -1818,6 +1975,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           }},
           templateSettingsButton: getButton("template-settings-button"),
           templateSettingsPopover: getButton("template-settings-popover"),
+          reflowLayoutPopover: getButton("reflow-layout-popover"),
           templateGraphSizeInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           templateBondDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
@@ -1827,6 +1985,17 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           exportSessionTemplateMenuItem: getButton("export-session-template-menu-item"),
           editSessionTemplateMenuItem: getButton("edit-session-template-menu-item"),
           reflowImportedButton: getButton("reflow-imported-button"),
+          reflowAlignLeftButton: getButton("reflow-align-left-button"),
+          reflowAlignRightButton: getButton("reflow-align-right-button"),
+          reflowAlignTopButton: getButton("reflow-align-top-button"),
+          reflowAlignMiddleButton: getButton("reflow-align-middle-button"),
+          reflowAlignBottomButton: getButton("reflow-align-bottom-button"),
+          reflowArrangeChainButton: getButton("reflow-arrange-chain-button"),
+          reflowArrangeTreeButton: getButton("reflow-arrange-tree-button"),
+          reflowArrangeGridButton: getButton("reflow-arrange-grid-button"),
+          reflowDistributeHorizontalButton: getButton("reflow-distribute-horizontal-button"),
+          reflowDistributeVerticalButton: getButton("reflow-distribute-vertical-button"),
+          reflowSnapGridButton: getButton("reflow-snap-grid-button"),
           createGroupButton: getButton("create-group-button"),
           helpInfoMenuItem: getButton("help-info-menu-item"),
           helpShortcutsMenuItem: getButton("help-shortcuts-menu-item"),
@@ -1864,6 +2033,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           }},
           toggleTemplateSettingsPopover: () =>
             flowEvents.push("toggleTemplateSettingsPopover"),
+          toggleReflowLayoutPopover: () =>
+            flowEvents.push("toggleReflowLayoutPopover"),
           updateToolbarState: () => flowEvents.push("updateToolbarState"),
           toggleLinearPeriodicMode: () => flowEvents.push("toggleLinearPeriodicMode"),
           setLinearPeriodicMode: (enabled) =>
@@ -1884,6 +2055,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             flowEvents.push(`toggleTemplateManager:${{isOpen}}`),
           renameSelectedTemplate: () => flowEvents.push("renameSelectedTemplate"),
           deleteSelectedTemplate: () => flowEvents.push("deleteSelectedTemplate"),
+          applyReflowLayoutAction: (layoutAction) =>
+            flowEvents.push(`applyReflowLayoutAction:${{layoutAction}}`),
           reflowLastImportedTensors: () => flowEvents.push("reflowLastImportedTensors"),
           createGroupFromSelection: () => flowEvents.push("createGroupFromSelection"),
           toggleHelpModal: (isOpen) => flowEvents.push(`toggleHelpModal:${{isOpen}}`),
@@ -1930,6 +2103,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.editSessionTemplateMenuItem.click();
         dom.helpInfoMenuItem.click();
         dom.templateSettingsButton.click();
+        dom.reflowImportedButton.click();
+        dom.reflowArrangeGridButton.click();
         dom.templateSelect.mousedown({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
@@ -1977,6 +2152,12 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("toggleTemplateSettingsPopover")) {{
           throw new Error(`Expected the template settings button to toggle its popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("toggleReflowLayoutPopover")) {{
+          throw new Error(`Expected the Reflow button to toggle its popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("applyReflowLayoutAction:grid")) {{
+          throw new Error(`Expected the Reflow popover actions to dispatch the requested layout, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("binding.enforceLinearPeriodicEngineSupport") || !flowEvents.includes("binding.renderPlanner")) {{
           throw new Error(`Expected engine change binding to run its injected actions, received ${{JSON.stringify(flowEvents)}}.`);

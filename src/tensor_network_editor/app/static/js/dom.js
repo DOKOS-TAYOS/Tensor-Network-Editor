@@ -50,6 +50,7 @@ export function getDomRefs(document) {
     templateSelect: document.getElementById("template-select"),
     templateSettingsButton: document.getElementById("template-settings-button"),
     templateSettingsPopover: document.getElementById("template-settings-popover"),
+    reflowLayoutPopover: document.getElementById("reflow-layout-popover"),
     templateParameterPanel: document.getElementById("template-parameter-panel"),
     templateGraphSizeField: document.getElementById("template-graph-size-field"),
     templateGraphSizeLabel: document.getElementById("template-graph-size-label"),
@@ -81,6 +82,21 @@ export function getDomRefs(document) {
     ),
     templateCatalogWarning: document.getElementById("template-catalog-warning"),
     reflowImportedButton: document.getElementById("reflow-imported-button"),
+    reflowAlignLeftButton: document.getElementById("reflow-align-left-button"),
+    reflowAlignRightButton: document.getElementById("reflow-align-right-button"),
+    reflowAlignTopButton: document.getElementById("reflow-align-top-button"),
+    reflowAlignMiddleButton: document.getElementById("reflow-align-middle-button"),
+    reflowAlignBottomButton: document.getElementById("reflow-align-bottom-button"),
+    reflowArrangeChainButton: document.getElementById("reflow-arrange-chain-button"),
+    reflowArrangeTreeButton: document.getElementById("reflow-arrange-tree-button"),
+    reflowArrangeGridButton: document.getElementById("reflow-arrange-grid-button"),
+    reflowDistributeHorizontalButton: document.getElementById(
+      "reflow-distribute-horizontal-button"
+    ),
+    reflowDistributeVerticalButton: document.getElementById(
+      "reflow-distribute-vertical-button"
+    ),
+    reflowSnapGridButton: document.getElementById("reflow-snap-grid-button"),
     createGroupButton: document.getElementById("create-group-button"),
     helpInfoMenuItem: document.getElementById("help-info-menu-item"),
     helpShortcutsMenuItem: document.getElementById("help-shortcuts-menu-item"),

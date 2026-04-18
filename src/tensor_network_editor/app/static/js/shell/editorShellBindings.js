@@ -41,6 +41,7 @@ export function createEditorShellBindings({
     collectionFormatSelectField,
     templateSettingsButton,
     templateSettingsPopover,
+    reflowLayoutPopover,
     templateGraphSizeInput,
     templateBondDimensionInput,
     templatePhysicalDimensionInput,
@@ -50,6 +51,17 @@ export function createEditorShellBindings({
     exportSessionTemplateMenuItem,
     editSessionTemplateMenuItem,
     reflowImportedButton,
+    reflowAlignLeftButton,
+    reflowAlignRightButton,
+    reflowAlignTopButton,
+    reflowAlignMiddleButton,
+    reflowAlignBottomButton,
+    reflowArrangeChainButton,
+    reflowArrangeTreeButton,
+    reflowArrangeGridButton,
+    reflowDistributeHorizontalButton,
+    reflowDistributeVerticalButton,
+    reflowSnapGridButton,
     createGroupButton,
     helpInfoMenuItem,
     helpShortcutsMenuItem,
@@ -103,6 +115,8 @@ export function createEditorShellBindings({
       ...toolbarMenus.flatMap((menu) => [menu.button, menu.panel]),
       templateSettingsButton,
       templateSettingsPopover,
+      reflowImportedButton,
+      reflowLayoutPopover,
     ].some((element) => targetWithinElement(target, element));
   }
 
@@ -167,6 +181,13 @@ export function createEditorShellBindings({
   }
 
   function attachToolbarHandlers() {
+    const bindReflowAction = (button, layoutAction) => {
+      bindListener(button, "click", () => {
+        actions.applyReflowLayoutAction(layoutAction);
+        actions.closeTransientToolbarUi();
+      });
+    };
+
     shortcutTooltip.applyShortcutHint("add-tensor-button", "Add tensor", "N");
     shortcutTooltip.applyShortcutHint("insert-template-button", "Insert template", "T");
     shortcutTooltip.applyShortcutHint("create-group-button", "Group", "G");
@@ -286,7 +307,20 @@ export function createEditorShellBindings({
       actions.closeTransientToolbarUi();
       actions.toggleTemplateManager(true);
     });
-    bindListener(reflowImportedButton, "click", actions.reflowLastImportedTensors);
+    bindListener(reflowImportedButton, "click", () => {
+      actions.toggleReflowLayoutPopover();
+    });
+    bindReflowAction(reflowAlignLeftButton, "left");
+    bindReflowAction(reflowAlignRightButton, "right");
+    bindReflowAction(reflowAlignTopButton, "top");
+    bindReflowAction(reflowAlignMiddleButton, "middle");
+    bindReflowAction(reflowAlignBottomButton, "bottom");
+    bindReflowAction(reflowArrangeChainButton, "chain");
+    bindReflowAction(reflowArrangeTreeButton, "tree");
+    bindReflowAction(reflowArrangeGridButton, "grid");
+    bindReflowAction(reflowDistributeHorizontalButton, "horizontal");
+    bindReflowAction(reflowDistributeVerticalButton, "vertical");
+    bindReflowAction(reflowSnapGridButton, "snap");
     bindListener(createGroupButton, "click", actions.createGroupFromSelection);
     bindListener(helpInfoMenuItem, "click", () => {
       actions.openHelpSection("info");

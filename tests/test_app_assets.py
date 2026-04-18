@@ -655,7 +655,21 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'id="context-menu-edge-color-input"' in context_menu_body
     assert 'id="context-menu-delete-edge-button"' in context_menu_body
     assert 'inputPrefix: "context-menu-edge"' in context_menu_body
+    assert 'id="context-menu-add-index-to-selection-button"' in context_menu_body
+    assert 'id="context-menu-extract-selection-button"' in context_menu_body
+    assert 'id="context-menu-promote-selection-template-button"' in context_menu_body
+    assert 'id="context-menu-selection-color-input"' in context_menu_body
+    assert 'id="context-menu-group-selection-button"' in context_menu_body
+    assert 'id="context-menu-delete-selection-button"' in context_menu_body
     assert 'id="context-menu-toggle-group-button"' in context_menu_body
+    assert 'id="context-menu-add-index-to-group-button"' in context_menu_body
+    assert 'id="context-menu-extract-group-button"' in context_menu_body
+    assert 'id="context-menu-group-color-input"' in context_menu_body
+    assert 'id="context-menu-promote-group-template-button"' in context_menu_body
+    assert 'id="context-menu-delete-group-button"' in context_menu_body
+    assert 'inputPrefix: "context-menu-group"' in context_menu_body
+    assert "Member tensors" in context_menu_body
+    assert "Total elements" in context_menu_body
     assert "buildMetadataEditorMarkup" in context_menu_body
     assert "bindMetadataEditors" in context_menu_body
     assert "canvas-context-menu-title" not in context_menu_body
@@ -1076,6 +1090,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_ui_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
+    session_template_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
+    )
 
     assert re.search(
         r'<button id="insert-template-button"[^>]*>\s*\+\s*</button>',
@@ -1084,10 +1101,13 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-settings-button"' in html
     assert 'class="template-settings-icon"' in html
     assert ">...<" not in html
-    assert re.search(
-        r'<button id="reflow-imported-button"[^>]*>\s*Reflow\s*</button>',
-        html,
-    )
+    assert 'id="reflow-imported-button"' in html
+    assert 'aria-haspopup="dialog"' in html
+    assert 'id="reflow-layout-popover"' in html
+    assert 'id="reflow-align-left-button"' in html
+    assert 'id="reflow-arrange-chain-button"' in html
+    assert 'id="reflow-distribute-horizontal-button"' in html
+    assert 'id="reflow-snap-grid-button"' in html
     assert 'id="save-session-template-menu-item"' in html
     assert 'id="load-session-template-menu-item"' in html
     assert 'id="export-session-template-menu-item"' in html
@@ -1118,6 +1138,8 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert about_section is not None
     assert "<h3>" not in about_section.group("body")
+    assert "Support on YouTube" in about_section.group("body")
+    assert 'href="https://www.youtube.com/@whenphysics"' in about_section.group("body")
     assert (
         'templateSettingsButton: document.getElementById("template-settings-button")'
         in dom_body
@@ -1128,6 +1150,22 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert (
         'templateLoadInput: document.getElementById("template-load-input")' in dom_body
+    )
+    assert (
+        'reflowLayoutPopover: document.getElementById("reflow-layout-popover")'
+        in dom_body
+    )
+    assert (
+        'reflowAlignLeftButton: document.getElementById("reflow-align-left-button")'
+        in dom_body
+    )
+    assert (
+        'reflowArrangeChainButton: document.getElementById("reflow-arrange-chain-button")'
+        in dom_body
+    )
+    assert (
+        'reflowSnapGridButton: document.getElementById("reflow-snap-grid-button")'
+        in dom_body
     )
     assert (
         'templateManagerModal: document.getElementById("template-manager-modal")'
@@ -1143,11 +1181,17 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "min-width: 2.2rem;" in body
     assert "height: 2.2rem;" in body
     assert "border-radius: 8px;" in body
-    assert "color: rgba(255, 235, 239, 0.96);" in body
+    assert "color: #ffffff;" in body
     assert ".help-dialog-close:hover," in body
+    assert ".help-close-icon {" in body
+    assert "fill: currentColor;" in body
     assert ".help-dialog-header[hidden] {" in body
     assert ".help-sections[hidden] {" in body
     assert ".help-shortcuts[hidden] {" in body
+    assert 'nameLabel.textContent = "Template name"' not in session_template_body
+    assert 'sourceBadge.textContent = "Session"' not in session_template_body
+    assert 'deleteButton.textContent = "Delete"' not in session_template_body
+    assert "deleteButton.innerHTML" in session_template_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1155,6 +1199,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert (
         'bindListener(templateSettingsButton, "click", () => {' in shell_bindings_body
     )
+    assert "toggleReflowLayoutPopover" in shell_bindings_body
+    assert "reflowAlignLeftButton" in shell_bindings_body
+    assert "reflowArrangeGridButton" in shell_bindings_body
+    assert "reflowDistributeVerticalButton" in shell_bindings_body
     assert (
         'bindListener(loadSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1175,6 +1223,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "exportSelectedTemplateSpec" in interactions_body
     assert "toggleTemplateManager" in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_body
+    assert "function toggleReflowLayoutPopover()" in utilities_ui_body
 
 
 def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
@@ -1196,6 +1245,7 @@ def test_layout_assets_expose_selection_alignment_distribution_and_snap_helpers(
     assert "function arrangeSelectedTensors(" in layout_body
     assert "function distributeSelectedTensors(" in layout_body
     assert "function snapSelectedTensorsToGrid(" in layout_body
+    assert "function applyReflowLayoutAction(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
     assert "GRID_SNAP_SIZE" in utilities_body
     assert 'id="align-selection-left-button"' in overview_body + overview_markup_body

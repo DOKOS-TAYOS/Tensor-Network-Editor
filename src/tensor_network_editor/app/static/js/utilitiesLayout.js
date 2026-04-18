@@ -36,15 +36,6 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
       .filter(Boolean);
   }
 
-  function getActiveImportedTensorIds() {
-    if (!Array.isArray(state.lastImportedTensorIds)) {
-      return [];
-    }
-    return state.lastImportedTensorIds.filter((tensorId) =>
-      Boolean(ctx.findTensorById(tensorId))
-    );
-  }
-
   function applyTensorLayoutChangeForIds(
     tensorIds,
     mutator,
@@ -192,17 +183,38 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     );
   }
 
+  function applyReflowLayoutAction(layoutAction) {
+    const action = typeof layoutAction === "string" ? layoutAction : "";
+    if (action === "left" || action === "right" || action === "top" || action === "middle" || action === "bottom") {
+      return alignSelectedTensors(action);
+    }
+    if (action === "chain" || action === "tree" || action === "grid") {
+      return arrangeSelectedTensors(action);
+    }
+    if (action === "horizontal" || action === "vertical") {
+      return distributeSelectedTensors(action);
+    }
+    if (action === "snap") {
+      return snapSelectedTensorsToGrid();
+    }
+    if (action === "smart") {
+      return reflowLastImportedTensors();
+    }
+    ctx.setStatus(`Unknown reflow action '${action}'.`, "error");
+    return false;
+  }
+
   function reflowLastImportedTensors() {
-    const tensorIds = getActiveImportedTensorIds();
+    const tensorIds = getSelectedLayoutTensorIds();
     if (tensorIds.length < 2) {
-      ctx.setStatus("Insert a template or subnetwork before using Reflow Imported.");
+      ctx.setStatus("Select at least two tensors to reflow.");
       return false;
     }
     const targetPositions = buildImportedReflowPositions(tensorIds);
     return applyTensorPositions(
       tensorIds,
       targetPositions,
-      "Reflowed the imported tensors."
+      "Reflowed the selected tensors."
     );
   }
 
@@ -634,6 +646,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   return {
     GRID_SNAP_SIZE,
     alignSelectedTensors,
+    applyReflowLayoutAction,
     arrangeSelectedTensors,
     distributeSelectedTensors,
     reflowLastImportedTensors,

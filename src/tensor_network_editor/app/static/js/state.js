@@ -99,6 +99,7 @@ export function createInitialState() {
     activeHelpSection: "info",
     openToolbarMenu: null,
     isTemplateSettingsOpen: false,
+    isReflowLayoutOpen: false,
     isTemplateManagerOpen: false,
     nameSearch: {
       scope: "tensor",

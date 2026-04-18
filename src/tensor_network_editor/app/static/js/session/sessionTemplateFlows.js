@@ -22,6 +22,14 @@ function buildExportTemplatePayload(displayName, serializedSpec, sanitizeFilenam
   };
 }
 
+function renderTrashIcon() {
+  return `
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+    </svg>
+  `;
+}
+
 export function createSessionTemplateFlows({
   dom,
   state,
@@ -378,24 +386,21 @@ export function createSessionTemplateFlows({
   function buildTemplateManagerRow(entry) {
     const row = documentRef.createElement("div");
     const nameField = documentRef.createElement("label");
-    const nameLabel = documentRef.createElement("span");
     const nameInput = documentRef.createElement("input");
-    const sourceBadge = documentRef.createElement("span");
     row.className = "template-manager-row";
-    nameLabel.textContent = "Template name";
     nameInput.value =
       templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName;
     nameInput.dataset.templateName = entry.templateName;
+    nameInput.setAttribute("aria-label", `Template name for ${entry.displayName}`);
     nameInput.disabled = false;
-    sourceBadge.className = "template-manager-source";
-    sourceBadge.textContent = "Session";
-    nameField.append(nameLabel, nameInput);
-    row.append(nameField, sourceBadge);
+    nameField.append(nameInput);
+    row.append(nameField);
     const deleteButton = documentRef.createElement("button");
     deleteButton.type = "button";
-    deleteButton.className = "icon-button danger";
+    deleteButton.className = "icon-button index-action-button danger";
     deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
-    deleteButton.textContent = "Delete";
+    deleteButton.title = `Delete ${entry.displayName}`;
+    deleteButton.innerHTML = renderTrashIcon();
     deleteButton.addEventListener("click", () => {
       templateManagerDraft.deletedTemplateNames.add(entry.templateName);
       renderTemplateManager();
