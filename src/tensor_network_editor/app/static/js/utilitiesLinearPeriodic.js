@@ -660,6 +660,17 @@ export function createUtilityLinearPeriodicBindings({
     if (!state.spec) {
       return;
     }
+    if (
+      !isLinearPeriodicMode() &&
+      typeof runtime.isBenchmarkMode === "function" &&
+      runtime.isBenchmarkMode()
+    ) {
+      ctx.setStatus(
+        "Leave Benchmark mode before enabling For unidimensional mode.",
+        "error"
+      );
+      return;
+    }
     if (isLinearPeriodicMode()) {
       if (
         !window.confirm(

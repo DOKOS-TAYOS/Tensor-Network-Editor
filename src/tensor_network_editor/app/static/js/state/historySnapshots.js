@@ -14,6 +14,79 @@ export function createHistorySnapshotSupport({
   refreshContractionAnalysis,
   setStatus,
 }) {
+  function createEmptyBenchmarkCompareState() {
+    return {
+      open: false,
+      loading: false,
+      errorMessage: "",
+      tableModel: null,
+      rows: [],
+      activeRequestId: 0,
+    };
+  }
+
+  function createEmptyBenchmarkSession() {
+    return {
+      enabled: false,
+      activePosition: 0,
+      originalPlan: null,
+      schemes: [],
+      compareModal: createEmptyBenchmarkCompareState(),
+    };
+  }
+
+  function restoreBenchmarkSession(snapshotBenchmarkSession) {
+    const nextBenchmarkSession =
+      snapshotBenchmarkSession && typeof snapshotBenchmarkSession === "object"
+        ? deepClone(snapshotBenchmarkSession)
+        : createEmptyBenchmarkSession();
+    const compareModal =
+      nextBenchmarkSession.compareModal &&
+      typeof nextBenchmarkSession.compareModal === "object"
+        ? nextBenchmarkSession.compareModal
+        : createEmptyBenchmarkCompareState();
+    compareModal.rows = Array.isArray(compareModal.rows)
+      ? compareModal.rows
+      : compareModal.tableModel && Array.isArray(compareModal.tableModel.rows)
+        ? compareModal.tableModel.rows
+        : [];
+    nextBenchmarkSession.compareModal = compareModal;
+    nextBenchmarkSession.schemes = Array.isArray(nextBenchmarkSession.schemes)
+      ? nextBenchmarkSession.schemes
+      : [];
+    nextBenchmarkSession.activePosition = Number.isInteger(
+      nextBenchmarkSession.activePosition
+    )
+      ? nextBenchmarkSession.activePosition
+      : 0;
+    nextBenchmarkSession.enabled = Boolean(nextBenchmarkSession.enabled);
+    if (!nextBenchmarkSession.enabled) {
+      nextBenchmarkSession.activePosition = 0;
+    } else if (
+      nextBenchmarkSession.activePosition > nextBenchmarkSession.schemes.length
+    ) {
+      nextBenchmarkSession.activePosition = nextBenchmarkSession.schemes.length;
+    }
+    state.benchmarkSession = nextBenchmarkSession;
+    if (!nextBenchmarkSession.enabled) {
+      return;
+    }
+    if (nextBenchmarkSession.activePosition <= 0) {
+      state.spec.contraction_plan = null;
+      return;
+    }
+    const activeScheme =
+      nextBenchmarkSession.schemes[nextBenchmarkSession.activePosition - 1] || null;
+    if (!activeScheme) {
+      nextBenchmarkSession.activePosition = 0;
+      state.spec.contraction_plan = null;
+      return;
+    }
+    state.spec.contraction_plan = deepClone(activeScheme);
+    nextBenchmarkSession.schemes[nextBenchmarkSession.activePosition - 1] =
+      state.spec.contraction_plan;
+  }
+
   function clearHistory() {
     state.undoStack = [];
     state.redoStack = [];
@@ -27,6 +100,7 @@ export function createHistorySnapshotSupport({
     return {
       spec: snapshotSpec == null ? deepClone(state.spec) : snapshotSpec,
       tensorOrder: Array.isArray(state.tensorOrder) ? [...state.tensorOrder] : [],
+      benchmarkSession: deepClone(state.benchmarkSession || createEmptyBenchmarkSession()),
     };
   }
 
@@ -57,6 +131,7 @@ export function createHistorySnapshotSupport({
     state.tensorOrder = Array.isArray(snapshot.tensorOrder)
       ? [...snapshot.tensorOrder]
       : [];
+    restoreBenchmarkSession(snapshot.benchmarkSession);
     if (typeof bumpSpecRevision === "function") {
       bumpSpecRevision();
     }

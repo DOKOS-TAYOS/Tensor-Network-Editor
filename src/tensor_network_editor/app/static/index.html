@@ -41,18 +41,33 @@
                     title="Start a new empty tensor network after confirmation."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">New tensor network</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">New tensor network</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Start from an empty design.</span>
+                    </span>
                   </button>
                   <button id="save-button" class="toolbar-menu-item" type="button" role="menuitem">
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Save tensor network</span>
-                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+S</span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Save tensor network</span>
+                        <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+S</span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Write the current design to disk.</span>
+                    </span>
                   </button>
                   <button id="load-design-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Load tensor network</span>
-                    <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+L</span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Load tensor network</span>
+                        <span class="toolbar-menu-item-shortcut">Ctrl/Cmd+L</span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Open a saved design.</span>
+                    </span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
                   <button
@@ -63,8 +78,13 @@
                     title="Export the current design as a Python script."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Export to .py</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export to .py</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Generate a Python script from the current design.</span>
+                    </span>
                   </button>
                   <button
                     id="export-png-menu-item"
@@ -74,8 +94,13 @@
                     title="Export the current design as a PNG image."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Export to .png</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export to .png</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the canvas as a PNG image.</span>
+                    </span>
                   </button>
                   <button
                     id="export-svg-menu-item"
@@ -85,8 +110,13 @@
                     title="Export the current design as an SVG image."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Export to .svg</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export to .svg</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the canvas as an SVG image.</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -110,13 +140,23 @@
                     title="Edit one tensor network on a single canvas."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Single</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Single</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Edit one tensor network on one canvas.</span>
+                    </span>
                   </button>
                   <button id="linear-periodic-mode-menu-item" class="toolbar-menu-item" type="button" role="menuitemradio">
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">For unidimensional</span>
-                    <span class="toolbar-menu-item-shortcut">F</span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">For unidimensional</span>
+                        <span class="toolbar-menu-item-shortcut">F</span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Work with the three-cell chain view.</span>
+                    </span>
                   </button>
                   <button
                     id="grid-periodic-mode-menu-item"
@@ -127,8 +167,46 @@
                     disabled
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">For bidimensional</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">For bidimensional</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Coming later.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="tree-mode-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Tree mode is not available yet."
+                    disabled
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">For Tree</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Coming later.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="benchmark-mode-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Compare several contraction schemes on the same tensor network."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Benchmark</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Compare manual contraction schemes.</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -152,8 +230,13 @@
                     title="Save the selected tensors as a session template."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Save template</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Save template</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the current selection as a reusable template.</span>
+                    </span>
                   </button>
                   <button
                     id="load-session-template-menu-item"
@@ -163,8 +246,13 @@
                     title="Load session templates from a JSON file."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Load template</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Load template</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Import templates from a JSON file.</span>
+                    </span>
                   </button>
                   <button
                     id="export-session-template-menu-item"
@@ -174,8 +262,13 @@
                     title="Export the selected session template as JSON."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Export template</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export template</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the selected session template to JSON.</span>
+                    </span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
                   <button
@@ -186,8 +279,13 @@
                     title="Rename or delete session templates."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Edit template</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Edit template</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Rename or remove session templates.</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -205,8 +303,13 @@
                 <div id="help-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
                   <button id="help-info-menu-item" class="toolbar-menu-item" type="button" role="menuitem">
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Info</span>
-                    <span class="toolbar-menu-item-shortcut">?</span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Info</span>
+                        <span class="toolbar-menu-item-shortcut">?</span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Read the quick guide.</span>
+                    </span>
                   </button>
                   <button
                     id="help-shortcuts-menu-item"
@@ -216,8 +319,13 @@
                     title="Open the keyboard shortcuts list."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">Shortcuts</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Shortcuts</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Open the keyboard shortcuts list.</span>
+                    </span>
                   </button>
                   <button
                     id="help-about-menu-item"
@@ -227,8 +335,13 @@
                     title="Open application information."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-label">About</span>
-                    <span class="toolbar-menu-item-shortcut"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">About</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Read project details and links.</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -333,8 +446,8 @@
                     <button
                       id="linear-periodic-previous-cell-button"
                       type="button"
-                      aria-label="Previous cell"
-                      title="Previous cell"
+                      aria-label="Previous item"
+                      title="Previous item"
                     >
                       &lt;
                     </button>
@@ -345,11 +458,27 @@
                     >
                       Single
                     </span>
+                    <input
+                      id="benchmark-scheme-name-input"
+                      class="toolbar-mode-name-input"
+                      type="text"
+                      value=""
+                      aria-label="Benchmark scheme name"
+                      hidden
+                    />
+                    <button
+                      id="benchmark-compare-button"
+                      type="button"
+                      class="button-accent-cool toolbar-mode-compare-button"
+                      hidden
+                    >
+                      Compare
+                    </button>
                     <button
                       id="linear-periodic-next-cell-button"
                       type="button"
-                      aria-label="Next cell"
-                      title="Next cell"
+                      aria-label="Next item"
+                      title="Next item"
                     >
                       &gt;
                     </button>
@@ -776,7 +905,7 @@
             <ul>
               <li>Templates insert ready-to-edit network layouts with the expected open legs and bond structure.</li>
               <li>Use <strong>Template settings</strong> to adjust the selected template before inserting it, and use the <strong>Templates</strong> menu to save, load, export, or edit your session templates.</li>
-              <li>Use <strong>Extract Selection</strong> or <strong>Extract Group</strong> to save a reusable JSON fragment, then use <strong>Insert Subnetwork</strong> to bring it back with fresh ids.</li>
+              <li>Use <strong>Extract</strong> from the selection or group panel to save a reusable JSON fragment, then use <strong>Insert Subnetwork</strong> to bring it back with fresh ids.</li>
               <li>Use <strong>Graph size</strong>, <strong>Bond dimension</strong>, and <strong>Physical dimension</strong> before inserting a template.</li>
               <li><strong>Graph size</strong> means sites for MPS and MPO, side length for PEPS, and depth for MERA or Binary Tree.</li>
               <li>Use <strong>F</strong> or <strong>Modes &gt; For unidimensional</strong> to switch into the three-cell chain workflow, then move between <strong>Initial</strong>, <strong>Periodic</strong>, and <strong>Final</strong> with the arrow buttons.</li>
@@ -923,6 +1052,46 @@
         </div>
         <p id="template-manager-error" class="template-manager-error" hidden></p>
         <div id="template-manager-list" class="template-manager-list"></div>
+      </section>
+    </div>
+
+    <div id="benchmark-compare-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="benchmark-compare-title" hidden>
+      <div id="benchmark-compare-backdrop" class="help-backdrop"></div>
+      <section class="help-dialog benchmark-compare-dialog">
+        <button
+          id="benchmark-compare-close-button"
+          class="help-dialog-close"
+          type="button"
+          aria-label="Close benchmark comparison"
+          title="Close"
+        >
+          <svg
+            class="help-close-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4.22 3.16 8 6.94l3.78-3.78a.75.75 0 1 1 1.06 1.06L9.06 8l3.78 3.78a.75.75 0 1 1-1.06 1.06L8 9.06l-3.78 3.78a.75.75 0 1 1-1.06-1.06L6.94 8 3.16 4.22a.75.75 0 1 1 1.06-1.06Z"/>
+          </svg>
+        </button>
+        <div class="help-dialog-header benchmark-compare-header">
+          <h2 id="benchmark-compare-title">Compare</h2>
+          <p class="help-note">Each row is one saved contraction scheme.</p>
+        </div>
+        <div class="benchmark-compare-table-shell">
+          <table class="benchmark-compare-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">FLOP</th>
+                <th scope="col">MAC</th>
+                <th scope="col">Peak</th>
+                <th scope="col">Peak Memory</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-compare-table-body"></tbody>
+          </table>
+        </div>
       </section>
     </div>
 

@@ -143,6 +143,10 @@ export function createEditorActionGroups(ctx) {
         ctx,
         "toggleLinearPeriodicMode"
       ),
+      closeBenchmarkCompareModal: resolveOptionalAction(
+        ctx,
+        "closeBenchmarkCompareModal"
+      ),
     },
   };
 }

@@ -38,6 +38,8 @@ export function getDomRefs(document) {
       "linear-periodic-mode-menu-item"
     ),
     gridPeriodicModeMenuItem: document.getElementById("grid-periodic-mode-menu-item"),
+    treeModeMenuItem: document.getElementById("tree-mode-menu-item"),
+    benchmarkModeMenuItem: document.getElementById("benchmark-mode-menu-item"),
     toolbarModeControls: document.querySelector(".toolbar-mode-controls"),
     linearPeriodicPreviousCellButton: document.getElementById(
       "linear-periodic-previous-cell-button"
@@ -46,6 +48,8 @@ export function getDomRefs(document) {
     linearPeriodicNextCellButton: document.getElementById(
       "linear-periodic-next-cell-button"
     ),
+    benchmarkSchemeNameInput: document.getElementById("benchmark-scheme-name-input"),
+    benchmarkCompareButton: document.getElementById("benchmark-compare-button"),
     templateSelectField: document.getElementById("template-select-field"),
     templateSelect: document.getElementById("template-select"),
     templateSettingsButton: document.getElementById("template-settings-button"),
@@ -128,6 +132,16 @@ export function getDomRefs(document) {
     ),
     templateManagerError: document.getElementById("template-manager-error"),
     templateManagerList: document.getElementById("template-manager-list"),
+    benchmarkCompareModal: document.getElementById("benchmark-compare-modal"),
+    benchmarkCompareBackdrop: document.getElementById(
+      "benchmark-compare-backdrop"
+    ),
+    benchmarkCompareCloseButton: document.getElementById(
+      "benchmark-compare-close-button"
+    ),
+    benchmarkCompareTableBody: document.getElementById(
+      "benchmark-compare-table-body"
+    ),
     canvasShell: document.getElementById("canvas-shell"),
     groupLayer: document.getElementById("group-layer"),
     resizeLayer: document.getElementById("resize-layer"),

@@ -57,6 +57,64 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     spec.contraction_plan = nextSection.contraction_plan;
   }
 
+  function normalizeContractionPlanInPlace(contractionPlan) {
+    if (!runtime.isObject(contractionPlan)) {
+      return null;
+    }
+    contractionPlan.metadata = runtime.isObject(contractionPlan.metadata)
+      ? contractionPlan.metadata
+      : {};
+    contractionPlan.steps = Array.isArray(contractionPlan.steps)
+      ? contractionPlan.steps
+      : [];
+    contractionPlan.view_snapshots = Array.isArray(contractionPlan.view_snapshots)
+      ? contractionPlan.view_snapshots
+      : [];
+    if (!contractionPlan.id) {
+      contractionPlan.id = runtime.makeId("plan");
+    }
+    if (!contractionPlan.name) {
+      contractionPlan.name = "Manual path";
+    }
+    contractionPlan.steps.forEach((step) => {
+      step.metadata = runtime.isObject(step.metadata) ? step.metadata : {};
+      if (!step.id) {
+        step.id = runtime.makeId("step");
+      }
+      step.left_operand_id = String(step.left_operand_id || "");
+      step.right_operand_id = String(step.right_operand_id || "");
+    });
+    contractionPlan.view_snapshots.forEach((snapshot, snapshotIndex) => {
+      snapshot.applied_step_count = Math.max(
+        0,
+        Math.round(
+          runtime.asFiniteNumber(snapshot.applied_step_count, snapshotIndex)
+        )
+      );
+      snapshot.operand_layouts = Array.isArray(snapshot.operand_layouts)
+        ? snapshot.operand_layouts
+        : [];
+      snapshot.operand_layouts.forEach((layout) => {
+        layout.operand_id = String(layout.operand_id || "");
+        layout.position = {
+          x: runtime.asFiniteNumber(layout.position && layout.position.x, 120),
+          y: runtime.asFiniteNumber(layout.position && layout.position.y, 120),
+        };
+        layout.size = {
+          width: Math.max(
+            MIN_TENSOR_WIDTH,
+            runtime.asFiniteNumber(layout.size && layout.size.width, TENSOR_WIDTH)
+          ),
+          height: Math.max(
+            MIN_TENSOR_HEIGHT,
+            runtime.asFiniteNumber(layout.size && layout.size.height, TENSOR_HEIGHT)
+          ),
+        };
+      });
+    });
+    return contractionPlan;
+  }
+
   function normalizeGraphSectionInPlace(graphSection) {
     graphSection.metadata = runtime.isObject(graphSection.metadata)
       ? graphSection.metadata
@@ -128,7 +186,9 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
             .map((candidate) => candidate.name)
         );
       }
-      runtime.ensureTensorIndexOffsets(tensor);
+      if (typeof runtime.ensureTensorIndexOffsets === "function") {
+        runtime.ensureTensorIndexOffsets(tensor);
+      }
     });
 
     graphSection.groups.forEach((group, groupPosition) => {
@@ -184,65 +244,7 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     });
 
     if (graphSection.contraction_plan) {
-      graphSection.contraction_plan.metadata = runtime.isObject(
-        graphSection.contraction_plan.metadata
-      )
-        ? graphSection.contraction_plan.metadata
-        : {};
-      graphSection.contraction_plan.steps = Array.isArray(
-        graphSection.contraction_plan.steps
-      )
-        ? graphSection.contraction_plan.steps
-        : [];
-      graphSection.contraction_plan.view_snapshots = Array.isArray(
-        graphSection.contraction_plan.view_snapshots
-      )
-        ? graphSection.contraction_plan.view_snapshots
-        : [];
-      if (!graphSection.contraction_plan.id) {
-        graphSection.contraction_plan.id = runtime.makeId("plan");
-      }
-      if (!graphSection.contraction_plan.name) {
-        graphSection.contraction_plan.name = "Manual path";
-      }
-      graphSection.contraction_plan.steps.forEach((step) => {
-        step.metadata = runtime.isObject(step.metadata) ? step.metadata : {};
-        if (!step.id) {
-          step.id = runtime.makeId("step");
-        }
-        step.left_operand_id = String(step.left_operand_id || "");
-        step.right_operand_id = String(step.right_operand_id || "");
-      });
-      graphSection.contraction_plan.view_snapshots.forEach(
-        (snapshot, snapshotIndex) => {
-          snapshot.applied_step_count = Math.max(
-            0,
-            Math.round(
-              runtime.asFiniteNumber(snapshot.applied_step_count, snapshotIndex)
-            )
-          );
-          snapshot.operand_layouts = Array.isArray(snapshot.operand_layouts)
-            ? snapshot.operand_layouts
-            : [];
-          snapshot.operand_layouts.forEach((layout) => {
-            layout.operand_id = String(layout.operand_id || "");
-            layout.position = {
-              x: runtime.asFiniteNumber(layout.position && layout.position.x, 120),
-              y: runtime.asFiniteNumber(layout.position && layout.position.y, 120),
-            };
-            layout.size = {
-              width: Math.max(
-                MIN_TENSOR_WIDTH,
-                runtime.asFiniteNumber(layout.size && layout.size.width, TENSOR_WIDTH)
-              ),
-              height: Math.max(
-                MIN_TENSOR_HEIGHT,
-                runtime.asFiniteNumber(layout.size && layout.size.height, TENSOR_HEIGHT)
-              ),
-            };
-          });
-        }
-      );
+      normalizeContractionPlanInPlace(graphSection.contraction_plan);
     }
 
     return graphSection;
@@ -285,6 +287,7 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     clearGraphSectionOnSpec,
     buildGraphSectionFromSpec,
     replaceGraphSectionOnSpec,
+    normalizeContractionPlanInPlace,
     normalizeGraphSectionInPlace,
     buildHistorySnapshotSpec,
     buildSerializedSpec,

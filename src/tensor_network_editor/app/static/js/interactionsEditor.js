@@ -130,6 +130,20 @@ export function createInteractionEditorBindings({
     state.noteDragState = null;
     state.activeNoteResize = null;
     state.contractionAnalysis = null;
+    state.benchmarkSession = {
+      enabled: false,
+      activePosition: 0,
+      originalPlan: null,
+      schemes: [],
+      compareModal: {
+        open: false,
+        loading: false,
+        errorMessage: "",
+        tableModel: null,
+        rows: [],
+        activeRequestId: 0,
+      },
+    };
     state.templateCatalogWarnings = Array.isArray(state.templateCatalogWarnings)
       ? [...state.templateCatalogWarnings]
       : [];

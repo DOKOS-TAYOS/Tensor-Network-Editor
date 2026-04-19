@@ -1,3 +1,24 @@
+function createInitialBenchmarkCompareState() {
+  return {
+    open: false,
+    loading: false,
+    errorMessage: "",
+    tableModel: null,
+    rows: [],
+    activeRequestId: 0,
+  };
+}
+
+function createInitialBenchmarkSession() {
+  return {
+    enabled: false,
+    activePosition: 0,
+    originalPlan: null,
+    schemes: [],
+    compareModal: createInitialBenchmarkCompareState(),
+  };
+}
+
 export function createInitialState() {
   return {
     spec: null,
@@ -129,5 +150,6 @@ export function createInitialState() {
     plannerPreviewOrderByTensorId: {},
     contractionAnalysis: null,
     contractionAnalysisRequestId: 0,
+    benchmarkSession: createInitialBenchmarkSession(),
   };
 }

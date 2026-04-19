@@ -91,6 +91,10 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     assert 'id="modes-menu-panel"' in html
     assert 'id="templates-menu-panel"' in html
     assert 'id="help-menu-panel"' in html
+    assert 'class="toolbar-menu-item-content"' in html
+    assert 'class="toolbar-menu-item-header"' in html
+    assert 'class="toolbar-menu-item-description"' in html
+    assert "Write the current design to disk." in html
     assert 'id="load-button"' not in html
     assert 'id="export-button"' not in html
     assert 'id="help-button"' not in html
@@ -169,13 +173,30 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert 'id="single-mode-menu-item"' in html
     assert 'id="linear-periodic-mode-menu-item"' in html
     assert 'id="grid-periodic-mode-menu-item"' in html
+    assert 'id="tree-mode-menu-item"' in html
+    assert 'id="benchmark-mode-menu-item"' in html
     assert 'id="linear-periodic-previous-cell-button"' in html
     assert 'id="linear-periodic-cell-label"' in html
     assert 'id="linear-periodic-next-cell-button"' in html
     assert ">For unidimensional<" in html
+    assert ">For bidimensional<" in html
+    assert ">For Tree<" in html
+    assert ">Benchmark<" in html
+    assert 'title="Benchmark mode is not available yet."' not in html
+    assert 'id="benchmark-compare-button"' in html
+    assert 'id="benchmark-scheme-name-input"' in html
     assert html.index('class="title-button-row"') < html.index(
         'class="toolbar-mode-controls"'
     )
+
+
+def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert 'id="benchmark-compare-modal"' in html
+    assert 'id="benchmark-compare-close-button"' in html
+    assert 'id="benchmark-compare-table-body"' in html
+    assert ">Peak Memory<" in html
     assert html.index('class="toolbar-mode-controls"') < html.index(
         'id="template-select-field"'
     )
@@ -411,6 +432,11 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "appearance: none;" in body
     assert "padding-right: 2.2rem;" in body
     assert "min-width: 9rem;" in body
+    assert "select:hover," in body
+    assert "select:focus-visible {" in body
+    assert ".template-settings-button:hover," in body
+    assert "background: var(--control-hover-bg);" in body
+    assert "box-shadow: var(--control-hover-shadow);" in body
     assert "min-width: 10.5rem;" not in body
 
 
@@ -431,7 +457,12 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".toolbar-menubar {" in body
     assert ".toolbar-menubar-button {" in body
     assert ".toolbar-menu-item {" in body
+    assert ".toolbar-menu-item-content {" in body
+    assert ".toolbar-menu-item-header {" in body
+    assert ".toolbar-menu-item-description {" in body
+    assert "display: none;" in body
     assert ".toolbar-menu-item-shortcut {" in body
+    assert "background: #0e639c;" not in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
     assert ".code-format-picker.select-chevron-field::after {" in body
@@ -442,6 +473,44 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".code-preview {" in body
     assert ".code-preview .token.keyword {" in body
     assert ".code-preview .token.function {" in body
+
+
+def test_css_asset_uses_two_row_shortcut_tooltips(
+    editor_server: EditorServer,
+) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert ".shortcut-tooltip {" in css_body
+    assert "min-width: 13rem;" in css_body
+    assert "border-radius: 6px;" in css_body
+    assert "display: grid;" in css_body
+    assert ".shortcut-tooltip-header {" in css_body
+    assert "justify-content: space-between;" in css_body
+    assert ".shortcut-tooltip-shortcut {" in css_body
+    assert "white-space: nowrap;" in css_body
+    assert ".shortcut-tooltip-description {" in css_body
+    assert "line-height: 1.35;" in css_body
+
+
+def test_css_asset_standardizes_hover_across_controls(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "button:not(:disabled):hover," in body
+    assert "button:not(:disabled):focus-visible," in body
+    assert (
+        'input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([disabled]):hover,'
+        in body
+    )
+    assert "textarea:not([disabled]):hover," in body
+    assert ".properties-disclosure-summary:hover," in body
+    assert ".properties-disclosure-summary:focus-visible {" in body
+    assert ".button-accent-cool:hover {" not in body
+    assert ".button-quiet:hover {" not in body
+    assert ".button-accent-positive:hover," not in body
+    assert ".button-accent-insert:hover {" not in body
+    assert "button.danger:hover {" not in body
 
 
 def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> None:
@@ -686,6 +755,12 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'id="context-menu-group-color-input"' in context_menu_body
     assert 'id="context-menu-promote-group-template-button"' in context_menu_body
     assert 'id="context-menu-delete-group-button"' in context_menu_body
+    assert "Add index to tensors" not in context_menu_body
+    assert "Extract selection" not in context_menu_body
+    assert "Promote to template" not in context_menu_body
+    assert "Add index" in context_menu_body
+    assert "Extract" in context_menu_body
+    assert "To Template" in context_menu_body
     assert 'inputPrefix: "context-menu-group"' in context_menu_body
     assert "Member tensors" in context_menu_body
     assert "Total elements" in context_menu_body
@@ -786,6 +861,13 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
     assert "function createEditorBootstrapFlow(" in bootstrap_flow_body
     assert "function createEditorShellBindings(" in shell_bindings_body
     assert "function createShortcutTooltip(" in tooltip_body
+    assert "function applyTitleHint(" in tooltip_body
+    assert "function escapeTooltipText(" in tooltip_body
+    assert "function buildTooltipMarkup(" in tooltip_body
+    assert 'class="shortcut-tooltip-header"' in tooltip_body
+    assert 'class="shortcut-tooltip-description"' in tooltip_body
+    assert "tooltip.innerHTML = buildTooltipMarkup(button);" in tooltip_body
+    assert "shortcutTooltip.applyTitleHint(" in shell_bindings_body
     assert "ctx.applyDesignChange(" not in overview_body
     assert "ctx.applyDesignChange(" not in entities_body
     assert "ctx.removeEdge(" not in entities_body
@@ -1093,6 +1175,10 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     )
     assert 'id="extract-group-button"' in entities_body + entity_markup_body
     assert 'id="promote-group-template-button"' in entities_body + entity_markup_body
+    assert "Extract Group" not in entity_markup_body
+    assert "Promote Group to Template" not in entity_markup_body
+    assert "Extract" in entity_markup_body
+    assert "To Template" in entity_markup_body
 
 
 def test_template_management_assets_expose_toolbar_controls_and_routes(
@@ -1268,6 +1354,8 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "border-radius: 8px;" in body
     assert "color: #ffffff;" in body
     assert ".help-dialog-close:hover," in body
+    assert "rgba(116, 34, 44, 0.56)" not in body
+    assert "rgba(234, 114, 126, 0.76)" not in body
     assert ".help-close-icon {" in body
     assert "fill: currentColor;" in body
     assert ".help-dialog-header[hidden] {" in body
@@ -1348,6 +1436,12 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert (
         'id="promote-selection-template-button"' in overview_body + overview_markup_body
     )
+    assert "Add Index to Tensors" not in overview_markup_body
+    assert "Extract Selection" not in overview_markup_body
+    assert "Promote to Template" not in overview_markup_body
+    assert "Add index" in overview_markup_body
+    assert "Extract" in overview_markup_body
+    assert "To Template" in overview_markup_body
     assert 'id="group-selection-button"' in overview_body + overview_markup_body
     assert (
         'id="align-selection-left-button"' not in overview_body + overview_markup_body

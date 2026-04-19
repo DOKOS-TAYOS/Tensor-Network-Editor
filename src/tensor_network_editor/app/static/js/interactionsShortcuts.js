@@ -74,6 +74,9 @@ export function createInteractionShortcutBindings({
     toggleLinearPeriodicMode:
       shortcutActions.toggleLinearPeriodicMode ||
       resolveContextAction(ctx, "toggleLinearPeriodicMode"),
+    closeBenchmarkCompareModal:
+      shortcutActions.closeBenchmarkCompareModal
+      || resolveContextAction(ctx, "closeBenchmarkCompareModal"),
   };
   const {
     toggleSidebarCollapsed,
@@ -96,6 +99,7 @@ export function createInteractionShortcutBindings({
     addNoteAtCenter,
     toggleTemplateManager,
     toggleLinearPeriodicMode,
+    closeBenchmarkCompareModal,
   } = resolvedShortcutActions;
 
   function openSidebarTab(tabName) {
@@ -151,6 +155,10 @@ export function createInteractionShortcutBindings({
 
     if (event.key === "Escape") {
       event.preventDefault();
+      if (state.benchmarkSession?.compareModal?.open) {
+        closeBenchmarkCompareModal();
+        return;
+      }
       if (closeTransientToolbarUi()) {
         return;
       }

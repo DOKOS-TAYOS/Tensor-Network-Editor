@@ -33,8 +33,11 @@ export function createEditorShellBindings({
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
+    benchmarkModeMenuItem,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
+    benchmarkSchemeNameInput,
+    benchmarkCompareButton,
     templateSelectField,
     templateSelect,
     engineSelectField,
@@ -76,6 +79,8 @@ export function createEditorShellBindings({
     templateManagerBackdrop,
     templateManagerSaveButton,
     templateManagerDiscardButton,
+    benchmarkCompareBackdrop,
+    benchmarkCompareCloseButton,
     canvasShell,
     minimapCanvas,
     engineSelect,
@@ -278,6 +283,50 @@ export function createEditorShellBindings({
       "?",
       "Open the editor guide."
     );
+    [
+      "new-design-button",
+      "export-python-menu-item",
+      "export-png-menu-item",
+      "export-svg-menu-item",
+      "single-mode-menu-item",
+      "grid-periodic-mode-menu-item",
+      "tree-mode-menu-item",
+      "benchmark-mode-menu-item",
+      "benchmark-compare-button",
+      "save-session-template-menu-item",
+      "load-session-template-menu-item",
+      "export-session-template-menu-item",
+      "edit-session-template-menu-item",
+      "help-shortcuts-menu-item",
+      "help-about-menu-item",
+      "done-button",
+      "cancel-button",
+      "linear-periodic-previous-cell-button",
+      "linear-periodic-next-cell-button",
+      "template-settings-button",
+      "reflow-imported-button",
+      "reflow-align-left-button",
+      "reflow-align-right-button",
+      "reflow-align-top-button",
+      "reflow-align-middle-button",
+      "reflow-align-bottom-button",
+      "reflow-arrange-chain-button",
+      "reflow-arrange-tree-button",
+      "reflow-arrange-grid-button",
+      "reflow-snap-grid-button",
+      "reflow-indices-left-button",
+      "reflow-indices-right-button",
+      "reflow-indices-top-button",
+      "reflow-indices-reset-button",
+      "reflow-indices-bottom-button",
+      "copy-code-button",
+      "help-close-button",
+      "template-manager-save-button",
+      "template-manager-discard-button",
+    ].forEach((controlId) => {
+      shortcutTooltip.applyTitleHint(controlId);
+    });
+    shortcutTooltip.applyTitleHint("template-select", { label: "Template" });
     shortcutTooltip.attachShortcutTooltipHandlers();
 
     toolbarMenus.forEach((menu) => {
@@ -325,6 +374,7 @@ export function createEditorShellBindings({
     });
     bindListener(singleModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
+      actions.setBenchmarkMode(false);
       actions.setLinearPeriodicMode(false);
       actions.updateToolbarState();
     });
@@ -333,11 +383,30 @@ export function createEditorShellBindings({
       actions.setLinearPeriodicMode(true);
       actions.updateToolbarState();
     });
+    bindListener(benchmarkModeMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.setBenchmarkMode(true);
+      actions.updateToolbarState();
+    });
     bindListener(linearPeriodicPreviousCellButton, "click", () => {
+      if (state.benchmarkSession && state.benchmarkSession.enabled) {
+        actions.switchBenchmarkPosition(-1);
+        return;
+      }
       actions.switchLinearPeriodicCell(-1);
     });
     bindListener(linearPeriodicNextCellButton, "click", () => {
+      if (state.benchmarkSession && state.benchmarkSession.enabled) {
+        actions.switchBenchmarkPosition(1);
+        return;
+      }
       actions.switchLinearPeriodicCell(1);
+    });
+    bindListener(benchmarkSchemeNameInput, "input", (event) => {
+      actions.renameActiveBenchmarkScheme(event.target.value);
+    });
+    bindListener(benchmarkCompareButton, "click", () => {
+      actions.openBenchmarkCompareModal();
     });
     bindSelectChevronDisclosure(templateSelectField, templateSelect);
     bindSelectChevronDisclosure(engineSelectField, engineSelect);
@@ -420,6 +489,12 @@ export function createEditorShellBindings({
         actions.discardTemplateManagerChanges();
       }
     });
+    bindListener(benchmarkCompareBackdrop, "click", () =>
+      actions.closeBenchmarkCompareModal()
+    );
+    bindListener(benchmarkCompareCloseButton, "click", () =>
+      actions.closeBenchmarkCompareModal()
+    );
     bindListener(engineSelect, "change", (event) => {
       setSelectChevronExpanded(engineSelectField, false);
       store.setSelectedEngine(event.target.value);

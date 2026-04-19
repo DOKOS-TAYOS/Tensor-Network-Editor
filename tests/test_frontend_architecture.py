@@ -2432,6 +2432,7 @@ def test_note_button_creates_a_single_note_when_features_and_shell_bindings_are_
           }},
           shortcutTooltip: {{
             applyShortcutHint() {{}},
+            applyTitleHint() {{}},
             attachShortcutTooltipHandlers() {{}},
           }},
         }});
@@ -2679,6 +2680,174 @@ def test_editor_shell_helper_modules_expose_explicit_ui_and_invalidation_adapter
 
     assert completed_process.returncode == 0, (
         "The editor-shell helper runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "benchmark_helper_modules.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
+        const historyUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "historySnapshots.js")!r}).href;
+
+        const [benchmarkModule, historySnapshotsModule] = await Promise.all([
+          import(benchmarkUrl),
+          import(historyUrl),
+        ]);
+
+        const tableModel = benchmarkModule.buildBenchmarkCompareTableModel([
+          {{
+            scheme_id: "scheme_alpha",
+            scheme_name: "Alpha",
+            analysis: {{
+              status: "complete",
+              summary: {{
+                total_estimated_flops: 10,
+                total_estimated_macs: 30,
+                peak_intermediate_size: 20,
+                peak_intermediate_bytes: 80,
+              }},
+            }},
+          }},
+          {{
+            scheme_id: "scheme_beta",
+            scheme_name: "Beta",
+            analysis: {{
+              status: "complete",
+              summary: {{
+                total_estimated_flops: 25,
+                total_estimated_macs: 15,
+                peak_intermediate_size: 40,
+                peak_intermediate_bytes: 40,
+              }},
+            }},
+          }},
+          {{
+            scheme_id: "scheme_gamma",
+            scheme_name: "Gamma",
+            analysis: {{
+              status: "incomplete",
+              summary: {{
+                total_estimated_flops: 5,
+                total_estimated_macs: 5,
+                peak_intermediate_size: 5,
+                peak_intermediate_bytes: 20,
+              }},
+            }},
+          }},
+        ]);
+
+        if (tableModel.rows.length !== 3) {{
+          throw new Error(`Expected three comparison rows, received ${{tableModel.rows.length}}.`);
+        }}
+        if (!tableModel.rows[0].cells.flop.isBest || tableModel.rows[0].cells.flop.isWorst) {{
+          throw new Error("The lowest FLOP row should be best only.");
+        }}
+        if (!tableModel.rows[1].cells.flop.isWorst || tableModel.rows[1].cells.flop.isBest) {{
+          throw new Error("The highest FLOP row should be worst only.");
+        }}
+        if (tableModel.rows[2].cells.flop.display !== "-") {{
+          throw new Error(`Expected incomplete rows to render '-', received ${{tableModel.rows[2].cells.flop.display}}.`);
+        }}
+        if (tableModel.rows[2].cells.flop.isBest || tableModel.rows[2].cells.flop.isWorst) {{
+          throw new Error("Incomplete rows should not participate in best/worst ranking.");
+        }}
+
+        const historyEvents = [];
+        const historyState = {{
+          spec: {{ id: "network_demo" }},
+          tensorOrder: ["tensor_a"],
+          undoStack: [],
+          redoStack: [],
+          pendingIndexId: "index_a",
+          pendingPlannerOperandId: "operand_a",
+          pendingPlannerSelectionId: "selection_a",
+          plannerInspectionStepCount: 1,
+          plannerPreviewMode: "automaticFuture",
+          plannerFutureBadgeDisclosure: {{ future: true }},
+          activeNoteResize: null,
+          activeSidebarTab: "planner",
+          pendingPropertiesIndexFocusId: null,
+          autoExpandedTensorIndex: null,
+          tensorIndexDisclosureState: {{}},
+          selectionIds: ["tensor_a"],
+          primarySelectionId: "tensor_a",
+          selectedElement: null,
+          generatedCode: "print('demo')",
+          benchmarkSession: {{
+            enabled: true,
+            activePosition: 2,
+            originalPlan: {{ id: "original_plan", name: "Original", steps: [], metadata: {{}} }},
+            schemes: [
+              {{ id: "scheme_alpha", name: "Alpha", steps: [], metadata: {{}} }},
+              {{ id: "scheme_beta", name: "Beta", steps: [], metadata: {{}} }},
+            ],
+            compareModal: {{
+              open: true,
+              rows: [{{ scheme_id: "scheme_alpha" }}],
+              activeRequestId: 7,
+            }},
+          }},
+        }};
+        const historySupport = historySnapshotsModule.createHistorySnapshotSupport({{
+          state: historyState,
+          historyLimit: 2,
+          buildHistorySnapshotSpec: () => structuredClone(historyState.spec),
+          deepClone: (value) => structuredClone(value),
+          updateToolbarState: () => historyEvents.push("toolbar"),
+          normalizeSpec: (spec) => spec,
+          bumpSpecRevision: () => historyEvents.push("bump"),
+          reconcileTensorOrder: () => historyEvents.push("reconcile"),
+          enforceLinearPeriodicEngineSupport: () => historyEvents.push("linear-periodic"),
+          clearGeneratedCodePreview: () => {{
+            historyEvents.push("clear-code");
+            historyState.generatedCode = "";
+            return true;
+          }},
+          pruneSelectionToExisting: () => historyEvents.push("prune"),
+          render: () => historyEvents.push("render"),
+          refreshContractionAnalysis: () => historyEvents.push("analysis"),
+        }});
+
+        const snapshot = historySupport.createHistorySnapshot();
+        if (!snapshot.benchmarkSession || snapshot.benchmarkSession.activePosition !== 2) {{
+          throw new Error(`Expected history snapshots to capture benchmark session state, received ${{JSON.stringify(snapshot)}}.`);
+        }}
+
+        historySupport.restoreHistorySnapshot({{
+          spec: {{ id: "restored_network" }},
+          tensorOrder: ["tensor_b"],
+          benchmarkSession: {{
+            enabled: true,
+            activePosition: 1,
+            originalPlan: null,
+            schemes: [{{ id: "scheme_restored", name: "Restored", steps: [], metadata: {{}} }}],
+            compareModal: {{
+              open: false,
+              rows: [],
+              activeRequestId: 0,
+            }},
+          }},
+        }});
+
+        if (!historyState.benchmarkSession || historyState.benchmarkSession.activePosition !== 1) {{
+          throw new Error(`Expected history restore to recover benchmark session state, received ${{JSON.stringify(historyState.benchmarkSession)}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The benchmark helper runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

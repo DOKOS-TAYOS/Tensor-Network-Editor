@@ -21,10 +21,14 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
     gridPeriodicModeMenuItem,
+    treeModeMenuItem,
+    benchmarkModeMenuItem,
     toolbarModeControls,
     linearPeriodicPreviousCellButton,
     linearPeriodicCellLabel,
     linearPeriodicNextCellButton,
+    benchmarkSchemeNameInput,
+    benchmarkCompareButton,
     templateSelect,
     templateSettingsButton,
     templateSettingsPopover,
@@ -71,6 +75,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     templateManagerSaveButton,
     templateManagerDiscardButton,
     templateManagerError,
+    benchmarkCompareModal,
+    benchmarkCompareTableBody,
   } = dom;
 
   const TOOLBAR_MENUS = {
@@ -131,6 +137,35 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     button.setAttribute("aria-expanded", String(isExpanded));
   }
 
+  function setTooltipDescription(button, description) {
+    if (!button || !button.dataset) {
+      return;
+    }
+    if (typeof description === "string" && description) {
+      button.dataset.shortcutDescription = description;
+    } else {
+      delete button.dataset.shortcutDescription;
+    }
+    const label =
+      typeof button.dataset.shortcutLabel === "string"
+        ? button.dataset.shortcutLabel.trim()
+        : "";
+    const shortcut =
+      typeof button.dataset.shortcut === "string"
+        ? button.dataset.shortcut.trim()
+        : "";
+    const header = shortcut ? `${label} (${shortcut})` : label;
+    if (header && typeof button.setAttribute === "function") {
+      button.setAttribute(
+        "aria-label",
+        description ? `${header}. ${description}` : header
+      );
+    }
+    if (typeof button.removeAttribute === "function") {
+      button.removeAttribute("title");
+    }
+  }
+
   function setButtonGroupDisabled(buttons, isDisabled, title) {
     buttons.forEach((button) => {
       if (!button) {
@@ -138,7 +173,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       }
       button.disabled = isDisabled;
       if (typeof title === "string") {
-        button.title = title;
+        setTooltipDescription(button, title);
       }
     });
   }
@@ -550,6 +585,18 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   function updateToolbarState() {
     const linearPeriodicMode = runtime.isLinearPeriodicMode();
     const activeLinearPeriodicCell = runtime.getActiveLinearPeriodicCellName();
+    const benchmarkMode =
+      typeof runtime.isBenchmarkMode === "function" && runtime.isBenchmarkMode();
+    const benchmarkSession =
+      benchmarkMode && typeof runtime.getBenchmarkSession === "function"
+        ? runtime.getBenchmarkSession()
+        : null;
+    const benchmarkActivePosition = benchmarkSession ? benchmarkSession.activePosition : 0;
+    const activeBenchmarkScheme =
+      benchmarkMode && typeof runtime.getActiveBenchmarkScheme === "function"
+        ? runtime.getActiveBenchmarkScheme()
+        : null;
+    const selectedTemplateValue = templateSelect ? templateSelect.value : "";
     const selectedTensorIds =
       typeof ctx.getSelectedIdsByKind === "function"
         ? ctx.getSelectedIdsByKind("tensor")
@@ -568,8 +615,12 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     syncHelpModalState();
     syncTemplateManagerModalState();
 
-    undoButton.disabled = state.undoStack.length === 0;
-    redoButton.disabled = state.redoStack.length === 0;
+    if (undoButton) {
+      undoButton.disabled = state.undoStack.length === 0;
+    }
+    if (redoButton) {
+      redoButton.disabled = state.redoStack.length === 0;
+    }
     if (generateButton) {
       generateButton.disabled = !state.spec || !state.selectedEngine;
     }
@@ -597,16 +648,18 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
     }
     if (insertTemplateButton) {
-      insertTemplateButton.disabled = !templateSelect.value;
+      insertTemplateButton.disabled = !selectedTemplateValue;
     }
     if (reflowImportedButton) {
       reflowImportedButton.disabled = selectedTensorIds.length === 0;
-      reflowImportedButton.title =
+      setTooltipDescription(
+        reflowImportedButton,
         selectedTensorIds.length === 0
           ? "Select at least one tensor first."
           : selectedTensorIds.length === 1
             ? "Reflow indices for the selected tensor."
-            : "Choose a layout for the selected tensors or reflow their indices.";
+            : "Choose a layout for the selected tensors or reflow their indices."
+      );
     }
     setButtonGroupDisabled(
       [
@@ -645,40 +698,141 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
             : "Reflow indices for the selected tensors."
     );
     if (templateSettingsButton) {
-      templateSettingsButton.disabled = !templateSelect.value || linearPeriodicMode;
-      templateSettingsButton.title = !templateSelect.value
-        ? "Choose a template first."
-        : linearPeriodicMode
-          ? "Template parameters are not editable in For mode."
-          : "Edit template parameters.";
+      templateSettingsButton.disabled = !selectedTemplateValue || linearPeriodicMode;
+      setTooltipDescription(
+        templateSettingsButton,
+        !selectedTemplateValue
+          ? "Choose a template first."
+          : linearPeriodicMode
+            ? "Template parameters are not editable in For mode."
+            : "Edit template parameters."
+      );
     }
-    if ((!templateSelect.value || linearPeriodicMode) && state.isTemplateSettingsOpen) {
+    if ((!selectedTemplateValue || linearPeriodicMode) && state.isTemplateSettingsOpen) {
       state.isTemplateSettingsOpen = false;
     }
     if (selectedTensorIds.length === 0 && state.isReflowLayoutOpen) {
       state.isReflowLayoutOpen = false;
     }
-    createGroupButton.disabled = selectedTensorIds.length < 2;
-    setMenuItemChecked(singleModeMenuItem, !linearPeriodicMode);
+    if (createGroupButton) {
+      createGroupButton.disabled = selectedTensorIds.length < 2;
+    }
+    setMenuItemChecked(singleModeMenuItem, !linearPeriodicMode && !benchmarkMode);
     setMenuItemChecked(linearPeriodicModeMenuItem, linearPeriodicMode);
     if (gridPeriodicModeMenuItem) {
       setMenuItemChecked(gridPeriodicModeMenuItem, false);
     }
-    if (toolbarModeControls) {
-      toolbarModeControls.hidden = !linearPeriodicMode;
+    if (treeModeMenuItem) {
+      setMenuItemChecked(treeModeMenuItem, false);
     }
-    if (linearPeriodicCellLabel) {
+    if (benchmarkModeMenuItem) {
+      setMenuItemChecked(benchmarkModeMenuItem, benchmarkMode);
+      benchmarkModeMenuItem.disabled = linearPeriodicMode;
+      setTooltipDescription(
+        benchmarkModeMenuItem,
+        linearPeriodicMode
+          ? "Benchmark mode is unavailable while For unidimensional mode is active."
+          : "Compare manual contraction schemes on the current tensor network."
+      );
+    }
+    if (toolbarModeControls) {
+      toolbarModeControls.hidden = !(linearPeriodicMode || benchmarkMode);
+    }
+    if (linearPeriodicCellLabel && !benchmarkMode) {
+      linearPeriodicCellLabel.hidden = false;
       linearPeriodicCellLabel.textContent = linearPeriodicMode
         ? LINEAR_PERIODIC_CELL_LABELS[activeLinearPeriodicCell] || "For mode"
         : "Single";
     }
+    if (benchmarkSchemeNameInput && !benchmarkMode) {
+      benchmarkSchemeNameInput.hidden = true;
+      benchmarkSchemeNameInput.disabled = true;
+      benchmarkSchemeNameInput.value = "";
+    }
+    if (benchmarkCompareButton && !benchmarkMode) {
+      benchmarkCompareButton.hidden = true;
+      benchmarkCompareButton.disabled = true;
+      setTooltipDescription(
+        benchmarkCompareButton,
+        "Compare the saved contraction schemes."
+      );
+    }
     if (linearPeriodicPreviousCellButton) {
-      linearPeriodicPreviousCellButton.disabled =
-        !linearPeriodicMode || activeLinearPeriodicCell === "initial";
+      linearPeriodicPreviousCellButton.disabled = benchmarkMode
+        ? benchmarkActivePosition === 0
+        : !linearPeriodicMode || activeLinearPeriodicCell === "initial";
+      setTooltipDescription(
+        linearPeriodicPreviousCellButton,
+        benchmarkMode
+          ? benchmarkActivePosition === 0
+            ? "You are already at the tensor network view."
+            : "Move to the previous benchmark scheme."
+          : !linearPeriodicMode
+            ? "For unidimensional mode is not active."
+            : activeLinearPeriodicCell === "initial"
+              ? "You are already at the initial cell."
+              : "Move to the previous cell."
+      );
     }
     if (linearPeriodicNextCellButton) {
       linearPeriodicNextCellButton.disabled =
-        !linearPeriodicMode || activeLinearPeriodicCell === "final";
+        !benchmarkMode && (!linearPeriodicMode || activeLinearPeriodicCell === "final");
+      linearPeriodicNextCellButton.textContent = benchmarkMode
+        ? typeof runtime.getBenchmarkNextButtonLabel === "function"
+          ? runtime.getBenchmarkNextButtonLabel()
+          : ">"
+        : ">";
+      setTooltipDescription(
+        linearPeriodicNextCellButton,
+        benchmarkMode
+          ? linearPeriodicNextCellButton.textContent === "+"
+            ? "Create the next benchmark scheme."
+            : "Move to the next benchmark scheme."
+          : !linearPeriodicMode
+            ? "For unidimensional mode is not active."
+            : activeLinearPeriodicCell === "final"
+              ? "You are already at the final cell."
+              : "Move to the next cell."
+      );
+    }
+    if (benchmarkMode) {
+      if (linearPeriodicCellLabel) {
+        linearPeriodicCellLabel.hidden = benchmarkActivePosition > 0;
+        linearPeriodicCellLabel.textContent =
+          typeof runtime.getBenchmarkBaseLabel === "function"
+            ? runtime.getBenchmarkBaseLabel()
+            : "Tensor network";
+      }
+      if (benchmarkSchemeNameInput) {
+        benchmarkSchemeNameInput.hidden = benchmarkActivePosition === 0;
+        benchmarkSchemeNameInput.disabled = benchmarkActivePosition === 0;
+        benchmarkSchemeNameInput.value =
+          benchmarkActivePosition > 0
+            ? activeBenchmarkScheme && typeof activeBenchmarkScheme.name === "string"
+              ? activeBenchmarkScheme.name
+              : typeof runtime.getBenchmarkSchemeName === "function"
+                ? runtime.getBenchmarkSchemeName(benchmarkActivePosition - 1)
+                : `Scheme ${benchmarkActivePosition}`
+            : "";
+      }
+      if (benchmarkCompareButton) {
+        benchmarkCompareButton.hidden = false;
+        benchmarkCompareButton.disabled = !(
+          typeof runtime.canOpenBenchmarkCompare === "function" &&
+          runtime.canOpenBenchmarkCompare()
+        );
+        setTooltipDescription(
+          benchmarkCompareButton,
+          benchmarkCompareButton.disabled
+            ? "Create at least one scheme first."
+            : "Compare the saved contraction schemes."
+        );
+      }
+    }
+    if (benchmarkCompareModal && benchmarkCompareTableBody) {
+      if (typeof runtime.syncBenchmarkCompareModalState === "function") {
+        runtime.syncBenchmarkCompareModalState();
+      }
     }
     syncToolbarTransientUi();
   }

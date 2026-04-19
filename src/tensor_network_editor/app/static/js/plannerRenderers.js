@@ -23,6 +23,7 @@ export function createPlannerRenderers({
     syncPlannerOrderBadges,
     getPlannerOperandLabel,
     getAutomaticAnalysisByMode,
+    isBenchmarkBasePosition,
   } = support;
   const plannerPanelBindings = createPlannerPanelBindings({
     plannerPanel,
@@ -386,6 +387,45 @@ export function createPlannerRenderers({
       return;
     }
     syncPlannerOrderBadges();
+    if (typeof isBenchmarkBasePosition === "function" && isBenchmarkBasePosition()) {
+      plannerPanel.innerHTML = `
+        <div class="planner-toolbar">
+          <button
+            id="toggle-planner-mode-button"
+            type="button"
+            class="button-accent-cool"
+            data-shortcut="M"
+            data-shortcut-label="Manual scheme"
+            disabled
+          >
+            Contract
+          </button>
+          <button
+            id="planner-reset-button"
+            type="button"
+            class="icon-button planner-icon-button danger"
+            data-shortcut="Shift+R"
+            data-shortcut-label="Reset path"
+            aria-label="Reset path"
+            title="Reset path"
+            disabled
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+            </svg>
+          </button>
+        </div>
+        <section class="planner-section">
+          <h3>Benchmark</h3>
+          <p class="planner-inline-meta">
+            Move right to open or create a contraction scheme.
+          </p>
+        </section>
+      `;
+      plannerPanelBindings.bindPlannerPanelInteractions();
+      actions.renderOverlayDecorations();
+      return;
+    }
     const planSteps =
       state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
         ? state.spec.contraction_plan.steps

@@ -24,8 +24,36 @@ export function createPlannerSupport({
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("next")
       : "__linear_next__";
+  const benchmarkBaseStatusMessage =
+    typeof ctx.benchmarkBaseStatusHint === "string" && ctx.benchmarkBaseStatusHint
+      ? ctx.benchmarkBaseStatusHint
+      : "Move right to edit or create a contraction scheme.";
   let pendingContractionAnalysisOptions = null;
   let plannerCommands = null;
+
+  function isBenchmarkBasePosition() {
+    return (
+      typeof ctx.isBenchmarkBasePosition === "function" &&
+      ctx.isBenchmarkBasePosition()
+    );
+  }
+
+  function guardBenchmarkBasePlannerAction(message = benchmarkBaseStatusMessage) {
+    if (!isBenchmarkBasePosition()) {
+      return false;
+    }
+    state.plannerMode = false;
+    state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    state.plannerPreviewMode = null;
+    if (typeof ctx.syncPendingInteractionClasses === "function") {
+      ctx.syncPendingInteractionClasses();
+    }
+    renderPlanner();
+    ctx.renderOverlayDecorations();
+    ctx.setStatus(message);
+    return true;
+  }
 
   function renderPlanner() {
     getRenderPlanner()();
@@ -199,6 +227,12 @@ export function createPlannerSupport({
   }
 
   function repairContractionPlan() {
+    if (isBenchmarkBasePosition()) {
+      state.spec.contraction_plan = null;
+      state.plannerInspectionStepCount = null;
+      state.plannerFutureBadgeDisclosure = {};
+      return;
+    }
     const plan = state.spec.contraction_plan;
     if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
       if (plan) {
@@ -277,6 +311,9 @@ export function createPlannerSupport({
   }
 
   function handlePlannerOperandClick(operandId) {
+    if (guardBenchmarkBasePlannerAction()) {
+      return;
+    }
     return plannerCommands.handlePlannerOperandClick(operandId);
   }
 
@@ -302,6 +339,9 @@ export function createPlannerSupport({
   }
 
   function trimContractionPlan(stepCount) {
+    if (guardBenchmarkBasePlannerAction()) {
+      return;
+    }
     const plan = state.spec.contraction_plan;
     if (!plan) {
       return;
@@ -326,6 +366,9 @@ export function createPlannerSupport({
   }
 
   function togglePlannerMode() {
+    if (guardBenchmarkBasePlannerAction()) {
+      return;
+    }
     state.plannerMode = !state.plannerMode;
     if (!state.plannerMode) {
       state.pendingPlannerOperandId = null;
@@ -358,6 +401,13 @@ export function createPlannerSupport({
   }
 
   function refreshContractionAnalysis(options = {}) {
+    if (isBenchmarkBasePosition()) {
+      pendingContractionAnalysisOptions = null;
+      state.contractionAnalysis = { status: "benchmarkBase" };
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+      return;
+    }
     pendingContractionAnalysisOptions = {
       focusTab:
         Boolean(options.focusTab) ||
@@ -383,6 +433,20 @@ export function createPlannerSupport({
     getCurrentPlanSteps,
     renderPlanner,
   });
+
+  function startAutomaticPreview(mode) {
+    if (guardBenchmarkBasePlannerAction()) {
+      return;
+    }
+    automaticPlannerSupport.startAutomaticPreview(mode);
+  }
+
+  function acceptAutomaticPlan(mode) {
+    if (guardBenchmarkBasePlannerAction()) {
+      return;
+    }
+    automaticPlannerSupport.acceptAutomaticPlan(mode);
+  }
 
   plannerCommands = createPlannerCommands({
     state,
@@ -441,10 +505,11 @@ export function createPlannerSupport({
     trimContractionPlan,
     togglePlannerMode,
     refreshContractionAnalysis,
+    isBenchmarkBasePosition,
     getAutomaticAnalysisByMode: getAutomaticAnalysisByModeFromSelectors,
     togglePlannerDisclosure,
     clearAutomaticPreview: automaticPlannerSupport.clearAutomaticPreview,
-    startAutomaticPreview: automaticPlannerSupport.startAutomaticPreview,
-    acceptAutomaticPlan: automaticPlannerSupport.acceptAutomaticPlan,
+    startAutomaticPreview,
+    acceptAutomaticPlan,
   };
 }

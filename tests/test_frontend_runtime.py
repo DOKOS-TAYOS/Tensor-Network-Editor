@@ -35,6 +35,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "session/sessionTemplateFlows.js",
         "session/sessionUiAdapters.js",
         "utilitiesBase.js",
+        "utilitiesBenchmark.js",
         "utilitiesGeometry.js",
         "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js",
@@ -79,6 +80,7 @@ def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
     _copy_runtime_editor_support_modules(tmp_path)
 
     assert (tmp_path / "plannerAutomaticSupport.js").exists()
+    assert (tmp_path / "utilitiesBenchmark.js").exists()
 
 
 def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
@@ -438,6 +440,258 @@ def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
           );
         }}
         """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "benchmark_mode_runtime_regression.mjs"
+    script_body = textwrap.dedent(
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
+        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesUi.js")!r}).href;
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
+
+        const [
+          stateModule,
+          baseModule,
+          specNormalizationModule,
+          uiModule,
+          benchmarkModule,
+        ] = await Promise.all([
+          import(stateUrl),
+          import(baseUrl),
+          import(specNormalizationUrl),
+          import(uiUrl),
+          import(benchmarkUrl),
+        ]);
+
+        function createClassList() {{
+          return {{
+            toggle() {{}},
+            add() {{}},
+            remove() {{}},
+          }};
+        }}
+
+        function createStyle() {{
+          return {{
+            values: {{}},
+            setProperty(name, value) {{
+              this.values[name] = value;
+            }},
+            getPropertyValue(name) {{
+              return this.values[name] || "";
+            }},
+          }};
+        }}
+
+        function createButton(initialText = "") {{
+          return {{
+            disabled: false,
+            hidden: false,
+            textContent: initialText,
+            innerHTML: initialText,
+            value: "",
+            dataset: {{}},
+            classList: createClassList(),
+            style: createStyle(),
+            setAttribute(name, value) {{
+              this[name] = value;
+            }},
+            removeAttribute(name) {{
+              delete this[name];
+            }},
+          }};
+        }}
+
+        function createInput() {{
+          return {{
+            value: "",
+            disabled: false,
+            hidden: false,
+            dataset: {{}},
+            classList: createClassList(),
+            style: createStyle(),
+            setAttribute(name, value) {{
+              this[name] = value;
+            }},
+            removeAttribute(name) {{
+              delete this[name];
+            }},
+          }};
+        }}
+
+        const state = stateModule.createInitialState();
+        const statusEvents = [];
+        const ctx = {{
+          state,
+          constants: {{
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 120,
+            MIN_TENSOR_HEIGHT: 72,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 152,
+            NOTE_MIN_WIDTH: 176,
+            NOTE_MIN_HEIGHT: 152,
+          }},
+          dom: {{
+            statusMessage: {{ textContent: "", classList: createClassList() }},
+            singleModeMenuItem: createButton(),
+            linearPeriodicModeMenuItem: createButton(),
+            gridPeriodicModeMenuItem: createButton(),
+            treeModeMenuItem: createButton(),
+            benchmarkModeMenuItem: createButton(),
+            toolbarModeControls: {{ hidden: true }},
+            linearPeriodicPreviousCellButton: createButton("<"),
+            linearPeriodicCellLabel: {{ textContent: "" }},
+            linearPeriodicNextCellButton: createButton(">"),
+            benchmarkCompareButton: createButton("Compare"),
+            benchmarkSchemeNameInput: createInput(),
+            benchmarkCompareModal: {{ classList: createClassList(), hidden: true }},
+            benchmarkCompareCloseButton: createButton("Close"),
+            benchmarkCompareTableBody: {{ innerHTML: "" }},
+          }},
+          window: {{
+            confirm: () => true,
+          }},
+          getSelectedIdsByKind: () => [],
+          getSelectedEntries: () => [],
+          escapeHtml: (value) => String(value),
+          formatIssues: (issues) => issues.map((issue) => issue.message).join(" "),
+          setStatus(message, kind = "info") {{
+            statusEvents.push({{ message, kind }});
+          }},
+          render() {{}},
+          renderOverlayDecorations() {{}},
+          renderSidebarTabs() {{}},
+          refreshContractionAnalysis() {{}},
+          clearGeneratedCodePreview() {{
+            return false;
+          }},
+          bumpSpecRevision() {{
+            state.specRevision += 1;
+          }},
+          findTensorById(tensorId) {{
+            return (
+              Array.isArray(state.spec?.tensors)
+                ? state.spec.tensors.find((tensor) => tensor.id === tensorId)
+                : null
+            ) || null;
+          }},
+          apiPost: async () => ({{ ok: true }}),
+        }};
+
+        const runtime = {{}};
+        const env = {{
+          ctx,
+          state,
+          constants: ctx.constants,
+          dom: ctx.dom,
+          runtime,
+        }};
+
+        Object.assign(runtime, baseModule.createUtilityBaseBindings(env));
+        Object.assign(runtime, specNormalizationModule.createSpecNormalizationBindings(env));
+        runtime.isLinearPeriodicMode = () => false;
+        runtime.getActiveLinearPeriodicCellName = () => null;
+        runtime.enforceLinearPeriodicEngineSupport = () => false;
+        Object.assign(runtime, uiModule.createUtilityUiBindings(env));
+        Object.assign(runtime, benchmarkModule.createUtilityBenchmarkBindings(env));
+        Object.assign(ctx, runtime);
+
+        state.spec = runtime.normalizeSpec({{
+          id: "network_benchmark",
+          name: "Benchmark demo",
+          tensors: [
+            {{
+              id: "tensor_a",
+              name: "A",
+              position: {{ x: 100, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_a",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+            {{
+              id: "tensor_b",
+              name: "B",
+              position: {{ x: 320, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_b",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+          ],
+          edges: [],
+          groups: [],
+          notes: [],
+          contraction_plan: {{
+            id: "original_plan",
+            name: "Original path",
+            steps: [],
+            metadata: {{}},
+          }},
+          metadata: {{}},
+        }});
+
+        runtime.toggleBenchmarkMode();
+        if (!state.benchmarkSession.enabled || state.benchmarkSession.activePosition !== 0) {{
+          throw new Error(`Expected benchmark mode to start at the base tensor network view, received ${{JSON.stringify(state.benchmarkSession)}}.`);
+        }}
+        if (state.benchmarkSession.schemes.length !== 1 || state.benchmarkSession.schemes[0].name !== "Original path") {{
+          throw new Error(`Expected the existing manual path to seed the first benchmark scheme, received ${{JSON.stringify(state.benchmarkSession.schemes)}}.`);
+        }}
+        if (state.spec.contraction_plan !== null) {{
+          throw new Error("Expected the base tensor network position to clear the active contraction plan.");
+        }}
+
+        runtime.switchBenchmarkPosition(1);
+        if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Original path") {{
+          throw new Error(`Expected moving right to project scheme 1 into the live plan, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
+        }}
+        state.spec.contraction_plan.name = "Alpha";
+        runtime.updateToolbarState();
+        if (ctx.dom.linearPeriodicNextCellButton.textContent !== "+") {{
+          throw new Error(`Expected the last benchmark position to expose '+', received '${{ctx.dom.linearPeriodicNextCellButton.textContent}}'.`);
+        }}
+
+        runtime.switchBenchmarkPosition(1);
+        if (state.benchmarkSession.schemes.length !== 2) {{
+          throw new Error(`Expected the last-position '+' action to create a new scheme, received ${{state.benchmarkSession.schemes.length}} schemes.`);
+        }}
+        if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Scheme 2") {{
+          throw new Error(`Expected the new scheme to become active with the default name, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
+        }}
+
+        runtime.toggleBenchmarkMode();
+        if (state.benchmarkSession.enabled) {{
+          throw new Error("Expected benchmark mode to discard the temporary session on exit.");
+        }}
+        if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Scheme 2") {{
+          throw new Error(`Expected the active benchmark scheme to become the normal manual path on exit, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
+        }}
+      """
     )
     script_path.write_text(script_body, encoding="utf-8")
     return script_path
@@ -1486,7 +1740,7 @@ def _write_manual_contraction_anchor_runtime_regression_script(
         directContext.applyManualContractionStep("tensor_a", "tensor_b");
         assertLatestResultPosition(
           directContext,
-          {{ x: 120, y: 140 }},
+          {{ x: 360, y: 220 }},
           "Direct manual contraction"
         );
         const directFirstStepId = directContext.state.spec.contraction_plan.steps[0].id;
@@ -1499,7 +1753,7 @@ def _write_manual_contraction_anchor_runtime_regression_script(
         directContext.applyManualContractionStep(directFirstStepId, "tensor_c");
         assertLatestResultPosition(
           directContext,
-          {{ x: 210, y: 80 }},
+          {{ x: 620, y: 300 }},
           "Direct follow-up contraction"
         );
 
@@ -1519,7 +1773,7 @@ def _write_manual_contraction_anchor_runtime_regression_script(
         }}
         assertLatestResultPosition(
           plannerContext,
-          {{ x: 120, y: 140 }},
+          {{ x: 360, y: 220 }},
           "Planner click contraction"
         );
         const plannerFirstStepId = plannerSteps[0].id;
@@ -1533,7 +1787,7 @@ def _write_manual_contraction_anchor_runtime_regression_script(
         plannerContext.handlePlannerOperandClick("tensor_c");
         assertLatestResultPosition(
           plannerContext,
-          {{ x: 260, y: 100 }},
+          {{ x: 620, y: 300 }},
           "Planner follow-up contraction"
         );
         """
@@ -3546,14 +3800,24 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           throw new Error("Selecting a connection should render the metadata disclosure.");
         }
         ctx.setSelection(["tensor_a", "tensor_b", "index_a", "edge_ab"], { primaryId: "tensor_b" });
+        const normalizedSelectionMarkup = propertiesPanel.innerHTML.replace(/\\s+/g, " ");
         if (!propertiesPanel.innerHTML.includes('id="add-index-to-selection-button"')) {
-          throw new Error("A mixed selection with multiple tensors should still expose Add Index to Tensors.");
+          throw new Error("A mixed selection with multiple tensors should still expose Add index.");
+        }
+        if (!/id="add-index-to-selection-button"[^>]*>\\s*Add index\\s*<\\/button>/.test(normalizedSelectionMarkup)) {
+          throw new Error("A mixed selection with multiple tensors should label the bulk index action as Add index.");
         }
         if (!propertiesPanel.innerHTML.includes('id="extract-selection-button"')) {
-          throw new Error("A mixed selection with multiple tensors should still expose Extract Selection.");
+          throw new Error("A mixed selection with multiple tensors should still expose Extract.");
+        }
+        if (!/id="extract-selection-button"[^>]*>\\s*Extract\\s*<\\/button>/.test(normalizedSelectionMarkup)) {
+          throw new Error("A mixed selection with multiple tensors should label extraction as Extract.");
         }
         if (!propertiesPanel.innerHTML.includes('id="promote-selection-template-button"')) {
-          throw new Error("A mixed selection with multiple tensors should still expose Promote to Template.");
+          throw new Error("A mixed selection with multiple tensors should still expose To Template.");
+        }
+        if (!/id="promote-selection-template-button"[^>]*>\\s*To Template\\s*<\\/button>/.test(normalizedSelectionMarkup)) {
+          throw new Error("A mixed selection with multiple tensors should label template promotion as To Template.");
         }
         if (!propertiesPanel.innerHTML.includes('id="group-selection-button"')) {
           throw new Error("A mixed selection with multiple tensors should still expose Group.");
@@ -4138,7 +4402,28 @@ def test_for_mode_reserved_operands_survive_cell_switches_and_scene_updates(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
-def test_manual_contraction_anchor_follows_the_first_selected_tensor(
+def test_benchmark_mode_keeps_temporary_schemes_session_local_and_promotes_active_one_on_exit(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_benchmark_mode_runtime_regression_script(tmp_path)
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The benchmark mode runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_manual_contraction_anchor_follows_the_second_selected_tensor(
     tmp_path: Path,
 ) -> None:
     script_path = _write_manual_contraction_anchor_runtime_regression_script(tmp_path)
@@ -4324,6 +4609,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "spec/specMutations.js": "spec/specMutations.js",
         "spec/specNormalization.js": "spec/specNormalization.js",
         "utilitiesBase.js": "utilitiesBase.js",
+        "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
         "utilitiesLayout.js": "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
@@ -4696,9 +4982,12 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (ctx.dom.reflowImportedButton.disabled) {
               throw new Error("Reflow should stay enabled when one tensor is selected so indices can be reflowed.");
             }
-            if (ctx.dom.reflowImportedButton.title !== "Reflow indices for the selected tensor.") {
+            if (
+              ctx.dom.reflowImportedButton.dataset.shortcutDescription
+              !== "Reflow indices for the selected tensor."
+            ) {
               throw new Error(
-                `Expected the single-selection Reflow tooltip to mention indices, received ${ctx.dom.reflowImportedButton.title}.`
+                `Expected the single-selection Reflow tooltip to mention indices, received ${ctx.dom.reflowImportedButton.dataset.shortcutDescription}.`
               );
             }
             ctx.state.selectionIds = [];
@@ -5639,6 +5928,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "state/selectionEntries.js": "state/selectionEntries.js",
         "utilitiesTemplates.js": "utilitiesTemplates.js",
         "utilitiesBase.js": "utilitiesBase.js",
+        "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
         "utilitiesLayout.js": "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
