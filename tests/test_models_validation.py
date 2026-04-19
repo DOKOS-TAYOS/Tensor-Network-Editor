@@ -18,6 +18,7 @@ from tensor_network_editor.models import (
     ContractionViewSnapshotSpec,
     EdgeEndpointRef,
     EdgeSpec,
+    GridPeriodicTensorRole,
     GroupSpec,
     IndexSpec,
     LinearPeriodicCellName,
@@ -29,6 +30,7 @@ from tensor_network_editor.models import (
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
 from tests.factories import (
+    build_grid_periodic_grid_spec,
     build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
     build_linear_periodic_partial_carry_chain_spec,
@@ -324,6 +326,20 @@ def test_tensor_round_trip_preserves_linear_periodic_role() -> None:
     assert restored.linear_periodic_role is LinearPeriodicTensorRole.NEXT
 
 
+def test_tensor_round_trip_preserves_grid_periodic_role() -> None:
+    tensor = TensorSpec(
+        id="grid_boundary_tensor",
+        name="GridBoundary",
+        grid_periodic_role=GridPeriodicTensorRole.DOWN,
+        indices=[IndexSpec(id="slot_1", name="slot_1", dimension=3)],
+    )
+
+    payload = tensor.to_dict()
+    restored = TensorSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.grid_periodic_role is GridPeriodicTensorRole.DOWN
+
+
 def test_open_indices_are_derived_from_unconnected_ports() -> None:
     spec = build_valid_spec()
 
@@ -385,6 +401,10 @@ def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:
 
 def test_validate_spec_accepts_valid_linear_periodic_chain() -> None:
     assert validate_spec(build_linear_periodic_chain_spec()) == []
+
+
+def test_validate_spec_accepts_valid_grid_periodic_grid() -> None:
+    assert validate_spec(build_grid_periodic_grid_spec()) == []
 
 
 def test_validate_spec_accepts_valid_linear_periodic_carry_chain() -> None:
@@ -535,6 +555,66 @@ def test_validate_spec_rejects_linear_periodic_next_that_is_not_last() -> None:
     assert issue.path == (
         "linear_periodic_chain.initial_cell.contraction_plan.steps.initial_after_carry"
     )
+
+
+def test_validate_spec_rejects_mixed_linear_and_grid_periodic_modes() -> None:
+    spec = build_grid_periodic_grid_spec()
+    spec.linear_periodic_chain = (
+        build_linear_periodic_chain_spec().linear_periodic_chain
+    )
+
+    issue = find_issue(validate_spec(spec), "periodic-mode-conflict")
+
+    assert issue.path == "grid_periodic_grid"
+
+
+def test_validate_spec_rejects_grid_periodic_missing_boundary_tensor() -> None:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    spec.grid_periodic_grid.center_cell.tensors = [
+        tensor
+        for tensor in spec.grid_periodic_grid.center_cell.tensors
+        if tensor.grid_periodic_role is not GridPeriodicTensorRole.LEFT
+    ]
+
+    issue = find_issue(validate_spec(spec), "grid-periodic-boundary-role")
+
+    assert issue.path == "grid_periodic_grid.center_cell.left_boundary"
+
+
+def test_validate_spec_rejects_grid_periodic_interface_mismatch() -> None:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    left_boundary = next(
+        tensor
+        for tensor in spec.grid_periodic_grid.center_cell.tensors
+        if tensor.grid_periodic_role is GridPeriodicTensorRole.LEFT
+    )
+    left_boundary.indices[0].dimension = 6
+
+    issue = find_issue(validate_spec(spec), "grid-periodic-interface-mismatch")
+
+    assert issue.path == "grid_periodic_grid.horizontal_interfaces.middle_row"
+
+
+def test_validate_spec_rejects_grid_periodic_contraction_plan() -> None:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    spec.grid_periodic_grid.center_cell.contraction_plan = ContractionPlanSpec(
+        id="grid_plan",
+        name="Grid plan",
+        steps=[
+            ContractionStepSpec(
+                id="grid_step",
+                left_operand_id="center_tensor",
+                right_operand_id="center_tensor",
+            )
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "grid-periodic-contraction-plan")
+
+    assert issue.path == "grid_periodic_grid.center_cell.contraction_plan"
 
 
 def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:

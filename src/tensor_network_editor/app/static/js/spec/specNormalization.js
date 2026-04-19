@@ -152,6 +152,13 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
         tensor.linear_periodic_role === "next"
           ? tensor.linear_periodic_role
           : null;
+      tensor.grid_periodic_role =
+        tensor.grid_periodic_role === "up" ||
+        tensor.grid_periodic_role === "right" ||
+        tensor.grid_periodic_role === "down" ||
+        tensor.grid_periodic_role === "left"
+          ? tensor.grid_periodic_role
+          : null;
       tensor.indices = Array.isArray(tensor.indices) ? tensor.indices : [];
       tensor.indices.forEach((index, indexPosition) => {
         index.metadata = runtime.isObject(index.metadata) ? index.metadata : {};
@@ -255,6 +262,9 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     if (runtime.isLinearPeriodicMode(snapshotSpec)) {
       runtime.syncCurrentGraphIntoLinearPeriodicChain(snapshotSpec);
     }
+    if (typeof runtime.isGridPeriodicMode === "function" && runtime.isGridPeriodicMode(snapshotSpec)) {
+      runtime.syncCurrentGraphIntoGridPeriodicGrid(snapshotSpec);
+    }
     return snapshotSpec;
   }
 
@@ -262,6 +272,13 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     const serializedSpec = runtime.deepClone(spec || {});
     if (runtime.isLinearPeriodicMode(serializedSpec)) {
       runtime.syncCurrentGraphIntoLinearPeriodicChain(serializedSpec);
+      clearGraphSectionOnSpec(serializedSpec);
+    }
+    if (
+      typeof runtime.isGridPeriodicMode === "function" &&
+      runtime.isGridPeriodicMode(serializedSpec)
+    ) {
+      runtime.syncCurrentGraphIntoGridPeriodicGrid(serializedSpec);
       clearGraphSectionOnSpec(serializedSpec);
     }
     return serializedSpec;
@@ -276,6 +293,16 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     normalized.linear_periodic_chain = runtime.isObject(normalized.linear_periodic_chain)
       ? runtime.normalizeLinearPeriodicChainInPlace(normalized.linear_periodic_chain)
       : null;
+    normalized.grid_periodic_grid =
+      typeof runtime.normalizeGridPeriodicGridInPlace === "function" &&
+      runtime.isObject(normalized.grid_periodic_grid)
+        ? runtime.normalizeGridPeriodicGridInPlace(normalized.grid_periodic_grid)
+        : null;
+    if (normalized.grid_periodic_grid) {
+      normalized.linear_periodic_chain = null;
+      runtime.hydrateActiveGridPeriodicCell(normalized);
+      return normalized;
+    }
     if (normalized.linear_periodic_chain) {
       runtime.hydrateActiveLinearPeriodicCell(normalized);
     }

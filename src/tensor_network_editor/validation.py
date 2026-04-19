@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._analysis import analyze_network
+from ._validation_common import append_issue
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
@@ -13,6 +14,7 @@ from ._validation_entities import (
     validate_note,
     validate_tensor,
 )
+from ._validation_grid_periodic import validate_grid_periodic_grid
 from ._validation_linear_periodic import validate_linear_periodic_chain
 from .errors import SpecValidationError
 from .models import NetworkSpec, ValidationIssue
@@ -32,6 +34,7 @@ def _validate_spec_with_analysis(
 ) -> tuple[list[ValidationIssue], NetworkAnalysis]:
     """Validate ``spec`` and return both issues and the computed analysis."""
     issues: list[ValidationIssue] = []
+    _validate_periodic_mode_exclusivity(spec, issues=issues)
     validate_network(spec, issues)
     analysis = analyze_network(spec)
     tensor_ids = set(analysis.tensor_map)
@@ -64,8 +67,36 @@ def _validate_spec_with_analysis(
 
     if spec.linear_periodic_chain is not None:
         validate_linear_periodic_chain(spec.linear_periodic_chain, issues=issues)
+    if spec.grid_periodic_grid is not None:
+        validate_grid_periodic_grid(spec.grid_periodic_grid, issues=issues)
+        if spec.contraction_plan is not None:
+            append_issue(
+                issues,
+                code="grid-periodic-contraction-plan",
+                message=(
+                    "The active cell cannot define a contraction plan in "
+                    "bidimensional For mode."
+                ),
+                path="contraction_plan",
+            )
 
     return issues, analysis
+
+
+def _validate_periodic_mode_exclusivity(
+    spec: NetworkSpec,
+    *,
+    issues: list[ValidationIssue],
+) -> None:
+    """Reject payloads that mix the linear and bidimensional For modes."""
+    if spec.linear_periodic_chain is None or spec.grid_periodic_grid is None:
+        return
+    append_issue(
+        issues,
+        code="periodic-mode-conflict",
+        message=("Specs cannot mix 'linear_periodic_chain' and 'grid_periodic_grid'."),
+        path="grid_periodic_grid",
+    )
 
 
 def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:

@@ -1,6 +1,7 @@
 import { createUtilityBaseBindings } from "./utilitiesBase.js";
 import { createUtilityBenchmarkBindings } from "./utilitiesBenchmark.js";
 import { createUtilityGeometryBindings } from "./utilitiesGeometry.js";
+import { createUtilityGridPeriodicBindings } from "./utilitiesGridPeriodic.js";
 import { createUtilityLayoutBindings } from "./utilitiesLayout.js";
 import { createUtilityLinearPeriodicBindings } from "./utilitiesLinearPeriodic.js";
 import { createUtilitySpecBindings } from "./utilitiesSpec.js";
@@ -22,6 +23,7 @@ export function registerUtilities(ctx) {
   Object.assign(runtime, createUtilityLayoutBindings(env));
   Object.assign(runtime, createUtilitySpecBindings(env));
   Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
+  Object.assign(runtime, createUtilityGridPeriodicBindings(env));
   Object.assign(runtime, createUtilityBenchmarkBindings(env));
   Object.assign(runtime, createUtilityUiBindings(env));
 

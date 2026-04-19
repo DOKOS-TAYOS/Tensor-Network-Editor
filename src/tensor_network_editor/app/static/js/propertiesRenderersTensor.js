@@ -57,7 +57,10 @@ export function createTensorPropertiesRenderers({
       ctx.clearSelection();
       return;
     }
-    if (ctx.isLinearPeriodicBoundaryTensor(tensor)) {
+    if (
+      (typeof ctx.isForBoundaryTensor === "function" && ctx.isForBoundaryTensor(tensor)) ||
+      ctx.isLinearPeriodicBoundaryTensor(tensor)
+    ) {
       boundaryRenderers.renderLinearPeriodicBoundaryTensorProperties(tensor);
       return;
     }

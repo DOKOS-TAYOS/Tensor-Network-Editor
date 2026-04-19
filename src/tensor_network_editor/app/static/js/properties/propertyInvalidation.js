@@ -1,12 +1,17 @@
 export function createPropertyInvalidationSupport({
+  isForMode = null,
   isLinearPeriodicMode = () => false,
 }) {
+  const resolveForMode = () =>
+    (typeof isForMode === "function" && isForMode()) ||
+    (typeof isLinearPeriodicMode === "function" && isLinearPeriodicMode());
+
   function propertyInvalidation(overrides = {}) {
     return {
       graph: false,
       lookups: false,
       analysis: false,
-      properties: Boolean(isLinearPeriodicMode()),
+      properties: Boolean(resolveForMode()),
       overlays: false,
       planner: false,
       minimap: false,
@@ -40,14 +45,18 @@ export function createPropertyInvalidationSupport({
 
 export function propertyInvalidationForContext(ctx, overrides = {}) {
   return createPropertyInvalidationSupport({
-    isLinearPeriodicMode: () =>
-      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    isForMode: () =>
+      (typeof ctx.isForMode === "function" && ctx.isForMode()) ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) ||
+      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()),
   }).propertyInvalidation(overrides);
 }
 
 export function selectionColorInvalidationForContext(ctx, selectedEntries) {
   return createPropertyInvalidationSupport({
-    isLinearPeriodicMode: () =>
-      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    isForMode: () =>
+      (typeof ctx.isForMode === "function" && ctx.isForMode()) ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) ||
+      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()),
   }).selectionColorInvalidation(selectedEntries);
 }

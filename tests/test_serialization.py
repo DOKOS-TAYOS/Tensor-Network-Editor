@@ -14,6 +14,7 @@ from tensor_network_editor.serialization import (
 )
 from tensor_network_editor.types import JSONValue
 from tests.factories import (
+    build_grid_periodic_grid_spec,
     build_linear_periodic_chain_spec,
     build_sample_spec_with_view_snapshots,
 )
@@ -81,6 +82,28 @@ def test_serialize_spec_preserves_linear_periodic_chain_payload() -> None:
     assert payload["schema_version"] == SCHEMA_VERSION
     assert chain_payload["active_cell"] == "periodic"
     assert boundary_tensor["linear_periodic_role"] == "previous"
+
+
+def test_serialize_spec_preserves_grid_periodic_grid_payload() -> None:
+    payload = serialize_spec(build_grid_periodic_grid_spec())
+
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    grid_payload = cast(dict[str, JSONValue], network_payload["grid_periodic_grid"])
+    center_cell_payload = cast(dict[str, JSONValue], grid_payload["center_cell"])
+    center_tensors = cast(list[JSONValue], center_cell_payload["tensors"])
+    left_boundary_tensor = cast(
+        dict[str, JSONValue],
+        next(
+            tensor_payload
+            for tensor_payload in center_tensors
+            if cast(dict[str, JSONValue], tensor_payload)["grid_periodic_role"]
+            == "left"
+        ),
+    )
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert grid_payload["active_cell"] == "center"
+    assert left_boundary_tensor["grid_periodic_role"] == "left"
 
 
 def test_deserialize_spec_can_skip_validation(
@@ -167,6 +190,21 @@ def test_deserialize_spec_round_trips_linear_periodic_chain() -> None:
         restored.linear_periodic_chain.periodic_cell.contraction_plan.steps[0].id
         == "periodic_contract_internal"
     )
+
+
+def test_deserialize_spec_round_trips_grid_periodic_grid() -> None:
+    restored = deserialize_spec(serialize_spec_payload(build_grid_periodic_grid_spec()))
+
+    assert restored.grid_periodic_grid is not None
+    assert restored.grid_periodic_grid.active_cell.value == "center"
+    center_boundary = next(
+        tensor
+        for tensor in restored.grid_periodic_grid.center_cell.tensors
+        if tensor.grid_periodic_role is not None
+        and tensor.grid_periodic_role.value == "left"
+    )
+    assert center_boundary.grid_periodic_role is not None
+    assert center_boundary.grid_periodic_role.value == "left"
 
 
 @pytest.mark.parametrize(

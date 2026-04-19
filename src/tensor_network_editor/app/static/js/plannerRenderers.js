@@ -326,6 +326,9 @@ export function createPlannerRenderers({
     if (!state.contractionAnalysis || state.contractionAnalysis.status === "loading") {
       return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
     }
+    if (state.contractionAnalysis.status === "gridPeriodicDisabled") {
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Contractions are disabled in For bidimensional mode.")}</p>`;
+    }
     if (state.contractionAnalysis.status === "issues") {
       return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(ctx.formatIssues(state.contractionAnalysis.issues || []))}</p>`;
     }

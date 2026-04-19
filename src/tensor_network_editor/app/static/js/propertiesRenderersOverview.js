@@ -55,7 +55,10 @@ export function createOverviewPropertiesRenderers({
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
     const hasMultipleTensors = baseTensorCount > 1;
-    const linearPeriodicMode = actions.isLinearPeriodicMode();
+    const linearPeriodicMode =
+      (typeof actions.isForMode === "function" && actions.isForMode()) ||
+      (typeof actions.isLinearPeriodicMode === "function" &&
+        actions.isLinearPeriodicMode());
     const batchColor = actions.getBatchColorValue(selectedEntries);
     const totalElementCount = getSelectionTotalElementCount(selectedEntries);
 

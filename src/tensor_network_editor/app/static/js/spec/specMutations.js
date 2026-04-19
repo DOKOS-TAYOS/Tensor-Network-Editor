@@ -29,7 +29,12 @@ export function createSpecMutationBindings({
 
   function removeTensor(tensorId) {
     const tensor = findTensorById(tensorId);
-    if (!tensor || runtime.isLinearPeriodicBoundaryTensor(tensor)) {
+    if (
+      !tensor ||
+      (typeof runtime.isForBoundaryTensor === "function" &&
+        runtime.isForBoundaryTensor(tensor)) ||
+      runtime.isLinearPeriodicBoundaryTensor(tensor)
+    ) {
       return;
     }
     const tensorIndexIds = new Set(tensor.indices.map((index) => index.id));
@@ -56,7 +61,12 @@ export function createSpecMutationBindings({
 
   function removeIndex(tensorId, indexId) {
     const tensor = findTensorById(tensorId);
-    if (!tensor || runtime.isLinearPeriodicBoundaryTensor(tensor)) {
+    if (
+      !tensor ||
+      (typeof runtime.isForBoundaryTensor === "function" &&
+        runtime.isForBoundaryTensor(tensor)) ||
+      runtime.isLinearPeriodicBoundaryTensor(tensor)
+    ) {
       return;
     }
     state.spec.edges = state.spec.edges.filter(

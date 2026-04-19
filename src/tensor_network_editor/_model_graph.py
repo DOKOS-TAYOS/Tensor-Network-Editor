@@ -35,6 +35,29 @@ class LinearPeriodicTensorRole(StrEnum):
     NEXT = "next"
 
 
+class GridPeriodicCellName(StrEnum):
+    """Named cells available in the bidimensional periodic-grid editor mode."""
+
+    TOP_LEFT = "top_left"
+    TOP = "top"
+    TOP_RIGHT = "top_right"
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+    BOTTOM_LEFT = "bottom_left"
+    BOTTOM = "bottom"
+    BOTTOM_RIGHT = "bottom_right"
+
+
+class GridPeriodicTensorRole(StrEnum):
+    """Special editor-only roles used by 2D virtual boundary tensors."""
+
+    UP = "up"
+    RIGHT = "right"
+    DOWN = "down"
+    LEFT = "left"
+
+
 @dataclass(slots=True)
 class IndexSpec:
     """One named index that belongs to a tensor."""
@@ -83,6 +106,7 @@ class TensorSpec:
     size: TensorSize = field(default_factory=TensorSize)
     indices: list[IndexSpec] = field(default_factory=list)
     linear_periodic_role: LinearPeriodicTensorRole | None = None
+    grid_periodic_role: GridPeriodicTensorRole | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     @property
@@ -101,6 +125,11 @@ class TensorSpec:
             "linear_periodic_role": (
                 self.linear_periodic_role.value
                 if self.linear_periodic_role is not None
+                else None
+            ),
+            "grid_periodic_role": (
+                self.grid_periodic_role.value
+                if self.grid_periodic_role is not None
                 else None
             ),
             "metadata": self.metadata,
@@ -127,6 +156,10 @@ class TensorSpec:
             linear_periodic_role=_coerce_linear_periodic_tensor_role(
                 payload.get("linear_periodic_role"),
                 field_name="linear_periodic_role",
+            ),
+            grid_periodic_role=_coerce_grid_periodic_tensor_role(
+                payload.get("grid_periodic_role"),
+                field_name="grid_periodic_role",
             ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
@@ -375,6 +408,98 @@ class LinearPeriodicChainSpec:
 
 
 @dataclass(slots=True)
+class GridPeriodicGridSpec:
+    """Typed payload that stores the nine-cell bidimensional periodic mode."""
+
+    active_cell: GridPeriodicCellName = GridPeriodicCellName.CENTER
+    top_left_cell: LinearPeriodicCellSpec = field(
+        default_factory=LinearPeriodicCellSpec
+    )
+    top_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    top_right_cell: LinearPeriodicCellSpec = field(
+        default_factory=LinearPeriodicCellSpec
+    )
+    left_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    center_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    right_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    bottom_left_cell: LinearPeriodicCellSpec = field(
+        default_factory=LinearPeriodicCellSpec
+    )
+    bottom_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    bottom_right_cell: LinearPeriodicCellSpec = field(
+        default_factory=LinearPeriodicCellSpec
+    )
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the grid periodic payload."""
+        return {
+            "active_cell": self.active_cell.value,
+            "top_left_cell": self.top_left_cell.to_dict(),
+            "top_cell": self.top_cell.to_dict(),
+            "top_right_cell": self.top_right_cell.to_dict(),
+            "left_cell": self.left_cell.to_dict(),
+            "center_cell": self.center_cell.to_dict(),
+            "right_cell": self.right_cell.to_dict(),
+            "bottom_left_cell": self.bottom_left_cell.to_dict(),
+            "bottom_cell": self.bottom_cell.to_dict(),
+            "bottom_right_cell": self.bottom_right_cell.to_dict(),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
+        """Build the grid periodic payload from a serialized mapping."""
+        return cls(
+            active_cell=_coerce_grid_periodic_cell_name(
+                payload.get("active_cell", GridPeriodicCellName.CENTER.value),
+                field_name="active_cell",
+            ),
+            top_left_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(
+                    payload.get("top_left_cell", {}), field_name="top_left_cell"
+                )
+            ),
+            top_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("top_cell", {}), field_name="top_cell")
+            ),
+            top_right_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(
+                    payload.get("top_right_cell", {}),
+                    field_name="top_right_cell",
+                )
+            ),
+            left_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("left_cell", {}), field_name="left_cell")
+            ),
+            center_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("center_cell", {}), field_name="center_cell")
+            ),
+            right_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("right_cell", {}), field_name="right_cell")
+            ),
+            bottom_left_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(
+                    payload.get("bottom_left_cell", {}),
+                    field_name="bottom_left_cell",
+                )
+            ),
+            bottom_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("bottom_cell", {}), field_name="bottom_cell")
+            ),
+            bottom_right_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(
+                    payload.get("bottom_right_cell", {}),
+                    field_name="bottom_right_cell",
+                )
+            ),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class NetworkSpec:
     """The root object that stores an abstract tensor-network design."""
 
@@ -386,6 +511,7 @@ class NetworkSpec:
     notes: list[CanvasNoteSpec] = field(default_factory=list)
     contraction_plan: ContractionPlanSpec | None = None
     linear_periodic_chain: LinearPeriodicChainSpec | None = None
+    grid_periodic_grid: GridPeriodicGridSpec | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
@@ -431,6 +557,11 @@ class NetworkSpec:
                 if self.linear_periodic_chain is not None
                 else None
             ),
+            "grid_periodic_grid": (
+                self.grid_periodic_grid.to_dict()
+                if self.grid_periodic_grid is not None
+                else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -443,6 +574,7 @@ class NetworkSpec:
         notes_payload = require_list(payload.get("notes", []), field_name="notes")
         contraction_plan_payload = payload.get("contraction_plan")
         linear_periodic_chain_payload = payload.get("linear_periodic_chain")
+        grid_periodic_grid_payload = payload.get("grid_periodic_grid")
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
             name=coerce_string(payload["name"], field_name="name"),
@@ -481,6 +613,16 @@ class NetworkSpec:
                 if linear_periodic_chain_payload is not None
                 else None
             ),
+            grid_periodic_grid=(
+                GridPeriodicGridSpec.from_dict(
+                    require_dict(
+                        grid_periodic_grid_payload,
+                        field_name="grid_periodic_grid",
+                    )
+                )
+                if grid_periodic_grid_payload is not None
+                else None
+            ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),
@@ -514,4 +656,34 @@ def _coerce_linear_periodic_tensor_role(
     except ValueError as exc:
         raise TypeError(
             f"{field_name} must be a valid linear periodic tensor role."
+        ) from exc
+
+
+def _coerce_grid_periodic_cell_name(
+    value: object,
+    *,
+    field_name: str,
+) -> GridPeriodicCellName:
+    """Coerce a serialized value to a valid grid periodic cell name."""
+    try:
+        return GridPeriodicCellName(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid grid periodic cell name."
+        ) from exc
+
+
+def _coerce_grid_periodic_tensor_role(
+    value: object,
+    *,
+    field_name: str,
+) -> GridPeriodicTensorRole | None:
+    """Coerce a serialized value to a valid grid periodic tensor role."""
+    if value is None:
+        return None
+    try:
+        return GridPeriodicTensorRole(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid grid periodic tensor role."
         ) from exc

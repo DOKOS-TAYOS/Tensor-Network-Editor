@@ -24,6 +24,7 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utilities.js",
         "js/utilitiesBase.js",
         "js/utilitiesGeometry.js",
+        "js/utilitiesGridPeriodic.js",
         "js/utilitiesLayout.js",
         "js/utilitiesLinearPeriodic.js",
         "js/utilitiesSpec.js",
@@ -177,6 +178,8 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert 'id="benchmark-mode-menu-item"' in html
     assert 'id="linear-periodic-previous-cell-button"' in html
     assert 'id="linear-periodic-cell-label"' in html
+    assert 'id="grid-periodic-up-cell-button"' in html
+    assert 'id="grid-periodic-down-cell-button"' in html
     assert 'id="linear-periodic-next-cell-button"' in html
     assert ">For unidimensional<" in html
     assert ">For bidimensional<" in html

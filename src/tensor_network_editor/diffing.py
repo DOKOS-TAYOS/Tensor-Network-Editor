@@ -55,6 +55,7 @@ _ENTITY_LABELS: dict[str, str] = {
     "plan": "Contraction plan",
     "step": "Contraction step",
     "linear_periodic_chain": "Linear periodic chain",
+    "grid_periodic_grid": "Grid periodic grid",
 }
 
 _ENTITY_SORT_ORDER: dict[str, int] = {
@@ -66,6 +67,7 @@ _ENTITY_SORT_ORDER: dict[str, int] = {
     "plan": 5,
     "step": 6,
     "linear_periodic_chain": 7,
+    "grid_periodic_grid": 8,
 }
 
 
@@ -104,6 +106,9 @@ def semantic_diff_specs(
     )
     entries.extend(
         _semantic_diff_linear_periodic_chain(normalized_before, normalized_after)
+    )
+    entries.extend(
+        _semantic_diff_grid_periodic_grid(normalized_before, normalized_after)
     )
     return SemanticSpecDiffResult(entries=_sort_semantic_entries(entries))
 
@@ -309,6 +314,56 @@ def _semantic_diff_linear_periodic_chain(
     ]
 
 
+def _semantic_diff_grid_periodic_grid(
+    before: NetworkSpec,
+    after: NetworkSpec,
+) -> list[SemanticDiffEntry]:
+    """Report grid periodic-grid changes as one opaque field in v1."""
+    before_payload = (
+        before.grid_periodic_grid.to_dict()
+        if before.grid_periodic_grid is not None
+        else None
+    )
+    after_payload = (
+        after.grid_periodic_grid.to_dict()
+        if after.grid_periodic_grid is not None
+        else None
+    )
+    if before_payload == after_payload:
+        return []
+    if before_payload is None and after_payload is not None:
+        return [
+            _build_simple_semantic_entry(
+                "grid_periodic_grid",
+                "grid_periodic_grid",
+                "added",
+            )
+        ]
+    if before_payload is not None and after_payload is None:
+        return [
+            _build_simple_semantic_entry(
+                "grid_periodic_grid",
+                "grid_periodic_grid",
+                "removed",
+            )
+        ]
+    return [
+        SemanticDiffEntry(
+            entity_type="grid_periodic_grid",
+            entity_id="grid_periodic_grid",
+            change_type="changed",
+            summary=_summary_for_entity("grid_periodic_grid", "changed"),
+            field_changes=[
+                SemanticFieldChange(
+                    path="grid_periodic_grid",
+                    before=cast(JSONValue, before_payload),
+                    after=cast(JSONValue, after_payload),
+                )
+            ],
+        )
+    ]
+
+
 def _index_entities(tensors: Iterable[TensorSpec]) -> list[IndexSpec]:
     """Flatten tensor indices to a top-level list keyed by stable index ids."""
     return [index for tensor in tensors for index in tensor.indices]
@@ -335,6 +390,11 @@ def _tensor_payload(entity: _DiffableEntity) -> dict[str, JSONValue]:
         "linear_periodic_role": (
             tensor.linear_periodic_role.value
             if tensor.linear_periodic_role is not None
+            else None
+        ),
+        "grid_periodic_role": (
+            tensor.grid_periodic_role.value
+            if tensor.grid_periodic_role is not None
             else None
         ),
         "metadata": tensor.metadata,
