@@ -9,7 +9,9 @@ import threading
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BufferedReader
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse
 
 from . import routes
@@ -148,6 +150,8 @@ class EditorServer:
                         parsed.path,
                         exc,
                     )
+                    self._drain_pending_request_body()
+                    self.close_connection = True
                     self._write_response(bad_request_response(str(exc)))
                     return
                 try:
@@ -159,6 +163,7 @@ class EditorServer:
                         parsed.path,
                         exc,
                     )
+                    self.close_connection = True
                     self._write_response(bad_request_response(str(exc)))
                     return
                 try:
@@ -281,6 +286,24 @@ class EditorServer:
                 )
                 return self.rfile.read(content_length)
 
+            def _drain_pending_request_body(self) -> None:
+                """Best-effort drain of pending request bytes before closing."""
+                previous_timeout = self.connection.gettimeout()
+                buffered_reader = cast(BufferedReader, self.rfile)
+                try:
+                    self.connection.settimeout(0.01)
+                    while True:
+                        buffered = buffered_reader.peek(1)
+                        if not buffered:
+                            break
+                        discarded = buffered_reader.read(len(buffered))
+                        if not discarded:
+                            break
+                except OSError:
+                    return
+                finally:
+                    self.connection.settimeout(previous_timeout)
+
             def _write_response(self, response: JsonResponse | _BinaryResponse) -> None:
                 """Serialize and send either a JSON or pre-encoded binary response."""
                 if isinstance(response, _BinaryResponse):
@@ -301,6 +324,8 @@ class EditorServer:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
+                if self.close_connection:
+                    self.send_header("Connection", "close")
                 self._write_no_cache_headers()
                 self.end_headers()
                 self.wfile.write(body)
