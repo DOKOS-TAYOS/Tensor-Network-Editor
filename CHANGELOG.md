@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 - Right-clicking a tensor that already belongs to a multi-selection now preserves that selection and opens the selection action menu instead of collapsing to a single-tensor context menu.
 - Grid-periodic frontend/runtime flows now preserve the active 2D cell when returning to `Single`, seed the center cell from the current graph when entering 2D mode, and keep payload synchronization stable across save/load/history/codegen paths without executing expensive generated contractions in tests.
+- Editor sessions now keep the confirmed result if a late cancellation request arrives after completion.
 
 ## [0.2.2] - 2026-04-13
 

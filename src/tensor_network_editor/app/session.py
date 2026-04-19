@@ -262,6 +262,12 @@ class EditorSession:
         """Cancel the session and unblock any waiter."""
         LOGGER.info("[session=%s] Cancelling editor session", self.session_id)
         with self._lock:
+            if self._finished_event.is_set():
+                LOGGER.debug(
+                    "[session=%s] Ignoring cancel request for finished session",
+                    self.session_id,
+                )
+                return
             self._result = None
             self._finished_event.set()
 

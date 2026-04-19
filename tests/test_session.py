@@ -154,6 +154,21 @@ def test_cancel_marks_session_finished_without_result(
     assert editor_session.wait_for_result(timeout=0.01) is None
 
 
+def test_cancel_does_not_override_completed_result(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: JsonDict,
+) -> None:
+    session = EditorSession(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+    )
+
+    result = session.complete(serialized_sample_spec, EngineName.EINSUM_NUMPY)
+    session.cancel()
+
+    assert session.wait_for_result(timeout=0.01) == result
+
+
 def test_wait_for_editor_result_delegates_to_session_once() -> None:
     class FakeSession:
         def __init__(self) -> None:
