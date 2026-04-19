@@ -1,14 +1,32 @@
 from __future__ import annotations
 
+import importlib
 import importlib.metadata
 import os
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 pytestmark = pytest.mark.integration
+
+
+def _import_installed_package() -> ModuleType:
+    repo_root = Path(__file__).resolve().parents[1]
+    checkout_src = (repo_root / "src").resolve()
+    sys.path[:] = [path for path in sys.path if Path(path).resolve() != checkout_src]
+    module_names = [
+        module_name
+        for module_name in sys.modules
+        if module_name == "tensor_network_editor"
+        or module_name.startswith("tensor_network_editor.")
+    ]
+    for module_name in module_names:
+        del sys.modules[module_name]
+    importlib.invalidate_caches()
+    return importlib.import_module("tensor_network_editor")
 
 
 def test_installed_wheel_exposes_runtime_contracts() -> None:
@@ -18,10 +36,17 @@ def test_installed_wheel_exposes_runtime_contracts() -> None:
     wheel_path = Path(wheel_path_text)
     assert wheel_path.is_file()
 
-    import tensor_network_editor
+    tensor_network_editor = _import_installed_package()
 
-    package_file = Path(tensor_network_editor.__file__).resolve()
-    assert "site-packages" in {part.lower() for part in package_file.parts}
+    checkout_src = (Path(__file__).resolve().parents[1] / "src").resolve()
+    package_file_text = tensor_network_editor.__file__
+    assert package_file_text is not None
+    package_file = Path(package_file_text).resolve()
+    assert not package_file.is_relative_to(checkout_src)
+    assert {
+        "site-packages",
+        "dist-packages",
+    } & {part.lower() for part in package_file.parts}
     assert tensor_network_editor.__version__ == importlib.metadata.version(
         "tensor-network-editor"
     )

@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The wheel smoke test now clears checkout imports before loading `tensor_network_editor`, so packaging validation checks the installed wheel instead of the local `src/` tree.
 - Right-clicking a tensor that already belongs to a multi-selection now preserves that selection and opens the selection action menu instead of collapsing to a single-tensor context menu.
 - Grid-periodic frontend/runtime flows now preserve the active 2D cell when returning to `Single`, seed the center cell from the current graph when entering 2D mode, and keep payload synchronization stable across save/load/history/codegen paths without executing expensive generated contractions in tests.
 - Editor sessions now keep the confirmed result if a late cancellation request arrives after completion.
