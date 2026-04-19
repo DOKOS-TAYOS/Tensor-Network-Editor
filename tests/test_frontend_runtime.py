@@ -37,6 +37,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "utilitiesBase.js",
         "utilitiesBenchmark.js",
         "utilitiesGeometry.js",
+        "utilitiesGridPeriodic.js",
         "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js",
@@ -4381,6 +4382,299 @@ def test_for_mode_dimension_updates_keep_working_after_first_change(
     )
 
 
+def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "grid_for_mode_runtime.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    base_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesBase.js"
+    )
+    geometry_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesGeometry.js"
+    )
+    layout_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesLayout.js"
+    )
+    spec_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesSpec.js"
+    )
+    linear_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesLinearPeriodic.js"
+    )
+    grid_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesGridPeriodic.js"
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const [
+              stateModule,
+              baseModule,
+              geometryModule,
+              layoutModule,
+              specModule,
+              linearModule,
+              gridModule,
+            ] = await Promise.all([
+              import(pathToFileURL({json.dumps(str(state_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(base_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(geometry_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(layout_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(spec_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(linear_module_path))}).href),
+              import(pathToFileURL({json.dumps(str(grid_module_path))}).href),
+            ]);
+
+            const {{ createInitialState }} = stateModule;
+            const {{ createUtilityBaseBindings }} = baseModule;
+            const {{ createUtilityGeometryBindings }} = geometryModule;
+            const {{ createUtilityLayoutBindings }} = layoutModule;
+            const {{ createUtilitySpecBindings }} = specModule;
+            const {{ createUtilityLinearPeriodicBindings }} = linearModule;
+            const {{ createUtilityGridPeriodicBindings }} = gridModule;
+
+            const state = createInitialState();
+            const runtime = {{}};
+            const events = [];
+            const ctx = {{
+              state,
+              constants: {{
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                DEFAULT_INDEX_SLOTS: [
+                  {{ x: -38, y: 0 }},
+                  {{ x: 38, y: 0 }},
+                  {{ x: 0, y: -24 }},
+                  {{ x: 0, y: 24 }},
+                ],
+              }},
+              dom: {{
+                engineSelect: {{ options: [], value: "tensornetwork" }},
+              }},
+              window: {{
+                confirm() {{
+                  return true;
+                }},
+              }},
+              document: {{
+                activeElement: null,
+                querySelectorAll() {{
+                  return [];
+                }},
+              }},
+              render() {{
+                events.push("render");
+              }},
+              setStatus(message, level = "info") {{
+                events.push(`status:${{level}}:${{message}}`);
+              }},
+              clearGeneratedCodePreview() {{
+                events.push("clear-preview");
+              }},
+              refreshContractionAnalysis() {{
+                events.push("refresh-analysis");
+              }},
+              bumpSpecRevision() {{
+                state.specRevision += 1;
+              }},
+              resetDerivedStateCaches() {{}},
+              ensureSpecLookups() {{
+                state.tensorById = Object.fromEntries(
+                  (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [])
+                    .map((tensor) => [tensor.id, tensor])
+                );
+              }},
+            }};
+
+            const env = {{
+              ctx,
+              state,
+              constants: ctx.constants,
+              dom: ctx.dom,
+              runtime,
+            }};
+            Object.assign(runtime, createUtilityBaseBindings(env));
+            Object.assign(runtime, createUtilityGeometryBindings(env));
+            Object.assign(runtime, createUtilityLayoutBindings(env));
+            Object.assign(runtime, createUtilitySpecBindings(env));
+            Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
+            Object.assign(runtime, createUtilityGridPeriodicBindings(env));
+            Object.assign(ctx, runtime);
+
+            state.spec = runtime.normalizeSpec({{
+              id: "network_grid_demo",
+              name: "Grid Demo",
+              tensors: [
+                {{
+                  id: "tensor_center",
+                  name: "Center",
+                  position: {{ x: 180, y: 160 }},
+                  size: {{ width: 140, height: 84 }},
+                  metadata: {{}},
+                  indices: [
+                    {{
+                      id: "center_open_a",
+                      name: "a",
+                      dimension: 2,
+                      offset: {{ x: -38, y: 0 }},
+                      metadata: {{}},
+                    }},
+                    {{
+                      id: "center_open_b",
+                      name: "b",
+                      dimension: 3,
+                      offset: {{ x: 38, y: 0 }},
+                      metadata: {{}},
+                    }},
+                  ],
+                }},
+              ],
+              groups: [],
+              edges: [],
+              notes: [],
+              contraction_plan: null,
+              metadata: {{}},
+            }});
+
+            runtime.setGridPeriodicMode(true);
+            if (!runtime.isGridPeriodicMode()) {{
+              throw new Error("Grid periodic mode should be enabled.");
+            }}
+            if (runtime.getActiveGridPeriodicCellName() !== "center") {{
+              throw new Error(`Expected center to be active after enabling grid mode, received ${{runtime.getActiveGridPeriodicCellName()}}.`);
+            }}
+            const activeBoundaryRoles = state.spec.tensors
+              .filter((tensor) => tensor.grid_periodic_role)
+              .map((tensor) => tensor.grid_periodic_role)
+              .sort();
+            if (JSON.stringify(activeBoundaryRoles) !== JSON.stringify(["down", "left", "right", "up"])) {{
+              throw new Error(`Expected four center boundary tensors, received ${{JSON.stringify(activeBoundaryRoles)}}.`);
+            }}
+            if (
+              !state.spec.grid_periodic_grid.center_cell.tensors.some(
+                (tensor) => tensor.id === "tensor_center"
+              )
+            ) {{
+              throw new Error("The original graph should seed the center cell.");
+            }}
+
+            runtime.switchGridPeriodicCell("up");
+            if (runtime.getActiveGridPeriodicCellName() !== "top") {{
+              throw new Error(`Expected top to be active after moving up, received ${{runtime.getActiveGridPeriodicCellName()}}.`);
+            }}
+            state.spec.tensors.push({{
+              id: "tensor_top",
+              name: "Top",
+              position: {{ x: 180, y: 120 }},
+              size: {{ width: 140, height: 84 }},
+              metadata: {{}},
+              indices: [
+                {{
+                  id: "top_open",
+                  name: "t",
+                  dimension: 5,
+                  offset: {{ x: 0, y: -24 }},
+                  metadata: {{}},
+                }},
+              ],
+            }});
+            runtime.syncGridPeriodicBoundaryTensors();
+            runtime.setGridPeriodicMode(false);
+            if (runtime.isGridPeriodicMode()) {{
+              throw new Error("Grid periodic mode should be disabled.");
+            }}
+            if (state.spec.grid_periodic_grid !== null) {{
+              throw new Error("Grid payload should be cleared after leaving grid mode.");
+            }}
+            if (!state.spec.tensors.some((tensor) => tensor.id === "tensor_top")) {{
+              throw new Error("Leaving grid mode should preserve the active cell.");
+            }}
+            if (state.spec.tensors.some((tensor) => tensor.grid_periodic_role)) {{
+              throw new Error("Boundary tensors should be stripped when returning to single mode.");
+            }}
+            if (!events.includes("refresh-analysis")) {{
+              throw new Error(`Expected grid mode transitions to refresh analysis, received ${{JSON.stringify(events)}}.`);
+            }}
+            """,
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_grid_for_mode_can_seed_navigate_and_restore_active_cell(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_grid_for_mode_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The grid for-mode runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_for_mode_reserved_operands_survive_cell_switches_and_scene_updates(
     tmp_path: Path,
@@ -4611,6 +4905,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
+        "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
         "utilitiesLayout.js": "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js": "utilitiesSpec.js",
@@ -4670,12 +4965,13 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             }
 
             const baseUrl = new URL("./", import.meta.url);
-            const [stateModule, utilitiesModule, baseModule, geometryModule, layoutModule, linearPeriodicModule, specModule, uiModule] =
+            const [stateModule, utilitiesModule, baseModule, geometryModule, gridPeriodicModule, layoutModule, linearPeriodicModule, specModule, uiModule] =
               await Promise.all([
                 import(new URL("./state.runtime.mjs", baseUrl).href),
                 import(new URL("./utilities.runtime.mjs", baseUrl).href),
                 import(new URL("./utilitiesBase.js", baseUrl).href),
                 import(new URL("./utilitiesGeometry.js", baseUrl).href),
+                import(new URL("./utilitiesGridPeriodic.js", baseUrl).href),
                 import(new URL("./utilitiesLayout.js", baseUrl).href),
                 import(new URL("./utilitiesLinearPeriodic.js", baseUrl).href),
                 import(new URL("./utilitiesSpec.js", baseUrl).href),
@@ -4686,6 +4982,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             const { registerUtilities } = utilitiesModule;
             const { createUtilityBaseBindings } = baseModule;
             const { createUtilityGeometryBindings } = geometryModule;
+            const { createUtilityGridPeriodicBindings } = gridPeriodicModule;
             const { createUtilityLayoutBindings } = layoutModule;
             const { createUtilityLinearPeriodicBindings } = linearPeriodicModule;
             const { createUtilitySpecBindings } = specModule;
@@ -5930,6 +6227,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "utilitiesBase.js": "utilitiesBase.js",
         "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
+        "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
         "utilitiesLayout.js": "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
         "utilitiesSpec.js": "utilitiesSpec.js",

@@ -14,6 +14,7 @@ from ..models import (
 from .base import CodeGenerator
 from .einsum_numpy import EinsumNumpyCodeGenerator
 from .einsum_torch import EinsumTorchCodeGenerator
+from .grid_periodic import generate_grid_periodic_code
 from .linear_periodic import generate_linear_periodic_code
 from .quimb import QuimbCodeGenerator
 from .tensorkrowch import TensorKrowchCodeGenerator
@@ -95,6 +96,14 @@ def generate_code(
 ) -> CodegenResult:
     """Generate Python code through the registered backend generator."""
     normalized_engine = resolve_registered_engine(engine)
+    if spec.grid_periodic_grid is not None and isinstance(
+        normalized_engine, EngineName
+    ):
+        return generate_grid_periodic_code(
+            spec,
+            normalized_engine,
+            collection_format=collection_format,
+        )
     if spec.linear_periodic_chain is not None and isinstance(
         normalized_engine, EngineName
     ):

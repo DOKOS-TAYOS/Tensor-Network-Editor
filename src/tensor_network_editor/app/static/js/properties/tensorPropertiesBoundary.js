@@ -8,11 +8,29 @@ export function createBoundaryTensorPropertiesRenderer({
   propertiesPanel,
   propertyInvalidation,
 }) {
+  function getBoundaryRoleDetails(tensor) {
+    if (tensor.grid_periodic_role === "up") {
+      return { roleKey: "up", roleLabel: "Upper cell", fallbackColor: "#456cbf" };
+    }
+    if (tensor.grid_periodic_role === "right") {
+      return { roleKey: "right", roleLabel: "Right cell", fallbackColor: "#2f9b8f" };
+    }
+    if (tensor.grid_periodic_role === "down") {
+      return { roleKey: "down", roleLabel: "Lower cell", fallbackColor: "#d38a37" };
+    }
+    if (tensor.grid_periodic_role === "left") {
+      return { roleKey: "left", roleLabel: "Left cell", fallbackColor: "#8e5bcc" };
+    }
+    return {
+      roleKey: tensor.linear_periodic_role === "previous" ? "previous" : "next",
+      roleLabel:
+        tensor.linear_periodic_role === "previous" ? "Previous cell" : "Next cell",
+      fallbackColor: tensor.linear_periodic_role === "previous" ? "#456cbf" : "#2f9b8f",
+    };
+  }
+
   function renderLinearPeriodicBoundaryTensorProperties(tensor) {
-    const roleLabel =
-      tensor.linear_periodic_role === "previous"
-        ? "Previous cell"
-        : "Next cell";
+    const { roleKey, roleLabel, fallbackColor } = getBoundaryRoleDetails(tensor);
     const indexEditors = tensor.indices
       .map(
         (index) => `
@@ -73,7 +91,7 @@ export function createBoundaryTensorPropertiesRenderer({
           </div>
           <div class="properties-chip">
             <span>Role</span>
-            <strong>${ctx.escapeHtml(tensor.linear_periodic_role || "")}</strong>
+            <strong>${ctx.escapeHtml(roleKey)}</strong>
           </div>
         </div>
       </div>
@@ -85,7 +103,7 @@ export function createBoundaryTensorPropertiesRenderer({
             type="color"
             title="Choose tint"
             aria-label="Choose tint"
-            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, "#456cbf"))}"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, fallbackColor))}"
           />
         </label>
       </div>

@@ -85,8 +85,10 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     windowRef: window || globalThis,
   });
   const invalidationSupport = createPropertyInvalidationSupport({
-    isLinearPeriodicMode: () =>
-      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    isForMode: () =>
+      (typeof ctx.isForMode === "function" && ctx.isForMode()) ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) ||
+      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()),
   });
   const metadataSupport = createMetadataEditorSupport({
     annotationDefinitionsByScope: () => state.annotationDefinitions || {},

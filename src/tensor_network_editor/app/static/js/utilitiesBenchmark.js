@@ -491,12 +491,15 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
     }
     if (
       shouldEnable &&
-      typeof runtime.isLinearPeriodicMode === "function" &&
-      runtime.isLinearPeriodicMode()
+      ((typeof runtime.isForMode === "function" && runtime.isForMode()) ||
+        (typeof runtime.isLinearPeriodicMode === "function" &&
+          runtime.isLinearPeriodicMode()) ||
+        (typeof runtime.isGridPeriodicMode === "function" &&
+          runtime.isGridPeriodicMode()))
     ) {
       if (typeof ctx.setStatus === "function") {
         ctx.setStatus(
-          "Benchmark mode is unavailable while For unidimensional mode is active.",
+          "Benchmark mode is unavailable while a For mode is active.",
           "error"
         );
       }

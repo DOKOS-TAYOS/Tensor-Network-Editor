@@ -23,6 +23,10 @@ function createShellActions(ctx) {
     render: () => ctx.render(),
     refreshContractionAnalysis: resolveContextAction(ctx, "refreshContractionAnalysis"),
     setStatus: (message, level) => ctx.setStatus(message, level),
+    isLinearPeriodicMode: () =>
+      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    isGridPeriodicMode: () =>
+      typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode(),
     handleNewDesign: () => ctx.handleNewDesign(),
     addTensorAtCenter: () => ctx.addTensorAtCenter(),
     addNoteAtCenter: () => ctx.addNoteAtCenter(),
@@ -46,6 +50,9 @@ function createShellActions(ctx) {
     toggleLinearPeriodicMode: () => ctx.toggleLinearPeriodicMode(),
     setLinearPeriodicMode: (enabled) => ctx.setLinearPeriodicMode(enabled),
     switchLinearPeriodicCell: (direction) => ctx.switchLinearPeriodicCell(direction),
+    toggleGridPeriodicMode: () => ctx.toggleGridPeriodicMode(),
+    setGridPeriodicMode: (enabled) => ctx.setGridPeriodicMode(enabled),
+    switchGridPeriodicCell: (direction) => ctx.switchGridPeriodicCell(direction),
     toggleBenchmarkMode: () => ctx.toggleBenchmarkMode(),
     setBenchmarkMode: (enabled) => ctx.setBenchmarkMode(enabled),
     switchBenchmarkPosition: (direction) => ctx.switchBenchmarkPosition(direction),

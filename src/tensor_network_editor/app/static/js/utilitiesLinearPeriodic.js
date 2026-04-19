@@ -133,11 +133,19 @@ export function createUtilityLinearPeriodicBindings({
     return getLinearPeriodicReservedOperandId(tensor.linear_periodic_role);
   }
 
+  function isContractibleBoundaryTensor(tensor) {
+    return (
+      isLinearPeriodicBoundaryTensor(tensor) ||
+      (typeof runtime.isGridPeriodicBoundaryTensor === "function" &&
+        runtime.isGridPeriodicBoundaryTensor(tensor))
+    );
+  }
+
   function buildContractibleCollections(spec) {
     const tensors = Array.isArray(spec && spec.tensors) ? spec.tensors : [];
     const edges = Array.isArray(spec && spec.edges) ? spec.edges : [];
     const contractibleTensors = tensors.filter(
-      (tensor) => !isLinearPeriodicBoundaryTensor(tensor)
+      (tensor) => !isContractibleBoundaryTensor(tensor)
     );
     if (!edges.length || !contractibleTensors.length) {
       return {
@@ -165,8 +173,8 @@ export function createUtilityLinearPeriodicBindings({
         return (
           leftTensor &&
           rightTensor &&
-          !isLinearPeriodicBoundaryTensor(leftTensor) &&
-          !isLinearPeriodicBoundaryTensor(rightTensor)
+          !isContractibleBoundaryTensor(leftTensor) &&
+          !isContractibleBoundaryTensor(rightTensor)
         );
       }),
     };
@@ -351,8 +359,8 @@ export function createUtilityLinearPeriodicBindings({
       if (
         leftTensor &&
         rightTensor &&
-        !isLinearPeriodicBoundaryTensor(leftTensor) &&
-        !isLinearPeriodicBoundaryTensor(rightTensor)
+        !isContractibleBoundaryTensor(leftTensor) &&
+        !isContractibleBoundaryTensor(rightTensor)
       ) {
         internallyConnectedIndexIds.add(edge.left.index_id);
         internallyConnectedIndexIds.add(edge.right.index_id);

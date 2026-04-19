@@ -80,6 +80,13 @@ export function createInteractionEditorBindings({
     removeNote = noop,
   } = resolvedEditorActions;
 
+  function isForBoundaryTensor(tensor) {
+    return (
+      (typeof ctx.isForBoundaryTensor === "function" && ctx.isForBoundaryTensor(tensor)) ||
+      ctx.isLinearPeriodicBoundaryTensor(tensor)
+    );
+  }
+
   function handleNewDesign() {
     if (
       !window.confirm(
@@ -322,8 +329,8 @@ export function createInteractionEditorBindings({
       return;
     }
     if (
-      ctx.isLinearPeriodicBoundaryTensor(left.tensor) &&
-      ctx.isLinearPeriodicBoundaryTensor(located.tensor)
+      isForBoundaryTensor(left.tensor) &&
+      isForBoundaryTensor(located.tensor)
     ) {
       ctx.setStatus(
         "Virtual boundary tensors can only connect to real tensors inside the current cell.",
@@ -378,7 +385,7 @@ export function createInteractionEditorBindings({
 
     selectedTensorIds.forEach((tensorId) => {
       const tensor = ctx.findTensorById(tensorId);
-      if (!ctx.isLinearPeriodicBoundaryTensor(tensor)) {
+      if (!isForBoundaryTensor(tensor)) {
         ctx.removeTensor(tensorId);
       }
     });
@@ -388,7 +395,7 @@ export function createInteractionEditorBindings({
       if (
         located &&
         !selectedTensorIds.has(located.tensor.id) &&
-        !ctx.isLinearPeriodicBoundaryTensor(located.tensor)
+        !isForBoundaryTensor(located.tensor)
       ) {
         ctx.removeIndex(located.tensor.id, indexId);
       }
@@ -420,9 +427,9 @@ export function createInteractionEditorBindings({
     const hasMutableSelection = selectedEntries.some(
       (entry) =>
         (entry.kind === "tensor" &&
-          !ctx.isLinearPeriodicBoundaryTensor(entry.tensor)) ||
+          !isForBoundaryTensor(entry.tensor)) ||
         (entry.kind === "index" &&
-          !ctx.isLinearPeriodicBoundaryTensor(entry.located.tensor)) ||
+          !isForBoundaryTensor(entry.located.tensor)) ||
         entry.kind === "contraction-tensor" ||
         entry.kind === "edge" ||
         entry.kind === "group" ||

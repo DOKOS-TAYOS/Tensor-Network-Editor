@@ -28,6 +28,8 @@ export function createPlannerSupport({
     typeof ctx.benchmarkBaseStatusHint === "string" && ctx.benchmarkBaseStatusHint
       ? ctx.benchmarkBaseStatusHint
       : "Move right to edit or create a contraction scheme.";
+  const gridPeriodicStatusMessage =
+    "Contractions are disabled in For bidimensional mode.";
   let pendingContractionAnalysisOptions = null;
   let plannerCommands = null;
 
@@ -36,6 +38,10 @@ export function createPlannerSupport({
       typeof ctx.isBenchmarkBasePosition === "function" &&
       ctx.isBenchmarkBasePosition()
     );
+  }
+
+  function isGridPeriodicMode() {
+    return typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode();
   }
 
   function guardBenchmarkBasePlannerAction(message = benchmarkBaseStatusMessage) {
@@ -48,6 +54,24 @@ export function createPlannerSupport({
     state.plannerPreviewMode = null;
     if (typeof ctx.syncPendingInteractionClasses === "function") {
       ctx.syncPendingInteractionClasses();
+    }
+    renderPlanner();
+    ctx.renderOverlayDecorations();
+    ctx.setStatus(message);
+    return true;
+  }
+
+  function guardGridPeriodicPlannerAction(message = gridPeriodicStatusMessage) {
+    if (!isGridPeriodicMode()) {
+      return false;
+    }
+    state.plannerMode = false;
+    state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    state.plannerPreviewMode = null;
+    state.plannerFutureBadgeDisclosure = {};
+    if (state.spec) {
+      state.spec.contraction_plan = null;
     }
     renderPlanner();
     ctx.renderOverlayDecorations();
@@ -227,6 +251,12 @@ export function createPlannerSupport({
   }
 
   function repairContractionPlan() {
+    if (isGridPeriodicMode()) {
+      state.spec.contraction_plan = null;
+      state.plannerInspectionStepCount = null;
+      state.plannerFutureBadgeDisclosure = {};
+      return;
+    }
     if (isBenchmarkBasePosition()) {
       state.spec.contraction_plan = null;
       state.plannerInspectionStepCount = null;
@@ -311,6 +341,9 @@ export function createPlannerSupport({
   }
 
   function handlePlannerOperandClick(operandId) {
+    if (guardGridPeriodicPlannerAction()) {
+      return;
+    }
     if (guardBenchmarkBasePlannerAction()) {
       return;
     }
@@ -339,6 +372,9 @@ export function createPlannerSupport({
   }
 
   function trimContractionPlan(stepCount) {
+    if (guardGridPeriodicPlannerAction()) {
+      return;
+    }
     if (guardBenchmarkBasePlannerAction()) {
       return;
     }
@@ -366,6 +402,9 @@ export function createPlannerSupport({
   }
 
   function togglePlannerMode() {
+    if (guardGridPeriodicPlannerAction()) {
+      return;
+    }
     if (guardBenchmarkBasePlannerAction()) {
       return;
     }
@@ -401,6 +440,19 @@ export function createPlannerSupport({
   }
 
   function refreshContractionAnalysis(options = {}) {
+    if (isGridPeriodicMode()) {
+      pendingContractionAnalysisOptions = null;
+      if (state.spec) {
+        state.spec.contraction_plan = null;
+      }
+      state.contractionAnalysis = {
+        status: "gridPeriodicDisabled",
+        message: gridPeriodicStatusMessage,
+      };
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+      return;
+    }
     if (isBenchmarkBasePosition()) {
       pendingContractionAnalysisOptions = null;
       state.contractionAnalysis = { status: "benchmarkBase" };
@@ -435,6 +487,9 @@ export function createPlannerSupport({
   });
 
   function startAutomaticPreview(mode) {
+    if (guardGridPeriodicPlannerAction()) {
+      return;
+    }
     if (guardBenchmarkBasePlannerAction()) {
       return;
     }
@@ -442,6 +497,9 @@ export function createPlannerSupport({
   }
 
   function acceptAutomaticPlan(mode) {
+    if (guardGridPeriodicPlannerAction()) {
+      return;
+    }
     if (guardBenchmarkBasePlannerAction()) {
       return;
     }

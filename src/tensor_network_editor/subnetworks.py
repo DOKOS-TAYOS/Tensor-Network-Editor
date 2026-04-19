@@ -161,8 +161,8 @@ def _recenter_tensors(spec: NetworkSpec, target_center: CanvasPosition) -> None:
 
 
 def _require_normal_graph_mode(spec: NetworkSpec) -> None:
-    """Reject operations that are not yet available in linear periodic mode."""
-    if spec.linear_periodic_chain is not None:
+    """Reject operations that are not yet available in For modes."""
+    if spec.linear_periodic_chain is not None or spec.grid_periodic_grid is not None:
         raise ValueError(
             "Subnetwork extraction and insertion are only available in normal graph mode."
         )

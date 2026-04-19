@@ -10,6 +10,7 @@ from .models import (
     ContractionPlanSpec,
     EdgeEndpointRef,
     EdgeSpec,
+    GridPeriodicGridSpec,
     GroupSpec,
     IndexSpec,
     LinearPeriodicChainSpec,
@@ -53,6 +54,8 @@ def canonicalize_spec(
     )
     if canonical.linear_periodic_chain is not None:
         _canonicalize_linear_periodic_chain(canonical.linear_periodic_chain)
+    if canonical.grid_periodic_grid is not None:
+        _canonicalize_grid_periodic_grid(canonical.grid_periodic_grid)
     if deterministic_ids:
         canonical.id = "network_001"
         _rewrite_graph_section_ids(
@@ -66,6 +69,8 @@ def canonicalize_spec(
         )
         if canonical.linear_periodic_chain is not None:
             _rewrite_linear_periodic_chain_ids(canonical.linear_periodic_chain)
+        if canonical.grid_periodic_grid is not None:
+            _rewrite_grid_periodic_grid_ids(canonical.grid_periodic_grid)
     return canonical
 
 
@@ -120,6 +125,126 @@ def _rewrite_linear_periodic_chain_ids(chain: LinearPeriodicChainSpec) -> None:
             contraction_plan=chain.final_cell.contraction_plan,
         ),
         prefix="final",
+    )
+
+
+def _canonicalize_grid_periodic_grid(grid: GridPeriodicGridSpec) -> None:
+    """Canonicalize metadata and cell-local graph entities for ``grid``."""
+    grid.metadata = _canonicalize_metadata(grid.metadata)
+    for cell in (
+        grid.top_left_cell,
+        grid.top_cell,
+        grid.top_right_cell,
+        grid.left_cell,
+        grid.center_cell,
+        grid.right_cell,
+        grid.bottom_left_cell,
+        grid.bottom_cell,
+        grid.bottom_right_cell,
+    ):
+        cell.metadata = _canonicalize_metadata(cell.metadata)
+        _canonicalize_graph_section(
+            _GraphSection(
+                tensors=cell.tensors,
+                groups=cell.groups,
+                edges=cell.edges,
+                notes=cell.notes,
+                contraction_plan=cell.contraction_plan,
+            )
+        )
+
+
+def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
+    """Rewrite cell-local ids with stable prefixes for ``grid``."""
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.top_left_cell.tensors,
+            groups=grid.top_left_cell.groups,
+            edges=grid.top_left_cell.edges,
+            notes=grid.top_left_cell.notes,
+            contraction_plan=grid.top_left_cell.contraction_plan,
+        ),
+        prefix="top_left",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.top_cell.tensors,
+            groups=grid.top_cell.groups,
+            edges=grid.top_cell.edges,
+            notes=grid.top_cell.notes,
+            contraction_plan=grid.top_cell.contraction_plan,
+        ),
+        prefix="top",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.top_right_cell.tensors,
+            groups=grid.top_right_cell.groups,
+            edges=grid.top_right_cell.edges,
+            notes=grid.top_right_cell.notes,
+            contraction_plan=grid.top_right_cell.contraction_plan,
+        ),
+        prefix="top_right",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.left_cell.tensors,
+            groups=grid.left_cell.groups,
+            edges=grid.left_cell.edges,
+            notes=grid.left_cell.notes,
+            contraction_plan=grid.left_cell.contraction_plan,
+        ),
+        prefix="left",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.center_cell.tensors,
+            groups=grid.center_cell.groups,
+            edges=grid.center_cell.edges,
+            notes=grid.center_cell.notes,
+            contraction_plan=grid.center_cell.contraction_plan,
+        ),
+        prefix="center",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.right_cell.tensors,
+            groups=grid.right_cell.groups,
+            edges=grid.right_cell.edges,
+            notes=grid.right_cell.notes,
+            contraction_plan=grid.right_cell.contraction_plan,
+        ),
+        prefix="right",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.bottom_left_cell.tensors,
+            groups=grid.bottom_left_cell.groups,
+            edges=grid.bottom_left_cell.edges,
+            notes=grid.bottom_left_cell.notes,
+            contraction_plan=grid.bottom_left_cell.contraction_plan,
+        ),
+        prefix="bottom_left",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.bottom_cell.tensors,
+            groups=grid.bottom_cell.groups,
+            edges=grid.bottom_cell.edges,
+            notes=grid.bottom_cell.notes,
+            contraction_plan=grid.bottom_cell.contraction_plan,
+        ),
+        prefix="bottom",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=grid.bottom_right_cell.tensors,
+            groups=grid.bottom_right_cell.groups,
+            edges=grid.bottom_right_cell.edges,
+            notes=grid.bottom_right_cell.notes,
+            contraction_plan=grid.bottom_right_cell.contraction_plan,
+        ),
+        prefix="bottom_right",
     )
 
 

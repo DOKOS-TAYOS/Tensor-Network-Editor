@@ -71,8 +71,16 @@ export function createSessionTemplateFlows({
       : "";
   }
 
+  function isForModeActive() {
+    return (
+      (typeof actions.isForMode === "function" && actions.isForMode()) ||
+      (typeof actions.isLinearPeriodicMode === "function" &&
+        actions.isLinearPeriodicMode())
+    );
+  }
+
   function openSubnetworkPicker() {
-    if (actions.isLinearPeriodicMode()) {
+    if (isForModeActive()) {
       actions.setStatus(
         "Subnetwork insertion is only available in normal graph mode.",
         "error"
@@ -83,7 +91,7 @@ export function createSessionTemplateFlows({
   }
 
   async function extractTemplateSpecByTensorIds(tensorIds, emptySelectionMessage) {
-    if (actions.isLinearPeriodicMode()) {
+    if (isForModeActive()) {
       actions.setStatus(
         "Templates are only available in normal graph mode.",
         "error"
@@ -119,7 +127,7 @@ export function createSessionTemplateFlows({
     tensorIds,
     label = "subnetwork"
   ) {
-    if (actions.isLinearPeriodicMode()) {
+    if (isForModeActive()) {
       actions.setStatus(
         "Subnetwork export is only available in normal graph mode.",
         "error"
@@ -600,7 +608,7 @@ export function createSessionTemplateFlows({
     if (!file) {
       return;
     }
-    if (actions.isLinearPeriodicMode()) {
+    if (isForModeActive()) {
       actions.setStatus(
         "Subnetwork insertion is only available in normal graph mode.",
         "error"

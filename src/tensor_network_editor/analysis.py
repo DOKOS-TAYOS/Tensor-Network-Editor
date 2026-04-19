@@ -23,7 +23,10 @@ def analyze_spec(
     """Return a structured summary for ``spec`` and its contraction metadata."""
     validated_spec = ensure_valid_spec(spec)
     network = analyze_network(validated_spec)
-    if validated_spec.linear_periodic_chain is None:
+    if (
+        validated_spec.linear_periodic_chain is None
+        and validated_spec.grid_periodic_grid is None
+    ):
         contraction_prepared = prepare_analyzed_network(network)
     else:
         contraction_spec = _normalize_spec_for_contraction_analysis(

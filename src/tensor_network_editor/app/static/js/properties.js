@@ -15,6 +15,7 @@ function createPropertyActions(ctx) {
     getBatchColorValue: (selectedEntries) => ctx.getBatchColorValue(selectedEntries),
     getSelectedTensorIds: () => ctx.getSelectedIdsByKind("tensor"),
     isLinearPeriodicMode: resolveContextAction(ctx, "isLinearPeriodicMode", () => false),
+    isForMode: resolveContextAction(ctx, "isForMode", () => false),
     deleteSelection: resolveContextAction(ctx, "deleteSelection"),
     alignSelectedTensors: (alignment) => ctx.alignSelectedTensors(alignment),
     arrangeSelectedTensors: (layoutKind) => ctx.arrangeSelectedTensors(layoutKind),

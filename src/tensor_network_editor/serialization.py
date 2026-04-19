@@ -160,6 +160,10 @@ def deserialize_spec_from_python_code(
         raise SerializationError(
             "Loading generated Python from linear periodic mode is not supported."
         )
+    if "# Tensor Network Editor grid periodic mode" in code:
+        raise SerializationError(
+            "Loading generated Python from bidimensional For mode is not supported."
+        )
     spec = parse_generated_python_network(code)
     return ensure_valid_spec(spec) if validate else spec
 

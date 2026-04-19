@@ -1,11 +1,13 @@
 export function createDesignMutationPipeline({
   state,
-  isLinearPeriodicMode,
+  isForMode,
   captureEditableFocus,
   restoreEditableFocus,
   resetDerivedStateCaches,
   syncCurrentGraphIntoLinearPeriodicChain,
   syncLinearPeriodicBoundaryTensors,
+  syncCurrentGraphIntoGridPeriodicGrid,
+  syncGridPeriodicBoundaryTensors,
   repairContractionPlan,
   reconcileTensorOrder,
   bumpSpecRevision,
@@ -41,7 +43,7 @@ export function createDesignMutationPipeline({
     const preservedFocus = captureEditableFocus ? captureEditableFocus() : null;
     const previousSelectionIds = [...state.selectionIds];
     mutator();
-    const shouldRefreshLookups = invalidate.lookups || isLinearPeriodicMode();
+    const shouldRefreshLookups = invalidate.lookups || isForMode();
     if (shouldRefreshLookups) {
       state.lookupRevision = -1;
       if (typeof resetDerivedStateCaches === "function") {
@@ -50,8 +52,13 @@ export function createDesignMutationPipeline({
     }
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    if (typeof syncCurrentGraphIntoGridPeriodicGrid === "function") {
+      syncCurrentGraphIntoGridPeriodicGrid();
+    }
     if (typeof syncCurrentGraphIntoLinearPeriodicChain === "function") {
       syncCurrentGraphIntoLinearPeriodicChain();
+    } else if (typeof syncGridPeriodicBoundaryTensors === "function") {
+      syncGridPeriodicBoundaryTensors();
     } else if (typeof syncLinearPeriodicBoundaryTensors === "function") {
       syncLinearPeriodicBoundaryTensors();
     }

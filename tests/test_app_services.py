@@ -15,7 +15,10 @@ from tensor_network_editor.codegen.registry import engine_name_to_text
 from tensor_network_editor.models import CodegenResult, EditorResult, NetworkSpec
 from tensor_network_editor.models import EngineName as SessionEngineName
 from tensor_network_editor.serialization import SCHEMA_VERSION
-from tests.factories import build_linear_periodic_chain_spec
+from tests.factories import (
+    build_grid_periodic_grid_spec,
+    build_linear_periodic_chain_spec,
+)
 
 
 def test_build_bootstrap_payload_matches_session_contract(
@@ -112,3 +115,21 @@ def test_build_bootstrap_payload_preserves_linear_periodic_chain_specs() -> None
     assert payload["schema_version"] == SCHEMA_VERSION
     assert chain["active_cell"] == "periodic"
     assert steps[0]["id"] == "periodic_contract_internal"
+
+
+def test_build_bootstrap_payload_preserves_grid_periodic_grid_specs() -> None:
+    session = EditorSession(
+        initial_spec=build_grid_periodic_grid_spec(),
+        default_engine=SessionEngineName.TENSORNETWORK,
+    )
+
+    payload = build_bootstrap_payload(session)
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
+    grid = cast(JsonDict, network_payload["grid_periodic_grid"])
+    center_cell = cast(JsonDict, grid["center_cell"])
+    tensors = cast(list[JsonDict], center_cell["tensors"])
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert grid["active_cell"] == "center"
+    assert any(tensor["grid_periodic_role"] == "left" for tensor in tensors)

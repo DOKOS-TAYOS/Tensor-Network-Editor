@@ -26,6 +26,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     toolbarModeControls,
     linearPeriodicPreviousCellButton,
     linearPeriodicCellLabel,
+    gridPeriodicUpCellButton,
+    gridPeriodicDownCellButton,
     linearPeriodicNextCellButton,
     benchmarkSchemeNameInput,
     benchmarkCompareButton,
@@ -115,6 +117,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     initial: "Initial cell",
     periodic: "Periodic cell",
     final: "Final cell",
+  };
+  const GRID_PERIODIC_CELL_LABELS = {
+    top_left: "Top-left cell",
+    top: "Top cell",
+    top_right: "Top-right cell",
+    left: "Left cell",
+    center: "Center cell",
+    right: "Right cell",
+    bottom_left: "Bottom-left cell",
+    bottom: "Bottom cell",
+    bottom_right: "Bottom-right cell",
   };
   const FLOATING_PANEL_MARGIN = 8;
   const FLOATING_PANEL_GAP = 4;
@@ -585,6 +598,16 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   function updateToolbarState() {
     const linearPeriodicMode = runtime.isLinearPeriodicMode();
     const activeLinearPeriodicCell = runtime.getActiveLinearPeriodicCellName();
+    const gridPeriodicMode =
+      typeof runtime.isGridPeriodicMode === "function" && runtime.isGridPeriodicMode();
+    const activeGridPeriodicCell =
+      gridPeriodicMode && typeof runtime.getActiveGridPeriodicCellName === "function"
+        ? runtime.getActiveGridPeriodicCellName()
+        : null;
+    const forMode = linearPeriodicMode || gridPeriodicMode;
+    const canSwitchGridPeriodicCell = (direction) =>
+      typeof runtime.canSwitchGridPeriodicCell === "function" &&
+      runtime.canSwitchGridPeriodicCell(direction);
     const benchmarkMode =
       typeof runtime.isBenchmarkMode === "function" && runtime.isBenchmarkMode();
     const benchmarkSession =
@@ -634,15 +657,13 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       exportSvgMenuItem.disabled = !state.spec;
     }
     if (saveSessionTemplateMenuItem) {
-      saveSessionTemplateMenuItem.disabled =
-        linearPeriodicMode || selectedTensorIds.length === 0;
+      saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
     }
     if (loadSessionTemplateMenuItem) {
       loadSessionTemplateMenuItem.disabled = false;
     }
     if (exportSessionTemplateMenuItem) {
-      exportSessionTemplateMenuItem.disabled =
-        linearPeriodicMode || selectedTensorIds.length === 0;
+      exportSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
     }
     if (editSessionTemplateMenuItem) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
@@ -698,17 +719,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
             : "Reflow indices for the selected tensors."
     );
     if (templateSettingsButton) {
-      templateSettingsButton.disabled = !selectedTemplateValue || linearPeriodicMode;
+      templateSettingsButton.disabled = !selectedTemplateValue || forMode;
       setTooltipDescription(
         templateSettingsButton,
         !selectedTemplateValue
           ? "Choose a template first."
-          : linearPeriodicMode
+          : forMode
             ? "Template parameters are not editable in For mode."
             : "Edit template parameters."
       );
     }
-    if ((!selectedTemplateValue || linearPeriodicMode) && state.isTemplateSettingsOpen) {
+    if ((!selectedTemplateValue || forMode) && state.isTemplateSettingsOpen) {
       state.isTemplateSettingsOpen = false;
     }
     if (selectedTensorIds.length === 0 && state.isReflowLayoutOpen) {
@@ -717,32 +738,34 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if (createGroupButton) {
       createGroupButton.disabled = selectedTensorIds.length < 2;
     }
-    setMenuItemChecked(singleModeMenuItem, !linearPeriodicMode && !benchmarkMode);
+    setMenuItemChecked(singleModeMenuItem, !forMode && !benchmarkMode);
     setMenuItemChecked(linearPeriodicModeMenuItem, linearPeriodicMode);
     if (gridPeriodicModeMenuItem) {
-      setMenuItemChecked(gridPeriodicModeMenuItem, false);
+      setMenuItemChecked(gridPeriodicModeMenuItem, gridPeriodicMode);
     }
     if (treeModeMenuItem) {
       setMenuItemChecked(treeModeMenuItem, false);
     }
     if (benchmarkModeMenuItem) {
       setMenuItemChecked(benchmarkModeMenuItem, benchmarkMode);
-      benchmarkModeMenuItem.disabled = linearPeriodicMode;
+      benchmarkModeMenuItem.disabled = forMode;
       setTooltipDescription(
         benchmarkModeMenuItem,
-        linearPeriodicMode
-          ? "Benchmark mode is unavailable while For unidimensional mode is active."
+        forMode
+          ? "Benchmark mode is unavailable while a For mode is active."
           : "Compare manual contraction schemes on the current tensor network."
       );
     }
     if (toolbarModeControls) {
-      toolbarModeControls.hidden = !(linearPeriodicMode || benchmarkMode);
+      toolbarModeControls.hidden = !(forMode || benchmarkMode);
     }
     if (linearPeriodicCellLabel && !benchmarkMode) {
       linearPeriodicCellLabel.hidden = false;
       linearPeriodicCellLabel.textContent = linearPeriodicMode
         ? LINEAR_PERIODIC_CELL_LABELS[activeLinearPeriodicCell] || "For mode"
-        : "Single";
+        : gridPeriodicMode
+          ? GRID_PERIODIC_CELL_LABELS[activeGridPeriodicCell] || "Grid cell"
+          : "Single";
     }
     if (benchmarkSchemeNameInput && !benchmarkMode) {
       benchmarkSchemeNameInput.hidden = true;
@@ -760,15 +783,21 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if (linearPeriodicPreviousCellButton) {
       linearPeriodicPreviousCellButton.disabled = benchmarkMode
         ? benchmarkActivePosition === 0
-        : !linearPeriodicMode || activeLinearPeriodicCell === "initial";
+        : gridPeriodicMode
+          ? !canSwitchGridPeriodicCell("left")
+          : !linearPeriodicMode || activeLinearPeriodicCell === "initial";
       setTooltipDescription(
         linearPeriodicPreviousCellButton,
         benchmarkMode
           ? benchmarkActivePosition === 0
             ? "You are already at the tensor network view."
             : "Move to the previous benchmark scheme."
-          : !linearPeriodicMode
-            ? "For unidimensional mode is not active."
+          : gridPeriodicMode
+            ? canSwitchGridPeriodicCell("left")
+              ? "Move to the cell on the left."
+              : "You are already at the left edge."
+            : !linearPeriodicMode
+              ? "For unidimensional mode is not active."
             : activeLinearPeriodicCell === "initial"
               ? "You are already at the initial cell."
               : "Move to the previous cell."
@@ -776,7 +805,10 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     if (linearPeriodicNextCellButton) {
       linearPeriodicNextCellButton.disabled =
-        !benchmarkMode && (!linearPeriodicMode || activeLinearPeriodicCell === "final");
+        !benchmarkMode &&
+        (gridPeriodicMode
+          ? !canSwitchGridPeriodicCell("right")
+          : !linearPeriodicMode || activeLinearPeriodicCell === "final");
       linearPeriodicNextCellButton.textContent = benchmarkMode
         ? typeof runtime.getBenchmarkNextButtonLabel === "function"
           ? runtime.getBenchmarkNextButtonLabel()
@@ -788,11 +820,41 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
           ? linearPeriodicNextCellButton.textContent === "+"
             ? "Create the next benchmark scheme."
             : "Move to the next benchmark scheme."
-          : !linearPeriodicMode
-            ? "For unidimensional mode is not active."
+          : gridPeriodicMode
+            ? canSwitchGridPeriodicCell("right")
+              ? "Move to the cell on the right."
+              : "You are already at the right edge."
+            : !linearPeriodicMode
+              ? "For unidimensional mode is not active."
             : activeLinearPeriodicCell === "final"
               ? "You are already at the final cell."
               : "Move to the next cell."
+      );
+    }
+    if (gridPeriodicUpCellButton) {
+      gridPeriodicUpCellButton.hidden = !gridPeriodicMode || benchmarkMode;
+      gridPeriodicUpCellButton.disabled =
+        !gridPeriodicMode || !canSwitchGridPeriodicCell("up");
+      setTooltipDescription(
+        gridPeriodicUpCellButton,
+        !gridPeriodicMode
+          ? "For bidimensional mode is not active."
+          : canSwitchGridPeriodicCell("up")
+            ? "Move to the upper cell."
+            : "You are already at the top edge."
+      );
+    }
+    if (gridPeriodicDownCellButton) {
+      gridPeriodicDownCellButton.hidden = !gridPeriodicMode || benchmarkMode;
+      gridPeriodicDownCellButton.disabled =
+        !gridPeriodicMode || !canSwitchGridPeriodicCell("down");
+      setTooltipDescription(
+        gridPeriodicDownCellButton,
+        !gridPeriodicMode
+          ? "For bidimensional mode is not active."
+          : canSwitchGridPeriodicCell("down")
+            ? "Move to the lower cell."
+            : "You are already at the bottom edge."
       );
     }
     if (benchmarkMode) {

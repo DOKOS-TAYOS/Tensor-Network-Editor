@@ -45,6 +45,10 @@ export function getDomRefs(document) {
       "linear-periodic-previous-cell-button"
     ),
     linearPeriodicCellLabel: document.getElementById("linear-periodic-cell-label"),
+    gridPeriodicUpCellButton: document.getElementById("grid-periodic-up-cell-button"),
+    gridPeriodicDownCellButton: document.getElementById(
+      "grid-periodic-down-cell-button"
+    ),
     linearPeriodicNextCellButton: document.getElementById(
       "linear-periodic-next-cell-button"
     ),

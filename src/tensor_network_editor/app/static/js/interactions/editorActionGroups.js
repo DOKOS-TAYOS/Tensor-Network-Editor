@@ -26,6 +26,7 @@ export function createEditorActionGroups(ctx) {
       findGroupById: resolveOptionalValue(ctx, "findGroupById", () => null),
       isLinearPeriodicMode:
         resolveOptionalValue(ctx, "isLinearPeriodicMode", () => false),
+      isForMode: resolveOptionalValue(ctx, "isForMode", () => false),
       syncGeneratedCodePreview:
         typeof ctx.renderGeneratedCodePreview === "function"
           ? (code) => ctx.renderGeneratedCodePreview(code)

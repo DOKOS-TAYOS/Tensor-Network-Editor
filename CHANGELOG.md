@@ -12,10 +12,13 @@ All notable changes to this project will be documented in this file.
 - Multi-selection and group workflows now expose a more consistent action set across the sidebar and right-click menus, including extraction, template promotion, index insertion, color changes, grouping, and deletion.
 - The template manager uses a more compact icon-based delete action, the About panel now includes the project support link on YouTube, and the close icon styling in the help/about dialogs is now white for better contrast.
 - The README header now displays the transparent project logo using the repository-hosted image, while documentation images remain excluded from the published sdist and wheel artifacts.
+- Added a first complete `For bidimensional` mode across the typed model, validation, serialization, frontend editor flow, and code-generation registry, with dedicated `grid_periodic_grid` / `grid_periodic_role` payloads alongside the existing 1D `For` mode.
+- The toolbar now exposes four-way cell navigation for bidimensional `For` mode, keeps the active-cell label to the left of the navigation controls, and disables contraction planning and benchmark actions while a 2D `For` grid is active.
 
 ### Fixed
 
 - Right-clicking a tensor that already belongs to a multi-selection now preserves that selection and opens the selection action menu instead of collapsing to a single-tensor context menu.
+- Grid-periodic frontend/runtime flows now preserve the active 2D cell when returning to `Single`, seed the center cell from the current graph when entering 2D mode, and keep payload synchronization stable across save/load/history/codegen paths without executing expensive generated contractions in tests.
 
 ## [0.2.2] - 2026-04-13
 

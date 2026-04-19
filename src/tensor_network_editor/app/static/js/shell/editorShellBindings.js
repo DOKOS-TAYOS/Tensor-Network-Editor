@@ -33,9 +33,12 @@ export function createEditorShellBindings({
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
+    gridPeriodicModeMenuItem,
     benchmarkModeMenuItem,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
+    gridPeriodicUpCellButton,
+    gridPeriodicDownCellButton,
     benchmarkSchemeNameInput,
     benchmarkCompareButton,
     templateSelectField,
@@ -283,50 +286,54 @@ export function createEditorShellBindings({
       "?",
       "Open the editor guide."
     );
-    [
-      "new-design-button",
-      "export-python-menu-item",
-      "export-png-menu-item",
-      "export-svg-menu-item",
-      "single-mode-menu-item",
-      "grid-periodic-mode-menu-item",
-      "tree-mode-menu-item",
-      "benchmark-mode-menu-item",
-      "benchmark-compare-button",
-      "save-session-template-menu-item",
-      "load-session-template-menu-item",
-      "export-session-template-menu-item",
-      "edit-session-template-menu-item",
-      "help-shortcuts-menu-item",
-      "help-about-menu-item",
-      "done-button",
-      "cancel-button",
-      "linear-periodic-previous-cell-button",
-      "linear-periodic-next-cell-button",
-      "template-settings-button",
-      "reflow-imported-button",
-      "reflow-align-left-button",
-      "reflow-align-right-button",
-      "reflow-align-top-button",
-      "reflow-align-middle-button",
-      "reflow-align-bottom-button",
-      "reflow-arrange-chain-button",
-      "reflow-arrange-tree-button",
-      "reflow-arrange-grid-button",
-      "reflow-snap-grid-button",
-      "reflow-indices-left-button",
-      "reflow-indices-right-button",
-      "reflow-indices-top-button",
-      "reflow-indices-reset-button",
-      "reflow-indices-bottom-button",
-      "copy-code-button",
-      "help-close-button",
-      "template-manager-save-button",
-      "template-manager-discard-button",
-    ].forEach((controlId) => {
-      shortcutTooltip.applyTitleHint(controlId);
-    });
-    shortcutTooltip.applyTitleHint("template-select", { label: "Template" });
+    if (typeof shortcutTooltip.applyTitleHint === "function") {
+      [
+        "new-design-button",
+        "export-python-menu-item",
+        "export-png-menu-item",
+        "export-svg-menu-item",
+        "single-mode-menu-item",
+        "grid-periodic-mode-menu-item",
+        "tree-mode-menu-item",
+        "benchmark-mode-menu-item",
+        "benchmark-compare-button",
+        "save-session-template-menu-item",
+        "load-session-template-menu-item",
+        "export-session-template-menu-item",
+        "edit-session-template-menu-item",
+        "help-shortcuts-menu-item",
+        "help-about-menu-item",
+        "done-button",
+        "cancel-button",
+        "linear-periodic-previous-cell-button",
+        "grid-periodic-up-cell-button",
+        "grid-periodic-down-cell-button",
+        "linear-periodic-next-cell-button",
+        "template-settings-button",
+        "reflow-imported-button",
+        "reflow-align-left-button",
+        "reflow-align-right-button",
+        "reflow-align-top-button",
+        "reflow-align-middle-button",
+        "reflow-align-bottom-button",
+        "reflow-arrange-chain-button",
+        "reflow-arrange-tree-button",
+        "reflow-arrange-grid-button",
+        "reflow-snap-grid-button",
+        "reflow-indices-left-button",
+        "reflow-indices-right-button",
+        "reflow-indices-top-button",
+        "reflow-indices-reset-button",
+        "reflow-indices-bottom-button",
+        "copy-code-button",
+        "help-close-button",
+        "template-manager-save-button",
+        "template-manager-discard-button",
+      ].forEach((controlId) => {
+        shortcutTooltip.applyTitleHint(controlId);
+      });
+      shortcutTooltip.applyTitleHint("template-select", { label: "Template" });
+    }
     shortcutTooltip.attachShortcutTooltipHandlers();
 
     toolbarMenus.forEach((menu) => {
@@ -376,21 +383,35 @@ export function createEditorShellBindings({
       actions.closeTransientToolbarUi();
       actions.setBenchmarkMode(false);
       actions.setLinearPeriodicMode(false);
+      actions.setGridPeriodicMode(false);
       actions.updateToolbarState();
     });
     bindListener(linearPeriodicModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
+      actions.setGridPeriodicMode(false);
+      actions.setBenchmarkMode(false);
       actions.setLinearPeriodicMode(true);
+      actions.updateToolbarState();
+    });
+    bindListener(gridPeriodicModeMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.setBenchmarkMode(false);
+      actions.setGridPeriodicMode(true);
       actions.updateToolbarState();
     });
     bindListener(benchmarkModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
+      actions.setGridPeriodicMode(false);
       actions.setBenchmarkMode(true);
       actions.updateToolbarState();
     });
     bindListener(linearPeriodicPreviousCellButton, "click", () => {
       if (state.benchmarkSession && state.benchmarkSession.enabled) {
         actions.switchBenchmarkPosition(-1);
+        return;
+      }
+      if (typeof actions.isGridPeriodicMode === "function" && actions.isGridPeriodicMode()) {
+        actions.switchGridPeriodicCell("left");
         return;
       }
       actions.switchLinearPeriodicCell(-1);
@@ -400,7 +421,17 @@ export function createEditorShellBindings({
         actions.switchBenchmarkPosition(1);
         return;
       }
+      if (typeof actions.isGridPeriodicMode === "function" && actions.isGridPeriodicMode()) {
+        actions.switchGridPeriodicCell("right");
+        return;
+      }
       actions.switchLinearPeriodicCell(1);
+    });
+    bindListener(gridPeriodicUpCellButton, "click", () => {
+      actions.switchGridPeriodicCell("up");
+    });
+    bindListener(gridPeriodicDownCellButton, "click", () => {
+      actions.switchGridPeriodicCell("down");
     });
     bindListener(benchmarkSchemeNameInput, "input", (event) => {
       actions.renameActiveBenchmarkScheme(event.target.value);

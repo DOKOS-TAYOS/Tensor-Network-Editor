@@ -16,6 +16,7 @@ from tensor_network_editor.models import (
     TensorSpec,
 )
 from tests.factories import (
+    build_grid_periodic_grid_spec,
     build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
     build_linear_periodic_partial_carry_chain_spec,
@@ -122,11 +123,18 @@ def _import_required_backend(engine: EngineName) -> None:
     require_engine_backend(engine)
 
 
-def _execute_generated_code(code: str, *, n: int | None = None) -> dict[str, object]:
+def _execute_generated_code(
+    code: str,
+    *,
+    n: int | None = None,
+    m: int | None = None,
+) -> dict[str, object]:
     """Execute generated code in a shared namespace and return that namespace."""
     namespace: dict[str, object] = {}
     if n is not None:
         namespace["n"] = n
+    if m is not None:
+        namespace["m"] = m
     exec(code, namespace, namespace)
     return namespace
 
@@ -737,6 +745,80 @@ def test_linear_periodic_codegen_supports_all_collection_formats(
     assert container_name in result.code
     for snippet in expected_snippets:
         assert snippet in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_grid_periodic_codegen_uses_cell_helpers_and_free_n_m_loops(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_grid_periodic_grid_spec(), engine=engine)
+
+    assert "def build_top_left_cell(" in result.code
+    assert "def build_top_cell(column_index" in result.code
+    assert "def build_center_cell(column_index: int, row_index: int)" in result.code
+    assert (
+        "def build_bottom_right_cell(column_index: int, row_index: int)" in result.code
+    )
+    assert "validate_grid_shape(n, m)" in result.code
+    assert "if n < 2:" in result.code
+    assert "if m < 2:" in result.code
+    assert "for column_index in range(1, n - 1):" in result.code
+    assert "for row_index in range(1, m - 1):" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        EngineName.TENSORNETWORK,
+        EngineName.TENSORKROWCH,
+    ],
+)
+def test_grid_periodic_codegen_supports_graph_backends_without_execution(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_grid_periodic_grid_spec(), engine=engine)
+
+    assert "# Tensor Network Editor grid periodic mode" in result.code
+    assert "connect_cell_interfaces(" in result.code
+    assert "network_nodes.extend(" in result.code
+    assert "open_edges.extend(" in result.code
+    assert "build_bottom_right_cell(n - 1, m - 1)" in result.code
+    if engine is EngineName.TENSORNETWORK:
+        assert "import tensornetwork as tn" in result.code
+        assert "tn.connect(" in result.code
+    else:
+        assert "import tensorkrowch as tk" in result.code
+        assert "tk.connect(" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [
+        EngineName.QUIMB,
+        EngineName.EINSUM_NUMPY,
+        EngineName.EINSUM_TORCH,
+    ],
+)
+def test_grid_periodic_codegen_supports_remaining_backends_without_execution(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_grid_periodic_grid_spec(), engine=engine)
+
+    assert "# Tensor Network Editor grid periodic mode" in result.code
+    assert "horizontal_label(" in result.code
+    assert "vertical_label(" in result.code
+    assert "build_bottom_right_cell(n - 1, m - 1)" in result.code
+    assert "for column_index in range(1, n - 1):" in result.code
+    assert "for row_index in range(1, m - 1):" in result.code
+    if engine is EngineName.QUIMB:
+        assert "import quimb.tensor as qtn" in result.code
+        assert "network = qtn.TensorNetwork(network_tensors)" in result.code
+    if engine is EngineName.EINSUM_NUMPY:
+        assert "import numpy as np" in result.code
+        assert "result = np.einsum(" in result.code
+    if engine is EngineName.EINSUM_TORCH:
+        assert "import torch" in result.code
+        assert "result = torch.einsum(" in result.code
 
 
 @pytest.mark.parametrize(

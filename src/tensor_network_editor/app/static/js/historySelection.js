@@ -130,8 +130,10 @@ export function registerHistorySelection(ctx) {
 
   const mutationPipeline = createDesignMutationPipeline({
     state,
-    isLinearPeriodicMode: () =>
-      typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
+    isForMode: () =>
+      (typeof ctx.isForMode === "function" && ctx.isForMode()) ||
+      (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) ||
+      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()),
     captureEditableFocus: () => callOptionalContext("captureEditableFocus"),
     restoreEditableFocus: (focusState) =>
       callOptionalContext("restoreEditableFocus", focusState),
@@ -140,6 +142,10 @@ export function registerHistorySelection(ctx) {
       callOptionalContext("syncCurrentGraphIntoLinearPeriodicChain"),
     syncLinearPeriodicBoundaryTensors: () =>
       callOptionalContext("syncLinearPeriodicBoundaryTensors"),
+    syncCurrentGraphIntoGridPeriodicGrid: () =>
+      callOptionalContext("syncCurrentGraphIntoGridPeriodicGrid"),
+    syncGridPeriodicBoundaryTensors: () =>
+      callOptionalContext("syncGridPeriodicBoundaryTensors"),
     repairContractionPlan: () => callOptionalContext("repairContractionPlan"),
     reconcileTensorOrder: () => ctx.reconcileTensorOrder(),
     bumpSpecRevision: () => callOptionalContext("bumpSpecRevision"),

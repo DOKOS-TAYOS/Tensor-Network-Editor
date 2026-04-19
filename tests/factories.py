@@ -10,6 +10,9 @@ from tensor_network_editor.models import (
     ContractionViewSnapshotSpec,
     EdgeEndpointRef,
     EdgeSpec,
+    GridPeriodicCellName,
+    GridPeriodicGridSpec,
+    GridPeriodicTensorRole,
     GroupSpec,
     IndexSpec,
     LinearPeriodicCellName,
@@ -954,6 +957,191 @@ def build_linear_periodic_partial_carry_chain_spec() -> NetworkSpec:
             initial_cell=initial_cell,
             periodic_cell=periodic_cell,
             final_cell=final_cell,
+        ),
+    )
+
+
+def build_grid_periodic_grid_spec() -> NetworkSpec:
+    def build_grid_cell(
+        *,
+        cell_prefix: str,
+        boundary_roles: tuple[GridPeriodicTensorRole, ...],
+        boundary_dimensions: dict[GridPeriodicTensorRole, int],
+    ) -> LinearPeriodicCellSpec:
+        boundary_index_specs = [
+            IndexSpec(
+                id=f"{cell_prefix}_{role.value}_slot",
+                name=f"{role.value}_slot",
+                dimension=boundary_dimensions[role],
+            )
+            for role in boundary_roles
+        ]
+        tensor_indices = [
+            IndexSpec(
+                id=f"{cell_prefix}_{role.value}_bond",
+                name=f"{role.value}_bond",
+                dimension=boundary_dimensions[role],
+            )
+            for role in boundary_roles
+        ] + [
+            IndexSpec(
+                id=f"{cell_prefix}_phys",
+                name="phys",
+                dimension=2,
+            )
+        ]
+        cell_tensors = [
+            TensorSpec(
+                id=f"{cell_prefix}_tensor",
+                name=cell_prefix.title().replace("_", " "),
+                position=CanvasPosition(x=220.0, y=160.0),
+                indices=tensor_indices,
+            ),
+            *[
+                TensorSpec(
+                    id=f"{cell_prefix}_{role.value}_boundary",
+                    name=f"{role.value.title()} boundary",
+                    position=CanvasPosition(x=0.0, y=0.0),
+                    grid_periodic_role=role,
+                    indices=[boundary_index_spec],
+                )
+                for role, boundary_index_spec in zip(
+                    boundary_roles,
+                    boundary_index_specs,
+                    strict=True,
+                )
+            ],
+        ]
+        cell_edges = [
+            EdgeSpec(
+                id=f"{cell_prefix}_{role.value}_edge",
+                name=f"{role.value}_edge",
+                left=EdgeEndpointRef(
+                    tensor_id=f"{cell_prefix}_tensor",
+                    index_id=f"{cell_prefix}_{role.value}_bond",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id=f"{cell_prefix}_{role.value}_boundary",
+                    index_id=f"{cell_prefix}_{role.value}_slot",
+                ),
+            )
+            for role in boundary_roles
+        ]
+        return LinearPeriodicCellSpec(tensors=cell_tensors, edges=cell_edges)
+
+    top_left_cell = build_grid_cell(
+        cell_prefix="top_left",
+        boundary_roles=(GridPeriodicTensorRole.RIGHT, GridPeriodicTensorRole.DOWN),
+        boundary_dimensions={
+            GridPeriodicTensorRole.RIGHT: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+        },
+    )
+    top_cell = build_grid_cell(
+        cell_prefix="top",
+        boundary_roles=(
+            GridPeriodicTensorRole.LEFT,
+            GridPeriodicTensorRole.RIGHT,
+            GridPeriodicTensorRole.DOWN,
+        ),
+        boundary_dimensions={
+            GridPeriodicTensorRole.LEFT: 2,
+            GridPeriodicTensorRole.RIGHT: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+        },
+    )
+    top_right_cell = build_grid_cell(
+        cell_prefix="top_right",
+        boundary_roles=(GridPeriodicTensorRole.LEFT, GridPeriodicTensorRole.DOWN),
+        boundary_dimensions={
+            GridPeriodicTensorRole.LEFT: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+        },
+    )
+    left_cell = build_grid_cell(
+        cell_prefix="left",
+        boundary_roles=(
+            GridPeriodicTensorRole.UP,
+            GridPeriodicTensorRole.RIGHT,
+            GridPeriodicTensorRole.DOWN,
+        ),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.RIGHT: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+        },
+    )
+    center_cell = build_grid_cell(
+        cell_prefix="center",
+        boundary_roles=(
+            GridPeriodicTensorRole.UP,
+            GridPeriodicTensorRole.RIGHT,
+            GridPeriodicTensorRole.DOWN,
+            GridPeriodicTensorRole.LEFT,
+        ),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.RIGHT: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+            GridPeriodicTensorRole.LEFT: 2,
+        },
+    )
+    right_cell = build_grid_cell(
+        cell_prefix="right",
+        boundary_roles=(
+            GridPeriodicTensorRole.UP,
+            GridPeriodicTensorRole.DOWN,
+            GridPeriodicTensorRole.LEFT,
+        ),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.DOWN: 2,
+            GridPeriodicTensorRole.LEFT: 2,
+        },
+    )
+    bottom_left_cell = build_grid_cell(
+        cell_prefix="bottom_left",
+        boundary_roles=(GridPeriodicTensorRole.UP, GridPeriodicTensorRole.RIGHT),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.RIGHT: 2,
+        },
+    )
+    bottom_cell = build_grid_cell(
+        cell_prefix="bottom",
+        boundary_roles=(
+            GridPeriodicTensorRole.UP,
+            GridPeriodicTensorRole.LEFT,
+            GridPeriodicTensorRole.RIGHT,
+        ),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.LEFT: 2,
+            GridPeriodicTensorRole.RIGHT: 2,
+        },
+    )
+    bottom_right_cell = build_grid_cell(
+        cell_prefix="bottom_right",
+        boundary_roles=(GridPeriodicTensorRole.UP, GridPeriodicTensorRole.LEFT),
+        boundary_dimensions={
+            GridPeriodicTensorRole.UP: 2,
+            GridPeriodicTensorRole.LEFT: 2,
+        },
+    )
+    return NetworkSpec(
+        id="network_grid_periodic",
+        name="grid-periodic-grid",
+        grid_periodic_grid=GridPeriodicGridSpec(
+            active_cell=GridPeriodicCellName.CENTER,
+            top_left_cell=top_left_cell,
+            top_cell=top_cell,
+            top_right_cell=top_right_cell,
+            left_cell=left_cell,
+            center_cell=center_cell,
+            right_cell=right_cell,
+            bottom_left_cell=bottom_left_cell,
+            bottom_cell=bottom_cell,
+            bottom_right_cell=bottom_right_cell,
         ),
     )
 

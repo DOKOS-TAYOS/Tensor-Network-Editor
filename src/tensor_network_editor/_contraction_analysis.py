@@ -16,6 +16,7 @@ from ._contraction_analysis_types import ContractionAnalysisResult
 from ._contraction_plan import (
     prepare_contraction_inputs,
 )
+from ._grid_periodic import grid_periodic_active_cell_as_analysis_network
 from ._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
 from .codegen.common import PreparedNetwork, prepare_analyzed_network
@@ -44,11 +45,15 @@ def _normalize_spec_for_contraction_analysis(
 ) -> NetworkSpec:
     """Return the validated spec variant consumed by contraction analysis."""
     resolved_spec = ensure_valid_spec(spec) if validate else spec
-    if resolved_spec.linear_periodic_chain is None:
-        return resolved_spec
-    return linear_periodic_active_cell_as_analysis_network(
-        resolved_spec.linear_periodic_chain
-    )
+    if resolved_spec.linear_periodic_chain is not None:
+        return linear_periodic_active_cell_as_analysis_network(
+            resolved_spec.linear_periodic_chain
+        )
+    if resolved_spec.grid_periodic_grid is not None:
+        return grid_periodic_active_cell_as_analysis_network(
+            resolved_spec.grid_periodic_grid
+        )
+    return resolved_spec
 
 
 def _analyze_prepared_contraction(

@@ -31,7 +31,10 @@ export function createEntityPropertiesRenderers({
       return;
     }
     const groupColor = actions.getMetadataColor(group.metadata, "#61a8ff");
-    const linearPeriodicMode = actions.isLinearPeriodicMode();
+    const linearPeriodicMode =
+      (typeof actions.isForMode === "function" && actions.isForMode()) ||
+      (typeof actions.isLinearPeriodicMode === "function" &&
+        actions.isLinearPeriodicMode());
     const totalElementCount = getTotalElementCountForTensorIds(
       Array.isArray(group.tensor_ids) ? group.tensor_ids : []
     );
