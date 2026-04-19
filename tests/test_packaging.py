@@ -9,6 +9,15 @@ import pytest
 import tensor_network_editor
 
 
+def test_test_session_imports_package_from_current_checkout_src() -> None:
+    package_root = Path(tensor_network_editor.__file__).resolve().parent
+    expected_package_root = (
+        Path.cwd().resolve() / "src" / "tensor_network_editor"
+    ).resolve()
+
+    assert package_root == expected_package_root
+
+
 def test_installed_distribution_exposes_public_metadata_contracts() -> None:
     try:
         distribution = importlib.metadata.distribution("tensor-network-editor")

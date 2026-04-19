@@ -29,6 +29,7 @@ from ._cli_handlers import (
 )
 from ._cli_parser import CliHandlerBindings
 from ._cli_parser import build_command_parser as build_parser
+from ._logging import configure_package_logging, emit_runtime_diagnostics
 from .analysis import analyze_spec
 from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
 from .canonicalization import canonicalize_spec
@@ -87,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parsed_args = cast(
             _CommandNamespace, build_command_parser().parse_args(args_list)
         )
+        selected_log_level = configure_package_logging(parsed_args.log_level)
+        emit_runtime_diagnostics(selected_log_level)
         return _dispatch_command(parsed_args)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2

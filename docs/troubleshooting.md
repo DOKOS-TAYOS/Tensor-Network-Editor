@@ -9,6 +9,8 @@ This page collects common problems, likely causes, and practical fixes.
 - [The Command Is Not Found](#the-command-is-not-found)
 - [Python Cannot Import the Package](#python-cannot-import-the-package)
 - [Installed Version Does Not Match the Checkout](#installed-version-does-not-match-the-checkout)
+- [The Editable Install Points to Another Worktree](#the-editable-install-points-to-another-worktree)
+- [How Do I Turn On Debug Logs](#how-do-i-turn-on-debug-logs)
 - [Generated Backend Code Does Not Run](#generated-backend-code-does-not-run)
 - [Schema Version Errors](#schema-version-errors)
 - [Validation Errors](#validation-errors)
@@ -85,6 +87,7 @@ Check that you are using the same Python where the package was installed:
 ```bash
 python -c "import sys; print(sys.executable)"
 python -m pip show tensor-network-editor
+python -c "from pathlib import Path; import tensor_network_editor; print(Path(tensor_network_editor.__file__).resolve())"
 ```
 
 In a source checkout, install editable mode for development:
@@ -106,6 +109,63 @@ python -m pip install -e ".[dev]"
 
 That realigns `importlib.metadata.version("tensor-network-editor")` with
 `tensor_network_editor.__version__`.
+
+## The Editable Install Points to Another Worktree
+
+This usually happens when one shared `.venv` has an editable install that still
+points at an older checkout or a different git worktree.
+
+Check what Python is importing:
+
+```bash
+python -c "from pathlib import Path; import tensor_network_editor; print(Path(tensor_network_editor.__file__).resolve())"
+```
+
+If that path points somewhere else, reinstall from the checkout you actually
+want to use:
+
+```bash
+python -m pip install -e ".[dev]"
+python -c "from pathlib import Path; import tensor_network_editor; print(Path(tensor_network_editor.__file__).resolve())"
+```
+
+If you are unsure which environment the CLI is using, enable logging once and
+read the runtime diagnostics:
+
+```bash
+tensor-network-editor --log-level info template list
+```
+
+That summary includes the Python executable, current working directory,
+imported package path, version, and editable-install root when available.
+
+## How Do I Turn On Debug Logs
+
+The package stays quiet unless you ask for logs explicitly.
+
+Use the CLI flag for one command:
+
+```bash
+tensor-network-editor --log-level debug edit --no-browser
+```
+
+Or use the environment variable for a short session:
+
+PowerShell:
+
+```powershell
+$env:TNE_LOG_LEVEL = "debug"
+tensor-network-editor validate my_network.json
+Remove-Item Env:\TNE_LOG_LEVEL
+```
+
+Bash:
+
+```bash
+TNE_LOG_LEVEL=debug tensor-network-editor validate my_network.json
+```
+
+The CLI flag takes priority over `TNE_LOG_LEVEL`.
 
 ## Generated Backend Code Does Not Run
 

@@ -29,7 +29,7 @@ from tensor_network_editor._headless_models import (
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
-from tensor_network_editor.cli import main
+from tensor_network_editor.cli import build_command_parser, main
 from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
@@ -133,6 +133,16 @@ def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     assert exit_code == 2
     launch_mock.assert_not_called()
     assert "the following arguments are required: command" in capsys.readouterr().err
+
+
+def test_global_log_level_is_accepted_before_subcommand() -> None:
+    parser = build_command_parser()
+
+    parsed_args = parser.parse_args(["--log-level", "debug", "edit", "--no-browser"])
+
+    assert parsed_args.log_level == "debug"
+    assert parsed_args.command == "edit"
+    assert parsed_args.no_browser is True
 
 
 def test_cli_modules_pass_targeted_mypy_check() -> None:

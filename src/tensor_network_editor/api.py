@@ -51,8 +51,16 @@ def generate_code(
     )
     result = _generate_code(spec, engine, collection_format=collection_format)
     if print_code:
+        LOGGER.debug(
+            "Printing generated %s code to stdout", engine_name_to_text(engine)
+        )
         print(result.code)
     if path is not None:
+        LOGGER.debug(
+            "Writing generated %s code to %s",
+            engine_name_to_text(engine),
+            path,
+        )
         write_utf8_text(path, result.code, description="generated Python code")
     return result
 

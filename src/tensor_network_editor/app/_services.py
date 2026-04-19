@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast
 
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
     from .session import EditorSession
 
 
+LOGGER = logging.getLogger(__name__)
 REPOSITORY_URL = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 LICENSE_NAME = "MIT"
 AUTHOR_NAME = "Alejandro Mata Ali"
@@ -89,6 +91,11 @@ def generate_session_request(
     collection_format: TensorCollectionFormat | None = None,
 ) -> CodegenResult:
     """Generate preview code for one editor request."""
+    LOGGER.debug(
+        "[session=%s] Generating preview request for engine '%s'",
+        session.session_id,
+        engine_name_to_text(engine),
+    )
     spec = deserialize_spec(serialized_spec)
     return generate_code_internal(
         spec,
@@ -104,6 +111,11 @@ def complete_session_request(
     collection_format: TensorCollectionFormat | None = None,
 ) -> EditorResult:
     """Finalize a session request and optionally print or save generated code."""
+    LOGGER.info(
+        "[session=%s] Completing session request for engine '%s'",
+        session.session_id,
+        engine_name_to_text(engine),
+    )
     spec = deserialize_spec(serialized_spec)
     codegen_result = generate_code_internal(
         spec,
@@ -111,10 +123,18 @@ def complete_session_request(
         collection_format=_resolve_collection_format(session, collection_format),
     )
     if session.print_code:
+        LOGGER.debug(
+            "[session=%s] Printing generated code to stdout", session.session_id
+        )
         print(codegen_result.code)
     if session.code_path is not None:
         from .._io import write_utf8_text
 
+        LOGGER.debug(
+            "[session=%s] Writing generated code to %s",
+            session.session_id,
+            session.code_path,
+        )
         write_utf8_text(
             session.code_path,
             codegen_result.code,
@@ -180,6 +200,11 @@ def promote_serialized_subnetwork_to_template(
     overwrite: bool = False,
 ) -> JsonDict:
     """Extract one fragment and persist it as a project-local static template."""
+    LOGGER.info(
+        "[session=%s] Promoting selection to project template '%s'",
+        session.session_id,
+        template_name,
+    )
     spec = deserialize_spec(serialized_spec, validate=False)
     promoted_spec = extract_subnetwork_spec(
         spec,
@@ -211,6 +236,12 @@ def rename_session_project_template(
         raise ValueError(
             f"Template '{template_name}' is registered globally and cannot be renamed."
         )
+    LOGGER.info(
+        "[session=%s] Renaming project template '%s' to '%s'",
+        session.session_id,
+        template_name,
+        new_template_name,
+    )
     session.rename_project_template(
         template_name,
         new_template_name,
@@ -238,6 +269,11 @@ def delete_session_project_template(
     if template_name not in previous_project_template_names:
         raise ValueError(f"Unknown project template '{template_name}'.")
     deleted_template_index = previous_project_template_names.index(template_name)
+    LOGGER.info(
+        "[session=%s] Deleting project template '%s'",
+        session.session_id,
+        template_name,
+    )
     session.delete_project_template(template_name)
     selected_template = None
     remaining_project_templates = list(session.project_template_entries)

@@ -7,6 +7,7 @@ generation, diffs, and templates.
 ## Contents
 
 - [Launch the Editor](#launch-the-editor)
+- [Debug Logging](#debug-logging)
 - [Headless Commands](#headless-commands)
 - [Validate](#validate)
 - [Lint](#lint)
@@ -48,6 +49,37 @@ tensor-network-editor edit --load my_network.json --engine quimb --save-code gen
 
 Use `--no-browser` when you want to start the local server but open the printed
 URL manually.
+
+## Debug Logging
+
+The CLI stays quiet by default. When you need more context for debugging, turn
+package logs on explicitly:
+
+```bash
+tensor-network-editor --log-level info edit --no-browser
+tensor-network-editor --log-level debug validate my_network.json
+```
+
+You can also use the environment variable fallback:
+
+PowerShell:
+
+```powershell
+$env:TNE_LOG_LEVEL = "debug"
+tensor-network-editor template list
+Remove-Item Env:\TNE_LOG_LEVEL
+```
+
+Bash:
+
+```bash
+TNE_LOG_LEVEL=debug tensor-network-editor template list
+```
+
+The CLI flag takes priority over `TNE_LOG_LEVEL`. When logging is enabled, the
+package prints a short runtime diagnostic summary with the active Python
+executable, current working directory, imported package path, version, and any
+editable-install root that may point to a different checkout or worktree.
 
 ## Headless Commands
 

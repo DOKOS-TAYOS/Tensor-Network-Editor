@@ -45,6 +45,13 @@ def test_editor_session_defaults_to_tensorkrowch() -> None:
     assert session.default_collection_format is TensorCollectionFormat.LIST
 
 
+def test_editor_session_exposes_short_logging_identifier() -> None:
+    session = EditorSession()
+
+    assert len(session.session_id) == 8
+    assert session.session_id.isalnum()
+
+
 def test_bootstrap_payload_includes_template_parameter_definitions(
     editor_session: EditorSession,
 ) -> None:

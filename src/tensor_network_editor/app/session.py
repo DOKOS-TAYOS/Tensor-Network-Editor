@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping
 from copy import deepcopy
 from types import FrameType
 from typing import Any, Protocol
+from uuid import uuid4
 
 from .._project_templates import (
     ProjectTemplateCatalog,
@@ -92,6 +93,7 @@ class EditorSession:
                 path.
         """
         self.initial_spec = initial_spec or build_blank_network_spec()
+        self.session_id = uuid4().hex[:8]
         self.default_engine = default_engine
         self.default_collection_format = default_collection_format
         self.print_code = print_code
@@ -107,6 +109,11 @@ class EditorSession:
         self._finished_event = threading.Event()
         self._result: EditorResult | None = None
         self._lock = threading.Lock()
+        LOGGER.debug(
+            "[session=%s] Initialized editor session with engine '%s'",
+            self.session_id,
+            engine_name_to_text(self.default_engine),
+        )
 
     @property
     def project_template_entries(self) -> Mapping[str, ProjectTemplateEntry]:
@@ -209,7 +216,8 @@ class EditorSession:
     ) -> CodegenResult:
         """Generate preview code without finalizing the session."""
         LOGGER.debug(
-            "Generating preview code for engine '%s'",
+            "[session=%s] Generating preview code for engine '%s'",
+            self.session_id,
             engine_name_to_text(engine),
         )
         return generate_session_request(
@@ -227,7 +235,8 @@ class EditorSession:
     ) -> EditorResult:
         """Finalize the session and store the resulting editor output."""
         LOGGER.info(
-            "Completing editor session with engine '%s'",
+            "[session=%s] Completing editor session with engine '%s'",
+            self.session_id,
             engine_name_to_text(engine),
         )
         result = complete_session_request(
@@ -251,7 +260,7 @@ class EditorSession:
 
     def cancel(self) -> None:
         """Cancel the session and unblock any waiter."""
-        LOGGER.info("Cancelling editor session")
+        LOGGER.info("[session=%s] Cancelling editor session", self.session_id)
         with self._lock:
             self._result = None
             self._finished_event.set()
@@ -332,7 +341,6 @@ def launch_editor_session(
     """
     from .server import EditorServer
 
-    LOGGER.info("Starting editor session")
     session = EditorSession(
         initial_spec=initial_spec,
         default_engine=default_engine,
@@ -341,6 +349,7 @@ def launch_editor_session(
         code_path=code_path,
         template_catalog_path=template_catalog_path,
     )
+    LOGGER.info("[session=%s] Starting editor session", session.session_id)
     server = EditorServer(session=session, host=host, port=port)
     previous_sigint_handler: SignalHandler | int | None = None
     server_started = False
@@ -362,21 +371,34 @@ def launch_editor_session(
             _on_server_ready(server.base_url)
         should_print_editor_url = not open_browser
         if open_browser:
-            LOGGER.info("Opening browser at %s", server.base_url)
+            LOGGER.info(
+                "[session=%s] Opening browser at %s",
+                session.session_id,
+                server.base_url,
+            )
             try:
                 opened = webbrowser.open(server.base_url)
             except Exception:  # pragma: no cover - platform dependent browser errors
-                LOGGER.exception("Failed to open the system browser for the editor.")
+                LOGGER.exception(
+                    "[session=%s] Failed to open the system browser for the editor.",
+                    session.session_id,
+                )
                 should_print_editor_url = True
             else:
                 if not opened:
-                    LOGGER.warning("Browser open request was not acknowledged.")
+                    LOGGER.warning(
+                        "[session=%s] Browser open request was not acknowledged.",
+                        session.session_id,
+                    )
                     should_print_editor_url = True
         if should_print_editor_url:
             _print_editor_url(server.base_url)
         return wait_for_editor_result(session)
     except KeyboardInterrupt:
-        LOGGER.info("Editor session interrupted by keyboard input")
+        LOGGER.info(
+            "[session=%s] Editor session interrupted by keyboard input",
+            session.session_id,
+        )
         session.cancel()
         raise
     finally:

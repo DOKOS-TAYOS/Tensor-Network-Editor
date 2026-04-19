@@ -56,16 +56,23 @@ def handle_bootstrap(session: EditorSession) -> JsonResponse:
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Validate a serialized spec or supported Python source payload."""
-    del session
+    session_id = session.session_id
     try:
         spec = deserialize_validation_payload(payload)
     except SerializationError as exc:
-        LOGGER.warning("Validation request contained malformed spec payload: %s", exc)
+        LOGGER.warning(
+            "[session=%s] Validation request contained malformed spec payload: %s",
+            session_id,
+            exc,
+        )
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
         return issues_response(exc.issues)
     except ValueError:
-        LOGGER.warning("Validation request missing 'spec' or 'python_code' payload.")
+        LOGGER.warning(
+            "[session=%s] Validation request missing 'spec' or 'python_code' payload.",
+            session_id,
+        )
         return bad_request_response("Missing 'spec' or 'python_code' payload.")
     issues = validate_spec(spec)
     if issues:
@@ -84,7 +91,11 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     )
     message = response.get("message")
     if response.get("ok") is False and isinstance(message, str):
-        LOGGER.warning("Generate request rejected: %s", message)
+        LOGGER.warning(
+            "[session=%s] Generate request rejected: %s",
+            session.session_id,
+            message,
+        )
     return status, response
 
 
@@ -97,7 +108,11 @@ def handle_complete(session: EditorSession, payload: JsonDict) -> JsonResponse:
     )
     message = response.get("message")
     if response.get("ok") is False and isinstance(message, str):
-        LOGGER.warning("Complete request rejected: %s", message)
+        LOGGER.warning(
+            "[session=%s] Complete request rejected: %s",
+            session.session_id,
+            message,
+        )
     return status, response
 
 
@@ -171,17 +186,24 @@ def handle_analyze_contraction(
     session: EditorSession, payload: JsonDict
 ) -> JsonResponse:
     """Analyze contraction information for a validated serialized spec."""
-    del session
+    session_id = session.session_id
     try:
         serialized_spec = require_serialized_spec(payload)
     except ValueError:
-        LOGGER.warning("Contraction analysis request missing 'spec' payload.")
+        LOGGER.warning(
+            "[session=%s] Contraction analysis request missing 'spec' payload.",
+            session_id,
+        )
         return bad_request_response("Missing 'spec' payload.")
 
     try:
         result = analyze_serialized_contraction(serialized_spec)
     except SerializationError as exc:
-        LOGGER.warning("Contraction analysis request contained malformed spec: %s", exc)
+        LOGGER.warning(
+            "[session=%s] Contraction analysis request contained malformed spec: %s",
+            session_id,
+            exc,
+        )
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
         return issues_response(exc.issues)

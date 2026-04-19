@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ._logging import LOG_LEVEL_NAMES
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, SUPPORTED_MEMORY_DTYPES
 from .models import EngineName, TensorCollectionFormat
 
@@ -32,6 +33,12 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     parser = argparse.ArgumentParser(
         prog="tensor-network-editor",
         description="Work with tensor-network specs from scripts, terminals, and pipelines.",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=list(LOG_LEVEL_NAMES),
+        default=None,
+        help="Enable package logs at the requested severity.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

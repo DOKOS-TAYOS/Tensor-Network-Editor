@@ -1,11 +1,20 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import shutil
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CURRENT_CHECKOUT_SRC = (REPO_ROOT / "src").resolve()
+if str(CURRENT_CHECKOUT_SRC) in sys.path:
+    sys.path.remove(str(CURRENT_CHECKOUT_SRC))
+sys.path.insert(0, str(CURRENT_CHECKOUT_SRC))
 
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.server import EditorServer

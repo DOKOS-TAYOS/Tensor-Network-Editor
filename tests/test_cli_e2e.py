@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,12 +12,26 @@ from tensor_network_editor.api import save_spec
 from tests.factories import build_sample_spec
 
 pytestmark = pytest.mark.integration
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _checkout_python_env(cwd: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    current_src_path = str((cwd / "src").resolve())
+    current_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        current_src_path
+        if not current_pythonpath
+        else os.pathsep.join([current_src_path, current_pythonpath])
+    )
+    return env
 
 
 def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "tensor_network_editor", *args],
         cwd=cwd,
+        env=_checkout_python_env(cwd),
         capture_output=True,
         text=True,
         check=False,
@@ -25,6 +40,31 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
 
 def _assert_cli_success(result: subprocess.CompletedProcess[str]) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_cli_subprocess_prefers_current_checkout_src() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                "import tensor_network_editor; "
+                "print(Path(tensor_network_editor.__file__).resolve())"
+            ),
+        ],
+        cwd=REPO_ROOT,
+        env=_checkout_python_env(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    _assert_cli_success(result)
+    assert (
+        Path(result.stdout.strip()).resolve()
+        == (REPO_ROOT / "src" / "tensor_network_editor" / "__init__.py").resolve()
+    )
 
 
 def test_headless_cli_commands_work_with_real_files(tmp_path: Path) -> None:

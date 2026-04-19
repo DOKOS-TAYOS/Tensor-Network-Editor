@@ -180,6 +180,16 @@ in the active `.venv` so the installed metadata stays aligned with the checkout:
 python -m pip install -e ".[dev]"
 ```
 
+If you work with git worktrees, remember that one shared `.venv` can only point
+its editable install at one checkout at a time. After switching to another
+worktree, rerun the editable install there if you want that checkout to be the
+one imported by `python`:
+
+```bash
+python -m pip install -e ".[dev]"
+python -c "from pathlib import Path; import tensor_network_editor; print(Path(tensor_network_editor.__file__).resolve())"
+```
+
 ## Check the Installation
 
 Check that the CLI is available:
@@ -192,6 +202,18 @@ Check that Python can import the package:
 
 ```bash
 python -c "import tensor_network_editor; print(tensor_network_editor.__version__)"
+```
+
+Check which checkout Python is importing:
+
+```bash
+python -c "from pathlib import Path; import tensor_network_editor; print(Path(tensor_network_editor.__file__).resolve())"
+```
+
+If you need more environment detail while debugging the CLI, enable logs:
+
+```bash
+tensor-network-editor --log-level debug --help
 ```
 
 Launch the editor:

@@ -66,6 +66,7 @@ class EditorServer:
             port: Local port to bind. Use ``0`` for an ephemeral port.
         """
         self.session = session
+        self.session_id = session.session_id
         self.host = host
         self.port = port
         self._static_dir = Path(__file__).resolve().parent / "static"
@@ -93,14 +94,18 @@ class EditorServer:
     def start(self) -> None:
         """Start serving requests in a background thread."""
         self._thread.start()
-        LOGGER.info("Editor server started at %s", self.base_url)
+        LOGGER.info(
+            "[session=%s] Editor server started at %s",
+            self.session_id,
+            self.base_url,
+        )
 
     def stop(self) -> None:
         """Stop the server and wait for the worker thread to exit."""
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)
-        LOGGER.info("Editor server stopped")
+        LOGGER.info("[session=%s] Editor server stopped", self.session_id)
 
     def _serve_forever(self) -> None:
         """Serve requests with a short shutdown polling interval."""
@@ -109,6 +114,7 @@ class EditorServer:
     def _build_handler(self) -> type[BaseHTTPRequestHandler]:
         """Build the request-handler class bound to this server instance."""
         session = self.session
+        session_id = self.session_id
         static_dir = self._static_dir
         asset_version = self._asset_version
 
@@ -122,7 +128,8 @@ class EditorServer:
                     response = self._dispatch_get(parsed.path)
                 except Exception:  # pragma: no cover - defensive server guard
                     LOGGER.exception(
-                        "Unhandled exception while processing %s %s",
+                        "[session=%s] Unhandled exception while processing %s %s",
+                        session_id,
                         self.command,
                         parsed.path,
                     )
@@ -136,7 +143,8 @@ class EditorServer:
                     body = self._read_request_body()
                 except ValueError as exc:
                     LOGGER.warning(
-                        "Rejected malformed request body for %s: %s",
+                        "[session=%s] Rejected malformed request body for %s: %s",
+                        session_id,
                         parsed.path,
                         exc,
                     )
@@ -146,7 +154,8 @@ class EditorServer:
                     payload = read_json(body)
                 except ValueError as exc:
                     LOGGER.warning(
-                        "Rejected malformed JSON request for %s: %s",
+                        "[session=%s] Rejected malformed JSON request for %s: %s",
+                        session_id,
                         parsed.path,
                         exc,
                     )
@@ -156,7 +165,8 @@ class EditorServer:
                     response = self._dispatch_post(parsed.path, payload)
                 except Exception:  # pragma: no cover - defensive server guard
                     LOGGER.exception(
-                        "Unhandled exception while processing %s %s",
+                        "[session=%s] Unhandled exception while processing %s %s",
+                        session_id,
                         self.command,
                         parsed.path,
                     )
@@ -202,6 +212,7 @@ class EditorServer:
                     return routes.handle_complete(session, payload)
                 if path == "/api/cancel":
                     return routes.handle_cancel(session)
+                LOGGER.debug("[session=%s] Unknown POST path: %s", session_id, path)
                 return not_found_response()
 
             def _static_response(
@@ -210,6 +221,11 @@ class EditorServer:
                 """Return one static asset response when the path resolves safely."""
                 static_path = self._resolve_static_path(request_path)
                 if static_path is None:
+                    LOGGER.debug(
+                        "[session=%s] Static asset not found for path %s",
+                        session_id,
+                        request_path,
+                    )
                     return not_found_response()
                 body = static_path.read_bytes()
                 return _BinaryResponse(
