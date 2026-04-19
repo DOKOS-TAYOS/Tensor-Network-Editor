@@ -253,19 +253,19 @@ export function registerCanvasContextMenu(ctx) {
               id="context-menu-add-index-to-selection-button"
               type="button"
             >
-              Add index to tensors
+              Add index
             </button>
             <button
               id="context-menu-extract-selection-button"
               type="button"
             >
-              Extract selection
+              Extract
             </button>
             <button
               id="context-menu-promote-selection-template-button"
               type="button"
             >
-              Promote to template
+              To Template
             </button>
           </div>
           <div class="button-row canvas-context-menu-actions">
@@ -833,19 +833,19 @@ export function registerCanvasContextMenu(ctx) {
               id="context-menu-add-index-to-group-button"
               type="button"
             >
-              Add index to tensors
+              Add index
             </button>
             <button
               id="context-menu-extract-group-button"
               type="button"
             >
-              Extract selection
+              Extract
             </button>
             <button
               id="context-menu-promote-group-template-button"
               type="button"
             >
-              Promote to template
+              To Template
             </button>
             <button id="context-menu-toggle-group-button" type="button">
               ${isCollapsed ? "Expand" : "Collapse"}

@@ -46,21 +46,21 @@ export function buildGroupPropertiesMarkup({
           />
         </label>
         <button id="add-index-to-group-button" type="button">
-          Add Index to Tensors
+          Add index
         </button>
         <button
           id="extract-group-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}
         >
-          Extract Group
+          Extract
         </button>
         <button
           id="promote-group-template-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}
         >
-          Promote Group to Template
+          To Template
         </button>
         <button id="toggle-group-button" type="button">${isCollapsed ? "Expand Group" : "Collapse Group"}</button>
         <button

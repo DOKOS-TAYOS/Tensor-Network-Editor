@@ -122,5 +122,5 @@ export function getPreferredStepAnchorOperandId(
   if (isPreviousOperandId(step.right_operand_id) || isNextOperandId(step.right_operand_id)) {
     return step.left_operand_id;
   }
-  return step.left_operand_id;
+  return step.right_operand_id;
 }

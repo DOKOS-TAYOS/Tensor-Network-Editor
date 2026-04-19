@@ -1,6 +1,6 @@
-function resolveShortcutButton(eventTarget) {
+function resolveTooltipTarget(eventTarget) {
   return eventTarget && typeof eventTarget.closest === "function"
-    ? eventTarget.closest("button[data-shortcut]")
+    ? eventTarget.closest('[data-tooltip-enabled="true"]')
     : null;
 }
 
@@ -8,23 +8,109 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
   let tooltipNode = null;
   let activeButton = null;
 
-  function applyShortcutHint(buttonId, label, shortcut, description = "") {
-    const button = documentRef.getElementById(buttonId);
-    if (!button) {
+  function readAttribute(element, attributeName) {
+    if (!element) {
+      return "";
+    }
+    if (typeof element.getAttribute === "function") {
+      return String(element.getAttribute(attributeName) || "");
+    }
+    if (
+      element.attributes
+      && Object.prototype.hasOwnProperty.call(element.attributes, attributeName)
+    ) {
+      return String(element.attributes[attributeName] || "");
+    }
+    return "";
+  }
+
+  function readElementText(element, selector) {
+    if (!element || typeof element.querySelector !== "function") {
+      return "";
+    }
+    const target = element.querySelector(selector);
+    return target && typeof target.textContent === "string"
+      ? target.textContent.trim()
+      : "";
+  }
+
+  function buildAriaLabel(label, shortcut, description) {
+    if (!label) {
+      return description;
+    }
+    const header = shortcut ? `${label} (${shortcut})` : label;
+    return description ? `${header}. ${description}` : header;
+  }
+
+  function setTooltipData(button, label, shortcut = "", description = "") {
+    if (!button || !button.dataset) {
       return;
     }
-    button.dataset.shortcut = shortcut;
-    button.dataset.shortcutLabel = label;
+    button.dataset.tooltipEnabled = "true";
+    if (label) {
+      button.dataset.shortcutLabel = label;
+    } else {
+      delete button.dataset.shortcutLabel;
+    }
+    if (shortcut) {
+      button.dataset.shortcut = shortcut;
+    } else {
+      delete button.dataset.shortcut;
+    }
     if (description) {
       button.dataset.shortcutDescription = description;
     } else {
       delete button.dataset.shortcutDescription;
     }
-    button.setAttribute(
-      "aria-label",
-      description ? `${label} (${shortcut}). ${description}` : `${label} (${shortcut})`
+    const ariaLabel = buildAriaLabel(label, shortcut, description);
+    if (ariaLabel && typeof button.setAttribute === "function") {
+      button.setAttribute("aria-label", ariaLabel);
+    }
+    if (typeof button.removeAttribute === "function") {
+      button.removeAttribute("title");
+    }
+  }
+
+  function applyShortcutHint(buttonId, label, shortcut = "", description = "") {
+    const button = documentRef.getElementById(buttonId);
+    if (!button) {
+      return;
+    }
+    setTooltipData(button, label, shortcut, description);
+  }
+
+  function applyTitleHint(buttonId, { label = "", shortcut = "", description } = {}) {
+    const button = documentRef.getElementById(buttonId);
+    if (!button) {
+      return;
+    }
+    const resolvedLabel =
+      label
+      || readElementText(button, ".toolbar-menu-item-label")
+      || readAttribute(button, "aria-label").trim()
+      || String(button.textContent || "").trim().replace(/\s+/g, " ");
+    const resolvedShortcut =
+      shortcut
+      || readElementText(button, ".toolbar-menu-item-shortcut")
+      || (button.dataset && typeof button.dataset.shortcut === "string"
+        ? button.dataset.shortcut.trim()
+        : "");
+    const resolvedDescription =
+      typeof description === "string"
+        ? description
+        : readElementText(button, ".toolbar-menu-item-description")
+          || readAttribute(button, "title").trim()
+          || (button.dataset && typeof button.dataset.shortcutDescription === "string"
+            ? button.dataset.shortcutDescription.trim()
+            : "");
+    const normalizedDescription =
+      resolvedDescription === resolvedLabel ? "" : resolvedDescription;
+    setTooltipData(
+      button,
+      resolvedLabel,
+      resolvedShortcut,
+      normalizedDescription
     );
-    button.removeAttribute("title");
   }
 
   function ensureTooltipNode() {
@@ -38,19 +124,42 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
     return tooltipNode;
   }
 
-  function formatTooltipText(button) {
+  function escapeTooltipText(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function buildTooltipMarkup(button) {
     const label = button.dataset.shortcutLabel || String(button.textContent || "").trim();
     const shortcut = button.dataset.shortcut || "";
     const description = button.dataset.shortcutDescription || "";
-    if (!label) {
-      return shortcut;
+    const headerParts = [];
+    if (label) {
+      headerParts.push(
+        `<span class="shortcut-tooltip-label">${escapeTooltipText(label)}</span>`
+      );
     }
-    if (!shortcut) {
-      return description ? `${label}: ${description}` : label;
+    if (shortcut) {
+      headerParts.push(
+        `<span class="shortcut-tooltip-shortcut">${escapeTooltipText(shortcut)}</span>`
+      );
     }
-    return description
-      ? `${label} (${shortcut}): ${description}`
-      : `${label} (${shortcut})`;
+    const sections = [];
+    if (headerParts.length) {
+      sections.push(
+        `<span class="shortcut-tooltip-header">${headerParts.join("")}</span>`
+      );
+    }
+    if (description) {
+      sections.push(
+        `<span class="shortcut-tooltip-description">${escapeTooltipText(description)}</span>`
+      );
+    }
+    return sections.join("");
   }
 
   function positionTooltip(button) {
@@ -78,11 +187,20 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
   }
 
   function showTooltip(button) {
-    if (!button || !button.dataset.shortcut || button.disabled) {
+    if (
+      !button
+      || button.disabled
+      || !button.dataset
+      || !(
+        button.dataset.shortcut
+        || button.dataset.shortcutLabel
+        || button.dataset.shortcutDescription
+      )
+    ) {
       return;
     }
     const tooltip = ensureTooltipNode();
-    tooltip.textContent = formatTooltipText(button);
+    tooltip.innerHTML = buildTooltipMarkup(button);
     tooltip.classList.remove("is-hidden");
     activeButton = button;
     positionTooltip(button);
@@ -101,26 +219,26 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
 
   function attachShortcutTooltipHandlers() {
     documentRef.addEventListener("mouseover", (event) => {
-      const button = resolveShortcutButton(event.target);
+      const button = resolveTooltipTarget(event.target);
       if (button) {
         showTooltip(button);
       }
     });
     documentRef.addEventListener("mouseout", (event) => {
-      const button = resolveShortcutButton(event.target);
-      const relatedButton = resolveShortcutButton(event.relatedTarget);
+      const button = resolveTooltipTarget(event.target);
+      const relatedButton = resolveTooltipTarget(event.relatedTarget);
       if (button && relatedButton !== button) {
         hideTooltip(button);
       }
     });
     documentRef.addEventListener("focusin", (event) => {
-      const button = resolveShortcutButton(event.target);
+      const button = resolveTooltipTarget(event.target);
       if (button) {
         showTooltip(button);
       }
     });
     documentRef.addEventListener("focusout", (event) => {
-      const button = resolveShortcutButton(event.target);
+      const button = resolveTooltipTarget(event.target);
       if (button) {
         hideTooltip(button);
       }
@@ -143,6 +261,7 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
 
   return {
     applyShortcutHint,
+    applyTitleHint,
     attachShortcutTooltipHandlers,
   };
 }

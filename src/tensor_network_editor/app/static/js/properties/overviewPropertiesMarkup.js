@@ -98,20 +98,20 @@ export function buildMultiSelectionPropertiesMarkup({
         hasMultipleTensors
           ? `
             <div class="button-row selection-tensor-actions-row">
-              <button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add Index to Tensors</button>
+              <button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add index</button>
               <button
                 id="extract-selection-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}
               >
-                Extract Selection
+                Extract
               </button>
               <button
                 id="promote-selection-template-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}
               >
-                Promote to Template
+                To Template
               </button>
               <button id="group-selection-button" type="button">Group</button>
             </div>

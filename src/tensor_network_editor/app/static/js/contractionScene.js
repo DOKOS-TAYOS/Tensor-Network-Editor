@@ -768,6 +768,10 @@ export function registerContractionScene(ctx) {
         isPreviousOperandId,
       }
     );
+    const clickedAnchorOperandId =
+      isPreviousOperandId(rightOperandId) || isNextOperandId(rightOperandId)
+        ? leftOperandId
+        : rightOperandId;
 
     plan.steps.push({
       id: nextStepId,
@@ -782,9 +786,11 @@ export function registerContractionScene(ctx) {
       ? nextSnapshot.operand_layouts.find((layout) => layout.operand_id === nextStepId)
       : null;
     const preferredLayout =
+      latestLayoutMap[clickedAnchorOperandId] ||
       latestLayoutMap[preferredAnchorOperandId] ||
       latestLayoutMap[leftOperandId] ||
       latestLayoutMap[rightOperandId] ||
+      (clickedAnchorOperandId === rightOperandId ? rightVisibleOperand : leftVisibleOperand) ||
       (isPreviousOperandId(leftOperandId) || isNextOperandId(leftOperandId)
         ? rightVisibleOperand
         : leftVisibleOperand) ||
@@ -806,7 +812,11 @@ export function registerContractionScene(ctx) {
       touchContractionViewRevision();
     } else if (nextLayout && latestSnapshot) {
       const fallbackLayout =
+        latestLayoutMap[clickedAnchorOperandId] ||
         latestLayoutMap[preferredAnchorOperandId] ||
+        latestSnapshot.operand_layouts.find(
+          (layout) => layout.operand_id === clickedAnchorOperandId
+        ) ||
         latestSnapshot.operand_layouts.find(
           (layout) => layout.operand_id === preferredAnchorOperandId
         );
