@@ -70,11 +70,35 @@ class DummyCodeGenerator(CodeGenerator):
         self,
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+        *,
+        validate: bool = True,
     ) -> CodegenResult:
+        del validate
         return CodegenResult(
             engine=self.engine,
             code=(
                 f"# dummy export for {spec.name}\n"
+                f"# collection_format={collection_format.value}\n"
+            ),
+            warnings=[],
+            artifacts={"tensor_count": len(spec.tensors)},
+        )
+
+
+class LegacyDummyCodeGenerator:
+    """Legacy generator used to verify backward-compatible registry calls."""
+
+    engine: str = "dummy_engine"
+
+    def generate(
+        self,
+        spec: NetworkSpec,
+        collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    ) -> CodegenResult:
+        return CodegenResult(
+            engine=self.engine,
+            code=(
+                f"# legacy dummy export for {spec.name}\n"
                 f"# collection_format={collection_format.value}\n"
             ),
             warnings=[],
@@ -110,7 +134,10 @@ def test_builtin_extension_registries_are_seeded() -> None:
 
 def test_register_generator_supports_custom_engine_name() -> None:
     spec = NetworkSpec(name="custom export")
-    register_generator("dummy_engine", DummyCodeGenerator())
+    register_generator(
+        "dummy_engine",
+        cast(CodeGenerator, LegacyDummyCodeGenerator()),
+    )
 
     result = generate_code(
         spec,

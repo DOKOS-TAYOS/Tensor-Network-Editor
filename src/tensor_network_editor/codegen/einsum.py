@@ -46,9 +46,11 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         self,
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+        *,
+        validate: bool = True,
     ) -> CodegenResult:
         """Generate einsum-based Python code for ``spec``."""
-        prepared = prepare_network(spec)
+        prepared = prepare_network(spec, validate=validate)
         collection_name = container_name_for_format(collection_format)
         tensor_collection_lines = render_tensor_collection_initialization(
             collection_name,

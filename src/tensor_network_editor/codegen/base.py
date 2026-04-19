@@ -22,6 +22,8 @@ class CodeGenerator(ABC):
         self,
         spec: NetworkSpec,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+        *,
+        validate: bool = True,
     ) -> CodegenResult:
         """Generate Python code for ``spec`` using the given collection layout."""
         raise NotImplementedError

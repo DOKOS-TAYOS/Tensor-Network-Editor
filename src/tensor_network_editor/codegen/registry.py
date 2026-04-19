@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import re
 
 from ..models import (
@@ -88,11 +89,21 @@ def get_generator(engine: EngineIdentifier) -> CodeGenerator:
     return _GENERATORS[engine_name]
 
 
+def _generator_supports_validate(generator: CodeGenerator) -> bool:
+    """Return whether ``generator.generate`` accepts the ``validate`` keyword."""
+    try:
+        signature = inspect.signature(generator.generate)
+    except (TypeError, ValueError):
+        return True
+    return "validate" in signature.parameters
+
+
 def generate_code(
     spec: NetworkSpec,
     engine: EngineIdentifier,
     *,
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    validate: bool = True,
 ) -> CodegenResult:
     """Generate Python code through the registered backend generator."""
     normalized_engine = resolve_registered_engine(engine)
@@ -103,6 +114,7 @@ def generate_code(
             spec,
             normalized_engine,
             collection_format=collection_format,
+            validate=validate,
         )
     if spec.linear_periodic_chain is not None and isinstance(
         normalized_engine, EngineName
@@ -111,11 +123,16 @@ def generate_code(
             spec,
             normalized_engine,
             collection_format=collection_format,
+            validate=validate,
         )
-    return get_generator(normalized_engine).generate(
-        spec,
-        collection_format=collection_format,
-    )
+    generator = get_generator(normalized_engine)
+    if _generator_supports_validate(generator):
+        return generator.generate(
+            spec,
+            collection_format=collection_format,
+            validate=validate,
+        )
+    return generator.generate(spec, collection_format=collection_format)
 
 
 def _seed_builtin_generators() -> None:

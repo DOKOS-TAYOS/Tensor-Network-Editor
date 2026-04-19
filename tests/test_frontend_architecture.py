@@ -1522,6 +1522,14 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
           indexOwnerById: {{}},
           groupsByTensorId: {{}},
           noteById: {{}},
+          visibleLookupRevisionToken: null,
+          visibleIndexOwnerById: {{}},
+          visibleEdgeByIndexId: {{}},
+          contractionSceneViewRevision: 0,
+          contractionProgressionCacheToken: 0,
+          plannerInspectionStepCount: null,
+          plannerPreviewMode: null,
+          benchmarkSession: {{ activePosition: 0 }},
         }};
 
         const specNormalization = specNormalizationModule.createSpecNormalizationBindings({{
@@ -1567,6 +1575,49 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }}
         if (!specLookups.findIndexOwner("index_a")) {{
           throw new Error("Spec lookup helpers should resolve index owners.");
+        }}
+        let visibleTensorReads = 0;
+        let visibleEdgeReads = 0;
+        const visibleLookups = specLookupsModule.createSpecLookupBindings({{
+          ctx: {{
+            findVisibleEdgeById: () => null,
+            getVisibleEdges: () => {{
+              visibleEdgeReads += 1;
+              return [
+                {{
+                  id: "visible_edge",
+                  leftIndexId: "visible_index",
+                  rightIndexId: "visible_partner",
+                }},
+              ];
+            }},
+            getVisibleTensors: () => {{
+              visibleTensorReads += 1;
+              return [
+                {{
+                  id: "visible_tensor",
+                  indices: [
+                    {{ id: "visible_index" }},
+                    {{ id: "visible_partner" }},
+                  ],
+                }},
+              ];
+            }},
+          }},
+          state: normalizedState,
+        }});
+        if (!visibleLookups.findIndexOwner("visible_index")) {{
+          throw new Error("Visible lookup helpers should resolve non-base visible indices.");
+        }}
+        if (!visibleLookups.findEdgeByIndexId("visible_index")) {{
+          throw new Error("Visible lookup helpers should resolve non-base visible edges.");
+        }}
+        visibleLookups.findIndexOwner("visible_index");
+        visibleLookups.findEdgeByIndexId("visible_index");
+        if (visibleTensorReads !== 1 || visibleEdgeReads !== 1) {{
+          throw new Error(
+            `Visible lookup helpers should cache visible scans, received tensor reads ${{visibleTensorReads}} and edge reads ${{visibleEdgeReads}}.`
+          );
         }}
         specMutations.applyColorToSelection("#ff8800");
         if (normalizedState.spec.tensors[0].metadata.color !== "#ff8800") {{
@@ -1703,6 +1754,7 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }}
 
         const pipelineEvents = [];
+        let refreshAnalysisImmediately = false;
         const mutationState = {{
           spec: {{ id: "network_demo" }},
           selectionIds: ["tensor_a"],
@@ -1710,6 +1762,7 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
           plannerPreviewMode: "automaticFuture",
           plannerFutureBadgeDisclosure: {{ badge: true }},
           lastMutationClearedCode: false,
+          contractionAnalysisDirty: false,
         }};
         const mutationPipeline = mutationPipelineModule.createDesignMutationPipeline({{
           state: mutationState,
@@ -1738,7 +1791,15 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
           syncSelectedElementState: () => pipelineEvents.push("sync-selected"),
           renderMutationState: (invalidate) =>
             pipelineEvents.push(`render:${{invalidate.graph}}:${{invalidate.analysis}}`),
-          refreshContractionAnalysis: () => pipelineEvents.push("refresh-analysis"),
+          markContractionAnalysisDirty: () => {{
+            mutationState.contractionAnalysisDirty = true;
+            pipelineEvents.push("mark-analysis-dirty");
+          }},
+          shouldRefreshContractionAnalysisImmediately: () => refreshAnalysisImmediately,
+          refreshContractionAnalysis: () => {{
+            mutationState.contractionAnalysisDirty = false;
+            pipelineEvents.push("refresh-analysis");
+          }},
           setStatus: (message, level) => pipelineEvents.push(`status:${{level}}:${{message}}`),
         }});
         mutationPipeline.applyDesignChange(
@@ -1758,10 +1819,33 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }}
         if (
           !pipelineEvents.includes("commit") ||
-          !pipelineEvents.includes("refresh-analysis") ||
+          !pipelineEvents.includes("mark-analysis-dirty") ||
+          pipelineEvents.includes("refresh-analysis") ||
+          !mutationState.contractionAnalysisDirty ||
           !pipelineEvents.includes("status:success:Updated design. preview-cleared")
         ) {{
-          throw new Error(`Mutation pipeline should keep the explicit mutation flow, received ${{JSON.stringify(pipelineEvents)}}.`);
+          throw new Error(`Mutation pipeline should defer analysis refresh while the planner is inactive, received ${{JSON.stringify(pipelineEvents)}}.`);
+        }}
+        pipelineEvents.length = 0;
+        refreshAnalysisImmediately = true;
+        mutationPipeline.applyDesignChange(
+          () => {{
+            mutationState.spec.reanalyzed = true;
+          }},
+          {{
+            statusMessage: "Reanalyzed design.",
+            invalidate: {{
+              graph: true,
+              analysis: true,
+            }},
+          }}
+        );
+        if (
+          !pipelineEvents.includes("mark-analysis-dirty") ||
+          !pipelineEvents.includes("refresh-analysis") ||
+          mutationState.contractionAnalysisDirty
+        ) {{
+          throw new Error(`Mutation pipeline should refresh analysis immediately when the planner is active, received ${{JSON.stringify(pipelineEvents)}}.`);
         }}
         """,
     )

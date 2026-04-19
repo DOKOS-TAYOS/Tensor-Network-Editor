@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Major structural refactor across the project (layout, modules, and responsibilities reorganized for clarity and maintainability).
 - Several rounds of performance work: repeated profiling, hot-path optimizations, and follow-up tuning after each pass.
+- Contraction analysis and code generation now avoid repeated validation on already-checked specs, prepared networks cache tensor lookups by id, and the editor defers planner analysis refreshes plus visible-scene fallback scans until they are actually needed.
 - The editor now uses a tighter dark IDE visual language with neutral charcoal surfaces, restrained purple focus/selection accents, shared graph/minimap theme tokens, sans-serif panel titles, and more compact radii across panels, notes, planner cards, and dialogs.
 - Close and discard icon buttons now keep a stable appearance on mouse hover while still showing a visible keyboard focus state.
 - The toolbar `Reflow` control now opens a layout popover and applies the chosen layout action to the current multi-tensor selection instead of only targeting the last imported template or subnetwork.

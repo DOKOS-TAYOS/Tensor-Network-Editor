@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from typing import cast
+from unittest.mock import patch
 
+import tensor_network_editor._contraction_analysis as contraction_analysis_module
+import tensor_network_editor.app._services as app_services_module
+import tensor_network_editor.codegen.einsum as einsum_codegen_module
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app._services import (
     analyze_serialized_contraction,
@@ -96,6 +100,56 @@ def test_analyze_serialized_contraction_returns_structured_result(
     result = analyze_serialized_contraction(serialized_sample_spec)
 
     assert result.network_output_shape == (2, 4)
+
+
+def test_analyze_serialized_contraction_does_not_revalidate_in_analysis(
+    serialized_sample_spec: JsonDict,
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.app._services.validate_spec",
+            wraps=app_services_module.validate_spec,
+        ) as validate_spec_mock,
+        patch(
+            "tensor_network_editor._contraction_analysis.ensure_valid_spec",
+            wraps=contraction_analysis_module.ensure_valid_spec,
+        ) as ensure_valid_spec_mock,
+    ):
+        result = analyze_serialized_contraction(serialized_sample_spec)
+
+    assert result.network_output_shape == (2, 4)
+    assert validate_spec_mock.call_count == 1
+    assert ensure_valid_spec_mock.call_count == 0
+
+
+def test_generate_session_request_passes_prevalidated_specs_to_generators(
+    editor_session: EditorSession,
+    serialized_sample_spec: JsonDict,
+) -> None:
+    prepare_network_calls: list[bool] = []
+    original_prepare_network = einsum_codegen_module.prepare_network
+
+    def counting_prepare_network(
+        spec: NetworkSpec,
+        *,
+        validate: bool = True,
+    ) -> object:
+        prepare_network_calls.append(validate)
+        return original_prepare_network(spec, validate=validate)
+
+    with patch(
+        "tensor_network_editor.codegen.einsum.prepare_network",
+        side_effect=counting_prepare_network,
+    ):
+        result = generate_session_request(
+            editor_session,
+            serialized_sample_spec,
+            SessionEngineName.EINSUM_NUMPY,
+            editor_session.default_collection_format,
+        )
+
+    assert isinstance(result, CodegenResult)
+    assert prepare_network_calls == [False]
 
 
 def test_build_bootstrap_payload_preserves_linear_periodic_chain_specs() -> None:

@@ -18,6 +18,8 @@ export function createDesignMutationPipeline({
   updatePendingPropertiesIndexFocus,
   syncSelectedElementState,
   renderMutationState,
+  markContractionAnalysisDirty,
+  shouldRefreshContractionAnalysisImmediately,
   refreshContractionAnalysis,
   setStatus,
 }) {
@@ -89,8 +91,22 @@ export function createDesignMutationPipeline({
     if (typeof restoreEditableFocus === "function") {
       restoreEditableFocus(preservedFocus);
     }
-    if (invalidate.analysis && typeof refreshContractionAnalysis === "function") {
-      refreshContractionAnalysis();
+    if (invalidate.analysis) {
+      if (typeof markContractionAnalysisDirty === "function") {
+        markContractionAnalysisDirty();
+      } else {
+        state.contractionAnalysisDirty = true;
+      }
+      const shouldRefreshImmediately =
+        options.refreshAnalysisImmediately === true ||
+        (typeof shouldRefreshContractionAnalysisImmediately === "function" &&
+          shouldRefreshContractionAnalysisImmediately());
+      if (
+        shouldRefreshImmediately &&
+        typeof refreshContractionAnalysis === "function"
+      ) {
+        refreshContractionAnalysis();
+      }
     }
 
     if (options.statusMessage) {

@@ -2606,6 +2606,7 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
         let canvasResizeCount = 0;
         let overlayRenderCount = 0;
         let minimapRenderCount = 0;
+        let plannerRefreshCount = 0;
         const ctx = {
           state: createInitialState(),
           dom: {
@@ -2637,6 +2638,10 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
           },
           renderMinimap() {
             minimapRenderCount += 1;
+          },
+          refreshContractionAnalysis() {
+            plannerRefreshCount += 1;
+            ctx.state.contractionAnalysisDirty = false;
           },
         };
 
@@ -2690,6 +2695,15 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
         fire(ctx.dom.sidebarResizeHandle, "keydown", { key: "ArrowLeft" });
         if (ctx.state.sidebarWidth !== 640) {
           throw new Error(`Expected ArrowLeft to widen the sidebar by 24px, received ${ctx.state.sidebarWidth}.`);
+        }
+        ctx.state.contractionAnalysisDirty = true;
+        ctx.setActiveSidebarTab("planner");
+        if (plannerRefreshCount !== 1) {
+          throw new Error(`Expected opening the planner tab with dirty analysis to trigger one refresh, received ${plannerRefreshCount}.`);
+        }
+        ctx.setActiveSidebarTab("planner");
+        if (plannerRefreshCount !== 1) {
+          throw new Error(`Expected reopening a clean planner tab to avoid duplicate refreshes, received ${plannerRefreshCount}.`);
         }
         """
     )

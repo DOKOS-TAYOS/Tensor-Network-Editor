@@ -1,4 +1,10 @@
 export function createSpecLookupBindings({ ctx, state }) {
+  function resetVisibleLookupCaches() {
+    state.visibleLookupRevisionToken = null;
+    state.visibleIndexOwnerById = {};
+    state.visibleEdgeByIndexId = {};
+  }
+
   function resetDerivedStateCaches() {
     state.contractibleCacheRevision = -1;
     state.contractibleCacheTensorRef = null;
@@ -23,6 +29,7 @@ export function createSpecLookupBindings({ ctx, state }) {
     state.contractionSceneCacheViewRevision = -1;
     state.contractionSceneCacheProgressionToken = -1;
     state.contractionSceneCacheByAppliedStepCount = {};
+    resetVisibleLookupCaches();
   }
 
   function bumpSpecRevision() {
@@ -41,6 +48,7 @@ export function createSpecLookupBindings({ ctx, state }) {
       state.indexOwnerById = {};
       state.groupsByTensorId = {};
       state.noteById = {};
+      resetVisibleLookupCaches();
       return;
     }
     if (state.lookupRevision === state.specRevision) {
@@ -139,16 +147,56 @@ export function createSpecLookupBindings({ ctx, state }) {
     return state.edgeById[resolvedEdgeId] || null;
   }
 
-  function findVisibleIndexOwner(indexId) {
+  function getVisibleLookupRevisionToken() {
+    const benchmarkPosition =
+      state.benchmarkSession &&
+      Number.isInteger(state.benchmarkSession.activePosition)
+        ? state.benchmarkSession.activePosition
+        : -1;
+    return [
+      state.specRevision,
+      state.contractionSceneViewRevision,
+      state.contractionProgressionCacheToken,
+      state.plannerPreviewMode || "",
+      Number.isInteger(state.plannerInspectionStepCount)
+        ? state.plannerInspectionStepCount
+        : "",
+      benchmarkPosition,
+    ].join("|");
+  }
+
+  function ensureVisibleLookups() {
+    const revisionToken = getVisibleLookupRevisionToken();
+    if (state.visibleLookupRevisionToken === revisionToken) {
+      return;
+    }
+    const visibleIndexOwnerById = {};
+    const visibleEdgeByIndexId = {};
     const visibleTensors =
       typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : [];
-    for (const tensor of visibleTensors) {
-      const indexPosition = tensor.indices.findIndex((index) => index.id === indexId);
-      if (indexPosition >= 0) {
-        return { tensor, index: tensor.indices[indexPosition], indexPosition };
+    visibleTensors.forEach((tensor) => {
+      tensor.indices.forEach((index, indexPosition) => {
+        visibleIndexOwnerById[index.id] = { tensor, index, indexPosition };
+      });
+    });
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : [];
+    visibleEdges.forEach((edge) => {
+      if (edge && typeof edge.leftIndexId === "string" && edge.leftIndexId) {
+        visibleEdgeByIndexId[edge.leftIndexId] = edge;
       }
-    }
-    return null;
+      if (edge && typeof edge.rightIndexId === "string" && edge.rightIndexId) {
+        visibleEdgeByIndexId[edge.rightIndexId] = edge;
+      }
+    });
+    state.visibleLookupRevisionToken = revisionToken;
+    state.visibleIndexOwnerById = visibleIndexOwnerById;
+    state.visibleEdgeByIndexId = visibleEdgeByIndexId;
+  }
+
+  function findVisibleIndexOwner(indexId) {
+    ensureVisibleLookups();
+    return state.visibleIndexOwnerById[indexId] || null;
   }
 
   function findIndexOwner(indexId) {
@@ -181,13 +229,8 @@ export function createSpecLookupBindings({ ctx, state }) {
     if (baseEdge) {
       return baseEdge;
     }
-    const visibleEdges =
-      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : [];
-    return (
-      visibleEdges.find(
-        (edge) => edge.leftIndexId === indexId || edge.rightIndexId === indexId
-      ) || null
-    );
+    ensureVisibleLookups();
+    return state.visibleEdgeByIndexId[indexId] || null;
   }
 
   return {

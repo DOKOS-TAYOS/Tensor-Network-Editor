@@ -7,9 +7,9 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast
 
 from .._annotation_catalog import serialize_annotation_definitions
+from .._contraction_analysis import _analyze_validated_contraction
 from .._contraction_analysis_types import ContractionAnalysisResult
 from .._version import __version__
-from ..analysis import analyze_contraction
 from ..codegen.registry import (
     engine_name_to_text,
     list_generator_names,
@@ -101,6 +101,7 @@ def generate_session_request(
         spec,
         engine,
         collection_format=_resolve_collection_format(session, collection_format),
+        validate=False,
     )
 
 
@@ -121,6 +122,7 @@ def complete_session_request(
         spec,
         engine,
         collection_format=_resolve_collection_format(session, collection_format),
+        validate=False,
     )
     if session.print_code:
         LOGGER.debug(
@@ -168,7 +170,7 @@ def analyze_serialized_contraction(
     issues = validate_spec(spec)
     if issues:
         raise SpecValidationError(issues)
-    return analyze_contraction(spec)
+    return _analyze_validated_contraction(spec)
 
 
 def extract_serialized_subnetwork(

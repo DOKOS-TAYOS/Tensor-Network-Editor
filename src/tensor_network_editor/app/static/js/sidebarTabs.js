@@ -148,6 +148,13 @@ export function registerSidebarTabs(ctx) {
   function setActiveSidebarTab(tabName) {
     state.activeSidebarTab = normalizeSidebarTab(tabName);
     renderSidebarTabs();
+    if (
+      state.activeSidebarTab === "planner" &&
+      state.contractionAnalysisDirty &&
+      typeof ctx.refreshContractionAnalysis === "function"
+    ) {
+      ctx.refreshContractionAnalysis();
+    }
   }
 
   function toggleSidebarCollapsed(forceCollapsed) {

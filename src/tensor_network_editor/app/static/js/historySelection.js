@@ -170,6 +170,17 @@ export function registerHistorySelection(ctx) {
         minimap: invalidate.minimap,
         syncSelection: true,
       }),
+    markContractionAnalysisDirty: () => {
+      state.contractionAnalysisDirty = true;
+    },
+    shouldRefreshContractionAnalysisImmediately: () =>
+      state.activeSidebarTab === "planner" ||
+      state.plannerMode ||
+      Boolean(state.plannerPreviewMode) ||
+      (typeof ctx.isInspectingPastStage === "function" &&
+        ctx.isInspectingPastStage()) ||
+      (typeof ctx.isContractionSceneVisible === "function" &&
+        ctx.isContractionSceneVisible()),
     refreshContractionAnalysis: () =>
       callOptionalContext("refreshContractionAnalysis"),
     setStatus: (message, level) => ctx.setStatus(message, level),

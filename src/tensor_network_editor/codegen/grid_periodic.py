@@ -13,8 +13,10 @@ def generate_grid_periodic_code(
     engine: EngineName,
     *,
     collection_format: TensorCollectionFormat,
+    validate: bool = True,
 ) -> CodegenResult:
     """Generate helper-based Python code for the bidimensional periodic mode."""
+    del validate
     if spec.grid_periodic_grid is None:
         raise CodeGenerationError(
             "Grid periodic code generation requires a grid payload."

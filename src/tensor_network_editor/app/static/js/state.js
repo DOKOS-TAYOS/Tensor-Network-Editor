@@ -73,6 +73,9 @@ export function createInitialState() {
     contractionProgressionCache: null,
     contractionProgressionCacheToken: 0,
     contractionSceneViewRevision: 0,
+    visibleLookupRevisionToken: null,
+    visibleIndexOwnerById: {},
+    visibleEdgeByIndexId: {},
     contractionSceneCacheRevision: -1,
     contractionSceneCacheViewRevision: -1,
     contractionSceneCacheProgressionToken: -1,
@@ -149,6 +152,7 @@ export function createInitialState() {
     plannerManualOrderByTensorId: {},
     plannerPreviewOrderByTensorId: {},
     contractionAnalysis: null,
+    contractionAnalysisDirty: false,
     contractionAnalysisRequestId: 0,
     benchmarkSession: createInitialBenchmarkSession(),
   };

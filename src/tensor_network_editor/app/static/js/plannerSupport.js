@@ -418,6 +418,8 @@ export function createPlannerSupport({
     }
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
+    } else if (state.plannerMode && state.contractionAnalysisDirty) {
+      refreshContractionAnalysis();
     }
     renderPlanner();
     ctx.renderOverlayDecorations();
@@ -442,6 +444,7 @@ export function createPlannerSupport({
   function refreshContractionAnalysis(options = {}) {
     if (isGridPeriodicMode()) {
       pendingContractionAnalysisOptions = null;
+      state.contractionAnalysisDirty = false;
       if (state.spec) {
         state.spec.contraction_plan = null;
       }
@@ -455,11 +458,13 @@ export function createPlannerSupport({
     }
     if (isBenchmarkBasePosition()) {
       pendingContractionAnalysisOptions = null;
+      state.contractionAnalysisDirty = false;
       state.contractionAnalysis = { status: "benchmarkBase" };
       renderPlanner();
       ctx.renderOverlayDecorations();
       return;
     }
+    state.contractionAnalysisDirty = false;
     pendingContractionAnalysisOptions = {
       focusTab:
         Boolean(options.focusTab) ||

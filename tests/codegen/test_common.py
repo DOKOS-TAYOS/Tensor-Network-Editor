@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -9,9 +10,15 @@ from tensor_network_editor.codegen.common import (
     make_unique_identifiers,
     prepare_network,
     sanitize_identifier,
+    tensor_collection_reference_by_id,
     tensor_variable_name,
 )
-from tensor_network_editor.models import CanvasPosition, NetworkSpec, TensorSpec
+from tensor_network_editor.models import (
+    CanvasPosition,
+    NetworkSpec,
+    TensorCollectionFormat,
+    TensorSpec,
+)
 
 
 class _CountingPosition:
@@ -96,3 +103,29 @@ def test_tensor_variable_name_resolves_known_tensors(sample_spec: NetworkSpec) -
     assert tensor_variable_name(prepared, "tensor_a") == "a"
     with pytest.raises(KeyError, match="missing_tensor"):
         tensor_variable_name(prepared, "missing_tensor")
+
+
+def test_tensor_collection_reference_by_id_uses_prepared_tensor_lookup() -> None:
+    prepared = cast(
+        Any,
+        SimpleNamespace(
+            tensor_by_id={
+                "tensor_a": SimpleNamespace(
+                    row_index=0,
+                    column_index=0,
+                    flat_index=0,
+                )
+            },
+            tensors=None,
+        ),
+    )
+
+    assert (
+        tensor_collection_reference_by_id(
+            prepared,
+            "tensor_a",
+            TensorCollectionFormat.LIST,
+            "tensors",
+        )
+        == "tensors[0]"
+    )

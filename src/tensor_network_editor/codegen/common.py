@@ -79,6 +79,7 @@ class PreparedNetwork:
 
     spec: NetworkSpec
     tensors: list[PreparedTensor]
+    tensor_by_id: dict[str, PreparedTensor]
     tensor_rows: list[list[PreparedTensor]]
     edges: list[PreparedEdge]
     open_indices: list[PreparedIndex]
@@ -189,6 +190,10 @@ def prepare_analyzed_network(analysis: NetworkAnalysis) -> PreparedNetwork:
     return PreparedNetwork(
         spec=analysis.spec,
         tensors=prepared_tensors,
+        tensor_by_id={
+            prepared_tensor.spec.id: prepared_tensor
+            for prepared_tensor in prepared_tensors
+        },
         tensor_rows=prepared_tensor_rows,
         edges=prepared_edges,
         open_indices=open_indices,
@@ -236,10 +241,10 @@ def group_tensors_by_visual_rows(tensors: list[TensorSpec]) -> list[list[TensorS
 
 def tensor_variable_name(prepared: PreparedNetwork, tensor_id: str) -> str:
     """Return the generated variable name for ``tensor_id``."""
-    for tensor in prepared.tensors:
-        if tensor.spec.id == tensor_id:
-            return tensor.variable_name
-    raise KeyError(tensor_id)
+    try:
+        return prepared.tensor_by_id[tensor_id].variable_name
+    except KeyError as exc:
+        raise KeyError(tensor_id) from exc
 
 
 def tensor_display_name_by_id(prepared: PreparedNetwork) -> dict[str, str]:
@@ -387,12 +392,11 @@ def tensor_collection_reference_by_id(
     collection_name: str | None = None,
 ) -> str:
     """Return the Python expression that references a tensor by id."""
-    for tensor in prepared.tensors:
-        if tensor.spec.id == tensor_id:
-            return tensor_collection_reference(
-                tensor, collection_format, collection_name
-            )
-    raise KeyError(tensor_id)
+    try:
+        tensor = prepared.tensor_by_id[tensor_id]
+    except KeyError as exc:
+        raise KeyError(tensor_id) from exc
+    return tensor_collection_reference(tensor, collection_format, collection_name)
 
 
 def flattened_tensor_collection_expression(

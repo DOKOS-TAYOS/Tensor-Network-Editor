@@ -30,7 +30,20 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
-    normalized_spec = _normalize_spec_for_contraction_analysis(spec)
+    validated_spec = ensure_valid_spec(spec)
+    return _analyze_validated_contraction(
+        validated_spec,
+        memory_dtype=memory_dtype,
+    )
+
+
+def _analyze_validated_contraction(
+    spec: NetworkSpec,
+    *,
+    memory_dtype: str = DEFAULT_MEMORY_DTYPE,
+) -> ContractionAnalysisResult:
+    """Analyze contraction data for a spec that was already validated."""
+    normalized_spec = _normalize_spec_for_contraction_analysis(spec, validate=False)
     prepared = prepare_analyzed_network(analyze_network(normalized_spec))
     return _analyze_prepared_contraction(
         prepared,

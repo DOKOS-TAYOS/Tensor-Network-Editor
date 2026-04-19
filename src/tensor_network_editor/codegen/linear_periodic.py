@@ -14,8 +14,10 @@ def generate_linear_periodic_code(
     engine: EngineName,
     *,
     collection_format: TensorCollectionFormat,
+    validate: bool = True,
 ) -> CodegenResult:
     """Generate helper-based Python code for the linear periodic-chain mode."""
+    del validate
     if spec.linear_periodic_chain is None:
         raise CodeGenerationError(
             "Linear periodic code generation requires a chain payload."
