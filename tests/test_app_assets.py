@@ -159,6 +159,7 @@ def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
 
     assert 'id="done-button"' in html
     assert 'id="cancel-button"' in html
+    assert 'class="icon-button toolbar-icon-button danger button-close-static"' in html
     assert 'aria-label="Done"' in html
     assert 'aria-label="Cancel"' in html
     assert ">Done<" not in html
@@ -476,6 +477,45 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".code-preview {" in body
     assert ".code-preview .token.keyword {" in body
     assert ".code-preview .token.function {" in body
+
+
+def test_css_asset_exposes_editor_dark_theme_tokens_and_compact_surfaces(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "--bg-app:" in body
+    assert "--surface-canvas:" in body
+    assert "--surface-panel:" in body
+    assert "--surface-elevated:" in body
+    assert "--border-subtle:" in body
+    assert "--accent-hover:" in body
+    assert "--selection-accent:" in body
+    assert "--font-ui:" in body
+    assert "--font-mono:" in body
+    assert "font-family: var(--font-ui);" in body
+    assert "font-family: Georgia" not in body
+    assert "border-radius: 24px;" not in body
+    assert ".canvas-panel," in body
+    assert ".help-dialog {" in body
+
+
+def test_graph_assets_import_shared_editor_theme_palette(
+    editor_server: EditorServer,
+) -> None:
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    export_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+    theme_body = request_text(f"{editor_server.base_url}/js/theme.js")
+
+    assert 'from "./theme.js"' in graph_body
+    assert 'from "./theme.js"' in export_body
+    assert "export const GRAPH_THEME = Object.freeze(" in theme_body
+    assert "export const UI_THEME = Object.freeze(" in theme_body
+    assert "GRAPH_THEME.selection" in graph_body
+    assert "GRAPH_THEME.pendingTensor" in graph_body
+    assert "GRAPH_THEME.pendingIndex" in graph_body
+    assert "GRAPH_THEME.canvasBackground" in export_body
+    assert "GRAPH_THEME.selectionFill" in export_body
 
 
 def test_css_asset_uses_two_row_shortcut_tooltips(
@@ -1228,6 +1268,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-manager-list"' in html
     assert 'id="template-manager-save-button"' in html
     assert 'id="template-manager-discard-button"' in html
+    assert 'class="icon-button toolbar-icon-button danger button-close-static"' in html
     assert 'id="template-manager-close-button"' not in html
     assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
@@ -1356,7 +1397,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "height: 2.2rem;" in body
     assert "border-radius: 8px;" in body
     assert "color: #ffffff;" in body
-    assert ".help-dialog-close:hover," in body
+    assert ".button-close-static {" in body
+    assert "button.button-close-static:not(:disabled):hover {" in body
+    assert ".help-dialog-close:hover," not in body
+    assert ".help-dialog-close:focus-visible {" in body
     assert "rgba(116, 34, 44, 0.56)" not in body
     assert "rgba(234, 114, 126, 0.76)" not in body
     assert ".help-close-icon {" in body
@@ -1751,11 +1795,12 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert "const TENSOR_BASE_Z_INDEX = 10;" in graph_body
     assert "const EDGE_Z_INDEX = 100;" in graph_body
     assert "const PORT_BASE_Z_INDEX = 200;" in graph_body
+    assert 'from "./theme.js"' in graph_body
     assert 'from "./views/graphElementModel.js"' in graph_body
     assert 'from "./views/cytoscapeGraphAdapter.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
     assert '"border-width": 4' in graph_body
-    assert '"border-color": "#8bc2ff"' in graph_body
+    assert '"border-color": GRAPH_THEME.selection' in graph_body
     assert "createGraphElementModelBuilder" in graph_model_body
     assert "buildGraphElementUpdatePlan" in graph_diff_body
     assert "createCytoscapeGraphAdapter" in graph_adapter_body

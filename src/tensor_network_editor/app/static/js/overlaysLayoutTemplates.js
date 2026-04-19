@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "./theme.js";
+
 export function registerOverlaysLayoutTemplates(ctx) {
   const state = ctx.state;
   const {
@@ -99,7 +101,7 @@ export function registerOverlaysLayoutTemplates(ctx) {
       if (!rect) {
         return;
       }
-      const color = ctx.getMetadataColor(group.metadata, "#61a8ff");
+      const color = ctx.getMetadataColor(group.metadata, GRAPH_THEME.groupDefault);
       const overlay = document.createElement("div");
       overlay.className = "group-overlay";
       if (state.selectionIds.includes(group.id)) {

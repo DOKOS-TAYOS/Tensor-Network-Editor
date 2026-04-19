@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "./theme.js";
+
 export function registerNotesFeature(ctx) {
   const state = ctx.state;
   const {
@@ -293,7 +295,7 @@ export function registerNotesFeature(ctx) {
       frame.style.height = `${noteSize.height}px`;
       frame.style.transform = `scale(${noteZoom})`;
       frame.style.transformOrigin = "top left";
-      const noteColor = ctx.getMetadataColor(note.metadata, "#5f95ff");
+      const noteColor = ctx.getMetadataColor(note.metadata, GRAPH_THEME.noteDefault);
       frame.style.borderColor = noteColor;
       frame.style.setProperty("--note-accent-color", noteColor);
       frame.style.setProperty(
@@ -451,7 +453,7 @@ export function registerNotesFeature(ctx) {
     const colorInput = document.createElement("input");
     colorInput.type = "color";
     colorInput.className = "canvas-note-color-input";
-    colorInput.value = ctx.getMetadataColor(note.metadata, "#5f95ff");
+    colorInput.value = ctx.getMetadataColor(note.metadata, GRAPH_THEME.noteDefault);
     colorInput.setAttribute("tabindex", "-1");
     colorInput.setAttribute("aria-hidden", "true");
 
@@ -474,7 +476,7 @@ export function registerNotesFeature(ctx) {
       () => {
         if (
           colorInput.value ===
-          ctx.getMetadataColor(note.metadata, "#5f95ff")
+          ctx.getMetadataColor(note.metadata, GRAPH_THEME.noteDefault)
         ) {
           return;
         }

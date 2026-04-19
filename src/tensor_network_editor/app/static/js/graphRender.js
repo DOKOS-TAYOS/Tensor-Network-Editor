@@ -1,3 +1,4 @@
+import { GRAPH_THEME, UI_THEME } from "./theme.js";
 import { createCytoscapeGraphAdapter } from "./views/cytoscapeGraphAdapter.js";
 import { createGraphElementModelBuilder } from "./views/graphElementModel.js";
 
@@ -110,7 +111,7 @@ export function registerGraphRender(ctx) {
             color: "data(textColor)",
             label: "data(label)",
             "font-size": 18,
-            "font-family": "Georgia",
+            "font-family": UI_THEME.fontFamily,
             "text-valign": "top",
             "text-halign": "center",
             "text-margin-y": 20,
@@ -178,18 +179,18 @@ export function registerGraphRender(ctx) {
         {
           selector: "node.planner-pending-tensor",
           style: {
-            "border-color": "#ff8c87",
+            "border-color": GRAPH_THEME.pendingTensor,
             "border-width": 4,
-            "overlay-color": "#ff8c87",
+            "overlay-color": GRAPH_THEME.pendingTensor,
             "overlay-opacity": 0.1,
           },
         },
         {
           selector: "node.planner-pending-index",
           style: {
-            "border-color": "#61c7ff",
+            "border-color": GRAPH_THEME.pendingIndex,
             "border-width": 4,
-            "overlay-color": "#61c7ff",
+            "overlay-color": GRAPH_THEME.pendingIndex,
             "overlay-opacity": 0.18,
           },
         },
@@ -202,7 +203,7 @@ export function registerGraphRender(ctx) {
             label: "data(label)",
             "font-size": 11,
             color: "data(textColor)",
-            "text-background-color": "#101720",
+            "text-background-color": GRAPH_THEME.selectionTextBackground,
             "text-background-opacity": 0.92,
             "text-background-padding": 4,
             "text-rotation": "autorotate",
@@ -228,7 +229,7 @@ export function registerGraphRender(ctx) {
         {
           selector: "node[kind = 'tensor']:selected",
           style: {
-            "border-color": "#8bc2ff",
+            "border-color": GRAPH_THEME.selection,
             "border-width": 4,
             "overlay-opacity": 0,
           },
@@ -236,14 +237,14 @@ export function registerGraphRender(ctx) {
         {
           selector: "node[kind = 'index']:selected",
           style: {
-            "border-color": "#8bc2ff",
+            "border-color": GRAPH_THEME.selection,
             "overlay-opacity": 0,
           },
         },
         {
           selector: "edge:selected",
           style: {
-            "line-color": "#8bc2ff",
+            "line-color": GRAPH_THEME.selection,
           },
         },
       ],
@@ -598,7 +599,7 @@ export function registerGraphRender(ctx) {
           : ctx.findTensorById(tensor.id);
       const tensorColor = ctx.getMetadataColor(
         anchorTensor ? anchorTensor.metadata : null,
-        "#18212c"
+        GRAPH_THEME.tensorFallback
       );
       appendDescriptor({
         group: "nodes",
@@ -675,7 +676,7 @@ export function registerGraphRender(ctx) {
     });
 
     visibleEdges.forEach((edge) => {
-      const edgeColor = ctx.getMetadataColor(edge.metadata, "#8da1c3");
+      const edgeColor = ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
       appendDescriptor({
         group: "edges",
         data: {

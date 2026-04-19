@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "../theme.js";
+
 export function createStandardTensorPropertiesRenderer({
   bindDebouncedAutosave,
   bindImmediateAutosave,
@@ -169,7 +171,7 @@ export function createStandardTensorPropertiesRenderer({
             type="color"
             title="Choose tint"
             aria-label="Choose tint"
-            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, "#18212c"))}"
+            value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback))}"
           />
         </label>
         <button

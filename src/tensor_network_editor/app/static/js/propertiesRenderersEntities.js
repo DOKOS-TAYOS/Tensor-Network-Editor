@@ -1,3 +1,4 @@
+import { GRAPH_THEME } from "./theme.js";
 import { createEntityPropertiesBindings } from "./properties/entityPropertiesBindings.js";
 import {
   buildEdgePropertiesMarkup,
@@ -30,7 +31,10 @@ export function createEntityPropertiesRenderers({
       actions.clearSelection();
       return;
     }
-    const groupColor = actions.getMetadataColor(group.metadata, "#61a8ff");
+    const groupColor = actions.getMetadataColor(
+      group.metadata,
+      GRAPH_THEME.groupDefault
+    );
     const linearPeriodicMode =
       (typeof actions.isForMode === "function" && actions.isForMode()) ||
       (typeof actions.isLinearPeriodicMode === "function" &&
@@ -58,7 +62,7 @@ export function createEntityPropertiesRenderers({
       actions.clearSelection();
       return;
     }
-    const edgeColor = actions.getMetadataColor(edge.metadata, "#8da1c3");
+    const edgeColor = actions.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
 
     propertiesPanel.innerHTML = buildEdgePropertiesMarkup({
       edge,
@@ -76,7 +80,10 @@ export function createEntityPropertiesRenderers({
       actions.clearSelection();
       return;
     }
-    const noteColor = actions.getMetadataColor(note.metadata, "#5f95ff");
+    const noteColor = actions.getMetadataColor(
+      note.metadata,
+      GRAPH_THEME.noteDefault
+    );
 
     propertiesPanel.innerHTML = buildNotePropertiesMarkup({
       note,

@@ -1,3 +1,5 @@
+﻿import { GRAPH_THEME, UI_THEME } from "./theme.js";
+
 export function registerExportMinimap(ctx) {
   const state = ctx.state;
   const {
@@ -152,7 +154,7 @@ export function registerExportMinimap(ctx) {
     const canvasWidth = minimapCanvas.width;
     const canvasHeight = minimapCanvas.height;
     context.clearRect(0, 0, canvasWidth, canvasHeight);
-    context.fillStyle = "#0d121b";
+    context.fillStyle = GRAPH_THEME.canvasBackground;
     context.fillRect(0, 0, canvasWidth, canvasHeight);
 
     const visibleTensors =
@@ -165,8 +167,8 @@ export function registerExportMinimap(ctx) {
         : null;
 
     if (!state.spec || !visibleTensors.length) {
-      context.fillStyle = "#95a3b8";
-      context.font = '12px "Segoe UI", "Helvetica Neue", sans-serif';
+      context.fillStyle = GRAPH_THEME.emptyStateText;
+      context.font = `12px ${UI_THEME.fontFamily}`;
       context.textAlign = "center";
       context.fillText("Minimap will appear here.", canvasWidth / 2, canvasHeight / 2);
       state.minimapTransform = null;
@@ -207,7 +209,9 @@ export function registerExportMinimap(ctx) {
           const target = ctx.indexAbsolutePosition(right.tensor, right.index);
           const curve = ctx.buildQuadraticCurve(source, target);
           context.beginPath();
-          context.strokeStyle = state.selectionIds.includes(edge.id) ? "#8bc2ff" : ctx.getMetadataColor(edge.metadata, "#8da1c3");
+          context.strokeStyle = state.selectionIds.includes(edge.id)
+            ? GRAPH_THEME.selection
+            : ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
           context.lineWidth = 3 / scale;
           context.moveTo(source.x - worldBounds.x1, source.y - worldBounds.y1);
           context.quadraticCurveTo(
@@ -226,14 +230,26 @@ export function registerExportMinimap(ctx) {
         context,
         getMetadataFilterAlpha("tensor", tensor.id, metadataFilterHighlight),
         () => {
-          const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
+          const tensorColor = ctx.getMetadataColor(
+            tensor.metadata,
+            GRAPH_THEME.tensorFallback
+          );
           const left = tensor.position.x - ctx.tensorWidth(tensor) / 2 - worldBounds.x1;
           const top = tensor.position.y - ctx.tensorHeight(tensor) / 2 - worldBounds.y1;
-          ctx.drawRoundRectPath(context, left, top, ctx.tensorWidth(tensor), ctx.tensorHeight(tensor), 22);
+          ctx.drawRoundRectPath(
+            context,
+            left,
+            top,
+            ctx.tensorWidth(tensor),
+            ctx.tensorHeight(tensor),
+            8
+          );
           context.fillStyle = tensorColor;
           context.fill();
           context.lineWidth = (state.selectionIds.includes(tensor.id) ? 3 : 2) / scale;
-          context.strokeStyle = state.selectionIds.includes(tensor.id) ? "#8bc2ff" : ctx.shiftColor(tensorColor, 26);
+          context.strokeStyle = state.selectionIds.includes(tensor.id)
+            ? GRAPH_THEME.selection
+            : ctx.shiftColor(tensorColor, 22);
           context.stroke();
         }
       );
@@ -247,7 +263,9 @@ export function registerExportMinimap(ctx) {
             const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
             context.beginPath();
             context.fillStyle = indexColor;
-            context.strokeStyle = state.selectionIds.includes(index.id) ? "#8bc2ff" : ctx.shiftColor(indexColor, 34);
+            context.strokeStyle = state.selectionIds.includes(index.id)
+              ? GRAPH_THEME.selection
+              : ctx.shiftColor(indexColor, 26);
             context.lineWidth = (state.selectionIds.includes(index.id) ? 3 : 1.5) / scale;
             context.arc(absolutePosition.x - worldBounds.x1, absolutePosition.y - worldBounds.y1, INDEX_RADIUS, 0, Math.PI * 2);
             context.fill();
@@ -263,8 +281,8 @@ export function registerExportMinimap(ctx) {
       const extent = state.cy.extent();
       const topLeft = worldToMinimapPoint({ x: extent.x1, y: extent.y1 });
       const bottomRight = worldToMinimapPoint({ x: extent.x2, y: extent.y2 });
-      context.fillStyle = "rgba(97, 168, 255, 0.12)";
-      context.strokeStyle = "#8bc2ff";
+      context.fillStyle = GRAPH_THEME.selectionFill;
+      context.strokeStyle = GRAPH_THEME.selection;
       context.lineWidth = 2;
       context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
       context.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
@@ -309,7 +327,7 @@ export function registerExportMinimap(ctx) {
         state.cy.png({
           full: true,
           scale: 2,
-          bg: "#0b0f14",
+          bg: GRAPH_THEME.canvasBackground,
         })
       );
       ctx.downloadDataUrl(`${ctx.sanitizeFilename(state.spec.name || "tensor-network")}.png`, pngDataUrl);
@@ -347,7 +365,7 @@ export function registerExportMinimap(ctx) {
     lines.push(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.x1} ${bounds.y1} ${width} ${height}">`
     );
-    lines.push(`<rect x="${bounds.x1}" y="${bounds.y1}" width="${width}" height="${height}" fill="#0b0f14" />`);
+    lines.push(`<rect x="${bounds.x1}" y="${bounds.y1}" width="${width}" height="${height}" fill="${GRAPH_THEME.canvasBackground}" />`);
 
     visibleEdges.forEach((edge) => {
       const left = ctx.findIndexOwner(edge.leftIndexId || edge.left.index_id);
@@ -358,37 +376,37 @@ export function registerExportMinimap(ctx) {
       const source = ctx.indexAbsolutePosition(left.tensor, left.index);
       const target = ctx.indexAbsolutePosition(right.tensor, right.index);
       const curve = ctx.buildQuadraticCurve(source, target);
-      const edgeColor = ctx.getMetadataColor(edge.metadata, "#8da1c3");
+      const edgeColor = ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
       const labelPosition = ctx.quadraticPointAt(source, curve.control, target, 0.5);
       lines.push(
         `<path d="M ${source.x} ${source.y} Q ${curve.control.x} ${curve.control.y} ${target.x} ${target.y}" fill="none" stroke="${edgeColor}" stroke-width="3" />`
       );
       lines.push(
-        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 72)}" font-size="11" font-family="Segoe UI, Helvetica Neue, sans-serif" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
+        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 60)}" font-size="11" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
       );
     });
 
     visibleTensors.forEach((tensor) => {
-      const tensorColor = ctx.getMetadataColor(tensor.metadata, "#18212c");
-      const borderColor = ctx.shiftColor(tensorColor, 26);
+      const tensorColor = ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback);
+      const borderColor = ctx.shiftColor(tensorColor, 22);
       lines.push(
-        `<rect x="${tensor.position.x - ctx.tensorWidth(tensor) / 2}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2}" width="${ctx.tensorWidth(tensor)}" height="${ctx.tensorHeight(tensor)}" rx="22" ry="22" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
+        `<rect x="${tensor.position.x - ctx.tensorWidth(tensor) / 2}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2}" width="${ctx.tensorWidth(tensor)}" height="${ctx.tensorHeight(tensor)}" rx="8" ry="8" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
       );
       lines.push(
-        `<text x="${tensor.position.x}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2 + 26}" fill="${ctx.readableTextColor(tensorColor)}" font-size="18" font-family="Georgia, Times New Roman, serif" text-anchor="middle">${ctx.escapeSvgText(tensor.name)}</text>`
+        `<text x="${tensor.position.x}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2 + 26}" fill="${ctx.readableTextColor(tensorColor)}" font-size="18" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(tensor.name)}</text>`
       );
 
       tensor.indices.forEach((index, indexPosition) => {
         const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
         const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
         lines.push(
-          `<circle cx="${absolutePosition.x}" cy="${absolutePosition.y}" r="${INDEX_RADIUS}" fill="${indexColor}" stroke="${ctx.shiftColor(indexColor, 34)}" stroke-width="2" />`
+          `<circle cx="${absolutePosition.x}" cy="${absolutePosition.y}" r="${INDEX_RADIUS}" fill="${indexColor}" stroke="${ctx.shiftColor(indexColor, 26)}" stroke-width="2" />`
         );
         lines.push(
-          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 4}" fill="${ctx.readableTextColor(indexColor)}" font-size="12" font-family="Segoe UI, Helvetica Neue, sans-serif" font-weight="700" text-anchor="middle">${indexPosition + 1}</text>`
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 4}" fill="${ctx.readableTextColor(indexColor)}" font-size="12" font-family="${UI_THEME.fontFamily}" font-weight="700" text-anchor="middle">${indexPosition + 1}</text>`
         );
         lines.push(
-          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 28}" fill="${ctx.shiftColor(indexColor, 64)}" font-size="10" font-family="Segoe UI, Helvetica Neue, sans-serif" text-anchor="middle">${ctx.escapeSvgText(`${index.name} · ${index.dimension}`)}</text>`
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 28}" fill="${ctx.shiftColor(indexColor, 52)}" font-size="10" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(`${index.name} Â· ${index.dimension}`)}</text>`
         );
       });
     });
@@ -427,3 +445,4 @@ export function registerExportMinimap(ctx) {
     withSelectionSuppressed
   });
 }
+

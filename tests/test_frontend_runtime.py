@@ -65,6 +65,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "state/editorSelectors.js",
         "state/editorStore.js",
         "state/plannerSelectors.js",
+        "theme.js",
     ]
     for module_name in module_names:
         target_path = tmp_path / module_name
@@ -2709,6 +2710,7 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
         "state.runtime.mjs": "state.js",
         "interactionsShortcuts.js": "interactionsShortcuts.js",
         "exportMinimap.js": "exportMinimap.js",
+        "theme.js": "theme.js",
     }
     for target_name, source_name in copied_modules.items():
         target_path = tmp_path / target_name
@@ -4903,6 +4905,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
         "spec/specMutations.js": "spec/specMutations.js",
         "spec/specNormalization.js": "spec/specNormalization.js",
         "utilitiesBase.js": "utilitiesBase.js",
+        "theme.js": "theme.js",
         "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
         "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
@@ -6225,6 +6228,7 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
         "state/selectionEntries.js": "state/selectionEntries.js",
         "utilitiesTemplates.js": "utilitiesTemplates.js",
         "utilitiesBase.js": "utilitiesBase.js",
+        "theme.js": "theme.js",
         "utilitiesBenchmark.js": "utilitiesBenchmark.js",
         "utilitiesGeometry.js": "utilitiesGeometry.js",
         "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",

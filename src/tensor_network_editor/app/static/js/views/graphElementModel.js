@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "../theme.js";
+
 export function createGraphElementModelBuilder({
   state,
   buildContractionScene,
@@ -99,7 +101,7 @@ export function createGraphElementModelBuilder({
           : findTensorById(tensorItem.id);
       const tensorColor = getMetadataColor(
         anchorTensor ? anchorTensor.metadata : null,
-        "#18212c"
+        GRAPH_THEME.tensorFallback
       );
       appendDescriptor(accumulator, {
         group: "nodes",
@@ -175,7 +177,7 @@ export function createGraphElementModelBuilder({
     });
 
     visibleEdges.forEach((edgeItem) => {
-      const edgeColor = getMetadataColor(edgeItem.metadata, "#8da1c3");
+      const edgeColor = getMetadataColor(edgeItem.metadata, GRAPH_THEME.edge);
       appendDescriptor(accumulator, {
         group: "edges",
         data: {

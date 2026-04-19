@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "../theme.js";
+
 export function createSpecMutationBindings({
   ctx,
   state,
@@ -141,7 +143,10 @@ export function createSpecMutationBindings({
 
   function getEntryColor(entry) {
     if (entry.kind === "tensor") {
-      return runtime.getMetadataColor(entry.tensor.metadata, "#18212c");
+      return runtime.getMetadataColor(
+        entry.tensor.metadata,
+        GRAPH_THEME.tensorFallback
+      );
     }
     if (entry.kind === "index") {
       return runtime.getMetadataColor(
@@ -150,17 +155,23 @@ export function createSpecMutationBindings({
       );
     }
     if (entry.kind === "group") {
-      return runtime.getMetadataColor(entry.group.metadata, "#61a8ff");
+      return runtime.getMetadataColor(
+        entry.group.metadata,
+        GRAPH_THEME.groupDefault
+      );
     }
     if (entry.kind === "note") {
-      return runtime.getMetadataColor(entry.note.metadata, "#5f95ff");
+      return runtime.getMetadataColor(
+        entry.note.metadata,
+        GRAPH_THEME.noteDefault
+      );
     }
-    return runtime.getMetadataColor(entry.edge.metadata, "#8da1c3");
+    return runtime.getMetadataColor(entry.edge.metadata, GRAPH_THEME.edge);
   }
 
   function getBatchColorValue(selectedEntries) {
     if (!selectedEntries.length) {
-      return "#61a8ff";
+      return GRAPH_THEME.groupDefault;
     }
     return getEntryColor(selectedEntries[0]);
   }

@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "./theme.js";
+
 export function createUtilityBaseBindings({ ctx, state, dom }) {
   const { window, document } = ctx;
   const { canvasShell } = dom;
@@ -107,7 +109,10 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
   }
 
   function getIndexColor(index, isConnected) {
-    return getMetadataColor(index.metadata, isConnected ? "#61a8ff" : "#e0b566");
+    return getMetadataColor(
+      index.metadata,
+      isConnected ? GRAPH_THEME.indexConnected : GRAPH_THEME.indexOpen
+    );
   }
 
   function shiftColor(hexColor, amount) {

@@ -1,3 +1,5 @@
+import { GRAPH_THEME } from "./theme.js";
+
 function buildMenuPositionStyle(menuState, rootElement) {
   const rootRect =
     rootElement && typeof rootElement.getBoundingClientRect === "function"
@@ -382,8 +384,8 @@ export function registerCanvasContextMenu(ctx) {
     const totalElementCount = getTensorTotalElementCount(ctx, tensor);
     const tensorColor =
       typeof ctx.getMetadataColor === "function"
-        ? ctx.getMetadataColor(tensor.metadata, "#18212c")
-        : "#18212c";
+        ? ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback)
+        : GRAPH_THEME.tensorFallback;
     return {
       kind: "tensor",
       id: tensor.id,
@@ -695,8 +697,8 @@ export function registerCanvasContextMenu(ctx) {
     }
     const edgeColor =
       typeof ctx.getMetadataColor === "function"
-        ? ctx.getMetadataColor(edge.metadata, "#8da1c3")
-        : "#8da1c3";
+        ? ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge)
+        : GRAPH_THEME.edge;
     return {
       kind: "edge",
       id: edge.id,
@@ -785,8 +787,8 @@ export function registerCanvasContextMenu(ctx) {
     const isCollapsed = Boolean(group.metadata && group.metadata.collapsed);
     const groupColor =
       typeof ctx.getMetadataColor === "function"
-        ? ctx.getMetadataColor(group.metadata, "#61a8ff")
-        : "#61a8ff";
+        ? ctx.getMetadataColor(group.metadata, GRAPH_THEME.groupDefault)
+        : GRAPH_THEME.groupDefault;
     const memberTensorCount = Array.isArray(group.tensor_ids)
       ? group.tensor_ids.length
       : 0;
