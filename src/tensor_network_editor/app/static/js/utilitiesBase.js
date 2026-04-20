@@ -1,8 +1,13 @@
+import { createCodeHighlightingSupport } from "./codeHighlighting.js";
 import { GRAPH_THEME } from "./theme.js";
 
 export function createUtilityBaseBindings({ ctx, state, dom }) {
   const { window, document } = ctx;
   const { canvasShell } = dom;
+  const codeHighlightingSupport = createCodeHighlightingSupport({
+    windowRef: window,
+    documentRef: document,
+  });
 
   function sanitizeFilename(value) {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
@@ -226,6 +231,8 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     makeId,
     nextName,
     tensorIndexNameExists,
+    loadCodeHighlighter: codeHighlightingSupport.loadPrismHighlighter,
+    highlightCodeElement: codeHighlightingSupport.highlightElement,
     clamp,
   };
 }

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -102,3 +106,74 @@ def test_readme_uses_singular_operation_cost_labels() -> None:
     assert "MACs" not in readme_text
     assert "FLOP" in readme_text
     assert "MAC" in readme_text
+
+
+def test_package_root_defers_heavy_public_modules_until_first_access() -> None:
+    env = os.environ.copy()
+    current_src_path = str((Path.cwd() / "src").resolve())
+    current_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        current_src_path
+        if not current_pythonpath
+        else os.pathsep.join([current_src_path, current_pythonpath])
+    )
+    script = """
+import json
+import sys
+
+import tensor_network_editor as tne
+
+before = {
+    "analysis": "tensor_network_editor.analysis" in sys.modules,
+    "api": "tensor_network_editor.api" in sys.modules,
+    "templates": "tensor_network_editor.templates" in sys.modules,
+    "diffing": "tensor_network_editor.diffing" in sys.modules,
+    "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
+    "linting": "tensor_network_editor.linting" in sys.modules,
+}
+_ = tne.generate_code
+after_generate = {
+    "analysis": "tensor_network_editor.analysis" in sys.modules,
+    "api": "tensor_network_editor.api" in sys.modules,
+    "templates": "tensor_network_editor.templates" in sys.modules,
+    "diffing": "tensor_network_editor.diffing" in sys.modules,
+    "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
+    "linting": "tensor_network_editor.linting" in sys.modules,
+}
+_ = tne.analyze_spec
+after_analysis = {
+    "analysis": "tensor_network_editor.analysis" in sys.modules,
+    "api": "tensor_network_editor.api" in sys.modules,
+    "templates": "tensor_network_editor.templates" in sys.modules,
+    "diffing": "tensor_network_editor.diffing" in sys.modules,
+    "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
+    "linting": "tensor_network_editor.linting" in sys.modules,
+}
+print(json.dumps({
+    "before": before,
+    "after_generate": after_generate,
+    "after_analysis": after_analysis,
+}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path.cwd(),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["before"] == {
+        "analysis": False,
+        "api": False,
+        "templates": False,
+        "diffing": False,
+        "canonicalization": False,
+        "linting": False,
+    }
+    assert payload["after_generate"]["api"] is True
+    assert payload["after_generate"]["analysis"] is False
+    assert payload["after_analysis"]["analysis"] is True

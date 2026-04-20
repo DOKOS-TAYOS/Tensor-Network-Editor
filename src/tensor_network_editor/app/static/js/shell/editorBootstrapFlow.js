@@ -37,7 +37,11 @@ export function createEditorBootstrapFlow({
     actions.initGraph();
     actions.clearHistory();
     actions.render();
-    actions.refreshContractionAnalysis();
+    if (typeof actions.markContractionAnalysisDirty === "function") {
+      actions.markContractionAnalysisDirty();
+    } else {
+      state.contractionAnalysisDirty = true;
+    }
     if (state.templateCatalogWarnings.length) {
       actions.setStatus(state.templateCatalogWarnings[0], "error");
     } else {

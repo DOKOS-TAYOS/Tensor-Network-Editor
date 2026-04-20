@@ -438,10 +438,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       return;
     }
     generatedCodeView.textContent = renderedCode;
-    const prism =
-      ctx.window && typeof ctx.window === "object" ? ctx.window.Prism : null;
-    if (prism && typeof prism.highlightElement === "function") {
-      prism.highlightElement(generatedCodeView);
+    if (typeof runtime.highlightCodeElement === "function") {
+      void runtime.highlightCodeElement(generatedCodeView);
     }
   }
 

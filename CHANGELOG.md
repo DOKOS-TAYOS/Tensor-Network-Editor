@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Importing `tensor_network_editor` now resolves the public headless/API exports lazily, so the package root loads faster and avoids importing analysis, template, diffing, linting, and editor helpers until they are first accessed.
+- Editor sessions now reuse a shared in-process cache of static asset bytes and the rendered `index.html`, defer contraction analysis until the planner actually needs it, cache serialized specs and analysis results by spec revision, and load Prism syntax-highlighting assets on demand instead of during the initial page load.
+
 ### Fixed
 
 - Checkout-based test runs now skip installed-distribution metadata assertions when `importlib.metadata` resolves a different package installation than the active `src/` checkout.

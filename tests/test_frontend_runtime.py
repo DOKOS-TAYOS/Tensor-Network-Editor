@@ -18,6 +18,7 @@ def _self_mapped_js_modules(module_names: tuple[str, ...]) -> dict[str, str]:
 _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "state.runtime.mjs": "state.js",
     "utilities.runtime.mjs": "utilities.js",
+    "codeHighlighting.js": "codeHighlighting.js",
     "utilitiesTemplates.js": "utilitiesTemplates.js",
     "spec/specLookups.js": "spec/specLookups.js",
     "spec/specMutations.js": "spec/specMutations.js",
@@ -40,6 +41,7 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _self_mapped_js_modules(
         "actions/plannerCommands.js",
         "actions/propertyCommands.js",
         "actions/sessionCommands.js",
+        "codeHighlighting.js",
         "planner/plannerAnalysisFormatting.js",
         "planner/plannerPanelBindings.js",
         "properties/entityPropertiesBindings.js",
@@ -107,6 +109,7 @@ _INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = (
     _self_mapped_js_modules(
         (
             "actions/sessionCommands.js",
+            "codeHighlighting.js",
             "interactionsSession.js",
             "session/sessionEditorFlows.js",
             "session/sessionTemplateFlows.js",

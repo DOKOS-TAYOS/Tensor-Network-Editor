@@ -16,6 +16,7 @@ export function createInteractionSessionBindings({
     dom,
     state,
     store,
+    document: ctx.document,
     window: ctx.window,
     setStatus: sessionActions.setStatus,
     applyTemplateCatalogPayload: sessionActions.applyTemplateCatalogPayload,

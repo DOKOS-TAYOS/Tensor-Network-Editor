@@ -35,6 +35,16 @@ export function createPlannerSupport({
   let pendingContractionAnalysisOptions = null;
   let plannerCommands = null;
 
+  function getCachedContractionAnalysisPayload() {
+    return state.contractionAnalysisCacheRevision === state.specRevision
+      ? state.contractionAnalysisCachePayload
+      : null;
+  }
+
+  function markContractionAnalysisDirty() {
+    state.contractionAnalysisDirty = true;
+  }
+
   function isBenchmarkBasePosition() {
     return (
       typeof ctx.isBenchmarkBasePosition === "function" &&
@@ -112,6 +122,8 @@ export function createPlannerSupport({
     analyze: (payload) => ctx.apiPost("/api/analyze-contraction", payload),
     cancel: (timerId) => clearTimer(timerId),
     onAnalysisError: (error) => {
+      state.contractionAnalysisCacheRevision = -1;
+      state.contractionAnalysisCachePayload = null;
       state.contractionAnalysis = {
         status: "error",
         message: error.message,
@@ -125,6 +137,8 @@ export function createPlannerSupport({
         };
         return;
       }
+      state.contractionAnalysisCacheRevision = state.specRevision;
+      state.contractionAnalysisCachePayload = payload;
       state.contractionAnalysis = {
         status: "ready",
         payload,
@@ -531,6 +545,17 @@ export function createPlannerSupport({
       return;
     }
     state.contractionAnalysisDirty = false;
+    const cachedPayload = getCachedContractionAnalysisPayload();
+    if (cachedPayload) {
+      pendingContractionAnalysisOptions = null;
+      state.contractionAnalysis = {
+        status: "ready",
+        payload: cachedPayload,
+      };
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+      return Promise.resolve(cachedPayload);
+    }
     pendingContractionAnalysisOptions = {
       focusTab:
         Boolean(options.focusTab) ||
@@ -641,6 +666,7 @@ export function createPlannerSupport({
     trimContractionPlanInPlace,
     trimContractionPlan,
     togglePlannerMode,
+    markContractionAnalysisDirty,
     refreshContractionAnalysis,
     isBenchmarkBasePosition,
     getAutomaticAnalysisByMode: getAutomaticAnalysisByModeFromSelectors,

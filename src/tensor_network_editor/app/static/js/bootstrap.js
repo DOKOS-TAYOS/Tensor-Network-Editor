@@ -21,6 +21,15 @@ function createShellActions(ctx) {
     initGraph: () => ctx.initGraph(),
     clearHistory: () => ctx.clearHistory(),
     render: () => ctx.render(),
+    markContractionAnalysisDirty: resolveContextAction(
+      ctx,
+      "markContractionAnalysisDirty",
+      () => {
+        if (ctx.state) {
+          ctx.state.contractionAnalysisDirty = true;
+        }
+      }
+    ),
     refreshContractionAnalysis: resolveContextAction(ctx, "refreshContractionAnalysis"),
     setStatus: (message, level) => ctx.setStatus(message, level),
     isLinearPeriodicMode: () =>

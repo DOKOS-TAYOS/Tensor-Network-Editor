@@ -28,6 +28,8 @@ from .session import EditorSession
 LOGGER = logging.getLogger(__name__)
 _SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
 _MAX_REQUEST_BODY_BYTES: int = 1_048_576
+_STATIC_ASSET_CACHE_LOCK = threading.Lock()
+_STATIC_ASSET_CACHE_BY_ROOT: dict[Path, _StaticAssetCache] = {}
 
 
 def _parse_content_length(content_length_text: str | None) -> int:
@@ -54,6 +56,74 @@ class _BinaryResponse:
     content_type: str
 
 
+@dataclass(slots=True, frozen=True)
+class _StaticAssetCache:
+    """Process-wide cache of static editor assets for one static root."""
+
+    asset_version: str
+    body_by_relative_path: dict[str, bytes]
+    content_type_by_relative_path: dict[str, str]
+    index_body: bytes
+
+
+def _content_type_for_path(path: Path) -> str:
+    """Guess the HTTP content type for one static asset path."""
+    guessed_type, _ = mimetypes.guess_type(path.name)
+    if path.suffix == ".js":
+        return "application/javascript; charset=utf-8"
+    if path.suffix == ".css":
+        return "text/css; charset=utf-8"
+    if path.suffix == ".html":
+        return "text/html; charset=utf-8"
+    if guessed_type is None:
+        return "application/octet-stream"
+    if guessed_type.startswith("text/"):
+        return f"{guessed_type}; charset=utf-8"
+    return guessed_type
+
+
+def _build_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
+    """Read and cache the static editor asset tree for one process."""
+    resolved_static_dir = static_dir.resolve()
+    file_paths = sorted(
+        path for path in resolved_static_dir.rglob("*") if path.is_file()
+    )
+    asset_version = str(int(max(path.stat().st_mtime for path in file_paths)))
+    body_by_relative_path: dict[str, bytes] = {}
+    content_type_by_relative_path: dict[str, str] = {}
+
+    for file_path in file_paths:
+        relative_path = file_path.relative_to(resolved_static_dir).as_posix()
+        if relative_path == "index.html":
+            continue
+        body_by_relative_path[relative_path] = file_path.read_bytes()
+        content_type_by_relative_path[relative_path] = _content_type_for_path(file_path)
+
+    index_body = (
+        (resolved_static_dir / "index.html")
+        .read_text(encoding="utf-8")
+        .replace("__ASSET_VERSION__", asset_version)
+        .encode("utf-8")
+    )
+    return _StaticAssetCache(
+        asset_version=asset_version,
+        body_by_relative_path=body_by_relative_path,
+        content_type_by_relative_path=content_type_by_relative_path,
+        index_body=index_body,
+    )
+
+
+def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
+    """Return a shared static asset cache for one editor static directory."""
+    resolved_static_dir = static_dir.resolve()
+    with _STATIC_ASSET_CACHE_LOCK:
+        cache = _STATIC_ASSET_CACHE_BY_ROOT.get(resolved_static_dir)
+        if cache is None:
+            cache = _build_static_asset_cache(resolved_static_dir)
+            _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
+        return cache
+
+
 class EditorServer:
     """Serve the browser app and JSON API for one editor session."""
 
@@ -72,15 +142,8 @@ class EditorServer:
         self.host = host
         self.port = port
         self._static_dir = Path(__file__).resolve().parent / "static"
-        self._asset_version = str(
-            int(
-                max(
-                    path.stat().st_mtime
-                    for path in self._static_dir.rglob("*")
-                    if path.is_file()
-                )
-            )
-        )
+        self._static_asset_cache = _get_static_asset_cache(self._static_dir)
+        self._asset_version = self._static_asset_cache.asset_version
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
 
@@ -118,7 +181,7 @@ class EditorServer:
         session = self.session
         session_id = self.session_id
         static_dir = self._static_dir
-        asset_version = self._asset_version
+        static_asset_cache = self._static_asset_cache
 
         class RequestHandler(BaseHTTPRequestHandler):
             """Serve static editor assets and JSON routes for one session."""
@@ -188,9 +251,7 @@ class EditorServer:
                 if path == "/api/bootstrap":
                     return routes.handle_bootstrap(session)
                 if path == "/":
-                    return self._index_response(
-                        static_dir / "index.html", asset_version
-                    )
+                    return self._index_response()
                 return self._static_response(path)
 
             def _dispatch_post(self, path: str, payload: JsonDict) -> JsonResponse:
@@ -224,60 +285,44 @@ class EditorServer:
                 self, request_path: str
             ) -> JsonResponse | _BinaryResponse:
                 """Return one static asset response when the path resolves safely."""
-                static_path = self._resolve_static_path(request_path)
-                if static_path is None:
+                relative_path = self._resolve_static_asset_relative_path(request_path)
+                if relative_path is None:
                     LOGGER.debug(
                         "[session=%s] Static asset not found for path %s",
                         session_id,
                         request_path,
                     )
                     return not_found_response()
-                body = static_path.read_bytes()
                 return _BinaryResponse(
                     status=HTTPStatus.OK,
-                    body=body,
-                    content_type=self._content_type_for_path(static_path),
+                    body=static_asset_cache.body_by_relative_path[relative_path],
+                    content_type=static_asset_cache.content_type_by_relative_path[
+                        relative_path
+                    ],
                 )
 
-            def _index_response(
-                self, path: Path, asset_version: str
-            ) -> _BinaryResponse:
-                """Render the main HTML page with the current asset version token."""
-                body_text = path.read_text(encoding="utf-8").replace(
-                    "__ASSET_VERSION__", asset_version
-                )
+            def _index_response(self) -> _BinaryResponse:
+                """Return the cached main HTML page for this editor session."""
                 return _BinaryResponse(
                     status=HTTPStatus.OK,
-                    body=body_text.encode("utf-8"),
+                    body=static_asset_cache.index_body,
                     content_type="text/html; charset=utf-8",
                 )
 
-            def _resolve_static_path(self, request_path: str) -> Path | None:
-                """Resolve one request path inside the static asset directory."""
+            def _resolve_static_asset_relative_path(
+                self, request_path: str
+            ) -> str | None:
+                """Resolve one request path to a cached static asset key."""
                 static_root = static_dir.resolve()
                 candidate = (static_dir / request_path.lstrip("/")).resolve()
                 try:
-                    candidate.relative_to(static_root)
+                    relative_path = candidate.relative_to(static_root)
                 except ValueError:
                     return None
-                if not candidate.is_file():
+                relative_path_text = relative_path.as_posix()
+                if relative_path_text not in static_asset_cache.body_by_relative_path:
                     return None
-                return candidate
-
-            def _content_type_for_path(self, path: Path) -> str:
-                """Guess the HTTP content type for one static asset path."""
-                guessed_type, _ = mimetypes.guess_type(path.name)
-                if path.suffix == ".js":
-                    return "application/javascript; charset=utf-8"
-                if path.suffix == ".css":
-                    return "text/css; charset=utf-8"
-                if path.suffix == ".html":
-                    return "text/html; charset=utf-8"
-                if guessed_type is None:
-                    return "application/octet-stream"
-                if guessed_type.startswith("text/"):
-                    return f"{guessed_type}; charset=utf-8"
-                return guessed_type
+                return relative_path_text
 
             def _read_request_body(self) -> bytes:
                 """Read one request body after validating the Content-Length header."""

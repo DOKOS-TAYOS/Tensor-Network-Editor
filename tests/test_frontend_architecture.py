@@ -97,6 +97,442 @@ def test_editor_store_and_selectors_track_template_catalog_state(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_bootstrap_flow_marks_contraction_analysis_dirty_without_eager_refresh(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "bootstrap_flow_deferred_analysis.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const bootstrapFlowUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorBootstrapFlow.js")!r}).href;
+        const bootstrapFlowModule = await import(bootstrapFlowUrl);
+
+        const state = {{
+          templateCatalogWarnings: [],
+          contractionAnalysisDirty: false,
+          availableCollectionFormats: [],
+        }};
+        const store = {{
+          setSpec(spec) {{
+            state.spec = spec;
+          }},
+          setSchemaVersion(schemaVersion) {{
+            state.schemaVersion = schemaVersion;
+          }},
+          setAppMetadata(appMetadata) {{
+            state.appMetadata = appMetadata;
+          }},
+          setAvailableCollectionFormats(collectionFormats) {{
+            state.availableCollectionFormats = collectionFormats;
+          }},
+          setAnnotationDefinitions(annotationDefinitions) {{
+            state.annotationDefinitions = annotationDefinitions;
+          }},
+          setSelectedEngine(engine) {{
+            state.selectedEngine = engine;
+          }},
+          setSelectedCollectionFormat(collectionFormat) {{
+            state.selectedCollectionFormat = collectionFormat;
+          }},
+        }};
+        const flowEvents = [];
+        const bootstrapFlow = bootstrapFlowModule.createEditorBootstrapFlow({{
+          state,
+          store,
+          sessionService: {{
+            async loadBootstrap() {{
+              return {{
+                spec: {{ network: {{ id: "network_demo" }} }},
+                schema_version: 4,
+                collection_formats: ["list", "dict"],
+                templates: ["mps"],
+                template_definitions: {{ mps: {{ display_name: "MPS" }} }},
+                template_catalog_warnings: [],
+                annotation_definitions: {{ tensor: [] }},
+                app_metadata: {{ version: "test" }},
+                default_engine: "quimb",
+                default_collection_format: "dict",
+                engines: ["quimb"],
+              }};
+            }},
+          }},
+          actions: {{
+            normalizeSpec: (spec) => spec,
+            applyTemplateCatalogPayload: () => {{}},
+            reconcileTensorOrder: () => flowEvents.push("reconcileTensorOrder"),
+            populateEngineOptions: () => flowEvents.push("populateEngineOptions"),
+            enforceLinearPeriodicEngineSupport: () =>
+              flowEvents.push("enforceLinearPeriodicEngineSupport"),
+            populateCollectionFormatOptions: () =>
+              flowEvents.push("populateCollectionFormatOptions"),
+            initGraph: () => flowEvents.push("initGraph"),
+            clearHistory: () => flowEvents.push("clearHistory"),
+            render: () => flowEvents.push("render"),
+            markContractionAnalysisDirty: () => {{
+              state.contractionAnalysisDirty = true;
+              flowEvents.push("markContractionAnalysisDirty");
+            }},
+            refreshContractionAnalysis: () =>
+              flowEvents.push("refreshContractionAnalysis"),
+            setStatus: () => flowEvents.push("setStatus"),
+          }},
+        }});
+
+        await bootstrapFlow.bootstrap();
+        if (!state.contractionAnalysisDirty || !flowEvents.includes("markContractionAnalysisDirty")) {{
+          throw new Error(`Expected bootstrap to mark analysis dirty, received ${{JSON.stringify(flowEvents)}} with state ${{JSON.stringify(state)}}.`);
+        }}
+        if (flowEvents.includes("refreshContractionAnalysis")) {{
+          throw new Error(`Bootstrap should not eagerly refresh contraction analysis, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The deferred bootstrap analysis script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_serialize_current_spec_reuses_cached_payload_by_revision_and_snapshot_mode(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "serialize_current_spec_cache.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const utilitiesSpecUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesSpec.js")!r}).href;
+        const utilitiesSpecModule = await import(utilitiesSpecUrl);
+
+        const constants = {{
+          TENSOR_WIDTH: 140,
+          TENSOR_HEIGHT: 84,
+          MIN_TENSOR_WIDTH: 96,
+          MIN_TENSOR_HEIGHT: 60,
+          NOTE_WIDTH: 240,
+          NOTE_HEIGHT: 160,
+          NOTE_MIN_WIDTH: 140,
+          NOTE_MIN_HEIGHT: 100,
+        }};
+        let deepCloneCalls = 0;
+        let snapshotCalls = 0;
+        const state = {{
+          schemaVersion: 4,
+          specRevision: 7,
+          spec: {{
+            id: "network_demo",
+            name: "Demo",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: {{
+              id: "plan_demo",
+              name: "Plan",
+              steps: [],
+              view_snapshots: [],
+              metadata: {{}},
+            }},
+            metadata: {{}},
+          }},
+        }};
+        const ctx = {{
+          ensureContractionViewSnapshots() {{
+            snapshotCalls += 1;
+          }},
+        }};
+        const runtime = {{
+          deepClone(value) {{
+            deepCloneCalls += 1;
+            return structuredClone(value);
+          }},
+          isObject(value) {{
+            return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+          }},
+          asFiniteNumber(value, fallbackValue) {{
+            return Number.isFinite(Number(value)) ? Number(value) : fallbackValue;
+          }},
+          makeId(prefix) {{
+            return `${{prefix}}_1`;
+          }},
+          nextName(prefix) {{
+            return prefix;
+          }},
+          ensureTensorIndexOffsets() {{}},
+          isLinearPeriodicMode() {{
+            return false;
+          }},
+          isGridPeriodicMode() {{
+            return false;
+          }},
+          isTreePeriodicMode() {{
+            return false;
+          }},
+          hydrateActiveLinearPeriodicCell() {{}},
+          hydrateActiveGridPeriodicCell() {{}},
+          hydrateActiveTreePeriodicCell() {{}},
+          normalizeLinearPeriodicChainInPlace(value) {{
+            return value;
+          }},
+          normalizeGridPeriodicGridInPlace(value) {{
+            return value;
+          }},
+          normalizeTreePeriodicTreeInPlace(value) {{
+            return value;
+          }},
+        }};
+
+        const bindings = utilitiesSpecModule.createUtilitySpecBindings({{
+          ctx,
+          state,
+          constants,
+          runtime,
+        }});
+
+        bindings.serializeCurrentSpec();
+        bindings.serializeCurrentSpec();
+        if (deepCloneCalls !== 1) {{
+          throw new Error(`Expected identical serializeCurrentSpec() calls to reuse the cached payload, received ${{deepCloneCalls}} deep clones.`);
+        }}
+
+        bindings.serializeCurrentSpec({{ persistViewSnapshots: true }});
+        bindings.serializeCurrentSpec({{ persistViewSnapshots: true }});
+        if (deepCloneCalls !== 2) {{
+          throw new Error(`Expected one cached payload per snapshot mode, received ${{deepCloneCalls}} deep clones.`);
+        }}
+        if (snapshotCalls !== 1) {{
+          throw new Error(`Expected persisted snapshot serialization to prepare snapshots once, received ${{snapshotCalls}} calls.`);
+        }}
+
+        state.specRevision = 8;
+        bindings.serializeCurrentSpec();
+        if (deepCloneCalls !== 3) {{
+          throw new Error(`Expected a spec revision change to invalidate the serialized spec cache, received ${{deepCloneCalls}} deep clones.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The serialized spec cache script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_support_reuses_cached_analysis_until_spec_revision_changes(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_analysis_cache.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const plannerSupportUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "plannerSupport.js")!r}).href;
+        const plannerSupportModule = await import(plannerSupportUrl);
+
+        let requestCount = 0;
+        let serializeCount = 0;
+        const state = {{
+          spec: {{
+            id: "network_demo",
+            name: "Demo",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }},
+          specRevision: 1,
+          activeSidebarTab: "planner",
+          plannerMode: false,
+          plannerPreviewMode: null,
+          plannerDisclosureState: {{}},
+          plannerFutureBadgeDisclosure: {{}},
+          plannerInspectionStepCount: null,
+          pendingPlannerOperandId: null,
+          pendingPlannerSelectionId: null,
+          contractionAnalysis: null,
+          contractionAnalysisDirty: true,
+        }};
+        const ctx = {{
+          apiPost: async (path, payload) => {{
+            requestCount += 1;
+            if (path !== "/api/analyze-contraction") {{
+              throw new Error(`Unexpected analysis path: ${{path}}`);
+            }}
+            return {{
+              ok: true,
+              manual: {{ summary: {{}} }},
+              automatic_future: {{ status: "unavailable" }},
+              automatic_past: {{ status: "unavailable" }},
+              automatic_full: {{ status: "unavailable" }},
+              comparisons: {{}},
+              request_number: requestCount,
+              spec_id: payload.spec.network.id,
+            }};
+          }},
+          serializeCurrentSpec: () => {{
+            serializeCount += 1;
+            return {{
+              schema_version: 4,
+              network: {{
+                id: "network_demo",
+              }},
+            }};
+          }},
+          render() {{}},
+          renderOverlayDecorations() {{}},
+          setStatus() {{}},
+          makeId(prefix) {{
+            return `${{prefix}}_1`;
+          }},
+          deepClone(value) {{
+            return structuredClone(value);
+          }},
+          findTensorById() {{
+            return null;
+          }},
+          getContractibleTensors() {{
+            return [];
+          }},
+          isLinearPeriodicBoundaryTensor() {{
+            return false;
+          }},
+        }};
+        const support = plannerSupportModule.createPlannerSupport({{
+          ctx,
+          state,
+          analysisRefreshDelayMs: 25,
+          setTimer(callback) {{
+            return callback();
+          }},
+          clearTimer() {{}},
+          getRenderPlanner: () => () => {{}},
+        }});
+
+        await support.refreshContractionAnalysis({{ immediate: true }});
+        if (requestCount !== 1 || serializeCount !== 1) {{
+          throw new Error(`Expected the first refresh to analyze once, received requests=${{requestCount}} serialize=${{serializeCount}}.`);
+        }}
+
+        state.contractionAnalysisDirty = true;
+        await support.refreshContractionAnalysis({{ immediate: true }});
+        if (requestCount !== 1 || serializeCount !== 1) {{
+          throw new Error(`Expected the same spec revision to reuse the cached analysis, received requests=${{requestCount}} serialize=${{serializeCount}}.`);
+        }}
+
+        state.specRevision = 2;
+        state.contractionAnalysisDirty = true;
+        await support.refreshContractionAnalysis({{ immediate: true }});
+        if (requestCount !== 2 || serializeCount !== 2) {{
+          throw new Error(`Expected a spec revision change to invalidate the cached analysis, received requests=${{requestCount}} serialize=${{serializeCount}}.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner analysis cache script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_code_highlighting_support_loads_prism_once_and_reuses_it(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "code_highlighting_support.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const highlightingUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "codeHighlighting.js")!r}).href;
+        const highlightingModule = await import(highlightingUrl);
+
+        const appendedSources = [];
+        const highlightCalls = [];
+        const windowRef = {{
+          Prism: null,
+          __TNE_ASSET_VERSION__: "123",
+        }};
+        const documentRef = {{
+          head: {{
+            appendChild(script) {{
+              appendedSources.push(script.src);
+              queueMicrotask(() => {{
+                if (script.src.includes("prism-python.min.js")) {{
+                  windowRef.Prism = {{
+                    highlightElement(element) {{
+                      highlightCalls.push(element.id);
+                      element.dataset.highlighted = String(
+                        Number(element.dataset.highlighted || "0") + 1
+                      );
+                    }},
+                  }};
+                }}
+                script.onload();
+              }});
+            }},
+          }},
+          createElement() {{
+            return {{
+              async: false,
+              src: "",
+              onload() {{}},
+              onerror() {{}},
+            }};
+          }},
+        }};
+        const support = highlightingModule.createCodeHighlightingSupport({{
+          windowRef,
+          documentRef,
+        }});
+        const firstElement = {{ id: "code_a", dataset: {{}} }};
+        const secondElement = {{ id: "code_b", dataset: {{}} }};
+
+        await Promise.all([
+          support.highlightElement(firstElement),
+          support.highlightElement(firstElement),
+        ]);
+        await support.highlightElement(secondElement);
+
+        if (appendedSources.length !== 2) {{
+          throw new Error(`Expected the Prism loader to append each vendor script once, received ${{JSON.stringify(appendedSources)}}.`);
+        }}
+        if (!appendedSources[0].endsWith("/vendor/prism-core.min.js?v=123")) {{
+          throw new Error(`Expected the core Prism asset to carry the asset version, received ${{appendedSources[0]}}.`);
+        }}
+        if (!appendedSources[1].endsWith("/vendor/prism-python.min.js?v=123")) {{
+          throw new Error(`Expected the Python Prism asset to carry the asset version, received ${{appendedSources[1]}}.`);
+        }}
+        if (highlightCalls.join(",") !== "code_a,code_a,code_b") {{
+          throw new Error(`Expected queued highlights to reuse the same loader, received ${{JSON.stringify(highlightCalls)}}.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The code highlighting support script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_services_route_session_requests_through_explicit_dependencies(
     tmp_path: Path,
 ) -> None:
@@ -1979,6 +2415,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             initGraph: () => flowEvents.push("initGraph"),
             clearHistory: () => flowEvents.push("clearHistory"),
             render: () => flowEvents.push("render"),
+            markContractionAnalysisDirty: () => {{
+              state.contractionAnalysisDirty = true;
+              flowEvents.push("markContractionAnalysisDirty");
+            }},
             refreshContractionAnalysis: () =>
               flowEvents.push("refreshContractionAnalysis"),
             setStatus: (message, level) => flowEvents.push({{ message, level }}),
@@ -1991,7 +2431,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         if (!flowEvents.some((entry) => entry.message === "Template warning" && entry.level === "error")) {{
           throw new Error(`Expected bootstrap flow to surface template warnings, received ${{JSON.stringify(flowEvents)}}.`);
         }}
-        if (!flowEvents.includes("enforceLinearPeriodicEngineSupport") || !flowEvents.includes("refreshContractionAnalysis")) {{
+        if (
+          !flowEvents.includes("enforceLinearPeriodicEngineSupport")
+          || !flowEvents.includes("markContractionAnalysisDirty")
+          || flowEvents.includes("refreshContractionAnalysis")
+        ) {{
           throw new Error(`Expected bootstrap flow to run post-load actions, received ${{JSON.stringify(flowEvents)}}.`);
         }}
 

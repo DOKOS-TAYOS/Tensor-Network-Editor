@@ -28,6 +28,17 @@ export function createUtilitySpecBindings({ ctx, state, constants, runtime }) {
 
   function serializeCurrentSpec(options = {}) {
     const { persistViewSnapshots = false } = options;
+    const cacheKey = persistViewSnapshots
+      ? "serializedSpecCacheWithSnapshots"
+      : "serializedSpecCacheWithoutSnapshots";
+    if (state.serializedSpecCacheRevision !== state.specRevision) {
+      state.serializedSpecCacheRevision = state.specRevision;
+      state.serializedSpecCacheWithoutSnapshots = null;
+      state.serializedSpecCacheWithSnapshots = null;
+    }
+    if (state[cacheKey]) {
+      return state[cacheKey];
+    }
     if (
       persistViewSnapshots &&
       state.spec &&
@@ -36,10 +47,12 @@ export function createUtilitySpecBindings({ ctx, state, constants, runtime }) {
     ) {
       ctx.ensureContractionViewSnapshots();
     }
-    return {
+    const serializedSpec = {
       schema_version: state.schemaVersion,
       network: normalizationBindings.buildSerializedSpec(),
     };
+    state[cacheKey] = serializedSpec;
+    return serializedSpec;
   }
 
   function captureEditableFocus() {

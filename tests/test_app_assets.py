@@ -154,8 +154,9 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     )
     assert 'id="generated-code-view"' in html
     assert 'id="generated-code"' in html
-    assert "/vendor/prism-core.min.js?v=" in html
-    assert "/vendor/prism-python.min.js?v=" in html
+    assert "/vendor/prism-core.min.js?v=" not in html
+    assert "/vendor/prism-python.min.js?v=" not in html
+    assert "window.__TNE_ASSET_VERSION__" in html
 
 
 def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
@@ -336,6 +337,16 @@ def test_prism_vendor_assets_are_served_locally(editor_server: EditorServer) -> 
     assert "python" in python_body
     assert core_headers["Content-Type"].startswith("application/javascript")
     assert python_headers["Content-Type"].startswith("application/javascript")
+
+
+def test_root_defers_prism_vendor_loading_until_code_preview_is_needed(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert "/vendor/prism-core.min.js" not in html
+    assert "/vendor/prism-python.min.js" not in html
+    assert "window.__TNE_ASSET_VERSION__" in html
 
 
 def test_interactions_asset_exposes_updated_keyboard_shortcuts(

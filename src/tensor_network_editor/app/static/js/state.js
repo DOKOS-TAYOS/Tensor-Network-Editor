@@ -95,6 +95,9 @@ export function createInitialState() {
     pendingInteractionRenderedIndexId: null,
     syncingIndexPositions: false,
     syncingTensorPositions: false,
+    serializedSpecCacheRevision: -1,
+    serializedSpecCacheWithoutSnapshots: null,
+    serializedSpecCacheWithSnapshots: null,
     undoStack: [],
     redoStack: [],
     lastMutationClearedCode: false,
@@ -153,6 +156,8 @@ export function createInitialState() {
     plannerPreviewOrderByTensorId: {},
     contractionAnalysis: null,
     contractionAnalysisDirty: false,
+    contractionAnalysisCacheRevision: -1,
+    contractionAnalysisCachePayload: null,
     contractionAnalysisRequestId: 0,
     benchmarkSession: createInitialBenchmarkSession(),
   };

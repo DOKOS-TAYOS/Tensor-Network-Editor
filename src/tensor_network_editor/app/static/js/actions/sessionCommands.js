@@ -1,7 +1,10 @@
+import { createCodeHighlightingSupport } from "../codeHighlighting.js";
+
 export function createSessionCommands({
   dom,
   state,
   store,
+  document,
   window,
   setStatus,
   applyTemplateCatalogPayload,
@@ -10,6 +13,10 @@ export function createSessionCommands({
   bringTensorToFront,
 }) {
   const { generatedCode, generatedCodeView } = dom;
+  const codeHighlightingSupport = createCodeHighlightingSupport({
+    windowRef: window,
+    documentRef: document,
+  });
 
   function syncGeneratedCodePreview(code = state.generatedCode) {
     const renderedCode = typeof code === "string" ? code : "";
@@ -20,10 +27,7 @@ export function createSessionCommands({
       return;
     }
     generatedCodeView.textContent = renderedCode;
-    const prism = window && typeof window === "object" ? window.Prism : null;
-    if (prism && typeof prism.highlightElement === "function") {
-      prism.highlightElement(generatedCodeView);
-    }
+    void codeHighlightingSupport.highlightElement(generatedCodeView);
   }
 
   function applyTemplateCatalogUpdate(

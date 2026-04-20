@@ -5,6 +5,8 @@ from typing import Protocol, cast
 
 from tensor_network_editor.app import server as app_server
 from tensor_network_editor.app.server import EditorServer
+from tensor_network_editor.app.session import EditorSession
+from tests.factories import build_sample_spec
 
 
 class _RecordingHandler:
@@ -61,3 +63,22 @@ def test_parse_content_length_rejects_malformed_values() -> None:
             assert str(exc) == expected_message
         else:
             raise AssertionError(f"Content-Length {raw_value!r} was accepted.")
+
+
+def test_editor_servers_reuse_static_asset_cache_between_instances() -> None:
+    first_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+    second_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+
+    try:
+        assert first_server._static_asset_cache is second_server._static_asset_cache
+        assert (
+            first_server._static_asset_cache.asset_version
+            == second_server._static_asset_cache.asset_version
+        )
+        assert (
+            first_server._static_asset_cache.index_body
+            == second_server._static_asset_cache.index_body
+        )
+    finally:
+        first_server._server.server_close()
+        second_server._server.server_close()
