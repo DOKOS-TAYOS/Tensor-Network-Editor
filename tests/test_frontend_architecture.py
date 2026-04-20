@@ -2051,6 +2051,25 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         ) {{
           throw new Error("Expected shortcut tooltip helper to keep the extra description.");
         }}
+        if (typeof shortcutTooltip.showVirtualTooltip !== "function") {{
+          throw new Error("Expected shortcutTooltip to expose virtual tooltip rendering for canvas elements.");
+        }}
+        if (typeof shortcutTooltip.hideActiveTooltip !== "function") {{
+          throw new Error("Expected shortcutTooltip to expose a shared hide helper.");
+        }}
+        shortcutTooltip.showVirtualTooltip({{
+          label: "Next cell",
+          description: "Virtual boundary tensor for the next cell in For unidimensional mode.",
+          rect: {{
+            left: 120,
+            top: 80,
+            right: 220,
+            bottom: 140,
+            width: 100,
+            height: 60,
+          }},
+        }});
+        shortcutTooltip.hideActiveTooltip();
 
         const dom = {{
           addNoteButton: getButton("add-note-button"),

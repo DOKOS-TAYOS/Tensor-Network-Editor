@@ -747,6 +747,10 @@ select {
   min-width: max-content;
 }
 
+.title-control-group[hidden] {
+  display: none !important;
+}
+
 .title-control-group-primary {
   padding-bottom: 0.05rem;
 }
@@ -767,6 +771,10 @@ select {
   min-width: 1px;
   background: rgba(76, 92, 120, 0.88);
   box-shadow: 0 0 0 1px rgba(18, 23, 34, 0.24);
+}
+
+.title-control-divider[hidden] {
+  display: none !important;
 }
 
 .title-button-row button {
@@ -1592,6 +1600,10 @@ select {
 
 .planner-disclosure-state-hide {
   color: #ffd2f3;
+}
+
+.index-disclosure-state {
+  color: var(--index-state-color, var(--muted));
 }
 
 .planner-disclosure-body {

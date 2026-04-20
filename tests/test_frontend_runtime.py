@@ -6024,6 +6024,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               throw new Error("One or more utility helper factories were not exported.");
             }
 
+            const primaryToolbarGroup = createButton();
+            const primaryToolbarDivider = createButton();
+            primaryToolbarGroup.nextElementSibling = primaryToolbarDivider;
             const templateToolbarGroup = createButton();
             const templateSelectField = createButton();
             templateSelectField.parentElement = templateToolbarGroup;
@@ -6088,8 +6091,14 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 templatesMenuPanel: createButton(),
                 helpMenuButton: createButton(),
                 helpMenuPanel: createButton(),
-                addNoteButton: createButton(),
-                connectButton: createButton(),
+                addNoteButton: {
+                  ...createButton(),
+                  parentElement: primaryToolbarGroup,
+                },
+                connectButton: {
+                  ...createButton(),
+                  parentElement: primaryToolbarGroup,
+                },
                 loadInput: {},
                 undoButton: createButton(),
                 redoButton: createButton(),
@@ -6174,7 +6183,10 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 reflowDistributeVerticalButton: createButton(),
                 reflowSnapGridButton: createButton(),
                 insertSubnetworkButton: createButton(),
-                createGroupButton: createButton(),
+                createGroupButton: {
+                  ...createButton(),
+                  parentElement: primaryToolbarGroup,
+                },
                 helpButton: createButton(),
                 helpModal: { classList: createClassList() },
                 helpBackdrop: createButton(),
@@ -6360,6 +6372,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (!templateToolbarGroup.hidden) {
               throw new Error("The template toolbar group should disappear while viewing a benchmark scheme.");
             }
+            if (!primaryToolbarGroup.hidden || !primaryToolbarDivider.hidden) {
+              throw new Error("The primary toolbar controls should disappear while viewing a benchmark scheme.");
+            }
             if (!ctx.dom.templateSelect.disabled || !ctx.dom.templateSelect.parentElement.hidden) {
               throw new Error("Template selection should disappear while viewing a benchmark scheme.");
             }
@@ -6394,6 +6409,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             runtime.updateToolbarState();
             if (templateToolbarGroup.hidden) {
               throw new Error("The template toolbar group should reappear when leaving the benchmark scheme view.");
+            }
+            if (primaryToolbarGroup.hidden || primaryToolbarDivider.hidden) {
+              throw new Error("The primary toolbar controls should reappear when leaving the benchmark scheme view.");
             }
             runtime.openToolbarMenu("file");
             if (ctx.dom.fileMenuPanel.hidden !== false) {

@@ -434,6 +434,8 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "--toolbar-height:" in body
     assert ".toolbar-title-link {" in body
     assert ".title-control-divider {" in body
+    assert ".title-control-group[hidden] {" in body
+    assert ".title-control-divider[hidden] {" in body
     assert ".title-control-group-mode {" in body
     assert ".title-control-group-template {" in body
     assert "margin-left: auto;" in body
@@ -755,6 +757,9 @@ def test_properties_assets_remove_guided_annotation_inputs_and_center_controls(
     assert 'id="center-tensor-button"' not in combined_body
     assert 'id="align-selection-center-button"' not in combined_body
     assert ">Center<" not in combined_body
+    assert "createPaleIndexColor" in tensor_standard_body
+    assert "index-disclosure-state" in tensor_standard_body
+    assert "Remove this tensor from the network." in tensor_standard_body
 
 
 def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
@@ -811,6 +816,7 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert ".planner-chip-info {" in css_body
     assert ".planner-disclosure-state-show {" in css_body
     assert ".planner-disclosure-state-hide {" in css_body
+    assert ".index-disclosure-state {" in css_body
 
 
 def test_canvas_context_menu_assets_expose_minimal_selection_actions(
@@ -860,6 +866,7 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert '"Move index down"' in context_menu_body
     assert '"Delete index"' in context_menu_body
     assert '"Index dimension"' in context_menu_body
+    assert "Remove this tensor from the network." in context_menu_body
     assert "Add one new open index to each selected tensor." in context_menu_body
     assert "Add index to tensors" not in context_menu_body
     assert "Extract selection" not in context_menu_body
@@ -968,11 +975,14 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
     assert "function createEditorShellBindings(" in shell_bindings_body
     assert "function createShortcutTooltip(" in tooltip_body
     assert "function applyTitleHint(" in tooltip_body
+    assert "function showVirtualTooltip(" in tooltip_body
+    assert "function hideActiveTooltip(" in tooltip_body
     assert "function escapeTooltipText(" in tooltip_body
     assert "function buildTooltipMarkup(" in tooltip_body
     assert 'class="shortcut-tooltip-header"' in tooltip_body
     assert 'class="shortcut-tooltip-description"' in tooltip_body
     assert "tooltip.innerHTML = buildTooltipMarkup(button);" in tooltip_body
+    assert "ctx.shortcutTooltip = shortcutTooltip;" in bootstrap_body
     assert "shortcutTooltip.applyTitleHint(" in shell_bindings_body
     assert "ctx.applyDesignChange(" not in overview_body
     assert "ctx.applyDesignChange(" not in entities_body
@@ -988,6 +998,24 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
     assert "function deleteEdge(" in commands_body
     assert "function updateNoteText(" in commands_body
     assert "function deleteNote(" in commands_body
+
+
+def test_graph_assets_expose_for_boundary_tensor_hovers(
+    editor_server: EditorServer,
+) -> None:
+    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+
+    assert 'state.cy.on("mouseover", "node[kind = \'tensor\']"' in graph_body
+    assert 'state.cy.on("mouseout", "node[kind = \'tensor\']"' in graph_body
+    assert "ctx.shortcutTooltip.showVirtualTooltip" in graph_body
+    assert (
+        "Virtual boundary tensor for the next cell in For unidimensional mode."
+        in graph_body
+    )
+    assert (
+        "Virtual boundary tensor for the cell on the right in For bidimensional mode."
+        in graph_body
+    )
 
 
 def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_modules(

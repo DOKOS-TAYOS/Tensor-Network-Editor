@@ -59,6 +59,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     reflowDistributeVerticalButton,
     reflowSnapGridButton,
     createGroupButton,
+    connectButton,
+    addNoteButton,
     generateButton,
     helpModal,
     helpCloseButton,
@@ -623,6 +625,18 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         : null;
     const benchmarkActivePosition = benchmarkSession ? benchmarkSession.activePosition : 0;
     const benchmarkSchemeView = benchmarkMode && benchmarkActivePosition > 0;
+    const primaryToolbarGroup =
+      connectButton && connectButton.parentElement
+        ? connectButton.parentElement
+        : createGroupButton && createGroupButton.parentElement
+          ? createGroupButton.parentElement
+          : addNoteButton && addNoteButton.parentElement
+            ? addNoteButton.parentElement
+            : null;
+    const primaryToolbarDivider =
+      primaryToolbarGroup && primaryToolbarGroup.nextElementSibling
+        ? primaryToolbarGroup.nextElementSibling
+        : null;
     const templateToolbarGroup =
       templateSelect && templateSelect.parentElement
         ? templateSelect.parentElement.parentElement || templateSelect.parentElement
@@ -688,6 +702,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if (editSessionTemplateMenuItem) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
     }
+    setElementHidden(primaryToolbarGroup, benchmarkSchemeView);
+    setElementHidden(primaryToolbarDivider, benchmarkSchemeView);
     setElementHidden(templateToolbarGroup, benchmarkSchemeView);
     if (insertTemplateButton) {
       insertTemplateButton.disabled = benchmarkSchemeView || !selectedTemplateValue;

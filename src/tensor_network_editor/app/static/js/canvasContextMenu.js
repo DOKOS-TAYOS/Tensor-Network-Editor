@@ -466,7 +466,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button danger"
               aria-label="Delete tensor"
-              title="Delete tensor"
+              ${buildTooltipAttributes(
+                "Delete tensor",
+                "Remove this tensor from the network."
+              )}
             >
               ${renderTrashIcon()}
             </button>

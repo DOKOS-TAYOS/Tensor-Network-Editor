@@ -24,6 +24,20 @@ export function createStandardTensorPropertiesRenderer({
     }`;
   }
 
+  function createPaleIndexColor(color) {
+    const matchedHex = /^#?([0-9a-f]{6})$/iu.exec(String(color || "").trim());
+    if (!matchedHex) {
+      return "rgba(216, 226, 245, 0.92)";
+    }
+    const hexColor = matchedHex[1];
+    const red = Number.parseInt(hexColor.slice(0, 2), 16);
+    const green = Number.parseInt(hexColor.slice(2, 4), 16);
+    const blue = Number.parseInt(hexColor.slice(4, 6), 16);
+    const blendToWhite = (component) =>
+      Math.round(component + (255 - component) * 0.58);
+    return `rgba(${blendToWhite(red)}, ${blendToWhite(green)}, ${blendToWhite(blue)}, 0.94)`;
+  }
+
   function renderTensorProperties(tensor, options = {}) {
     const focusedIndexId = options.focusedIndexId || null;
     const tensorIndexCount = Array.isArray(tensor.indices) ? tensor.indices.length : 0;
@@ -32,6 +46,7 @@ export function createStandardTensorPropertiesRenderer({
       .map((index, indexPosition) => {
         const isOpen = isTensorIndexDisclosureOpen(tensor.id, index.id);
         const isConnected = Boolean(ctx.findEdgeByIndexId(index.id));
+        const indexColor = ctx.getIndexColor(index, isConnected);
 
         return `
           <section class="planner-section planner-disclosure index-disclosure${isOpen ? " is-open" : ""}">
@@ -43,14 +58,18 @@ export function createStandardTensorPropertiesRenderer({
               data-index-toggle="${index.id}"
               aria-expanded="${isOpen}"
               style="--index-border-color: ${ctx.escapeHtml(
-                ctx.getIndexColor(index, isConnected)
+                indexColor
+              )}; --index-state-color: ${ctx.escapeHtml(
+                createPaleIndexColor(indexColor)
               )};"
             >
               <span class="index-disclosure-title">
                 <strong>${indexPosition + 1}. ${ctx.escapeHtml(index.name)}</strong>
                 <span>${isConnected ? "Connected" : "Open"} &middot; dim ${index.dimension}</span>
               </span>
-              <strong>${isOpen ? "Hide" : "Show"}</strong>
+              <strong class="planner-disclosure-state index-disclosure-state">${
+                isOpen ? "Hide" : "Show"
+              }</strong>
             </button>
             ${
               isOpen
@@ -215,7 +234,10 @@ export function createStandardTensorPropertiesRenderer({
           type="button"
           class="icon-button danger"
           aria-label="Delete tensor"
-          title="Delete tensor"
+          ${buildTooltipAttributes(
+            "Delete tensor",
+            "Remove this tensor from the network."
+          )}
         >
           ${renderTrashIcon()}
         </button>

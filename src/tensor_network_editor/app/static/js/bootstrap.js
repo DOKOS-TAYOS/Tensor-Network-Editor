@@ -117,6 +117,7 @@ export function startEditor(ctx) {
     documentRef: document,
     windowRef: window,
   });
+  ctx.shortcutTooltip = shortcutTooltip;
   const bootstrapFlow = createEditorBootstrapFlow({
     state,
     store,
