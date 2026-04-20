@@ -10,6 +10,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+
+def _self_mapped_js_modules(module_names: tuple[str, ...]) -> dict[str, str]:
+    return {module_name: module_name for module_name in module_names}
+
+
 _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "state.runtime.mjs": "state.js",
     "utilities.runtime.mjs": "utilities.js",
@@ -29,21 +34,8 @@ _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "utilitiesUi.js": "utilitiesUi.js",
 }
 
-
-def _copy_js_modules(tmp_path: Path, copied_modules: dict[str, str]) -> None:
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
-
-
-def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    module_names = [
+_RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _self_mapped_js_modules(
+    (
         "actions/designMutationPipeline.js",
         "actions/plannerCommands.js",
         "actions/propertyCommands.js",
@@ -97,14 +89,88 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "state/editorStore.js",
         "state/plannerSelectors.js",
         "theme.js",
-    ]
-    for module_name in module_names:
-        target_path = tmp_path / module_name
+    )
+)
+
+_SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
+    "state.runtime.mjs": "state.js",
+    "interactionsShortcuts.js": "interactionsShortcuts.js",
+}
+
+_MINIMAP_SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
+    **_SHORTCUT_RUNTIME_DEPENDENCY_MODULES,
+    "exportMinimap.js": "exportMinimap.js",
+    "theme.js": "theme.js",
+}
+
+_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = (
+    _self_mapped_js_modules(
+        (
+            "actions/sessionCommands.js",
+            "interactionsSession.js",
+            "session/sessionEditorFlows.js",
+            "session/sessionTemplateFlows.js",
+            "session/sessionUiAdapters.js",
+            "state/editorSelectors.js",
+            "state/editorStore.js",
+            "utilitiesTemplates.js",
+        )
+    )
+)
+
+_INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES: dict[str, str] = {
+    "state.runtime.mjs": "state.js",
+    "interactions.runtime.mjs": "interactions.js",
+    **_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES,
+    **_self_mapped_js_modules(
+        (
+            "interactionsCanvas.js",
+            "interactionsEditor.js",
+            "interactionsShortcuts.js",
+            "interactions/editorActionGroups.js",
+            "services/editorSessionService.js",
+            "services/subnetworkService.js",
+            "services/templateCatalogService.js",
+        )
+    ),
+}
+
+_LAYOUT_SUBNETWORK_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
+    **_UTILITY_RUNTIME_DEPENDENCY_MODULES,
+    "historySelection.runtime.mjs": "historySelection.js",
+    **_self_mapped_js_modules(
+        (
+            "actions/designMutationPipeline.js",
+            "actions/sessionCommands.js",
+            "interactionsSession.js",
+            "session/sessionEditorFlows.js",
+            "session/sessionTemplateFlows.js",
+            "session/sessionUiAdapters.js",
+            "services/editorSessionService.js",
+            "services/subnetworkService.js",
+            "services/templateCatalogService.js",
+            "state/editorSelectors.js",
+            "state/editorStore.js",
+            "state/historySnapshots.js",
+            "state/selectionEntries.js",
+        )
+    ),
+}
+
+
+def _copy_js_modules(tmp_path: Path, copied_modules: dict[str, str]) -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(
-            (js_root / module_name).read_text(encoding="utf-8"),
+            (js_root / source_name).read_text(encoding="utf-8"),
             encoding="utf-8",
         )
+
+
+def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
+    _copy_js_modules(tmp_path, _RUNTIME_EDITOR_SUPPORT_MODULES)
 
 
 def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
@@ -3465,20 +3531,7 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
 
 def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "minimap_shortcut_runtime_regression.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "interactionsShortcuts.js": "interactionsShortcuts.js",
-        "exportMinimap.js": "exportMinimap.js",
-        "theme.js": "theme.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _MINIMAP_SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -3623,18 +3676,7 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
 
 def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "planner_auto_shortcut_runtime_regression.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "interactionsShortcuts.js": "interactionsShortcuts.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -3797,18 +3839,7 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "mode_and_template_shortcut_runtime_regression.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "interactionsShortcuts.js": "interactionsShortcuts.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -4018,18 +4049,7 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
 
 def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "shift_only_shortcut_runtime_regression.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "interactionsShortcuts.js": "interactionsShortcuts.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -6962,33 +6982,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
 
 def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "interaction_runtime_contract.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "interactions.runtime.mjs": "interactions.js",
-        "actions/sessionCommands.js": "actions/sessionCommands.js",
-        "interactionsCanvas.js": "interactionsCanvas.js",
-        "interactionsEditor.js": "interactionsEditor.js",
-        "interactionsSession.js": "interactionsSession.js",
-        "interactionsShortcuts.js": "interactionsShortcuts.js",
-        "interactions/editorActionGroups.js": "interactions/editorActionGroups.js",
-        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
-        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
-        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
-        "services/editorSessionService.js": "services/editorSessionService.js",
-        "services/subnetworkService.js": "services/subnetworkService.js",
-        "services/templateCatalogService.js": "services/templateCatalogService.js",
-        "state/editorSelectors.js": "state/editorSelectors.js",
-        "state/editorStore.js": "state/editorStore.js",
-        "utilitiesTemplates.js": "utilitiesTemplates.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -7567,24 +7561,7 @@ def _write_interaction_session_dependency_injection_runtime_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "interaction_session_dependency_injection.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "actions/sessionCommands.js": "actions/sessionCommands.js",
-        "interactionsSession.js": "interactionsSession.js",
-        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
-        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
-        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
-        "state/editorSelectors.js": "state/editorSelectors.js",
-        "state/editorStore.js": "state/editorStore.js",
-        "utilitiesTemplates.js": "utilitiesTemplates.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -7775,26 +7752,7 @@ def test_runtime_interaction_helper_modules_preserve_facade_contract(
 
 def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "layout_subnetwork_runtime_regression.mjs"
-    _copy_js_modules(
-        tmp_path,
-        {
-            **_UTILITY_RUNTIME_DEPENDENCY_MODULES,
-            "historySelection.runtime.mjs": "historySelection.js",
-            "actions/designMutationPipeline.js": "actions/designMutationPipeline.js",
-            "actions/sessionCommands.js": "actions/sessionCommands.js",
-            "interactionsSession.js": "interactionsSession.js",
-            "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
-            "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
-            "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
-            "services/editorSessionService.js": "services/editorSessionService.js",
-            "services/subnetworkService.js": "services/subnetworkService.js",
-            "services/templateCatalogService.js": "services/templateCatalogService.js",
-            "state/editorSelectors.js": "state/editorSelectors.js",
-            "state/editorStore.js": "state/editorStore.js",
-            "state/historySnapshots.js": "state/historySnapshots.js",
-            "state/selectionEntries.js": "state/selectionEntries.js",
-        },
-    )
+    _copy_js_modules(tmp_path, _LAYOUT_SUBNETWORK_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
