@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+import tensor_network_editor
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -1955,7 +1957,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
                 template_definitions: {{ mps: {{ display_name: "MPS" }} }},
                 template_catalog_warnings: ["Template warning"],
                 annotation_definitions: {{ tensor: [] }},
-                app_metadata: {{ version: "0.2.2" }},
+                app_metadata: {{ version: "{tensor_network_editor.__version__}" }},
                 default_engine: "quimb",
                 default_collection_format: "dict",
                 engines: ["quimb", "cotengra"],

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import shutil
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
 from uuid import uuid4
 
 import pytest
@@ -21,6 +23,40 @@ from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.models import EngineName, NetworkSpec
 from tests.factories import build_sample_spec, serialize_spec_payload
+
+
+def distribution_for_checkout_import_or_skip(
+    imported_package: ModuleType,
+    *,
+    distribution_name: str = "tensor-network-editor",
+    package_relative_path: str = "tensor_network_editor/__init__.py",
+) -> importlib.metadata.Distribution:
+    """Return installed metadata when it matches the imported checkout package."""
+    try:
+        distribution = importlib.metadata.distribution(distribution_name)
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip(
+            "Installed distribution metadata is unavailable in source-only test environments."
+        )
+
+    imported_package_file_text = imported_package.__file__
+    if imported_package_file_text is None:
+        pytest.skip(
+            "Imported package has no __file__; cannot match checkout imports to installed metadata."
+        )
+
+    imported_package_file = Path(imported_package_file_text).resolve()
+    installed_package_file = Path(
+        str(distribution.locate_file(package_relative_path))
+    ).resolve()
+    if (
+        imported_package_file.is_relative_to(CURRENT_CHECKOUT_SRC)
+        and imported_package_file != installed_package_file
+    ):
+        pytest.skip(
+            "Installed distribution metadata points to a different package installation than the current src checkout."
+        )
+    return distribution
 
 
 @pytest.fixture

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 from pathlib import Path
 
@@ -19,6 +18,7 @@ from tensor_network_editor.errors import (
     SerializationError,
 )
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
+from tests.conftest import distribution_for_checkout_import_or_skip
 from tests.factories import (
     build_outer_product_plan_spec,
     build_sample_spec_with_view_snapshots,
@@ -29,13 +29,9 @@ from tests.factories import (
 
 
 def test_package_version_matches_installed_metadata() -> None:
-    try:
-        installed_version = importlib.metadata.version("tensor-network-editor")
-    except importlib.metadata.PackageNotFoundError:
-        pytest.skip(
-            "Installed distribution metadata is unavailable in source-only test environments."
-        )
-    assert tensor_network_editor.__version__ == installed_version
+    distribution = distribution_for_checkout_import_or_skip(tensor_network_editor)
+
+    assert tensor_network_editor.__version__ == distribution.version
 
 
 def test_package_logger_uses_null_handler() -> None:

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Checkout-based test runs now skip installed-distribution metadata assertions when `importlib.metadata` resolves a different package installation than the active `src/` checkout.
+- Frontend runtime contract/regression tests now copy the full `utilities.js` dependency set, including the tree-periodic utility module, and the bootstrap architecture fixture no longer hardcodes a stale app version.
+- Tree-periodic codegen renderers now include the missing type annotations needed for the targeted CLI `mypy` regression check, and the linear-periodic headless analysis regression test now matches the current single-analysis flow.
+
 ## [0.3.0] - 2026-04-20
 
 ### Changed

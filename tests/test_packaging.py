@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import importlib.metadata
 import tomllib
 from pathlib import Path
 
-import pytest
-
 import tensor_network_editor
+from tests.conftest import distribution_for_checkout_import_or_skip
 
 
 def test_test_session_imports_package_from_current_checkout_src() -> None:
@@ -19,12 +17,7 @@ def test_test_session_imports_package_from_current_checkout_src() -> None:
 
 
 def test_installed_distribution_exposes_public_metadata_contracts() -> None:
-    try:
-        distribution = importlib.metadata.distribution("tensor-network-editor")
-    except importlib.metadata.PackageNotFoundError:
-        pytest.skip(
-            "Installed distribution metadata is unavailable in source-only test environments."
-        )
+    distribution = distribution_for_checkout_import_or_skip(tensor_network_editor)
     project_urls = distribution.metadata.get_all("Project-URL") or []
 
     assert distribution.metadata["Name"] == "tensor-network-editor"

@@ -19,6 +19,7 @@ from ..models import (
 from ._linear_periodic_expressions import _axis_names_for_engine
 from ._linear_periodic_graph_renderers import _render_cell_setup_sections
 from ._tree_periodic_shared import (
+    _RenderedTreeCellHelper,
     render_tree_periodic_helper,
     render_tree_periodic_script,
     render_tree_periodic_shared_helpers,
@@ -126,7 +127,7 @@ def _render_tree_graph_cell_helper(
     helper_signature: str,
     engine: EngineName,
     collection_format: TensorCollectionFormat,
-):
+) -> _RenderedTreeCellHelper:
     cell = _cell_from_tree(tree, cell_name)
     prepared = prepare_network(
         build_internal_tree_periodic_cell_network(cell, cell_name=cell_name)

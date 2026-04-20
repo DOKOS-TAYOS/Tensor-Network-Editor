@@ -230,7 +230,7 @@ def test_analyze_spec_reuses_validation_for_linear_periodic_specs() -> None:
 
     assert report.contraction is not None
     assert ensure_valid_spec_mock.call_count == 1
-    assert analysis_analyze_network_mock.call_count == 2
+    assert analysis_analyze_network_mock.call_count == 1
 
 
 def test_analyze_spec_uses_active_tree_periodic_cell() -> None:

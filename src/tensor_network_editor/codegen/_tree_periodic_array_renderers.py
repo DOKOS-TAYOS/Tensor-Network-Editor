@@ -10,6 +10,7 @@ from .._tree_periodic import (
 from ..models import (
     CodegenResult,
     EngineName,
+    LinearPeriodicCellSpec,
     TensorCollectionFormat,
     TreePeriodicCellName,
     TreePeriodicTensorRole,
@@ -20,6 +21,7 @@ from ._linear_periodic_expressions import (
     _render_python_tuple_expression,
 )
 from ._tree_periodic_shared import (
+    _RenderedTreeCellHelper,
     render_tree_periodic_helper,
     render_tree_periodic_script,
     render_tree_periodic_shared_helpers,
@@ -265,7 +267,7 @@ def _render_quimb_cell_helper(
     helper_name: str,
     helper_signature: str,
     collection_format: TensorCollectionFormat,
-):
+) -> _RenderedTreeCellHelper:
     cell = _cell_from_tree(tree, cell_name)
     prepared = prepare_network(
         build_internal_tree_periodic_cell_network(cell, cell_name=cell_name)
@@ -356,7 +358,7 @@ def _render_einsum_cell_helper(
     helper_name: str,
     helper_signature: str,
     collection_format: TensorCollectionFormat,
-):
+) -> _RenderedTreeCellHelper:
     cell = _cell_from_tree(tree, cell_name)
     prepared = prepare_network(
         build_internal_tree_periodic_cell_network(cell, cell_name=cell_name)
@@ -450,7 +452,7 @@ def _render_einsum_cell_helper(
 def _cell_from_tree(
     tree: TreePeriodicTreeSpec,
     cell_name: TreePeriodicCellName,
-):
+) -> LinearPeriodicCellSpec:
     if cell_name is TreePeriodicCellName.ROOT:
         return tree.root_cell
     if cell_name is TreePeriodicCellName.BRANCH:
@@ -461,7 +463,7 @@ def _cell_from_tree(
 def _build_child_ports_by_index(
     *,
     tree: TreePeriodicTreeSpec,
-    cell,
+    cell: LinearPeriodicCellSpec,
     cell_name: TreePeriodicCellName,
 ) -> dict[int, tuple[TreePeriodicInterfacePort, ...]]:
     return {

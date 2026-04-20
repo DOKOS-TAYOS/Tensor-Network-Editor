@@ -10,6 +10,36 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+_UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
+    "state.runtime.mjs": "state.js",
+    "utilities.runtime.mjs": "utilities.js",
+    "utilitiesTemplates.js": "utilitiesTemplates.js",
+    "spec/specLookups.js": "spec/specLookups.js",
+    "spec/specMutations.js": "spec/specMutations.js",
+    "spec/specNormalization.js": "spec/specNormalization.js",
+    "utilitiesBase.js": "utilitiesBase.js",
+    "theme.js": "theme.js",
+    "utilitiesBenchmark.js": "utilitiesBenchmark.js",
+    "utilitiesGeometry.js": "utilitiesGeometry.js",
+    "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
+    "utilitiesLayout.js": "utilitiesLayout.js",
+    "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
+    "utilitiesTreePeriodic.js": "utilitiesTreePeriodic.js",
+    "utilitiesSpec.js": "utilitiesSpec.js",
+    "utilitiesUi.js": "utilitiesUi.js",
+}
+
+
+def _copy_js_modules(tmp_path: Path, copied_modules: dict[str, str]) -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
 
 def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
@@ -6338,31 +6368,7 @@ def test_metadata_filters_are_local_and_classify_entities_for_highlighting(
 
 def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "utility_runtime_contract.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "utilities.runtime.mjs": "utilities.js",
-        "utilitiesTemplates.js": "utilitiesTemplates.js",
-        "spec/specLookups.js": "spec/specLookups.js",
-        "spec/specMutations.js": "spec/specMutations.js",
-        "spec/specNormalization.js": "spec/specNormalization.js",
-        "utilitiesBase.js": "utilitiesBase.js",
-        "theme.js": "theme.js",
-        "utilitiesBenchmark.js": "utilitiesBenchmark.js",
-        "utilitiesGeometry.js": "utilitiesGeometry.js",
-        "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
-        "utilitiesLayout.js": "utilitiesLayout.js",
-        "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
-        "utilitiesSpec.js": "utilitiesSpec.js",
-        "utilitiesUi.js": "utilitiesUi.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(tmp_path, _UTILITY_RUNTIME_DEPENDENCY_MODULES)
 
     script_path.write_text(
         textwrap.dedent(
@@ -7769,45 +7775,26 @@ def test_runtime_interaction_helper_modules_preserve_facade_contract(
 
 def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "layout_subnetwork_runtime_regression.mjs"
-    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
-    copied_modules = {
-        "state.runtime.mjs": "state.js",
-        "utilities.runtime.mjs": "utilities.js",
-        "historySelection.runtime.mjs": "historySelection.js",
-        "actions/designMutationPipeline.js": "actions/designMutationPipeline.js",
-        "actions/sessionCommands.js": "actions/sessionCommands.js",
-        "interactionsSession.js": "interactionsSession.js",
-        "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
-        "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
-        "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
-        "services/editorSessionService.js": "services/editorSessionService.js",
-        "services/subnetworkService.js": "services/subnetworkService.js",
-        "services/templateCatalogService.js": "services/templateCatalogService.js",
-        "spec/specLookups.js": "spec/specLookups.js",
-        "spec/specMutations.js": "spec/specMutations.js",
-        "spec/specNormalization.js": "spec/specNormalization.js",
-        "state/editorSelectors.js": "state/editorSelectors.js",
-        "state/editorStore.js": "state/editorStore.js",
-        "state/historySnapshots.js": "state/historySnapshots.js",
-        "state/selectionEntries.js": "state/selectionEntries.js",
-        "utilitiesTemplates.js": "utilitiesTemplates.js",
-        "utilitiesBase.js": "utilitiesBase.js",
-        "theme.js": "theme.js",
-        "utilitiesBenchmark.js": "utilitiesBenchmark.js",
-        "utilitiesGeometry.js": "utilitiesGeometry.js",
-        "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
-        "utilitiesLayout.js": "utilitiesLayout.js",
-        "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
-        "utilitiesSpec.js": "utilitiesSpec.js",
-        "utilitiesUi.js": "utilitiesUi.js",
-    }
-    for target_name, source_name in copied_modules.items():
-        target_path = tmp_path / target_name
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
+    _copy_js_modules(
+        tmp_path,
+        {
+            **_UTILITY_RUNTIME_DEPENDENCY_MODULES,
+            "historySelection.runtime.mjs": "historySelection.js",
+            "actions/designMutationPipeline.js": "actions/designMutationPipeline.js",
+            "actions/sessionCommands.js": "actions/sessionCommands.js",
+            "interactionsSession.js": "interactionsSession.js",
+            "session/sessionEditorFlows.js": "session/sessionEditorFlows.js",
+            "session/sessionTemplateFlows.js": "session/sessionTemplateFlows.js",
+            "session/sessionUiAdapters.js": "session/sessionUiAdapters.js",
+            "services/editorSessionService.js": "services/editorSessionService.js",
+            "services/subnetworkService.js": "services/subnetworkService.js",
+            "services/templateCatalogService.js": "services/templateCatalogService.js",
+            "state/editorSelectors.js": "state/editorSelectors.js",
+            "state/editorStore.js": "state/editorStore.js",
+            "state/historySnapshots.js": "state/historySnapshots.js",
+            "state/selectionEntries.js": "state/selectionEntries.js",
+        },
+    )
 
     script_path.write_text(
         textwrap.dedent(
