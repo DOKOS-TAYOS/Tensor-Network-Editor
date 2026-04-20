@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Editor sessions now reuse a shared in-process cache of static asset bytes and the rendered `index.html`, defer contraction analysis until the planner actually needs it, cache serialized specs and analysis results by spec revision, and load Prism syntax-highlighting assets on demand instead of during the initial page load.
 - The library is now organized around a new `tensor_network_editor.internal` implementation tree, stable public facade modules at the package root, a domain-based `codegen/` layout (`shared`, `backends`, `modes`), and a modularized frontend `app/static/js/` tree with only the browser entrypoints left at the top level.
 - A second conservative modularization pass now moves canonicalization, diffing, linting, serialization, and subnetwork extraction internals behind thin public facades, while internal packages import those implementations directly instead of routing through compatibility wrappers.
+- A third conservative modularization pass now splits linear-periodic carry semantics into `tensor_network_editor.internal.modes`, breaks linear-periodic codegen into smaller `common` / `standard` / `carry` modules, and removes internal dependencies on the old `_linear_periodic_shared` implementation path.
 
 ### Fixed
 

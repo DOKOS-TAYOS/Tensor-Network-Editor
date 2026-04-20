@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from ...codegen.shared.common import prepare_network
 from ...models import (
@@ -16,9 +16,7 @@ from ...models import (
 from ..analysis._analysis import analyze_network
 from ..analysis._contraction_plan import (
     PreparedContractionInputs,
-    SimulatedContractionStep,
     prepare_contraction_inputs,
-    simulate_contraction_step,
 )
 from ..modes._linear_periodic import (
     LINEAR_PERIODIC_NEXT_OPERAND_ID,
@@ -35,6 +33,15 @@ from ..modes._linear_periodic import (
     linear_periodic_cell_as_network,
     linear_periodic_cell_uses_carry_mode,
     linear_periodic_chain_uses_carry_mode,
+)
+from ..modes._linear_periodic_carry import (
+    LinearPeriodicCarryOperandState as _CarryOperandState,
+)
+from ..modes._linear_periodic_carry import (
+    linear_periodic_carry_partner_operand_id,
+    linear_periodic_step_uses_reserved_operand,
+    resolve_linear_periodic_carry_operand_order,
+    simulate_linear_periodic_carry_step,
 )
 from ._validation_common import append_issue, validate_metadata
 from ._validation_contraction import validate_contraction_plan
@@ -65,14 +72,6 @@ _EXPECTED_CARRY_COUNTS: dict[LinearPeriodicCellName, tuple[int, int]] = {
 
 
 @dataclass(slots=True)
-class _CarryOperandState:
-    """Track labels for one operand while validating carry-mode plans."""
-
-    labels: tuple[str, ...]
-    axis_names: tuple[str, ...]
-
-
-@dataclass(slots=True)
 class _CarryValidationContext:
     """Gather the mutable carry-validation state for one cell."""
 
@@ -98,41 +97,6 @@ def _build_carry_operand_state_map(
         )
         for operand_id in contraction_inputs.initial_operand_ids
     }
-
-
-def _simulate_carry_step(
-    *,
-    step: ContractionStepSpec,
-    left_state: _CarryOperandState,
-    right_state: _CarryOperandState,
-    dimension_by_label: dict[str, int],
-) -> tuple[SimulatedContractionStep, tuple[str, ...]]:
-    """Simulate one carry step while preserving explicit axis-name metadata."""
-    simulation = simulate_contraction_step(
-        step=step,
-        left_labels=left_state.labels,
-        right_labels=right_state.labels,
-        left_axis_names=left_state.axis_names,
-        right_axis_names=right_state.axis_names,
-        dimension_by_label=dimension_by_label,
-    )
-    axis_name_by_label: dict[str, str] = {}
-    for label, axis_name in zip(
-        left_state.labels,
-        left_state.axis_names,
-        strict=True,
-    ):
-        axis_name_by_label[label] = axis_name
-    for label, axis_name in zip(
-        right_state.labels,
-        right_state.axis_names,
-        strict=True,
-    ):
-        axis_name_by_label.setdefault(label, axis_name)
-    result_axis_names = tuple(
-        axis_name_by_label[label] for label in simulation.surviving_labels
-    )
-    return replace(simulation, result_axis_names=result_axis_names), result_axis_names
 
 
 def _linear_periodic_cell_prefix(cell_name: LinearPeriodicCellName) -> str:
@@ -527,14 +491,14 @@ def _validate_linear_periodic_carry_step(
 ) -> None:
     """Validate and apply one carry-mode step."""
     step_path = f"{context.cell_prefix}.contraction_plan.steps.{step.id}"
-    uses_previous = LINEAR_PERIODIC_PREVIOUS_OPERAND_ID in {
-        step.left_operand_id,
-        step.right_operand_id,
-    }
-    uses_next = LINEAR_PERIODIC_NEXT_OPERAND_ID in {
-        step.left_operand_id,
-        step.right_operand_id,
-    }
+    uses_previous = linear_periodic_step_uses_reserved_operand(
+        step,
+        LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+    )
+    uses_next = linear_periodic_step_uses_reserved_operand(
+        step,
+        LINEAR_PERIODIC_NEXT_OPERAND_ID,
+    )
 
     if uses_previous and uses_next:
         append_issue(
@@ -577,7 +541,7 @@ def _validate_carry_step_using_next(
     issues: list[ValidationIssue],
 ) -> None:
     """Validate one carry step that contracts with ``next``."""
-    partner_operand_id = _carry_partner_operand_id(
+    partner_operand_id = linear_periodic_carry_partner_operand_id(
         step,
         LINEAR_PERIODIC_NEXT_OPERAND_ID,
     )
@@ -585,13 +549,13 @@ def _validate_carry_step_using_next(
     partner_state = context.operand_state_by_id.get(partner_operand_id)
     if next_state is None or partner_state is None:
         return
-    left_state, right_state = _resolve_step_operand_states(
+    left_state, right_state = resolve_linear_periodic_carry_operand_order(
         step=step,
         reserved_operand_id=LINEAR_PERIODIC_NEXT_OPERAND_ID,
         reserved_state=next_state,
         partner_state=partner_state,
     )
-    simulation, result_axis_names = _simulate_carry_step(
+    simulation, result_axis_names = simulate_linear_periodic_carry_step(
         step=step,
         left_state=left_state,
         right_state=right_state,
@@ -626,7 +590,7 @@ def _validate_carry_step_using_previous(
     issues: list[ValidationIssue],
 ) -> None:
     """Validate one carry step that contracts with ``previous``."""
-    partner_operand_id = _carry_partner_operand_id(
+    partner_operand_id = linear_periodic_carry_partner_operand_id(
         step,
         LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
     )
@@ -636,13 +600,13 @@ def _validate_carry_step_using_previous(
     partner_state = context.operand_state_by_id.get(partner_operand_id)
     if previous_state is None or partner_state is None:
         return
-    left_state, right_state = _resolve_step_operand_states(
+    left_state, right_state = resolve_linear_periodic_carry_operand_order(
         step=step,
         reserved_operand_id=LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
         reserved_state=previous_state,
         partner_state=partner_state,
     )
-    simulation, result_axis_names = _simulate_carry_step(
+    simulation, result_axis_names = simulate_linear_periodic_carry_step(
         step=step,
         left_state=left_state,
         right_state=right_state,
@@ -679,7 +643,7 @@ def _validate_carry_step_without_reserved_operands(
     maybe_right_state = context.operand_state_by_id.get(step.right_operand_id)
     if maybe_left_state is None or maybe_right_state is None:
         return
-    simulation, result_axis_names = _simulate_carry_step(
+    simulation, result_axis_names = simulate_linear_periodic_carry_step(
         step=step,
         left_state=maybe_left_state,
         right_state=maybe_right_state,
@@ -692,29 +656,6 @@ def _validate_carry_step_without_reserved_operands(
         result_axis_names=result_axis_names,
         surviving_labels=simulation.surviving_labels,
     )
-
-
-def _carry_partner_operand_id(
-    step: ContractionStepSpec,
-    reserved_operand_id: str,
-) -> str:
-    """Return the non-reserved operand id used by one carry step."""
-    if step.left_operand_id == reserved_operand_id:
-        return step.right_operand_id
-    return step.left_operand_id
-
-
-def _resolve_step_operand_states(
-    *,
-    step: ContractionStepSpec,
-    reserved_operand_id: str,
-    reserved_state: _CarryOperandState,
-    partner_state: _CarryOperandState,
-) -> tuple[_CarryOperandState, _CarryOperandState]:
-    """Return left/right operand states in the order used by ``step``."""
-    if step.left_operand_id == reserved_operand_id:
-        return reserved_state, partner_state
-    return partner_state, reserved_state
 
 
 def _store_carry_step_result(

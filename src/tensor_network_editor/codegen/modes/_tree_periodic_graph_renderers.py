@@ -25,7 +25,7 @@ from ..shared.common import (
     prepare_network,
     tensor_collection_reference,
 )
-from ._linear_periodic_graph_renderers import _render_cell_setup_sections
+from ._linear_periodic.graph_common import _render_cell_setup_sections
 from ._tree_periodic_shared import (
     _RenderedTreeCellHelper,
     render_tree_periodic_helper,

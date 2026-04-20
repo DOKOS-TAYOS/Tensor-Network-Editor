@@ -12,7 +12,7 @@ from ...models import EngineName, LinearPeriodicCellName
 from .common import PreparedNetwork, render_results_list_reference
 
 if TYPE_CHECKING:
-    from ..modes._linear_periodic_shared import _CarryOperandState
+    from ..modes._linear_periodic.carry import _CarryOperandState
 
 
 _TENSORKROWCH_AXIS_INDEX_SUFFIX_RE = re.compile(r"_\d+$")

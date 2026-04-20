@@ -1,16 +1,15 @@
-"""Shared types and carry-plan simulation helpers for linear periodic codegen."""
+"""Carry-plan simulation helpers for linear-periodic codegen."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from ...errors import CodeGenerationError
-from ...internal.analysis._contraction_plan import (
+from ....errors import CodeGenerationError
+from ....internal.analysis._contraction_plan import (
     SimulatedContractionStep,
     build_dimension_by_label,
-    simulate_contraction_step,
 )
-from ...internal.modes._linear_periodic import (
+from ....internal.modes._linear_periodic import (
     LINEAR_PERIODIC_NEXT_OPERAND_ID,
     LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
     LinearPeriodicInterfacePort,
@@ -21,36 +20,31 @@ from ...internal.modes._linear_periodic import (
     build_linear_periodic_interface_labels,
     build_linear_periodic_interface_ports,
 )
-from ...models import (
+from ....internal.modes._linear_periodic_carry import (
+    LinearPeriodicCarryOperandState,
+    linear_periodic_carry_partner_operand_id,
+    linear_periodic_step_uses_reserved_operand,
+    simulate_linear_periodic_carry_step,
+)
+from ....models import (
     ContractionStepSpec,
     EngineName,
     LinearPeriodicCellName,
     LinearPeriodicCellSpec,
     LinearPeriodicChainSpec,
 )
-from ..shared._linear_periodic_expressions import _axis_names_for_engine
-from ..shared.common import (
-    CodeSection,
+from ...shared._linear_periodic_expressions import _axis_names_for_engine
+from ...shared.common import (
     PreparedNetwork,
     prepare_network,
-    render_code_section_lines,
-    render_code_sections,
 )
-
-
-@dataclass(slots=True)
-class _RenderedCellHelper:
-    """Generated helper function together with interface expressions."""
-
-    lines: list[str]
+from .common import _cell_from_chain
 
 
 @dataclass(slots=True, frozen=True)
-class _CarryOperandState:
+class _CarryOperandState(LinearPeriodicCarryOperandState):
     """Track the current labels and axis names of one carry operand."""
 
-    labels: tuple[str, ...]
-    axis_names: tuple[str, ...]
     dimensions: tuple[int, ...]
 
 
@@ -110,58 +104,6 @@ class _CarrySimulationState:
     dimension_by_label: dict[str, int]
 
 
-_LINEAR_PERIODIC_CHAIN_LENGTH_ERROR = (
-    "n must be at least 2 for a linear periodic chain."
-)
-
-
-def render_linear_periodic_shared_helpers(*, extra_lines: list[str]) -> list[str]:
-    """Render shared top-level helpers plus backend-specific extras."""
-    return [
-        "def validate_chain_length(n: int) -> None:",
-        "    if n < 2:",
-        f"        raise ValueError({_LINEAR_PERIODIC_CHAIN_LENGTH_ERROR!r})",
-        "",
-        *extra_lines,
-    ]
-
-
-def render_linear_periodic_helper(
-    *,
-    helper_name: str,
-    helper_signature: str,
-    return_annotation: str,
-    sections: list[CodeSection],
-) -> _RenderedCellHelper:
-    """Render one generated helper function with titled body sections."""
-    helper_lines = [f"def {helper_name}({helper_signature}) -> {return_annotation}:"]
-    body_lines = render_code_section_lines(*sections)
-    helper_lines.extend([f"    {line}" if line else "" for line in body_lines])
-    return _RenderedCellHelper(lines=helper_lines)
-
-
-def render_linear_periodic_script(
-    *,
-    import_lines: list[str],
-    shared_helper_lines: list[str],
-    initial_cell_lines: list[str],
-    periodic_cell_lines: list[str],
-    final_cell_lines: list[str],
-    main_loop_lines: list[str],
-    output_lines: list[str],
-) -> str:
-    """Render one linear-periodic script with a fixed top-level section order."""
-    return render_code_sections(
-        CodeSection(title=None, lines=import_lines),
-        CodeSection(title="Shared helpers", lines=shared_helper_lines),
-        CodeSection(title="Initial cell", lines=initial_cell_lines),
-        CodeSection(title="Periodic cell", lines=periodic_cell_lines),
-        CodeSection(title="Final cell", lines=final_cell_lines),
-        CodeSection(title="Main loop", lines=main_loop_lines),
-        CodeSection(title="Outputs", lines=output_lines),
-    )
-
-
 def _simulate_carry_step(
     *,
     step: ContractionStepSpec,
@@ -171,29 +113,11 @@ def _simulate_carry_step(
     engine: EngineName,
 ) -> tuple[SimulatedContractionStep, _CarryOperandState]:
     """Simulate one carry-mode contraction while preserving axis names."""
-    simulation = simulate_contraction_step(
+    simulation, result_axis_names = simulate_linear_periodic_carry_step(
         step=step,
-        left_labels=left_state.labels,
-        right_labels=right_state.labels,
-        left_axis_names=left_state.axis_names,
-        right_axis_names=right_state.axis_names,
+        left_state=left_state,
+        right_state=right_state,
         dimension_by_label=dimension_by_label,
-    )
-    axis_name_by_label: dict[str, str] = {}
-    for label, axis_name in zip(
-        left_state.labels,
-        left_state.axis_names,
-        strict=True,
-    ):
-        axis_name_by_label[label] = axis_name
-    for label, axis_name in zip(
-        right_state.labels,
-        right_state.axis_names,
-        strict=True,
-    ):
-        axis_name_by_label.setdefault(label, axis_name)
-    result_axis_names = tuple(
-        axis_name_by_label[label] for label in simulation.surviving_labels
     )
     result_axis_names = _axis_names_for_engine(engine, result_axis_names)
     result_state = _CarryOperandState(
@@ -375,11 +299,11 @@ def _simulate_carry_plan_steps(
 ) -> None:
     """Run all carry-mode plan steps in order for one cell."""
     for step_index, step in enumerate(steps):
-        uses_previous = _step_uses_reserved_operand(
+        uses_previous = linear_periodic_step_uses_reserved_operand(
             step,
             LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
         )
-        uses_next = _step_uses_reserved_operand(
+        uses_next = linear_periodic_step_uses_reserved_operand(
             step,
             LINEAR_PERIODIC_NEXT_OPERAND_ID,
         )
@@ -410,24 +334,6 @@ def _simulate_carry_plan_steps(
         )
 
 
-def _step_uses_reserved_operand(
-    step: ContractionStepSpec,
-    operand_id: str,
-) -> bool:
-    """Return whether a carry step references one reserved operand id."""
-    return operand_id in {step.left_operand_id, step.right_operand_id}
-
-
-def _carry_partner_operand_id(
-    step: ContractionStepSpec,
-    reserved_operand_id: str,
-) -> str:
-    """Return the non-reserved operand paired with one boundary operand."""
-    if step.left_operand_id == reserved_operand_id:
-        return step.right_operand_id
-    return step.left_operand_id
-
-
 def _simulate_carry_next_step(
     *,
     step: ContractionStepSpec,
@@ -437,7 +343,7 @@ def _simulate_carry_next_step(
     state: _CarrySimulationState,
 ) -> None:
     """Validate and finalize a ``next`` handoff step without simulating it."""
-    partner_operand_id = _carry_partner_operand_id(
+    partner_operand_id = linear_periodic_carry_partner_operand_id(
         step,
         LINEAR_PERIODIC_NEXT_OPERAND_ID,
     )
@@ -469,7 +375,7 @@ def _simulate_carry_previous_step(
     state: _CarrySimulationState,
 ) -> None:
     """Simulate one carry step that consumes the previous payload operand."""
-    partner_operand_id = _carry_partner_operand_id(
+    partner_operand_id = linear_periodic_carry_partner_operand_id(
         step,
         LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
     )
@@ -750,15 +656,3 @@ def _build_carry_simulation_map(
         carry_simulation_by_cell_name[cell_name] = simulation
         previous_payload_state = _build_carry_payload_state(simulation)
     return carry_simulation_by_cell_name
-
-
-def _cell_from_chain(
-    chain: LinearPeriodicChainSpec,
-    cell_name: LinearPeriodicCellName,
-) -> LinearPeriodicCellSpec:
-    """Return the matching cell from ``chain``."""
-    if cell_name is LinearPeriodicCellName.INITIAL:
-        return chain.initial_cell
-    if cell_name is LinearPeriodicCellName.PERIODIC:
-        return chain.periodic_cell
-    return chain.final_cell
