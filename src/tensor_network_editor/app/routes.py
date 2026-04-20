@@ -6,13 +6,13 @@ import logging
 from http import HTTPStatus
 from typing import Literal
 
-from .._contraction_analysis_types import ContractionAnalysisResult
 from ..errors import (
     CodeGenerationError,
     PackageIOError,
     SerializationError,
     SpecValidationError,
 )
+from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
 from ..validation import validate_spec

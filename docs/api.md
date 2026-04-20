@@ -47,6 +47,13 @@ from tensor_network_editor import (
 
 Most workflows only need a few of these imports.
 
+The documented imports above are the stable public surface. The package also
+contains implementation modules under `tensor_network_editor.internal`, plus a
+few public compatibility wrappers such as `tensor_network_editor.serialization`
+and `tensor_network_editor.diffing`. Those public modules are safe to import.
+The `internal` tree is not a stable API and may be reorganized between
+releases.
+
 ## Launch the Editor
 
 Use `launch_tensor_network_editor(...)` when you want a local browser editing

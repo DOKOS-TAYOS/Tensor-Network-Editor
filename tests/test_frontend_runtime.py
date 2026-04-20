@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import posixpath
+import re
 import shutil
 import subprocess
 import textwrap
@@ -11,31 +13,90 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _self_mapped_js_modules(module_names: tuple[str, ...]) -> dict[str, str]:
-    return {module_name: module_name for module_name in module_names}
+JS_RELOCATION_MAP: dict[str, str] = {
+    "api.js": "services/api.js",
+    "codeHighlighting.js": "core/codeHighlighting.js",
+    "constants.js": "core/constants.js",
+    "dom.js": "core/dom.js",
+    "editorContext.js": "core/editorContext.js",
+    "exportMinimap.js": "graph/exportMinimap.js",
+    "graphRender.js": "graph/graphRender.js",
+    "historySelection.js": "graph/historySelection.js",
+    "interactions.js": "interactions/interactions.js",
+    "interactionsCanvas.js": "interactions/interactionsCanvas.js",
+    "interactionsEditor.js": "interactions/interactionsEditor.js",
+    "interactionsSession.js": "interactions/interactionsSession.js",
+    "interactionsShortcuts.js": "interactions/interactionsShortcuts.js",
+    "metadataFilters.js": "graph/metadataFilters.js",
+    "notes.js": "graph/notes.js",
+    "notesPlanner.js": "planner/notesPlanner.js",
+    "overlaysLayoutTemplates.js": "graph/overlaysLayoutTemplates.js",
+    "planner.js": "planner/planner.js",
+    "plannerAutomaticSupport.js": "planner/plannerAutomaticSupport.js",
+    "plannerRenderers.js": "planner/plannerRenderers.js",
+    "plannerSupport.js": "planner/plannerSupport.js",
+    "properties.js": "properties/properties.js",
+    "propertiesRenderers.js": "properties/propertiesRenderers.js",
+    "propertiesRenderersEntities.js": "properties/propertiesRenderersEntities.js",
+    "propertiesRenderersOverview.js": "properties/propertiesRenderersOverview.js",
+    "propertiesRenderersTensor.js": "properties/propertiesRenderersTensor.js",
+    "propertiesSupport.js": "properties/propertiesSupport.js",
+    "sidebarTabs.js": "core/sidebarTabs.js",
+    "state.js": "state/state.js",
+    "theme.js": "core/theme.js",
+    "utilities.js": "utils/utilities.js",
+    "utilitiesBase.js": "utils/utilitiesBase.js",
+    "utilitiesBenchmark.js": "utils/utilitiesBenchmark.js",
+    "utilitiesGeometry.js": "utils/utilitiesGeometry.js",
+    "utilitiesGridPeriodic.js": "utils/utilitiesGridPeriodic.js",
+    "utilitiesLayout.js": "utils/utilitiesLayout.js",
+    "utilitiesLinearPeriodic.js": "utils/utilitiesLinearPeriodic.js",
+    "utilitiesSpec.js": "utils/utilitiesSpec.js",
+    "utilitiesTemplates.js": "utils/utilitiesTemplates.js",
+    "utilitiesTreePeriodic.js": "utils/utilitiesTreePeriodic.js",
+    "utilitiesUi.js": "utils/utilitiesUi.js",
+}
+
+
+def _js_source_name(module_name: str) -> str:
+    return JS_RELOCATION_MAP.get(module_name, module_name)
+
+
+def _mapped_js_modules(module_names: tuple[str, ...]) -> dict[str, str]:
+    return {module_name: _js_source_name(module_name) for module_name in module_names}
+
+
+def _write_text_file(path: Path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+
+
+_RELATIVE_JS_IMPORT_PATTERN = re.compile(
+    r'(?P<prefix>\bfrom\s+["\']|\bimport\s+["\'])(?P<spec>\.{1,2}/[^"\']+)(?P<suffix>["\'])'
+)
 
 
 _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": "state.js",
-    "utilities.runtime.mjs": "utilities.js",
-    "codeHighlighting.js": "codeHighlighting.js",
-    "utilitiesTemplates.js": "utilitiesTemplates.js",
+    "state.runtime.mjs": _js_source_name("state.js"),
+    "utilities.runtime.mjs": _js_source_name("utilities.js"),
+    "codeHighlighting.js": _js_source_name("codeHighlighting.js"),
+    "utilitiesTemplates.js": _js_source_name("utilitiesTemplates.js"),
     "spec/specLookups.js": "spec/specLookups.js",
     "spec/specMutations.js": "spec/specMutations.js",
     "spec/specNormalization.js": "spec/specNormalization.js",
-    "utilitiesBase.js": "utilitiesBase.js",
-    "theme.js": "theme.js",
-    "utilitiesBenchmark.js": "utilitiesBenchmark.js",
-    "utilitiesGeometry.js": "utilitiesGeometry.js",
-    "utilitiesGridPeriodic.js": "utilitiesGridPeriodic.js",
-    "utilitiesLayout.js": "utilitiesLayout.js",
-    "utilitiesLinearPeriodic.js": "utilitiesLinearPeriodic.js",
-    "utilitiesTreePeriodic.js": "utilitiesTreePeriodic.js",
-    "utilitiesSpec.js": "utilitiesSpec.js",
-    "utilitiesUi.js": "utilitiesUi.js",
+    "utilitiesBase.js": _js_source_name("utilitiesBase.js"),
+    "theme.js": _js_source_name("theme.js"),
+    "utilitiesBenchmark.js": _js_source_name("utilitiesBenchmark.js"),
+    "utilitiesGeometry.js": _js_source_name("utilitiesGeometry.js"),
+    "utilitiesGridPeriodic.js": _js_source_name("utilitiesGridPeriodic.js"),
+    "utilitiesLayout.js": _js_source_name("utilitiesLayout.js"),
+    "utilitiesLinearPeriodic.js": _js_source_name("utilitiesLinearPeriodic.js"),
+    "utilitiesTreePeriodic.js": _js_source_name("utilitiesTreePeriodic.js"),
+    "utilitiesSpec.js": _js_source_name("utilitiesSpec.js"),
+    "utilitiesUi.js": _js_source_name("utilitiesUi.js"),
 }
 
-_RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _self_mapped_js_modules(
+_RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
     (
         "actions/designMutationPipeline.js",
         "actions/plannerCommands.js",
@@ -95,37 +156,35 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _self_mapped_js_modules(
 )
 
 _SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": "state.js",
-    "interactionsShortcuts.js": "interactionsShortcuts.js",
+    "state.runtime.mjs": _js_source_name("state.js"),
+    "interactionsShortcuts.js": _js_source_name("interactionsShortcuts.js"),
 }
 
 _MINIMAP_SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     **_SHORTCUT_RUNTIME_DEPENDENCY_MODULES,
-    "exportMinimap.js": "exportMinimap.js",
-    "theme.js": "theme.js",
+    "exportMinimap.js": _js_source_name("exportMinimap.js"),
+    "theme.js": _js_source_name("theme.js"),
 }
 
-_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = (
-    _self_mapped_js_modules(
-        (
-            "actions/sessionCommands.js",
-            "codeHighlighting.js",
-            "interactionsSession.js",
-            "session/sessionEditorFlows.js",
-            "session/sessionTemplateFlows.js",
-            "session/sessionUiAdapters.js",
-            "state/editorSelectors.js",
-            "state/editorStore.js",
-            "utilitiesTemplates.js",
-        )
+_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_modules(
+    (
+        "actions/sessionCommands.js",
+        "codeHighlighting.js",
+        "interactionsSession.js",
+        "session/sessionEditorFlows.js",
+        "session/sessionTemplateFlows.js",
+        "session/sessionUiAdapters.js",
+        "state/editorSelectors.js",
+        "state/editorStore.js",
+        "utilitiesTemplates.js",
     )
 )
 
 _INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": "state.js",
-    "interactions.runtime.mjs": "interactions.js",
+    "state.runtime.mjs": _js_source_name("state.js"),
+    "interactions.runtime.mjs": _js_source_name("interactions.js"),
     **_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES,
-    **_self_mapped_js_modules(
+    **_mapped_js_modules(
         (
             "interactionsCanvas.js",
             "interactionsEditor.js",
@@ -140,8 +199,8 @@ _INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES: dict[str, str] = {
 
 _LAYOUT_SUBNETWORK_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     **_UTILITY_RUNTIME_DEPENDENCY_MODULES,
-    "historySelection.runtime.mjs": "historySelection.js",
-    **_self_mapped_js_modules(
+    "historySelection.runtime.mjs": _js_source_name("historySelection.js"),
+    **_mapped_js_modules(
         (
             "actions/designMutationPipeline.js",
             "actions/sessionCommands.js",
@@ -163,17 +222,56 @@ _LAYOUT_SUBNETWORK_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
 
 def _copy_js_modules(tmp_path: Path, copied_modules: dict[str, str]) -> None:
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    source_to_target = {
+        source_name.replace("\\", "/"): target_name.replace("\\", "/")
+        for target_name, source_name in copied_modules.items()
+    }
+
+    def rewrite_imports(content: str, *, source_name: str, target_name: str) -> str:
+        source_dir = posixpath.dirname(source_name) or "."
+        target_dir = posixpath.dirname(target_name) or "."
+
+        def replace_import(match: re.Match[str]) -> str:
+            spec = match.group("spec")
+            source_target = posixpath.normpath(posixpath.join(source_dir, spec))
+            mapped_target = source_to_target.get(source_target)
+            if mapped_target is None:
+                return match.group(0)
+            rewritten_spec = posixpath.relpath(mapped_target, start=target_dir)
+            if not rewritten_spec.startswith("."):
+                rewritten_spec = f"./{rewritten_spec}"
+            return f"{match.group('prefix')}{rewritten_spec}{match.group('suffix')}"
+
+        return _RELATIVE_JS_IMPORT_PATTERN.sub(replace_import, content)
+
     for target_name, source_name in copied_modules.items():
         target_path = tmp_path / target_name
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(
-            (js_root / source_name).read_text(encoding="utf-8"),
-            encoding="utf-8",
+        source_key = source_name.replace("\\", "/")
+        target_key = target_name.replace("\\", "/")
+        source_content = (js_root / source_name).read_text(encoding="utf-8")
+        rewritten_content = rewrite_imports(
+            source_content,
+            source_name=source_key,
+            target_name=target_key,
         )
+        target_path.write_text(rewritten_content, encoding="utf-8")
 
 
 def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
     _copy_js_modules(tmp_path, _RUNTIME_EDITOR_SUPPORT_MODULES)
+
+
+def _copy_runtime_bundle(
+    tmp_path: Path,
+    entry_modules: dict[str, str],
+    support_modules: dict[str, str] | None = None,
+) -> None:
+    copied_modules: dict[str, str] = {}
+    if support_modules:
+        copied_modules.update(support_modules)
+    copied_modules.update(entry_modules)
+    _copy_js_modules(tmp_path, copied_modules)
 
 
 def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
@@ -187,61 +285,17 @@ def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
 
 def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "for_mode_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    utilities_templates_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilitiesTemplates.js"
-    )
-    history_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "historySelection.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
     history_runtime_path = tmp_path / "historySelection.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_templates_runtime_path.write_text(
-        utilities_templates_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    history_runtime_path.write_text(
-        history_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         f"""
@@ -553,12 +607,12 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
-        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state/state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBase.js")!r}).href;
         const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
-        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesUi.js")!r}).href;
-        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
-        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner.js")!r}).href;
+        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesUi.js")!r}).href;
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBenchmark.js")!r}).href;
+        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner/planner.js")!r}).href;
 
         const [
           stateModule,
@@ -899,11 +953,11 @@ def _write_planner_auto_paths_immediate_refresh_runtime_regression_script(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
-        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state/state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBase.js")!r}).href;
         const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
-        const historySelectionUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "historySelection.js")!r}).href;
-        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner.js")!r}).href;
+        const historySelectionUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph/historySelection.js")!r}).href;
+        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner/planner.js")!r}).href;
 
         const [
           stateModule,
@@ -1221,11 +1275,11 @@ def _write_benchmark_compare_export_runtime_regression_script(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
-        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state/state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBase.js")!r}).href;
         const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
-        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
-        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesUi.js")!r}).href;
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBenchmark.js")!r}).href;
+        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesUi.js")!r}).href;
 
         const [
           stateModule,
@@ -1509,104 +1563,21 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "for_mode_reserved_operands_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    utilities_templates_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilitiesTemplates.js"
-    )
-    planner_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "planner.js"
-    )
-    planner_support_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "plannerSupport.js"
-    )
-    planner_renderers_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "plannerRenderers.js"
-    )
-    contraction_scene_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "contractionScene.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
     planner_runtime_path = tmp_path / "planner.runtime.mjs"
-    planner_support_runtime_path = tmp_path / "plannerSupport.js"
-    planner_renderers_runtime_path = tmp_path / "plannerRenderers.js"
     contraction_scene_runtime_path = tmp_path / "contractionScene.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_templates_runtime_path.write_text(
-        utilities_templates_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    planner_runtime_path.write_text(
-        planner_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    planner_support_runtime_path.write_text(
-        planner_support_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    planner_renderers_runtime_path.write_text(
-        planner_renderers_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    contraction_scene_runtime_path.write_text(
-        contraction_scene_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "planner.runtime.mjs": "planner/planner.js",
+            "plannerSupport.js": "planner/plannerSupport.js",
+            "plannerRenderers.js": "planner/plannerRenderers.js",
+            "contractionScene.runtime.mjs": "graph/contractionScene.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         f"""
@@ -2140,118 +2111,23 @@ def _write_manual_contraction_anchor_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "manual_contraction_anchor_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    utilities_templates_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilitiesTemplates.js"
-    )
-    history_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "historySelection.js"
-    )
-    planner_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "planner.js"
-    )
-    planner_support_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "plannerSupport.js"
-    )
-    planner_renderers_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "plannerRenderers.js"
-    )
-    contraction_scene_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "contractionScene.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
     history_runtime_path = tmp_path / "historySelection.runtime.mjs"
     planner_runtime_path = tmp_path / "planner.runtime.mjs"
-    planner_support_runtime_path = tmp_path / "plannerSupport.js"
-    planner_renderers_runtime_path = tmp_path / "plannerRenderers.js"
     contraction_scene_runtime_path = tmp_path / "contractionScene.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_templates_runtime_path.write_text(
-        utilities_templates_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    history_runtime_path.write_text(
-        history_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    planner_runtime_path.write_text(
-        planner_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    planner_support_runtime_path.write_text(
-        planner_support_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    planner_renderers_runtime_path.write_text(
-        planner_renderers_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    contraction_scene_runtime_path.write_text(
-        contraction_scene_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "planner.runtime.mjs": "planner/planner.js",
+            "plannerSupport.js": "planner/plannerSupport.js",
+            "plannerRenderers.js": "planner/plannerRenderers.js",
+            "contractionScene.runtime.mjs": "graph/contractionScene.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         f"""
@@ -2613,7 +2489,7 @@ def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilities.js"
+        / "utils/utilities.js"
     )
     utilities_templates_module_path = (
         REPO_ROOT
@@ -2622,7 +2498,7 @@ def _write_engine_order_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesTemplates.js"
+        / "utils/utilitiesTemplates.js"
     )
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
     utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
@@ -2813,104 +2689,21 @@ def _write_tensor_index_move_properties_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "tensor_index_move_properties_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    utilities_templates_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilitiesTemplates.js"
-    )
-    history_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "historySelection.js"
-    )
-    properties_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "properties.js"
-    )
-    properties_support_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "propertiesSupport.js"
-    )
-    properties_renderers_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "propertiesRenderers.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
     history_runtime_path = tmp_path / "historySelection.runtime.mjs"
     properties_runtime_path = tmp_path / "properties.runtime.mjs"
-    properties_support_runtime_path = tmp_path / "propertiesSupport.js"
-    properties_renderers_runtime_path = tmp_path / "propertiesRenderers.js"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_templates_runtime_path.write_text(
-        utilities_templates_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    history_runtime_path.write_text(
-        history_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_runtime_path.write_text(
-        properties_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_support_runtime_path.write_text(
-        properties_support_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_renderers_runtime_path.write_text(
-        properties_renderers_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "properties.runtime.mjs": "properties/properties.js",
+            "propertiesSupport.js": "properties/propertiesSupport.js",
+            "propertiesRenderers.js": "properties/propertiesRenderers.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         """
@@ -3310,7 +3103,7 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "state.js"
+        / "state/state.js"
     )
     sidebar_tabs_module_path = (
         REPO_ROOT
@@ -3319,7 +3112,7 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "sidebarTabs.js"
+        / "core/sidebarTabs.js"
     )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     sidebar_tabs_runtime_path = tmp_path / "sidebarTabs.runtime.mjs"
@@ -4197,104 +3990,21 @@ def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path
 
 def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "metadata_properties_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    utilities_templates_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilitiesTemplates.js"
-    )
-    history_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "historySelection.js"
-    )
-    properties_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "properties.js"
-    )
-    properties_support_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "propertiesSupport.js"
-    )
-    properties_renderers_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "propertiesRenderers.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    utilities_templates_runtime_path = tmp_path / "utilitiesTemplates.js"
     history_runtime_path = tmp_path / "historySelection.runtime.mjs"
     properties_runtime_path = tmp_path / "properties.runtime.mjs"
-    properties_support_runtime_path = tmp_path / "propertiesSupport.js"
-    properties_renderers_runtime_path = tmp_path / "propertiesRenderers.js"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_templates_runtime_path.write_text(
-        utilities_templates_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    history_runtime_path.write_text(
-        history_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_runtime_path.write_text(
-        properties_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_support_runtime_path.write_text(
-        properties_support_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    properties_renderers_runtime_path.write_text(
-        properties_renderers_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "properties.runtime.mjs": "properties/properties.js",
+            "propertiesSupport.js": "properties/propertiesSupport.js",
+            "propertiesRenderers.js": "properties/propertiesRenderers.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         """
@@ -4896,7 +4606,7 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "state.js"
+        / "state/state.js"
     )
     utilities_module_path = (
         REPO_ROOT
@@ -4905,7 +4615,7 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilities.js"
+        / "utils/utilities.js"
     )
     metadata_filters_module_path = (
         REPO_ROOT
@@ -4914,7 +4624,7 @@ def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "metadataFilters.js"
+        / "graph/metadataFilters.js"
     )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
@@ -5411,7 +5121,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "state.js"
+        / "state/state.js"
     )
     base_module_path = (
         REPO_ROOT
@@ -5420,7 +5130,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesBase.js"
+        / "utils/utilitiesBase.js"
     )
     geometry_module_path = (
         REPO_ROOT
@@ -5429,7 +5139,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesGeometry.js"
+        / "utils/utilitiesGeometry.js"
     )
     layout_module_path = (
         REPO_ROOT
@@ -5438,7 +5148,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesLayout.js"
+        / "utils/utilitiesLayout.js"
     )
     spec_module_path = (
         REPO_ROOT
@@ -5447,7 +5157,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesSpec.js"
+        / "utils/utilitiesSpec.js"
     )
     linear_module_path = (
         REPO_ROOT
@@ -5456,7 +5166,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesLinearPeriodic.js"
+        / "utils/utilitiesLinearPeriodic.js"
     )
     grid_module_path = (
         REPO_ROOT
@@ -5465,7 +5175,7 @@ def _write_grid_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesGridPeriodic.js"
+        / "utils/utilitiesGridPeriodic.js"
     )
     script_path.write_text(
         textwrap.dedent(
@@ -5704,7 +5414,7 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "state.js"
+        / "state/state.js"
     )
     linear_module_path = (
         REPO_ROOT
@@ -5713,7 +5423,7 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesLinearPeriodic.js"
+        / "utils/utilitiesLinearPeriodic.js"
     )
     grid_module_path = (
         REPO_ROOT
@@ -5722,7 +5432,7 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesGridPeriodic.js"
+        / "utils/utilitiesGridPeriodic.js"
     )
     tree_module_path = (
         REPO_ROOT
@@ -5731,7 +5441,7 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilitiesTreePeriodic.js"
+        / "utils/utilitiesTreePeriodic.js"
     )
     utilities_module_path = (
         REPO_ROOT
@@ -5740,7 +5450,7 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
         / "app"
         / "static"
         / "js"
-        / "utilities.js"
+        / "utils/utilities.js"
     )
 
     script_path.write_text(
@@ -8753,48 +8463,14 @@ def _write_template_catalog_management_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
     script_path = tmp_path / "template_catalog_management_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utilities.js"
-    )
-    history_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "historySelection.js"
-    )
-    state_runtime_path = tmp_path / "state.runtime.mjs"
-    utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
-    history_runtime_path = tmp_path / "historySelection.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    history_runtime_path.write_text(
-        history_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         """

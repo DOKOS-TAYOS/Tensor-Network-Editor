@@ -1,29 +1,3 @@
-"""Base abstractions shared by all code generators."""
+"""Compatibility wrapper for shared codegen base helpers."""
 
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
-from ..models import (
-    CodegenResult,
-    EngineIdentifier,
-    NetworkSpec,
-    TensorCollectionFormat,
-)
-
-
-class CodeGenerator(ABC):
-    """Abstract interface implemented by backend-specific code generators."""
-
-    engine: EngineIdentifier
-
-    @abstractmethod
-    def generate(
-        self,
-        spec: NetworkSpec,
-        collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
-        *,
-        validate: bool = True,
-    ) -> CodegenResult:
-        """Generate Python code for ``spec`` using the given collection layout."""
-        raise NotImplementedError
+from .shared.base import *  # noqa: F403

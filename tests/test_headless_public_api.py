@@ -4,11 +4,6 @@ from typing import cast
 from unittest.mock import patch
 
 import tensor_network_editor as tne
-from tensor_network_editor._headless_models import (
-    SemanticDiffEntry,
-    SemanticFieldChange,
-    SemanticSpecDiffResult,
-)
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
 from tensor_network_editor.canonicalization import canonicalize_spec
 from tensor_network_editor.diffing import (
@@ -16,6 +11,11 @@ from tensor_network_editor.diffing import (
     SpecDiffResult,
     diff_specs,
     semantic_diff_specs,
+)
+from tensor_network_editor.internal.models._headless_models import (
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
 )
 from tensor_network_editor.linting import LintIssue, LintReport, lint_spec
 from tensor_network_editor.templates import (

@@ -4,11 +4,11 @@ import ast
 
 import pytest
 
-from tensor_network_editor._python_roundtrip_helpers import (
+from tensor_network_editor.errors import SerializationError
+from tensor_network_editor.internal.io._python_roundtrip_helpers import (
     recover_tensor_name_from_data_variable,
     sanitize_identifier,
 )
-from tensor_network_editor.errors import SerializationError
 
 
 def test_python_roundtrip_internal_helpers_normalize_generated_names() -> None:
@@ -18,7 +18,7 @@ def test_python_roundtrip_internal_helpers_normalize_generated_names() -> None:
 
 
 def test_python_roundtrip_internal_ast_helpers_parse_supported_references() -> None:
-    from tensor_network_editor._python_roundtrip_ast import (
+    from tensor_network_editor.internal.io._python_roundtrip_ast import (
         _parse_tensor_reference,
         _parse_tensor_reference_string,
     )
@@ -38,7 +38,7 @@ def test_python_roundtrip_internal_ast_helpers_parse_supported_references() -> N
 
 
 def test_python_roundtrip_internal_build_helpers_resolve_inline_zeros() -> None:
-    from tensor_network_editor._python_roundtrip_build import (
+    from tensor_network_editor.internal.io._python_roundtrip_build import (
         _resolve_tensor_data_expression,
     )
 
@@ -55,7 +55,7 @@ def test_python_roundtrip_internal_build_helpers_resolve_inline_zeros() -> None:
 def test_python_roundtrip_internal_manual_step_comments_bind_to_next_statement() -> (
     None
 ):
-    from tensor_network_editor._python_roundtrip_collect import (
+    from tensor_network_editor.internal.io._python_roundtrip_collect import (
         _collect_manual_step_comments,
     )
 
@@ -77,7 +77,7 @@ def test_python_roundtrip_internal_manual_step_comments_bind_to_next_statement()
 def test_python_roundtrip_internal_manual_step_results_list_minus_one_resolves() -> (
     None
 ):
-    from tensor_network_editor._python_roundtrip_collect import (
+    from tensor_network_editor.internal.io._python_roundtrip_collect import (
         _resolve_manual_operand_id,
     )
 
@@ -97,7 +97,7 @@ def test_python_roundtrip_internal_manual_step_results_list_minus_one_resolves()
 def test_python_roundtrip_internal_build_edge_specs_supports_explicit_connect_edges() -> (
     None
 ):
-    from tensor_network_editor._python_roundtrip_build import (
+    from tensor_network_editor.internal.io._python_roundtrip_build import (
         _build_edge_specs,
         _ParsedTensor,
         _PendingEdge,
@@ -138,7 +138,7 @@ def test_python_roundtrip_internal_build_edge_specs_supports_explicit_connect_ed
 def test_python_roundtrip_internal_build_edge_specs_rejects_three_shared_labels() -> (
     None
 ):
-    from tensor_network_editor._python_roundtrip_build import (
+    from tensor_network_editor.internal.io._python_roundtrip_build import (
         _build_edge_specs,
         _ParsedTensor,
     )
@@ -177,7 +177,9 @@ def test_python_roundtrip_internal_build_edge_specs_rejects_three_shared_labels(
 
 
 def test_build_roundtrip_parse_state_collects_initial_context() -> None:
-    from tensor_network_editor._python_roundtrip import _build_roundtrip_parse_state
+    from tensor_network_editor.internal.io._python_roundtrip import (
+        _build_roundtrip_parse_state,
+    )
 
     state = _build_roundtrip_parse_state(
         "\n".join(

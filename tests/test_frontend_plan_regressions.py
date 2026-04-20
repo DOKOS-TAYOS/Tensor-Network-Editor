@@ -31,7 +31,7 @@ GRAPH_RENDER_PATH = (
     / "app"
     / "static"
     / "js"
-    / "graphRender.js"
+    / "graph/graphRender.js"
 )
 
 
@@ -59,7 +59,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "constants.js"
+        / "core/constants.js"
     )
     state_path = (
         REPO_ROOT
@@ -68,7 +68,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "state.js"
+        / "state/state.js"
     )
     utilities_path = (
         REPO_ROOT
@@ -77,7 +77,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "utilities.js"
+        / "utils/utilities.js"
     )
     history_path = (
         REPO_ROOT
@@ -86,7 +86,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "historySelection.js"
+        / "graph/historySelection.js"
     )
     planner_path = (
         REPO_ROOT
@@ -95,7 +95,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "planner.js"
+        / "planner/planner.js"
     )
     contraction_scene_path = (
         REPO_ROOT
@@ -104,7 +104,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "contractionScene.js"
+        / "graph/contractionScene.js"
     )
     interactions_path = (
         REPO_ROOT
@@ -113,7 +113,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "interactions.js"
+        / "interactions/interactions.js"
     )
     notes_path = (
         REPO_ROOT
@@ -122,7 +122,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "notes.js"
+        / "graph/notes.js"
     )
     graph_render_path = (
         REPO_ROOT
@@ -131,7 +131,7 @@ def _build_runtime_prelude() -> str:
         / "app"
         / "static"
         / "js"
-        / "graphRender.js"
+        / "graph/graphRender.js"
     )
     editor_store_path = (
         REPO_ROOT

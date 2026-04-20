@@ -38,7 +38,7 @@ def test_editor_store_and_selectors_track_template_catalog_state(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state/state.js")!r}).href;
         const storeUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "editorStore.js")!r}).href;
         const selectorsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "editorSelectors.js")!r}).href;
 
@@ -208,7 +208,7 @@ def test_serialize_current_spec_reuses_cached_payload_by_revision_and_snapshot_m
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const utilitiesSpecUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesSpec.js")!r}).href;
+        const utilitiesSpecUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesSpec.js")!r}).href;
         const utilitiesSpecModule = await import(utilitiesSpecUrl);
 
         const constants = {{
@@ -337,7 +337,7 @@ def test_planner_support_reuses_cached_analysis_until_spec_revision_changes(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const plannerSupportUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "plannerSupport.js")!r}).href;
+        const plannerSupportUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner/plannerSupport.js")!r}).href;
         const plannerSupportModule = await import(plannerSupportUrl);
 
         let requestCount = 0;
@@ -459,7 +459,7 @@ def test_code_highlighting_support_loads_prism_once_and_reuses_it(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const highlightingUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "codeHighlighting.js")!r}).href;
+        const highlightingUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "core/codeHighlighting.js")!r}).href;
         const highlightingModule = await import(highlightingUrl);
 
         const appendedSources = [];
@@ -1177,7 +1177,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         import {{ pathToFileURL }} from "node:url";
 
         const propertyMetadataUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "properties" / "metadataEditors.js")!r}).href;
-        const canvasContextMenuUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "canvasContextMenu.js")!r}).href;
+        const canvasContextMenuUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph/canvasContextMenu.js")!r}).href;
 
         const [propertyMetadataModule, canvasContextMenuModule] = await Promise.all([
           import(propertyMetadataUrl),
@@ -2852,7 +2852,7 @@ def test_note_button_creates_a_single_note_when_features_and_shell_bindings_are_
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const notesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "notes.js")!r}).href;
+        const notesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph/notes.js")!r}).href;
         const shellBindingsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorShellBindings.js")!r}).href;
 
         const [notesModule, shellBindingsModule] = await Promise.all([
@@ -3303,7 +3303,7 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         f"""
         import {{ pathToFileURL }} from "node:url";
 
-        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils/utilitiesBenchmark.js")!r}).href;
         const historyUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state" / "historySnapshots.js")!r}).href;
 
         const [benchmarkModule, historySnapshotsModule] = await Promise.all([

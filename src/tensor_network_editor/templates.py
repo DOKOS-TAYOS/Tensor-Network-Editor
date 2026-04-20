@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ._template_catalog import TemplateDefinition, TemplateParameters
-from ._templates import (
+from .internal.templates._template_catalog import TemplateDefinition, TemplateParameters
+from .internal.templates._templates import (
     build_template_spec,
     list_template_names,
     parse_template_parameters,

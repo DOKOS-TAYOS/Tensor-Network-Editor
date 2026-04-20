@@ -9,12 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
-from tensor_network_editor._cli_formatters import (
-    _coerce_int,
-    _format_label_list,
-    _format_shape,
-)
-from tensor_network_editor._contraction_analysis_types import (
+from tensor_network_editor.cli import build_command_parser, main
+from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
+from tensor_network_editor.internal.analysis._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     AutomaticContractionSummary,
     ContractionAnalysisResult,
@@ -22,15 +19,18 @@ from tensor_network_editor._contraction_analysis_types import (
     ManualContractionPlanAnalysis,
     ManualContractionSummary,
 )
-from tensor_network_editor._headless_models import (
+from tensor_network_editor.internal.cli._cli_formatters import (
+    _coerce_int,
+    _format_label_list,
+    _format_shape,
+)
+from tensor_network_editor.internal.models._headless_models import (
     NetworkSummary,
     SemanticDiffEntry,
     SemanticFieldChange,
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
-from tensor_network_editor.cli import build_command_parser, main
-from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
 
@@ -151,7 +151,7 @@ def test_cli_modules_pass_targeted_mypy_check() -> None:
             sys.executable,
             "-m",
             "mypy",
-            "src/tensor_network_editor/_cli_handlers.py",
+            "src/tensor_network_editor/internal/cli/_cli_handlers.py",
             "src/tensor_network_editor/cli.py",
         ],
         cwd=REPO_ROOT,

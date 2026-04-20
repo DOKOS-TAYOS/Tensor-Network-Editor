@@ -1,4 +1,4 @@
-import { GRAPH_THEME } from "../theme.js";
+import { GRAPH_THEME } from "../core/theme.js";
 
 export function createGraphElementModelBuilder({
   state,

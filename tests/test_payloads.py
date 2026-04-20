@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tensor_network_editor._payloads import (
+from tensor_network_editor.internal.io._payloads import (
     coerce_float,
     coerce_int,
     coerce_metadata,

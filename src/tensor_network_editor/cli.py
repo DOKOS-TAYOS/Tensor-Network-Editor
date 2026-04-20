@@ -7,7 +7,17 @@ import sys
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-from ._cli_formatters import (
+from .analysis import analyze_spec
+from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
+from .canonicalization import canonicalize_spec
+from .diffing import diff_specs, semantic_diff_specs
+from .errors import (
+    CodeGenerationError,
+    PackageIOError,
+    SerializationError,
+    SpecValidationError,
+)
+from .internal.cli._cli_formatters import (
     print_analysis_text,
     print_diff_text,
     print_json,
@@ -15,7 +25,7 @@ from ._cli_formatters import (
     print_semantic_diff_text,
     print_validation_result,
 )
-from ._cli_handlers import (
+from .internal.cli._cli_handlers import (
     handle_analyze_command,
     handle_canonicalize_command,
     handle_diff_command,
@@ -27,18 +37,11 @@ from ._cli_handlers import (
     handle_validate_command,
     load_spec_for_lint,
 )
-from ._cli_parser import CliHandlerBindings
-from ._cli_parser import build_command_parser as build_parser
-from ._logging import configure_package_logging, emit_runtime_diagnostics
-from .analysis import analyze_spec
-from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
-from .canonicalization import canonicalize_spec
-from .diffing import diff_specs, semantic_diff_specs
-from .errors import (
-    CodeGenerationError,
-    PackageIOError,
-    SerializationError,
-    SpecValidationError,
+from .internal.cli._cli_parser import CliHandlerBindings
+from .internal.cli._cli_parser import build_command_parser as build_parser
+from .internal.cli._logging import (
+    configure_package_logging,
+    emit_runtime_diagnostics,
 )
 from .linting import lint_spec
 from .templates import (

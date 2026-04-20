@@ -1,4 +1,4 @@
-import { getTemplateDefinition } from "../utilitiesTemplates.js";
+import { getTemplateDefinition } from "../utils/utilitiesTemplates.js";
 
 export function createEditorSelectors({ store }) {
   function getState() {

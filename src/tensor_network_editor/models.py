@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from ._model_contraction import (
+from .internal.models._model_contraction import (
     ContractionOperandLayoutSpec,
     ContractionPlanSpec,
     ContractionStepSpec,
     ContractionViewSnapshotSpec,
 )
-from ._model_geometry import CanvasPosition, TensorSize
-from ._model_graph import (
+from .internal.models._model_geometry import CanvasPosition, TensorSize
+from .internal.models._model_graph import (
     CanvasNoteSpec,
     EdgeEndpointRef,
     EdgeSpec,
@@ -28,7 +28,7 @@ from ._model_graph import (
     TreePeriodicTensorRole,
     TreePeriodicTreeSpec,
 )
-from ._model_results import (
+from .internal.models._model_results import (
     CodegenResult,
     EditorResult,
     EngineIdentifier,

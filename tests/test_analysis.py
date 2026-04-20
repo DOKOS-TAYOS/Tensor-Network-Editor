@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from tensor_network_editor._analysis import analyze_network
 from tensor_network_editor.errors import SpecValidationError
+from tensor_network_editor.internal.analysis._analysis import analyze_network
 from tensor_network_editor.models import IndexSpec, NetworkSpec
 
 

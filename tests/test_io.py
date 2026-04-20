@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tensor_network_editor._io import read_utf8_text, write_utf8_text
 from tensor_network_editor.errors import PackageIOError
+from tensor_network_editor.internal.io._io import read_utf8_text, write_utf8_text
 
 
 def test_read_utf8_text_reads_existing_files(tmp_path: Path) -> None:

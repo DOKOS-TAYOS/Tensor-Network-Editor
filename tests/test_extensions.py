@@ -7,16 +7,6 @@ from typing import cast
 
 import pytest
 
-from tensor_network_editor._project_templates import (
-    append_project_template,
-    delete_project_template,
-    load_project_template_catalog,
-    rename_project_template,
-)
-from tensor_network_editor._template_catalog import (
-    _reset_template_registry_for_tests,
-    list_template_names,
-)
 from tensor_network_editor.api import generate_code
 from tensor_network_editor.app._protocol import JsonDict, resolve_engine
 from tensor_network_editor.app._services import build_bootstrap_payload
@@ -28,6 +18,16 @@ from tensor_network_editor.codegen.registry import (
     register_generator,
 )
 from tensor_network_editor.errors import PackageIOError
+from tensor_network_editor.internal.templates._project_templates import (
+    append_project_template,
+    delete_project_template,
+    load_project_template_catalog,
+    rename_project_template,
+)
+from tensor_network_editor.internal.templates._template_catalog import (
+    _reset_template_registry_for_tests,
+    list_template_names,
+)
 from tensor_network_editor.models import (
     CodegenResult,
     NetworkSpec,

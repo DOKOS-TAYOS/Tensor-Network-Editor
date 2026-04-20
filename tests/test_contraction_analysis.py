@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from tensor_network_editor._contraction_analysis import analyze_contraction
-from tensor_network_editor._contraction_plan import (
+from tensor_network_editor.codegen.common import prepare_network
+from tensor_network_editor.internal.analysis._contraction_analysis import (
+    analyze_contraction,
+)
+from tensor_network_editor.internal.analysis._contraction_plan import (
     prepare_contraction_inputs,
     simulate_contraction_plan,
 )
-from tensor_network_editor.codegen.common import prepare_network
 from tensor_network_editor.models import (
     CanvasPosition,
     ContractionPlanSpec,
@@ -271,7 +273,7 @@ def test_analyze_contraction_marks_planner_value_errors_as_unavailable(
         return FakePlannerModule
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis_automatic.import_module",
+        "tensor_network_editor.internal.analysis._contraction_analysis_automatic.import_module",
         fake_import_module,
     )
 
@@ -292,7 +294,7 @@ def test_analyze_contraction_reports_missing_opt_einsum_clearly(
         raise ImportError("opt_einsum is not installed")
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis_automatic.import_module",
+        "tensor_network_editor.internal.analysis._contraction_analysis_automatic.import_module",
         fake_import_module,
     )
 
@@ -325,7 +327,7 @@ def test_analyze_contraction_does_not_hide_unexpected_planner_errors(
         return FakePlannerModule
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis_automatic.import_module",
+        "tensor_network_editor.internal.analysis._contraction_analysis_automatic.import_module",
         fake_import_module,
     )
 
@@ -500,7 +502,7 @@ def test_analyze_contraction_reuses_one_manual_plan_simulation(
         ],
     )
     original_simulate = __import__(
-        "tensor_network_editor._contraction_analysis_manual",
+        "tensor_network_editor.internal.analysis._contraction_analysis_manual",
         fromlist=["simulate_contraction_plan"],
     ).simulate_contraction_plan
     call_count = 0
@@ -511,7 +513,7 @@ def test_analyze_contraction_reuses_one_manual_plan_simulation(
         return original_simulate(*args, **kwargs)
 
     monkeypatch.setattr(
-        "tensor_network_editor._contraction_analysis_manual.simulate_contraction_plan",
+        "tensor_network_editor.internal.analysis._contraction_analysis_manual.simulate_contraction_plan",
         counting_simulate_contraction_plan,
     )
 

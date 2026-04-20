@@ -1,0 +1,632 @@
+import {
+  formatBytes,
+  formatNumber,
+  formatShape,
+  formatShapeElementCount,
+  formatSignedDelta,
+  getAnalysisMemoryDtype,
+  getShapeElementCount,
+  getPeakMemoryBytes,
+  renderShapeElementDetail,
+} from "./plannerAnalysisFormatting.js";
+import { createPlannerPanelBindings } from "./plannerPanelBindings.js";
+
+export function createPlannerRenderers({
+  ctx,
+  state,
+  plannerPanel,
+  plannerDocument,
+  support,
+  actions,
+}) {
+  const {
+    syncPlannerOrderBadges,
+    getPlannerOperandLabel,
+    getAutomaticAnalysisByMode,
+    isBenchmarkBasePosition,
+  } = support;
+  const METRIC_DESCRIPTIONS = {
+    FLOP: "Estimated floating-point operations across the full contraction path.",
+    MAC: "Estimated multiply-accumulate operations across the full contraction path.",
+    Peak: "Largest intermediate tensor reached during the path, measured in elements.",
+    Memory:
+      "Estimated memory used by the largest intermediate tensor for the reported dtype.",
+  };
+  const plannerPanelBindings = createPlannerPanelBindings({
+    plannerPanel,
+    plannerDocument,
+    actions,
+  });
+
+  function buildTooltipAriaLabel(label, shortcut = "", description = "") {
+    if (!label) {
+      return description;
+    }
+    const header = shortcut ? `${label} (${shortcut})` : label;
+    return description ? `${header}. ${description}` : header;
+  }
+
+  function buildTooltipAttributes(label, description = "", shortcut = "") {
+    const attributes = ['data-tooltip-enabled="true"'];
+    if (label) {
+      attributes.push(`data-shortcut-label="${ctx.escapeHtml(label)}"`);
+    }
+    if (shortcut) {
+      attributes.push(`data-shortcut="${ctx.escapeHtml(shortcut)}"`);
+    }
+    if (description) {
+      attributes.push(
+        `data-shortcut-description="${ctx.escapeHtml(description)}"`
+      );
+    }
+    const ariaLabel = buildTooltipAriaLabel(label, shortcut, description);
+    if (ariaLabel) {
+      attributes.push(`aria-label="${ctx.escapeHtml(ariaLabel)}"`);
+    }
+    return attributes.join(" ");
+  }
+
+  function renderDisclosureState(isOpen) {
+    return `
+      <strong class="planner-disclosure-state ${
+        isOpen
+          ? "planner-disclosure-state-hide"
+          : "planner-disclosure-state-show"
+      }">${isOpen ? "Hide" : "Show"}</strong>
+    `;
+  }
+
+  function renderMetricLabel(label, description = "") {
+    return `
+      <span class="planner-chip-label">
+        <span>${ctx.escapeHtml(label)}</span>
+        ${
+          description
+            ? `
+              <span
+                class="planner-chip-info"
+                tabindex="0"
+                ${buildTooltipAttributes(label, description)}
+              >?</span>
+            `
+            : ""
+        }
+      </span>
+    `;
+  }
+
+  function renderMetricChips(items) {
+    return `
+      <div class="planner-chip-grid">
+        ${items
+          .map(
+            (item) => `
+              <div class="planner-chip">
+                ${renderMetricLabel(item.label, item.description)}
+                <strong>${ctx.escapeHtml(String(item.value))}</strong>
+                ${
+                  item.detail
+                    ? `<small class="planner-chip-detail">${ctx.escapeHtml(String(item.detail))}</small>`
+                    : ""
+                }
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderComparisonBody(comparison) {
+    if (!comparison) {
+      return "";
+    }
+    const status = typeof comparison.status === "string" ? comparison.status : "unknown";
+    if (status !== "complete") {
+      const unavailableMessage =
+        typeof comparison.message === "string" && comparison.message
+          ? comparison.message
+          : "Comparison is not available for the current plan.";
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(unavailableMessage)}</p>`;
+    }
+    return `
+      ${renderMetricChips([
+        {
+          label: "FLOP",
+          value: formatSignedDelta(comparison.delta_total_estimated_flops),
+          detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.FLOP,
+        },
+        {
+          label: "MAC",
+          value: formatSignedDelta(comparison.delta_total_estimated_macs),
+          detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.MAC,
+        },
+        {
+          label: "Peak",
+          value: formatSignedDelta(comparison.delta_peak_intermediate_size),
+          detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.Peak,
+        },
+        {
+          label: "Memory",
+          value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
+          detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.Memory,
+        },
+      ])}
+    `;
+  }
+
+  function renderComparisonDisclosure(title, disclosureKey, comparison) {
+    if (!title || !disclosureKey || !comparison) {
+      return "";
+    }
+    const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
+    const description =
+      disclosureKey === "automaticFullComparison"
+        ? "Compares the current manual path against the full automatic contraction path."
+        : "Compares the already contracted manual subtrees against the automatic replanning of that past work.";
+    return `
+      <div class="planner-nested-disclosure">
+        <button
+          type="button"
+          class="planner-disclosure-toggle planner-nested-disclosure-toggle${isOpen ? " is-open" : ""}"
+          data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+          ${buildTooltipAttributes(title, description)}
+        >
+          <span>${ctx.escapeHtml(title)}</span>
+          ${renderDisclosureState(isOpen)}
+        </button>
+        ${
+          isOpen
+            ? `
+              <div class="planner-disclosure-body planner-nested-disclosure-body">
+                ${renderComparisonBody(comparison)}
+              </div>
+            `
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  function renderAutomaticPreviewStepList(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return "";
+    }
+    const previewLabelByOperandId = {};
+    const resolvePreviewLabel = (operandId) => {
+      if (previewLabelByOperandId[operandId]) {
+        return previewLabelByOperandId[operandId];
+      }
+      const autoFutureMatch =
+        typeof operandId === "string" ? operandId.match(/^auto_future_step_(\d+)$/) : null;
+      if (autoFutureMatch) {
+        return `Result ${autoFutureMatch[1]}`;
+      }
+      const autoPastMatch =
+        typeof operandId === "string" ? operandId.match(/__auto_past_(\d+)$/) : null;
+      if (autoPastMatch) {
+        return `Result ${autoPastMatch[1]}`;
+      }
+      return getPlannerOperandLabel(operandId);
+    };
+    return `
+      <div class="planner-step-list planner-preview-step-list">
+        ${steps
+          .map((step, index) => {
+            const leftLabel = resolvePreviewLabel(step.left_operand_id);
+            const rightLabel = resolvePreviewLabel(step.right_operand_id);
+            previewLabelByOperandId[step.step_id] = `Result ${index + 1}`;
+            previewLabelByOperandId[step.result_operand_id] = `Result ${index + 1}`;
+            return `
+              <article class="planner-step planner-preview-step">
+                <div class="planner-step-header">
+                  <strong>Step ${index + 1}</strong>
+                </div>
+                <p>${ctx.escapeHtml(leftLabel)} &times; ${ctx.escapeHtml(rightLabel)}</p>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderAutomaticSection(
+    title,
+    disclosureKey,
+    mode,
+    analysis,
+    memoryDtype,
+    options = {}
+  ) {
+    const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
+    const hasActions = typeof mode === "string" && mode;
+    const canAct = Boolean(hasActions && analysis && analysis.status !== "unavailable");
+    const summary = analysis && analysis.summary ? analysis.summary : {};
+    const isPreviewing = hasActions && state.plannerPreviewMode === mode;
+    const previewShortcut = mode === "automaticFuture" ? "Alt+A" : "Shift+A";
+    const acceptShortcut =
+      mode === "automaticFuture" ? "Ctrl/Cmd+Alt+A" : "Ctrl/Cmd+Shift+A";
+    const meta =
+      analysis && analysis.message
+        ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`
+        : "";
+    const comparisonDisclosure = renderComparisonDisclosure(
+      options.comparisonTitle,
+      options.comparisonDisclosureKey,
+      options.comparison
+    );
+    const sectionDescription =
+      mode === "automaticFuture"
+        ? "Plans the remaining visible operands from the current manual path onward."
+        : mode === "automaticPast"
+          ? "Replans tensors that are already merged inside the current manual contractions."
+          : "Computes a full automatic contraction path for the whole visible network.";
+    return `
+      <section class="planner-section planner-disclosure">
+        <button
+          type="button"
+          class="planner-disclosure-toggle button-accent-cool${isOpen ? " is-open" : ""}"
+          data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+          ${buildTooltipAttributes(title, sectionDescription)}
+        >
+          <span>${ctx.escapeHtml(title)}</span>
+          ${renderDisclosureState(isOpen)}
+        </button>
+        ${isOpen ? `
+          <div class="planner-disclosure-body">
+            ${renderMetricChips([
+              {
+                label: "FLOP",
+                value: formatNumber(summary.total_estimated_flops),
+                description: METRIC_DESCRIPTIONS.FLOP,
+              },
+              {
+                label: "MAC",
+                value: formatNumber(summary.total_estimated_macs),
+                description: METRIC_DESCRIPTIONS.MAC,
+              },
+              {
+                label: "Peak",
+                value: formatNumber(summary.peak_intermediate_size),
+                description: METRIC_DESCRIPTIONS.Peak,
+              },
+              {
+                label: "Memory",
+                value: formatBytes(getPeakMemoryBytes(summary, memoryDtype)),
+                detail: memoryDtype,
+                description: METRIC_DESCRIPTIONS.Memory,
+              },
+            ])}
+            ${comparisonDisclosure}
+            ${
+              isPreviewing
+                ? `<p class="planner-inline-meta">Preview active.</p>${renderAutomaticPreviewStepList(
+                    analysis && analysis.steps
+                  )}`
+                : ""
+            }
+            ${meta}
+            ${
+              hasActions
+                ? `
+                  <div class="button-row">
+                    <button
+                      type="button"
+                      class="button-accent-cool${isPreviewing ? " is-active" : ""}"
+                      data-preview-mode="${ctx.escapeHtml(mode)}"
+                      data-shortcut="${ctx.escapeHtml(previewShortcut)}"
+                      data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
+                      data-tooltip-enabled="true"
+                      data-shortcut-description="Toggle a non-destructive preview of this automatic path on the canvas."
+                      aria-pressed="${isPreviewing}"
+                      ${canAct ? "" : " disabled"}
+                    >
+                      ${isPreviewing ? "Deactivate preview" : "Preview"}
+                    </button>
+                    <button
+                      type="button"
+                      class="apply-button"
+                      data-accept-mode="${ctx.escapeHtml(mode)}"
+                      data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
+                      data-shortcut-label="Accept"
+                      data-tooltip-enabled="true"
+                      data-shortcut-description="Replace the current manual path with this automatic contraction plan."
+                      ${canAct ? "" : " disabled"}
+                    >
+                      Accept
+                    </button>
+                  </div>
+                `
+                : ""
+            }
+          </div>
+        ` : ""}
+      </section>
+    `;
+  }
+
+  function getMissingOptEinsumMessage(payload) {
+    if (!payload) {
+      return "";
+    }
+    const automaticAnalyses = [
+      payload.automatic_full,
+      payload.automatic_future,
+      payload.automatic_past,
+    ];
+    const matchingAnalysis = automaticAnalyses.find((analysis) => {
+      const message = typeof analysis?.message === "string" ? analysis.message : "";
+      return /opt_einsum/i.test(message);
+    });
+    return matchingAnalysis && typeof matchingAnalysis.message === "string"
+      ? matchingAnalysis.message
+      : "";
+  }
+
+  function renderManualSection(manualAnalysis, memoryDtype) {
+    if (!manualAnalysis) {
+      return `<section class="planner-section"><h3>Manual</h3><p class="planner-inline-meta">Waiting for analysis.</p></section>`;
+    }
+    return `
+      <section class="planner-section">
+        <h3>Manual</h3>
+        ${renderMetricChips([
+          { label: "Status", value: manualAnalysis.status || "unknown" },
+          {
+            label: "FLOP",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops),
+            description: METRIC_DESCRIPTIONS.FLOP,
+          },
+          {
+            label: "MAC",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs),
+            description: METRIC_DESCRIPTIONS.MAC,
+          },
+          {
+            label: "Peak",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size),
+            description: METRIC_DESCRIPTIONS.Peak,
+          },
+          {
+            label: "Memory",
+            value: formatBytes(getPeakMemoryBytes(manualAnalysis.summary, memoryDtype)),
+            detail: memoryDtype,
+            description: METRIC_DESCRIPTIONS.Memory,
+          },
+          {
+            label: "Shape",
+            value: formatShape(manualAnalysis.summary && manualAnalysis.summary.final_shape),
+            detail: renderShapeElementDetail(manualAnalysis.summary && manualAnalysis.summary.final_shape),
+          },
+        ])}
+        <div class="planner-step-list planner-manual-step-list">
+          ${renderManualSteps(manualAnalysis.steps)}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderManualSteps(steps) {
+    if (!Array.isArray(steps) || !steps.length) {
+      return `<p class="planner-inline-meta">No manual steps yet. Turn on manual mode and click two tensors to create the first contraction.</p>`;
+    }
+    const inspectedStepCount = Number.isInteger(state.plannerInspectionStepCount)
+      ? state.plannerInspectionStepCount
+      : null;
+    return steps
+      .map(
+        (step, index) => `
+          <article class="planner-step${inspectedStepCount === index ? " is-active" : ""}">
+            <div class="planner-step-header">
+              <button
+                type="button"
+                class="planner-step-toggle"
+                data-inspect-step="${index}"
+                aria-pressed="${inspectedStepCount === index}"
+              >
+                Step ${index + 1}
+              </button>
+              <button type="button" class="planner-trim-button" data-trim-step="${index}">Trim Here</button>
+            </div>
+            <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} &times; ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
+            <div class="planner-step-meta">
+              <span>Shape ${ctx.escapeHtml(formatShape(step.result_shape))}</span>
+              <span>FLOP ${formatNumber(step.estimated_flops)}</span>
+              <span>MAC ${formatNumber(step.estimated_macs)}</span>
+            </div>
+            ${
+              renderShapeElementDetail(step.result_shape)
+                ? `<div class="planner-step-detail">${ctx.escapeHtml(renderShapeElementDetail(step.result_shape))}</div>`
+                : ""
+            }
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  function renderPlannerAnalysis() {
+    if (!state.contractionAnalysis || state.contractionAnalysis.status === "loading") {
+      return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
+    }
+    if (state.contractionAnalysis.status === "benchmarkBase") {
+      return `<p class="planner-inline-meta">Preparing benchmark scheme analysis...</p>`;
+    }
+    if (state.contractionAnalysis.status === "gridPeriodicDisabled") {
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Contractions are disabled in For bidimensional mode.")}</p>`;
+    }
+    if (state.contractionAnalysis.status === "treePeriodicDisabled") {
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Contractions are disabled in For Tree mode.")}</p>`;
+    }
+    if (state.contractionAnalysis.status === "issues") {
+      return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(ctx.formatIssues(state.contractionAnalysis.issues || []))}</p>`;
+    }
+    if (state.contractionAnalysis.status === "error") {
+      return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(state.contractionAnalysis.message || "Could not analyze contraction paths.")}</p>`;
+    }
+    const payload = state.contractionAnalysis.payload;
+    if (!payload) {
+      return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
+    }
+    const memoryDtype = getAnalysisMemoryDtype(payload);
+    const missingOptEinsumMessage = getMissingOptEinsumMessage(payload);
+    return `
+      <section class="planner-section">
+        <p class="planner-network-output-label">Network output shape</p>
+        <p class="planner-network-output">${ctx.escapeHtml(formatShape(payload.network_output_shape))}</p>
+        ${
+          renderShapeElementDetail(payload.network_output_shape)
+            ? `<p class="planner-shape-detail">${ctx.escapeHtml(renderShapeElementDetail(payload.network_output_shape))}</p>`
+            : ""
+        }
+      </section>
+      ${
+        missingOptEinsumMessage
+          ? `<section class="planner-section"><p class="planner-inline-meta planner-error">${ctx.escapeHtml(
+              missingOptEinsumMessage
+            )}</p></section>`
+          : `
+            <div class="planner-summary-grid">
+              ${renderAutomaticSection(
+                "Auto full",
+                "automaticFull",
+                null,
+                payload.automatic_full,
+                memoryDtype,
+                {
+                  comparisonTitle: "Manual vs auto full",
+                  comparisonDisclosureKey: "automaticFullComparison",
+                  comparison:
+                    payload.comparisons && payload.comparisons.manual_vs_automatic_full,
+                }
+              )}
+              ${renderAutomaticSection(
+                "Auto future",
+                "automaticFuture",
+                "automaticFuture",
+                payload.automatic_future,
+                memoryDtype
+              )}
+              ${renderAutomaticSection(
+                "Auto past",
+                "automaticPast",
+                "automaticPast",
+                payload.automatic_past,
+                memoryDtype,
+                {
+                  comparisonTitle: "Manual contractions vs auto past",
+                  comparisonDisclosureKey: "automaticPastComparison",
+                  comparison:
+                    payload.comparisons &&
+                    payload.comparisons.manual_subtrees_vs_automatic_past,
+                }
+              )}
+            </div>
+          `
+      }
+      ${renderManualSection(payload.manual, memoryDtype)}
+    `;
+  }
+
+  function renderPlanner() {
+    if (!plannerPanel) {
+      return;
+    }
+    syncPlannerOrderBadges();
+    if (typeof isBenchmarkBasePosition === "function" && isBenchmarkBasePosition()) {
+      plannerPanel.innerHTML = `
+        <div class="planner-toolbar">
+        <button
+          id="toggle-planner-mode-button"
+          type="button"
+          class="button-accent-cool"
+          data-shortcut="M"
+          data-shortcut-label="Contract"
+          data-tooltip-enabled="true"
+          data-shortcut-description="Toggle manual contraction mode, then click two tensors or intermediate results to add a step."
+          disabled
+        >
+          Contract
+        </button>
+          <button
+            id="planner-reset-button"
+            type="button"
+          class="icon-button planner-icon-button danger"
+          data-shortcut="Shift+R"
+          data-shortcut-label="Reset path"
+          data-shortcut-description="Remove all manual steps from the current contraction path."
+          aria-label="Reset path"
+          disabled
+        >
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+            </svg>
+          </button>
+        </div>
+        <section class="planner-section">
+          <h3>Benchmark</h3>
+          <p class="planner-inline-meta">
+            Move right to open or create a contraction scheme.
+          </p>
+        </section>
+      `;
+      plannerPanelBindings.bindPlannerPanelInteractions();
+      actions.renderOverlayDecorations();
+      return;
+    }
+    const planSteps =
+      state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)
+        ? state.spec.contraction_plan.steps
+        : [];
+    const pendingLabel = state.pendingPlannerOperandId
+      ? getPlannerOperandLabel(state.pendingPlannerOperandId)
+      : null;
+
+    plannerPanel.innerHTML = `
+      <div class="planner-toolbar">
+        <button
+          id="toggle-planner-mode-button"
+          type="button"
+          class="button-accent-cool${state.plannerMode ? " is-active" : ""}"
+          data-shortcut="M"
+          data-shortcut-label="Contract"
+          data-tooltip-enabled="true"
+          data-shortcut-description="Toggle manual contraction mode, then click two tensors or intermediate results to add a step."
+        >
+          Contract
+        </button>
+        <button
+          id="planner-reset-button"
+          type="button"
+          class="icon-button planner-icon-button danger"
+          data-shortcut="Shift+R"
+          data-shortcut-label="Reset path"
+          data-shortcut-description="Remove all manual steps from the current contraction path."
+          aria-label="Reset path"
+          ${planSteps.length ? "" : " disabled"}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
+          </svg>
+        </button>
+      </div>
+      ${pendingLabel ? `<p class="planner-inline-meta">Pending operand: ${ctx.escapeHtml(pendingLabel)}.</p>` : ""}
+      ${renderPlannerAnalysis()}
+    `;
+
+    plannerPanelBindings.bindPlannerPanelInteractions();
+    actions.renderOverlayDecorations();
+  }
+
+  return {
+    renderPlanner,
+    formatShape,
+    formatNumber,
+    getShapeElementCount,
+  };
+}

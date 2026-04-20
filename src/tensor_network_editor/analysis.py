@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from ._analysis import analyze_network
-from ._contraction_analysis import (
+from .codegen.common import prepare_analyzed_network
+from .internal.analysis._analysis import analyze_network
+from .internal.analysis._contraction_analysis import (
     _analyze_prepared_contraction,
     _normalize_spec_for_contraction_analysis,
     analyze_contraction,
 )
-from ._headless_models import NetworkSummary, SpecAnalysisReport
-from ._memory_dtypes import DEFAULT_MEMORY_DTYPE
-from .codegen.common import prepare_analyzed_network
+from .internal.analysis._memory_dtypes import DEFAULT_MEMORY_DTYPE
+from .internal.models._headless_models import NetworkSummary, SpecAnalysisReport
 from .models import NetworkSpec
 from .validation import ensure_valid_spec
 

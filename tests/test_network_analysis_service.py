@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tensor_network_editor._network_analysis import (
+from tensor_network_editor.internal.analysis._network_analysis import (
     connected_index_ids,
     index_map,
     open_indices,

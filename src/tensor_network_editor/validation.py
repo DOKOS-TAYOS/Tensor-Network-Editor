@@ -4,24 +4,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._analysis import analyze_network
-from ._validation_common import append_issue
-from ._validation_contraction import validate_contraction_plan
-from ._validation_edges import validate_edge
-from ._validation_entities import (
+from .errors import SpecValidationError
+from .internal.analysis._analysis import analyze_network
+from .internal.validation._validation_common import append_issue
+from .internal.validation._validation_contraction import validate_contraction_plan
+from .internal.validation._validation_edges import validate_edge
+from .internal.validation._validation_entities import (
     validate_group,
     validate_network,
     validate_note,
     validate_tensor,
 )
-from ._validation_grid_periodic import validate_grid_periodic_grid
-from ._validation_linear_periodic import validate_linear_periodic_chain
-from ._validation_tree_periodic import validate_tree_periodic_tree
-from .errors import SpecValidationError
+from .internal.validation._validation_grid_periodic import validate_grid_periodic_grid
+from .internal.validation._validation_linear_periodic import (
+    validate_linear_periodic_chain,
+)
+from .internal.validation._validation_tree_periodic import validate_tree_periodic_tree
 from .models import NetworkSpec, ValidationIssue
 
 if TYPE_CHECKING:
-    from ._analysis import NetworkAnalysis
+    from .internal.analysis._analysis import NetworkAnalysis
 
 
 def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:

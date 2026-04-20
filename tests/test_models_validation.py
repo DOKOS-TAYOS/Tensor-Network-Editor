@@ -5,10 +5,10 @@ from typing import Any, cast
 
 import pytest
 
-from tensor_network_editor._validation_linear_periodic import (
+from tensor_network_editor.errors import SpecValidationError
+from tensor_network_editor.internal.validation._validation_linear_periodic import (
     _build_carry_validation_context,
 )
-from tensor_network_editor.errors import SpecValidationError
 from tensor_network_editor.models import (
     CanvasNoteSpec,
     CanvasPosition,

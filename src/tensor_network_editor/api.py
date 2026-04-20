@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from ._io import write_utf8_text
 from .codegen.registry import engine_name_to_text
 from .codegen.registry import generate_code as _generate_code
+from .internal.io._io import write_utf8_text
 from .models import (
     CodegenResult,
     EditorResult,

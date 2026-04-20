@@ -12,15 +12,15 @@ from ..models import (
     NetworkSpec,
     TensorCollectionFormat,
 )
-from .base import CodeGenerator
-from .einsum_numpy import EinsumNumpyCodeGenerator
-from .einsum_torch import EinsumTorchCodeGenerator
-from .grid_periodic import generate_grid_periodic_code
-from .linear_periodic import generate_linear_periodic_code
-from .quimb import QuimbCodeGenerator
-from .tensorkrowch import TensorKrowchCodeGenerator
-from .tensornetwork import TensorNetworkCodeGenerator
-from .tree_periodic import generate_tree_periodic_code
+from .backends.einsum_numpy import EinsumNumpyCodeGenerator
+from .backends.einsum_torch import EinsumTorchCodeGenerator
+from .backends.quimb import QuimbCodeGenerator
+from .backends.tensorkrowch import TensorKrowchCodeGenerator
+from .backends.tensornetwork import TensorNetworkCodeGenerator
+from .modes.grid_periodic import generate_grid_periodic_code
+from .modes.linear_periodic import generate_linear_periodic_code
+from .modes.tree_periodic import generate_tree_periodic_code
+from .shared.base import CodeGenerator
 
 _GENERATOR_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _GENERATORS: dict[str, CodeGenerator] = {}

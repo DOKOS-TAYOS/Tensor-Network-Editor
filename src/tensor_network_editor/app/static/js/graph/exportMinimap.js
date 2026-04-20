@@ -1,0 +1,448 @@
+import { GRAPH_THEME, UI_THEME } from "../core/theme.js";
+
+export function registerExportMinimap(ctx) {
+  const state = ctx.state;
+  const {
+    TENSOR_WIDTH,
+    TENSOR_HEIGHT,
+    MIN_TENSOR_WIDTH,
+    MIN_TENSOR_HEIGHT,
+    INDEX_RADIUS,
+    INDEX_PADDING,
+    HISTORY_LIMIT,
+    REDO_SHORTCUT_LABEL,
+    DEFAULT_INDEX_SLOTS,
+  } = ctx.constants;
+  const {
+    statusMessage,
+    propertiesPanel,
+    generatedCode,
+    engineSelect,
+    connectButton,
+    loadInput,
+    undoButton,
+    redoButton,
+    exportPyButton,
+    exportPngButton,
+    exportSvgButton,
+    templateSelect,
+    insertTemplateButton,
+    createGroupButton,
+    helpButton,
+    helpModal,
+    helpBackdrop,
+    helpCloseButton,
+    canvasShell,
+    groupLayer,
+    resizeLayer,
+    selectionBox,
+    minimapShell,
+    minimapCanvas,
+  } = ctx.dom;
+  const { apiGet, apiPost, window, document, cytoscape } = ctx;
+  let minimapFrameId = null;
+  let minimapRenderQueued = false;
+
+  function handleMinimapMouseDown(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.minimapHidden || !state.minimapTransform) {
+      return;
+    }
+    state.minimapDrag = { active: true };
+    minimapCanvas.classList.add("is-dragging");
+    updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
+  }
+
+  function renderMinimapVisibility() {
+    if (!minimapShell) {
+      return;
+    }
+    minimapShell.classList.toggle("is-hidden", Boolean(state.minimapHidden));
+  }
+
+  function setMinimapVisibility(forceHidden) {
+    state.minimapHidden =
+      typeof forceHidden === "boolean" ? forceHidden : Boolean(state.minimapHidden);
+    if (state.minimapHidden) {
+      state.minimapDrag = null;
+      state.minimapTransform = null;
+      if (minimapFrameId !== null) {
+        window.cancelAnimationFrame(minimapFrameId);
+        minimapFrameId = null;
+      }
+      minimapRenderQueued = false;
+      minimapCanvas.classList.remove("is-dragging");
+    }
+    renderMinimapVisibility();
+    if (!state.minimapHidden) {
+      renderMinimap();
+    }
+  }
+
+  function toggleMinimapVisibility(forceHidden) {
+    setMinimapVisibility(
+      typeof forceHidden === "boolean" ? forceHidden : !state.minimapHidden
+    );
+  }
+
+  function updateViewportFromMinimapClientPoint(clientX, clientY) {
+    if (!state.minimapTransform || !state.cy) {
+      return;
+    }
+    const rect = minimapCanvas.getBoundingClientRect();
+    const localX = ctx.clamp(clientX - rect.left, 0, rect.width);
+    const localY = ctx.clamp(clientY - rect.top, 0, rect.height);
+    const transform = state.minimapTransform;
+    const modelPoint = {
+      x: (localX - transform.offsetX) / transform.scale + transform.bounds.x1,
+      y: (localY - transform.offsetY) / transform.scale + transform.bounds.y1,
+    };
+    centerViewportAt(modelPoint);
+  }
+
+  function centerViewportAt(point) {
+    if (!state.cy) {
+      return;
+    }
+    const zoom = state.cy.zoom();
+    state.cy.pan({
+      x: state.cy.width() / 2 - point.x * zoom,
+      y: state.cy.height() / 2 - point.y * zoom,
+    });
+    renderMinimap();
+  }
+
+  function getMetadataFilterAlpha(entityKind, entityId, highlight = null) {
+    if (typeof ctx.getMetadataFilterEntityState !== "function") {
+      return 1;
+    }
+    const entityState = ctx.getMetadataFilterEntityState(
+      entityKind,
+      entityId,
+      highlight
+    );
+    if (entityState === "context") {
+      return 0.62;
+    }
+    if (entityState === "dim") {
+      return 0.22;
+    }
+    return 1;
+  }
+
+  function withContextAlpha(context, alpha, draw) {
+    const previousAlpha = context.globalAlpha;
+    context.globalAlpha = previousAlpha * alpha;
+    try {
+      draw();
+    } finally {
+      context.globalAlpha = previousAlpha;
+    }
+  }
+
+  function renderMinimapNow() {
+    renderMinimapVisibility();
+    if (state.minimapHidden) {
+      state.minimapTransform = null;
+      return;
+    }
+    const context = minimapCanvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+    const canvasWidth = minimapCanvas.width;
+    const canvasHeight = minimapCanvas.height;
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
+    context.fillStyle = GRAPH_THEME.canvasBackground;
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
+    const metadataFilterHighlight =
+      typeof ctx.getMetadataFilterHighlight === "function"
+        ? ctx.getMetadataFilterHighlight()
+        : null;
+
+    if (!state.spec || !visibleTensors.length) {
+      context.fillStyle = GRAPH_THEME.emptyStateText;
+      context.font = `12px ${UI_THEME.fontFamily}`;
+      context.textAlign = "center";
+      context.fillText("Minimap will appear here.", canvasWidth / 2, canvasHeight / 2);
+      state.minimapTransform = null;
+      return;
+    }
+
+    const worldBounds = ctx.computeDesignBounds(48);
+    const innerWidth = canvasWidth - 16;
+    const innerHeight = canvasHeight - 16;
+    const scale = Math.min(innerWidth / Math.max(1, worldBounds.x2 - worldBounds.x1), innerHeight / Math.max(1, worldBounds.y2 - worldBounds.y1));
+    const drawnWidth = (worldBounds.x2 - worldBounds.x1) * scale;
+    const drawnHeight = (worldBounds.y2 - worldBounds.y1) * scale;
+    const offsetX = (canvasWidth - drawnWidth) / 2;
+    const offsetY = (canvasHeight - drawnHeight) / 2;
+
+    state.minimapTransform = {
+      bounds: worldBounds,
+      scale,
+      offsetX,
+      offsetY,
+    };
+
+    context.save();
+    context.translate(offsetX, offsetY);
+    context.scale(scale, scale);
+
+    visibleEdges.forEach((edge) => {
+      const left = ctx.findIndexOwner(edge.leftIndexId || edge.left.index_id);
+      const right = ctx.findIndexOwner(edge.rightIndexId || edge.right.index_id);
+      if (!left || !right) {
+        return;
+      }
+      withContextAlpha(
+        context,
+        getMetadataFilterAlpha("edge", edge.id, metadataFilterHighlight),
+        () => {
+          const source = ctx.indexAbsolutePosition(left.tensor, left.index);
+          const target = ctx.indexAbsolutePosition(right.tensor, right.index);
+          const curve = ctx.buildQuadraticCurve(source, target);
+          context.beginPath();
+          context.strokeStyle = state.selectionIds.includes(edge.id)
+            ? GRAPH_THEME.selection
+            : ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
+          context.lineWidth = 3 / scale;
+          context.moveTo(source.x - worldBounds.x1, source.y - worldBounds.y1);
+          context.quadraticCurveTo(
+            curve.control.x - worldBounds.x1,
+            curve.control.y - worldBounds.y1,
+            target.x - worldBounds.x1,
+            target.y - worldBounds.y1
+          );
+          context.stroke();
+        }
+      );
+    });
+
+    visibleTensors.forEach((tensor) => {
+      withContextAlpha(
+        context,
+        getMetadataFilterAlpha("tensor", tensor.id, metadataFilterHighlight),
+        () => {
+          const tensorColor = ctx.getMetadataColor(
+            tensor.metadata,
+            GRAPH_THEME.tensorFallback
+          );
+          const left = tensor.position.x - ctx.tensorWidth(tensor) / 2 - worldBounds.x1;
+          const top = tensor.position.y - ctx.tensorHeight(tensor) / 2 - worldBounds.y1;
+          ctx.drawRoundRectPath(
+            context,
+            left,
+            top,
+            ctx.tensorWidth(tensor),
+            ctx.tensorHeight(tensor),
+            8
+          );
+          context.fillStyle = tensorColor;
+          context.fill();
+          context.lineWidth = (state.selectionIds.includes(tensor.id) ? 3 : 2) / scale;
+          context.strokeStyle = state.selectionIds.includes(tensor.id)
+            ? GRAPH_THEME.selection
+            : ctx.shiftColor(tensorColor, 22);
+          context.stroke();
+        }
+      );
+
+      tensor.indices.forEach((index) => {
+        withContextAlpha(
+          context,
+          getMetadataFilterAlpha("index", index.id, metadataFilterHighlight),
+          () => {
+            const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
+            const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
+            context.beginPath();
+            context.fillStyle = indexColor;
+            context.strokeStyle = state.selectionIds.includes(index.id)
+              ? GRAPH_THEME.selection
+              : ctx.shiftColor(indexColor, 26);
+            context.lineWidth = (state.selectionIds.includes(index.id) ? 3 : 1.5) / scale;
+            context.arc(absolutePosition.x - worldBounds.x1, absolutePosition.y - worldBounds.y1, INDEX_RADIUS, 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+          }
+        );
+      });
+    });
+
+    context.restore();
+
+    if (state.cy) {
+      const extent = state.cy.extent();
+      const topLeft = worldToMinimapPoint({ x: extent.x1, y: extent.y1 });
+      const bottomRight = worldToMinimapPoint({ x: extent.x2, y: extent.y2 });
+      context.fillStyle = GRAPH_THEME.selectionFill;
+      context.strokeStyle = GRAPH_THEME.selection;
+      context.lineWidth = 2;
+      context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      context.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    }
+  }
+
+  function renderMinimap(options = {}) {
+    const { immediate = false } = options;
+    if (immediate || typeof window.requestAnimationFrame !== "function") {
+      if (minimapFrameId !== null) {
+        window.cancelAnimationFrame(minimapFrameId);
+        minimapFrameId = null;
+      }
+      minimapRenderQueued = false;
+      renderMinimapNow();
+      return;
+    }
+    if (minimapRenderQueued) {
+      return;
+    }
+    minimapRenderQueued = true;
+    minimapFrameId = window.requestAnimationFrame(() => {
+      minimapFrameId = null;
+      minimapRenderQueued = false;
+      renderMinimapNow();
+    });
+  }
+
+  function worldToMinimapPoint(point) {
+    return {
+      x: state.minimapTransform.offsetX + (point.x - state.minimapTransform.bounds.x1) * state.minimapTransform.scale,
+      y: state.minimapTransform.offsetY + (point.y - state.minimapTransform.bounds.y1) * state.minimapTransform.scale,
+    };
+  }
+
+  function downloadPngExport() {
+    if (!state.cy || !state.spec) {
+      return;
+    }
+    try {
+      const pngDataUrl = withSelectionSuppressed(() =>
+        state.cy.png({
+          full: true,
+          scale: 2,
+          bg: GRAPH_THEME.canvasBackground,
+        })
+      );
+      ctx.downloadDataUrl(`${ctx.sanitizeFilename(state.spec.name || "tensor-network")}.png`, pngDataUrl);
+      ctx.setStatus("Exported a PNG image of the current design.", "success");
+    } catch (error) {
+      ctx.setStatus(`Could not export PNG: ${error.message}`, "error");
+    }
+  }
+
+  function downloadSvgExport() {
+    if (!state.spec) {
+      return;
+    }
+    try {
+      const svgText = buildSvgExport();
+      const blob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+      ctx.downloadBlob(`${ctx.sanitizeFilename(state.spec.name || "tensor-network")}.svg`, blob);
+      ctx.setStatus("Exported an SVG image of the current design.", "success");
+    } catch (error) {
+      ctx.setStatus(`Could not export SVG: ${error.message}`, "error");
+    }
+  }
+
+  function buildSvgExport() {
+    const bounds = ctx.computeDesignBounds(56);
+    const width = Math.max(240, Math.ceil(bounds.x2 - bounds.x1));
+    const height = Math.max(180, Math.ceil(bounds.y2 - bounds.y1));
+    const lines = [];
+    const visibleTensors =
+      typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
+    const visibleEdges =
+      typeof ctx.getVisibleEdges === "function" ? ctx.getVisibleEdges() : state.spec.edges;
+
+    lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+    lines.push(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.x1} ${bounds.y1} ${width} ${height}">`
+    );
+    lines.push(`<rect x="${bounds.x1}" y="${bounds.y1}" width="${width}" height="${height}" fill="${GRAPH_THEME.canvasBackground}" />`);
+
+    visibleEdges.forEach((edge) => {
+      const left = ctx.findIndexOwner(edge.leftIndexId || edge.left.index_id);
+      const right = ctx.findIndexOwner(edge.rightIndexId || edge.right.index_id);
+      if (!left || !right) {
+        return;
+      }
+      const source = ctx.indexAbsolutePosition(left.tensor, left.index);
+      const target = ctx.indexAbsolutePosition(right.tensor, right.index);
+      const curve = ctx.buildQuadraticCurve(source, target);
+      const edgeColor = ctx.getMetadataColor(edge.metadata, GRAPH_THEME.edge);
+      const labelPosition = ctx.quadraticPointAt(source, curve.control, target, 0.5);
+      lines.push(
+        `<path d="M ${source.x} ${source.y} Q ${curve.control.x} ${curve.control.y} ${target.x} ${target.y}" fill="none" stroke="${edgeColor}" stroke-width="3" />`
+      );
+      lines.push(
+        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 60)}" font-size="11" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
+      );
+    });
+
+    visibleTensors.forEach((tensor) => {
+      const tensorColor = ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback);
+      const borderColor = ctx.shiftColor(tensorColor, 22);
+      lines.push(
+        `<rect x="${tensor.position.x - ctx.tensorWidth(tensor) / 2}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2}" width="${ctx.tensorWidth(tensor)}" height="${ctx.tensorHeight(tensor)}" rx="8" ry="8" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
+      );
+      lines.push(
+        `<text x="${tensor.position.x}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2 + 26}" fill="${ctx.readableTextColor(tensorColor)}" font-size="18" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(tensor.name)}</text>`
+      );
+
+      tensor.indices.forEach((index, indexPosition) => {
+        const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
+        const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
+        lines.push(
+          `<circle cx="${absolutePosition.x}" cy="${absolutePosition.y}" r="${INDEX_RADIUS}" fill="${indexColor}" stroke="${ctx.shiftColor(indexColor, 26)}" stroke-width="2" />`
+        );
+        lines.push(
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 4}" fill="${ctx.readableTextColor(indexColor)}" font-size="12" font-family="${UI_THEME.fontFamily}" font-weight="700" text-anchor="middle">${indexPosition + 1}</text>`
+        );
+        lines.push(
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 28}" fill="${ctx.shiftColor(indexColor, 52)}" font-size="10" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(`${index.name} Â· ${index.dimension}`)}</text>`
+        );
+      });
+    });
+
+    lines.push("</svg>");
+    return lines.join("\n");
+  }
+
+  function withSelectionSuppressed(action) {
+    if (!state.cy) {
+      return action();
+    }
+    const selectionIds = [...state.selectionIds];
+    state.cy.$(":selected").unselect();
+    try {
+      return action();
+    } finally {
+      state.selectionIds = selectionIds;
+      ctx.syncSelectedElementState();
+      ctx.syncCySelection();
+    }
+  }
+
+  Object.assign(ctx, {
+    handleMinimapMouseDown,
+    updateViewportFromMinimapClientPoint,
+    centerViewportAt,
+    renderMinimap,
+    renderMinimapVisibility,
+    setMinimapVisibility,
+    toggleMinimapVisibility,
+    worldToMinimapPoint,
+    downloadPngExport,
+    downloadSvgExport,
+    buildSvgExport,
+    withSelectionSuppressed
+  });
+}
+

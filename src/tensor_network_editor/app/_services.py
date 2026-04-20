@@ -6,9 +6,6 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast
 
-from .._annotation_catalog import serialize_annotation_definitions
-from .._contraction_analysis import _analyze_validated_contraction
-from .._contraction_analysis_types import ContractionAnalysisResult
 from .._version import __version__
 from ..codegen.registry import (
     engine_name_to_text,
@@ -18,6 +15,14 @@ from ..codegen.registry import (
     generate_code as generate_code_internal,
 )
 from ..errors import SpecValidationError
+from ..internal.analysis._contraction_analysis import _analyze_validated_contraction
+from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
+from ..internal.io._serialization import SCHEMA_VERSION, deserialize_spec
+from ..internal.subnetworks._subnetworks import (
+    extract_subnetwork_spec,
+    prepare_subnetwork_for_insertion,
+)
+from ..internal.templates._annotation_catalog import serialize_annotation_definitions
 from ..models import (
     CanvasPosition,
     CodegenResult,
@@ -25,11 +30,6 @@ from ..models import (
     EngineIdentifier,
     NetworkSpec,
     TensorCollectionFormat,
-)
-from ..serialization import SCHEMA_VERSION, deserialize_spec
-from ..subnetworks import (
-    extract_subnetwork_spec,
-    prepare_subnetwork_for_insertion,
 )
 from ..templates import (
     TemplateParameters,
@@ -130,7 +130,7 @@ def complete_session_request(
         )
         print(codegen_result.code)
     if session.code_path is not None:
-        from .._io import write_utf8_text
+        from ..internal.io._io import write_utf8_text
 
         LOGGER.debug(
             "[session=%s] Writing generated code to %s",

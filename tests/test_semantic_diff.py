@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from tensor_network_editor._headless_models import (
+from tensor_network_editor.diffing import semantic_diff_specs
+from tensor_network_editor.internal.diffing._diffing import _entity_label
+from tensor_network_editor.internal.models._headless_models import (
     SemanticDiffEntry,
     SemanticSpecDiffResult,
 )
-from tensor_network_editor.diffing import _entity_label, semantic_diff_specs
 from tests.factories import (
     build_linear_periodic_chain_spec,
     build_sample_spec,

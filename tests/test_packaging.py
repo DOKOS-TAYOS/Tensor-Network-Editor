@@ -69,6 +69,8 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
         "app/static/*.css",
         "app/static/js/*.js",
         "app/static/js/actions/*.js",
+        "app/static/js/core/*.js",
+        "app/static/js/graph/*.js",
         "app/static/js/interactions/*.js",
         "app/static/js/planner/*.js",
         "app/static/js/properties/*.js",
@@ -77,6 +79,7 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
         "app/static/js/shell/*.js",
         "app/static/js/spec/*.js",
         "app/static/js/state/*.js",
+        "app/static/js/utils/*.js",
         "app/static/js/views/*.js",
         "app/static/vendor/*.js",
     } <= package_data

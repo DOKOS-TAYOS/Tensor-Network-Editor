@@ -8,6 +8,11 @@ from http import HTTPStatus
 from typing import TypeAlias, cast
 
 from ..codegen.registry import engine_name_to_text, resolve_registered_engine
+from ..internal.io._serialization import (
+    SCHEMA_VERSION,
+    deserialize_spec,
+    deserialize_spec_from_python_code,
+)
 from ..models import (
     CanvasPosition,
     CodegenResult,
@@ -16,11 +21,6 @@ from ..models import (
     NetworkSpec,
     TensorCollectionFormat,
     ValidationIssue,
-)
-from ..serialization import (
-    SCHEMA_VERSION,
-    deserialize_spec,
-    deserialize_spec_from_python_code,
 )
 from ..types import JSONValue
 

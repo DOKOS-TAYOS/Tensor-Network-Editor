@@ -12,7 +12,7 @@ from tests.factories import build_linear_periodic_carry_chain_spec
 
 
 def test_linear_periodic_expression_helpers_live_in_internal_module() -> None:
-    from tensor_network_editor.codegen._linear_periodic_expressions import (
+    from tensor_network_editor.codegen.shared._linear_periodic_expressions import (
         _axis_name_for_engine,
         _axis_names_for_engine,
     )
@@ -29,7 +29,7 @@ def test_linear_periodic_expression_helpers_live_in_internal_module() -> None:
 
 
 def test_linear_periodic_shared_module_builds_carry_simulation_map() -> None:
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _build_carry_simulation_map,
     )
 
@@ -60,7 +60,7 @@ def test_linear_periodic_shared_module_builds_carry_simulation_map() -> None:
 def test_simulate_carry_cell_initial_handoff_keeps_next_step_out_of_real_steps() -> (
     None
 ):
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _simulate_carry_cell,
     )
 
@@ -80,7 +80,7 @@ def test_simulate_carry_cell_initial_handoff_keeps_next_step_out_of_real_steps()
 
 
 def test_simulate_carry_cell_periodic_records_only_simulated_steps() -> None:
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _build_carry_payload_state,
         _simulate_carry_cell,
     )
@@ -111,7 +111,7 @@ def test_simulate_carry_cell_periodic_records_only_simulated_steps() -> None:
 
 
 def test_simulate_carry_cell_rejects_step_using_previous_and_next_together() -> None:
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _build_carry_payload_state,
         _simulate_carry_cell,
     )
@@ -148,7 +148,7 @@ def test_simulate_carry_cell_rejects_step_using_previous_and_next_together() -> 
 
 
 def test_simulate_carry_cell_rejects_next_step_that_is_not_final() -> None:
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _simulate_carry_cell,
     )
 
@@ -176,7 +176,7 @@ def test_simulate_carry_cell_rejects_next_step_that_is_not_final() -> None:
 
 
 def test_build_carry_simulation_context_collects_interface_state() -> None:
-    from tensor_network_editor.codegen._linear_periodic_shared import (
+    from tensor_network_editor.codegen.modes._linear_periodic_shared import (
         _build_carry_simulation_context,
     )
 

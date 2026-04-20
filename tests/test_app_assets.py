@@ -21,14 +21,14 @@ def request_runtime_bundle(editor_server: EditorServer, *relative_paths: str) ->
 def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
     return request_runtime_bundle(
         editor_server,
-        "js/utilities.js",
-        "js/utilitiesBase.js",
-        "js/utilitiesGeometry.js",
-        "js/utilitiesGridPeriodic.js",
-        "js/utilitiesLayout.js",
-        "js/utilitiesLinearPeriodic.js",
-        "js/utilitiesSpec.js",
-        "js/utilitiesUi.js",
+        "js/utils/utilities.js",
+        "js/utils/utilitiesBase.js",
+        "js/utils/utilitiesGeometry.js",
+        "js/utils/utilitiesGridPeriodic.js",
+        "js/utils/utilitiesLayout.js",
+        "js/utils/utilitiesLinearPeriodic.js",
+        "js/utils/utilitiesSpec.js",
+        "js/utils/utilitiesUi.js",
     )
 
 
@@ -36,11 +36,11 @@ def request_interactions_runtime_bundle(editor_server: EditorServer) -> str:
     return request_runtime_bundle(
         editor_server,
         "js/actions/sessionCommands.js",
-        "js/interactions.js",
-        "js/interactionsCanvas.js",
-        "js/interactionsEditor.js",
-        "js/interactionsSession.js",
-        "js/interactionsShortcuts.js",
+        "js/interactions/interactions.js",
+        "js/interactions/interactionsCanvas.js",
+        "js/interactions/interactionsEditor.js",
+        "js/interactions/interactionsSession.js",
+        "js/interactions/interactionsShortcuts.js",
         "js/session/sessionEditorFlows.js",
         "js/session/sessionTemplateFlows.js",
         "js/session/sessionUiAdapters.js",
@@ -264,7 +264,7 @@ def test_static_server_rejects_parent_directory_traversal(
 def test_notes_planner_uses_singular_operation_labels(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    body = request_text(f"{editor_server.base_url}/js/planner/plannerRenderers.js")
 
     assert '"FLOPs"' not in body
     assert '"MACs"' not in body
@@ -275,13 +275,13 @@ def test_notes_planner_uses_singular_operation_labels(
 def test_notes_and_planner_feature_modules_are_served(
     editor_server: EditorServer,
 ) -> None:
-    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
-    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/planner/planner.js")
     planner_support_body = request_text(
-        f"{editor_server.base_url}/js/plannerSupport.js"
+        f"{editor_server.base_url}/js/planner/plannerSupport.js"
     )
     planner_renderers_body = request_text(
-        f"{editor_server.base_url}/js/plannerRenderers.js"
+        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
     )
     planner_selectors_body = request_text(
         f"{editor_server.base_url}/js/state/plannerSelectors.js"
@@ -292,25 +292,27 @@ def test_notes_and_planner_feature_modules_are_served(
     planner_service_body = request_text(
         f"{editor_server.base_url}/js/services/plannerAnalysisService.js"
     )
-    registrar_body = request_text(f"{editor_server.base_url}/js/notesPlanner.js")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilities.js")
+    registrar_body = request_text(
+        f"{editor_server.base_url}/js/planner/notesPlanner.js"
+    )
+    utilities_body = request_text(f"{editor_server.base_url}/js/utils/utilities.js")
     utilities_templates_body = request_text(
-        f"{editor_server.base_url}/js/utilitiesTemplates.js"
+        f"{editor_server.base_url}/js/utils/utilitiesTemplates.js"
     )
 
     assert "registerNotesFeature" in notes_body
     assert "registerPlannerFeature" in planner_body
     assert 'from "./plannerSupport.js"' in planner_body
     assert 'from "./plannerRenderers.js"' in planner_body
-    assert 'from "./state/plannerSelectors.js"' in planner_support_body
-    assert 'from "./actions/plannerCommands.js"' in planner_support_body
-    assert 'from "./services/plannerAnalysisService.js"' in planner_support_body
+    assert 'from "../state/plannerSelectors.js"' in planner_support_body
+    assert 'from "../actions/plannerCommands.js"' in planner_support_body
+    assert 'from "../services/plannerAnalysisService.js"' in planner_support_body
     assert "createPlannerSupport" in planner_support_body
     assert "createPlannerRenderers" in planner_renderers_body
     assert "buildPlannerOperandState" in planner_selectors_body
     assert "createPlannerCommands" in planner_commands_body
     assert "createPlannerAnalysisService" in planner_service_body
-    assert 'from "./notes.js"' in registrar_body
+    assert 'from "../graph/notes.js"' in registrar_body
     assert 'from "./planner.js"' in registrar_body
     assert 'from "./utilitiesTemplates.js"' in utilities_body
     assert "createTemplateOptionHelpers" in utilities_templates_body
@@ -410,7 +412,7 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
 def test_overlays_asset_reuses_shared_tensor_size_helpers(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/overlaysLayoutTemplates.js")
+    body = request_text(f"{editor_server.base_url}/js/graph/overlaysLayoutTemplates.js")
 
     assert "ctx.tensorWidth(" in body
     assert "ctx.tensorHeight(" in body
@@ -550,12 +552,12 @@ def test_css_asset_exposes_editor_dark_theme_tokens_and_compact_surfaces(
 def test_graph_assets_import_shared_editor_theme_palette(
     editor_server: EditorServer,
 ) -> None:
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
-    export_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
-    theme_body = request_text(f"{editor_server.base_url}/js/theme.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
+    export_body = request_text(f"{editor_server.base_url}/js/graph/exportMinimap.js")
+    theme_body = request_text(f"{editor_server.base_url}/js/core/theme.js")
 
-    assert 'from "./theme.js"' in graph_body
-    assert 'from "./theme.js"' in export_body
+    assert 'from "../core/theme.js"' in graph_body
+    assert 'from "../core/theme.js"' in export_body
     assert "export const GRAPH_THEME = Object.freeze(" in theme_body
     assert "export const UI_THEME = Object.freeze(" in theme_body
     assert "GRAPH_THEME.selection" in graph_body
@@ -609,8 +611,8 @@ def test_css_asset_standardizes_hover_across_controls(
 def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> None:
     html = request_text(f"{editor_server.base_url}/")
     css_body = request_text(f"{editor_server.base_url}/app.css")
-    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
-    sidebar_body = request_text(f"{editor_server.base_url}/js/sidebarTabs.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
+    sidebar_body = request_text(f"{editor_server.base_url}/js/core/sidebarTabs.js")
 
     assert 'id="sidebar-resize-handle"' in html
     assert 'class="sidebar-toggle-icon"' in html
@@ -642,21 +644,23 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     editor_server: EditorServer,
 ) -> None:
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
     )
     tensor_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
     )
     entities_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
-    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    support_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesSupport.js"
+    )
     metadata_body = request_text(
         f"{editor_server.base_url}/js/properties/metadataEditors.js"
     )
@@ -679,7 +683,7 @@ def test_properties_asset_exposes_total_element_summaries_and_icon_delete_contro
     assert 'aria-label="Delete selection"' in overview_body + overview_markup_body
     assert 'aria-label="Delete connection"' in entities_body + entity_markup_body
     assert 'aria-label="Delete note"' in entities_body + entity_markup_body
-    assert 'from "./properties/propertySummaries.js"' in support_body
+    assert 'from "./propertySummaries.js"' in support_body
     assert "function getSelectionTotalElementCount(" in summaries_body
     assert "function getTensorTotalElementCount(" in summaries_body
 
@@ -688,21 +692,23 @@ def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete
     editor_server: EditorServer,
 ) -> None:
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
     )
     tensor_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
     )
     entities_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
-    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    support_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesSupport.js"
+    )
     metadata_body = request_text(
         f"{editor_server.base_url}/js/properties/metadataEditors.js"
     )
@@ -716,7 +722,7 @@ def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete
         + metadata_body
     )
     assert "Tags" in combined_body
-    assert 'from "./properties/metadataEditors.js"' in support_body
+    assert 'from "./metadataEditors.js"' in support_body
     assert "Custom metadata (JSON)" in metadata_body
     assert "metadata-editor-disclosure" in metadata_body
     assert 'summaryLabel = "Metadata"' in metadata_body
@@ -780,11 +786,11 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     editor_server: EditorServer,
 ) -> None:
     html_body = request_text(f"{editor_server.base_url}/")
-    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     main_body = request_text(f"{editor_server.base_url}/js/main.js")
-    filter_body = request_text(f"{editor_server.base_url}/js/metadataFilters.js")
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
-    minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+    filter_body = request_text(f"{editor_server.base_url}/js/graph/metadataFilters.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
+    minimap_body = request_text(f"{editor_server.base_url}/js/graph/exportMinimap.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'id="canvas-tools"' in html_body
@@ -795,7 +801,7 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
         'canvasContextMenuRoot: document.getElementById("canvas-context-menu-root")'
         in dom_body
     )
-    assert 'from "./metadataFilters.js"' in main_body
+    assert 'from "./graph/metadataFilters.js"' in main_body
     assert "registerMetadataFilters(context);" in main_body
     assert "canvas-metadata-filter-button" in filter_body
     assert "canvas-name-search-button" in filter_body
@@ -838,14 +844,14 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
 ) -> None:
     main_body = request_text(f"{editor_server.base_url}/js/main.js")
     context_menu_body = request_text(
-        f"{editor_server.base_url}/js/canvasContextMenu.js"
+        f"{editor_server.base_url}/js/graph/canvasContextMenu.js"
     )
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     overlays_body = request_text(
-        f"{editor_server.base_url}/js/overlaysLayoutTemplates.js"
+        f"{editor_server.base_url}/js/graph/overlaysLayoutTemplates.js"
     )
 
-    assert 'from "./canvasContextMenu.js"' in main_body
+    assert 'from "./graph/canvasContextMenu.js"' in main_body
     assert "registerCanvasContextMenu(context);" in main_body
     assert "function openCanvasContextMenu(" in context_menu_body
     assert 'id="context-menu-name-input"' in context_menu_body
@@ -902,15 +908,17 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
 def test_properties_renderer_assets_are_split_by_selection_family(
     editor_server: EditorServer,
 ) -> None:
-    facade_body = request_text(f"{editor_server.base_url}/js/propertiesRenderers.js")
+    facade_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesRenderers.js"
+    )
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     tensor_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
     )
     entities_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
@@ -937,13 +945,13 @@ def test_properties_renderer_assets_are_split_by_selection_family(
     assert 'from "./propertiesRenderersOverview.js"' in facade_body
     assert 'from "./propertiesRenderersTensor.js"' in facade_body
     assert 'from "./propertiesRenderersEntities.js"' in facade_body
-    assert 'from "./properties/overviewPropertiesMarkup.js"' in overview_body
-    assert 'from "./properties/overviewPropertiesBindings.js"' in overview_body
-    assert 'from "./properties/entityPropertiesMarkup.js"' in entities_body
-    assert 'from "./properties/entityPropertiesBindings.js"' in entities_body
-    assert 'from "./properties/tensorPropertiesStandard.js"' in tensor_body
-    assert 'from "./properties/tensorPropertiesBoundary.js"' in tensor_body
-    assert 'from "./properties/tensorPropertiesContraction.js"' in tensor_body
+    assert 'from "./overviewPropertiesMarkup.js"' in overview_body
+    assert 'from "./overviewPropertiesBindings.js"' in overview_body
+    assert 'from "./entityPropertiesMarkup.js"' in entities_body
+    assert 'from "./entityPropertiesBindings.js"' in entities_body
+    assert 'from "./tensorPropertiesStandard.js"' in tensor_body
+    assert 'from "./tensorPropertiesBoundary.js"' in tensor_body
+    assert 'from "./tensorPropertiesContraction.js"' in tensor_body
     assert "renderNetworkProperties" in overview_body
     assert "renderTensorProperties" in tensor_body
     assert "renderGroupProperties" in entities_body
@@ -967,12 +975,14 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
         f"{editor_server.base_url}/js/shell/editorShellBindings.js"
     )
     tooltip_body = request_text(f"{editor_server.base_url}/js/shell/shortcutTooltip.js")
-    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/properties/properties.js"
+    )
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     entities_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     commands_body = request_text(
         f"{editor_server.base_url}/js/actions/propertyCommands.js"
@@ -1002,7 +1012,7 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
     assert "ctx.applyDesignChange(" not in entities_body
     assert "ctx.removeEdge(" not in entities_body
     assert "ctx.removeNote(" not in entities_body
-    assert 'from "./actions/propertyCommands.js"' in properties_body
+    assert 'from "../actions/propertyCommands.js"' in properties_body
     assert "function renameNetwork(" in commands_body
     assert "function applySelectionColor(" in commands_body
     assert "function addIndexToSelectedTensors(" in commands_body
@@ -1017,7 +1027,7 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
 def test_graph_assets_expose_for_boundary_tensor_hovers(
     editor_server: EditorServer,
 ) -> None:
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
 
     assert 'state.cy.on("mouseover", "node[kind = \'tensor\']"' in graph_body
     assert 'state.cy.on("mouseout", "node[kind = \'tensor\']"' in graph_body
@@ -1036,7 +1046,7 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
     editor_server: EditorServer,
 ) -> None:
     tensor_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersTensor.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
     )
     tensor_standard_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
@@ -1096,9 +1106,9 @@ def test_contraction_result_properties_expose_a_delete_action(
 def test_note_assets_move_note_editing_into_canvas(
     editor_server: EditorServer,
 ) -> None:
-    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
     properties_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     properties_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
@@ -1131,7 +1141,7 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     editor_server: EditorServer,
 ) -> None:
     context_menu_body = request_text(
-        f"{editor_server.base_url}/js/canvasContextMenu.js"
+        f"{editor_server.base_url}/js/graph/canvasContextMenu.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
@@ -1139,9 +1149,11 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
-    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    planner_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    )
     html = request_text(f"{editor_server.base_url}/")
-    utilities_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utils/utilitiesUi.js")
 
     assert 'data-shortcut-label="Delete selection"' in overview_markup_body
     assert 'title="Delete selection"' not in overview_markup_body
@@ -1172,7 +1184,7 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
 def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
     editor_server: EditorServer,
 ) -> None:
-    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "invalidate: noteInvalidation({ overlays: false })" in notes_body
@@ -1185,9 +1197,9 @@ def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
 def test_collapsed_note_assets_leave_a_small_grab_margin_around_the_toggle(
     editor_server: EditorServer,
 ) -> None:
-    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
-    constants_body = request_text(f"{editor_server.base_url}/js/constants.js")
+    constants_body = request_text(f"{editor_server.base_url}/js/core/constants.js")
     collapsed_frame_start = css_body.index(".canvas-note-frame.is-collapsed {")
     collapsed_toggle_start = css_body.index(".canvas-note-collapsed-toggle {")
     collapsed_toggle_end = css_body.index(
@@ -1213,11 +1225,13 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
     editor_server: EditorServer,
 ) -> None:
     interactions_body = request_interactions_runtime_bundle(editor_server)
-    planner_body = request_text(f"{editor_server.base_url}/js/plannerSupport.js")
+    planner_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupport.js"
+    )
     planner_commands_body = request_text(
         f"{editor_server.base_url}/js/actions/plannerCommands.js"
     )
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert (
@@ -1241,7 +1255,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     shell_bindings_body = request_text(
         f"{editor_server.base_url}/js/shell/editorShellBindings.js"
     )
-    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
@@ -1303,7 +1317,9 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
     editor_server: EditorServer,
 ) -> None:
     interactions_body = request_interactions_runtime_bundle(editor_server)
-    contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
+    contraction_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionScene.js"
+    )
 
     assert "invalidate: { lookups: true }" in interactions_body
     assert "ctx.ensureSpecLookups()" in contraction_body
@@ -1313,10 +1329,12 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
 def test_contraction_scene_assets_route_progression_and_snapshots_through_state_modules(
     editor_server: EditorServer,
 ) -> None:
-    contraction_body = request_text(f"{editor_server.base_url}/js/contractionScene.js")
+    contraction_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionScene.js"
+    )
 
-    assert 'from "./state/contractionSceneProgression.js"' in contraction_body
-    assert 'from "./state/contractionSceneSnapshots.js"' in contraction_body
+    assert 'from "../state/contractionSceneProgression.js"' in contraction_body
+    assert 'from "../state/contractionSceneSnapshots.js"' in contraction_body
     assert "export function cloneOperand(" not in contraction_body
     assert "export function analyzeOperandPair(" not in contraction_body
     assert (
@@ -1329,19 +1347,19 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     editor_server: EditorServer,
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
-    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     shell_bindings_body = request_text(
         f"{editor_server.base_url}/js/shell/editorShellBindings.js"
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
     )
     entities_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersEntities.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersEntities.js"
     )
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
@@ -1382,7 +1400,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
     body = request_text(f"{editor_server.base_url}/app.css")
-    dom_body = request_text(f"{editor_server.base_url}/js/dom.js")
+    dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     bootstrap_flow_body = request_text(
         f"{editor_server.base_url}/js/shell/editorBootstrapFlow.js"
     )
@@ -1390,7 +1408,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         f"{editor_server.base_url}/js/shell/editorShellBindings.js"
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
-    utilities_ui_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
+    utilities_ui_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUi.js"
+    )
     session_template_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
     )
@@ -1481,10 +1501,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         html,
     )
     assert 'dataset.shortcutLabel = "Sidebar";' in request_text(
-        f"{editor_server.base_url}/js/sidebarTabs.js"
+        f"{editor_server.base_url}/js/core/sidebarTabs.js"
     )
     assert 'dataset.tooltipEnabled = "true";' in request_text(
-        f"{editor_server.base_url}/js/sidebarTabs.js"
+        f"{editor_server.base_url}/js/core/sidebarTabs.js"
     )
     assert "Output type" in shell_bindings_body
     assert "Choose how generated code returns the tensors" in shell_bindings_body
@@ -1621,10 +1641,12 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     editor_server: EditorServer,
 ) -> None:
     utilities_body = request_utilities_runtime_bundle(editor_server)
-    utilities_module_body = request_text(f"{editor_server.base_url}/js/utilities.js")
-    layout_body = request_text(f"{editor_server.base_url}/js/utilitiesLayout.js")
+    utilities_module_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilities.js"
+    )
+    layout_body = request_text(f"{editor_server.base_url}/js/utils/utilitiesLayout.js")
     overview_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
@@ -1632,7 +1654,9 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     overview_bindings_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesBindings.js"
     )
-    properties_body = request_text(f"{editor_server.base_url}/js/properties.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/properties/properties.js"
+    )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'from "./utilitiesLayout.js"' in utilities_module_body
@@ -1682,18 +1706,18 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     editor_server: EditorServer,
 ) -> None:
-    planner_body = request_text(f"{editor_server.base_url}/js/planner.js")
+    planner_body = request_text(f"{editor_server.base_url}/js/planner/planner.js")
     planner_support_body = request_text(
-        f"{editor_server.base_url}/js/plannerSupport.js"
+        f"{editor_server.base_url}/js/planner/plannerSupport.js"
     )
     planner_service_body = request_text(
         f"{editor_server.base_url}/js/services/plannerAnalysisService.js"
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_body = request_utilities_runtime_bundle(editor_server)
-    minimap_body = request_text(f"{editor_server.base_url}/js/exportMinimap.js")
+    minimap_body = request_text(f"{editor_server.base_url}/js/graph/exportMinimap.js")
     overlays_body = request_text(
-        f"{editor_server.base_url}/js/overlaysLayoutTemplates.js"
+        f"{editor_server.base_url}/js/graph/overlaysLayoutTemplates.js"
     )
 
     assert "function serializeCurrentSpec(options = {})" in utilities_body
@@ -1715,7 +1739,9 @@ def test_performance_sensitive_assets_use_lightweight_analysis_paths(
 def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     editor_server: EditorServer,
 ) -> None:
-    history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
+    history_body = request_text(
+        f"{editor_server.base_url}/js/graph/historySelection.js"
+    )
     history_snapshots_body = request_text(
         f"{editor_server.base_url}/js/state/historySnapshots.js"
     )
@@ -1726,7 +1752,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
         f"{editor_server.base_url}/js/actions/designMutationPipeline.js"
     )
     utilities_body = request_utilities_runtime_bundle(editor_server)
-    utilities_spec_body = request_text(f"{editor_server.base_url}/js/utilitiesSpec.js")
+    utilities_spec_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesSpec.js"
+    )
     spec_normalization_body = request_text(
         f"{editor_server.base_url}/js/spec/specNormalization.js"
     )
@@ -1734,17 +1762,19 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     spec_mutations_body = request_text(
         f"{editor_server.base_url}/js/spec/specMutations.js"
     )
-    state_body = request_text(f"{editor_server.base_url}/js/state.js")
-    notes_body = request_text(f"{editor_server.base_url}/js/notes.js")
-    properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    state_body = request_text(f"{editor_server.base_url}/js/state/state.js")
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesSupport.js"
+    )
     properties_renderers_body = request_text(
-        f"{editor_server.base_url}/js/propertiesRenderersOverview.js"
+        f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
     properties_bindings_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesBindings.js"
     )
     interactions_body = request_interactions_runtime_bundle(editor_server)
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     graph_model_body = request_text(
         f"{editor_server.base_url}/js/views/graphElementModel.js"
     )
@@ -1756,9 +1786,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
         "JSON.stringify(leftSnapshot) === JSON.stringify(rightSnapshot)"
         not in history_body
     )
-    assert 'from "./state/historySnapshots.js"' in history_body
-    assert 'from "./state/selectionEntries.js"' in history_body
-    assert 'from "./actions/designMutationPipeline.js"' in history_body
+    assert 'from "../state/historySnapshots.js"' in history_body
+    assert 'from "../state/selectionEntries.js"' in history_body
+    assert 'from "../actions/designMutationPipeline.js"' in history_body
     assert "function normalizeInvalidations(" not in history_body
     assert "function createHistorySnapshot(" not in history_body
     assert "function getSelectedEntries(" not in history_body
@@ -1769,9 +1799,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "function toggleLinearPeriodicMode()" in utilities_body
     assert "function switchLinearPeriodicCell(direction)" in utilities_body
     assert "linear_periodic_chain" in utilities_body
-    assert 'from "./spec/specNormalization.js"' in utilities_spec_body
-    assert 'from "./spec/specLookups.js"' in utilities_spec_body
-    assert 'from "./spec/specMutations.js"' in utilities_spec_body
+    assert 'from "../spec/specNormalization.js"' in utilities_spec_body
+    assert 'from "../spec/specLookups.js"' in utilities_spec_body
+    assert 'from "../spec/specMutations.js"' in utilities_spec_body
     assert "function normalizeGraphSectionInPlace(" not in utilities_spec_body
     assert "function ensureSpecLookups(" not in utilities_spec_body
     assert "function createSpecNormalizationBindings(" in spec_normalization_body
@@ -1798,7 +1828,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
 def test_properties_assets_lock_virtual_boundary_tensor_structure(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/propertiesRenderersTensor.js")
+    body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
+    )
 
     assert "ctx.isLinearPeriodicBoundaryTensor(tensor)" in body
     assert "renderLinearPeriodicBoundaryTensorProperties" in body
@@ -1809,7 +1841,9 @@ def test_properties_assets_lock_virtual_boundary_tensor_structure(
 def test_linear_periodic_assets_propagate_interface_dimensions_across_cells(
     editor_server: EditorServer,
 ) -> None:
-    history_body = request_text(f"{editor_server.base_url}/js/historySelection.js")
+    history_body = request_text(
+        f"{editor_server.base_url}/js/graph/historySelection.js"
+    )
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert "syncCurrentGraphIntoLinearPeriodicChain:" in history_body
@@ -1854,12 +1888,14 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
     editor_server: EditorServer,
 ) -> None:
     body = request_text(f"{editor_server.base_url}/js/actions/propertyCommands.js")
-    support_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    support_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesSupport.js"
+    )
     spec_mutations_body = request_text(
         f"{editor_server.base_url}/js/spec/specMutations.js"
     )
 
-    assert 'from "./properties/propertyInvalidation.js"' in support_body
+    assert 'from "./propertyInvalidation.js"' in support_body
     assert "createPropertyInvalidationSupport" in support_body
     assert "const currentOwner = findIndexOwner(indexId);" in body
     assert "const currentIndex = currentOwner ? currentOwner.index : null;" in body
@@ -1876,14 +1912,16 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
 def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:
-    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    planner_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    )
     planner_formatting_body = request_text(
         f"{editor_server.base_url}/js/planner/plannerAnalysisFormatting.js"
     )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert "Total elements" in planner_body + planner_formatting_body
-    assert 'from "./planner/plannerAnalysisFormatting.js"' in planner_body
+    assert 'from "./plannerAnalysisFormatting.js"' in planner_body
     assert "function getShapeElementCount(" in planner_formatting_body
     assert "planner-manual-step-list" in planner_body
     assert ".planner-manual-step-list {" in css_body
@@ -1893,8 +1931,12 @@ def test_planner_assets_expose_total_elements_and_step_spacing(
 def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
     editor_server: EditorServer,
 ) -> None:
-    interactions_body = request_text(f"{editor_server.base_url}/js/interactions.js")
-    session_body = request_text(f"{editor_server.base_url}/js/interactionsSession.js")
+    interactions_body = request_text(
+        f"{editor_server.base_url}/js/interactions/interactions.js"
+    )
+    session_body = request_text(
+        f"{editor_server.base_url}/js/interactions/interactionsSession.js"
+    )
     session_editor_body = request_text(
         f"{editor_server.base_url}/js/session/sessionEditorFlows.js"
     )
@@ -1904,11 +1946,15 @@ def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
     session_ui_body = request_text(
         f"{editor_server.base_url}/js/session/sessionUiAdapters.js"
     )
-    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    planner_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    )
     planner_bindings_body = request_text(
         f"{editor_server.base_url}/js/planner/plannerPanelBindings.js"
     )
-    properties_body = request_text(f"{editor_server.base_url}/js/propertiesSupport.js")
+    properties_body = request_text(
+        f"{editor_server.base_url}/js/properties/propertiesSupport.js"
+    )
     property_autosave_body = request_text(
         f"{editor_server.base_url}/js/properties/propertyAutosave.js"
     )
@@ -1919,9 +1965,9 @@ def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
     assert "store: ctx.store" in interactions_body
     assert "selectors: ctx.selectors" in interactions_body
     assert "services: ctx.services" in interactions_body
-    assert 'from "./session/sessionUiAdapters.js"' in interactions_body
-    assert 'from "./session/sessionEditorFlows.js"' in session_body
-    assert 'from "./session/sessionTemplateFlows.js"' in session_body
+    assert 'from "../session/sessionUiAdapters.js"' in interactions_body
+    assert 'from "../session/sessionEditorFlows.js"' in session_body
+    assert 'from "../session/sessionTemplateFlows.js"' in session_body
     assert "ctx.store ||" not in session_body
     assert "ctx.selectors ||" not in session_body
     assert "ctx.services && ctx.services.session" not in session_body
@@ -1933,12 +1979,12 @@ def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
     assert "function createSessionEditorFlows(" in session_editor_body
     assert "function createSessionTemplateFlows(" in session_template_body
     assert "function createSessionUiAdapters(" in session_ui_body
-    assert 'from "./planner/plannerPanelBindings.js"' in planner_body
+    assert 'from "./plannerPanelBindings.js"' in planner_body
     assert "ctx.render()" not in planner_body
     assert "typeof ctx.togglePastInspection" not in planner_body
     assert "function createPlannerPanelBindings(" in planner_bindings_body
-    assert 'from "./properties/propertyAutosave.js"' in properties_body
-    assert 'from "./properties/propertyInvalidation.js"' in properties_body
+    assert 'from "./propertyAutosave.js"' in properties_body
+    assert 'from "./propertyInvalidation.js"' in properties_body
     assert "function bindDebouncedAutosave(" not in properties_body
     assert "function createPropertyAutosaveBindings(" in property_autosave_body
     assert "function createPropertyInvalidationSupport(" in property_invalidation_body
@@ -1947,7 +1993,7 @@ def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(
 def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     editor_server: EditorServer,
 ) -> None:
-    graph_body = request_text(f"{editor_server.base_url}/js/graphRender.js")
+    graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     graph_model_body = request_text(
         f"{editor_server.base_url}/js/views/graphElementModel.js"
     )
@@ -1962,9 +2008,9 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert "const TENSOR_BASE_Z_INDEX = 10;" in graph_body
     assert "const EDGE_Z_INDEX = 100;" in graph_body
     assert "const PORT_BASE_Z_INDEX = 200;" in graph_body
-    assert 'from "./theme.js"' in graph_body
-    assert 'from "./views/graphElementModel.js"' in graph_body
-    assert 'from "./views/cytoscapeGraphAdapter.js"' in graph_body
+    assert 'from "../core/theme.js"' in graph_body
+    assert 'from "../views/graphElementModel.js"' in graph_body
+    assert 'from "../views/cytoscapeGraphAdapter.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
     assert '"border-width": 4' in graph_body
     assert '"border-color": GRAPH_THEME.selection' in graph_body

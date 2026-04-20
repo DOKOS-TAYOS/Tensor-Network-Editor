@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tensor_network_editor._contraction_analysis_types import (
+from tensor_network_editor.internal.analysis._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     AutomaticContractionSummary,
     ContractionStepAnalysis,
@@ -34,7 +34,7 @@ def test_contraction_analysis_internal_types_preserve_public_payload_shape() -> 
 
 
 def test_contraction_analysis_internal_compare_module_reports_deltas() -> None:
-    from tensor_network_editor._contraction_analysis_compare import (
+    from tensor_network_editor.internal.analysis._contraction_analysis_compare import (
         _compare_plan_analyses,
     )
 

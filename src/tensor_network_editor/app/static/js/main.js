@@ -1,17 +1,17 @@
 import { startEditor } from "./bootstrap.js";
-import { registerCanvasContextMenu } from "./canvasContextMenu.js";
-import { registerContractionScene } from "./contractionScene.js";
-import { createEditorContext } from "./editorContext.js";
-import { registerExportMinimap } from "./exportMinimap.js";
-import { registerGraphRender } from "./graphRender.js";
-import { registerHistorySelection } from "./historySelection.js";
-import { registerInteractions } from "./interactions.js";
-import { registerMetadataFilters } from "./metadataFilters.js";
-import { registerNotesPlanner } from "./notesPlanner.js";
-import { registerOverlaysLayoutTemplates } from "./overlaysLayoutTemplates.js";
-import { registerProperties } from "./properties.js";
-import { registerSidebarTabs } from "./sidebarTabs.js";
-import { registerUtilities } from "./utilities.js";
+import { registerCanvasContextMenu } from "./graph/canvasContextMenu.js";
+import { registerContractionScene } from "./graph/contractionScene.js";
+import { createEditorContext } from "./core/editorContext.js";
+import { registerExportMinimap } from "./graph/exportMinimap.js";
+import { registerGraphRender } from "./graph/graphRender.js";
+import { registerHistorySelection } from "./graph/historySelection.js";
+import { registerInteractions } from "./interactions/interactions.js";
+import { registerMetadataFilters } from "./graph/metadataFilters.js";
+import { registerNotesPlanner } from "./planner/notesPlanner.js";
+import { registerOverlaysLayoutTemplates } from "./graph/overlaysLayoutTemplates.js";
+import { registerProperties } from "./properties/properties.js";
+import { registerSidebarTabs } from "./core/sidebarTabs.js";
+import { registerUtilities } from "./utils/utilities.js";
 
 const context = createEditorContext({
   window,

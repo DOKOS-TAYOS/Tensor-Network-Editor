@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from tensor_network_editor._template_builders import (
+from tensor_network_editor.internal.templates._template_builders import (
     _build_linear_chain_template,
     build_template,
 )
-from tensor_network_editor._template_catalog import (
+from tensor_network_editor.internal.templates._template_catalog import (
     get_template_definition,
     list_template_names,
     serialize_template_definitions,
 )
-from tensor_network_editor._templates import TemplateParameters
+from tensor_network_editor.internal.templates._templates import TemplateParameters
 
 
 def test_template_catalog_internal_exposes_same_public_metadata() -> None:

@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import cast
 from unittest.mock import patch
 
-import tensor_network_editor._contraction_analysis as contraction_analysis_module
 import tensor_network_editor.app._services as app_services_module
 import tensor_network_editor.codegen.einsum as einsum_codegen_module
+import tensor_network_editor.internal.analysis._contraction_analysis as contraction_analysis_module
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app._services import (
     analyze_serialized_contraction,
@@ -112,7 +112,7 @@ def test_analyze_serialized_contraction_does_not_revalidate_in_analysis(
             wraps=app_services_module.validate_spec,
         ) as validate_spec_mock,
         patch(
-            "tensor_network_editor._contraction_analysis.ensure_valid_spec",
+            "tensor_network_editor.internal.analysis._contraction_analysis.ensure_valid_spec",
             wraps=contraction_analysis_module.ensure_valid_spec,
         ) as ensure_valid_spec_mock,
     ):
@@ -139,7 +139,7 @@ def test_generate_session_request_passes_prevalidated_specs_to_generators(
         return original_prepare_network(spec, validate=validate)
 
     with patch(
-        "tensor_network_editor.codegen.einsum.prepare_network",
+        "tensor_network_editor.codegen.backends.einsum.prepare_network",
         side_effect=counting_prepare_network,
     ):
         result = generate_session_request(

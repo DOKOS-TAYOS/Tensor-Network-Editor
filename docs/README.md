@@ -29,6 +29,14 @@ The browser interface is local to your machine. The package starts a local
 server, opens a browser tab by default, and waits until you confirm or cancel
 the session.
 
+For Python imports, prefer the documented public package surface such as
+`tensor_network_editor`, `tensor_network_editor.api`,
+`tensor_network_editor.models`, `tensor_network_editor.serialization`,
+`tensor_network_editor.validation`, `tensor_network_editor.diffing`, and
+`tensor_network_editor.linting`. Modules under
+`tensor_network_editor.internal` are implementation details and are not part of
+the stable user-facing API.
+
 ## Pages By Need
 
 | Need | Read |

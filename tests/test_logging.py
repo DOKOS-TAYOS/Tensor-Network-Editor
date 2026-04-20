@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from tensor_network_editor import _logging as logging_support
 from tensor_network_editor.cli import main
+from tensor_network_editor.internal.cli import _logging as logging_support
 
 
 @pytest.fixture(autouse=True)

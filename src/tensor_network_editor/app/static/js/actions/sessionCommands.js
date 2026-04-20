@@ -1,4 +1,4 @@
-import { createCodeHighlightingSupport } from "../codeHighlighting.js";
+import { createCodeHighlightingSupport } from "../core/codeHighlighting.js";
 
 export function createSessionCommands({
   dom,

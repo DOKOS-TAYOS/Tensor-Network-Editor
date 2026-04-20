@@ -13,7 +13,8 @@ from types import FrameType
 from typing import Any, Protocol
 from uuid import uuid4
 
-from .._project_templates import (
+from ..codegen.registry import engine_name_to_text
+from ..internal.templates._project_templates import (
     ProjectTemplateCatalog,
     ProjectTemplateEntry,
     append_project_template,
@@ -22,8 +23,7 @@ from .._project_templates import (
     load_project_template_catalog,
     rename_project_template,
 )
-from .._templates import TemplateParameters
-from ..codegen.registry import engine_name_to_text
+from ..internal.templates._templates import TemplateParameters
 from ..models import (
     CodegenResult,
     EditorResult,

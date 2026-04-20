@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tensor_network_editor._templates import (
+from tensor_network_editor.internal.templates._templates import (
     TemplateParameters,
     build_template_spec,
     list_template_names,

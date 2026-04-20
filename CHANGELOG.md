@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 
 - Importing `tensor_network_editor` now resolves the public headless/API exports lazily, so the package root loads faster and avoids importing analysis, template, diffing, linting, and editor helpers until they are first accessed.
 - Editor sessions now reuse a shared in-process cache of static asset bytes and the rendered `index.html`, defer contraction analysis until the planner actually needs it, cache serialized specs and analysis results by spec revision, and load Prism syntax-highlighting assets on demand instead of during the initial page load.
+- The library is now organized around a new `tensor_network_editor.internal` implementation tree, stable public facade modules at the package root, a domain-based `codegen/` layout (`shared`, `backends`, `modes`), and a modularized frontend `app/static/js/` tree with only the browser entrypoints left at the top level.
+- A second conservative modularization pass now moves canonicalization, diffing, linting, serialization, and subnetwork extraction internals behind thin public facades, while internal packages import those implementations directly instead of routing through compatibility wrappers.
 
 ### Fixed
 
