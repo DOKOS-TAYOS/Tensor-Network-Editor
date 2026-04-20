@@ -48,7 +48,9 @@ export function createContractionTensorPropertiesRenderer({
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete result"
-          title="Delete result"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Delete result"
+          data-shortcut-description="Remove this contracted result from the planner scene."
         >
           ${renderTrashIcon()}
         </button>

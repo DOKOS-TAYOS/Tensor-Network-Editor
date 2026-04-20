@@ -160,8 +160,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   }
 
   function setTooltipDescription(button, description) {
-    if (!button || !button.dataset) {
+    if (!button) {
       return;
+    }
+    if (!button.dataset) {
+      button.dataset = {};
     }
     if (typeof description === "string" && description) {
       button.dataset.shortcutDescription = description;
@@ -445,8 +448,13 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       typeof ctx.getTensorKrowchManualPlanIssueMessage === "function"
         ? ctx.getTensorKrowchManualPlanIssueMessage()
         : "";
+    if (!codeGenerationWarning.dataset) {
+      codeGenerationWarning.dataset = {};
+    }
+    codeGenerationWarning.dataset.tooltipEnabled = "true";
+    codeGenerationWarning.dataset.shortcutLabel = "Code generation warning";
     codeGenerationWarning.textContent = warningMessage;
-    codeGenerationWarning.title = warningMessage;
+    setTooltipDescription(codeGenerationWarning, warningMessage);
     codeGenerationWarning.hidden = !warningMessage;
   }
 
@@ -459,9 +467,14 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
           (warningMessage) => typeof warningMessage === "string" && warningMessage
         )
       : [];
+    if (!templateCatalogWarning.dataset) {
+      templateCatalogWarning.dataset = {};
+    }
+    templateCatalogWarning.dataset.tooltipEnabled = "true";
+    templateCatalogWarning.dataset.shortcutLabel = "Template warnings";
     if (!warningMessages.length) {
       templateCatalogWarning.textContent = "";
-      templateCatalogWarning.title = "";
+      setTooltipDescription(templateCatalogWarning, "");
       templateCatalogWarning.hidden = true;
       return;
     }
@@ -470,7 +483,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       extraWarningCount > 0
         ? `${warningMessages[0]} (+${extraWarningCount} more)`
         : warningMessages[0];
-    templateCatalogWarning.title = warningMessages.join("\n");
+    setTooltipDescription(templateCatalogWarning, warningMessages.join("\n"));
     templateCatalogWarning.hidden = false;
   }
 

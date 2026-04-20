@@ -319,7 +319,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button danger"
               aria-label="Delete selection"
-              title="Delete selection"
+              ${buildTooltipAttributes(
+                "Delete selection",
+                "Remove the current selection from the network."
+              )}
             >
               ${renderTrashIcon()}
             </button>
@@ -787,8 +790,11 @@ export function registerCanvasContextMenu(ctx) {
               id="context-menu-delete-edge-button"
               type="button"
               class="icon-button danger"
-              aria-label="Delete bond"
-              title="Delete bond"
+              aria-label="Delete connection"
+              ${buildTooltipAttributes(
+                "Delete connection",
+                "Remove this connection from the network."
+              )}
             >
               ${renderTrashIcon()}
             </button>
@@ -932,7 +938,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button danger"
               aria-label="Delete group"
-              title="Delete group"
+              ${buildTooltipAttributes(
+                "Delete group",
+                "Remove this group from the network."
+              )}
             >
               ${renderTrashIcon()}
             </button>

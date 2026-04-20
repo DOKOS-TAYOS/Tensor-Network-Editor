@@ -79,7 +79,9 @@ export function buildGroupPropertiesMarkup({
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete group"
-          title="Delete group"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Delete group"
+          data-shortcut-description="Remove this group from the network."
         >
           ${renderTrashIcon()}
         </button>
@@ -138,7 +140,9 @@ export function buildEdgePropertiesMarkup({
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete connection"
-          title="Delete connection"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Delete connection"
+          data-shortcut-description="Remove this connection from the network."
         >
           ${renderTrashIcon()}
         </button>
@@ -191,7 +195,9 @@ export function buildNotePropertiesMarkup({
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete note"
-          title="Delete note"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Delete note"
+          data-shortcut-description="Remove this note from the canvas."
         >
           ${renderTrashIcon()}
         </button>

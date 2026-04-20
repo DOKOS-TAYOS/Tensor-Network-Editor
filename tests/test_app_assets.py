@@ -206,11 +206,14 @@ def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> No
 
     assert 'id="benchmark-compare-modal"' in html
     assert 'id="benchmark-compare-close-button"' in html
+    assert 'data-tooltip-enabled="true"' in html
+    assert 'data-shortcut-label="Close benchmark comparison"' in html
     assert 'id="benchmark-compare-export-csv-button"' in html
     assert 'id="benchmark-compare-export-text-button"' in html
     assert 'id="benchmark-compare-copy-latex-button"' in html
     assert 'id="benchmark-compare-table-body"' in html
     assert ">Peak Memory<" in html
+    assert 'title="Close"' not in html
     assert html.index('class="toolbar-mode-controls"') < html.index(
         'id="template-select-field"'
     )
@@ -1073,6 +1076,9 @@ def test_contraction_result_properties_expose_a_delete_action(
 
     assert 'id="delete-contraction-tensor-button"' in body
     assert 'aria-label="Delete result"' in body
+    assert 'data-tooltip-enabled="true"' in body
+    assert 'data-shortcut-label="Delete result"' in body
+    assert 'title="Delete result"' not in body
     assert "commands.deleteCurrentSelection" in body
 
 
@@ -1098,6 +1104,9 @@ def test_note_assets_move_note_editing_into_canvas(
     assert "ctx.bindDebouncedAutosave(" in notes_body
     assert "scheduleOnInput: false" in notes_body
     assert "scheduleOnInput: false" in properties_bindings_body
+    assert 'button.dataset.tooltipEnabled = "true";' in notes_body
+    assert 'button.removeAttribute("title");' in notes_body
+    assert 'setAttribute("title"' not in notes_body
     assert (
         '<label for="note-text-input">Note text</label>'
         in properties_body + properties_markup_body
@@ -1105,6 +1114,48 @@ def test_note_assets_move_note_editing_into_canvas(
     assert 'id="note-color-input"' in properties_body + properties_markup_body
     assert "Edit this note directly on the canvas." not in properties_body
     assert ".canvas-note-color-button {" in css_body
+
+
+def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
+    editor_server: EditorServer,
+) -> None:
+    context_menu_body = request_text(
+        f"{editor_server.base_url}/js/canvasContextMenu.js"
+    )
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
+    planner_body = request_text(f"{editor_server.base_url}/js/plannerRenderers.js")
+    html = request_text(f"{editor_server.base_url}/")
+    utilities_body = request_text(f"{editor_server.base_url}/js/utilitiesUi.js")
+
+    assert 'data-shortcut-label="Delete selection"' in overview_markup_body
+    assert 'title="Delete selection"' not in overview_markup_body
+    assert 'data-shortcut-label="Delete group"' in entity_markup_body
+    assert 'data-shortcut-label="Delete connection"' in entity_markup_body
+    assert 'data-shortcut-label="Delete note"' in entity_markup_body
+    assert 'title="Delete group"' not in entity_markup_body
+    assert 'title="Delete connection"' not in entity_markup_body
+    assert 'title="Delete note"' not in entity_markup_body
+    assert '"Delete selection",' in context_menu_body
+    assert '"Delete connection",' in context_menu_body
+    assert '"Delete group",' in context_menu_body
+    assert "Delete bond" not in context_menu_body
+    assert 'title="Delete selection"' not in context_menu_body
+    assert 'title="Delete connection"' not in context_menu_body
+    assert 'title="Delete group"' not in context_menu_body
+    assert (
+        'data-shortcut-description="Remove all manual steps from the current contraction path."'
+        in planner_body
+    )
+    assert 'title="Reset path"' not in planner_body
+    assert 'data-shortcut-label="Code generation warning"' in html
+    assert 'data-shortcut-label="Template warnings"' in html
+    assert "codeGenerationWarning.title =" not in utilities_body
+    assert "templateCatalogWarning.title =" not in utilities_body
 
 
 def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(

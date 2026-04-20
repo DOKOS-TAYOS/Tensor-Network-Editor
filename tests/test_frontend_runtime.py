@@ -9124,8 +9124,11 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!ctx.dom.templateCatalogWarning.textContent.includes("First warning")) {
           throw new Error(`Expected the first template warning to be shown, received ${ctx.dom.templateCatalogWarning.textContent}.`);
         }
-        if (!ctx.dom.templateCatalogWarning.title.includes("Second warning")) {
-          throw new Error("Template catalog warning title should include the full warning list.");
+        if (ctx.dom.templateCatalogWarning.dataset.tooltipEnabled !== "true") {
+          throw new Error("Template catalog warning should expose the shared tooltip behavior.");
+        }
+        if (!ctx.dom.templateCatalogWarning.dataset.shortcutDescription.includes("Second warning")) {
+          throw new Error("Template catalog warning tooltip should include the full warning list.");
         }
         await ctx.promoteSelectedSubnetworkToTemplate();
         const firstSessionTemplate = ctx.state.availableTemplates.find((templateName) =>

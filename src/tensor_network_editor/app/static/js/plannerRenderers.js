@@ -553,13 +553,13 @@ export function createPlannerRenderers({
           <button
             id="planner-reset-button"
             type="button"
-            class="icon-button planner-icon-button danger"
-            data-shortcut="Shift+R"
-            data-shortcut-label="Reset path"
-            aria-label="Reset path"
-            title="Reset path"
-            disabled
-          >
+          class="icon-button planner-icon-button danger"
+          data-shortcut="Shift+R"
+          data-shortcut-label="Reset path"
+          data-shortcut-description="Remove all manual steps from the current contraction path."
+          aria-label="Reset path"
+          disabled
+        >
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
             </svg>
@@ -603,8 +603,8 @@ export function createPlannerRenderers({
           class="icon-button planner-icon-button danger"
           data-shortcut="Shift+R"
           data-shortcut-label="Reset path"
+          data-shortcut-description="Remove all manual steps from the current contraction path."
           aria-label="Reset path"
-          title="Reset path"
           ${planSteps.length ? "" : " disabled"}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">

@@ -691,7 +691,14 @@
                       </div>
                     </div>
                   </div>
-                  <p id="template-catalog-warning" class="template-inline-warning" hidden></p>
+                  <p
+                    id="template-catalog-warning"
+                    class="template-inline-warning"
+                    data-tooltip-enabled="true"
+                    data-shortcut-label="Template warnings"
+                    aria-label="Template warnings"
+                    hidden
+                  ></p>
                 </div>
               </div>
             </div>
@@ -832,7 +839,14 @@
                     </div>
                     <div class="code-generate-group">
                       <button id="generate-button" type="button" class="button-accent-positive">Generate</button>
-                      <p id="code-generation-warning" class="code-inline-warning" hidden></p>
+                      <p
+                        id="code-generation-warning"
+                        class="code-inline-warning"
+                        data-tooltip-enabled="true"
+                        data-shortcut-label="Code generation warning"
+                        aria-label="Code generation warning"
+                        hidden
+                      ></p>
                     </div>
                   </div>
                 </div>
@@ -1082,7 +1096,8 @@
           class="help-dialog-close button-close-static"
           type="button"
           aria-label="Close benchmark comparison"
-          title="Close"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Close benchmark comparison"
         >
           <svg
             class="help-close-icon"

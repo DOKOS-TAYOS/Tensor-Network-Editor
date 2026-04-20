@@ -345,8 +345,14 @@ export function registerNotesFeature(ctx) {
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
         deleteButton.className = "canvas-note-delete danger";
-        deleteButton.setAttribute("aria-label", "Delete note");
-        deleteButton.setAttribute("title", "Delete note");
+        deleteButton.dataset.tooltipEnabled = "true";
+        deleteButton.dataset.shortcutLabel = "Delete note";
+        deleteButton.dataset.shortcutDescription = "Remove this note from the canvas.";
+        deleteButton.setAttribute(
+          "aria-label",
+          "Delete note. Remove this note from the canvas."
+        );
+        deleteButton.removeAttribute("title");
         deleteButton.textContent = "×";
         deleteButton.innerHTML = `
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -443,8 +449,14 @@ export function registerNotesFeature(ctx) {
     const colorButton = document.createElement("button");
     colorButton.type = "button";
     colorButton.className = "canvas-note-color-button";
-    colorButton.setAttribute("aria-label", "Change note color");
-    colorButton.setAttribute("title", "Change note color");
+    colorButton.dataset.tooltipEnabled = "true";
+    colorButton.dataset.shortcutLabel = "Change note color";
+    colorButton.dataset.shortcutDescription = "Choose a new color for this note.";
+    colorButton.setAttribute(
+      "aria-label",
+      "Change note color. Choose a new color for this note."
+    );
+    colorButton.removeAttribute("title");
     colorButton.innerHTML = `
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path d="M11.6 1.5a1.9 1.9 0 0 1 2.7 2.7l-1 1-2.7-2.7zm-1.7 1.7L2.2 10.9a2.5 2.5 0 0 0-.6 1l-.7 2.5a.7.7 0 0 0 .9.9l2.5-.7a2.5 2.5 0 0 0 1-.6L13 6.2z"/>
@@ -501,8 +513,19 @@ export function registerNotesFeature(ctx) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "toggle-note-collapse";
-    button.setAttribute("aria-label", note.metadata && note.metadata.collapsed ? "Expand note" : "Collapse note");
-    button.setAttribute("title", note.metadata && note.metadata.collapsed ? "Expand note" : "Collapse note");
+    const isCollapsed = Boolean(note.metadata && note.metadata.collapsed);
+    const tooltipLabel = isCollapsed ? "Expand note" : "Collapse note";
+    const tooltipDescription = isCollapsed
+      ? "Show the hidden note body."
+      : "Hide this note body until you expand it again.";
+    button.dataset.tooltipEnabled = "true";
+    button.dataset.shortcutLabel = tooltipLabel;
+    button.dataset.shortcutDescription = tooltipDescription;
+    button.setAttribute(
+      "aria-label",
+      `${tooltipLabel}. ${tooltipDescription}`
+    );
+    button.removeAttribute("title");
     button.innerHTML = `
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path d="M3 2.5h10A1.5 1.5 0 0 1 14.5 4v6A1.5 1.5 0 0 1 13 11.5H8.6L5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4A1.5 1.5 0 0 1 3 2.5Zm1 3.25a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5Zm0 2.75a.75.75 0 0 0 0 1.5h5.5a.75.75 0 0 0 0-1.5Z"/>

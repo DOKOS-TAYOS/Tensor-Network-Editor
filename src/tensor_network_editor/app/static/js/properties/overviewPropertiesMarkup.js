@@ -150,7 +150,9 @@ export function buildMultiSelectionPropertiesMarkup({
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete selection"
-          title="Delete selection"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Delete selection"
+          data-shortcut-description="Remove the current selection from the network."
         >
           ${renderTrashIcon()}
         </button>
