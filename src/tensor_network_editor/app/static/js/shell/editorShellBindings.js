@@ -431,6 +431,7 @@ export function createEditorShellBindings({
       actions.setBenchmarkMode(false);
       actions.setLinearPeriodicMode(false);
       actions.setGridPeriodicMode(false);
+      actions.setTreePeriodicMode(false);
       actions.updateToolbarState();
     });
     bindListener(linearPeriodicModeMenuItem, "click", () => {
@@ -448,13 +449,15 @@ export function createEditorShellBindings({
     });
     bindListener(treeModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
-      if (typeof actions.setStatus === "function") {
-        actions.setStatus("For Tree mode is not available yet.", "error");
-      }
+      actions.setBenchmarkMode(false);
+      actions.setTreePeriodicMode(true);
+      actions.updateToolbarState();
     });
     bindListener(benchmarkModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
+      actions.setLinearPeriodicMode(false);
       actions.setGridPeriodicMode(false);
+      actions.setTreePeriodicMode(false);
       actions.setBenchmarkMode(true);
       actions.updateToolbarState();
     });
@@ -481,9 +484,17 @@ export function createEditorShellBindings({
       actions.switchLinearPeriodicCell(1);
     });
     bindListener(gridPeriodicUpCellButton, "click", () => {
+      if (typeof actions.isTreePeriodicMode === "function" && actions.isTreePeriodicMode()) {
+        actions.switchTreePeriodicCell("up");
+        return;
+      }
       actions.switchGridPeriodicCell("up");
     });
     bindListener(gridPeriodicDownCellButton, "click", () => {
+      if (typeof actions.isTreePeriodicMode === "function" && actions.isTreePeriodicMode()) {
+        actions.switchTreePeriodicCell("down");
+        return;
+      }
       actions.switchGridPeriodicCell("down");
     });
     bindListener(benchmarkSchemeNameInput, "input", (event) => {

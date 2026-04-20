@@ -72,7 +72,7 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert "<strong>Shift+R</strong><span>Reset contraction path</span>" in html
     assert "<strong>F</strong><span>Toggle For unidimensional mode</span>" in html
     assert "<strong>D</strong><span>Switch to For bidimensional mode</span>" in html
-    assert "<strong>E</strong><span>Show the For Tree mode status</span>" in html
+    assert "<strong>E</strong><span>Toggle For Tree mode</span>" in html
     assert "<strong>B</strong><span>Switch to Benchmark mode</span>" in html
     assert "<strong>L</strong><span>Load templates from JSON</span>" in html
     assert "<strong>Shift+E</strong><span>Export the selected template</span>" in html

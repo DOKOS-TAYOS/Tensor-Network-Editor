@@ -5,6 +5,7 @@ import { createUtilityGridPeriodicBindings } from "./utilitiesGridPeriodic.js";
 import { createUtilityLayoutBindings } from "./utilitiesLayout.js";
 import { createUtilityLinearPeriodicBindings } from "./utilitiesLinearPeriodic.js";
 import { createUtilitySpecBindings } from "./utilitiesSpec.js";
+import { createUtilityTreePeriodicBindings } from "./utilitiesTreePeriodic.js";
 import { createTemplateOptionHelpers } from "./utilitiesTemplates.js";
 import { createUtilityUiBindings } from "./utilitiesUi.js";
 
@@ -24,6 +25,7 @@ export function registerUtilities(ctx) {
   Object.assign(runtime, createUtilitySpecBindings(env));
   Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
   Object.assign(runtime, createUtilityGridPeriodicBindings(env));
+  Object.assign(runtime, createUtilityTreePeriodicBindings(env));
   Object.assign(runtime, createUtilityBenchmarkBindings(env));
   Object.assign(runtime, createUtilityUiBindings(env));
 

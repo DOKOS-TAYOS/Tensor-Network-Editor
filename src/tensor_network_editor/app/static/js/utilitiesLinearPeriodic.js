@@ -136,6 +136,8 @@ export function createUtilityLinearPeriodicBindings({
   function isContractibleBoundaryTensor(tensor) {
     return (
       isLinearPeriodicBoundaryTensor(tensor) ||
+      (typeof runtime.isTreePeriodicBoundaryTensor === "function" &&
+        runtime.isTreePeriodicBoundaryTensor(tensor)) ||
       (typeof runtime.isGridPeriodicBoundaryTensor === "function" &&
         runtime.isGridPeriodicBoundaryTensor(tensor))
     );
@@ -712,9 +714,37 @@ export function createUtilityLinearPeriodicBindings({
       return;
     }
 
+    let seedGraphSection = runtime.buildGraphSectionFromSpec(state.spec);
+    if (
+      typeof runtime.isGridPeriodicMode === "function" &&
+      runtime.isGridPeriodicMode()
+    ) {
+      runtime.syncCurrentGraphIntoGridPeriodicGrid();
+      seedGraphSection =
+        typeof runtime.stripGridPeriodicBoundaryTensorsFromGraphSection === "function"
+          ? runtime.stripGridPeriodicBoundaryTensorsFromGraphSection(
+              runtime.buildGraphSectionFromSpec(state.spec)
+            )
+          : runtime.buildGraphSectionFromSpec(state.spec);
+      state.spec.grid_periodic_grid = null;
+      runtime.replaceGraphSectionOnSpec(state.spec, seedGraphSection);
+    } else if (
+      typeof runtime.isTreePeriodicMode === "function" &&
+      runtime.isTreePeriodicMode()
+    ) {
+      runtime.syncCurrentGraphIntoTreePeriodicTree();
+      seedGraphSection =
+        typeof runtime.stripTreePeriodicBoundaryTensorsFromGraphSection === "function"
+          ? runtime.stripTreePeriodicBoundaryTensorsFromGraphSection(
+              runtime.buildGraphSectionFromSpec(state.spec)
+            )
+          : runtime.buildGraphSectionFromSpec(state.spec);
+      state.spec.tree_periodic_tree = null;
+      runtime.replaceGraphSectionOnSpec(state.spec, seedGraphSection);
+    }
     const initialCell = seedLinearPeriodicCell(
       "initial",
-      runtime.buildGraphSectionFromSpec(state.spec)
+      seedGraphSection
     );
     const periodicCell = seedLinearPeriodicCell(
       "periodic",
@@ -731,6 +761,8 @@ export function createUtilityLinearPeriodicBindings({
       final_cell: finalCell,
       metadata: {},
     };
+    state.spec.grid_periodic_grid = null;
+    state.spec.tree_periodic_tree = null;
     hydrateActiveLinearPeriodicCell();
     enforceLinearPeriodicEngineSupport();
     ctx.setStatus("For mode enabled. You are editing the initial cell.", "success");

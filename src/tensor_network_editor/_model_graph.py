@@ -58,6 +58,21 @@ class GridPeriodicTensorRole(StrEnum):
     LEFT = "left"
 
 
+class TreePeriodicCellName(StrEnum):
+    """Named cells available in the tree periodic editor mode."""
+
+    ROOT = "root"
+    BRANCH = "branch"
+    LEAF = "leaf"
+
+
+class TreePeriodicTensorRole(StrEnum):
+    """Special editor-only roles used by tree virtual boundary tensors."""
+
+    PARENT = "parent"
+    CHILD = "child"
+
+
 @dataclass(slots=True)
 class IndexSpec:
     """One named index that belongs to a tensor."""
@@ -107,6 +122,8 @@ class TensorSpec:
     indices: list[IndexSpec] = field(default_factory=list)
     linear_periodic_role: LinearPeriodicTensorRole | None = None
     grid_periodic_role: GridPeriodicTensorRole | None = None
+    tree_periodic_role: TreePeriodicTensorRole | None = None
+    tree_periodic_child_index: int | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     @property
@@ -132,6 +149,12 @@ class TensorSpec:
                 if self.grid_periodic_role is not None
                 else None
             ),
+            "tree_periodic_role": (
+                self.tree_periodic_role.value
+                if self.tree_periodic_role is not None
+                else None
+            ),
+            "tree_periodic_child_index": self.tree_periodic_child_index,
             "metadata": self.metadata,
         }
 
@@ -160,6 +183,14 @@ class TensorSpec:
             grid_periodic_role=_coerce_grid_periodic_tensor_role(
                 payload.get("grid_periodic_role"),
                 field_name="grid_periodic_role",
+            ),
+            tree_periodic_role=_coerce_tree_periodic_tensor_role(
+                payload.get("tree_periodic_role"),
+                field_name="tree_periodic_role",
+            ),
+            tree_periodic_child_index=_coerce_optional_int(
+                payload.get("tree_periodic_child_index"),
+                field_name="tree_periodic_child_index",
             ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
@@ -500,6 +531,55 @@ class GridPeriodicGridSpec:
 
 
 @dataclass(slots=True)
+class TreePeriodicTreeSpec:
+    """Typed payload that stores the three-cell tree periodic mode."""
+
+    active_cell: TreePeriodicCellName = TreePeriodicCellName.ROOT
+    branching_factor: int = 2
+    root_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    branch_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    leaf_cell: LinearPeriodicCellSpec = field(default_factory=LinearPeriodicCellSpec)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the tree periodic payload."""
+        return {
+            "active_cell": self.active_cell.value,
+            "branching_factor": self.branching_factor,
+            "root_cell": self.root_cell.to_dict(),
+            "branch_cell": self.branch_cell.to_dict(),
+            "leaf_cell": self.leaf_cell.to_dict(),
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
+        """Build the tree periodic payload from a serialized mapping."""
+        return cls(
+            active_cell=_coerce_tree_periodic_cell_name(
+                payload.get("active_cell", TreePeriodicCellName.ROOT.value),
+                field_name="active_cell",
+            ),
+            branching_factor=coerce_int(
+                payload.get("branching_factor", 2),
+                field_name="branching_factor",
+            ),
+            root_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("root_cell", {}), field_name="root_cell")
+            ),
+            branch_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("branch_cell", {}), field_name="branch_cell")
+            ),
+            leaf_cell=LinearPeriodicCellSpec.from_dict(
+                require_dict(payload.get("leaf_cell", {}), field_name="leaf_cell")
+            ),
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class NetworkSpec:
     """The root object that stores an abstract tensor-network design."""
 
@@ -512,6 +592,7 @@ class NetworkSpec:
     contraction_plan: ContractionPlanSpec | None = None
     linear_periodic_chain: LinearPeriodicChainSpec | None = None
     grid_periodic_grid: GridPeriodicGridSpec | None = None
+    tree_periodic_tree: TreePeriodicTreeSpec | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     def tensor_map(self) -> dict[str, TensorSpec]:
@@ -562,6 +643,11 @@ class NetworkSpec:
                 if self.grid_periodic_grid is not None
                 else None
             ),
+            "tree_periodic_tree": (
+                self.tree_periodic_tree.to_dict()
+                if self.tree_periodic_tree is not None
+                else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -575,6 +661,7 @@ class NetworkSpec:
         contraction_plan_payload = payload.get("contraction_plan")
         linear_periodic_chain_payload = payload.get("linear_periodic_chain")
         grid_periodic_grid_payload = payload.get("grid_periodic_grid")
+        tree_periodic_tree_payload = payload.get("tree_periodic_tree")
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
             name=coerce_string(payload["name"], field_name="name"),
@@ -621,6 +708,16 @@ class NetworkSpec:
                     )
                 )
                 if grid_periodic_grid_payload is not None
+                else None
+            ),
+            tree_periodic_tree=(
+                TreePeriodicTreeSpec.from_dict(
+                    require_dict(
+                        tree_periodic_tree_payload,
+                        field_name="tree_periodic_tree",
+                    )
+                )
+                if tree_periodic_tree_payload is not None
                 else None
             ),
             metadata=coerce_metadata(
@@ -687,3 +784,40 @@ def _coerce_grid_periodic_tensor_role(
         raise TypeError(
             f"{field_name} must be a valid grid periodic tensor role."
         ) from exc
+
+
+def _coerce_tree_periodic_cell_name(
+    value: object,
+    *,
+    field_name: str,
+) -> TreePeriodicCellName:
+    """Coerce a serialized value to a valid tree periodic cell name."""
+    try:
+        return TreePeriodicCellName(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid tree periodic cell name."
+        ) from exc
+
+
+def _coerce_tree_periodic_tensor_role(
+    value: object,
+    *,
+    field_name: str,
+) -> TreePeriodicTensorRole | None:
+    """Coerce a serialized value to a valid tree periodic tensor role."""
+    if value is None:
+        return None
+    try:
+        return TreePeriodicTensorRole(coerce_string(value, field_name=field_name))
+    except ValueError as exc:
+        raise TypeError(
+            f"{field_name} must be a valid tree periodic tensor role."
+        ) from exc
+
+
+def _coerce_optional_int(value: object, *, field_name: str) -> int | None:
+    """Coerce an optional integer payload field."""
+    if value is None:
+        return None
+    return coerce_int(value, field_name=field_name)

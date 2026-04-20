@@ -16,6 +16,7 @@ from ._validation_entities import (
 )
 from ._validation_grid_periodic import validate_grid_periodic_grid
 from ._validation_linear_periodic import validate_linear_periodic_chain
+from ._validation_tree_periodic import validate_tree_periodic_tree
 from .errors import SpecValidationError
 from .models import NetworkSpec, ValidationIssue
 
@@ -79,6 +80,8 @@ def _validate_spec_with_analysis(
                 ),
                 path="contraction_plan",
             )
+    if spec.tree_periodic_tree is not None:
+        validate_tree_periodic_tree(spec.tree_periodic_tree, issues=issues)
 
     return issues, analysis
 
@@ -89,13 +92,24 @@ def _validate_periodic_mode_exclusivity(
     issues: list[ValidationIssue],
 ) -> None:
     """Reject payloads that mix the linear and bidimensional For modes."""
-    if spec.linear_periodic_chain is None or spec.grid_periodic_grid is None:
+    active_modes = [
+        ("linear_periodic_chain", spec.linear_periodic_chain),
+        ("grid_periodic_grid", spec.grid_periodic_grid),
+        ("tree_periodic_tree", spec.tree_periodic_tree),
+    ]
+    populated_modes = [
+        field_name for field_name, payload in active_modes if payload is not None
+    ]
+    if len(populated_modes) <= 1:
         return
     append_issue(
         issues,
         code="periodic-mode-conflict",
-        message=("Specs cannot mix 'linear_periodic_chain' and 'grid_periodic_grid'."),
-        path="grid_periodic_grid",
+        message=(
+            "Specs cannot mix 'linear_periodic_chain', "
+            "'grid_periodic_grid', and 'tree_periodic_tree'."
+        ),
+        path=populated_modes[-1],
     )
 
 

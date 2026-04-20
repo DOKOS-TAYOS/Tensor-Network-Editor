@@ -22,6 +22,7 @@ from tensor_network_editor.serialization import SCHEMA_VERSION
 from tests.factories import (
     build_grid_periodic_grid_spec,
     build_linear_periodic_chain_spec,
+    build_tree_periodic_tree_spec,
 )
 
 
@@ -187,3 +188,22 @@ def test_build_bootstrap_payload_preserves_grid_periodic_grid_specs() -> None:
     assert payload["schema_version"] == SCHEMA_VERSION
     assert grid["active_cell"] == "center"
     assert any(tensor["grid_periodic_role"] == "left" for tensor in tensors)
+
+
+def test_build_bootstrap_payload_preserves_tree_periodic_tree_specs() -> None:
+    session = EditorSession(
+        initial_spec=build_tree_periodic_tree_spec(),
+        default_engine=SessionEngineName.TENSORNETWORK,
+    )
+
+    payload = build_bootstrap_payload(session)
+    spec_payload = cast(JsonDict, payload["spec"])
+    network_payload = cast(JsonDict, spec_payload["network"])
+    tree = cast(JsonDict, network_payload["tree_periodic_tree"])
+    branch_cell = cast(JsonDict, tree["branch_cell"])
+    tensors = cast(list[JsonDict], branch_cell["tensors"])
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert tree["active_cell"] == "branch"
+    assert tree["branching_factor"] == 3
+    assert any(tensor["tree_periodic_role"] == "parent" for tensor in tensors)

@@ -19,6 +19,7 @@ from ._contraction_plan import (
 from ._grid_periodic import grid_periodic_active_cell_as_analysis_network
 from ._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
+from ._tree_periodic import tree_periodic_active_cell_as_analysis_network
 from .codegen.common import PreparedNetwork, prepare_analyzed_network
 from .models import NetworkSpec
 from .validation import ensure_valid_spec
@@ -65,6 +66,10 @@ def _normalize_spec_for_contraction_analysis(
     if resolved_spec.grid_periodic_grid is not None:
         return grid_periodic_active_cell_as_analysis_network(
             resolved_spec.grid_periodic_grid
+        )
+    if resolved_spec.tree_periodic_tree is not None:
+        return tree_periodic_active_cell_as_analysis_network(
+            resolved_spec.tree_periodic_tree
         )
     return resolved_spec
 

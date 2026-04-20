@@ -28,6 +28,7 @@ from tests.factories import (
     build_linear_periodic_partial_carry_chain_spec,
     build_sample_spec,
     build_three_tensor_spec,
+    build_tree_periodic_tree_spec,
 )
 
 
@@ -230,6 +231,14 @@ def test_analyze_spec_reuses_validation_for_linear_periodic_specs() -> None:
     assert report.contraction is not None
     assert ensure_valid_spec_mock.call_count == 1
     assert analysis_analyze_network_mock.call_count == 2
+
+
+def test_analyze_spec_uses_active_tree_periodic_cell() -> None:
+    report = analyze_spec(build_tree_periodic_tree_spec())
+
+    assert report.network.tensor_count == 5
+    assert report.network.edge_count == 4
+    assert report.network.open_index_count == 0
 
 
 def test_diff_specs_compares_entities_by_stable_ids() -> None:

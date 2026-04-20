@@ -22,6 +22,9 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorSize,
     TensorSpec,
+    TreePeriodicCellName,
+    TreePeriodicTensorRole,
+    TreePeriodicTreeSpec,
 )
 from tensor_network_editor.serialization import serialize_spec
 
@@ -1142,6 +1145,222 @@ def build_grid_periodic_grid_spec() -> NetworkSpec:
             bottom_left_cell=bottom_left_cell,
             bottom_cell=bottom_cell,
             bottom_right_cell=bottom_right_cell,
+        ),
+    )
+
+
+def build_tree_periodic_tree_spec() -> NetworkSpec:
+    def build_tree_child_boundary_tensor(
+        *,
+        cell_prefix: str,
+        child_index: int,
+        x: float,
+        y: float,
+    ) -> TensorSpec:
+        return TensorSpec(
+            id=f"{cell_prefix}_child_boundary_{child_index}",
+            name=f"Child {child_index}",
+            position=CanvasPosition(x=x, y=y),
+            tree_periodic_role=TreePeriodicTensorRole.CHILD,
+            tree_periodic_child_index=child_index,
+            indices=[
+                IndexSpec(
+                    id=f"{cell_prefix}_child_slot_{child_index}",
+                    name=f"slot_{child_index}",
+                    dimension=2,
+                )
+            ],
+        )
+
+    root_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="root_tensor",
+                name="Root",
+                position=CanvasPosition(x=220.0, y=120.0),
+                indices=[
+                    IndexSpec(id="root_child_0", name="child_0", dimension=2),
+                    IndexSpec(id="root_child_1", name="child_1", dimension=2),
+                    IndexSpec(id="root_child_2", name="child_2", dimension=2),
+                ],
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="root", child_index=0, x=120.0, y=320.0
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="root", child_index=1, x=220.0, y=320.0
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="root", child_index=2, x=320.0, y=320.0
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="root_edge_0",
+                name="root_edge_0",
+                left=EdgeEndpointRef(
+                    tensor_id="root_tensor",
+                    index_id="root_child_0",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="root_child_boundary_0",
+                    index_id="root_child_slot_0",
+                ),
+            ),
+            EdgeSpec(
+                id="root_edge_1",
+                name="root_edge_1",
+                left=EdgeEndpointRef(
+                    tensor_id="root_tensor",
+                    index_id="root_child_1",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="root_child_boundary_1",
+                    index_id="root_child_slot_1",
+                ),
+            ),
+            EdgeSpec(
+                id="root_edge_2",
+                name="root_edge_2",
+                left=EdgeEndpointRef(
+                    tensor_id="root_tensor",
+                    index_id="root_child_2",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="root_child_boundary_2",
+                    index_id="root_child_slot_2",
+                ),
+            ),
+        ],
+    )
+    branch_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="branch_tensor",
+                name="Branch",
+                position=CanvasPosition(x=220.0, y=220.0),
+                indices=[
+                    IndexSpec(id="branch_parent", name="parent", dimension=2),
+                    IndexSpec(id="branch_child_0", name="child_0", dimension=2),
+                    IndexSpec(id="branch_child_1", name="child_1", dimension=2),
+                    IndexSpec(id="branch_child_2", name="child_2", dimension=2),
+                ],
+            ),
+            TensorSpec(
+                id="branch_parent_boundary",
+                name="Parent",
+                position=CanvasPosition(x=220.0, y=40.0),
+                tree_periodic_role=TreePeriodicTensorRole.PARENT,
+                indices=[
+                    IndexSpec(id="branch_parent_slot", name="parent_slot", dimension=2)
+                ],
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="branch", child_index=0, x=120.0, y=400.0
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="branch", child_index=1, x=220.0, y=400.0
+            ),
+            build_tree_child_boundary_tensor(
+                cell_prefix="branch", child_index=2, x=320.0, y=400.0
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="branch_edge_parent",
+                name="branch_edge_parent",
+                left=EdgeEndpointRef(
+                    tensor_id="branch_parent_boundary",
+                    index_id="branch_parent_slot",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="branch_tensor",
+                    index_id="branch_parent",
+                ),
+            ),
+            EdgeSpec(
+                id="branch_edge_0",
+                name="branch_edge_0",
+                left=EdgeEndpointRef(
+                    tensor_id="branch_tensor",
+                    index_id="branch_child_0",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="branch_child_boundary_0",
+                    index_id="branch_child_slot_0",
+                ),
+            ),
+            EdgeSpec(
+                id="branch_edge_1",
+                name="branch_edge_1",
+                left=EdgeEndpointRef(
+                    tensor_id="branch_tensor",
+                    index_id="branch_child_1",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="branch_child_boundary_1",
+                    index_id="branch_child_slot_1",
+                ),
+            ),
+            EdgeSpec(
+                id="branch_edge_2",
+                name="branch_edge_2",
+                left=EdgeEndpointRef(
+                    tensor_id="branch_tensor",
+                    index_id="branch_child_2",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="branch_child_boundary_2",
+                    index_id="branch_child_slot_2",
+                ),
+            ),
+        ],
+    )
+    leaf_cell = LinearPeriodicCellSpec(
+        tensors=[
+            TensorSpec(
+                id="leaf_tensor",
+                name="Leaf",
+                position=CanvasPosition(x=220.0, y=220.0),
+                indices=[
+                    IndexSpec(id="leaf_parent", name="parent", dimension=2),
+                    IndexSpec(id="leaf_phys", name="phys", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="leaf_parent_boundary",
+                name="Parent",
+                position=CanvasPosition(x=220.0, y=40.0),
+                tree_periodic_role=TreePeriodicTensorRole.PARENT,
+                indices=[
+                    IndexSpec(id="leaf_parent_slot", name="parent_slot", dimension=2)
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="leaf_edge_parent",
+                name="leaf_edge_parent",
+                left=EdgeEndpointRef(
+                    tensor_id="leaf_parent_boundary",
+                    index_id="leaf_parent_slot",
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="leaf_tensor",
+                    index_id="leaf_parent",
+                ),
+            )
+        ],
+    )
+    return NetworkSpec(
+        id="network_tree_periodic",
+        name="tree-periodic-tree",
+        tree_periodic_tree=TreePeriodicTreeSpec(
+            active_cell=TreePeriodicCellName.BRANCH,
+            branching_factor=3,
+            root_cell=root_cell,
+            branch_cell=branch_cell,
+            leaf_cell=leaf_cell,
         ),
     )
 

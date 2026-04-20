@@ -20,6 +20,7 @@ from .linear_periodic import generate_linear_periodic_code
 from .quimb import QuimbCodeGenerator
 from .tensorkrowch import TensorKrowchCodeGenerator
 from .tensornetwork import TensorNetworkCodeGenerator
+from .tree_periodic import generate_tree_periodic_code
 
 _GENERATOR_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _GENERATORS: dict[str, CodeGenerator] = {}
@@ -111,6 +112,15 @@ def generate_code(
         normalized_engine, EngineName
     ):
         return generate_grid_periodic_code(
+            spec,
+            normalized_engine,
+            collection_format=collection_format,
+            validate=validate,
+        )
+    if spec.tree_periodic_tree is not None and isinstance(
+        normalized_engine, EngineName
+    ):
+        return generate_tree_periodic_code(
             spec,
             normalized_engine,
             collection_format=collection_format,

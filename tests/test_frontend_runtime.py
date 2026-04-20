@@ -40,6 +40,7 @@ def _copy_runtime_editor_support_modules(tmp_path: Path) -> None:
         "utilitiesGridPeriodic.js",
         "utilitiesLayout.js",
         "utilitiesLinearPeriodic.js",
+        "utilitiesTreePeriodic.js",
         "utilitiesSpec.js",
         "utilitiesTemplates.js",
         "utilitiesUi.js",
@@ -3873,6 +3874,9 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                   setGridPeriodicMode(enabled) {
                     shortcutCalls.push({ kind: "grid", enabled });
                   },
+                  setTreePeriodicMode(enabled) {
+                    shortcutCalls.push({ kind: "tree", enabled });
+                  },
                   setBenchmarkMode(enabled) {
                     shortcutCalls.push({ kind: "benchmark", enabled });
                   },
@@ -3911,6 +3915,7 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
               JSON.stringify([
                 { kind: "linear", enabled: false },
                 { kind: "grid", enabled: false },
+                { kind: "tree", enabled: false },
                 { kind: "benchmark", enabled: true },
               ])
             ) {
@@ -3928,6 +3933,7 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                 { kind: "benchmark", enabled: false },
                 { kind: "linear", enabled: false },
                 { kind: "grid", enabled: false },
+                { kind: "tree", enabled: false },
               ])
             ) {
               throw new Error("Shift+S should switch to Single mode.");
@@ -3963,12 +3969,14 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
               throw new Error("E should prevent the browser default.");
             }
             if (
-              statusCalls.length !== 1 ||
-              statusCalls[0].message !== "For Tree mode is not available yet." ||
-              statusCalls[0].level !== "error"
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([
+                { kind: "benchmark", enabled: false },
+                { kind: "tree", enabled: true },
+              ])
             ) {
               throw new Error(
-                `E should report the unavailable tree mode, received ${JSON.stringify(statusCalls)}.`
+                `E should switch to For Tree mode, received ${JSON.stringify(shortcutCalls)}.`
               );
             }
             """
@@ -5629,6 +5637,375 @@ def test_grid_for_mode_can_seed_navigate_and_restore_active_cell(
 
     assert completed_process.returncode == 0, (
         "The grid for-mode runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "tree_for_mode_runtime.mjs"
+    state_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "state.js"
+    )
+    linear_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesLinearPeriodic.js"
+    )
+    grid_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesGridPeriodic.js"
+    )
+    tree_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilitiesTreePeriodic.js"
+    )
+    utilities_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utilities.js"
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const stateUrl = pathToFileURL({str(state_module_path)!r}).href;
+            const linearUrl = pathToFileURL({str(linear_module_path)!r}).href;
+            const gridUrl = pathToFileURL({str(grid_module_path)!r}).href;
+            const treeUrl = pathToFileURL({str(tree_module_path)!r}).href;
+            const utilitiesUrl = pathToFileURL({str(utilities_module_path)!r}).href;
+
+            const [stateModule, linearModule, gridModule, treeModule, utilitiesModule] = await Promise.all([
+              import(stateUrl),
+              import(linearUrl),
+              import(gridUrl),
+              import(treeUrl),
+              import(utilitiesUrl),
+            ]);
+
+            function createClassList() {{
+              return {{
+                add() {{}},
+                remove() {{}},
+                toggle() {{}},
+              }};
+            }}
+
+            function createButton() {{
+              return {{
+                disabled: false,
+                hidden: false,
+                textContent: "",
+                classList: createClassList(),
+                addEventListener() {{}},
+              }};
+            }}
+
+            const {{ createInitialState }} = stateModule;
+            const {{ createUtilityLinearPeriodicBindings }} = linearModule;
+            const {{ createUtilityGridPeriodicBindings }} = gridModule;
+            const {{ createUtilityTreePeriodicBindings }} = treeModule;
+            const {{ registerUtilities }} = utilitiesModule;
+            const state = createInitialState();
+            const events = [];
+            const ctx = {{
+              state,
+              constants: {{
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  {{ x: -38, y: 0 }},
+                  {{ x: 38, y: 0 }},
+                  {{ x: 0, y: -24 }},
+                  {{ x: 0, y: 24 }},
+                ],
+              }},
+              dom: {{
+                workspace: {{}},
+                statusMessage: {{ textContent: "", classList: createClassList() }},
+                propertiesPanel: {{ innerHTML: "" }},
+                generatedCode: {{ value: "" }},
+                engineSelect: {{ options: [], value: "tensornetwork" }},
+                collectionFormatSelect: {{ options: [], value: "list" }},
+                exportFormatSelect: {{ value: "py" }},
+                addNoteButton: createButton(),
+                connectButton: {{ classList: createClassList() }},
+                loadInput: {{}},
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: {{ classList: createClassList() }},
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: {{ textContent: "" }},
+                linearPeriodicNextCellButton: createButton(),
+                gridPeriodicUpCellButton: createButton(),
+                gridPeriodicDownCellButton: createButton(),
+                singleModeMenuItem: createButton(),
+                linearPeriodicModeMenuItem: createButton(),
+                gridPeriodicModeMenuItem: createButton(),
+                treeModeMenuItem: createButton(),
+                benchmarkModeMenuItem: createButton(),
+                toolbarModeControls: {{ hidden: true }},
+                templateSelect: {{ value: "" }},
+                templateParameterPanel: {{ hidden: true }},
+                templateGraphSizeLabel: {{ textContent: "" }},
+                templateGraphSizeInput: {{ value: "2", min: "1" }},
+                templateBondDimensionInput: {{ value: "3", min: "1" }},
+                templatePhysicalDimensionInput: {{ value: "2", min: "1" }},
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: {{ classList: createClassList() }},
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {{
+                  getBoundingClientRect() {{
+                    return {{ left: 0, top: 0, width: 1000, height: 800 }};
+                  }},
+                }},
+                groupLayer: {{}},
+                resizeLayer: {{}},
+                notesLayer: {{}},
+                selectionBox: {{}},
+                minimapCanvas: {{}},
+                sidebar: {{}},
+                plannerPanel: {{}},
+                generateButton: createButton(),
+              }},
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {{
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+                prompt: () => "3",
+              }},
+              document: {{
+                getElementById() {{
+                  return createButton();
+                }},
+                querySelectorAll() {{
+                  return [];
+                }},
+              }},
+              cytoscape: null,
+              tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+              tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+              render: () => {{}},
+              renderOverlayDecorations: () => {{}},
+              renderMinimap: () => {{}},
+              renderPlanner: () => {{}},
+              renderSidebarTabs: () => {{}},
+              refreshContractionAnalysis: () => events.push("refresh-analysis"),
+              syncPendingInteractionClasses: () => {{}},
+              setActiveSidebarTab: () => {{}},
+              clearGeneratedCodePreview: () => false,
+              resetDerivedStateCaches: () => {{}},
+              ensureTensorIndexOffsets: () => {{}},
+              buildHistorySnapshotSpec: () => state.spec,
+              buildSerializedSpec: () => state.spec,
+              bumpSpecRevision: () => {{
+                state.specRevision += 1;
+              }},
+              resetDerivedStateCaches: () => {{}},
+            }};
+
+            const runtime = {{}};
+            const env = {{
+              ctx,
+              state,
+              constants: ctx.constants,
+              dom: ctx.dom,
+              runtime,
+            }};
+            Object.assign(runtime, createUtilityLinearPeriodicBindings(env));
+            Object.assign(runtime, createUtilityGridPeriodicBindings(env));
+            Object.assign(runtime, createUtilityTreePeriodicBindings(env));
+            registerUtilities(ctx);
+            Object.assign(runtime, ctx);
+
+            state.spec = ctx.normalizeSpec({{
+              id: "network_tree_seed",
+              name: "tree-seed",
+              tensors: [
+                {{
+                  id: "tensor_root",
+                  name: "Root",
+                  position: {{ x: 180, y: 160 }},
+                  size: {{ width: 140, height: 84 }},
+                  metadata: {{}},
+                  indices: [
+                    {{
+                      id: "root_open_0",
+                      name: "a",
+                      dimension: 2,
+                      offset: {{ x: -38, y: 0 }},
+                      metadata: {{}},
+                    }},
+                    {{
+                      id: "root_open_1",
+                      name: "b",
+                      dimension: 3,
+                      offset: {{ x: 38, y: 0 }},
+                      metadata: {{}},
+                    }},
+                  ],
+                }},
+              ],
+              groups: [],
+              edges: [],
+              notes: [],
+              contraction_plan: null,
+              metadata: {{}},
+            }});
+
+            runtime.setTreePeriodicMode(true);
+            if (!runtime.isTreePeriodicMode()) {{
+              throw new Error("Tree periodic mode should be enabled.");
+            }}
+            if (runtime.getActiveTreePeriodicCellName() !== "root") {{
+              throw new Error(`Expected root to be active after enabling tree mode, received ${{runtime.getActiveTreePeriodicCellName()}}.`);
+            }}
+            if (!state.spec.tree_periodic_tree || state.spec.tree_periodic_tree.branching_factor !== 3) {{
+              throw new Error("Tree payload should persist the prompted branching factor.");
+            }}
+            const rootChildren = state.spec.tensors
+              .filter((tensor) => tensor.tree_periodic_role === "child")
+              .map((tensor) => tensor.tree_periodic_child_index)
+              .sort();
+            if (JSON.stringify(rootChildren) !== JSON.stringify([0, 1, 2])) {{
+              throw new Error(`Expected three ordered child boundaries in root, received ${{JSON.stringify(rootChildren)}}.`);
+            }}
+            if (
+              !state.spec.tree_periodic_tree.root_cell.tensors.some(
+                (tensor) => tensor.id === "tensor_root"
+              )
+            ) {{
+              throw new Error("The original graph should seed the root cell.");
+            }}
+
+            runtime.switchTreePeriodicCell("down");
+            if (runtime.getActiveTreePeriodicCellName() !== "branch") {{
+              throw new Error(`Expected branch to be active after moving down, received ${{runtime.getActiveTreePeriodicCellName()}}.`);
+            }}
+            const branchRoles = state.spec.tensors
+              .filter((tensor) => tensor.tree_periodic_role)
+              .map((tensor) => `${{tensor.tree_periodic_role}}:${{tensor.tree_periodic_child_index ?? "parent"}}`)
+              .sort();
+            if (
+              JSON.stringify(branchRoles) !==
+              JSON.stringify(["child:0", "child:1", "child:2", "parent:parent"])
+            ) {{
+              throw new Error(`Expected one parent and three child boundaries in branch, received ${{JSON.stringify(branchRoles)}}.`);
+            }}
+
+            state.spec.tensors.push({{
+              id: "tensor_branch",
+              name: "Branch tensor",
+              position: {{ x: 180, y: 160 }},
+              size: {{ width: 140, height: 84 }},
+              metadata: {{}},
+              indices: [
+                {{
+                  id: "branch_open",
+                  name: "c",
+                  dimension: 5,
+                  offset: {{ x: 0, y: -24 }},
+                  metadata: {{}},
+                }},
+              ],
+            }});
+            runtime.syncTreePeriodicBoundaryTensors();
+            runtime.switchTreePeriodicCell("down");
+            if (runtime.getActiveTreePeriodicCellName() !== "leaf") {{
+              throw new Error(`Expected leaf to be active after moving down twice, received ${{runtime.getActiveTreePeriodicCellName()}}.`);
+            }}
+            const leafRoles = state.spec.tensors
+              .filter((tensor) => tensor.tree_periodic_role)
+              .map((tensor) => tensor.tree_periodic_role);
+            if (JSON.stringify(leafRoles) !== JSON.stringify(["parent"])) {{
+              throw new Error(`Expected only a parent boundary in leaf, received ${{JSON.stringify(leafRoles)}}.`);
+            }}
+
+            runtime.switchTreePeriodicCell("up");
+            if (!state.spec.tensors.some((tensor) => tensor.id === "tensor_branch")) {{
+              throw new Error("Returning to branch should restore the branch cell graph.");
+            }}
+
+            runtime.setTreePeriodicMode(false);
+            if (runtime.isTreePeriodicMode()) {{
+              throw new Error("Tree periodic mode should be disabled.");
+            }}
+            if (state.spec.tree_periodic_tree !== null) {{
+              throw new Error("Tree payload should be cleared after leaving tree mode.");
+            }}
+            if (!state.spec.tensors.some((tensor) => tensor.id === "tensor_branch")) {{
+              throw new Error("Leaving tree mode should preserve the active cell.");
+            }}
+            if (state.spec.tensors.some((tensor) => tensor.tree_periodic_role)) {{
+              throw new Error("Tree boundary tensors should be stripped when returning to single mode.");
+            }}
+            if (!events.includes("refresh-analysis")) {{
+              throw new Error(`Expected tree mode transitions to refresh analysis, received ${{JSON.stringify(events)}}.`);
+            }}
+            """,
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tree_for_mode_can_seed_navigate_and_restore_active_cell(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_tree_for_mode_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The tree for-mode runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

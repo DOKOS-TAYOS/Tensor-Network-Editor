@@ -56,6 +56,7 @@ _ENTITY_LABELS: dict[str, str] = {
     "step": "Contraction step",
     "linear_periodic_chain": "Linear periodic chain",
     "grid_periodic_grid": "Grid periodic grid",
+    "tree_periodic_tree": "Tree periodic tree",
 }
 
 _ENTITY_SORT_ORDER: dict[str, int] = {
@@ -68,6 +69,7 @@ _ENTITY_SORT_ORDER: dict[str, int] = {
     "step": 6,
     "linear_periodic_chain": 7,
     "grid_periodic_grid": 8,
+    "tree_periodic_tree": 9,
 }
 
 
@@ -109,6 +111,9 @@ def semantic_diff_specs(
     )
     entries.extend(
         _semantic_diff_grid_periodic_grid(normalized_before, normalized_after)
+    )
+    entries.extend(
+        _semantic_diff_tree_periodic_tree(normalized_before, normalized_after)
     )
     return SemanticSpecDiffResult(entries=_sort_semantic_entries(entries))
 
@@ -364,6 +369,56 @@ def _semantic_diff_grid_periodic_grid(
     ]
 
 
+def _semantic_diff_tree_periodic_tree(
+    before: NetworkSpec,
+    after: NetworkSpec,
+) -> list[SemanticDiffEntry]:
+    """Report tree periodic-tree changes as one opaque field in v1."""
+    before_payload = (
+        before.tree_periodic_tree.to_dict()
+        if before.tree_periodic_tree is not None
+        else None
+    )
+    after_payload = (
+        after.tree_periodic_tree.to_dict()
+        if after.tree_periodic_tree is not None
+        else None
+    )
+    if before_payload == after_payload:
+        return []
+    if before_payload is None and after_payload is not None:
+        return [
+            _build_simple_semantic_entry(
+                "tree_periodic_tree",
+                "tree_periodic_tree",
+                "added",
+            )
+        ]
+    if before_payload is not None and after_payload is None:
+        return [
+            _build_simple_semantic_entry(
+                "tree_periodic_tree",
+                "tree_periodic_tree",
+                "removed",
+            )
+        ]
+    return [
+        SemanticDiffEntry(
+            entity_type="tree_periodic_tree",
+            entity_id="tree_periodic_tree",
+            change_type="changed",
+            summary=_summary_for_entity("tree_periodic_tree", "changed"),
+            field_changes=[
+                SemanticFieldChange(
+                    path="tree_periodic_tree",
+                    before=cast(JSONValue, before_payload),
+                    after=cast(JSONValue, after_payload),
+                )
+            ],
+        )
+    ]
+
+
 def _index_entities(tensors: Iterable[TensorSpec]) -> list[IndexSpec]:
     """Flatten tensor indices to a top-level list keyed by stable index ids."""
     return [index for tensor in tensors for index in tensor.indices]
@@ -397,6 +452,12 @@ def _tensor_payload(entity: _DiffableEntity) -> dict[str, JSONValue]:
             if tensor.grid_periodic_role is not None
             else None
         ),
+        "tree_periodic_role": (
+            tensor.tree_periodic_role.value
+            if tensor.tree_periodic_role is not None
+            else None
+        ),
+        "tree_periodic_child_index": tensor.tree_periodic_child_index,
         "metadata": tensor.metadata,
     }
 

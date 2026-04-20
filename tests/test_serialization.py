@@ -207,6 +207,16 @@ def test_deserialize_spec_round_trips_grid_periodic_grid() -> None:
     assert center_boundary.grid_periodic_role.value == "left"
 
 
+def test_deserialize_spec_round_trips_tree_periodic_tree() -> None:
+    restored = deserialize_spec(build_tree_periodic_tree_payload(), validate=False)
+
+    assert hasattr(restored, "tree_periodic_tree")
+    tree_payload = restored.tree_periodic_tree
+    assert tree_payload is not None
+    assert tree_payload.active_cell.value == "branch"
+    assert tree_payload.branching_factor == 3
+
+
 @pytest.mark.parametrize(
     ("field_path", "value"),
     [
@@ -248,3 +258,300 @@ def test_deserialize_spec_rejects_non_string_text_fields(
 
 def serialize_spec_payload(spec: NetworkSpec) -> dict[str, object]:
     return cast(dict[str, object], serialize_spec(spec))
+
+
+def build_tree_periodic_tree_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "network": {
+            "id": "network_tree_periodic",
+            "name": "tree-periodic-tree",
+            "tensors": [],
+            "groups": [],
+            "edges": [],
+            "notes": [],
+            "contraction_plan": None,
+            "linear_periodic_chain": None,
+            "grid_periodic_grid": None,
+            "tree_periodic_tree": {
+                "active_cell": "branch",
+                "branching_factor": 3,
+                "root_cell": {
+                    "tensors": [
+                        {
+                            "id": "root_tensor",
+                            "name": "Root",
+                            "position": {"x": 220.0, "y": 120.0},
+                            "size": {"width": 180.0, "height": 108.0},
+                            "indices": [
+                                {
+                                    "id": "root_child_0",
+                                    "name": "child_0",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "root_child_1",
+                                    "name": "child_1",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "root_child_2",
+                                    "name": "child_2",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                            ],
+                            "linear_periodic_role": None,
+                            "grid_periodic_role": None,
+                            "metadata": {},
+                        },
+                        *[
+                            {
+                                "id": f"root_child_boundary_{child_index}",
+                                "name": f"Child {child_index}",
+                                "position": {
+                                    "x": 120.0 + child_index * 100.0,
+                                    "y": 320.0,
+                                },
+                                "size": {"width": 180.0, "height": 108.0},
+                                "indices": [
+                                    {
+                                        "id": f"root_child_slot_{child_index}",
+                                        "name": f"slot_{child_index}",
+                                        "dimension": 2,
+                                        "offset": {"x": 0.0, "y": 0.0},
+                                        "metadata": {},
+                                    }
+                                ],
+                                "linear_periodic_role": None,
+                                "grid_periodic_role": None,
+                                "tree_periodic_role": "child",
+                                "tree_periodic_child_index": child_index,
+                                "metadata": {},
+                            }
+                            for child_index in range(3)
+                        ],
+                    ],
+                    "groups": [],
+                    "edges": [
+                        {
+                            "id": f"root_edge_{child_index}",
+                            "name": f"root_edge_{child_index}",
+                            "left": {
+                                "tensor_id": "root_tensor",
+                                "index_id": f"root_child_{child_index}",
+                            },
+                            "right": {
+                                "tensor_id": f"root_child_boundary_{child_index}",
+                                "index_id": f"root_child_slot_{child_index}",
+                            },
+                            "metadata": {},
+                        }
+                        for child_index in range(3)
+                    ],
+                    "notes": [],
+                    "contraction_plan": None,
+                    "metadata": {},
+                },
+                "branch_cell": {
+                    "tensors": [
+                        {
+                            "id": "branch_tensor",
+                            "name": "Branch",
+                            "position": {"x": 220.0, "y": 220.0},
+                            "size": {"width": 180.0, "height": 108.0},
+                            "indices": [
+                                {
+                                    "id": "branch_parent",
+                                    "name": "parent",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "branch_child_0",
+                                    "name": "child_0",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "branch_child_1",
+                                    "name": "child_1",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "branch_child_2",
+                                    "name": "child_2",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                            ],
+                            "linear_periodic_role": None,
+                            "grid_periodic_role": None,
+                            "metadata": {},
+                        },
+                        {
+                            "id": "branch_parent_boundary",
+                            "name": "Parent",
+                            "position": {"x": 220.0, "y": 40.0},
+                            "size": {"width": 180.0, "height": 108.0},
+                            "indices": [
+                                {
+                                    "id": "branch_parent_slot",
+                                    "name": "parent_slot",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                }
+                            ],
+                            "linear_periodic_role": None,
+                            "grid_periodic_role": None,
+                            "tree_periodic_role": "parent",
+                            "tree_periodic_child_index": None,
+                            "metadata": {},
+                        },
+                        *[
+                            {
+                                "id": f"branch_child_boundary_{child_index}",
+                                "name": f"Child {child_index}",
+                                "position": {
+                                    "x": 120.0 + child_index * 100.0,
+                                    "y": 400.0,
+                                },
+                                "size": {"width": 180.0, "height": 108.0},
+                                "indices": [
+                                    {
+                                        "id": f"branch_child_slot_{child_index}",
+                                        "name": f"slot_{child_index}",
+                                        "dimension": 2,
+                                        "offset": {"x": 0.0, "y": 0.0},
+                                        "metadata": {},
+                                    }
+                                ],
+                                "linear_periodic_role": None,
+                                "grid_periodic_role": None,
+                                "tree_periodic_role": "child",
+                                "tree_periodic_child_index": child_index,
+                                "metadata": {},
+                            }
+                            for child_index in range(3)
+                        ],
+                    ],
+                    "groups": [],
+                    "edges": [
+                        {
+                            "id": "branch_edge_parent",
+                            "name": "branch_edge_parent",
+                            "left": {
+                                "tensor_id": "branch_parent_boundary",
+                                "index_id": "branch_parent_slot",
+                            },
+                            "right": {
+                                "tensor_id": "branch_tensor",
+                                "index_id": "branch_parent",
+                            },
+                            "metadata": {},
+                        },
+                        *[
+                            {
+                                "id": f"branch_edge_{child_index}",
+                                "name": f"branch_edge_{child_index}",
+                                "left": {
+                                    "tensor_id": "branch_tensor",
+                                    "index_id": f"branch_child_{child_index}",
+                                },
+                                "right": {
+                                    "tensor_id": f"branch_child_boundary_{child_index}",
+                                    "index_id": f"branch_child_slot_{child_index}",
+                                },
+                                "metadata": {},
+                            }
+                            for child_index in range(3)
+                        ],
+                    ],
+                    "notes": [],
+                    "contraction_plan": None,
+                    "metadata": {},
+                },
+                "leaf_cell": {
+                    "tensors": [
+                        {
+                            "id": "leaf_tensor",
+                            "name": "Leaf",
+                            "position": {"x": 220.0, "y": 220.0},
+                            "size": {"width": 180.0, "height": 108.0},
+                            "indices": [
+                                {
+                                    "id": "leaf_parent",
+                                    "name": "parent",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                                {
+                                    "id": "leaf_phys",
+                                    "name": "phys",
+                                    "dimension": 3,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                },
+                            ],
+                            "linear_periodic_role": None,
+                            "grid_periodic_role": None,
+                            "metadata": {},
+                        },
+                        {
+                            "id": "leaf_parent_boundary",
+                            "name": "Parent",
+                            "position": {"x": 220.0, "y": 40.0},
+                            "size": {"width": 180.0, "height": 108.0},
+                            "indices": [
+                                {
+                                    "id": "leaf_parent_slot",
+                                    "name": "parent_slot",
+                                    "dimension": 2,
+                                    "offset": {"x": 0.0, "y": 0.0},
+                                    "metadata": {},
+                                }
+                            ],
+                            "linear_periodic_role": None,
+                            "grid_periodic_role": None,
+                            "tree_periodic_role": "parent",
+                            "tree_periodic_child_index": None,
+                            "metadata": {},
+                        },
+                    ],
+                    "groups": [],
+                    "edges": [
+                        {
+                            "id": "leaf_edge_parent",
+                            "name": "leaf_edge_parent",
+                            "left": {
+                                "tensor_id": "leaf_parent_boundary",
+                                "index_id": "leaf_parent_slot",
+                            },
+                            "right": {
+                                "tensor_id": "leaf_tensor",
+                                "index_id": "leaf_parent",
+                            },
+                            "metadata": {},
+                        }
+                    ],
+                    "notes": [],
+                    "contraction_plan": None,
+                    "metadata": {},
+                },
+                "metadata": {},
+            },
+            "metadata": {},
+        },
+    }

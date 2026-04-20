@@ -24,6 +24,9 @@ from ._model_graph import (
     LinearPeriodicTensorRole,
     NetworkSpec,
     TensorSpec,
+    TreePeriodicCellName,
+    TreePeriodicTensorRole,
+    TreePeriodicTreeSpec,
 )
 from ._model_results import (
     CodegenResult,
@@ -46,6 +49,9 @@ __all__ = [
     "LinearPeriodicTensorRole",
     "LinearPeriodicCellSpec",
     "LinearPeriodicChainSpec",
+    "TreePeriodicCellName",
+    "TreePeriodicTensorRole",
+    "TreePeriodicTreeSpec",
     "EdgeEndpointRef",
     "EdgeSpec",
     "GroupSpec",

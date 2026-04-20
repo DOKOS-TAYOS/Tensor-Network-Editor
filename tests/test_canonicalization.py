@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from tensor_network_editor.canonicalization import canonicalize_spec
-from tests.factories import build_sample_spec, build_three_tensor_complete_plan_spec
+from tests.factories import (
+    build_sample_spec,
+    build_three_tensor_complete_plan_spec,
+    build_tree_periodic_tree_spec,
+)
 
 
 def test_canonicalize_spec_sorts_entities_and_normalizes_tags() -> None:
@@ -61,3 +65,18 @@ def test_canonicalize_spec_rewrites_ids_deterministically() -> None:
     assert canonical.contraction_plan.steps[1].left_operand_id == "step_001"
     assert canonical.contraction_plan.steps[1].right_operand_id == "tensor_003"
     assert canonical.metadata["tags"] == ["a", "z"]
+
+
+def test_canonicalize_spec_rewrites_tree_periodic_cell_ids_deterministically() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.root_cell.tensors.reverse()
+    spec.tree_periodic_tree.branch_cell.tensors.reverse()
+    spec.tree_periodic_tree.leaf_cell.tensors.reverse()
+
+    canonical = canonicalize_spec(spec, deterministic_ids=True)
+
+    assert canonical.tree_periodic_tree is not None
+    assert canonical.tree_periodic_tree.root_cell.tensors[0].id == "root_tensor_001"
+    assert canonical.tree_periodic_tree.branch_cell.tensors[0].id == "branch_tensor_001"
+    assert canonical.tree_periodic_tree.leaf_cell.tensors[0].id == "leaf_tensor_001"

@@ -27,6 +27,8 @@ function createShellActions(ctx) {
       typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
     isGridPeriodicMode: () =>
       typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode(),
+    isTreePeriodicMode: () =>
+      typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode(),
     handleNewDesign: () => ctx.handleNewDesign(),
     addTensorAtCenter: () => ctx.addTensorAtCenter(),
     addNoteAtCenter: () => ctx.addNoteAtCenter(),
@@ -53,6 +55,9 @@ function createShellActions(ctx) {
     toggleGridPeriodicMode: () => ctx.toggleGridPeriodicMode(),
     setGridPeriodicMode: (enabled) => ctx.setGridPeriodicMode(enabled),
     switchGridPeriodicCell: (direction) => ctx.switchGridPeriodicCell(direction),
+    toggleTreePeriodicMode: () => ctx.toggleTreePeriodicMode(),
+    setTreePeriodicMode: (enabled) => ctx.setTreePeriodicMode(enabled),
+    switchTreePeriodicCell: (direction) => ctx.switchTreePeriodicCell(direction),
     toggleBenchmarkMode: () => ctx.toggleBenchmarkMode(),
     setBenchmarkMode: (enabled) => ctx.setBenchmarkMode(enabled),
     switchBenchmarkPosition: (direction) => ctx.switchBenchmarkPosition(direction),

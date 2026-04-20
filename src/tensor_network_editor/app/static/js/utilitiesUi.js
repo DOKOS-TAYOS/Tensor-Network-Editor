@@ -131,6 +131,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     bottom: "Bottom cell",
     bottom_right: "Bottom-right cell",
   };
+  const TREE_PERIODIC_CELL_LABELS = {
+    root: "Root cell",
+    branch: "Branch cell",
+    leaf: "Leaf cell",
+  };
   const FLOATING_PANEL_MARGIN = 8;
   const FLOATING_PANEL_GAP = 4;
 
@@ -626,10 +631,19 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       gridPeriodicMode && typeof runtime.getActiveGridPeriodicCellName === "function"
         ? runtime.getActiveGridPeriodicCellName()
         : null;
-    const forMode = linearPeriodicMode || gridPeriodicMode;
+    const treePeriodicMode =
+      typeof runtime.isTreePeriodicMode === "function" && runtime.isTreePeriodicMode();
+    const activeTreePeriodicCell =
+      treePeriodicMode && typeof runtime.getActiveTreePeriodicCellName === "function"
+        ? runtime.getActiveTreePeriodicCellName()
+        : null;
+    const forMode = linearPeriodicMode || gridPeriodicMode || treePeriodicMode;
     const canSwitchGridPeriodicCell = (direction) =>
       typeof runtime.canSwitchGridPeriodicCell === "function" &&
       runtime.canSwitchGridPeriodicCell(direction);
+    const canSwitchTreePeriodicCell = (direction) =>
+      typeof runtime.canSwitchTreePeriodicCell === "function" &&
+      runtime.canSwitchTreePeriodicCell(direction);
     const benchmarkMode =
       typeof runtime.isBenchmarkMode === "function" && runtime.isBenchmarkMode();
     const benchmarkSession =
@@ -816,7 +830,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       setMenuItemChecked(gridPeriodicModeMenuItem, gridPeriodicMode);
     }
     if (treeModeMenuItem) {
-      setMenuItemChecked(treeModeMenuItem, false);
+      setMenuItemChecked(treeModeMenuItem, treePeriodicMode);
     }
     if (benchmarkModeMenuItem) {
       setMenuItemChecked(benchmarkModeMenuItem, benchmarkMode);
@@ -837,6 +851,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         ? LINEAR_PERIODIC_CELL_LABELS[activeLinearPeriodicCell] || "For mode"
         : gridPeriodicMode
           ? GRID_PERIODIC_CELL_LABELS[activeGridPeriodicCell] || "Grid cell"
+          : treePeriodicMode
+            ? TREE_PERIODIC_CELL_LABELS[activeTreePeriodicCell] || "Tree cell"
           : "Single";
     }
     if (benchmarkSchemeNameInput && !benchmarkMode) {
@@ -853,6 +869,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       );
     }
     if (linearPeriodicPreviousCellButton) {
+      linearPeriodicPreviousCellButton.hidden = treePeriodicMode && !benchmarkMode;
       linearPeriodicPreviousCellButton.disabled = benchmarkMode
         ? benchmarkActivePosition === 0
         : gridPeriodicMode
@@ -868,6 +885,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
             ? canSwitchGridPeriodicCell("left")
               ? "Move to the cell on the left. Use the cell arrows to edit each representative cell of the bidimensional layout."
               : "You are already at the left edge of the bidimensional layout."
+            : treePeriodicMode
+              ? "For Tree mode uses only the vertical cell arrows."
             : !linearPeriodicMode
               ? "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
             : activeLinearPeriodicCell === "initial"
@@ -876,6 +895,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       );
     }
     if (linearPeriodicNextCellButton) {
+      linearPeriodicNextCellButton.hidden = treePeriodicMode && !benchmarkMode;
       linearPeriodicNextCellButton.disabled =
         !benchmarkMode &&
         (gridPeriodicMode
@@ -896,6 +916,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
             ? canSwitchGridPeriodicCell("right")
               ? "Move to the cell on the right. Use the cell arrows to edit each representative cell of the bidimensional layout."
               : "You are already at the right edge of the bidimensional layout."
+            : treePeriodicMode
+              ? "For Tree mode uses only the vertical cell arrows."
             : !linearPeriodicMode
               ? "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
             : activeLinearPeriodicCell === "final"
@@ -904,29 +926,41 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
       );
     }
     if (gridPeriodicUpCellButton) {
-      gridPeriodicUpCellButton.hidden = !gridPeriodicMode || benchmarkMode;
+      gridPeriodicUpCellButton.hidden = !(gridPeriodicMode || treePeriodicMode) || benchmarkMode;
       gridPeriodicUpCellButton.disabled =
-        !gridPeriodicMode || !canSwitchGridPeriodicCell("up");
+        gridPeriodicMode
+          ? !canSwitchGridPeriodicCell("up")
+          : !treePeriodicMode || !canSwitchTreePeriodicCell("up");
       setTooltipDescription(
         gridPeriodicUpCellButton,
-        !gridPeriodicMode
-          ? "For bidimensional mode is not active."
-          : canSwitchGridPeriodicCell("up")
+        gridPeriodicMode
+          ? canSwitchGridPeriodicCell("up")
             ? "Move to the upper cell."
             : "You are already at the top edge."
+          : !treePeriodicMode
+            ? "For Tree mode is not active."
+            : canSwitchTreePeriodicCell("up")
+              ? "Move to the parent-facing cell above."
+              : "You are already at the root cell."
       );
     }
     if (gridPeriodicDownCellButton) {
-      gridPeriodicDownCellButton.hidden = !gridPeriodicMode || benchmarkMode;
+      gridPeriodicDownCellButton.hidden = !(gridPeriodicMode || treePeriodicMode) || benchmarkMode;
       gridPeriodicDownCellButton.disabled =
-        !gridPeriodicMode || !canSwitchGridPeriodicCell("down");
+        gridPeriodicMode
+          ? !canSwitchGridPeriodicCell("down")
+          : !treePeriodicMode || !canSwitchTreePeriodicCell("down");
       setTooltipDescription(
         gridPeriodicDownCellButton,
-        !gridPeriodicMode
-          ? "For bidimensional mode is not active."
-          : canSwitchGridPeriodicCell("down")
+        gridPeriodicMode
+          ? canSwitchGridPeriodicCell("down")
             ? "Move to the lower cell."
             : "You are already at the bottom edge."
+          : !treePeriodicMode
+            ? "For Tree mode is not active."
+            : canSwitchTreePeriodicCell("down")
+              ? "Move to the child-facing cell below."
+              : "You are already at the leaf cell."
       );
     }
     if (benchmarkMode) {

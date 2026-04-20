@@ -22,20 +22,20 @@ def analyze_spec(
 ) -> SpecAnalysisReport:
     """Return a structured summary for ``spec`` and its contraction metadata."""
     validated_spec = ensure_valid_spec(spec)
-    network = analyze_network(validated_spec)
     if (
         validated_spec.linear_periodic_chain is None
         and validated_spec.grid_periodic_grid is None
+        and validated_spec.tree_periodic_tree is None
     ):
+        network = analyze_network(validated_spec)
         contraction_prepared = prepare_analyzed_network(network)
     else:
         contraction_spec = _normalize_spec_for_contraction_analysis(
             validated_spec,
             validate=False,
         )
-        contraction_prepared = prepare_analyzed_network(
-            analyze_network(contraction_spec)
-        )
+        network = analyze_network(contraction_spec)
+        contraction_prepared = prepare_analyzed_network(network)
     return SpecAnalysisReport(
         network=NetworkSummary(
             tensor_count=len(network.spec.tensors),

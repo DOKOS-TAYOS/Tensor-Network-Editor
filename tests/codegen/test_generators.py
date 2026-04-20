@@ -24,6 +24,7 @@ from tests.factories import (
     build_sample_spec,
     build_sample_spec_without_plan,
     build_three_tensor_spec,
+    build_tree_periodic_tree_spec,
 )
 from tests.optional_backends import require_engine_backend
 
@@ -819,6 +820,85 @@ def test_grid_periodic_codegen_supports_remaining_backends_without_execution(
     if engine is EngineName.EINSUM_TORCH:
         assert "import torch" in result.code
         assert "result = torch.einsum(" in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_tree_periodic_codegen_uses_tree_helpers_and_total_depth_loops(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_tree_periodic_tree_spec(), engine=engine)
+
+    assert "def build_root_cell(" in result.code
+    assert (
+        "def build_branch_cell(level: int, node_index: int, parent_interface:"
+        in result.code
+    )
+    assert (
+        "def build_leaf_cell(level: int, node_index: int, parent_interface:"
+        in result.code
+    )
+    assert "validate_tree_depth(n)" in result.code
+    assert "if n < 3:" in result.code
+    assert "branching_factor = 3" in result.code
+    assert "frontier = list(root_cell['child_interfaces'])" in result.code
+    assert "for level in range(1, n - 1):" in result.code
+    assert "build_leaf_cell(n - 1, node_index, parent_interface)" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.TENSORNETWORK, EngineName.TENSORKROWCH],
+)
+def test_tree_periodic_codegen_supports_graph_backends(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_tree_periodic_tree_spec(), engine=engine)
+
+    assert "# Tensor Network Editor tree periodic mode" in result.code
+    assert "def connect_tree_interfaces(" in result.code
+    assert "network_nodes.extend(branch_cell['nodes'])" in result.code
+    assert "open_edges.extend(leaf_cell['open_edges'])" in result.code
+    if engine is EngineName.TENSORNETWORK:
+        assert "import tensornetwork as tn" in result.code
+        assert "tn.connect(" in result.code
+    else:
+        assert "import tensorkrowch as tk" in result.code
+        assert "tk.connect(" in result.code
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [EngineName.QUIMB, EngineName.EINSUM_NUMPY, EngineName.EINSUM_TORCH],
+)
+def test_tree_periodic_codegen_supports_array_backends(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_tree_periodic_tree_spec(), engine=engine)
+
+    assert "# Tensor Network Editor tree periodic mode" in result.code
+    assert "child_interfaces = []" in result.code
+    assert "branching_factor = 3" in result.code
+    if engine is EngineName.QUIMB:
+        assert "import quimb.tensor as qtn" in result.code
+        assert "network = qtn.TensorNetwork(network_tensors)" in result.code
+        assert (
+            "child_label(level: int, node_index: int, child_index: int, slot_index: int) -> str"
+            in result.code
+        )
+    if engine is EngineName.EINSUM_NUMPY:
+        assert "import numpy as np" in result.code
+        assert "result = np.einsum(" in result.code
+        assert (
+            "child_label(level: int, node_index: int, child_index: int, slot_index: int) -> int"
+            in result.code
+        )
+    if engine is EngineName.EINSUM_TORCH:
+        assert "import torch" in result.code
+        assert "result = torch.einsum(" in result.code
+        assert (
+            "child_label(level: int, node_index: int, child_index: int, slot_index: int) -> int"
+            in result.code
+        )
 
 
 @pytest.mark.parametrize(

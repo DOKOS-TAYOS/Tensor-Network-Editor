@@ -12,6 +12,7 @@ from tests.factories import (
     build_sample_spec,
     build_three_tensor_complete_plan_spec,
     build_three_tensor_spec,
+    build_tree_periodic_tree_spec,
 )
 
 
@@ -33,6 +34,7 @@ def _field_changes_by_path(entry: SemanticDiffEntry) -> dict[str, tuple[Any, Any
 def test_entity_label_internal_helper_covers_known_and_fallback_types() -> None:
     assert _entity_label("tensor") == "Tensor"
     assert _entity_label("linear_periodic_chain") == "Linear periodic chain"
+    assert _entity_label("tree_periodic_tree") == "Tree periodic tree"
     assert _entity_label("manual_subtree") == "Manual Subtree"
 
 
@@ -135,3 +137,17 @@ def test_semantic_diff_specs_reports_linear_periodic_chain_as_opaque_change() ->
     chain_entry = entries[("linear_periodic_chain", "linear_periodic_chain", "changed")]
     assert chain_entry.summary == "Linear periodic chain changed."
     assert list(_field_changes_by_path(chain_entry).keys()) == ["linear_periodic_chain"]
+
+
+def test_semantic_diff_specs_reports_tree_periodic_tree_as_opaque_change() -> None:
+    before = build_tree_periodic_tree_spec()
+    after = build_tree_periodic_tree_spec()
+    assert after.tree_periodic_tree is not None
+    after.tree_periodic_tree.branching_factor = 4
+
+    result = semantic_diff_specs(before, after)
+    entries = _entries_by_key(result)
+
+    tree_entry = entries[("tree_periodic_tree", "tree_periodic_tree", "changed")]
+    assert tree_entry.summary == "Tree periodic tree changed."
+    assert list(_field_changes_by_path(tree_entry).keys()) == ["tree_periodic_tree"]

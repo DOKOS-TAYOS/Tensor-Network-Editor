@@ -156,6 +156,8 @@ export function createUtilityGridPeriodicBindings({
     return (
       (typeof runtime.isLinearPeriodicMode === "function" &&
         runtime.isLinearPeriodicMode(spec)) ||
+      (typeof runtime.isTreePeriodicMode === "function" &&
+        runtime.isTreePeriodicMode(spec)) ||
       isGridPeriodicMode(spec)
     );
   }
@@ -215,6 +217,8 @@ export function createUtilityGridPeriodicBindings({
   function isForBoundaryTensor(tensor) {
     return (
       isGridPeriodicBoundaryTensor(tensor) ||
+      (typeof runtime.isTreePeriodicBoundaryTensor === "function" &&
+        runtime.isTreePeriodicBoundaryTensor(tensor)) ||
       (typeof runtime.isLinearPeriodicBoundaryTensor === "function" &&
         runtime.isLinearPeriodicBoundaryTensor(tensor))
     );
@@ -740,6 +744,21 @@ export function createUtilityGridPeriodicBindings({
       runtime.replaceGraphSectionOnSpec(state.spec, strippedLinearCell);
       return strippedLinearCell;
     }
+    if (
+      typeof runtime.isTreePeriodicMode === "function" &&
+      runtime.isTreePeriodicMode()
+    ) {
+      runtime.syncCurrentGraphIntoTreePeriodicTree();
+      const strippedTreeCell =
+        typeof runtime.stripTreePeriodicBoundaryTensorsFromGraphSection === "function"
+          ? runtime.stripTreePeriodicBoundaryTensorsFromGraphSection(
+              runtime.buildGraphSectionFromSpec(state.spec)
+            )
+          : runtime.buildGraphSectionFromSpec(state.spec);
+      state.spec.tree_periodic_tree = null;
+      runtime.replaceGraphSectionOnSpec(state.spec, strippedTreeCell);
+      return strippedTreeCell;
+    }
     return runtime.buildGraphSectionFromSpec(state.spec);
   }
 
@@ -793,6 +812,7 @@ export function createUtilityGridPeriodicBindings({
 
     const seedGraphSection = buildGridPeriodicSeedGraphSection();
     state.spec.linear_periodic_chain = null;
+    state.spec.tree_periodic_tree = null;
     state.spec.grid_periodic_grid = {
       active_cell: "center",
       top_left_cell: seedGridPeriodicCell("top_left", runtime.buildEmptyGraphSection()),

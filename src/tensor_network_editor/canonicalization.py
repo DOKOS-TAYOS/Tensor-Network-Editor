@@ -16,6 +16,7 @@ from .models import (
     LinearPeriodicChainSpec,
     NetworkSpec,
     TensorSpec,
+    TreePeriodicTreeSpec,
 )
 from .types import JSONValue, MetadataDict
 
@@ -56,6 +57,8 @@ def canonicalize_spec(
         _canonicalize_linear_periodic_chain(canonical.linear_periodic_chain)
     if canonical.grid_periodic_grid is not None:
         _canonicalize_grid_periodic_grid(canonical.grid_periodic_grid)
+    if canonical.tree_periodic_tree is not None:
+        _canonicalize_tree_periodic_tree(canonical.tree_periodic_tree)
     if deterministic_ids:
         canonical.id = "network_001"
         _rewrite_graph_section_ids(
@@ -71,6 +74,8 @@ def canonicalize_spec(
             _rewrite_linear_periodic_chain_ids(canonical.linear_periodic_chain)
         if canonical.grid_periodic_grid is not None:
             _rewrite_grid_periodic_grid_ids(canonical.grid_periodic_grid)
+        if canonical.tree_periodic_tree is not None:
+            _rewrite_tree_periodic_tree_ids(canonical.tree_periodic_tree)
     return canonical
 
 
@@ -245,6 +250,56 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             contraction_plan=grid.bottom_right_cell.contraction_plan,
         ),
         prefix="bottom_right",
+    )
+
+
+def _canonicalize_tree_periodic_tree(tree: TreePeriodicTreeSpec) -> None:
+    """Canonicalize metadata and cell-local graph entities for ``tree``."""
+    tree.metadata = _canonicalize_metadata(tree.metadata)
+    for cell in (tree.root_cell, tree.branch_cell, tree.leaf_cell):
+        cell.metadata = _canonicalize_metadata(cell.metadata)
+        _canonicalize_graph_section(
+            _GraphSection(
+                tensors=cell.tensors,
+                groups=cell.groups,
+                edges=cell.edges,
+                notes=cell.notes,
+                contraction_plan=cell.contraction_plan,
+            )
+        )
+
+
+def _rewrite_tree_periodic_tree_ids(tree: TreePeriodicTreeSpec) -> None:
+    """Rewrite cell-local ids with stable prefixes for ``tree``."""
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=tree.root_cell.tensors,
+            groups=tree.root_cell.groups,
+            edges=tree.root_cell.edges,
+            notes=tree.root_cell.notes,
+            contraction_plan=tree.root_cell.contraction_plan,
+        ),
+        prefix="root",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=tree.branch_cell.tensors,
+            groups=tree.branch_cell.groups,
+            edges=tree.branch_cell.edges,
+            notes=tree.branch_cell.notes,
+            contraction_plan=tree.branch_cell.contraction_plan,
+        ),
+        prefix="branch",
+    )
+    _rewrite_graph_section_ids(
+        _GraphSection(
+            tensors=tree.leaf_cell.tensors,
+            groups=tree.leaf_cell.groups,
+            edges=tree.leaf_cell.edges,
+            notes=tree.leaf_cell.notes,
+            contraction_plan=tree.leaf_cell.contraction_plan,
+        ),
+        prefix="leaf",
     )
 
 

@@ -26,6 +26,7 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorSize,
     TensorSpec,
+    TreePeriodicTensorRole,
     ValidationIssue,
 )
 from tensor_network_editor.validation import ensure_valid_spec, validate_spec
@@ -34,6 +35,7 @@ from tests.factories import (
     build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
     build_linear_periodic_partial_carry_chain_spec,
+    build_tree_periodic_tree_spec,
 )
 
 
@@ -407,6 +409,10 @@ def test_validate_spec_accepts_valid_grid_periodic_grid() -> None:
     assert validate_spec(build_grid_periodic_grid_spec()) == []
 
 
+def test_validate_spec_accepts_valid_tree_periodic_tree() -> None:
+    assert validate_spec(build_tree_periodic_tree_spec()) == []
+
+
 def test_validate_spec_accepts_valid_linear_periodic_carry_chain() -> None:
     assert validate_spec(build_linear_periodic_carry_chain_spec()) == []
 
@@ -566,6 +572,58 @@ def test_validate_spec_rejects_mixed_linear_and_grid_periodic_modes() -> None:
     issue = find_issue(validate_spec(spec), "periodic-mode-conflict")
 
     assert issue.path == "grid_periodic_grid"
+
+
+def test_validate_spec_rejects_mixed_tree_and_grid_periodic_modes() -> None:
+    spec = build_grid_periodic_grid_spec()
+    spec.tree_periodic_tree = build_tree_periodic_tree_spec().tree_periodic_tree
+
+    issue = find_issue(validate_spec(spec), "periodic-mode-conflict")
+
+    assert issue.path == "tree_periodic_tree"
+
+
+def test_validate_spec_rejects_tree_periodic_invalid_branching_factor() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.branching_factor = 1
+
+    issue = find_issue(validate_spec(spec), "tree-periodic-branching-factor")
+
+    assert issue.path == "tree_periodic_tree.branching_factor"
+
+
+def test_validate_spec_rejects_tree_periodic_missing_branch_child_boundary() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.branch_cell.tensors = [
+        tensor
+        for tensor in spec.tree_periodic_tree.branch_cell.tensors
+        if not (
+            tensor.tree_periodic_role is TreePeriodicTensorRole.CHILD
+            and tensor.tree_periodic_child_index == 2
+        )
+    ]
+
+    issue = find_issue(validate_spec(spec), "tree-periodic-boundary-role")
+
+    assert issue.path == "tree_periodic_tree.branch_cell.child_boundary_2"
+
+
+def test_validate_spec_rejects_tree_periodic_duplicate_child_boundary_index() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    duplicate_boundary = next(
+        tensor
+        for tensor in spec.tree_periodic_tree.root_cell.tensors
+        if tensor.tree_periodic_role is TreePeriodicTensorRole.CHILD
+        and tensor.tree_periodic_child_index == 2
+    )
+    duplicate_boundary.tree_periodic_child_index = 1
+
+    issue = find_issue(validate_spec(spec), "tree-periodic-child-index")
+
+    assert issue.path == "tree_periodic_tree.root_cell.child_boundaries"
 
 
 def test_validate_spec_rejects_grid_periodic_missing_boundary_tensor() -> None:

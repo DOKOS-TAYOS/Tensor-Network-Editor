@@ -132,6 +132,23 @@ export function registerGraphRender(ctx) {
         };
       }
     }
+    if (
+      typeof ctx.isTreePeriodicBoundaryTensor === "function"
+      && ctx.isTreePeriodicBoundaryTensor(tensor)
+    ) {
+      if (tensor.tree_periodic_role === "parent") {
+        return {
+          label: "Parent cell",
+          description:
+            "Virtual boundary tensor for the parent node in For Tree mode. Connect open indices here when the bond should continue upward to the parent branch.",
+        };
+      }
+      return {
+        label: `Child ${Number(tensor.tree_periodic_child_index) + 1}`,
+        description:
+          "Virtual boundary tensor for one child branch in For Tree mode. Connect open indices here when the bond should continue downward into that child slot.",
+      };
+    }
     return null;
   }
 

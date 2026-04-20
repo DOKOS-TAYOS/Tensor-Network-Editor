@@ -80,6 +80,9 @@ export function createInteractionShortcutBindings({
     setGridPeriodicMode:
       shortcutActions.setGridPeriodicMode ||
       resolveContextAction(ctx, "setGridPeriodicMode"),
+    setTreePeriodicMode:
+      shortcutActions.setTreePeriodicMode ||
+      resolveContextAction(ctx, "setTreePeriodicMode"),
     setBenchmarkMode:
       shortcutActions.setBenchmarkMode ||
       resolveContextAction(ctx, "setBenchmarkMode"),
@@ -116,6 +119,7 @@ export function createInteractionShortcutBindings({
     toggleLinearPeriodicMode,
     setLinearPeriodicMode,
     setGridPeriodicMode,
+    setTreePeriodicMode,
     setBenchmarkMode,
     openSessionTemplatePicker,
     exportSelectedTemplateSpec,
@@ -170,6 +174,7 @@ export function createInteractionShortcutBindings({
     setBenchmarkMode(false);
     setLinearPeriodicMode(false);
     setGridPeriodicMode(false);
+    setTreePeriodicMode(false);
   }
 
   function activateGridPeriodicMode() {
@@ -180,13 +185,13 @@ export function createInteractionShortcutBindings({
   function activateBenchmarkMode() {
     setLinearPeriodicMode(false);
     setGridPeriodicMode(false);
+    setTreePeriodicMode(false);
     setBenchmarkMode(true);
   }
 
-  function announceTreeModeUnavailable() {
-    if (typeof ctx.setStatus === "function") {
-      ctx.setStatus("For Tree mode is not available yet.", "error");
-    }
+  function activateTreePeriodicMode() {
+    setBenchmarkMode(false);
+    setTreePeriodicMode(true);
   }
 
   function handleKeydown(event) {
@@ -416,7 +421,7 @@ export function createInteractionShortcutBindings({
     }
     if (!hasAnyModifier && lowerKey === "e") {
       event.preventDefault();
-      announceTreeModeUnavailable();
+      activateTreePeriodicMode();
       return;
     }
     if (!hasAnyModifier && lowerKey === "n") {

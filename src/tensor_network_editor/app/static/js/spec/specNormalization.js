@@ -159,6 +159,17 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
         tensor.grid_periodic_role === "left"
           ? tensor.grid_periodic_role
           : null;
+      tensor.tree_periodic_role =
+        tensor.tree_periodic_role === "parent" ||
+        tensor.tree_periodic_role === "child"
+          ? tensor.tree_periodic_role
+          : null;
+      tensor.tree_periodic_child_index =
+        tensor.tree_periodic_role === "child"
+        && Number.isInteger(tensor.tree_periodic_child_index)
+        && tensor.tree_periodic_child_index >= 0
+          ? tensor.tree_periodic_child_index
+          : null;
       tensor.indices = Array.isArray(tensor.indices) ? tensor.indices : [];
       tensor.indices.forEach((index, indexPosition) => {
         index.metadata = runtime.isObject(index.metadata) ? index.metadata : {};
@@ -265,6 +276,12 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     if (typeof runtime.isGridPeriodicMode === "function" && runtime.isGridPeriodicMode(snapshotSpec)) {
       runtime.syncCurrentGraphIntoGridPeriodicGrid(snapshotSpec);
     }
+    if (
+      typeof runtime.isTreePeriodicMode === "function" &&
+      runtime.isTreePeriodicMode(snapshotSpec)
+    ) {
+      runtime.syncCurrentGraphIntoTreePeriodicTree(snapshotSpec);
+    }
     return snapshotSpec;
   }
 
@@ -279,6 +296,13 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
       runtime.isGridPeriodicMode(serializedSpec)
     ) {
       runtime.syncCurrentGraphIntoGridPeriodicGrid(serializedSpec);
+      clearGraphSectionOnSpec(serializedSpec);
+    }
+    if (
+      typeof runtime.isTreePeriodicMode === "function" &&
+      runtime.isTreePeriodicMode(serializedSpec)
+    ) {
+      runtime.syncCurrentGraphIntoTreePeriodicTree(serializedSpec);
       clearGraphSectionOnSpec(serializedSpec);
     }
     return serializedSpec;
@@ -298,12 +322,26 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
       runtime.isObject(normalized.grid_periodic_grid)
         ? runtime.normalizeGridPeriodicGridInPlace(normalized.grid_periodic_grid)
         : null;
+    normalized.tree_periodic_tree =
+      typeof runtime.normalizeTreePeriodicTreeInPlace === "function" &&
+      runtime.isObject(normalized.tree_periodic_tree)
+        ? runtime.normalizeTreePeriodicTreeInPlace(normalized.tree_periodic_tree)
+        : null;
+    if (normalized.tree_periodic_tree) {
+      normalized.linear_periodic_chain = null;
+      normalized.grid_periodic_grid = null;
+      runtime.hydrateActiveTreePeriodicCell(normalized);
+      return normalized;
+    }
     if (normalized.grid_periodic_grid) {
       normalized.linear_periodic_chain = null;
+      normalized.tree_periodic_tree = null;
       runtime.hydrateActiveGridPeriodicCell(normalized);
       return normalized;
     }
     if (normalized.linear_periodic_chain) {
+      normalized.tree_periodic_tree = null;
+      normalized.grid_periodic_grid = null;
       runtime.hydrateActiveLinearPeriodicCell(normalized);
     }
     return normalized;
