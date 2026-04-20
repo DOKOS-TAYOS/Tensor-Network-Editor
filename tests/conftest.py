@@ -49,9 +49,13 @@ def distribution_for_checkout_import_or_skip(
     installed_package_file = Path(
         str(distribution.locate_file(package_relative_path))
     ).resolve()
-    if (
-        imported_package_file.is_relative_to(CURRENT_CHECKOUT_SRC)
-        and imported_package_file != installed_package_file
+    imported_package_version = getattr(imported_package, "__version__", None)
+    if imported_package_file.is_relative_to(CURRENT_CHECKOUT_SRC) and (
+        imported_package_file != installed_package_file
+        or (
+            isinstance(imported_package_version, str)
+            and distribution.version != imported_package_version
+        )
     ):
         pytest.skip(
             "Installed distribution metadata points to a different package installation than the current src checkout."
