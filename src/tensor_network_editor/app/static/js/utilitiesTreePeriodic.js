@@ -330,17 +330,219 @@ export function createUtilityTreePeriodicBindings({
     }
   }
 
-  function syncTreePeriodicBoundaryTensors(spec = state.spec) {
+  function getTreePeriodicChildInterfaceOwners(spec = state.spec) {
+    const tensors = Array.isArray(spec && spec.tensors) ? spec.tensors : [];
+    const edges = Array.isArray(spec && spec.edges) ? spec.edges : [];
+    const tensorById = Object.fromEntries(
+      tensors.map((tensor) => [tensor.id, tensor])
+    );
+    const internallyConnectedIndexIds = new Set();
+    const parentConnectedIndexIds = new Set();
+
+    edges.forEach((edge) => {
+      const leftTensor = tensorById[edge.left && edge.left.tensor_id];
+      const rightTensor = tensorById[edge.right && edge.right.tensor_id];
+      if (!leftTensor || !rightTensor) {
+        return;
+      }
+      const leftIsBoundary = isTreePeriodicBoundaryTensor(leftTensor);
+      const rightIsBoundary = isTreePeriodicBoundaryTensor(rightTensor);
+      if (!leftIsBoundary && !rightIsBoundary) {
+        internallyConnectedIndexIds.add(edge.left.index_id);
+        internallyConnectedIndexIds.add(edge.right.index_id);
+        return;
+      }
+      if (leftTensor.tree_periodic_role === "parent" && !rightIsBoundary) {
+        parentConnectedIndexIds.add(edge.right.index_id);
+        return;
+      }
+      if (rightTensor.tree_periodic_role === "parent" && !leftIsBoundary) {
+        parentConnectedIndexIds.add(edge.left.index_id);
+      }
+    });
+
+    const owners = [];
+    tensors.forEach((tensor) => {
+      if (isTreePeriodicBoundaryTensor(tensor)) {
+        return;
+      }
+      (Array.isArray(tensor.indices) ? tensor.indices : []).forEach(
+        (index, indexPosition) => {
+          if (
+            !internallyConnectedIndexIds.has(index.id) &&
+            !parentConnectedIndexIds.has(index.id)
+          ) {
+            owners.push({ tensor, index, indexPosition });
+          }
+        }
+      );
+    });
+    return owners;
+  }
+
+  function getTreePeriodicBoundaryInterfaceDimensions(
+    graphSection,
+    role,
+    childIndex = null
+  ) {
+    const boundaryTensors = (
+      Array.isArray(graphSection && graphSection.tensors) ? graphSection.tensors : []
+    ).filter((tensor) => isTreePeriodicBoundaryTensor(tensor));
+    const preferredTensor = boundaryTensors.find(
+      (tensor) =>
+        tensor.tree_periodic_role === role &&
+        (role !== "child" || childIndex === null
+          ? true
+          : tensor.tree_periodic_child_index === childIndex) &&
+        Array.isArray(tensor.indices) &&
+        tensor.indices.length
+    );
+    const fallbackTensor =
+      preferredTensor ||
+      boundaryTensors.find(
+        (tensor) =>
+          tensor.tree_periodic_role === role &&
+          Array.isArray(tensor.indices) &&
+          tensor.indices.length
+      );
+    return fallbackTensor
+      ? fallbackTensor.indices.map((index) => index.dimension)
+      : [];
+  }
+
+  function getStoredTreePeriodicChildInterfaceDimensions(
+    cellName,
+    spec = state.spec
+  ) {
+    const cell = getTreePeriodicCell(spec, cellName);
+    if (!cell) {
+      return [];
+    }
+    const boundaryDimensions = getTreePeriodicBoundaryInterfaceDimensions(
+      cell,
+      "child",
+      0
+    );
+    return boundaryDimensions.length
+      ? boundaryDimensions
+      : getTreePeriodicChildInterfaceOwners(cell).map(
+          (owner) => owner.index.dimension
+        );
+  }
+
+  function getCanonicalTreePeriodicInterfaceDimensions(spec = state.spec) {
+    const activeCellName = getActiveTreePeriodicCellName(spec);
+    const rootChildDimensions =
+      activeCellName === "root"
+        ? getTreePeriodicChildInterfaceOwners(spec).map(
+            (owner) => owner.index.dimension
+          )
+        : getStoredTreePeriodicChildInterfaceDimensions("root", spec);
+    const branchChildDimensions =
+      activeCellName === "branch"
+        ? getTreePeriodicChildInterfaceOwners(spec).map(
+            (owner) => owner.index.dimension
+          )
+        : getStoredTreePeriodicChildInterfaceDimensions("branch", spec);
+    return {
+      rootChildDimensions,
+      branchChildDimensions,
+    };
+  }
+
+  function getTreePeriodicBoundaryTensorDimensions(
+    boundaryTensor,
+    activeCellName,
+    interfaceDimensions
+  ) {
+    if (boundaryTensor.tree_periodic_role === "parent") {
+      if (activeCellName === "branch") {
+        return interfaceDimensions.rootChildDimensions;
+      }
+      if (activeCellName === "leaf") {
+        return interfaceDimensions.branchChildDimensions;
+      }
+      return [];
+    }
+    if (activeCellName === "root") {
+      return interfaceDimensions.rootChildDimensions;
+    }
+    if (activeCellName === "branch") {
+      return interfaceDimensions.branchChildDimensions;
+    }
+    return [];
+  }
+
+  function syncTreePeriodicBoundaryTensors(
+    spec = state.spec,
+    interfaceDimensions = null
+  ) {
     if (!isTreePeriodicMode(spec)) {
       return;
     }
     ensureActiveTreePeriodicBoundaryTensors(spec);
+    const activeCellName = getActiveTreePeriodicCellName(spec);
+    if (!activeCellName) {
+      return;
+    }
+    const resolvedInterfaceDimensions =
+      interfaceDimensions &&
+      runtime.isObject(interfaceDimensions) &&
+      Array.isArray(interfaceDimensions.rootChildDimensions) &&
+      Array.isArray(interfaceDimensions.branchChildDimensions)
+        ? interfaceDimensions
+        : getCanonicalTreePeriodicInterfaceDimensions(spec);
+    const boundaryTensors = (Array.isArray(spec.tensors) ? spec.tensors : []).filter(
+      (tensor) => isTreePeriodicBoundaryTensor(tensor)
+    );
+    boundaryTensors.forEach((boundaryTensor) => {
+      const resolvedDimensions = getTreePeriodicBoundaryTensorDimensions(
+        boundaryTensor,
+        activeCellName,
+        resolvedInterfaceDimensions
+      );
+      const existingIndices = Array.isArray(boundaryTensor.indices)
+        ? boundaryTensor.indices
+        : [];
+      const keptIndices = existingIndices.slice(0, resolvedDimensions.length);
+      const removedIndexIds = new Set(
+        existingIndices.slice(resolvedDimensions.length).map((index) => index.id)
+      );
+      if (removedIndexIds.size) {
+        spec.edges = (Array.isArray(spec.edges) ? spec.edges : []).filter(
+          (edge) =>
+            !removedIndexIds.has(edge.left && edge.left.index_id) &&
+            !removedIndexIds.has(edge.right && edge.right.index_id)
+        );
+      }
+      boundaryTensor.indices = resolvedDimensions.map((dimension, indexPosition) => {
+        const existingIndex = keptIndices[indexPosition];
+        return {
+          id:
+            existingIndex && existingIndex.id
+              ? existingIndex.id
+              : runtime.makeId("index"),
+          name: `slot_${indexPosition + 1}`,
+          dimension,
+          offset:
+            existingIndex && existingIndex.offset
+              ? existingIndex.offset
+              : runtime.defaultIndexOffsetForOrder(indexPosition, boundaryTensor),
+          metadata:
+            existingIndex && runtime.isObject(existingIndex.metadata)
+              ? existingIndex.metadata
+              : {},
+        };
+      });
+      runtime.ensureTensorIndexOffsets(boundaryTensor);
+    });
   }
 
   function seedTreePeriodicCell(
     cellName,
     graphSection,
-    branchingFactor = getTreePeriodicBranchingFactor()
+    branchingFactor = getTreePeriodicBranchingFactor(),
+    interfaceDimensions = null
   ) {
     const runtimeSpec = runtime.normalizeGraphSectionInPlace(
       runtime.deepClone(graphSection || runtime.buildEmptyGraphSection())
@@ -352,21 +554,55 @@ export function createUtilityTreePeriodicBindings({
       metadata: {},
     };
     ensureActiveTreePeriodicBoundaryTensors(runtimeSpec);
-    syncTreePeriodicBoundaryTensors(runtimeSpec);
+    syncTreePeriodicBoundaryTensors(runtimeSpec, interfaceDimensions);
     return runtime.buildGraphSectionFromSpec(runtimeSpec);
   }
 
-  function syncCurrentGraphIntoTreePeriodicTree(spec = state.spec) {
+  function syncTreePeriodicTreeInterfaceDimensions(spec = state.spec) {
     const tree = getTreePeriodicTree(spec);
     const activeCellName = getActiveTreePeriodicCellName(spec);
     const cellKey = getTreePeriodicCellKey(activeCellName);
     if (!tree || !activeCellName || !cellKey) {
       return spec;
     }
+    const branchingFactor = getTreePeriodicBranchingFactor(spec);
+    const activeCell = getTreePeriodicCell(spec, activeCellName);
+    const interfaceDimensions = getCanonicalTreePeriodicInterfaceDimensions(spec);
+
+    tree[cellKey] = runtime.buildGraphSectionFromSpec(spec, activeCell);
+    tree[cellKey].contraction_plan = null;
+
+    TREE_PERIODIC_CELL_ORDER.forEach((cellName) => {
+      const cellSpec = runtime.normalizeGraphSectionInPlace(
+        runtime.deepClone(
+          getTreePeriodicCell(spec, cellName) || runtime.buildEmptyGraphSection()
+        )
+      );
+      cellSpec.contraction_plan = null;
+      tree[getTreePeriodicCellKey(cellName)] = seedTreePeriodicCell(
+        cellName,
+        cellSpec,
+        branchingFactor,
+        interfaceDimensions
+      );
+    });
+
+    runtime.replaceGraphSectionOnSpec(
+      spec,
+      getTreePeriodicCell(spec, activeCellName) || runtime.buildEmptyGraphSection()
+    );
+
+    return spec;
+  }
+
+  function syncCurrentGraphIntoTreePeriodicTree(spec = state.spec) {
+    const tree = getTreePeriodicTree(spec);
+    if (!tree) {
+      return spec;
+    }
     spec.contraction_plan = null;
     syncTreePeriodicBoundaryTensors(spec);
-    tree[cellKey] = runtime.buildGraphSectionFromSpec(spec, tree[cellKey]);
-    tree[cellKey].contraction_plan = null;
+    syncTreePeriodicTreeInterfaceDimensions(spec);
     return spec;
   }
 
@@ -589,15 +825,25 @@ export function createUtilityTreePeriodicBindings({
       buildTreePeriodicSeedGraphSection(),
       branchingFactor
     );
+    const interfaceDimensions = {
+      rootChildDimensions: getTreePeriodicBoundaryInterfaceDimensions(
+        rootCell,
+        "child",
+        0
+      ),
+      branchChildDimensions: [],
+    };
     const branchCell = seedTreePeriodicCell(
       "branch",
       runtime.buildEmptyGraphSection(),
-      branchingFactor
+      branchingFactor,
+      interfaceDimensions
     );
     const leafCell = seedTreePeriodicCell(
       "leaf",
       runtime.buildEmptyGraphSection(),
-      branchingFactor
+      branchingFactor,
+      interfaceDimensions
     );
     state.spec.linear_periodic_chain = null;
     state.spec.grid_periodic_grid = null;

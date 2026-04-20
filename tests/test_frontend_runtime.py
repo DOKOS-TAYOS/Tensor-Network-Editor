@@ -5912,6 +5912,17 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
             if (JSON.stringify(rootChildren) !== JSON.stringify([0, 1, 2])) {{
               throw new Error(`Expected three ordered child boundaries in root, received ${{JSON.stringify(rootChildren)}}.`);
             }}
+            const rootChildDimensions = state.spec.tensors
+              .filter((tensor) => tensor.tree_periodic_role === "child")
+              .map((tensor) => tensor.indices.map((index) => index.dimension));
+            if (
+              JSON.stringify(rootChildDimensions) !==
+              JSON.stringify([[2, 3], [2, 3], [2, 3]])
+            ) {{
+              throw new Error(
+                `Expected root child boundaries to inherit the root free ports, received ${{JSON.stringify(rootChildDimensions)}}.`
+              );
+            }}
             if (
               !state.spec.tree_periodic_tree.root_cell.tensors.some(
                 (tensor) => tensor.id === "tensor_root"
@@ -5934,6 +5945,20 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
             ) {{
               throw new Error(`Expected one parent and three child boundaries in branch, received ${{JSON.stringify(branchRoles)}}.`);
             }}
+            const branchParentBoundary = state.spec.tensors.find(
+              (tensor) => tensor.tree_periodic_role === "parent"
+            );
+            if (!branchParentBoundary) {{
+              throw new Error("Expected the branch cell to expose a parent boundary.");
+            }}
+            const branchParentDimensions = branchParentBoundary.indices.map(
+              (index) => index.dimension
+            );
+            if (JSON.stringify(branchParentDimensions) !== JSON.stringify([2, 3])) {{
+              throw new Error(
+                `Expected the branch parent boundary to inherit the root interface, received ${{JSON.stringify(branchParentDimensions)}}.`
+              );
+            }}
 
             state.spec.tensors.push({{
               id: "tensor_branch",
@@ -5952,6 +5977,17 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
               ],
             }});
             runtime.syncTreePeriodicBoundaryTensors();
+            const branchChildDimensions = state.spec.tensors
+              .filter((tensor) => tensor.tree_periodic_role === "child")
+              .map((tensor) => tensor.indices.map((index) => index.dimension));
+            if (
+              JSON.stringify(branchChildDimensions) !==
+              JSON.stringify([[5], [5], [5]])
+            ) {{
+              throw new Error(
+                `Expected branch child boundaries to reflect the remaining branch free ports, received ${{JSON.stringify(branchChildDimensions)}}.`
+              );
+            }}
             runtime.switchTreePeriodicCell("down");
             if (runtime.getActiveTreePeriodicCellName() !== "leaf") {{
               throw new Error(`Expected leaf to be active after moving down twice, received ${{runtime.getActiveTreePeriodicCellName()}}.`);
@@ -5961,6 +5997,14 @@ def _write_tree_for_mode_runtime_script(tmp_path: Path) -> Path:
               .map((tensor) => tensor.tree_periodic_role);
             if (JSON.stringify(leafRoles) !== JSON.stringify(["parent"])) {{
               throw new Error(`Expected only a parent boundary in leaf, received ${{JSON.stringify(leafRoles)}}.`);
+            }}
+            const leafParentDimensions = state.spec.tensors[0].indices.map(
+              (index) => index.dimension
+            );
+            if (JSON.stringify(leafParentDimensions) !== JSON.stringify([5])) {{
+              throw new Error(
+                `Expected the leaf parent boundary to inherit the branch interface, received ${{JSON.stringify(leafParentDimensions)}}.`
+              );
             }}
 
             runtime.switchTreePeriodicCell("up");
