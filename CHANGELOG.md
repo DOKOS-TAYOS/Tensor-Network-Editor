@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-20
+
 ### Changed
 
 - Major structural refactor across the project (layout, modules, and responsibilities reorganized for clarity and maintainability).
