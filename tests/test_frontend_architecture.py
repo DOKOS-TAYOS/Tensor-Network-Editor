@@ -2809,7 +2809,7 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
           }},
           {{
             scheme_id: "scheme_beta",
-            scheme_name: "Beta",
+            scheme_name: "Beta & Co",
             analysis: {{
               status: "complete",
               summary: {{
@@ -2849,6 +2849,32 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         }}
         if (tableModel.rows[2].cells.flop.isBest || tableModel.rows[2].cells.flop.isWorst) {{
           throw new Error("Incomplete rows should not participate in best/worst ranking.");
+        }}
+        const csvExport = benchmarkModule.serializeBenchmarkCompareTableCsv(tableModel);
+        if (!csvExport.startsWith("Name,FLOP,MAC,Peak,Peak Memory\\n")) {{
+          throw new Error(`Expected CSV export to start with the visible headers, received ${{csvExport}}.`);
+        }}
+        if (!csvExport.includes("Alpha,10,30,20,80 bytes")) {{
+          throw new Error(`Expected CSV export to include the Alpha metrics, received ${{csvExport}}.`);
+        }}
+
+        const textExport = benchmarkModule.serializeBenchmarkCompareTableText(tableModel);
+        if (!textExport.includes("Peak Memory") || !textExport.includes("Beta & Co")) {{
+          throw new Error(`Expected text export to include the visible headers and scheme names, received ${{textExport}}.`);
+        }}
+        if (!textExport.includes("80 bytes") || !textExport.includes("40 bytes")) {{
+          throw new Error(`Expected text export to keep the rendered memory values, received ${{textExport}}.`);
+        }}
+
+        const latexExport = benchmarkModule.serializeBenchmarkCompareTableLatex(tableModel);
+        if (!latexExport.includes("\\\\begin{{tabular}}{{lrrrr}}")) {{
+          throw new Error(`Expected LaTeX export to create a five-column tabular block, received ${{latexExport}}.`);
+        }}
+        if (!latexExport.includes("Alpha & 10 & 30 & 20 & 80 bytes \\\\\\\\")) {{
+          throw new Error(`Expected LaTeX export to include the Alpha row, received ${{latexExport}}.`);
+        }}
+        if (!latexExport.includes("Beta \\\\& Co & 25 & 15 & 40 & 40 bytes \\\\\\\\")) {{
+          throw new Error(`Expected LaTeX export to escape special characters in scheme names, received ${{latexExport}}.`);
         }}
 
         const historyEvents = [];

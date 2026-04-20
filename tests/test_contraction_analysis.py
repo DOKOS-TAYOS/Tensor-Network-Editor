@@ -284,6 +284,28 @@ def test_analyze_contraction_marks_planner_value_errors_as_unavailable(
     assert result.comparisons["manual_vs_automatic_full"].status == "unavailable"
 
 
+def test_analyze_contraction_reports_missing_opt_einsum_clearly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_import_module(name: str) -> object:
+        assert name == "opt_einsum"
+        raise ImportError("opt_einsum is not installed")
+
+    monkeypatch.setattr(
+        "tensor_network_editor._contraction_analysis_automatic.import_module",
+        fake_import_module,
+    )
+
+    result = analyze_contraction(build_three_tensor_spec())
+
+    assert result.automatic_full.status == "unavailable"
+    assert result.automatic_full.message == (
+        "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+    )
+    assert result.automatic_future.status == "unavailable"
+    assert result.automatic_future.message == result.automatic_full.message
+
+
 def test_analyze_contraction_does_not_hide_unexpected_planner_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

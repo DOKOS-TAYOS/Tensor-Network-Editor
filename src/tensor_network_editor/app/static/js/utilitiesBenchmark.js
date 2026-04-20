@@ -3,24 +3,41 @@ const BENCHMARK_STATUS_HINT = "Move right to edit or create a contraction scheme
 const BENCHMARK_METRICS = [
   {
     key: "flop",
+    label: "FLOP",
     summaryKey: "total_estimated_flops",
     formatDisplay: (value) => formatBenchmarkNumber(value),
   },
   {
     key: "mac",
+    label: "MAC",
     summaryKey: "total_estimated_macs",
     formatDisplay: (value) => formatBenchmarkNumber(value),
   },
   {
     key: "peak",
+    label: "Peak",
     summaryKey: "peak_intermediate_size",
     formatDisplay: (value) => formatBenchmarkNumber(value),
   },
   {
     key: "memory",
+    label: "Peak Memory",
     summaryKey: "peak_intermediate_bytes",
     formatDisplay: (value) => formatBenchmarkBytes(value),
   },
+];
+
+const BENCHMARK_COMPARE_COLUMNS = [
+  {
+    key: "name",
+    label: "Name",
+    getDisplay: (row) => row?.cells?.name?.display || row?.schemeName || "-",
+  },
+  ...BENCHMARK_METRICS.map((metric) => ({
+    key: metric.key,
+    label: metric.label,
+    getDisplay: (row) => row?.cells?.[metric.key]?.display || "-",
+  })),
 ];
 
 function createEmptyBenchmarkCompareState() {
@@ -138,6 +155,82 @@ export function buildBenchmarkCompareTableModel(entries = []) {
   return {
     rows,
   };
+}
+
+function getBenchmarkCompareExportRows(tableModel) {
+  return Array.isArray(tableModel?.rows) ? tableModel.rows : [];
+}
+
+function buildBenchmarkCompareExportMatrix(tableModel) {
+  const headers = BENCHMARK_COMPARE_COLUMNS.map((column) => column.label);
+  const rows = getBenchmarkCompareExportRows(tableModel).map((row) =>
+    BENCHMARK_COMPARE_COLUMNS.map((column) => column.getDisplay(row))
+  );
+  return [headers, ...rows];
+}
+
+function escapeBenchmarkCompareCsvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text)
+    ? `"${text.replaceAll('"', '""')}"`
+    : text;
+}
+
+function escapeBenchmarkCompareLatex(value) {
+  return String(value ?? "")
+    .replaceAll("\\", "\\textbackslash{}")
+    .replaceAll("&", "\\&")
+    .replaceAll("%", "\\%")
+    .replaceAll("$", "\\$")
+    .replaceAll("#", "\\#")
+    .replaceAll("_", "\\_")
+    .replaceAll("{", "\\{")
+    .replaceAll("}", "\\}")
+    .replaceAll("~", "\\textasciitilde{}")
+    .replaceAll("^", "\\textasciicircum{}");
+}
+
+export function serializeBenchmarkCompareTableCsv(tableModel) {
+  return buildBenchmarkCompareExportMatrix(tableModel)
+    .map((row) => row.map((value) => escapeBenchmarkCompareCsvCell(value)).join(","))
+    .join("\n");
+}
+
+export function serializeBenchmarkCompareTableText(tableModel) {
+  const matrix = buildBenchmarkCompareExportMatrix(tableModel);
+  if (!matrix.length) {
+    return "";
+  }
+  const columnWidths = matrix[0].map((_, columnIndex) =>
+    Math.max(
+      ...matrix.map((row) => String(row[columnIndex] ?? "").length)
+    )
+  );
+  const formatRow = (row) =>
+    row
+      .map((value, columnIndex) =>
+        String(value ?? "").padEnd(columnWidths[columnIndex], " ")
+      )
+      .join("  ");
+  const separator = columnWidths.map((width) => "-".repeat(width)).join("  ");
+  return [formatRow(matrix[0]), separator, ...matrix.slice(1).map(formatRow)].join(
+    "\n"
+  );
+}
+
+export function serializeBenchmarkCompareTableLatex(tableModel) {
+  const [headerRow, ...rows] = buildBenchmarkCompareExportMatrix(tableModel);
+  const formatRow = (row) =>
+    `${row.map((value) => escapeBenchmarkCompareLatex(value)).join(" & ")} \\\\`;
+  return [
+    "\\begin{tabular}{lrrrr}",
+    "\\hline",
+    formatRow(headerRow),
+    "\\hline",
+    ...rows.map(formatRow),
+    "\\hline",
+    "\\end{tabular}",
+  ].join("\n");
 }
 
 export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
@@ -322,6 +415,56 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
     return Boolean(session.enabled && session.schemes.length);
   }
 
+  function getBenchmarkCompareTableModel(compareModal = getBenchmarkSession().compareModal) {
+    return compareModal?.tableModel && runtime.isObject(compareModal.tableModel)
+      ? compareModal.tableModel
+      : { rows: [] };
+  }
+
+  function canExportBenchmarkCompare(compareModal = getBenchmarkSession().compareModal) {
+    return Boolean(
+      compareModal?.open &&
+        !compareModal.loading &&
+        !compareModal.errorMessage &&
+        getBenchmarkCompareExportRows(getBenchmarkCompareTableModel(compareModal)).length
+    );
+  }
+
+  function getBenchmarkCompareFilename(extension) {
+    const baseName = runtime.sanitizeFilename(state.spec?.name || "tensor-network");
+    return `${baseName}-benchmark-compare.${extension}`;
+  }
+
+  function resolveBenchmarkCompareTextDownloader() {
+    if (typeof ctx.downloadText === "function") {
+      return ctx.downloadText.bind(ctx);
+    }
+    const blobCtor =
+      typeof ctx.window?.Blob === "function"
+        ? ctx.window.Blob
+        : typeof Blob === "function"
+          ? Blob
+          : null;
+    if (typeof ctx.downloadBlob === "function" && blobCtor) {
+      return (filename, text, contentType = "text/plain;charset=utf-8") =>
+        ctx.downloadBlob(filename, new blobCtor([text], { type: contentType }));
+    }
+    return null;
+  }
+
+  function syncBenchmarkCompareExportButtons(compareModal = getBenchmarkSession().compareModal) {
+    const disabled = !canExportBenchmarkCompare(compareModal);
+    if (dom.benchmarkCompareExportCsvButton) {
+      dom.benchmarkCompareExportCsvButton.disabled = disabled;
+    }
+    if (dom.benchmarkCompareExportTextButton) {
+      dom.benchmarkCompareExportTextButton.disabled = disabled;
+    }
+    if (dom.benchmarkCompareCopyLatexButton) {
+      dom.benchmarkCompareCopyLatexButton.disabled = disabled;
+    }
+  }
+
   function getBenchmarkNextButtonLabel() {
     const session = getBenchmarkSession();
     if (!session.enabled) {
@@ -470,7 +613,7 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
       ctx.renderPlanner();
     }
     if (typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis();
+      ctx.refreshContractionAnalysis({ immediate: true });
     }
     if (typeof runtime.updateToolbarState === "function") {
       runtime.updateToolbarState();
@@ -695,6 +838,86 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
     if (dom.benchmarkCompareTableBody) {
       dom.benchmarkCompareTableBody.innerHTML = buildBenchmarkCompareBodyHtml(compareModal);
     }
+    syncBenchmarkCompareExportButtons(compareModal);
+  }
+
+  function exportBenchmarkCompareTable(format) {
+    const compareModal = getBenchmarkSession().compareModal;
+    if (!canExportBenchmarkCompare(compareModal)) {
+      ctx.setStatus(
+        "Open a benchmark comparison with analyzed schemes before exporting.",
+        "error"
+      );
+      return false;
+    }
+    const downloadText = resolveBenchmarkCompareTextDownloader();
+    if (typeof downloadText !== "function") {
+      ctx.setStatus("This browser cannot export comparison tables yet.", "error");
+      return false;
+    }
+    const tableModel = getBenchmarkCompareTableModel(compareModal);
+    if (format === "csv") {
+      downloadText(
+        getBenchmarkCompareFilename("csv"),
+        serializeBenchmarkCompareTableCsv(tableModel),
+        "text/csv;charset=utf-8"
+      );
+      ctx.setStatus("Downloaded the benchmark comparison as CSV.", "success");
+      return true;
+    }
+    if (format === "txt") {
+      downloadText(
+        getBenchmarkCompareFilename("txt"),
+        serializeBenchmarkCompareTableText(tableModel),
+        "text/plain;charset=utf-8"
+      );
+      ctx.setStatus("Downloaded the benchmark comparison as text.", "success");
+      return true;
+    }
+    ctx.setStatus("Unknown benchmark export format.", "error");
+    return false;
+  }
+
+  async function copyBenchmarkCompareAsLatex() {
+    const compareModal = getBenchmarkSession().compareModal;
+    if (!canExportBenchmarkCompare(compareModal)) {
+      ctx.setStatus(
+        "Open a benchmark comparison with analyzed schemes before copying it.",
+        "error"
+      );
+      return false;
+    }
+    const copyText =
+      typeof ctx.copyText === "function"
+        ? ctx.copyText.bind(ctx)
+        : async (text) => {
+            const clipboard = ctx.window?.navigator?.clipboard || null;
+            if (!clipboard || typeof clipboard.writeText !== "function") {
+              throw new Error("Clipboard access is not available in this browser.");
+            }
+            await clipboard.writeText(text);
+          };
+    try {
+      await copyText(
+        serializeBenchmarkCompareTableLatex(getBenchmarkCompareTableModel(compareModal))
+      );
+      ctx.setStatus("Copied the benchmark comparison as LaTeX.", "success");
+      return true;
+    } catch (error) {
+      ctx.setStatus(
+        `Could not copy the LaTeX table: ${error.message}`,
+        "error"
+      );
+      return false;
+    }
+  }
+
+  function exportBenchmarkCompareAsCsv() {
+    return exportBenchmarkCompareTable("csv");
+  }
+
+  function exportBenchmarkCompareAsText() {
+    return exportBenchmarkCompareTable("txt");
   }
 
   function closeBenchmarkCompareModal() {
@@ -836,6 +1059,9 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
     openBenchmarkCompareModal,
     closeBenchmarkCompareModal,
     syncBenchmarkCompareModalState,
+    exportBenchmarkCompareAsCsv,
+    exportBenchmarkCompareAsText,
+    copyBenchmarkCompareAsLatex,
     benchmarkBaseStatusHint: BENCHMARK_STATUS_HINT,
   };
 }

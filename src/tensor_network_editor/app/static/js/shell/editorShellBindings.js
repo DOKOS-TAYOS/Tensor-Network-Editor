@@ -34,6 +34,7 @@ export function createEditorShellBindings({
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
     gridPeriodicModeMenuItem,
+    treeModeMenuItem,
     benchmarkModeMenuItem,
     linearPeriodicPreviousCellButton,
     linearPeriodicNextCellButton,
@@ -84,6 +85,9 @@ export function createEditorShellBindings({
     templateManagerDiscardButton,
     benchmarkCompareBackdrop,
     benchmarkCompareCloseButton,
+    benchmarkCompareExportCsvButton,
+    benchmarkCompareExportTextButton,
+    benchmarkCompareCopyLatexButton,
     canvasShell,
     minimapCanvas,
     engineSelect,
@@ -399,6 +403,12 @@ export function createEditorShellBindings({
       actions.setGridPeriodicMode(true);
       actions.updateToolbarState();
     });
+    bindListener(treeModeMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      if (typeof actions.setStatus === "function") {
+        actions.setStatus("For Tree mode is not available yet.", "error");
+      }
+    });
     bindListener(benchmarkModeMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.setGridPeriodicMode(false);
@@ -525,6 +535,15 @@ export function createEditorShellBindings({
     );
     bindListener(benchmarkCompareCloseButton, "click", () =>
       actions.closeBenchmarkCompareModal()
+    );
+    bindListener(benchmarkCompareExportCsvButton, "click", () =>
+      actions.exportBenchmarkCompareAsCsv()
+    );
+    bindListener(benchmarkCompareExportTextButton, "click", () =>
+      actions.exportBenchmarkCompareAsText()
+    );
+    bindListener(benchmarkCompareCopyLatexButton, "click", () =>
+      actions.copyBenchmarkCompareAsLatex()
     );
     bindListener(engineSelect, "change", (event) => {
       setSelectChevronExpanded(engineSelectField, false);

@@ -2,6 +2,13 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
   const { minimapCanvas, selectionBox } = dom;
   const BOX_SELECTION_DRAG_THRESHOLD = 4;
 
+  function clearMinimapDrag() {
+    state.minimapDrag = null;
+    if (minimapCanvas?.classList) {
+      minimapCanvas.classList.remove("is-dragging");
+    }
+  }
+
   function handleCanvasContextMenu(event) {
     event.preventDefault();
   }
@@ -115,6 +122,10 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
       return;
     }
     if (state.minimapDrag) {
+      if (typeof event.buttons === "number" && (event.buttons & 1) === 0) {
+        clearMinimapDrag();
+        return;
+      }
       ctx.updateViewportFromMinimapClientPoint(event.clientX, event.clientY);
     }
   }
@@ -145,8 +156,7 @@ export function createInteractionCanvasBindings({ ctx, state, dom }) {
       return;
     }
     if (state.minimapDrag && event.button === 0) {
-      state.minimapDrag = null;
-      minimapCanvas.classList.remove("is-dragging");
+      clearMinimapDrag();
     }
   }
 

@@ -59,6 +59,18 @@ function createShellActions(ctx) {
     renameActiveBenchmarkScheme: (name) => ctx.renameActiveBenchmarkScheme(name),
     openBenchmarkCompareModal: () => ctx.openBenchmarkCompareModal(),
     closeBenchmarkCompareModal: () => ctx.closeBenchmarkCompareModal(),
+    exportBenchmarkCompareAsCsv: resolveContextAction(
+      ctx,
+      "exportBenchmarkCompareAsCsv"
+    ),
+    exportBenchmarkCompareAsText: resolveContextAction(
+      ctx,
+      "exportBenchmarkCompareAsText"
+    ),
+    copyBenchmarkCompareAsLatex: resolveContextAction(
+      ctx,
+      "copyBenchmarkCompareAsLatex"
+    ),
     handleTemplateSelectionChange: (event) => ctx.handleTemplateSelectionChange(event),
     handleTemplateParameterInput: (event) => ctx.handleTemplateParameterInput(event),
     insertTemplate: () => ctx.insertTemplate(),

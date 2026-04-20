@@ -67,9 +67,15 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert ">Format<" not in html
     assert "<strong>Ctrl+Y</strong><span>Select NumPy einsum</span>" in html
     assert "<strong>S</strong><span>Toggle sidebar</span>" in html
+    assert "<strong>Shift+S</strong><span>Switch to Single mode</span>" in html
     assert "<strong>Shift+M</strong><span>Toggle minimap</span>" in html
     assert "<strong>Shift+R</strong><span>Reset contraction path</span>" in html
     assert "<strong>F</strong><span>Toggle For unidimensional mode</span>" in html
+    assert "<strong>D</strong><span>Switch to For bidimensional mode</span>" in html
+    assert "<strong>E</strong><span>Show the For Tree mode status</span>" in html
+    assert "<strong>B</strong><span>Switch to Benchmark mode</span>" in html
+    assert "<strong>L</strong><span>Load templates from JSON</span>" in html
+    assert "<strong>Shift+E</strong><span>Export the selected template</span>" in html
     assert "Ctrl/Cmd+N" not in html
     assert headers["Content-Type"].startswith("text/html")
 
@@ -186,6 +192,7 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert ">For bidimensional<" in html
     assert ">For Tree<" in html
     assert ">Benchmark<" in html
+    assert 'title="Bidimensional periodic mode is not available yet."' not in html
     assert 'title="Benchmark mode is not available yet."' not in html
     assert 'id="benchmark-compare-button"' in html
     assert 'id="benchmark-scheme-name-input"' in html
@@ -199,6 +206,9 @@ def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> No
 
     assert 'id="benchmark-compare-modal"' in html
     assert 'id="benchmark-compare-close-button"' in html
+    assert 'id="benchmark-compare-export-csv-button"' in html
+    assert 'id="benchmark-compare-export-text-button"' in html
+    assert 'id="benchmark-compare-copy-latex-button"' in html
     assert 'id="benchmark-compare-table-body"' in html
     assert ">Peak Memory<" in html
     assert html.index('class="toolbar-mode-controls"') < html.index(
@@ -357,9 +367,30 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
         'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "g") {'
         in body
     )
+    assert (
+        'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "s") {'
+        in body
+    )
+    assert (
+        'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "e") {'
+        in body
+    )
+    assert 'if (!hasAnyModifier && lowerKey === "d") {' in body
+    assert 'if (!hasAnyModifier && lowerKey === "b") {' in body
+    assert 'if (!hasAnyModifier && lowerKey === "l") {' in body
+    assert 'if (!hasAnyModifier && lowerKey === "e") {' in body
+    assert "setGridPeriodicMode(true);" in body
+    assert "setBenchmarkMode(true);" in body
+    assert "openSessionTemplatePicker();" in body
+    assert "exportSelectedTemplateSpec();" in body
     assert "Alt+A" in html
     assert "Ctrl/Cmd+A" in html
     assert "Ctrl/Cmd+Alt+A" in html
+    assert "Shift+S" in html
+    assert "Shift+E" in html
+    assert ">D<" in html
+    assert ">B<" in html
+    assert ">L<" in html
 
 
 def test_overlays_asset_reuses_shared_tensor_size_helpers(

@@ -253,6 +253,24 @@ export function createPlannerRenderers({
     `;
   }
 
+  function getMissingOptEinsumMessage(payload) {
+    if (!payload) {
+      return "";
+    }
+    const automaticAnalyses = [
+      payload.automatic_full,
+      payload.automatic_future,
+      payload.automatic_past,
+    ];
+    const matchingAnalysis = automaticAnalyses.find((analysis) => {
+      const message = typeof analysis?.message === "string" ? analysis.message : "";
+      return /opt_einsum/i.test(message);
+    });
+    return matchingAnalysis && typeof matchingAnalysis.message === "string"
+      ? matchingAnalysis.message
+      : "";
+  }
+
   function renderManualSection(manualAnalysis, memoryDtype) {
     if (!manualAnalysis) {
       return `<section class="planner-section"><h3>Manual</h3><p class="planner-inline-meta">Waiting for analysis.</p></section>`;
@@ -326,6 +344,9 @@ export function createPlannerRenderers({
     if (!state.contractionAnalysis || state.contractionAnalysis.status === "loading") {
       return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
     }
+    if (state.contractionAnalysis.status === "benchmarkBase") {
+      return `<p class="planner-inline-meta">Preparing benchmark scheme analysis...</p>`;
+    }
     if (state.contractionAnalysis.status === "gridPeriodicDisabled") {
       return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Contractions are disabled in For bidimensional mode.")}</p>`;
     }
@@ -336,7 +357,11 @@ export function createPlannerRenderers({
       return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(state.contractionAnalysis.message || "Could not analyze contraction paths.")}</p>`;
     }
     const payload = state.contractionAnalysis.payload;
+    if (!payload) {
+      return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
+    }
     const memoryDtype = getAnalysisMemoryDtype(payload);
+    const missingOptEinsumMessage = getMissingOptEinsumMessage(payload);
     return `
       <section class="planner-section">
         <p class="planner-network-output-label">Network output shape</p>
@@ -347,40 +372,50 @@ export function createPlannerRenderers({
             : ""
         }
       </section>
-      <div class="planner-summary-grid">
-        ${renderAutomaticSection(
-          "Auto full",
-          "automaticFull",
-          null,
-          payload.automatic_full,
-          memoryDtype,
-          {
-            comparisonTitle: "Manual vs auto full",
-            comparisonDisclosureKey: "automaticFullComparison",
-            comparison: payload.comparisons && payload.comparisons.manual_vs_automatic_full,
-          }
-        )}
-        ${renderAutomaticSection(
-          "Auto future",
-          "automaticFuture",
-          "automaticFuture",
-          payload.automatic_future,
-          memoryDtype
-        )}
-        ${renderAutomaticSection(
-          "Auto past",
-          "automaticPast",
-          "automaticPast",
-          payload.automatic_past,
-          memoryDtype,
-          {
-            comparisonTitle: "Manual contractions vs auto past",
-            comparisonDisclosureKey: "automaticPastComparison",
-            comparison:
-              payload.comparisons && payload.comparisons.manual_subtrees_vs_automatic_past,
-          }
-        )}
-      </div>
+      ${
+        missingOptEinsumMessage
+          ? `<section class="planner-section"><p class="planner-inline-meta planner-error">${ctx.escapeHtml(
+              missingOptEinsumMessage
+            )}</p></section>`
+          : `
+            <div class="planner-summary-grid">
+              ${renderAutomaticSection(
+                "Auto full",
+                "automaticFull",
+                null,
+                payload.automatic_full,
+                memoryDtype,
+                {
+                  comparisonTitle: "Manual vs auto full",
+                  comparisonDisclosureKey: "automaticFullComparison",
+                  comparison:
+                    payload.comparisons && payload.comparisons.manual_vs_automatic_full,
+                }
+              )}
+              ${renderAutomaticSection(
+                "Auto future",
+                "automaticFuture",
+                "automaticFuture",
+                payload.automatic_future,
+                memoryDtype
+              )}
+              ${renderAutomaticSection(
+                "Auto past",
+                "automaticPast",
+                "automaticPast",
+                payload.automatic_past,
+                memoryDtype,
+                {
+                  comparisonTitle: "Manual contractions vs auto past",
+                  comparisonDisclosureKey: "automaticPastComparison",
+                  comparison:
+                    payload.comparisons &&
+                    payload.comparisons.manual_subtrees_vs_automatic_past,
+                }
+              )}
+            </div>
+          `
+      }
       ${renderManualSection(payload.manual, memoryDtype)}
     `;
   }

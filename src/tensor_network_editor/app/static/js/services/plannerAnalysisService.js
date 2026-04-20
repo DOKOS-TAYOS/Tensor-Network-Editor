@@ -13,7 +13,16 @@ export function createPlannerAnalysisService({
   let requestPending = false;
   let pendingOptions = null;
 
+  function clearScheduledFlush() {
+    if (debounceId === null) {
+      return;
+    }
+    cancel(debounceId);
+    debounceId = null;
+  }
+
   async function flushQueue() {
+    debounceId = null;
     if (requestPending) {
       return;
     }
@@ -42,10 +51,11 @@ export function createPlannerAnalysisService({
     }
   }
 
-  function requestRefresh(options = {}) {
+  function requestRefresh(options = {}, controls = {}) {
     pendingOptions = options;
-    if (debounceId !== null) {
-      cancel(debounceId);
+    clearScheduledFlush();
+    if (controls.immediate) {
+      return flushQueue();
     }
     debounceId = schedule(flushQueue, analysisRefreshDelayMs);
   }

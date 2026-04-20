@@ -17,6 +17,8 @@ from ._contraction_analysis_types import (
 from ._contraction_plan import simulate_contraction_step
 from .models import ContractionStepSpec, NetworkSpec
 
+MISSING_OPT_EINSUM_MESSAGE = "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+
 
 def _contract_operands(
     *,
@@ -180,7 +182,7 @@ def _analyze_automatic_operands(
     contract_path = _load_contract_path(import_module)
     if contract_path is None:
         return _unavailable_automatic_analysis(
-            "Install the planner extra to enable automatic greedy path suggestions.",
+            MISSING_OPT_EINSUM_MESSAGE,
             bytes_per_element=bytes_per_element,
         )
 

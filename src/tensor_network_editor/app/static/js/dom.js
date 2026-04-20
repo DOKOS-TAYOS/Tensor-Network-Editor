@@ -143,6 +143,15 @@ export function getDomRefs(document) {
     benchmarkCompareCloseButton: document.getElementById(
       "benchmark-compare-close-button"
     ),
+    benchmarkCompareExportCsvButton: document.getElementById(
+      "benchmark-compare-export-csv-button"
+    ),
+    benchmarkCompareExportTextButton: document.getElementById(
+      "benchmark-compare-export-text-button"
+    ),
+    benchmarkCompareCopyLatexButton: document.getElementById(
+      "benchmark-compare-copy-latex-button"
+    ),
     benchmarkCompareTableBody: document.getElementById(
       "benchmark-compare-table-body"
     ),

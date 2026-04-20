@@ -143,7 +143,7 @@
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">Single</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">Shift+S</span>
                       </span>
                       <span class="toolbar-menu-item-description">Edit one tensor network on one canvas.</span>
                     </span>
@@ -162,17 +162,16 @@
                     id="grid-periodic-mode-menu-item"
                     class="toolbar-menu-item"
                     type="button"
-                    role="menuitem"
-                    title="Bidimensional periodic mode is not available yet."
-                    disabled
+                    role="menuitemradio"
+                    title="Edit the nine-cell bidimensional periodic view."
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">For bidimensional</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">D</span>
                       </span>
-                      <span class="toolbar-menu-item-description">Coming later.</span>
+                      <span class="toolbar-menu-item-description">Work with the nine-cell grid view.</span>
                     </span>
                   </button>
                   <button
@@ -181,15 +180,14 @@
                     type="button"
                     role="menuitem"
                     title="Tree mode is not available yet."
-                    disabled
                   >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">For Tree</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">E</span>
                       </span>
-                      <span class="toolbar-menu-item-description">Coming later.</span>
+                      <span class="toolbar-menu-item-description">Not available yet.</span>
                     </span>
                   </button>
                   <button
@@ -203,7 +201,7 @@
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">Benchmark</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">B</span>
                       </span>
                       <span class="toolbar-menu-item-description">Compare manual contraction schemes.</span>
                     </span>
@@ -249,7 +247,7 @@
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">Load template</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">L</span>
                       </span>
                       <span class="toolbar-menu-item-description">Import templates from a JSON file.</span>
                     </span>
@@ -265,7 +263,7 @@
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
                         <span class="toolbar-menu-item-label">Export template</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                        <span class="toolbar-menu-item-shortcut">Shift+E</span>
                       </span>
                       <span class="toolbar-menu-item-description">Save the selected session template to JSON.</span>
                     </span>
@@ -973,7 +971,13 @@
             <div><strong>P</strong><span>Add note</span></div>
             <div><strong>C</strong><span>Toggle connect mode</span></div>
             <div><strong>S</strong><span>Toggle sidebar</span></div>
+            <div><strong>Shift+S</strong><span>Switch to Single mode</span></div>
             <div><strong>F</strong><span>Toggle For unidimensional mode</span></div>
+            <div><strong>D</strong><span>Switch to For bidimensional mode</span></div>
+            <div><strong>E</strong><span>Show the For Tree mode status</span></div>
+            <div><strong>B</strong><span>Switch to Benchmark mode</span></div>
+            <div><strong>L</strong><span>Load templates from JSON</span></div>
+            <div><strong>Shift+E</strong><span>Export the selected template</span></div>
             <div><strong>M</strong><span>Open Planner and toggle manual scheme</span></div>
             <div><strong>Shift+M</strong><span>Toggle minimap</span></div>
             <div><strong>Alt+A</strong><span>Open Planner and toggle auto future preview</span></div>
@@ -1091,8 +1095,32 @@
           </svg>
         </button>
         <div class="help-dialog-header benchmark-compare-header">
-          <h2 id="benchmark-compare-title">Compare</h2>
-          <p class="help-note">Each row is one saved contraction scheme.</p>
+          <div>
+            <h2 id="benchmark-compare-title">Compare</h2>
+          </div>
+          <div class="benchmark-compare-header-actions">
+            <button
+              id="benchmark-compare-export-csv-button"
+              type="button"
+              class="button-accent-cool"
+            >
+              CSV
+            </button>
+            <button
+              id="benchmark-compare-export-text-button"
+              type="button"
+              class="button-accent-cool"
+            >
+              TXT
+            </button>
+            <button
+              id="benchmark-compare-copy-latex-button"
+              type="button"
+              class="button-accent-cool"
+            >
+              Copy LaTeX
+            </button>
+          </div>
         </div>
         <div class="benchmark-compare-table-shell">
           <table class="benchmark-compare-table">

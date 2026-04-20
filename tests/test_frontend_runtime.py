@@ -458,6 +458,7 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
         const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesUi.js")!r}).href;
         const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
+        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner.js")!r}).href;
 
         const [
           stateModule,
@@ -465,12 +466,14 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
           specNormalizationModule,
           uiModule,
           benchmarkModule,
+          plannerModule,
         ] = await Promise.all([
           import(stateUrl),
           import(baseUrl),
           import(specNormalizationUrl),
           import(uiUrl),
           import(benchmarkUrl),
+          import(plannerUrl),
         ]);
 
         function createClassList() {{
@@ -529,8 +532,19 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
           }};
         }}
 
+        function createPanel() {{
+          return {{
+            innerHTML: "",
+            querySelectorAll() {{
+              return [];
+            }},
+          }};
+        }}
+
         const state = stateModule.createInitialState();
         const statusEvents = [];
+        const plannerPanel = createPanel();
+        let analysisRequestCount = 0;
         const ctx = {{
           state,
           constants: {{
@@ -559,9 +573,17 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
             benchmarkCompareModal: {{ classList: createClassList(), hidden: true }},
             benchmarkCompareCloseButton: createButton("Close"),
             benchmarkCompareTableBody: {{ innerHTML: "" }},
+            plannerPanel,
+          }},
+          document: {{
+            getElementById() {{
+              return null;
+            }},
           }},
           window: {{
             confirm: () => true,
+            setTimeout,
+            clearTimeout,
           }},
           getSelectedIdsByKind: () => [],
           getSelectedEntries: () => [],
@@ -573,7 +595,6 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
           render() {{}},
           renderOverlayDecorations() {{}},
           renderSidebarTabs() {{}},
-          refreshContractionAnalysis() {{}},
           clearGeneratedCodePreview() {{
             return false;
           }},
@@ -587,7 +608,37 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
                 : null
             ) || null;
           }},
-          apiPost: async () => ({{ ok: true }}),
+          serializeCurrentSpec: () => ({{
+            schema_version: "1.0",
+            network: runtime.buildSerializedSpec
+              ? runtime.buildSerializedSpec()
+              : state.spec,
+          }}),
+          apiPost: async () => {{
+            analysisRequestCount += 1;
+            return {{
+              ok: true,
+              network_output_shape: [2],
+              automatic_full: {{
+                status: "complete",
+                summary: {{}},
+              }},
+              automatic_future: {{
+                status: "complete",
+                summary: {{}},
+              }},
+              automatic_past: {{
+                status: "complete",
+                summary: {{}},
+              }},
+              manual: {{
+                status: "complete",
+                summary: {{}},
+                steps: [],
+              }},
+              comparisons: {{}},
+            }};
+          }},
         }};
 
         const runtime = {{}};
@@ -602,11 +653,13 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         Object.assign(runtime, baseModule.createUtilityBaseBindings(env));
         Object.assign(runtime, specNormalizationModule.createSpecNormalizationBindings(env));
         runtime.isLinearPeriodicMode = () => false;
+        runtime.isGridPeriodicMode = () => false;
         runtime.getActiveLinearPeriodicCellName = () => null;
         runtime.enforceLinearPeriodicEngineSupport = () => false;
         Object.assign(runtime, uiModule.createUtilityUiBindings(env));
         Object.assign(runtime, benchmarkModule.createUtilityBenchmarkBindings(env));
         Object.assign(ctx, runtime);
+        plannerModule.registerPlannerFeature(ctx);
 
         state.spec = runtime.normalizeSpec({{
           id: "network_benchmark",
@@ -667,10 +720,47 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         if (state.spec.contraction_plan !== null) {{
           throw new Error("Expected the base tensor network position to clear the active contraction plan.");
         }}
+        ctx.renderPlanner();
+        if (!plannerPanel.innerHTML.includes("Move right to open or create a contraction scheme.")) {{
+          throw new Error(`Expected the benchmark planner panel to explain the base position, received ${{plannerPanel.innerHTML}}.`);
+        }}
 
         runtime.switchBenchmarkPosition(1);
         if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Original path") {{
           throw new Error(`Expected moving right to project scheme 1 into the live plan, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
+        }}
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        ctx.renderPlanner();
+        if (analysisRequestCount !== 1) {{
+          throw new Error(`Expected entering a benchmark scheme to start contraction analysis immediately, received ${{analysisRequestCount}} requests.`);
+        }}
+        if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {{
+          throw new Error(`Expected benchmark scheme analysis to be ready after the immediate refresh, received ${{JSON.stringify(state.contractionAnalysis)}}.`);
+        }}
+        if (!plannerPanel.innerHTML.includes("Auto future")) {{
+          throw new Error(`Expected benchmark schemes to expose Auto future once analysis is ready, received ${{plannerPanel.innerHTML}}.`);
+        }}
+        if (!plannerPanel.innerHTML.includes("Auto past")) {{
+          throw new Error(`Expected benchmark schemes to expose Auto past once analysis is ready, received ${{plannerPanel.innerHTML}}.`);
+        }}
+        ctx.renderPlanner();
+        if (plannerPanel.innerHTML.includes("Move right to open or create a contraction scheme.")) {{
+          throw new Error(`Expected the planner to leave the benchmark-base state after moving right, received ${{plannerPanel.innerHTML}}.`);
+        }}
+        if (
+          !plannerPanel.innerHTML.includes('id="toggle-planner-mode-button"') ||
+          !plannerPanel.innerHTML.includes("Contract")
+        ) {{
+          throw new Error(`Expected benchmark schemes to expose the Contract action, received ${{plannerPanel.innerHTML}}.`);
+        }}
+        const contractButtonMarkupMatch = plannerPanel.innerHTML.match(
+          /<button[^>]*id="toggle-planner-mode-button"[^>]*>/
+        );
+        if (!contractButtonMarkupMatch) {{
+          throw new Error(`Expected the planner to render a Contract button, received ${{plannerPanel.innerHTML}}.`);
+        }}
+        if (contractButtonMarkupMatch[0].includes("disabled")) {{
+          throw new Error(`Expected the Contract action to be enabled for a benchmark scheme, received ${{plannerPanel.innerHTML}}.`);
         }}
         state.spec.contraction_plan.name = "Alpha";
         runtime.updateToolbarState();
@@ -694,6 +784,622 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
           throw new Error(`Expected the active benchmark scheme to become the normal manual path on exit, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
         }}
       """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+def _write_planner_auto_paths_immediate_refresh_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = (
+        tmp_path / "planner_auto_paths_immediate_refresh_runtime_regression.mjs"
+    )
+    script_body = textwrap.dedent(
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
+        const historySelectionUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "historySelection.js")!r}).href;
+        const plannerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner.js")!r}).href;
+
+        const [
+          stateModule,
+          baseModule,
+          specNormalizationModule,
+          historySelectionModule,
+          plannerModule,
+        ] = await Promise.all([
+          import(stateUrl),
+          import(baseUrl),
+          import(specNormalizationUrl),
+          import(historySelectionUrl),
+          import(plannerUrl),
+        ]);
+
+        function createClassList() {{
+          return {{
+            toggle() {{}},
+            add() {{}},
+            remove() {{}},
+          }};
+        }}
+
+        function createStyle() {{
+          return {{
+            values: {{}},
+            setProperty(name, value) {{
+              this.values[name] = value;
+            }},
+            getPropertyValue(name) {{
+              return this.values[name] || "";
+            }},
+          }};
+        }}
+
+        function createButton(initialText = "") {{
+          return {{
+            disabled: false,
+            hidden: false,
+            textContent: initialText,
+            innerHTML: initialText,
+            value: "",
+            dataset: {{}},
+            classList: createClassList(),
+            style: createStyle(),
+            addEventListener() {{}},
+            setAttribute(name, value) {{
+              this[name] = value;
+            }},
+            removeAttribute(name) {{
+              delete this[name];
+            }},
+          }};
+        }}
+
+        function createPanel() {{
+          return {{
+            innerHTML: "",
+            querySelectorAll() {{
+              return [];
+            }},
+          }};
+        }}
+
+        const state = stateModule.createInitialState();
+        const plannerPanel = createPanel();
+        let analysisRequestCount = 0;
+        const ctx = {{
+          state,
+          constants: {{
+            HISTORY_LIMIT: 100,
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 120,
+            MIN_TENSOR_HEIGHT: 72,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 152,
+            NOTE_MIN_WIDTH: 176,
+            NOTE_MIN_HEIGHT: 152,
+          }},
+          dom: {{
+            generatedCode: {{ value: "" }},
+            plannerPanel,
+            statusMessage: {{ textContent: "", classList: createClassList() }},
+          }},
+          document: {{
+            getElementById() {{
+              return null;
+            }},
+          }},
+          window: {{
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm: () => true,
+          }},
+          escapeHtml: (value) => String(value),
+          formatIssues: (issues) => issues.map((issue) => issue.message).join(" "),
+          setStatus() {{}},
+          render() {{}},
+          renderOverlayDecorations() {{}},
+          renderSidebarTabs() {{}},
+          updateToolbarState() {{}},
+          reconcileTensorOrder() {{}},
+          renderGeneratedCodePreview() {{}},
+          syncPendingInteractionClasses() {{}},
+          clearGeneratedCodePreview() {{
+            return false;
+          }},
+          bumpSpecRevision() {{
+            state.specRevision += 1;
+          }},
+          getSelectedIdsByKind: () => [],
+          getSelectedEntries: () => [],
+          getVisibleTensors: () => state.spec?.tensors || [],
+          getContractibleTensors: () => state.spec?.tensors || [],
+          findTensorById(tensorId) {{
+            return (
+              Array.isArray(state.spec?.tensors)
+                ? state.spec.tensors.find((tensor) => tensor.id === tensorId)
+                : null
+            ) || null;
+          }},
+          findGroupById: () => null,
+          findIndexOwner: () => null,
+          findEdgeById: () => null,
+          serializeCurrentSpec: () => ({{
+            schema_version: "1.0",
+            network: state.spec,
+          }}),
+          apiPost: async () => {{
+            analysisRequestCount += 1;
+            return {{
+              ok: true,
+              network_output_shape: [2],
+              automatic_full: {{
+                status: "complete",
+                summary: {{}},
+                steps: [
+                  {{
+                    step_id: "auto_full_step_1",
+                    left_operand_id: "tensor_a",
+                    right_operand_id: "tensor_b",
+                    result_operand_id: "auto_full_step_1",
+                  }},
+                ],
+              }},
+              automatic_future: {{
+                status: "complete",
+                summary: {{}},
+                steps: [
+                  {{
+                    step_id: "auto_future_step_1",
+                    left_operand_id: "tensor_a",
+                    right_operand_id: "tensor_b",
+                    result_operand_id: "auto_future_step_1",
+                  }},
+                ],
+              }},
+              automatic_past: {{
+                status: "complete",
+                summary: {{}},
+                steps: [
+                  {{
+                    step_id: "step_ab",
+                    left_operand_id: "tensor_a",
+                    right_operand_id: "tensor_b",
+                    result_operand_id: "step_ab",
+                  }},
+                ],
+              }},
+              manual: {{
+                status: "complete",
+                summary: {{}},
+                steps: [],
+              }},
+              comparisons: {{}},
+            }};
+          }},
+        }};
+
+        const runtime = {{}};
+        const env = {{
+          ctx,
+          state,
+          constants: ctx.constants,
+          dom: ctx.dom,
+          runtime,
+        }};
+
+        Object.assign(runtime, baseModule.createUtilityBaseBindings(env));
+        Object.assign(runtime, specNormalizationModule.createSpecNormalizationBindings(env));
+        Object.assign(runtime, {{
+          isLinearPeriodicMode: () => false,
+          isGridPeriodicMode: () => false,
+          isForMode: () => false,
+          isContractionSceneVisible: () => false,
+          isInspectingPastStage: () => false,
+        }});
+        Object.assign(ctx, runtime);
+        historySelectionModule.registerHistorySelection(ctx);
+        plannerModule.registerPlannerFeature(ctx);
+
+        state.activeSidebarTab = "planner";
+        state.spec = runtime.normalizeSpec({{
+          id: "network_planner_refresh",
+          name: "Planner refresh demo",
+          tensors: [
+            {{
+              id: "tensor_a",
+              name: "A",
+              position: {{ x: 100, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_a",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+            {{
+              id: "tensor_b",
+              name: "B",
+              position: {{ x: 320, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_b",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+          ],
+          edges: [],
+          groups: [],
+          notes: [],
+          contraction_plan: {{
+            id: "manual_plan",
+            name: "Manual path",
+            steps: [],
+            metadata: {{}},
+          }},
+          metadata: {{}},
+        }});
+        state.contractionAnalysis = {{
+          status: "ready",
+          payload: {{
+            network_output_shape: [2],
+            automatic_full: {{ status: "complete", summary: {{}}, steps: [] }},
+            automatic_future: {{ status: "complete", summary: {{}}, steps: [] }},
+            automatic_past: {{ status: "complete", summary: {{}}, steps: [] }},
+            manual: {{ status: "complete", summary: {{}}, steps: [] }},
+            comparisons: {{}},
+          }},
+        }};
+
+        ctx.applyDesignChange(
+          () => {{
+            state.spec.metadata.last_change = "refresh-auto-paths";
+          }},
+          {{
+            statusMessage: "Updated planner state.",
+          }}
+        );
+
+        if (analysisRequestCount !== 1) {{
+          throw new Error(
+            `Expected planner-visible design changes to refresh contraction analysis immediately, received ${{analysisRequestCount}} requests.`
+          );
+        }}
+        if (!state.contractionAnalysis || state.contractionAnalysis.status !== "loading") {{
+          throw new Error(
+            `Expected planner-visible design changes to enter loading immediately, received ${{JSON.stringify(state.contractionAnalysis)}}.`
+          );
+        }}
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        ctx.renderPlanner();
+
+        if (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready") {{
+          throw new Error(
+            `Expected the refreshed planner analysis to become ready, received ${{JSON.stringify(state.contractionAnalysis)}}.`
+          );
+        }}
+        if (!plannerPanel.innerHTML.includes("Auto future")) {{
+          throw new Error(
+            `Expected the refreshed planner analysis to expose Auto future, received ${{plannerPanel.innerHTML}}.`
+          );
+        }}
+        if (!plannerPanel.innerHTML.includes("Auto past")) {{
+          throw new Error(
+            `Expected the refreshed planner analysis to expose Auto past, received ${{plannerPanel.innerHTML}}.`
+          );
+        }}
+        """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+def _write_benchmark_compare_export_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "benchmark_compare_export_runtime_regression.mjs"
+    script_body = textwrap.dedent(
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const stateUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state.js")!r}).href;
+        const baseUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBase.js")!r}).href;
+        const specNormalizationUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "spec" / "specNormalization.js")!r}).href;
+        const benchmarkUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesBenchmark.js")!r}).href;
+        const uiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utilitiesUi.js")!r}).href;
+
+        const [
+          stateModule,
+          baseModule,
+          specNormalizationModule,
+          benchmarkModule,
+          uiModule,
+        ] = await Promise.all([
+          import(stateUrl),
+          import(baseUrl),
+          import(specNormalizationUrl),
+          import(benchmarkUrl),
+          import(uiUrl),
+        ]);
+
+        function createClassList() {{
+          return {{
+            toggle() {{}},
+            add() {{}},
+            remove() {{}},
+          }};
+        }}
+
+        function createStyle() {{
+          return {{
+            values: {{}},
+            setProperty(name, value) {{
+              this.values[name] = value;
+            }},
+            getPropertyValue(name) {{
+              return this.values[name] || "";
+            }},
+          }};
+        }}
+
+        function createButton(initialText = "") {{
+          return {{
+            disabled: false,
+            hidden: false,
+            textContent: initialText,
+            innerHTML: initialText,
+            value: "",
+            dataset: {{}},
+            classList: createClassList(),
+            style: createStyle(),
+            addEventListener() {{}},
+            setAttribute(name, value) {{
+              this[name] = value;
+            }},
+            removeAttribute(name) {{
+              delete this[name];
+            }},
+          }};
+        }}
+
+        const state = stateModule.createInitialState();
+        const exportEvents = [];
+        const ctx = {{
+          state,
+          constants: {{
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 120,
+            MIN_TENSOR_HEIGHT: 72,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 152,
+            NOTE_MIN_WIDTH: 176,
+            NOTE_MIN_HEIGHT: 152,
+          }},
+          dom: {{
+            statusMessage: {{ textContent: "", classList: createClassList() }},
+            singleModeMenuItem: createButton(),
+            linearPeriodicModeMenuItem: createButton(),
+            gridPeriodicModeMenuItem: createButton(),
+            treeModeMenuItem: createButton(),
+            benchmarkModeMenuItem: createButton(),
+            toolbarModeControls: {{ hidden: true }},
+            linearPeriodicPreviousCellButton: createButton("<"),
+            linearPeriodicCellLabel: {{ textContent: "" }},
+            linearPeriodicNextCellButton: createButton(">"),
+            benchmarkSchemeNameInput: createButton(),
+            benchmarkCompareButton: createButton("Compare"),
+            benchmarkCompareModal: {{ classList: createClassList(), hidden: true }},
+            benchmarkCompareBackdrop: createButton(),
+            benchmarkCompareCloseButton: createButton("Close"),
+            benchmarkCompareTableBody: {{ innerHTML: "" }},
+            benchmarkCompareExportCsvButton: createButton("CSV"),
+            benchmarkCompareExportTextButton: createButton("TXT"),
+            benchmarkCompareCopyLatexButton: createButton("Copy LaTeX"),
+          }},
+          document: {{
+            getElementById() {{
+              return null;
+            }},
+          }},
+          window: {{
+            confirm: () => true,
+            setTimeout,
+            clearTimeout,
+            Blob,
+          }},
+          getSelectedIdsByKind: () => [],
+          getSelectedEntries: () => [],
+          escapeHtml: (value) => String(value),
+          formatIssues: (issues) => issues.map((issue) => issue.message).join(" "),
+          setStatus() {{}},
+          render() {{}},
+          renderOverlayDecorations() {{}},
+          renderSidebarTabs() {{}},
+          clearGeneratedCodePreview() {{
+            return false;
+          }},
+          bumpSpecRevision() {{
+            state.specRevision += 1;
+          }},
+          findTensorById(tensorId) {{
+            return (
+              Array.isArray(state.spec?.tensors)
+                ? state.spec.tensors.find((tensor) => tensor.id === tensorId)
+                : null
+            ) || null;
+          }},
+          downloadText(filename, text, contentType) {{
+            exportEvents.push({{ kind: "download", filename, text, contentType }});
+          }},
+          async copyText(text) {{
+            exportEvents.push({{ kind: "copy", text }});
+          }},
+          apiPost: async (path, payload) => {{
+            if (path !== "/api/analyze-contraction") {{
+              throw new Error(`Unexpected API path: ${{path}}.`);
+            }}
+            const planName = payload?.spec?.network?.contraction_plan?.name || "";
+            if (planName === "Alpha") {{
+              return {{
+                ok: true,
+                manual: {{
+                  status: "complete",
+                  summary: {{
+                    total_estimated_flops: 10,
+                    total_estimated_macs: 20,
+                    peak_intermediate_size: 30,
+                    peak_intermediate_bytes: 40,
+                  }},
+                }},
+              }};
+            }}
+            if (planName === "Beta & Co") {{
+              return {{
+                ok: true,
+                manual: {{
+                  status: "complete",
+                  summary: {{
+                    total_estimated_flops: 12,
+                    total_estimated_macs: 18,
+                    peak_intermediate_size: 24,
+                    peak_intermediate_bytes: 36,
+                  }},
+                }},
+              }};
+            }}
+            throw new Error(`Unexpected scheme name: ${{planName}}.`);
+          }},
+        }};
+
+        const runtime = {{}};
+        const env = {{
+          ctx,
+          state,
+          constants: ctx.constants,
+          dom: ctx.dom,
+          runtime,
+        }};
+
+        Object.assign(runtime, baseModule.createUtilityBaseBindings(env));
+        Object.assign(runtime, specNormalizationModule.createSpecNormalizationBindings(env));
+        runtime.isLinearPeriodicMode = () => false;
+        runtime.isGridPeriodicMode = () => false;
+        runtime.getActiveLinearPeriodicCellName = () => null;
+        runtime.enforceLinearPeriodicEngineSupport = () => false;
+        Object.assign(runtime, uiModule.createUtilityUiBindings(env));
+        Object.assign(runtime, benchmarkModule.createUtilityBenchmarkBindings(env));
+        Object.assign(ctx, runtime);
+
+        state.schemaVersion = "1.0";
+        state.spec = runtime.normalizeSpec({{
+          id: "network_benchmark_exports",
+          name: "Benchmark Demo",
+          tensors: [
+            {{
+              id: "tensor_a",
+              name: "A",
+              position: {{ x: 100, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_a",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+            {{
+              id: "tensor_b",
+              name: "B",
+              position: {{ x: 320, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "index_b",
+                  name: "i",
+                  dimension: 2,
+                  offset: {{ x: 0, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              metadata: {{}},
+            }},
+          ],
+          edges: [],
+          groups: [],
+          notes: [],
+          contraction_plan: {{
+            id: "alpha_plan",
+            name: "Alpha",
+            steps: [],
+            metadata: {{}},
+          }},
+          metadata: {{}},
+        }});
+
+        runtime.toggleBenchmarkMode();
+        runtime.switchBenchmarkPosition(1);
+        runtime.switchBenchmarkPosition(1);
+        runtime.renameActiveBenchmarkScheme("Beta & Co");
+        await runtime.openBenchmarkCompareModal();
+
+        runtime.exportBenchmarkCompareAsCsv();
+        runtime.exportBenchmarkCompareAsText();
+        await runtime.copyBenchmarkCompareAsLatex();
+
+        const csvExport = exportEvents.find((entry) => entry.kind === "download" && entry.filename.endsWith(".csv"));
+        if (!csvExport) {{
+          throw new Error(`Expected a CSV download event, received ${{JSON.stringify(exportEvents)}}.`);
+        }}
+        if (csvExport.filename !== "benchmark-demo-benchmark-compare.csv") {{
+          throw new Error(`Unexpected CSV filename: ${{csvExport.filename}}.`);
+        }}
+        if (!csvExport.text.includes("Alpha,10,20,30,40 bytes")) {{
+          throw new Error(`Expected the CSV export to include the Alpha metrics, received ${{csvExport.text}}.`);
+        }}
+
+        const textExport = exportEvents.find((entry) => entry.kind === "download" && entry.filename.endsWith(".txt"));
+        if (!textExport) {{
+          throw new Error(`Expected a TXT download event, received ${{JSON.stringify(exportEvents)}}.`);
+        }}
+        if (!textExport.text.includes("Beta & Co") || !textExport.text.includes("Peak Memory")) {{
+          throw new Error(`Expected the TXT export to include the table headers and scheme names, received ${{textExport.text}}.`);
+        }}
+
+        const latexExport = exportEvents.find((entry) => entry.kind === "copy");
+        if (!latexExport) {{
+          throw new Error(`Expected a LaTeX copy event, received ${{JSON.stringify(exportEvents)}}.`);
+        }}
+        if (!latexExport.text.includes("\\\\begin{{tabular}}{{lrrrr}}")) {{
+          throw new Error(`Expected the copied LaTeX to include a tabular block, received ${{latexExport.text}}.`);
+        }}
+        if (!latexExport.text.includes("Beta \\\\& Co & 12 & 18 & 24 & 36 bytes \\\\\\\\")) {{
+          throw new Error(`Expected the copied LaTeX to include the escaped Beta row, received ${{latexExport.text}}.`);
+        }}
+        """
     )
     script_path.write_text(script_body, encoding="utf-8")
     return script_path
@@ -3047,6 +3753,222 @@ def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Pa
     return script_path
 
 
+def _write_mode_and_template_shortcut_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "mode_and_template_shortcut_runtime_regression.mjs"
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    copied_modules = {
+        "state.runtime.mjs": "state.js",
+        "interactionsShortcuts.js": "interactionsShortcuts.js",
+    }
+    for target_name, source_name in copied_modules.items():
+        target_path = tmp_path / target_name
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(
+            (js_root / source_name).read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, shortcutsModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createEvent({
+              key,
+              altKey = false,
+              ctrlKey = false,
+              metaKey = false,
+              shiftKey = false,
+            }) {
+              return {
+                key,
+                altKey,
+                ctrlKey,
+                metaKey,
+                shiftKey,
+                preventDefaultCalls: 0,
+                preventDefault() {
+                  this.preventDefaultCalls += 1;
+                },
+                target: null,
+              };
+            }
+
+            const shortcutCalls = [];
+            const statusCalls = [];
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [],
+              },
+              dom: {
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                generatedCode: {},
+                engineSelect: { options: [], value: "tensornetwork" },
+                connectButton: {},
+                loadInput: { click() {} },
+                undoButton: {},
+                redoButton: {},
+                helpCloseButton: { focus() {} },
+                helpModal: { classList: createClassList() },
+              },
+              document: {
+                activeElement: null,
+              },
+              isTextInput() {
+                return false;
+              },
+              setStatus(message, level) {
+                statusCalls.push({ message, level });
+              },
+            };
+
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state: ctx.state,
+                dom: ctx.dom,
+                runtime: {},
+                shortcutActions: {
+                  setLinearPeriodicMode(enabled) {
+                    shortcutCalls.push({ kind: "linear", enabled });
+                  },
+                  setGridPeriodicMode(enabled) {
+                    shortcutCalls.push({ kind: "grid", enabled });
+                  },
+                  setBenchmarkMode(enabled) {
+                    shortcutCalls.push({ kind: "benchmark", enabled });
+                  },
+                  openSessionTemplatePicker() {
+                    shortcutCalls.push({ kind: "load-template" });
+                  },
+                  exportSelectedTemplateSpec() {
+                    shortcutCalls.push({ kind: "export-template" });
+                  },
+                },
+              })
+            );
+
+            const dEvent = createEvent({ key: "d" });
+            ctx.handleKeydown(dEvent);
+            if (dEvent.preventDefaultCalls !== 1) {
+              throw new Error("D should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([
+                { kind: "benchmark", enabled: false },
+                { kind: "grid", enabled: true },
+              ])
+            ) {
+              throw new Error("D should switch to For bidimensional mode.");
+            }
+
+            const bEvent = createEvent({ key: "b" });
+            ctx.handleKeydown(bEvent);
+            if (bEvent.preventDefaultCalls !== 1) {
+              throw new Error("B should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([
+                { kind: "linear", enabled: false },
+                { kind: "grid", enabled: false },
+                { kind: "benchmark", enabled: true },
+              ])
+            ) {
+              throw new Error("B should switch to Benchmark mode.");
+            }
+
+            const shiftSEvent = createEvent({ key: "S", shiftKey: true });
+            ctx.handleKeydown(shiftSEvent);
+            if (shiftSEvent.preventDefaultCalls !== 1) {
+              throw new Error("Shift+S should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([
+                { kind: "benchmark", enabled: false },
+                { kind: "linear", enabled: false },
+                { kind: "grid", enabled: false },
+              ])
+            ) {
+              throw new Error("Shift+S should switch to Single mode.");
+            }
+
+            const lEvent = createEvent({ key: "l" });
+            ctx.handleKeydown(lEvent);
+            if (lEvent.preventDefaultCalls !== 1) {
+              throw new Error("L should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "load-template" }])
+            ) {
+              throw new Error("L should open the template picker.");
+            }
+
+            const shiftEEvent = createEvent({ key: "E", shiftKey: true });
+            ctx.handleKeydown(shiftEEvent);
+            if (shiftEEvent.preventDefaultCalls !== 1) {
+              throw new Error("Shift+E should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "export-template" }])
+            ) {
+              throw new Error("Shift+E should export the selected template.");
+            }
+
+            const eEvent = createEvent({ key: "e" });
+            ctx.handleKeydown(eEvent);
+            if (eEvent.preventDefaultCalls !== 1) {
+              throw new Error("E should prevent the browser default.");
+            }
+            if (
+              statusCalls.length !== 1 ||
+              statusCalls[0].message !== "For Tree mode is not available yet." ||
+              statusCalls[0].level !== "error"
+            ) {
+              throw new Error(
+                `E should report the unavailable tree mode, received ${JSON.stringify(statusCalls)}.`
+              );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "shift_only_shortcut_runtime_regression.mjs"
     js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
@@ -3177,6 +4099,18 @@ def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path
             ctx.handleKeydown(metaShiftREvent);
             if (metaShiftREvent.preventDefaultCalls !== 0) {
               throw new Error("Cmd+Shift+R should not hijack the exact Shift+R reset shortcut.");
+            }
+
+            const altShiftSEvent = createEvent({ key: "S", altKey: true, shiftKey: true });
+            ctx.handleKeydown(altShiftSEvent);
+            if (altShiftSEvent.preventDefaultCalls !== 0) {
+              throw new Error("Alt+Shift+S should not hijack the exact Shift+S single-mode shortcut.");
+            }
+
+            const altShiftEEvent = createEvent({ key: "E", altKey: true, shiftKey: true });
+            ctx.handleKeydown(altShiftEEvent);
+            if (altShiftEEvent.preventDefaultCalls !== 0) {
+              throw new Error("Alt+Shift+E should not hijack the exact Shift+E template-export shortcut.");
             }
 
             if (shortcutCalls.length !== 0) {
@@ -4733,6 +5667,50 @@ def test_benchmark_mode_keeps_temporary_schemes_session_local_and_promotes_activ
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_visible_design_changes_refresh_auto_paths_immediately(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_planner_auto_paths_immediate_refresh_runtime_regression_script(
+        tmp_path
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The planner immediate auto-path refresh runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_benchmark_compare_exports_csv_text_and_latex(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_benchmark_compare_export_runtime_regression_script(tmp_path)
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The benchmark compare export runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_manual_contraction_anchor_follows_the_second_selected_tensor(
     tmp_path: Path,
 ) -> None:
@@ -4845,6 +5823,26 @@ def test_planner_auto_shortcuts_keep_ctrl_a_for_canvas_tensor_selection(
 
     assert completed_process.returncode == 0, (
         "The planner auto-shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_mode_and_template_shortcuts_dispatch_the_requested_actions(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_mode_and_template_shortcut_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The mode/template shortcut runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -5519,6 +6517,8 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               classList: createClassList(),
               style: {},
             };
+            let minimapDragCleared = 0;
+            let minimapViewportUpdates = 0;
             const ctx = {
               state: createInitialState(),
               constants: {
@@ -5570,7 +6570,13 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
                 resizeLayer: {},
                 selectionBox,
                 minimapCanvas: {
-                  classList: createClassList(),
+                  classList: {
+                    add() {},
+                    remove() {
+                      minimapDragCleared += 1;
+                    },
+                    toggle() {},
+                  },
                 },
                 subnetworkLoadInput: {
                   value: "",
@@ -5620,6 +6626,9 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
               renderOverlayDecorations() {},
               renderMinimap() {},
               renderPlanner() {},
+              updateViewportFromMinimapClientPoint() {
+                minimapViewportUpdates += 1;
+              },
               updateToolbarState() {},
               setStatus() {},
               clearSelection() {},
@@ -5846,6 +6855,22 @@ def _write_interaction_runtime_contract_script(tmp_path: Path) -> Path:
             });
             if (ctx.state.pendingBoxSelection) {
               throw new Error("Right mouse down inside the minimap should not arm box selection.");
+            }
+
+            ctx.state.minimapDrag = { active: true };
+            runtime.handleGlobalMouseMove({
+              clientX: 88,
+              clientY: 99,
+              buttons: 0,
+            });
+            if (ctx.state.minimapDrag !== null) {
+              throw new Error("Mouse move without the primary button should clear a stale minimap drag.");
+            }
+            if (minimapDragCleared !== 1) {
+              throw new Error(`Expected stale minimap drags to remove the dragging class once, received ${minimapDragCleared}.`);
+            }
+            if (minimapViewportUpdates !== 0) {
+              throw new Error(`Expected stale minimap drags to stop before updating the viewport, received ${minimapViewportUpdates} updates.`);
             }
 
             let closeCanvasContextMenuCalls = 0;

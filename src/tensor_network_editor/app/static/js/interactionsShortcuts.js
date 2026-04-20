@@ -74,6 +74,21 @@ export function createInteractionShortcutBindings({
     toggleLinearPeriodicMode:
       shortcutActions.toggleLinearPeriodicMode ||
       resolveContextAction(ctx, "toggleLinearPeriodicMode"),
+    setLinearPeriodicMode:
+      shortcutActions.setLinearPeriodicMode ||
+      resolveContextAction(ctx, "setLinearPeriodicMode"),
+    setGridPeriodicMode:
+      shortcutActions.setGridPeriodicMode ||
+      resolveContextAction(ctx, "setGridPeriodicMode"),
+    setBenchmarkMode:
+      shortcutActions.setBenchmarkMode ||
+      resolveContextAction(ctx, "setBenchmarkMode"),
+    openSessionTemplatePicker:
+      shortcutActions.openSessionTemplatePicker
+      || resolveContextAction(ctx, "openSessionTemplatePicker"),
+    exportSelectedTemplateSpec:
+      shortcutActions.exportSelectedTemplateSpec
+      || resolveContextAction(ctx, "exportSelectedTemplateSpec"),
     closeBenchmarkCompareModal:
       shortcutActions.closeBenchmarkCompareModal
       || resolveContextAction(ctx, "closeBenchmarkCompareModal"),
@@ -99,6 +114,11 @@ export function createInteractionShortcutBindings({
     addNoteAtCenter,
     toggleTemplateManager,
     toggleLinearPeriodicMode,
+    setLinearPeriodicMode,
+    setGridPeriodicMode,
+    setBenchmarkMode,
+    openSessionTemplatePicker,
+    exportSelectedTemplateSpec,
     closeBenchmarkCompareModal,
   } = resolvedShortcutActions;
 
@@ -144,6 +164,29 @@ export function createInteractionShortcutBindings({
   function toggleMinimapShortcut() {
     toggleMinimapVisibility();
     ctx.setStatus(state.minimapHidden ? "Minimap hidden." : "Minimap shown.");
+  }
+
+  function activateSingleMode() {
+    setBenchmarkMode(false);
+    setLinearPeriodicMode(false);
+    setGridPeriodicMode(false);
+  }
+
+  function activateGridPeriodicMode() {
+    setBenchmarkMode(false);
+    setGridPeriodicMode(true);
+  }
+
+  function activateBenchmarkMode() {
+    setLinearPeriodicMode(false);
+    setGridPeriodicMode(false);
+    setBenchmarkMode(true);
+  }
+
+  function announceTreeModeUnavailable() {
+    if (typeof ctx.setStatus === "function") {
+      ctx.setStatus("For Tree mode is not available yet.", "error");
+    }
   }
 
   function handleKeydown(event) {
@@ -321,6 +364,16 @@ export function createInteractionShortcutBindings({
       ctx.generateCode();
       return;
     }
+    if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "s") {
+      event.preventDefault();
+      activateSingleMode();
+      return;
+    }
+    if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "e") {
+      event.preventDefault();
+      exportSelectedTemplateSpec();
+      return;
+    }
     if (!hasAnyModifier && lowerKey === "s") {
       event.preventDefault();
       toggleSidebarVisibility();
@@ -344,6 +397,26 @@ export function createInteractionShortcutBindings({
     if (!hasAnyModifier && lowerKey === "f") {
       event.preventDefault();
       toggleLinearPeriodicMode();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "d") {
+      event.preventDefault();
+      activateGridPeriodicMode();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "b") {
+      event.preventDefault();
+      activateBenchmarkMode();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "l") {
+      event.preventDefault();
+      openSessionTemplatePicker();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "e") {
+      event.preventDefault();
+      announceTreeModeUnavailable();
       return;
     }
     if (!hasAnyModifier && lowerKey === "n") {

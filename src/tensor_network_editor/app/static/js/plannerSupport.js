@@ -441,6 +441,19 @@ export function createPlannerSupport({
     return runContractionAnalysisRequest(queuedOptions);
   }
 
+  function shouldRefreshContractionAnalysisImmediately(options = {}) {
+    return (
+      Boolean(options.immediate) ||
+      state.activeSidebarTab === "planner" ||
+      state.plannerMode ||
+      Boolean(state.plannerPreviewMode) ||
+      (typeof ctx.isInspectingPastStage === "function" &&
+        ctx.isInspectingPastStage()) ||
+      (typeof ctx.isContractionSceneVisible === "function" &&
+        ctx.isContractionSceneVisible())
+    );
+  }
+
   function refreshContractionAnalysis(options = {}) {
     if (isGridPeriodicMode()) {
       pendingContractionAnalysisOptions = null;
@@ -473,7 +486,9 @@ export function createPlannerSupport({
             pendingContractionAnalysisOptions.focusTab
         ),
     };
-    analysisService.requestRefresh(pendingContractionAnalysisOptions);
+    return analysisService.requestRefresh(pendingContractionAnalysisOptions, {
+      immediate: shouldRefreshContractionAnalysisImmediately(options),
+    });
   }
 
   function togglePlannerDisclosure(disclosureKey) {

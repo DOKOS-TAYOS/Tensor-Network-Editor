@@ -2035,6 +2035,159 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_missing_opt_einsum_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleSpec() {
+          return {
+            id: "network_missing_opt_einsum",
+            name: "missing-opt-einsum",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 80, y: 120 },
+                indices: [
+                  { id: "tensor_a_i", name: "i", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 240, y: 120 },
+                indices: [
+                  { id: "tensor_b_i", name: "i", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        ctx.dom.plannerPanel = {
+          innerHTML: "",
+          querySelectorAll() {
+            return [];
+          },
+        };
+        await registerHistory(ctx);
+        await registerPlanner(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleSpec());
+        ctx.state.contractionAnalysis = {
+          status: "ready",
+          payload: {
+            memory_dtype: "float64",
+            network_output_shape: [2, 2],
+            manual: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 0,
+                peak_intermediate_bytes: 0,
+                final_shape: [2, 2],
+              },
+            },
+            automatic_full: {
+              status: "unavailable",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 0,
+                peak_intermediate_bytes: 0,
+              },
+              message:
+                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+            },
+            automatic_future: {
+              status: "unavailable",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 0,
+                peak_intermediate_bytes: 0,
+              },
+              message:
+                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+            },
+            automatic_past: {
+              status: "unavailable",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 0,
+                peak_intermediate_bytes: 0,
+              },
+              message:
+                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+            },
+            comparisons: {
+              manual_vs_automatic_full: {
+                status: "unavailable",
+                message:
+                  "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+              },
+              manual_subtrees_vs_automatic_past: {
+                status: "unavailable",
+                message:
+                  "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+              },
+            },
+            automatic_strategy: "greedy",
+          },
+        };
+        ctx.state.plannerDisclosureState.automaticFull = true;
+        ctx.state.plannerDisclosureState.automaticFuture = true;
+        ctx.state.plannerDisclosureState.automaticPast = true;
+
+        ctx.renderPlanner();
+
+        const html = ctx.dom.plannerPanel.innerHTML;
+        if (
+          html.includes('data-disclosure="automaticFull"') ||
+          html.includes('data-disclosure="automaticFuture"') ||
+          html.includes('data-disclosure="automaticPast"')
+        ) {
+          throw new Error(`Expected automatic sections to stay hidden when opt_einsum is missing, received: ${html}`);
+        }
+        if (!html.includes("planner-inline-meta planner-error")) {
+          throw new Error(`Expected the missing opt_einsum warning to render in red, received: ${html}`);
+        }
+        if (!html.includes("Install opt_einsum in the current .venv")) {
+          throw new Error(`Expected the missing opt_einsum warning to be visible, received: ${html}`);
+        }
+        if (!html.includes(">Manual<")) {
+          throw new Error(`Expected the manual section to remain visible, received: ${html}`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The missing-opt-einsum planner regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_contraction_scene_builds_long_manual_chain_without_repeated_rebuilds(
     tmp_path: Path,
 ) -> None:

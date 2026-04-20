@@ -2471,7 +2471,18 @@ textarea[disabled] {
 }
 
 .benchmark-compare-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
   padding-right: 5.5rem;
+}
+
+.benchmark-compare-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
 }
 
 .benchmark-compare-table-shell {
