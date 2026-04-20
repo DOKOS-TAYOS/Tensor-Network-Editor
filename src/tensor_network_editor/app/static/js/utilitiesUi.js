@@ -150,6 +150,13 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     button.setAttribute("aria-expanded", String(isExpanded));
   }
 
+  function setElementHidden(element, isHidden) {
+    if (!element) {
+      return;
+    }
+    element.hidden = Boolean(isHidden);
+  }
+
   function setTooltipDescription(button, description) {
     if (!button || !button.dataset) {
       return;
@@ -615,6 +622,19 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         ? runtime.getBenchmarkSession()
         : null;
     const benchmarkActivePosition = benchmarkSession ? benchmarkSession.activePosition : 0;
+    const benchmarkSchemeView = benchmarkMode && benchmarkActivePosition > 0;
+    const templateToolbarGroup =
+      templateSelect && templateSelect.parentElement
+        ? templateSelect.parentElement.parentElement || templateSelect.parentElement
+        : templateSettingsButton && templateSettingsButton.parentElement
+          ? templateSettingsButton.parentElement.parentElement
+              || templateSettingsButton.parentElement
+          : reflowImportedButton && reflowImportedButton.parentElement
+            ? reflowImportedButton.parentElement.parentElement
+                || reflowImportedButton.parentElement
+            : insertTemplateButton
+              ? insertTemplateButton.parentElement || insertTemplateButton
+              : null;
     const activeBenchmarkScheme =
       benchmarkMode && typeof runtime.getActiveBenchmarkScheme === "function"
         ? runtime.getActiveBenchmarkScheme()
@@ -668,14 +688,23 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if (editSessionTemplateMenuItem) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
     }
+    setElementHidden(templateToolbarGroup, benchmarkSchemeView);
     if (insertTemplateButton) {
-      insertTemplateButton.disabled = !selectedTemplateValue;
+      insertTemplateButton.disabled = benchmarkSchemeView || !selectedTemplateValue;
+      insertTemplateButton.hidden = benchmarkSchemeView;
     }
     if (reflowImportedButton) {
-      reflowImportedButton.disabled = selectedTensorIds.length === 0;
+      reflowImportedButton.disabled =
+        benchmarkSchemeView || selectedTensorIds.length === 0;
+      setElementHidden(
+        reflowImportedButton.parentElement || reflowImportedButton,
+        benchmarkSchemeView
+      );
       setTooltipDescription(
         reflowImportedButton,
-        selectedTensorIds.length === 0
+        benchmarkSchemeView
+          ? "Layout tools are unavailable while viewing a benchmark scheme."
+          : selectedTensorIds.length === 0
           ? "Select at least one tensor first."
           : selectedTensorIds.length === 1
             ? "Reflow indices for the selected tensor."
@@ -719,21 +748,35 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
             : "Reflow indices for the selected tensors."
     );
     if (templateSettingsButton) {
-      templateSettingsButton.disabled = !selectedTemplateValue || forMode;
+      templateSettingsButton.disabled =
+        benchmarkSchemeView || !selectedTemplateValue || forMode;
+      setElementHidden(
+        templateSettingsButton.parentElement || templateSettingsButton,
+        benchmarkSchemeView
+      );
       setTooltipDescription(
         templateSettingsButton,
-        !selectedTemplateValue
+        benchmarkSchemeView
+          ? "Template parameters are unavailable while viewing a benchmark scheme."
+          : !selectedTemplateValue
           ? "Choose a template first."
           : forMode
             ? "Template parameters are not editable in For mode."
             : "Edit template parameters."
       );
     }
-    if ((!selectedTemplateValue || forMode) && state.isTemplateSettingsOpen) {
+    if (
+      (benchmarkSchemeView || !selectedTemplateValue || forMode)
+      && state.isTemplateSettingsOpen
+    ) {
       state.isTemplateSettingsOpen = false;
     }
-    if (selectedTensorIds.length === 0 && state.isReflowLayoutOpen) {
+    if ((benchmarkSchemeView || selectedTensorIds.length === 0) && state.isReflowLayoutOpen) {
       state.isReflowLayoutOpen = false;
+    }
+    if (templateSelect) {
+      templateSelect.disabled = benchmarkSchemeView;
+      setElementHidden(templateSelect.parentElement || templateSelect, benchmarkSchemeView);
     }
     if (createGroupButton) {
       createGroupButton.disabled = selectedTensorIds.length < 2;
@@ -790,17 +833,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         linearPeriodicPreviousCellButton,
         benchmarkMode
           ? benchmarkActivePosition === 0
-            ? "You are already at the tensor network view."
-            : "Move to the previous benchmark scheme."
+            ? "You are already at the tensor network view. In benchmark mode, use Previous and Next to move between the base network and the saved contraction schemes."
+            : "Open the previous saved benchmark scheme. Use Previous and Next to move between the tensor network view and each saved scheme."
           : gridPeriodicMode
             ? canSwitchGridPeriodicCell("left")
-              ? "Move to the cell on the left."
-              : "You are already at the left edge."
+              ? "Move to the cell on the left. Use the cell arrows to edit each representative cell of the bidimensional layout."
+              : "You are already at the left edge of the bidimensional layout."
             : !linearPeriodicMode
-              ? "For unidimensional mode is not active."
+              ? "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
             : activeLinearPeriodicCell === "initial"
-              ? "You are already at the initial cell."
-              : "Move to the previous cell."
+              ? "You are already at the initial cell of the three-cell unidimensional workflow."
+              : "Move to the previous cell in the three-cell unidimensional workflow: initial, periodic, final."
       );
     }
     if (linearPeriodicNextCellButton) {
@@ -818,17 +861,17 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
         linearPeriodicNextCellButton,
         benchmarkMode
           ? linearPeriodicNextCellButton.textContent === "+"
-            ? "Create the next benchmark scheme."
-            : "Move to the next benchmark scheme."
+            ? "Create a new benchmark scheme after the current one. Use Next repeatedly to add schemes and then compare them in Planner."
+            : "Open the next saved benchmark scheme. Use Previous and Next to move through the benchmark chain."
           : gridPeriodicMode
             ? canSwitchGridPeriodicCell("right")
-              ? "Move to the cell on the right."
-              : "You are already at the right edge."
+              ? "Move to the cell on the right. Use the cell arrows to edit each representative cell of the bidimensional layout."
+              : "You are already at the right edge of the bidimensional layout."
             : !linearPeriodicMode
-              ? "For unidimensional mode is not active."
+              ? "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
             : activeLinearPeriodicCell === "final"
-              ? "You are already at the final cell."
-              : "Move to the next cell."
+              ? "You are already at the final cell of the three-cell unidimensional workflow."
+              : "Move to the next cell in the three-cell unidimensional workflow: initial, periodic, final."
       );
     }
     if (gridPeriodicUpCellButton) {

@@ -47,13 +47,18 @@ export function createBoundaryTensorPropertiesRenderer({
                 </div>
               </div>
               <div class="field-row">
-                <label class="control-inline-color" for="index-color-input-${index.id}">
+                <label
+                  class="control-inline-color"
+                  for="index-color-input-${index.id}"
+                  data-tooltip-enabled="true"
+                  data-shortcut-label="Choose color"
+                  data-shortcut-description="Set the display color for this item."
+                >
                   <input
                     id="index-color-input-${index.id}"
                     data-focus-key="index:${index.id}:color"
                     type="color"
-                    title="Choose tint"
-                    aria-label="Choose tint"
+                    aria-label="Choose color"
                     value="${ctx.escapeHtml(
                       ctx.getMetadataColor(
                         index.metadata,
@@ -96,13 +101,18 @@ export function createBoundaryTensorPropertiesRenderer({
         </div>
       </div>
       <div class="button-row">
-        <label class="control-inline-color" for="tensor-color-input">
+        <label
+          class="control-inline-color"
+          for="tensor-color-input"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Choose color"
+          data-shortcut-description="Set the display color for this item."
+        >
           <input
             id="tensor-color-input"
             data-focus-key="tensor:${tensor.id}:color"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, fallbackColor))}"
           />
         </label>

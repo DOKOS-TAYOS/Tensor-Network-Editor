@@ -2312,6 +2312,59 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         ) {{
           throw new Error("Expected the toolbar shortcut hints to include button descriptions.");
         }}
+        if (
+          getButton("done-button").dataset.shortcutDescription
+          !== "Finish the editor session and return the current design to Python."
+        ) {{
+          throw new Error("Expected Done to explain that it returns the current design to Python.");
+        }}
+        if (
+          getButton("collection-format-select-field").dataset.shortcutDescription
+          !== "Choose how generated code returns the tensors: list keeps an ordered sequence, matrix arranges row and column structures when the template supports them, and dict returns named entries."
+        ) {{
+          throw new Error("Expected the output type selector to explain list, matrix, and dict.");
+        }}
+        if (
+          getButton("linear-periodic-previous-cell-button").dataset.shortcutLabel
+          !== "Previous cell"
+        ) {{
+          throw new Error("Expected the previous cell button to expose a readable tooltip label.");
+        }}
+        if (
+          getButton("linear-periodic-next-cell-button").dataset.shortcutLabel
+          !== "Next cell"
+        ) {{
+          throw new Error("Expected the next cell button to expose a readable tooltip label.");
+        }}
+        if (
+          getButton("help-close-button").dataset.tooltipEnabled === "true"
+        ) {{
+          throw new Error("Expected Close help to keep its hover disabled.");
+        }}
+        if (
+          getButton("cancel-button").dataset.shortcutDescription
+          !== "Cancel the editor session without returning the current design to Python."
+        ) {{
+          throw new Error("Expected Cancel to explain that it closes without returning the current design.");
+        }}
+        if (
+          getButton("sidebar-tab-selection").dataset.shortcutDescription
+          !== "Inspect and edit the current selection, including metadata, layout, and extraction tools."
+        ) {{
+          throw new Error("Expected the Selection tab to expose its tooltip description.");
+        }}
+        if (
+          getButton("sidebar-tab-planner").dataset.shortcutDescription
+          !== "Review manual and automatic contraction paths, comparisons, and contraction steps."
+        ) {{
+          throw new Error("Expected the Planner tab to expose its tooltip description.");
+        }}
+        if (
+          getButton("sidebar-tab-code").dataset.shortcutDescription
+          !== "Generate and inspect code for the current network with the selected engine."
+        ) {{
+          throw new Error("Expected the Code tab to expose its tooltip description.");
+        }}
         """,
     )
 

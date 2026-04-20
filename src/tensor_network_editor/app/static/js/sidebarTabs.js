@@ -119,13 +119,13 @@ export function registerSidebarTabs(ctx) {
     if (sidebarToggleButton) {
       sidebarToggleButton.innerHTML = buildSidebarToggleIconMarkup(isCollapsed);
       sidebarToggleButton.setAttribute("aria-expanded", String(!isCollapsed));
+      sidebarToggleButton.dataset.tooltipEnabled = "true";
       sidebarToggleButton.dataset.shortcut = "S";
-      sidebarToggleButton.dataset.shortcutLabel = isCollapsed
-        ? "Expand sidebar"
-        : "Collapse sidebar";
+      sidebarToggleButton.dataset.shortcutLabel = "Sidebar";
+      delete sidebarToggleButton.dataset.shortcutDescription;
       sidebarToggleButton.setAttribute(
         "aria-label",
-        `${sidebarToggleButton.dataset.shortcutLabel} (S)`
+        `${isCollapsed ? "Expand sidebar" : "Collapse sidebar"} (S)`
       );
       sidebarToggleButton.removeAttribute("title");
     }

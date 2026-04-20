@@ -25,11 +25,75 @@ export function createPlannerRenderers({
     getAutomaticAnalysisByMode,
     isBenchmarkBasePosition,
   } = support;
+  const METRIC_DESCRIPTIONS = {
+    FLOP: "Estimated floating-point operations across the full contraction path.",
+    MAC: "Estimated multiply-accumulate operations across the full contraction path.",
+    Peak: "Largest intermediate tensor reached during the path, measured in elements.",
+    Memory:
+      "Estimated memory used by the largest intermediate tensor for the reported dtype.",
+  };
   const plannerPanelBindings = createPlannerPanelBindings({
     plannerPanel,
     plannerDocument,
     actions,
   });
+
+  function buildTooltipAriaLabel(label, shortcut = "", description = "") {
+    if (!label) {
+      return description;
+    }
+    const header = shortcut ? `${label} (${shortcut})` : label;
+    return description ? `${header}. ${description}` : header;
+  }
+
+  function buildTooltipAttributes(label, description = "", shortcut = "") {
+    const attributes = ['data-tooltip-enabled="true"'];
+    if (label) {
+      attributes.push(`data-shortcut-label="${ctx.escapeHtml(label)}"`);
+    }
+    if (shortcut) {
+      attributes.push(`data-shortcut="${ctx.escapeHtml(shortcut)}"`);
+    }
+    if (description) {
+      attributes.push(
+        `data-shortcut-description="${ctx.escapeHtml(description)}"`
+      );
+    }
+    const ariaLabel = buildTooltipAriaLabel(label, shortcut, description);
+    if (ariaLabel) {
+      attributes.push(`aria-label="${ctx.escapeHtml(ariaLabel)}"`);
+    }
+    return attributes.join(" ");
+  }
+
+  function renderDisclosureState(isOpen) {
+    return `
+      <strong class="planner-disclosure-state ${
+        isOpen
+          ? "planner-disclosure-state-hide"
+          : "planner-disclosure-state-show"
+      }">${isOpen ? "Hide" : "Show"}</strong>
+    `;
+  }
+
+  function renderMetricLabel(label, description = "") {
+    return `
+      <span class="planner-chip-label">
+        <span>${ctx.escapeHtml(label)}</span>
+        ${
+          description
+            ? `
+              <span
+                class="planner-chip-info"
+                tabindex="0"
+                ${buildTooltipAttributes(label, description)}
+              >?</span>
+            `
+            : ""
+        }
+      </span>
+    `;
+  }
 
   function renderMetricChips(items) {
     return `
@@ -38,7 +102,7 @@ export function createPlannerRenderers({
           .map(
             (item) => `
               <div class="planner-chip">
-                <span>${ctx.escapeHtml(item.label)}</span>
+                ${renderMetricLabel(item.label, item.description)}
                 <strong>${ctx.escapeHtml(String(item.value))}</strong>
                 ${
                   item.detail
@@ -71,21 +135,25 @@ export function createPlannerRenderers({
           label: "FLOP",
           value: formatSignedDelta(comparison.delta_total_estimated_flops),
           detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.FLOP,
         },
         {
           label: "MAC",
           value: formatSignedDelta(comparison.delta_total_estimated_macs),
           detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.MAC,
         },
         {
           label: "Peak",
           value: formatSignedDelta(comparison.delta_peak_intermediate_size),
           detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.Peak,
         },
         {
           label: "Memory",
           value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
           detail: "Auto - Manual",
+          description: METRIC_DESCRIPTIONS.Memory,
         },
       ])}
     `;
@@ -96,15 +164,20 @@ export function createPlannerRenderers({
       return "";
     }
     const isOpen = Boolean(state.plannerDisclosureState[disclosureKey]);
+    const description =
+      disclosureKey === "automaticFullComparison"
+        ? "Compares the current manual path against the full automatic contraction path."
+        : "Compares the already contracted manual subtrees against the automatic replanning of that past work.";
     return `
       <div class="planner-nested-disclosure">
         <button
           type="button"
           class="planner-disclosure-toggle planner-nested-disclosure-toggle${isOpen ? " is-open" : ""}"
           data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+          ${buildTooltipAttributes(title, description)}
         >
           <span>${ctx.escapeHtml(title)}</span>
-          <strong>${isOpen ? "Hide" : "Show"}</strong>
+          ${renderDisclosureState(isOpen)}
         </button>
         ${
           isOpen
@@ -187,26 +260,46 @@ export function createPlannerRenderers({
       options.comparisonDisclosureKey,
       options.comparison
     );
+    const sectionDescription =
+      mode === "automaticFuture"
+        ? "Plans the remaining visible operands from the current manual path onward."
+        : mode === "automaticPast"
+          ? "Replans tensors that are already merged inside the current manual contractions."
+          : "Computes a full automatic contraction path for the whole visible network.";
     return `
       <section class="planner-section planner-disclosure">
         <button
           type="button"
           class="planner-disclosure-toggle button-accent-cool${isOpen ? " is-open" : ""}"
           data-disclosure="${ctx.escapeHtml(disclosureKey)}"
+          ${buildTooltipAttributes(title, sectionDescription)}
         >
           <span>${ctx.escapeHtml(title)}</span>
-          <strong>${isOpen ? "Hide" : "Show"}</strong>
+          ${renderDisclosureState(isOpen)}
         </button>
         ${isOpen ? `
           <div class="planner-disclosure-body">
             ${renderMetricChips([
-              { label: "FLOP", value: formatNumber(summary.total_estimated_flops) },
-              { label: "MAC", value: formatNumber(summary.total_estimated_macs) },
-              { label: "Peak", value: formatNumber(summary.peak_intermediate_size) },
+              {
+                label: "FLOP",
+                value: formatNumber(summary.total_estimated_flops),
+                description: METRIC_DESCRIPTIONS.FLOP,
+              },
+              {
+                label: "MAC",
+                value: formatNumber(summary.total_estimated_macs),
+                description: METRIC_DESCRIPTIONS.MAC,
+              },
+              {
+                label: "Peak",
+                value: formatNumber(summary.peak_intermediate_size),
+                description: METRIC_DESCRIPTIONS.Peak,
+              },
               {
                 label: "Memory",
                 value: formatBytes(getPeakMemoryBytes(summary, memoryDtype)),
                 detail: memoryDtype,
+                description: METRIC_DESCRIPTIONS.Memory,
               },
             ])}
             ${comparisonDisclosure}
@@ -228,6 +321,8 @@ export function createPlannerRenderers({
                       data-preview-mode="${ctx.escapeHtml(mode)}"
                       data-shortcut="${ctx.escapeHtml(previewShortcut)}"
                       data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
+                      data-tooltip-enabled="true"
+                      data-shortcut-description="Toggle a non-destructive preview of this automatic path on the canvas."
                       aria-pressed="${isPreviewing}"
                       ${canAct ? "" : " disabled"}
                     >
@@ -239,6 +334,8 @@ export function createPlannerRenderers({
                       data-accept-mode="${ctx.escapeHtml(mode)}"
                       data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
                       data-shortcut-label="Accept"
+                      data-tooltip-enabled="true"
+                      data-shortcut-description="Replace the current manual path with this automatic contraction plan."
                       ${canAct ? "" : " disabled"}
                     >
                       Accept
@@ -280,13 +377,26 @@ export function createPlannerRenderers({
         <h3>Manual</h3>
         ${renderMetricChips([
           { label: "Status", value: manualAnalysis.status || "unknown" },
-          { label: "FLOP", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops) },
-          { label: "MAC", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs) },
-          { label: "Peak", value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size) },
+          {
+            label: "FLOP",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_flops),
+            description: METRIC_DESCRIPTIONS.FLOP,
+          },
+          {
+            label: "MAC",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.total_estimated_macs),
+            description: METRIC_DESCRIPTIONS.MAC,
+          },
+          {
+            label: "Peak",
+            value: formatNumber(manualAnalysis.summary && manualAnalysis.summary.peak_intermediate_size),
+            description: METRIC_DESCRIPTIONS.Peak,
+          },
           {
             label: "Memory",
             value: formatBytes(getPeakMemoryBytes(manualAnalysis.summary, memoryDtype)),
             detail: memoryDtype,
+            description: METRIC_DESCRIPTIONS.Memory,
           },
           {
             label: "Shape",
@@ -428,16 +538,18 @@ export function createPlannerRenderers({
     if (typeof isBenchmarkBasePosition === "function" && isBenchmarkBasePosition()) {
       plannerPanel.innerHTML = `
         <div class="planner-toolbar">
-          <button
-            id="toggle-planner-mode-button"
-            type="button"
-            class="button-accent-cool"
-            data-shortcut="M"
-            data-shortcut-label="Manual scheme"
-            disabled
-          >
-            Contract
-          </button>
+        <button
+          id="toggle-planner-mode-button"
+          type="button"
+          class="button-accent-cool"
+          data-shortcut="M"
+          data-shortcut-label="Contract"
+          data-tooltip-enabled="true"
+          data-shortcut-description="Toggle manual contraction mode, then click two tensors or intermediate results to add a step."
+          disabled
+        >
+          Contract
+        </button>
           <button
             id="planner-reset-button"
             type="button"
@@ -479,7 +591,9 @@ export function createPlannerRenderers({
           type="button"
           class="button-accent-cool${state.plannerMode ? " is-active" : ""}"
           data-shortcut="M"
-          data-shortcut-label="Manual scheme"
+          data-shortcut-label="Contract"
+          data-tooltip-enabled="true"
+          data-shortcut-description="Toggle manual contraction mode, then click two tensors or intermediate results to add a step."
         >
           Contract
         </button>

@@ -73,6 +73,24 @@ function renderTrashIcon() {
   `;
 }
 
+function buildTooltipAttributes(label, description = "") {
+  const safeLabel = String(label || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  const safeDescription = String(description || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+    safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
+  }`;
+}
+
 function buildInlineMetadataEditor(
   ctx,
   { target, annotationScope, inputPrefix }
@@ -254,6 +272,10 @@ export function registerCanvasContextMenu(ctx) {
             <button
               id="context-menu-add-index-to-selection-button"
               type="button"
+              ${buildTooltipAttributes(
+                "Add index",
+                "Add one new open index to each selected tensor."
+              )}
             >
               Add index
             </button>
@@ -271,12 +293,18 @@ export function registerCanvasContextMenu(ctx) {
             </button>
           </div>
           <div class="button-row canvas-context-menu-actions">
-            <label class="control-inline-color" for="context-menu-selection-color-input">
+            <label
+              class="control-inline-color"
+              for="context-menu-selection-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
               <input
                 id="context-menu-selection-color-input"
                 type="color"
-                aria-label="Choose selection tint"
-                title="Choose selection tint"
+                aria-label="Choose color"
                 value="${ctx.escapeHtml(selectionColor)}"
               />
             </label>
@@ -411,16 +439,25 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button button-accent-insert"
               aria-label="Add index"
-              title="Add index"
+              ${buildTooltipAttributes(
+                "Add index",
+                "Create a new open index on this tensor."
+              )}
             >
               +
             </button>
-            <label class="control-inline-color" for="context-menu-tensor-color-input">
+            <label
+              class="control-inline-color"
+              for="context-menu-tensor-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
               <input
                 id="context-menu-tensor-color-input"
                 type="color"
-                aria-label="Choose tensor tint"
-                title="Choose tensor tint"
+                aria-label="Choose color"
                 value="${ctx.escapeHtml(tensorColor)}"
               />
             </label>
@@ -540,16 +577,26 @@ export function registerCanvasContextMenu(ctx) {
                 step="1"
                 value="${index.dimension}"
                 aria-label="Index dimension"
+                ${buildTooltipAttributes(
+                  "Index dimension",
+                  "Set the size of this index. Connected indices should share the same dimension."
+                )}
               />
             </div>
           </div>
           <div class="button-row canvas-context-menu-actions">
-            <label class="control-inline-color" for="context-menu-index-color-input">
+            <label
+              class="control-inline-color"
+              for="context-menu-index-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
               <input
                 id="context-menu-index-color-input"
                 type="color"
-                aria-label="Choose index tint"
-                title="Choose index tint"
+                aria-label="Choose color"
                 value="${ctx.escapeHtml(indexColor)}"
               />
             </label>
@@ -558,7 +605,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button index-action-button"
               aria-label="Move index up"
-              title="Move index up"
+              ${buildTooltipAttributes(
+                "Move index up",
+                "Move this index one position earlier in the tensor index order."
+              )}
               ${indexPosition === 0 ? "disabled" : ""}
             >
               <span aria-hidden="true">&#8593;</span>
@@ -568,7 +618,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button index-action-button"
               aria-label="Move index down"
-              title="Move index down"
+              ${buildTooltipAttributes(
+                "Move index down",
+                "Move this index one position later in the tensor index order."
+              )}
               ${indexPosition === indices.length - 1 ? "disabled" : ""}
             >
               <span aria-hidden="true">&#8595;</span>
@@ -578,7 +631,10 @@ export function registerCanvasContextMenu(ctx) {
               type="button"
               class="icon-button index-action-button danger"
               aria-label="Delete index"
-              title="Delete index"
+              ${buildTooltipAttributes(
+                "Delete index",
+                "Remove this index from the tensor."
+              )}
             >
               ${renderTrashIcon()}
             </button>
@@ -709,12 +765,18 @@ export function registerCanvasContextMenu(ctx) {
             <input id="context-menu-name-input" value="${ctx.escapeHtml(edge.name || "")}" />
           </div>
           <div class="button-row canvas-context-menu-actions">
-            <label class="control-inline-color" for="context-menu-edge-color-input">
+            <label
+              class="control-inline-color"
+              for="context-menu-edge-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
               <input
                 id="context-menu-edge-color-input"
                 type="color"
-                aria-label="Choose bond tint"
-                title="Choose bond tint"
+                aria-label="Choose color"
                 value="${ctx.escapeHtml(edgeColor)}"
               />
             </label>
@@ -822,18 +884,28 @@ export function registerCanvasContextMenu(ctx) {
             }
           </div>
           <div class="button-row canvas-context-menu-actions">
-            <label class="control-inline-color" for="context-menu-group-color-input">
+            <label
+              class="control-inline-color"
+              for="context-menu-group-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
               <input
                 id="context-menu-group-color-input"
                 type="color"
-                aria-label="Choose group tint"
-                title="Choose group tint"
+                aria-label="Choose color"
                 value="${ctx.escapeHtml(groupColor)}"
               />
             </label>
             <button
               id="context-menu-add-index-to-group-button"
               type="button"
+              ${buildTooltipAttributes(
+                "Add index",
+                "Add one new open index to each tensor inside this group."
+              )}
             >
               Add index
             </button>

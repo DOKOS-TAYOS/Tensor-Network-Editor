@@ -98,7 +98,14 @@ export function buildMultiSelectionPropertiesMarkup({
         hasMultipleTensors
           ? `
             <div class="button-row selection-tensor-actions-row">
-              <button id="add-index-to-selection-button" type="button" class="button-accent-insert">Add index</button>
+              <button
+                id="add-index-to-selection-button"
+                type="button"
+                class="button-accent-insert"
+                data-tooltip-enabled="true"
+                data-shortcut-label="Add index"
+                data-shortcut-description="Add one new open index to each selected tensor."
+              >Add index</button>
               <button
                 id="extract-selection-button"
                 type="button"
@@ -124,12 +131,17 @@ export function buildMultiSelectionPropertiesMarkup({
           : ""
       }
       <div class="button-row">
-        <label class="control-inline-color" for="multi-color-input">
+        <label
+          class="control-inline-color"
+          for="multi-color-input"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Choose color"
+          data-shortcut-description="Set the display color for this item."
+        >
           <input
             id="multi-color-input"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${escapeHtml(batchColor)}"
           />
         </label>

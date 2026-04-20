@@ -101,6 +101,24 @@ export function registerMetadataFilters(ctx) {
     });
   }
 
+  function escapeTooltipText(value) {
+    return typeof ctx.escapeHtml === "function"
+      ? ctx.escapeHtml(value)
+      : String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+  }
+
+  function buildTooltipAttributes(label, description) {
+    return [
+      'data-tooltip-enabled="true"',
+      `data-shortcut-label="${escapeTooltipText(label)}"`,
+      `data-shortcut-description="${escapeTooltipText(description)}"`,
+    ].join(" ");
+  }
+
   function normalizeMetadataFilters(filters = state.metadataFilters) {
     const scope =
       filters && (filters.scope === "index" || filters.scope === "bond")
@@ -571,6 +589,10 @@ export function registerMetadataFilters(ctx) {
             }${filters.enabled ? " is-active" : ""}"
             aria-label="Filter by metadata tags"
             aria-pressed="${state.openCanvasToolPopover === "filter"}"
+            ${buildTooltipAttributes(
+              "Filter",
+              "Highlight tensors, indices, or bonds by metadata tags without hiding anything."
+            )}
           >
             ${filterButtonIcon()}
           </button>
@@ -589,6 +611,10 @@ export function registerMetadataFilters(ctx) {
             }${search.enabled ? " is-active" : ""}"
             aria-label="Search by exact name"
             aria-pressed="${state.openCanvasToolPopover === "search"}"
+            ${buildTooltipAttributes(
+              "Search",
+              "Highlight tensors, indices, or bonds by exact name without changing the selection."
+            )}
           >
             ${searchButtonIcon()}
           </button>

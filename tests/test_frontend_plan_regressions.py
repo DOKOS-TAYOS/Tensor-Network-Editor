@@ -1973,7 +1973,7 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         ctx.state.plannerDisclosureState.automaticFuture = true;
         ctx.state.plannerDisclosureState.automaticPast = true;
         ctx.state.plannerDisclosureState.automaticFullComparison = true;
-        ctx.state.plannerDisclosureState.automaticPastComparison = true;
+        ctx.state.plannerDisclosureState.automaticPastComparison = false;
         ctx.state.plannerInspectionStepCount = 0;
 
         ctx.renderPlanner();
@@ -2007,6 +2007,57 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         }
         if (!html.includes("Auto - Manual")) {
           throw new Error(`Expected comparison chips to explain the Auto - Manual delta, received: ${html}`);
+        }
+        if (!html.includes('data-tooltip-enabled="true"')) {
+          throw new Error(`Expected the planner disclosures and actions to opt into shared tooltips, received: ${html}`);
+        }
+        if (!html.includes("Computes a full automatic contraction path for the whole visible network.")) {
+          throw new Error(`Expected Auto full to explain its scope when hovered, received: ${html}`);
+        }
+        if (!html.includes("Plans the remaining visible operands from the current manual path onward.")) {
+          throw new Error(`Expected Auto future to explain its scope when hovered, received: ${html}`);
+        }
+        if (!html.includes("Replans tensors that are already merged inside the current manual contractions.")) {
+          throw new Error(`Expected Auto past to explain its scope when hovered, received: ${html}`);
+        }
+        if (!html.includes("Compares the current manual path against the full automatic contraction path.")) {
+          throw new Error(`Expected Manual vs auto full to explain the comparison, received: ${html}`);
+        }
+        if (!html.includes("Compares the already contracted manual subtrees against the automatic replanning of that past work.")) {
+          throw new Error(`Expected Manual contractions vs auto past to explain the comparison, received: ${html}`);
+        }
+        if (!html.includes("Toggle a non-destructive preview of this automatic path on the canvas.")) {
+          throw new Error(`Expected Preview to explain that it does not replace the manual plan, received: ${html}`);
+        }
+        if (!html.includes("Replace the current manual path with this automatic contraction plan.")) {
+          throw new Error(`Expected Accept to explain that it replaces the current path, received: ${html}`);
+        }
+        if (!html.includes('id="toggle-planner-mode-button"') || !html.includes('data-shortcut="M"')) {
+          throw new Error(`Expected the planner to keep exposing the Contract shortcut, received: ${html}`);
+        }
+        if (!html.includes("Toggle manual contraction mode, then click two tensors or intermediate results to add a step.")) {
+          throw new Error(`Expected Contract to explain how to add a manual step, received: ${html}`);
+        }
+        if (!html.includes("Estimated floating-point operations across the full contraction path.")) {
+          throw new Error(`Expected FLOP metric help text, received: ${html}`);
+        }
+        if (!html.includes("Estimated multiply-accumulate operations across the full contraction path.")) {
+          throw new Error(`Expected MAC metric help text, received: ${html}`);
+        }
+        if (!html.includes("Largest intermediate tensor reached during the path, measured in elements.")) {
+          throw new Error(`Expected Peak metric help text, received: ${html}`);
+        }
+        if (!html.includes("Estimated memory used by the largest intermediate tensor for the reported dtype.")) {
+          throw new Error(`Expected Memory metric help text, received: ${html}`);
+        }
+        if (!html.includes('class="planner-chip-info"')) {
+          throw new Error(`Expected metric chips to render the new help icon, received: ${html}`);
+        }
+        if (!html.includes("planner-disclosure-state planner-disclosure-state-hide")) {
+          throw new Error(`Expected open disclosures to render the pale Hide state, received: ${html}`);
+        }
+        if (!html.includes("planner-disclosure-state planner-disclosure-state-show")) {
+          throw new Error(`Expected closed disclosures to render the pale Show state, received: ${html}`);
         }
         if (!html.includes(">FLOP</span>") || !html.includes("<strong>-376</strong>")) {
           throw new Error(`Expected the FLOP comparison chip to render the raw delta, received: ${html}`);

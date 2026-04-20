@@ -16,6 +16,14 @@ export function createStandardTensorPropertiesRenderer({
   renderTrashIcon,
   toggleTensorIndexDisclosure,
 }) {
+  function buildTooltipAttributes(label, description = "") {
+    const safeLabel = ctx.escapeHtml(label);
+    const safeDescription = ctx.escapeHtml(description);
+    return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+      safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
+    }`;
+  }
+
   function renderTensorProperties(tensor, options = {}) {
     const focusedIndexId = options.focusedIndexId || null;
     const tensorIndexCount = Array.isArray(tensor.indices) ? tensor.indices.length : 0;
@@ -62,6 +70,10 @@ export function createStandardTensorPropertiesRenderer({
                         <input
                           id="index-dimension-input-${index.id}"
                           data-focus-key="index:${index.id}:dimension"
+                          ${buildTooltipAttributes(
+                            "Index dimension",
+                            "Set the size of this index. Connected indices should share the same dimension."
+                          )}
                           type="number"
                           min="1"
                           step="1"
@@ -70,13 +82,19 @@ export function createStandardTensorPropertiesRenderer({
                       </div>
                     </div>
                     <div class="button-row">
-                      <label class="control-inline-color" for="index-color-input-${index.id}">
+                      <label
+                        class="control-inline-color"
+                        for="index-color-input-${index.id}"
+                        ${buildTooltipAttributes(
+                          "Choose color",
+                          "Set the display color for this item."
+                        )}
+                      >
                         <input
                           id="index-color-input-${index.id}"
                           data-focus-key="index:${index.id}:color"
                           type="color"
-                          title="Choose tint"
-                          aria-label="Choose tint"
+                          aria-label="Choose color"
                           value="${ctx.escapeHtml(
                             ctx.getMetadataColor(
                               index.metadata,
@@ -90,7 +108,10 @@ export function createStandardTensorPropertiesRenderer({
                         type="button"
                         class="icon-button index-action-button"
                         aria-label="Move index up"
-                        title="Move index up"
+                        ${buildTooltipAttributes(
+                          "Move index up",
+                          "Move this index one position earlier in the tensor index order."
+                        )}
                         ${indexPosition === 0 ? "disabled" : ""}
                       >
                         <span aria-hidden="true">&#8593;</span>
@@ -100,7 +121,10 @@ export function createStandardTensorPropertiesRenderer({
                         type="button"
                         class="icon-button index-action-button"
                         aria-label="Move index down"
-                        title="Move index down"
+                        ${buildTooltipAttributes(
+                          "Move index down",
+                          "Move this index one position later in the tensor index order."
+                        )}
                         ${
                           indexPosition === tensor.indices.length - 1 ? "disabled" : ""
                         }
@@ -112,7 +136,10 @@ export function createStandardTensorPropertiesRenderer({
                         type="button"
                         class="icon-button index-action-button danger"
                         aria-label="Delete index"
-                        title="Delete index"
+                        ${buildTooltipAttributes(
+                          "Delete index",
+                          "Remove this index from the tensor."
+                        )}
                       >
                         ${renderTrashIcon()}
                       </button>
@@ -160,17 +187,26 @@ export function createStandardTensorPropertiesRenderer({
           type="button"
           class="icon-button button-accent-insert"
           aria-label="Add index"
-          title="Add index"
+          ${buildTooltipAttributes(
+            "Add index",
+            "Create a new open index on this tensor."
+          )}
         >
           +
         </button>
-        <label class="control-inline-color" for="tensor-color-input">
+        <label
+          class="control-inline-color"
+          for="tensor-color-input"
+          ${buildTooltipAttributes(
+            "Choose color",
+            "Set the display color for this item."
+          )}
+        >
           <input
             id="tensor-color-input"
             data-focus-key="tensor:${tensor.id}:color"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${ctx.escapeHtml(ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback))}"
           />
         </label>

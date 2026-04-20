@@ -200,6 +200,28 @@ export function createMetadataEditorSupport({
     return null;
   }
 
+  function escapeTooltipText(value) {
+    return escapeHtml(String(value || ""));
+  }
+
+  function buildTooltipAttributes(label, description = "") {
+    const safeLabel = escapeTooltipText(label);
+    const safeDescription = escapeTooltipText(description);
+    return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+      safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
+    } aria-label="${safeDescription ? `${safeLabel}. ${safeDescription}` : safeLabel}"`;
+  }
+
+  function buildHelpIcon(label, description) {
+    return `
+      <span
+        class="field-help-icon"
+        tabindex="0"
+        ${buildTooltipAttributes(label, description)}
+      >?</span>
+    `;
+  }
+
   function buildMetadataEditorMarkup({
     tagsInputId,
     tagsFocusKey,
@@ -222,7 +244,13 @@ export function createMetadataEditorSupport({
         : false;
     const metadataEditorMarkup = `
       <div class="field-group">
-        <label for="${tagsInputId}">Tags</label>
+        <label class="field-label-with-help" for="${tagsInputId}">
+          <span>Tags</span>
+          ${buildHelpIcon(
+            "Tags",
+            "Short reusable labels for filtering, search, and organization. Separate several tags with commas."
+          )}
+        </label>
         <input
           id="${tagsInputId}"
           data-focus-key="${tagsFocusKey}"
@@ -236,7 +264,13 @@ export function createMetadataEditorSupport({
         ></div>
       </div>
       <div class="field-group">
-        <label for="${customMetadataInputId}">Custom metadata (JSON)</label>
+        <label class="field-label-with-help" for="${customMetadataInputId}">
+          <span>Custom metadata (JSON)</span>
+          ${buildHelpIcon(
+            "Custom metadata (JSON)",
+            "Store extra JSON fields that are not covered by the guided inputs."
+          )}
+        </label>
         <textarea
           id="${customMetadataInputId}"
           data-focus-key="${customMetadataFocusKey}"

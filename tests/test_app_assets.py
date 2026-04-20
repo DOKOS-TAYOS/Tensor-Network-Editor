@@ -555,11 +555,14 @@ def test_css_asset_uses_two_row_shortcut_tooltips(
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert ".shortcut-tooltip {" in css_body
-    assert "min-width: 13rem;" in css_body
+    assert "width: max-content;" in css_body
+    assert "max-width: min(18rem, calc(100vw - 1rem));" in css_body
     assert "border-radius: 6px;" in css_body
     assert "display: grid;" in css_body
+    assert "gap: 0.22rem;" in css_body
     assert ".shortcut-tooltip-header {" in css_body
-    assert "justify-content: space-between;" in css_body
+    assert "justify-content: flex-start;" in css_body
+    assert "flex-wrap: wrap;" in css_body
     assert ".shortcut-tooltip-shortcut {" in css_body
     assert "white-space: nowrap;" in css_body
     assert ".shortcut-tooltip-description {" in css_body
@@ -703,6 +706,16 @@ def test_properties_assets_use_compact_metadata_disclosures_and_tag_autocomplete
     assert 'summaryLabel = "Metadata"' in metadata_body
     assert 'rows="1"' in metadata_body
     assert "properties-disclosure-chevron" in metadata_body
+    assert "field-label-with-help" in metadata_body
+    assert "field-help-icon" in metadata_body
+    assert (
+        "Short reusable labels for filtering, search, and organization."
+        in metadata_body
+    )
+    assert (
+        "Store extra JSON fields that are not covered by the guided inputs."
+        in metadata_body
+    )
     assert "function buildTagAutocompleteSuggestions(" in metadata_body
     assert "function replaceActiveTagToken(" in metadata_body
     assert "{ scheduleOnInput: false }" in metadata_body
@@ -772,6 +785,15 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "canvas-metadata-filter-select-none-button" in filter_body
     assert "Not specified" in filter_body
     assert "canvas-name-search-input" in filter_body
+    assert 'data-tooltip-enabled="true"' in filter_body
+    assert (
+        "Highlight tensors, indices, or bonds by metadata tags without hiding anything."
+        in filter_body
+    )
+    assert (
+        "Highlight tensors, indices, or bonds by exact name without changing the selection."
+        in filter_body
+    )
     assert 'class="canvas-tool-scope-field select-chevron-field"' in filter_body
     assert '"bond"' in filter_body
     assert "function getMetadataFilterHighlight(" in filter_body
@@ -786,6 +808,9 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "transform: rotate(90deg)" in css_body
     assert ".metadata-editor-disclosure" in css_body
     assert "overflow: visible;" in css_body
+    assert ".planner-chip-info {" in css_body
+    assert ".planner-disclosure-state-show {" in css_body
+    assert ".planner-disclosure-state-hide {" in css_body
 
 
 def test_canvas_context_menu_assets_expose_minimal_selection_actions(
@@ -829,6 +854,13 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'id="context-menu-group-color-input"' in context_menu_body
     assert 'id="context-menu-promote-group-template-button"' in context_menu_body
     assert 'id="context-menu-delete-group-button"' in context_menu_body
+    assert "function buildTooltipAttributes(" in context_menu_body
+    assert '"Choose color"' in context_menu_body
+    assert '"Move index up"' in context_menu_body
+    assert '"Move index down"' in context_menu_body
+    assert '"Delete index"' in context_menu_body
+    assert '"Index dimension"' in context_menu_body
+    assert "Add one new open index to each selected tensor." in context_menu_body
     assert "Add index to tensors" not in context_menu_body
     assert "Extract selection" not in context_menu_body
     assert "Promote to template" not in context_menu_body
@@ -1347,6 +1379,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         'title="Indices reset: redistribute selected tensor indices evenly around each tensor."'
         in html
     )
+    assert not re.search(r'<button id="help-close-button"[^>]*title=', html)
     assert re.search(r">\s*Reset\s*<", html)
     assert "&larr;" in html
     assert "&#8857;" in html
@@ -1356,6 +1389,19 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert not re.search(
         r'<button id="help-close-button"[^>]*>\s*Close\s*</button>',
         html,
+    )
+    assert 'dataset.shortcutLabel = "Sidebar";' in request_text(
+        f"{editor_server.base_url}/js/sidebarTabs.js"
+    )
+    assert 'dataset.tooltipEnabled = "true";' in request_text(
+        f"{editor_server.base_url}/js/sidebarTabs.js"
+    )
+    assert "Output type" in shell_bindings_body
+    assert "Choose how generated code returns the tensors" in shell_bindings_body
+    assert "Create a new benchmark scheme after the current one." in utilities_ui_body
+    assert (
+        "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
+        in utilities_ui_body
     )
     shortcuts_section = re.search(
         r'<section id="help-shortcuts-section"[^>]*>(?P<body>.*?)</section>',

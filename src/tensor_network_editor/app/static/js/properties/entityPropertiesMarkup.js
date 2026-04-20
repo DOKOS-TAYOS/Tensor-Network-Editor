@@ -35,17 +35,28 @@ export function buildGroupPropertiesMarkup({
         }
       </div>
       <div class="button-row">
-        <label class="control-inline-color" for="group-color-input">
+        <label
+          class="control-inline-color"
+          for="group-color-input"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Choose color"
+          data-shortcut-description="Set the display color for this item."
+        >
           <input
             id="group-color-input"
             data-focus-key="group:${group.id}:color"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${escapeHtml(groupColor)}"
           />
         </label>
-        <button id="add-index-to-group-button" type="button">
+        <button
+          id="add-index-to-group-button"
+          type="button"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Add index"
+          data-shortcut-description="Add one new open index to each tensor inside this group."
+        >
           Add index
         </button>
         <button
@@ -107,13 +118,18 @@ export function buildEdgePropertiesMarkup({
         />
       </div>
       <div class="button-row">
-        <label class="control-inline-color" for="edge-color-input">
+        <label
+          class="control-inline-color"
+          for="edge-color-input"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Choose color"
+          data-shortcut-description="Set the display color for this item."
+        >
           <input
             id="edge-color-input"
             data-focus-key="edge:${edge.id}:color"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${escapeHtml(edgeColor)}"
           />
         </label>
@@ -155,13 +171,18 @@ export function buildNotePropertiesMarkup({
         >${escapeHtml(note.text)}</textarea>
       </div>
       <div class="button-row">
-        <label class="control-inline-color" for="note-color-input">
+        <label
+          class="control-inline-color"
+          for="note-color-input"
+          data-tooltip-enabled="true"
+          data-shortcut-label="Choose color"
+          data-shortcut-description="Set the display color for this item."
+        >
           <input
             id="note-color-input"
             data-focus-key="note:${note.id}:color"
             type="color"
-            title="Choose tint"
-            aria-label="Choose tint"
+            aria-label="Choose color"
             value="${escapeHtml(noteColor)}"
           />
         </label>

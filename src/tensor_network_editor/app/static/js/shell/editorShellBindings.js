@@ -330,7 +330,6 @@ export function createEditorShellBindings({
         "reflow-indices-reset-button",
         "reflow-indices-bottom-button",
         "copy-code-button",
-        "help-close-button",
         "template-manager-save-button",
         "template-manager-discard-button",
       ].forEach((controlId) => {
@@ -338,6 +337,50 @@ export function createEditorShellBindings({
       });
       shortcutTooltip.applyTitleHint("template-select", { label: "Template" });
     }
+    shortcutTooltip.applyShortcutHint(
+      "collection-format-select-field",
+      "Output type",
+      "",
+      "Choose how generated code returns the tensors: list keeps an ordered sequence, matrix arranges row and column structures when the template supports them, and dict returns named entries."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "linear-periodic-previous-cell-button",
+      "Previous cell"
+    );
+    shortcutTooltip.applyShortcutHint(
+      "linear-periodic-next-cell-button",
+      "Next cell"
+    );
+    shortcutTooltip.applyShortcutHint(
+      "done-button",
+      "Done",
+      "",
+      "Finish the editor session and return the current design to Python."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "cancel-button",
+      "Cancel",
+      "",
+      "Cancel the editor session without returning the current design to Python."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "sidebar-tab-selection",
+      "Selection",
+      "",
+      "Inspect and edit the current selection, including metadata, layout, and extraction tools."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "sidebar-tab-planner",
+      "Planner",
+      "",
+      "Review manual and automatic contraction paths, comparisons, and contraction steps."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "sidebar-tab-code",
+      "Code",
+      "",
+      "Generate and inspect code for the current network with the selected engine."
+    );
     shortcutTooltip.attachShortcutTooltipHandlers();
 
     toolbarMenus.forEach((menu) => {

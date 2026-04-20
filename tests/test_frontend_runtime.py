@@ -3356,6 +3356,15 @@ def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
         if (ctx.state.sidebarWidth !== 360) {
           throw new Error(`Expected default sidebar width 360, received ${ctx.state.sidebarWidth}.`);
         }
+        if (ctx.dom.sidebarToggleButton.dataset.tooltipEnabled !== "true") {
+          throw new Error("Expected the sidebar toggle to expose the shared tooltip behavior.");
+        }
+        if (ctx.dom.sidebarToggleButton.dataset.shortcutLabel !== "Sidebar") {
+          throw new Error(`Expected the sidebar toggle tooltip label to stay compact, received ${ctx.dom.sidebarToggleButton.dataset.shortcutLabel}.`);
+        }
+        if ("shortcutDescription" in ctx.dom.sidebarToggleButton.dataset) {
+          throw new Error("Expected the sidebar toggle tooltip to expose only the shortcut.");
+        }
         if (ctx.dom.workspace.style.properties["--sidebar-width"] !== "360px") {
           throw new Error("The workspace did not receive the initial sidebar width CSS variable.");
         }
@@ -6015,6 +6024,14 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               throw new Error("One or more utility helper factories were not exported.");
             }
 
+            const templateToolbarGroup = createButton();
+            const templateSelectField = createButton();
+            templateSelectField.parentElement = templateToolbarGroup;
+            const templateSettingsShell = createButton();
+            templateSettingsShell.parentElement = templateToolbarGroup;
+            const reflowLayoutShell = createButton();
+            reflowLayoutShell.parentElement = templateToolbarGroup;
+
             const ctx = {
               state: createInitialState(),
               constants: {
@@ -6078,23 +6095,37 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 redoButton: createButton(),
                 exportButton: createButton(),
                 toggleLinearPeriodicButton: createButton(),
+                benchmarkModeMenuItem: createButton(),
+                toolbarModeControls: createButton(),
                 linearPeriodicPreviousCellButton: createButton(),
                 linearPeriodicCellLabel: { textContent: "" },
+                gridPeriodicUpCellButton: createButton(),
+                gridPeriodicDownCellButton: createButton(),
                 linearPeriodicNextCellButton: createButton(),
-                templateSelect: { value: "" },
+                benchmarkSchemeNameInput: createButton(),
+                benchmarkCompareButton: createButton(),
+                templateSelect: {
+                  value: "",
+                  disabled: false,
+                  hidden: false,
+                  parentElement: templateSelectField,
+                },
                 templateParameterPanel: { hidden: true },
                 templateGraphSizeLabel: { textContent: "" },
                 templateGraphSizeInput: { value: "2", min: "1" },
                 templateBondDimensionInput: { value: "3", min: "1" },
                 templatePhysicalDimensionInput: { value: "2", min: "1" },
-                templateSettingsButton: createButton({
-                  left: 720,
-                  top: 132,
-                  right: 756,
-                  bottom: 164,
-                  width: 36,
-                  height: 32,
-                }),
+                templateSettingsButton: {
+                  ...createButton({
+                    left: 720,
+                    top: 132,
+                    right: 756,
+                    bottom: 164,
+                    width: 36,
+                    height: 32,
+                  }),
+                  parentElement: templateSettingsShell,
+                },
                 templateSettingsPopover: createButton({
                   left: 0,
                   top: 0,
@@ -6111,15 +6142,21 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                   width: 360,
                   height: 280,
                 }),
-                insertTemplateButton: createButton(),
-                reflowImportedButton: createButton({
-                  left: 812,
-                  top: 132,
-                  right: 876,
-                  bottom: 164,
-                  width: 64,
-                  height: 32,
-                }),
+                insertTemplateButton: {
+                  ...createButton(),
+                  parentElement: templateToolbarGroup,
+                },
+                reflowImportedButton: {
+                  ...createButton({
+                    left: 812,
+                    top: 132,
+                    right: 876,
+                    bottom: 164,
+                    width: 64,
+                    height: 32,
+                  }),
+                  parentElement: reflowLayoutShell,
+                },
                 reflowAlignLeftButton: createButton(),
                 reflowAlignRightButton: createButton(),
                 reflowAlignTopButton: createButton(),
@@ -6308,7 +6345,56 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               throw new Error("Reflow should disable again when no tensor is selected.");
             }
             ctx.state.selectionIds = ["tensor_a"];
+            runtime.isBenchmarkMode = () => true;
+            runtime.getBenchmarkSession = () => ({
+              activePosition: 1,
+              schemes: [{ name: "Scheme A" }],
+            });
+            runtime.getActiveBenchmarkScheme = () => ({ name: "Scheme A" });
+            runtime.canOpenBenchmarkCompare = () => true;
+            runtime.getBenchmarkNextButtonLabel = () => ">";
+            runtime.getBenchmarkBaseLabel = () => "Tensor network";
+            ctx.state.isTemplateSettingsOpen = true;
+            ctx.state.isReflowLayoutOpen = true;
             runtime.updateToolbarState();
+            if (!templateToolbarGroup.hidden) {
+              throw new Error("The template toolbar group should disappear while viewing a benchmark scheme.");
+            }
+            if (!ctx.dom.templateSelect.disabled || !ctx.dom.templateSelect.parentElement.hidden) {
+              throw new Error("Template selection should disappear while viewing a benchmark scheme.");
+            }
+            if (
+              !ctx.dom.templateSettingsButton.disabled
+              || !ctx.dom.templateSettingsButton.parentElement.hidden
+            ) {
+              throw new Error("Template settings should disappear while viewing a benchmark scheme.");
+            }
+            if (!ctx.dom.insertTemplateButton.hidden || !ctx.dom.insertTemplateButton.disabled) {
+              throw new Error("Insert template should disappear while viewing a benchmark scheme.");
+            }
+            if (
+              !ctx.dom.reflowImportedButton.disabled
+              || !ctx.dom.reflowImportedButton.parentElement.hidden
+            ) {
+              throw new Error("Reflow should disappear while viewing a benchmark scheme.");
+            }
+            if (ctx.dom.benchmarkSchemeNameInput.hidden || ctx.dom.benchmarkSchemeNameInput.disabled) {
+              throw new Error("The benchmark scheme name should stay available on saved schemes.");
+            }
+            if (ctx.dom.benchmarkCompareButton.hidden || ctx.dom.benchmarkCompareButton.disabled) {
+              throw new Error("Compare should stay available on saved benchmark schemes.");
+            }
+            if (!ctx.dom.linearPeriodicCellLabel.hidden) {
+              throw new Error("The base tensor-network label should be hidden while viewing a saved benchmark scheme.");
+            }
+            if (ctx.state.isTemplateSettingsOpen || ctx.state.isReflowLayoutOpen) {
+              throw new Error("Benchmark schemes should close template and reflow popovers.");
+            }
+            runtime.isBenchmarkMode = () => false;
+            runtime.updateToolbarState();
+            if (templateToolbarGroup.hidden) {
+              throw new Error("The template toolbar group should reappear when leaving the benchmark scheme view.");
+            }
             runtime.openToolbarMenu("file");
             if (ctx.dom.fileMenuPanel.hidden !== false) {
               throw new Error("Opening a toolbar menu should reveal the floating menu panel.");
