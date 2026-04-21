@@ -14,6 +14,7 @@ from ...models import (
     EdgeSpec,
     IndexSpec,
     NetworkSpec,
+    TensorDataSpec,
     TensorSize,
     TensorSpec,
 )
@@ -24,7 +25,7 @@ from ._python_roundtrip_ast import (
     _literal_string,
     _literal_string_sequence,
     _parse_operand_tag_string,
-    _parse_zeros_shape,
+    _parse_tensor_data_initializer,
 )
 from ._python_roundtrip_helpers import (
     default_tensor_name_from_position,
@@ -43,6 +44,7 @@ class _ParsedTensor:
     shape: tuple[int, ...]
     name: str
     index_labels: list[str] | None
+    tensor_data: TensorDataSpec | None = None
     operand_id: str | None = None
 
 
@@ -82,6 +84,7 @@ def _parse_tensor_expression(
     *,
     expression: ast.expr,
     data_shapes: dict[str, tuple[int, ...]],
+    tensor_data_by_name: dict[str, TensorDataSpec | None],
     reference: str,
     fallback_name: str | None,
 ) -> _ParsedTensor:
@@ -89,11 +92,12 @@ def _parse_tensor_expression(
     resolved_data = _resolve_tensor_data_expression(
         expression=expression,
         data_shapes=data_shapes,
+        tensor_data_by_name=tensor_data_by_name,
         reference=reference,
         fallback_name=fallback_name,
     )
     if resolved_data is not None:
-        data_variable_name, shape = resolved_data
+        data_variable_name, shape, tensor_data = resolved_data
         return _ParsedTensor(
             reference=reference,
             data_variable_name=data_variable_name,
@@ -102,6 +106,7 @@ def _parse_tensor_expression(
                 data_variable_name, fallback_name
             ),
             index_labels=None,
+            tensor_data=tensor_data,
         )
 
     if not isinstance(expression, ast.Call):
@@ -120,6 +125,7 @@ def _parse_tensor_expression(
         resolved_data = _resolve_tensor_data_expression(
             expression=data_expression,
             data_shapes=data_shapes,
+            tensor_data_by_name=tensor_data_by_name,
             reference=reference,
             fallback_name=fallback_name,
         )
@@ -127,7 +133,7 @@ def _parse_tensor_expression(
             raise SerializationError(
                 "Generated Python node construction is missing supported tensor data."
             )
-        data_variable_name, shape = resolved_data
+        data_variable_name, shape, tensor_data = resolved_data
 
         axis_names = _literal_string_sequence(
             _keyword_value(expression, "axis_names")
@@ -149,6 +155,7 @@ def _parse_tensor_expression(
                 )
             ),
             index_labels=axis_names,
+            tensor_data=tensor_data,
         )
 
     if call_name.endswith(".Tensor") or call_name == "Tensor":
@@ -158,6 +165,7 @@ def _parse_tensor_expression(
         resolved_data = _resolve_tensor_data_expression(
             expression=data_expression,
             data_shapes=data_shapes,
+            tensor_data_by_name=tensor_data_by_name,
             reference=reference,
             fallback_name=fallback_name,
         )
@@ -165,7 +173,7 @@ def _parse_tensor_expression(
             raise SerializationError(
                 "Generated Python tensor construction is missing supported tensor data."
             )
-        data_variable_name, shape = resolved_data
+        data_variable_name, shape, tensor_data = resolved_data
 
         inds = _literal_string_sequence(_keyword_value(expression, "inds"))
         if inds is None:
@@ -186,6 +194,7 @@ def _parse_tensor_expression(
                 )
             ),
             index_labels=inds,
+            tensor_data=tensor_data,
             operand_id=_parse_operand_tag_string(tags[1] if len(tags) > 1 else None),
         )
 
@@ -198,25 +207,32 @@ def _resolve_tensor_data_expression(
     *,
     expression: ast.expr | None,
     data_shapes: dict[str, tuple[int, ...]],
+    tensor_data_by_name: dict[str, TensorDataSpec | None],
     reference: str,
     fallback_name: str | None,
-) -> tuple[str, tuple[int, ...]] | None:
+) -> tuple[str, tuple[int, ...], TensorDataSpec | None] | None:
     """Resolve a tensor data expression to its variable name and shape."""
     data_variable_name = _extract_name_from_expression(expression)
     if data_variable_name is not None:
         shape = data_shapes.get(data_variable_name)
         if shape is None:
             raise SerializationError(
-                "Generated Python code references tensor data without a supported zeros initializer."
+                "Generated Python code references tensor data without a supported initializer."
             )
-        return data_variable_name, shape
+        return (
+            data_variable_name,
+            shape,
+            tensor_data_by_name.get(data_variable_name),
+        )
 
     if isinstance(expression, ast.Call):
-        shape = _parse_zeros_shape(expression)
-        if shape is not None:
+        parsed_initializer = _parse_tensor_data_initializer(expression)
+        if parsed_initializer is not None:
+            shape, tensor_data = parsed_initializer
             return (
                 _synthetic_data_variable_name(reference, fallback_name),
                 shape,
+                tensor_data,
             )
     return None
 
@@ -505,6 +521,7 @@ def _build_tensor_specs(
                             index_id_by_reference_and_position
                         ),
                     ),
+                    tensor_data=parsed_tensor.tensor_data,
                 )
             )
     return tensor_specs, tensor_id_by_reference, index_id_by_reference_and_position

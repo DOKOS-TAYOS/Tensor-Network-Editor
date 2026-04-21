@@ -17,7 +17,13 @@ from tensor_network_editor.errors import (
     PackageIOError,
     SerializationError,
 )
-from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
+from tensor_network_editor.models import (
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+    TensorDataMode,
+    TensorDataSpec,
+)
 from tests.conftest import distribution_for_checkout_import_or_skip
 from tests.factories import (
     build_outer_product_plan_spec,
@@ -60,6 +66,8 @@ def test_package_root_exports_supported_public_api() -> None:
         "IndexSpec",
         "NetworkSpec",
         "TensorCollectionFormat",
+        "TensorDataMode",
+        "TensorDataSpec",
         "TensorSize",
         "TensorSpec",
         "__version__",
@@ -226,6 +234,33 @@ def test_load_spec_from_python_code_round_trips_generated_source(
     assert loaded_spec.groups == []
     assert loaded_spec.notes == []
     assert loaded_spec.contraction_plan is None
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_round_trips_tensor_data(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_spec_without_plan()
+    sample_spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+    )
+    sample_spec.tensors[1].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value=1.5,
+    )
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.tensors[0].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+    )
+    assert loaded_spec.tensors[1].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value=1.5,
+    )
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

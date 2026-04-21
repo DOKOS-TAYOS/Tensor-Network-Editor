@@ -25,6 +25,8 @@ from tensor_network_editor.models import (
     LinearPeriodicCellName,
     LinearPeriodicTensorRole,
     NetworkSpec,
+    TensorDataMode,
+    TensorDataSpec,
     TensorSize,
     TensorSpec,
     TreePeriodicTensorRole,
@@ -384,6 +386,58 @@ def test_open_indices_are_derived_from_unconnected_ports() -> None:
 
 def test_validate_spec_accepts_valid_network() -> None:
     assert validate_spec(build_valid_spec()) == []
+
+
+def test_validate_spec_accepts_tensor_literal_data_matching_shape() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[
+            [1.0, 2.0, 3.0, 4.0, 5.0],
+            [6.0, 7.0, 8.0, 9.0, 10.0],
+        ],
+    )
+
+    assert validate_spec(spec) == []
+
+
+def test_validate_spec_rejects_tensor_literal_data_shape_mismatch() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[1.0, 2.0],
+    )
+
+    issue = find_issue(validate_spec(spec), "tensor-data-shape-mismatch")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
+def test_validate_spec_rejects_ragged_tensor_literal_data() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0],
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-tensor-data")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
+def test_validate_spec_rejects_non_numeric_tensor_literal_values() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=cast(Any, [[1.0, True, 3.0], [4.0, 5.0, 6.0]]),
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-tensor-data")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
 
 
 def test_validate_spec_accepts_valid_network_with_notes_and_plan() -> None:

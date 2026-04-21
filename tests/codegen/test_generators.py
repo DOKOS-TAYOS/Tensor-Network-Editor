@@ -16,6 +16,8 @@ from tensor_network_editor.models import (
     IndexSpec,
     NetworkSpec,
     TensorCollectionFormat,
+    TensorDataMode,
+    TensorDataSpec,
     TensorSpec,
 )
 from tests.factories import (
@@ -308,6 +310,75 @@ def test_generate_code_emits_engine_specific_contracts(
         assert snippet in result.code
 
 
+@pytest.mark.parametrize(
+    ("engine", "expected_snippets"),
+    [
+        (
+            EngineName.TENSORNETWORK,
+            [
+                "a_data = np.full((2, 3), 2.5, dtype=float)",
+                "b_data = np.ones((3, 4), dtype=float)",
+                "tn.Node(a_data, ",
+                "tn.Node(b_data, ",
+            ],
+        ),
+        (
+            EngineName.QUIMB,
+            [
+                "a_data = np.full((2, 3), 2.5, dtype=float)",
+                "b_data = np.ones((3, 4), dtype=float)",
+                "qtn.Tensor(data=a_data, ",
+                "qtn.Tensor(data=b_data, ",
+            ],
+        ),
+        (
+            EngineName.TENSORKROWCH,
+            [
+                "a_data = torch.full((2, 3), 2.5, dtype=torch.float32)",
+                "b_data = torch.ones((3, 4), dtype=torch.float32)",
+                "tk.Node(tensor=a_data, ",
+                "tk.Node(tensor=b_data, ",
+            ],
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            [
+                "a_data = np.full((2, 3), 2.5, dtype=float)",
+                "b_data = np.ones((3, 4), dtype=float)",
+                "tensors.append(a_data)",
+                "tensors.append(b_data)",
+            ],
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "a_data = torch.full((2, 3), 2.5, dtype=torch.float32)",
+                "b_data = torch.ones((3, 4), dtype=torch.float32)",
+                "tensors.append(a_data)",
+                "tensors.append(b_data)",
+            ],
+        ),
+    ],
+)
+def test_generate_code_uses_tensor_data_initializers(
+    engine: EngineName,
+    expected_snippets: list[str],
+) -> None:
+    spec = build_sample_spec_without_plan()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value=2.5,
+    )
+    spec.tensors[1].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.ONES,
+    )
+
+    result = generate_code(spec, engine=engine)
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+
+
 @pytest.mark.parametrize("engine", list(EngineName))
 @pytest.mark.parametrize(
     ("collection_format", "container_name", "expected_snippets"),
@@ -346,7 +417,6 @@ def test_generate_code_supports_all_collection_formats(
     assert "# Tensor A" in result.code
     assert "# Tensor B" in result.code
     assert "_TNE_SPEC" not in result.code
-    assert "_data =" not in result.code
 
 
 def test_matrix_collection_format_groups_tensors_by_visual_rows() -> None:
@@ -384,7 +454,7 @@ def test_generate_code_does_not_emit_roundtrip_metadata() -> None:
     )
 
     assert "_TNE_SPEC" not in result.code
-    assert "_data =" not in result.code
+    assert "# Tensor A data" in result.code
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

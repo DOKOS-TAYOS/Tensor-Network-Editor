@@ -191,15 +191,17 @@ Saved designs use this wrapper:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "network": {
     "...": "..."
   }
 }
 ```
 
-If the schema version is different, `load_spec(...)` rejects the file clearly.
-This is safer than guessing how to interpret an unknown file shape.
+New saves use schema version `5`, and schema version `4` designs are still
+accepted for backward compatibility. If the schema version is otherwise
+different, `load_spec(...)` rejects the file clearly. This is safer than
+guessing how to interpret an unknown file shape.
 
 ## Validation Errors
 
@@ -241,8 +243,10 @@ This is intentionally limited to source produced by this package. It is not a
 general importer for arbitrary Python tensor-network code.
 
 For supported standard exports, saved manual contraction steps are recovered on
-round-trip. Editor-only contraction `view_snapshots` are still dropped because
-the generated source does not encode that layout state.
+round-trip. Supported tensor initializer modes (`ones`, `fill`, and explicit
+numeric literals) are also recovered. Editor-only contraction `view_snapshots`
+are still dropped because the generated source does not encode that layout
+state.
 
 Linear periodic generated Python is not supported by this round-trip parser
 yet, so those exports should be treated as output artifacts rather than a
@@ -297,8 +301,8 @@ for another backend later.
 These are current limits, not installation problems:
 
 - hyperedges are not supported
-- real tensor values are not edited in the visual editor
-- generated tensors are initialized by generated backend code
+- tensor values in the visual editor are limited to generated zeros, ones,
+  fill values, and explicit numeric JSON literals
 - TenPy code generation is not included
 - For mode works with every bundled backend
 - manual outer-product plans cannot be exported to `tensorkrowch`

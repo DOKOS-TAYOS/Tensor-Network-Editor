@@ -20,6 +20,7 @@ from ..shared.common import (
     render_results_list_reference,
     render_tensor_collection_assignment,
     render_tensor_collection_initialization,
+    render_tensor_data_assignments,
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
@@ -44,13 +45,19 @@ class QuimbCodeGenerator(CodeGenerator):
             collection_name,
             collection_format,
         )
+        tensor_data_lines = render_tensor_data_assignments(
+            prepared,
+            module_alias="np",
+            zeros_initializer_suffix=", dtype=float",
+            literal_constructor_name="array",
+        )
         tensor_construction_lines = render_tensor_collection_assignment(
             collection_name=collection_name,
             collection_format=collection_format,
             prepared=prepared,
             tensor_value_by_id={
                 tensor.spec.id: (
-                    f"qtn.Tensor(data=np.zeros({tensor.spec.shape!r}, dtype=float), "
+                    f"qtn.Tensor(data={tensor.data_variable_name}, "
                     f"inds={tuple(index.label for index in tensor.indices)!r}, "
                     f"tags={(tensor.spec.name, self._operand_tag(tensor.spec.id))!r})"
                 )
@@ -91,6 +98,7 @@ class QuimbCodeGenerator(CodeGenerator):
                     lines=["import numpy as np", "import quimb.tensor as qtn"],
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(title="Tensor data", lines=tensor_data_lines),
                 CodeSection(
                     title="Tensor construction",
                     lines=tensor_construction_lines,

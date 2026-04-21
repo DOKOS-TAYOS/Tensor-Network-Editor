@@ -9,6 +9,7 @@ from tensor_network_editor.internal.io._python_roundtrip_helpers import (
     recover_tensor_name_from_data_variable,
     sanitize_identifier,
 )
+from tensor_network_editor.models import TensorDataMode, TensorDataSpec
 
 
 def test_python_roundtrip_internal_helpers_normalize_generated_names() -> None:
@@ -47,9 +48,30 @@ def test_python_roundtrip_internal_build_helpers_resolve_inline_zeros() -> None:
     assert _resolve_tensor_data_expression(
         expression=zeros_expression,
         data_shapes={},
+        tensor_data_by_name={},
         reference="list:0",
         fallback_name="A",
-    ) == ("a_data", (2, 3))
+    ) == ("a_data", (2, 3), None)
+
+
+def test_python_roundtrip_internal_ast_helpers_parse_literal_tensor_data() -> None:
+    from tensor_network_editor.internal.io._python_roundtrip_ast import (
+        _parse_tensor_data_initializer,
+    )
+
+    literal_expression = ast.parse(
+        "np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)",
+        mode="eval",
+    ).body
+    assert isinstance(literal_expression, ast.Call)
+
+    assert _parse_tensor_data_initializer(literal_expression) == (
+        (2, 2),
+        TensorDataSpec(
+            mode=TensorDataMode.LITERAL,
+            values=[[1.0, 2.0], [3.0, 4.0]],
+        ),
+    )
 
 
 def test_python_roundtrip_internal_manual_step_comments_bind_to_next_statement() -> (

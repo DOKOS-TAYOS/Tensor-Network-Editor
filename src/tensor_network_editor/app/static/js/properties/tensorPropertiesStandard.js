@@ -38,10 +38,193 @@ export function createStandardTensorPropertiesRenderer({
     return `rgba(${blendToWhite(red)}, ${blendToWhite(green)}, ${blendToWhite(blue)}, 0.94)`;
   }
 
+  function getTensorShape(tensor) {
+    return Array.isArray(tensor?.indices)
+      ? tensor.indices.map((index) => index.dimension)
+      : [];
+  }
+
+  function formatTensorShape(shape) {
+    return Array.isArray(shape) && shape.length ? `[${shape.join(", ")}]` : "scalar";
+  }
+
+  function tensorShapesMatch(leftShape, rightShape) {
+    if (!Array.isArray(leftShape) || !Array.isArray(rightShape)) {
+      return false;
+    }
+    if (leftShape.length !== rightShape.length) {
+      return false;
+    }
+    return leftShape.every((dimension, position) => dimension === rightShape[position]);
+  }
+
+  function normalizeTensorLiteralNode(value) {
+    if (typeof value === "boolean") {
+      return null;
+    }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      return {
+        normalized: value,
+        shape: [],
+      };
+    }
+    if (!Array.isArray(value) || !value.length) {
+      return null;
+    }
+
+    const normalizedChildren = [];
+    let childShape = null;
+    for (const item of value) {
+      const normalizedItem = normalizeTensorLiteralNode(item);
+      if (!normalizedItem) {
+        return null;
+      }
+      if (!childShape) {
+        childShape = normalizedItem.shape;
+      } else if (!tensorShapesMatch(childShape, normalizedItem.shape)) {
+        return null;
+      }
+      normalizedChildren.push(normalizedItem.normalized);
+    }
+
+    return {
+      normalized: normalizedChildren,
+      shape: [normalizedChildren.length, ...(childShape || [])],
+    };
+  }
+
+  function getTensorDataMode(tensor) {
+    const mode = String(tensor?.tensor_data?.mode || "").trim();
+    if (mode === "ones" || mode === "fill" || mode === "literal") {
+      return mode;
+    }
+    return "zeros";
+  }
+
+  function cloneTensorLiteral(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function buildFilledTensorLiteral(shape, fillValue) {
+    if (!Array.isArray(shape) || !shape.length) {
+      return fillValue;
+    }
+    return Array.from({ length: shape[0] }, () =>
+      buildFilledTensorLiteral(shape.slice(1), fillValue)
+    );
+  }
+
+  function buildDefaultTensorLiteralValues(tensor, tensorShape) {
+    if (tensor?.tensor_data?.mode === "literal" && tensor.tensor_data.values !== undefined) {
+      return cloneTensorLiteral(tensor.tensor_data.values);
+    }
+    if (tensor?.tensor_data?.mode === "ones") {
+      return buildFilledTensorLiteral(tensorShape, 1);
+    }
+    if (
+      tensor?.tensor_data?.mode === "fill" &&
+      typeof tensor.tensor_data.fill_value === "number" &&
+      Number.isFinite(tensor.tensor_data.fill_value)
+    ) {
+      return buildFilledTensorLiteral(tensorShape, tensor.tensor_data.fill_value);
+    }
+    return buildFilledTensorLiteral(tensorShape, 0);
+  }
+
+  function analyzeTensorDataFillInput(rawValue) {
+    const trimmedValue = String(rawValue || "").trim();
+    if (!trimmedValue) {
+      return {
+        ok: false,
+        message: "Fill value must be a finite number.",
+      };
+    }
+    const parsedValue = Number(trimmedValue);
+    if (!Number.isFinite(parsedValue)) {
+      return {
+        ok: false,
+        message: "Fill value must be a finite number.",
+      };
+    }
+    return {
+      ok: true,
+      tensorData: {
+        mode: "fill",
+        fill_value: parsedValue,
+      },
+    };
+  }
+
+  function analyzeTensorLiteralInput(rawValue, expectedShape) {
+    let parsedValue = null;
+    try {
+      parsedValue = JSON.parse(String(rawValue || ""));
+    } catch (error) {
+      return {
+        ok: false,
+        message: `Explicit values must be valid JSON: ${error.message}`,
+      };
+    }
+
+    const normalizedLiteral = normalizeTensorLiteralNode(parsedValue);
+    if (!normalizedLiteral) {
+      return {
+        ok: false,
+        message: "Explicit values must be finite numbers arranged as a non-ragged tensor.",
+      };
+    }
+    if (!tensorShapesMatch(normalizedLiteral.shape, expectedShape)) {
+      return {
+        ok: false,
+        message: `Explicit values must match the tensor shape ${formatTensorShape(
+          expectedShape
+        )}.`,
+      };
+    }
+    return {
+      ok: true,
+      tensorData: {
+        mode: "literal",
+        values: normalizedLiteral.normalized,
+      },
+    };
+  }
+
+  function describeTensorData(tensor, tensorShape) {
+    const tensorDataMode = getTensorDataMode(tensor);
+    if (tensorDataMode === "ones") {
+      return `Current initializer: ones for ${formatTensorShape(tensorShape)}.`;
+    }
+    if (tensorDataMode === "fill") {
+      return `Current initializer: fill with ${tensor.tensor_data.fill_value}.`;
+    }
+    if (tensorDataMode === "literal") {
+      return `Current initializer: explicit JSON values for ${formatTensorShape(
+        tensorShape
+      )}.`;
+    }
+    return `Current initializer: generated zeros for ${formatTensorShape(tensorShape)}.`;
+  }
+
   function renderTensorProperties(tensor, options = {}) {
     const focusedIndexId = options.focusedIndexId || null;
     const tensorIndexCount = Array.isArray(tensor.indices) ? tensor.indices.length : 0;
     const totalElementCount = getTensorTotalElementCount(tensor);
+    const tensorShape = getTensorShape(tensor);
+    const tensorDataMode = getTensorDataMode(tensor);
+    const tensorFillValue =
+      tensorDataMode === "fill" &&
+      typeof tensor.tensor_data?.fill_value === "number" &&
+      Number.isFinite(tensor.tensor_data.fill_value)
+        ? tensor.tensor_data.fill_value
+        : 0;
+    const tensorLiteralText =
+      tensorDataMode === "literal"
+        ? JSON.stringify(buildDefaultTensorLiteralValues(tensor, tensorShape), null, 2)
+        : "";
     const indexEditors = tensor.indices
       .map((index, indexPosition) => {
         const isOpen = isTensorIndexDisclosureOpen(tensor.id, index.id);
@@ -242,6 +425,64 @@ export function createStandardTensorPropertiesRenderer({
           ${renderTrashIcon()}
         </button>
       </div>
+      <section class="planner-section">
+        <h3>Tensor values</h3>
+        <div class="field-group">
+          <label for="tensor-data-mode-select">Initialization</label>
+          <select
+            id="tensor-data-mode-select"
+            data-focus-key="tensor:${tensor.id}:tensor-data-mode"
+          >
+            <option value="zeros"${tensorDataMode === "zeros" ? " selected" : ""}>
+              Generated zeros
+            </option>
+            <option value="ones"${tensorDataMode === "ones" ? " selected" : ""}>
+              Ones
+            </option>
+            <option value="fill"${tensorDataMode === "fill" ? " selected" : ""}>
+              Fill value
+            </option>
+            <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
+              Explicit values
+            </option>
+          </select>
+        </div>
+        <p class="property-meta">Expected shape: ${ctx.escapeHtml(formatTensorShape(tensorShape))}</p>
+        ${
+          tensorDataMode === "fill"
+            ? `
+              <div class="field-group compact-number-field">
+                <label for="tensor-data-fill-input">Fill value</label>
+                <input
+                  id="tensor-data-fill-input"
+                  data-focus-key="tensor:${tensor.id}:tensor-data-fill"
+                  type="number"
+                  step="any"
+                  value="${ctx.escapeHtml(String(tensorFillValue))}"
+                />
+              </div>
+            `
+            : ""
+        }
+        ${
+          tensorDataMode === "literal"
+            ? `
+              <div class="field-group">
+                <label for="tensor-data-values-input">Explicit values (JSON)</label>
+                <textarea
+                  id="tensor-data-values-input"
+                  data-focus-key="tensor:${tensor.id}:tensor-data-values"
+                  rows="6"
+                  spellcheck="false"
+                >${ctx.escapeHtml(tensorLiteralText)}</textarea>
+              </div>
+              <p class="property-meta">Use JSON numbers that match the tensor shape exactly.</p>
+            `
+            : ""
+        }
+        <p id="tensor-data-validation-message" class="property-meta" hidden></p>
+        <p class="property-meta">${ctx.escapeHtml(describeTensorData(tensor, tensorShape))}</p>
+      </section>
       ${buildMetadataEditorMarkup({
         tagsInputId: "tensor-tags-input",
         tagsFocusKey: `tensor:${tensor.id}:tags`,
@@ -262,6 +503,46 @@ export function createStandardTensorPropertiesRenderer({
     const tensorCustomMetadataInput = document.getElementById(
       "tensor-custom-metadata-input"
     );
+    const tensorDataModeSelect = document.getElementById("tensor-data-mode-select");
+    const tensorDataFillInput = document.getElementById("tensor-data-fill-input");
+    const tensorDataValuesInput = document.getElementById("tensor-data-values-input");
+    const tensorDataValidationMessage = document.getElementById(
+      "tensor-data-validation-message"
+    );
+
+    function setTensorDataValidationMessage(message = "") {
+      if (!tensorDataValidationMessage) {
+        return;
+      }
+      tensorDataValidationMessage.textContent = message;
+      tensorDataValidationMessage.hidden = !message;
+    }
+
+    function reportTensorDataValidationError(message) {
+      setTensorDataValidationMessage(message);
+      if (typeof ctx.setStatus === "function") {
+        ctx.setStatus(message, "error");
+      }
+    }
+
+    function buildTensorDataForMode(nextMode) {
+      if (nextMode === "ones") {
+        return { mode: "ones" };
+      }
+      if (nextMode === "fill") {
+        return {
+          mode: "fill",
+          fill_value: tensorFillValue,
+        };
+      }
+      if (nextMode === "literal") {
+        return {
+          mode: "literal",
+          values: buildDefaultTensorLiteralValues(tensor, tensorShape),
+        };
+      }
+      return null;
+    }
 
     bindDebouncedAutosave(
       tensorNameInput,
@@ -298,6 +579,83 @@ export function createStandardTensorPropertiesRenderer({
       invalidate: propertyInvalidation(),
       annotationScope: "tensor",
     });
+    bindImmediateAutosave(
+      tensorDataModeSelect,
+      `tensor:${tensor.id}:tensor-data-mode`,
+      () => {
+        const nextMode = String(tensorDataModeSelect.value || "zeros");
+        setTensorDataValidationMessage("");
+        commands.updateTensorData({
+          tensorId: tensor.id,
+          nextTensorData: buildTensorDataForMode(nextMode),
+          invalidate: propertyInvalidation({ properties: true }),
+          statusMessage: `Updated tensor ${tensor.name}.`,
+        });
+      }
+    );
+
+    if (tensorDataFillInput) {
+      tensorDataFillInput.addEventListener("input", () => {
+        const validation = analyzeTensorDataFillInput(tensorDataFillInput.value);
+        setTensorDataValidationMessage(validation.ok ? "" : validation.message);
+      });
+      bindDebouncedAutosave(
+        tensorDataFillInput,
+        `tensor:${tensor.id}:tensor-data-fill`,
+        () => {
+          const validation = analyzeTensorDataFillInput(tensorDataFillInput.value);
+          if (!validation.ok) {
+            reportTensorDataValidationError(validation.message);
+            return;
+          }
+          setTensorDataValidationMessage("");
+          commands.updateTensorData({
+            tensorId: tensor.id,
+            nextTensorData: validation.tensorData,
+            invalidate: propertyInvalidation({ properties: true }),
+            statusMessage: `Updated tensor ${tensor.name}.`,
+          });
+        },
+        {
+          scheduleOnInput: false,
+        }
+      );
+    }
+
+    if (tensorDataValuesInput) {
+      tensorDataValuesInput.addEventListener("input", () => {
+        const validation = analyzeTensorLiteralInput(
+          tensorDataValuesInput.value,
+          tensorShape
+        );
+        setTensorDataValidationMessage(validation.ok ? "" : validation.message);
+      });
+      bindDebouncedAutosave(
+        tensorDataValuesInput,
+        `tensor:${tensor.id}:tensor-data-values`,
+        () => {
+          const validation = analyzeTensorLiteralInput(
+            tensorDataValuesInput.value,
+            tensorShape
+          );
+          if (!validation.ok) {
+            reportTensorDataValidationError(validation.message);
+            return;
+          }
+          setTensorDataValidationMessage("");
+          commands.updateTensorData({
+            tensorId: tensor.id,
+            nextTensorData: validation.tensorData,
+            invalidate: propertyInvalidation({ properties: true }),
+            statusMessage: `Updated tensor ${tensor.name}.`,
+          });
+        },
+        {
+          scheduleOnInput: false,
+          commitOnEnter: false,
+        }
+      );
+    }
 
     document.getElementById("add-index-button").addEventListener("click", () => {
       commands.addTensorIndex({

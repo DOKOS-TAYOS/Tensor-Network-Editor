@@ -1152,6 +1152,10 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
     )
     assert "function renderContractionTensorProperties(" in tensor_contraction_body
     assert "function renderContractionIndexProperties(" in tensor_contraction_body
+    assert 'id="tensor-data-mode-select"' in tensor_standard_body
+    assert 'id="tensor-data-validation-message"' in tensor_standard_body
+    assert "Explicit values (JSON)" in tensor_standard_body
+    assert "commands.updateTensorData" in tensor_standard_body
 
 
 def test_index_disclosure_border_uses_the_port_color(

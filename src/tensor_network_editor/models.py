@@ -40,12 +40,15 @@ from .internal.models._model_results import (
     TensorCollectionFormat,
     ValidationIssue,
 )
+from .internal.models._model_tensor_data import TensorDataMode, TensorDataSpec
 
 __all__ = [
     "CanvasPosition",
     "TensorSize",
     "IndexSpec",
     "TensorSpec",
+    "TensorDataMode",
+    "TensorDataSpec",
     "GridPeriodicCellName",
     "GridPeriodicTensorRole",
     "GridPeriodicGridSpec",

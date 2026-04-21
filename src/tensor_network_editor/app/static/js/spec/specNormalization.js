@@ -57,6 +57,87 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     spec.contraction_plan = nextSection.contraction_plan;
   }
 
+  function tensorShapesMatch(leftShape, rightShape) {
+    if (!Array.isArray(leftShape) || !Array.isArray(rightShape)) {
+      return false;
+    }
+    if (leftShape.length !== rightShape.length) {
+      return false;
+    }
+    return leftShape.every((dimension, position) => dimension === rightShape[position]);
+  }
+
+  function normalizeTensorLiteralNode(value) {
+    if (typeof value === "boolean") {
+      return null;
+    }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      return {
+        normalized: value,
+        shape: [],
+      };
+    }
+    if (!Array.isArray(value)) {
+      return null;
+    }
+    if (!value.length) {
+      return null;
+    }
+
+    const normalizedChildren = [];
+    let childShape = null;
+    for (const item of value) {
+      const normalizedItem = normalizeTensorLiteralNode(item);
+      if (!normalizedItem) {
+        return null;
+      }
+      if (!childShape) {
+        childShape = normalizedItem.shape;
+      } else if (!tensorShapesMatch(childShape, normalizedItem.shape)) {
+        return null;
+      }
+      normalizedChildren.push(normalizedItem.normalized);
+    }
+
+    return {
+      normalized: normalizedChildren,
+      shape: [normalizedChildren.length, ...(childShape || [])],
+    };
+  }
+
+  function normalizeTensorDataForShape(tensorData, expectedShape) {
+    if (!runtime.isObject(tensorData)) {
+      return null;
+    }
+    const mode = String(tensorData.mode || "").trim();
+    if (mode === "ones") {
+      return { mode: "ones" };
+    }
+    if (mode === "fill") {
+      if (typeof tensorData.fill_value !== "number" || !Number.isFinite(tensorData.fill_value)) {
+        return null;
+      }
+      return {
+        mode: "fill",
+        fill_value: tensorData.fill_value,
+      };
+    }
+    if (mode === "literal") {
+      const normalizedLiteral = normalizeTensorLiteralNode(tensorData.values);
+      if (!normalizedLiteral || !tensorShapesMatch(normalizedLiteral.shape, expectedShape)) {
+        return null;
+      }
+      return {
+        mode: "literal",
+        values: runtime.deepClone(normalizedLiteral.normalized),
+      };
+    }
+    return null;
+  }
+
   function normalizeContractionPlanInPlace(contractionPlan) {
     if (!runtime.isObject(contractionPlan)) {
       return null;
@@ -193,6 +274,10 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
           );
         }
       });
+      tensor.tensor_data = normalizeTensorDataForShape(
+        tensor.tensor_data,
+        tensor.indices.map((index) => index.dimension)
+      );
       if (!tensor.id) {
         tensor.id = runtime.makeId("tensor");
       }

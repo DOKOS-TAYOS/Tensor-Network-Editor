@@ -24,7 +24,7 @@ Saved JSON files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "network": {
     "...": "..."
   }
@@ -32,7 +32,8 @@ Saved JSON files use a schema wrapper:
 ```
 
 The wrapper lets the package reject unsupported file versions clearly instead
-of guessing how to load them.
+of guessing how to load them. New saves use schema version `5`, and older
+schema version `4` files still load for backward compatibility.
 
 ## NetworkSpec
 
@@ -109,7 +110,31 @@ print(tensor.shape)
 above, it is `(2, 3)`.
 
 Each tensor also stores canvas `position`, visual `size`, optional metadata,
-and optional periodic-mode roles used by the specialized editors.
+optional `tensor_data`, and optional periodic-mode roles used by the
+specialized editors.
+
+`tensor_data` is the portable place for simple real tensor initializers. It is
+not stored in `metadata`, because it directly affects generated backend code.
+
+Example:
+
+```python
+from tensor_network_editor import TensorDataMode, TensorDataSpec
+
+
+tensor.tensor_data = TensorDataSpec(
+    mode=TensorDataMode.FILL,
+    fill_value=0.5,
+)
+```
+
+Supported tensor-data modes are:
+
+- `None`: no explicit payload, so generated backend code initializes zeros
+- `TensorDataMode.ONES`: initialize the whole tensor with ones
+- `TensorDataMode.FILL`: repeat one scalar value across the tensor shape
+- `TensorDataMode.LITERAL`: store nested Python lists of finite numbers that
+  exactly match `tensor.shape`
 
 In the editor sidebar, tensor and index properties expose:
 

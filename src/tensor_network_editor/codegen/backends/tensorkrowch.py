@@ -21,6 +21,7 @@ from ..shared.common import (
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
     render_tensor_collection_initialization,
+    render_tensor_data_assignments,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
 )
@@ -46,13 +47,19 @@ class TensorKrowchCodeGenerator(CodeGenerator):
             collection_format,
         )
         network_setup_lines = ["network = tk.TensorNetwork()"]
+        tensor_data_lines = render_tensor_data_assignments(
+            prepared,
+            module_alias="torch",
+            zeros_initializer_suffix=", dtype=torch.float32",
+            literal_constructor_name="tensor",
+        )
         tensor_construction_lines = render_tensor_collection_assignment(
             collection_name=collection_name,
             collection_format=collection_format,
             prepared=prepared,
             tensor_value_by_id={
                 tensor.spec.id: (
-                    f"tk.Node(tensor=torch.zeros({tensor.spec.shape!r}, dtype=torch.float32), "
+                    f"tk.Node(tensor={tensor.data_variable_name}, "
                     f"axes_names={tuple(index.spec.name for index in tensor.indices)!r}, "
                     f"name={self.node_name(tensor)!r}, network=network)"
                 )
@@ -112,6 +119,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
                 CodeSection(title="Network setup", lines=network_setup_lines),
+                CodeSection(title="Tensor data", lines=tensor_data_lines),
                 CodeSection(
                     title="Tensor construction",
                     lines=tensor_construction_lines,

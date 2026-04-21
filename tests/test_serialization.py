@@ -6,7 +6,7 @@ from typing import cast
 import pytest
 
 from tensor_network_editor.errors import SerializationError, SpecValidationError
-from tensor_network_editor.models import NetworkSpec
+from tensor_network_editor.models import NetworkSpec, TensorDataMode, TensorDataSpec
 from tensor_network_editor.serialization import (
     SCHEMA_VERSION,
     deserialize_spec,
@@ -33,6 +33,26 @@ def test_serialize_spec_wraps_valid_network_with_schema(
     assert first_note["text"] == "Check the contraction order"
 
 
+def test_serialize_spec_preserves_tensor_data_payload() -> None:
+    spec = build_sample_spec_with_view_snapshots()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value=2.5,
+    )
+
+    payload = serialize_spec(spec)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    tensors_payload = cast(list[JSONValue], network_payload["tensors"])
+    first_tensor = cast(dict[str, JSONValue], tensors_payload[0])
+    tensor_data_payload = cast(dict[str, JSONValue], first_tensor["tensor_data"])
+
+    assert payload["schema_version"] == 5
+    assert tensor_data_payload == {
+        "mode": "fill",
+        "fill_value": 2.5,
+    }
+
+
 def test_serialize_spec_rejects_invalid_network(sample_spec: NetworkSpec) -> None:
     sample_spec.tensors[0].name = "   "
 
@@ -49,6 +69,17 @@ def test_deserialize_spec_round_trips_valid_payload(
     assert [tensor.name for tensor in restored.tensors] == ["A", "B"]
     assert restored.contraction_plan is not None
     assert restored.contraction_plan.steps[0].id == "step_contract_ab"
+
+
+def test_deserialize_spec_accepts_schema_version_4_without_tensor_data(
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    payload = deepcopy(serialized_sample_spec)
+    payload["schema_version"] = 4
+
+    restored = deserialize_spec(payload)
+
+    assert restored.tensors[0].tensor_data is None
 
 
 def test_serialize_spec_preserves_contraction_view_snapshots() -> None:
@@ -144,7 +175,7 @@ def test_deserialize_spec_rejects_unsupported_schema_version(
     serialized_sample_spec: dict[str, object],
 ) -> None:
     payload = deepcopy(serialized_sample_spec)
-    payload["schema_version"] = SCHEMA_VERSION - 1
+    payload["schema_version"] = 3
 
     with pytest.raises(SerializationError, match="Unsupported schema version"):
         deserialize_spec(payload)

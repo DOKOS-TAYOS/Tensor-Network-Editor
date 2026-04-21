@@ -20,6 +20,7 @@ from ..shared.common import (
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
     render_tensor_collection_initialization,
+    render_tensor_data_assignments,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
 )
@@ -44,13 +45,19 @@ class TensorNetworkCodeGenerator(CodeGenerator):
             collection_name,
             collection_format,
         )
+        tensor_data_lines = render_tensor_data_assignments(
+            prepared,
+            module_alias="np",
+            zeros_initializer_suffix=", dtype=float",
+            literal_constructor_name="array",
+        )
         tensor_construction_lines = render_tensor_collection_assignment(
             collection_name=collection_name,
             collection_format=collection_format,
             prepared=prepared,
             tensor_value_by_id={
                 tensor.spec.id: (
-                    f"tn.Node(np.zeros({tensor.spec.shape!r}, dtype=float), "
+                    f"tn.Node({tensor.data_variable_name}, "
                     f"name={tensor.spec.name!r}, "
                     f"axis_names={[index.spec.name for index in tensor.indices]!r})"
                 )
@@ -112,6 +119,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                     lines=["import numpy as np", "import tensornetwork as tn"],
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(title="Tensor data", lines=tensor_data_lines),
                 CodeSection(
                     title="Tensor construction",
                     lines=tensor_construction_lines,

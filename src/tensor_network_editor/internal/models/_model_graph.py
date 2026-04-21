@@ -25,6 +25,7 @@ from ._model_periodic_types import (
     TreePeriodicCellName,
     TreePeriodicTensorRole,
 )
+from ._model_tensor_data import TensorDataMode, TensorDataSpec
 
 __all__ = [
     "CanvasNoteSpec",
@@ -41,6 +42,8 @@ __all__ = [
     "LinearPeriodicTensorRole",
     "NetworkSpec",
     "TensorSpec",
+    "TensorDataMode",
+    "TensorDataSpec",
     "TreePeriodicCellName",
     "TreePeriodicTensorRole",
     "TreePeriodicTreeSpec",

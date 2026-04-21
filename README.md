@@ -27,6 +27,9 @@ offline use, and generated code you can inspect.
 - Save and reload backend-independent JSON designs.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
+- Edit tensor initializers in the sidebar with generated zeros, ones, fill
+  values, or explicit numeric JSON literals that round-trip through saved
+  designs and supported generated Python.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.
@@ -143,8 +146,10 @@ print(result.code)
 ## Current Limits
 
 - Hyperedges are not supported yet.
-- Real tensor values are not edited in the visual editor; generated tensors are
-  initialized by the generated backend code.
+- Tensor values in the visual editor are currently limited to generated zeros,
+  ones, fill values, and explicit numeric JSON literals. Symbolic
+  initializers, random initializers, and direct `.npy` / `.pt` imports are not
+  supported yet.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with all bundled
   backends.

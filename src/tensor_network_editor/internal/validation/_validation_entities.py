@@ -10,6 +10,7 @@ from ...models import (
     GroupSpec,
     IndexSpec,
     NetworkSpec,
+    TensorDataMode,
     TensorSpec,
     ValidationIssue,
 )
@@ -133,6 +134,7 @@ def validate_tensor(
 
     for index in tensor.indices:
         validate_index(tensor=tensor, index=index, issues=issues)
+    validate_tensor_data(tensor=tensor, issues=issues)
 
 
 def validate_index(
@@ -168,6 +170,145 @@ def validate_index(
         index.metadata,
         issues,
     )
+
+
+def validate_tensor_data(
+    *,
+    tensor: TensorSpec,
+    issues: list[ValidationIssue],
+) -> None:
+    """Validate optional tensor initialization data against the tensor shape."""
+    tensor_data = tensor.tensor_data
+    if tensor_data is None:
+        return
+    path = f"tensors.{tensor.id}.tensor_data"
+    if not isinstance(tensor_data.mode, TensorDataMode):
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=f"Tensor '{tensor.id}' uses an unsupported tensor_data mode.",
+            path=path,
+        )
+        return
+    if tensor_data.mode is TensorDataMode.ONES:
+        if tensor_data.fill_value is not None or tensor_data.values is not None:
+            append_issue(
+                issues,
+                code="invalid-tensor-data",
+                message=(
+                    f"Tensor '{tensor.id}' uses TensorDataMode.ONES with unexpected "
+                    "extra fields."
+                ),
+                path=path,
+            )
+        return
+    if tensor_data.mode is TensorDataMode.FILL:
+        if (
+            tensor_data.fill_value is None
+            or not isinstance(tensor_data.fill_value, (int, float))
+            or isinstance(tensor_data.fill_value, bool)
+            or not math.isfinite(float(tensor_data.fill_value))
+            or tensor_data.values is not None
+        ):
+            append_issue(
+                issues,
+                code="invalid-tensor-data",
+                message=(
+                    f"Tensor '{tensor.id}' uses TensorDataMode.FILL without one "
+                    "finite fill_value."
+                ),
+                path=path,
+            )
+        return
+    if tensor_data.values is None or tensor_data.fill_value is not None:
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=(
+                f"Tensor '{tensor.id}' uses TensorDataMode.LITERAL without one "
+                "literal values tree."
+            ),
+            path=path,
+        )
+        return
+    literal_shape = _tensor_literal_shape(
+        tensor_data.values,
+        tensor_id=tensor.id,
+        path=path,
+        issues=issues,
+    )
+    if literal_shape is None:
+        return
+    if literal_shape != tensor.shape:
+        append_issue(
+            issues,
+            code="tensor-data-shape-mismatch",
+            message=(
+                f"Tensor '{tensor.id}' literal data has shape {literal_shape!r}, "
+                f"expected {tensor.shape!r}."
+            ),
+            path=path,
+        )
+
+
+def _tensor_literal_shape(
+    value: object,
+    *,
+    tensor_id: str,
+    path: str,
+    issues: list[ValidationIssue],
+) -> tuple[int, ...] | None:
+    """Return the nested literal shape or append one validation issue."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, list)):
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=(
+                f"Tensor '{tensor_id}' literal data must contain only finite "
+                "numeric scalars and lists."
+            ),
+            path=path,
+        )
+        return None
+    if isinstance(value, (int, float)):
+        if not math.isfinite(float(value)):
+            append_issue(
+                issues,
+                code="invalid-tensor-data",
+                message=f"Tensor '{tensor_id}' literal data must be finite.",
+                path=path,
+            )
+            return None
+        return ()
+    if not value:
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=f"Tensor '{tensor_id}' literal data cannot contain empty lists.",
+            path=path,
+        )
+        return None
+    child_shapes: list[tuple[int, ...]] = []
+    for child in value:
+        child_shape = _tensor_literal_shape(
+            child,
+            tensor_id=tensor_id,
+            path=path,
+            issues=issues,
+        )
+        if child_shape is None:
+            return None
+        child_shapes.append(child_shape)
+    first_shape = child_shapes[0]
+    if any(child_shape != first_shape for child_shape in child_shapes[1:]):
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=f"Tensor '{tensor_id}' literal data must not be ragged.",
+            path=path,
+        )
+        return None
+    return (len(value), *first_shape)
 
 
 def validate_group(

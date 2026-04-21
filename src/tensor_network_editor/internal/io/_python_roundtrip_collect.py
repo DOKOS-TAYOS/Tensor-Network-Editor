@@ -18,9 +18,9 @@ from ._python_roundtrip_ast import (
     _parse_matrix_row_index,
     _parse_operand_tag_string,
     _parse_results_list_reference,
+    _parse_tensor_data_initializer,
     _parse_tensor_reference,
     _parse_tensor_reference_string,
-    _parse_zeros_shape,
 )
 from ._python_roundtrip_build import (
     _default_tensor_name_from_position,
@@ -40,7 +40,7 @@ _MANUAL_STEP_COMMENT_PATTERN = re.compile(
 
 
 def _collect_data_shape(statement: ast.stmt, state: _RoundtripParseState) -> None:
-    """Collect tensor-data shapes from supported ``zeros(...)`` assignments."""
+    """Collect supported tensor-data assignments emitted before tensor creation."""
     if (
         not isinstance(statement, ast.Assign)
         or len(statement.targets) != 1
@@ -48,9 +48,12 @@ def _collect_data_shape(statement: ast.stmt, state: _RoundtripParseState) -> Non
         or not isinstance(statement.value, ast.Call)
     ):
         return
-    shape = _parse_zeros_shape(statement.value)
-    if shape is not None:
-        state.data_shapes[statement.targets[0].id] = shape
+    parsed_initializer = _parse_tensor_data_initializer(statement.value)
+    if parsed_initializer is None:
+        return
+    shape, tensor_data = parsed_initializer
+    state.data_shapes[statement.targets[0].id] = shape
+    state.tensor_data_by_name[statement.targets[0].id] = tensor_data
 
 
 def _collect_supported_tensor_collection_initialization(
@@ -88,6 +91,7 @@ def _collect_dict_tensor_assignment(
     parsed_tensor = _parse_tensor_expression(
         expression=statement.value,
         data_shapes=state.data_shapes,
+        tensor_data_by_name=state.tensor_data_by_name,
         reference=dict_reference,
         fallback_name=dict_reference.removeprefix("dict:"),
     )
@@ -113,6 +117,7 @@ def _collect_list_tensor_append(
     state.tensors_by_reference[reference] = _parse_tensor_expression(
         expression=call.args[0],
         data_shapes=state.data_shapes,
+        tensor_data_by_name=state.tensor_data_by_name,
         reference=reference,
         fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
     )
@@ -160,6 +165,7 @@ def _collect_matrix_tensor_append(
     state.tensors_by_reference[reference] = _parse_tensor_expression(
         expression=call.args[0],
         data_shapes=state.data_shapes,
+        tensor_data_by_name=state.tensor_data_by_name,
         reference=reference,
         fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
     )

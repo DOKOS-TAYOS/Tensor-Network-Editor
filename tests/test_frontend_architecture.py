@@ -1317,6 +1317,18 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
           invalidate: {{ graph: true, analysis: true }},
           statusMessage: "Updated index index_left.",
         }});
+        propertyCommands.updateTensorData({{
+          tensorId: "tensor_a",
+          nextTensorData: {{
+            mode: "literal",
+            values: [
+              [1, 2, 3],
+              [4, 5, 6],
+            ],
+          }},
+          invalidate: {{ properties: true }},
+          statusMessage: "Updated tensor data.",
+        }});
         propertyCommands.deleteGroup({{
           groupId: "group_a",
           selectionIds: [],
@@ -1354,6 +1366,18 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
         }}
         if (tensor.indices[0].dimension !== 5) {{
           throw new Error(`Expected index dimension 5, received ${{tensor.indices[0].dimension}}.`);
+        }}
+        if (
+          JSON.stringify(tensor.tensor_data)
+          !== JSON.stringify({{
+            mode: "literal",
+            values: [
+              [1, 2, 3],
+              [4, 5, 6],
+            ],
+          }})
+        ) {{
+          throw new Error(`Expected tensor data to update, received ${{JSON.stringify(tensor.tensor_data)}}.`);
         }}
         if (!propertyEvents.includes("sync:index_left:5")) {{
           throw new Error(`Expected connected-dimension sync, received ${{JSON.stringify(propertyEvents)}}.`);
@@ -2307,7 +2331,37 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
           );
         }}
         const normalizedGraphSection = specNormalization.normalizeGraphSectionInPlace({{
-          tensors: [{{ position: {{}}, size: {{}}, indices: [{{ metadata: {{}} }}], metadata: {{}} }}],
+          tensors: [
+            {{
+              position: {{}},
+              size: {{}},
+              indices: [
+                {{ dimension: 2, metadata: {{}} }},
+                {{ dimension: 3, metadata: {{}} }},
+              ],
+              tensor_data: {{
+                mode: "literal",
+                values: [
+                  [1, 2],
+                  [3],
+                ],
+              }},
+              metadata: {{}},
+            }},
+            {{
+              position: {{}},
+              size: {{}},
+              indices: [
+                {{ dimension: 2, metadata: {{}} }},
+                {{ dimension: 3, metadata: {{}} }},
+              ],
+              tensor_data: {{
+                mode: "fill",
+                fill_value: 2.5,
+              }},
+              metadata: {{}},
+            }},
+          ],
           groups: [{{ tensor_ids: ["tensor_a"] }}],
           edges: [{{ left: {{}}, right: {{}}, metadata: {{}} }}],
           notes: [{{ position: {{}}, size: {{}}, metadata: {{}} }}],
@@ -2316,6 +2370,19 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }});
         if (!normalizedGraphSection.tensors[0].id || !normalizedGraphSection.edges[0].id) {{
           throw new Error("Spec normalization helpers should seed missing entity ids.");
+        }}
+        if (normalizedGraphSection.tensors[0].tensor_data !== null) {{
+          throw new Error(
+            `Expected malformed tensor data to be discarded, received ${{JSON.stringify(normalizedGraphSection.tensors[0].tensor_data)}}.`
+          );
+        }}
+        if (
+          JSON.stringify(normalizedGraphSection.tensors[1].tensor_data)
+          !== JSON.stringify({{ mode: "fill", fill_value: 2.5 }})
+        ) {{
+          throw new Error(
+            `Expected valid tensor data to be preserved, received ${{JSON.stringify(normalizedGraphSection.tensors[1].tensor_data)}}.`
+          );
         }}
 
         const historyEvents = [];

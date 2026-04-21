@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import ast
+import math
 import re
+
+from ...internal.models._model_tensor_data import TensorNumericLiteral
+from ...models import TensorDataMode, TensorDataSpec
 
 
 def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
@@ -23,6 +27,56 @@ def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
         return (shape_value,) if shape_value is not None else None
 
     return _literal_int_sequence(shape_expression)
+
+
+def _parse_tensor_data_initializer(
+    call: ast.Call,
+) -> tuple[tuple[int, ...], TensorDataSpec | None] | None:
+    """Parse one supported tensor-data initializer emitted by this package."""
+    zeros_shape = _parse_zeros_shape(call)
+    if zeros_shape is not None:
+        return zeros_shape, None
+
+    call_name = _call_name(call.func)
+    if call_name.endswith(".ones") or call_name == "ones":
+        shape = _parse_shape_argument(call)
+        if shape is None:
+            return None
+        return shape, TensorDataSpec(mode=TensorDataMode.ONES)
+
+    if call_name.endswith(".full") or call_name == "full":
+        shape = _parse_shape_argument(call)
+        if shape is None:
+            return None
+        fill_expression = _keyword_value(call, "fill_value")
+        if fill_expression is None and len(call.args) >= 2:
+            fill_expression = call.args[1]
+        fill_value = _literal_number(fill_expression)
+        if fill_value is None:
+            return None
+        return shape, TensorDataSpec(mode=TensorDataMode.FILL, fill_value=fill_value)
+
+    if (
+        call_name.endswith(".array")
+        or call_name.endswith(".tensor")
+        or call_name
+        in {
+            "array",
+            "tensor",
+        }
+    ):
+        values_expression = _keyword_value(call, "data")
+        if values_expression is None and call.args:
+            values_expression = call.args[0]
+        values = _literal_numeric_tree(values_expression)
+        if values is None:
+            return None
+        shape = _numeric_tree_shape(values)
+        if shape is None:
+            return None
+        return shape, TensorDataSpec(mode=TensorDataMode.LITERAL, values=values)
+
+    return None
 
 
 def _call_name(expression: ast.expr) -> str:
@@ -67,6 +121,32 @@ def _literal_string_sequence(expression: ast.expr | None) -> list[str] | None:
     return values
 
 
+def _literal_number(expression: ast.expr | None) -> int | float | None:
+    """Return a finite numeric literal represented by ``expression``."""
+    if isinstance(expression, ast.Constant):
+        value = expression.value
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return value
+    if (
+        isinstance(expression, ast.UnaryOp)
+        and isinstance(expression.op, ast.USub)
+        and isinstance(expression.operand, ast.Constant)
+    ):
+        operand_value = expression.operand.value
+        if isinstance(operand_value, bool) or not isinstance(
+            operand_value, (int, float)
+        ):
+            return None
+        numeric_value = -operand_value
+        if isinstance(numeric_value, float) and not math.isfinite(numeric_value):
+            return None
+        return numeric_value
+    return None
+
+
 def _literal_int(expression: ast.expr | None) -> int | None:
     """Return the literal integer value represented by ``expression``."""
     if (
@@ -105,6 +185,39 @@ def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None
             return None
         values.append(int_value)
     return tuple(values)
+
+
+def _literal_numeric_tree(expression: ast.expr | None) -> TensorNumericLiteral | None:
+    """Return a nested numeric literal tree using Python lists."""
+    literal_number = _literal_number(expression)
+    if literal_number is not None:
+        return literal_number
+    if not isinstance(expression, (ast.List, ast.Tuple)):
+        return None
+    values: list[TensorNumericLiteral] = []
+    for item in expression.elts:
+        child_value = _literal_numeric_tree(item)
+        if child_value is None:
+            return None
+        values.append(child_value)
+    return values
+
+
+def _numeric_tree_shape(values: TensorNumericLiteral) -> tuple[int, ...] | None:
+    """Return the shape of one nested numeric tree or ``None`` if ragged."""
+    if isinstance(values, (int, float)):
+        return ()
+    if not values:
+        return None
+    child_shapes = [_numeric_tree_shape(child_value) for child_value in values]
+    if any(child_shape is None for child_shape in child_shapes):
+        return None
+    first_shape = child_shapes[0]
+    if first_shape is None:
+        return None
+    if any(child_shape != first_shape for child_shape in child_shapes[1:]):
+        return None
+    return (len(values), *first_shape)
 
 
 def _parse_tensor_reference(expression: ast.expr) -> str | None:
@@ -157,6 +270,19 @@ def _parse_matrix_row_index(expression: ast.expr) -> int | None:
     ):
         return _literal_int(expression.slice)
     return None
+
+
+def _parse_shape_argument(call: ast.Call) -> tuple[int, ...] | None:
+    """Parse the shape argument common to zeros, ones, and full initializers."""
+    shape_expression = _keyword_value(call, "shape")
+    if shape_expression is None and call.args:
+        shape_expression = call.args[0]
+    if shape_expression is None:
+        return None
+    if isinstance(shape_expression, ast.Constant):
+        shape_value = _literal_int(shape_expression)
+        return (shape_value,) if shape_value is not None else None
+    return _literal_int_sequence(shape_expression)
 
 
 def _parse_results_list_reference(expression: ast.expr) -> int | None:

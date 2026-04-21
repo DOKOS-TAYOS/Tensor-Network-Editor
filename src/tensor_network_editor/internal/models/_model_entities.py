@@ -25,6 +25,7 @@ from ._model_periodic_types import (
     coerce_optional_int,
     coerce_tree_periodic_tensor_role,
 )
+from ._model_tensor_data import TensorDataSpec
 
 
 @dataclass(slots=True)
@@ -78,6 +79,7 @@ class TensorSpec:
     grid_periodic_role: GridPeriodicTensorRole | None = None
     tree_periodic_role: TreePeriodicTensorRole | None = None
     tree_periodic_child_index: int | None = None
+    tensor_data: TensorDataSpec | None = None
     metadata: MetadataDict = field(default_factory=dict)
 
     @property
@@ -109,6 +111,9 @@ class TensorSpec:
                 else None
             ),
             "tree_periodic_child_index": self.tree_periodic_child_index,
+            "tensor_data": (
+                self.tensor_data.to_dict() if self.tensor_data is not None else None
+            ),
             "metadata": self.metadata,
         }
 
@@ -121,6 +126,7 @@ class TensorSpec:
             field_name="size",
         )
         indices_payload = require_list(payload.get("indices", []), field_name="indices")
+        tensor_data_payload = payload.get("tensor_data")
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
             name=coerce_string(payload["name"], field_name="name"),
@@ -145,6 +151,13 @@ class TensorSpec:
             tree_periodic_child_index=coerce_optional_int(
                 payload.get("tree_periodic_child_index"),
                 field_name="tree_periodic_child_index",
+            ),
+            tensor_data=(
+                TensorDataSpec.from_dict(
+                    require_dict(tensor_data_payload, field_name="tensor_data")
+                )
+                if tensor_data_payload is not None
+                else None
             ),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"

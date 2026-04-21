@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - Public docs now surface benchmark workflows and the advanced periodic modes more clearly, including dedicated guidance for `For bidimensional` and `For Tree` instead of focusing almost entirely on the linear workflow.
 - Editor sessions now support a reusable subnetwork library with dedicated project/shared catalogs, CRUD routes, bootstrap payloads, preview/tag metadata, and matching `subnetwork list/save/export` CLI commands built on top of the existing extract/prepare-insert primitives.
 - The `Reflow` popover now exposes an explicit `Auto layout` action that can arrange the active tensor selection or the whole graph when nothing is selected, while keeping benchmark-scheme and `For`-mode restrictions aligned with the rest of the toolbar.
+- Tensors can now store editor-managed value initializers (`ones`, `fill`, and explicit numeric literals), saved designs now write schema version `5` while still loading schema `4`, generated code emits backend-native data initializers, and supported generated Python round-trips recover those tensor values.
 
 ### Fixed
 

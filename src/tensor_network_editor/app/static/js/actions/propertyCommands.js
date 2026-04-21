@@ -59,6 +59,37 @@ export function createPropertyCommands({
     return true;
   }
 
+  function updateTensorData({
+    tensorId,
+    nextTensorData,
+    invalidate,
+    statusMessage,
+  }) {
+    const tensor = findTensorById(tensorId);
+    if (!tensor) {
+      return false;
+    }
+    const normalizedTensorData =
+      nextTensorData && typeof nextTensorData === "object"
+        ? JSON.parse(JSON.stringify(nextTensorData))
+        : null;
+    const currentPayload = JSON.stringify(tensor.tensor_data ?? null);
+    const nextPayload = JSON.stringify(normalizedTensorData);
+    if (currentPayload === nextPayload) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        tensor.tensor_data = normalizedTensorData;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
   function updateTargetColor({ target, nextColor, invalidate, statusMessage }) {
     const currentColor = target?.metadata?.color;
     if (!target || nextColor === currentColor) {
@@ -397,6 +428,7 @@ export function createPropertyCommands({
     renameIndex,
     renameNetwork,
     renameTensor,
+    updateTensorData,
     updateNoteText,
     updateIndexDimension,
     updateTargetColor,

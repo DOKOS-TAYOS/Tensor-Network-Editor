@@ -221,14 +221,40 @@ Saved files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "network": {
     "...": "..."
   }
 }
 ```
 
-The package validates saved designs when loading or saving.
+The package validates saved designs when loading or saving. New saves use
+schema version `5`, while older schema version `4` files are still accepted on
+load.
+
+## Tensor Values
+
+The tensor sidebar can now store simple real tensor values directly in the
+design instead of treating every tensor as an implicit backend-side zero array.
+
+Available modes:
+
+- `Generated zeros`: no explicit payload is stored; generated backend code
+  initializes the tensor with zeros
+- `Ones`: generated backend code uses a backend-native `ones(...)`
+  initializer
+- `Fill value`: one scalar is repeated across the whole tensor shape
+- `Explicit values`: you provide JSON numbers that exactly match the tensor
+  shape
+
+Useful rules:
+
+- explicit values must be valid JSON and must match the tensor shape exactly
+- invalid JSON or ragged lists are rejected before they overwrite the saved
+  design
+- supported generated Python round-trips can recover these initializer modes
+- symbolic expressions, random initializers, and direct `.npy` / `.pt` imports
+  are still out of scope for the editor
 
 ## Manual Contraction Plans
 
@@ -391,8 +417,8 @@ linear or grid neighborhood would hide that intent.
 ## Current Limits
 
 - Hyperedges are not supported.
-- The editor does not edit real tensor values.
-- Generated tensors are initialized by generated backend code.
+- Tensor values are limited to generated zeros, ones, fill values, and
+  explicit numeric JSON literals.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with every bundled
   backend.

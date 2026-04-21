@@ -36,6 +36,7 @@ from ..shared.common import (
     render_remaining_operands_mapping,
     render_tensor_collection_assignment,
     render_tensor_collection_initialization,
+    render_tensor_data_assignments,
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
@@ -310,16 +311,20 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             collection_name,
             collection_format,
         )
+        tensor_data_lines = render_tensor_data_assignments(
+            prepared,
+            module_alias=self.module_alias,
+            zeros_initializer_suffix=self.zero_initializer_suffix,
+            literal_constructor_name=(
+                "array" if self.module_alias == "np" else "tensor"
+            ),
+        )
         tensor_construction_lines = render_tensor_collection_assignment(
             collection_name=collection_name,
             collection_format=collection_format,
             prepared=prepared,
             tensor_value_by_id={
-                tensor.spec.id: (
-                    f"{self.module_alias}.zeros({tensor.spec.shape!r}"
-                    f"{self.zero_initializer_suffix})"
-                )
-                for tensor in prepared.tensors
+                tensor.spec.id: tensor.data_variable_name for tensor in prepared.tensors
             },
             include_initialization=False,
         )
@@ -344,6 +349,7 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
             code=render_code_sections(
                 CodeSection(title=None, lines=[self.import_line]),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
+                CodeSection(title="Tensor data", lines=tensor_data_lines),
                 CodeSection(
                     title="Tensor construction",
                     lines=tensor_construction_lines,

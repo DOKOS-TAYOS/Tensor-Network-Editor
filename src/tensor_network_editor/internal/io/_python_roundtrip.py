@@ -6,7 +6,7 @@ import ast
 from dataclasses import dataclass, field
 
 from ...errors import SerializationError
-from ...models import NetworkSpec
+from ...models import NetworkSpec, TensorDataSpec
 from ._python_roundtrip_build import (
     _build_edge_specs,
     _build_empty_network_spec,
@@ -34,6 +34,7 @@ class _RoundtripParseState:
     module: ast.Module
     manual_step_comments_by_statement_line: dict[int, _ManualStepComment]
     data_shapes: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    tensor_data_by_name: dict[str, TensorDataSpec | None] = field(default_factory=dict)
     tensors_by_reference: dict[str, _ParsedTensor] = field(default_factory=dict)
     tensor_rows: list[list[str]] = field(default_factory=list)
     tensor_order: list[str] = field(default_factory=list)

@@ -5042,7 +5042,7 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
               elements.clear();
               toggleElements.length = 0;
 
-              const tagPattern = /<(input|textarea|button)[^>]*id="([^"]+)"[^>]*>/g;
+              const tagPattern = /<(input|textarea|button|select)[^>]*id="([^"]+)"[^>]*>/g;
               let tagMatch = tagPattern.exec(html);
               while (tagMatch) {
                 elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
@@ -5399,6 +5399,136 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         }
         if (!propertiesPanel.innerHTML.includes('rows="1"')) {
           throw new Error("Custom metadata should start with a single visible row.");
+        }
+        if (!propertiesPanel.innerHTML.includes("Tensor values")) {
+          throw new Error("Selecting a tensor should expose the tensor values editor.");
+        }
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        const tensorDataModeSelect = document.getElementById("tensor-data-mode-select");
+        if (!tensorDataModeSelect) {
+          throw new Error("Selecting a tensor should expose the tensor data mode selector.");
+        }
+        tensorDataModeSelect.value = "fill";
+        tensorDataModeSelect.dispatchEvent("change");
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({ mode: "fill", fill_value: 0 })
+        ) {
+          throw new Error(
+            `Expected fill mode to initialize tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(document.getElementById("tensor-data-fill-input"), "3.5");
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({ mode: "fill", fill_value: 3.5 })
+        ) {
+          throw new Error(
+            `Expected fill value edits to update tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        commitField(document.getElementById("tensor-data-fill-input"), "not-a-number");
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({ mode: "fill", fill_value: 3.5 })
+        ) {
+          throw new Error("Invalid fill edits should not mutate tensor data.");
+        }
+        if (renderCalls.length !== 0) {
+          throw new Error(
+            `Invalid fill edits should not trigger a rerender, received ${JSON.stringify(renderCalls)}.`
+          );
+        }
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        const literalModeSelect = document.getElementById("tensor-data-mode-select");
+        literalModeSelect.value = "literal";
+        literalModeSelect.dispatchEvent("change");
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({
+            mode: "literal",
+            values: [
+              [3.5, 3.5, 3.5],
+              [3.5, 3.5, 3.5],
+            ],
+          })
+        ) {
+          throw new Error(
+            `Expected literal mode to seed explicit values from the current fill value, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        commitField(
+          document.getElementById("tensor-data-values-input"),
+          "[[1, 2, 3], [4, 5, 6]]"
+        );
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({
+            mode: "literal",
+            values: [
+              [1, 2, 3],
+              [4, 5, 6],
+            ],
+          })
+        ) {
+          throw new Error(
+            `Expected explicit tensor values to commit, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
+
+        renderCalls.length = 0;
+        commitField(document.getElementById("tensor-data-values-input"), "[[1, 2], [3]]");
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({
+            mode: "literal",
+            values: [
+              [1, 2, 3],
+              [4, 5, 6],
+            ],
+          })
+        ) {
+          throw new Error("Invalid explicit tensor values should not mutate tensor data.");
+        }
+        if (renderCalls.length !== 0) {
+          throw new Error(
+            `Invalid literal edits should not trigger a rerender, received ${JSON.stringify(renderCalls)}.`
+          );
         }
         ctx.window.setTimeout = (callback) => {
           callback();

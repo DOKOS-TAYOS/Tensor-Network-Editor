@@ -15,7 +15,7 @@ from ...internal.analysis._prepared_network import (
     prepare_network,
     sanitize_identifier,
 )
-from ...models import TensorCollectionFormat
+from ...models import TensorCollectionFormat, TensorDataMode
 
 __all__ = [
     "CodeSection",
@@ -32,6 +32,8 @@ __all__ = [
     "prepare_network",
     "render_code_section_lines",
     "render_code_sections",
+    "render_tensor_data_assignments",
+    "render_tensor_data_expression",
     "render_manual_step_comment",
     "render_operand_expression",
     "render_remaining_operands_mapping",
@@ -276,6 +278,51 @@ def render_tensor_collection_assignment(
     for tensor in prepared.tensors:
         lines.append(f"# Tensor {_tensor_display_name(tensor)}")
         lines.append(f"{collection_name}.append({tensor_value_by_id[tensor.spec.id]})")
+    return lines
+
+
+def render_tensor_data_expression(
+    tensor: PreparedTensor,
+    *,
+    module_alias: str,
+    zeros_initializer_suffix: str = "",
+    literal_constructor_name: str,
+) -> str:
+    """Render one backend-specific tensor-data initializer expression."""
+    tensor_data = tensor.spec.tensor_data
+    if tensor_data is None:
+        return f"{module_alias}.zeros({tensor.spec.shape!r}{zeros_initializer_suffix})"
+    if tensor_data.mode is TensorDataMode.ONES:
+        return f"{module_alias}.ones({tensor.spec.shape!r}{zeros_initializer_suffix})"
+    if tensor_data.mode is TensorDataMode.FILL:
+        return (
+            f"{module_alias}.full({tensor.spec.shape!r}, {tensor_data.fill_value!r}"
+            f"{zeros_initializer_suffix})"
+        )
+    return (
+        f"{module_alias}.{literal_constructor_name}({tensor_data.values!r}"
+        f"{zeros_initializer_suffix})"
+    )
+
+
+def render_tensor_data_assignments(
+    prepared: PreparedNetwork,
+    *,
+    module_alias: str,
+    zeros_initializer_suffix: str = "",
+    literal_constructor_name: str,
+) -> list[str]:
+    """Render one data-variable assignment per tensor in display order."""
+    lines: list[str] = []
+    for tensor in prepared.tensors:
+        lines.append(f"# Tensor {_tensor_display_name(tensor)} data")
+        tensor_data_expression = render_tensor_data_expression(
+            tensor,
+            module_alias=module_alias,
+            zeros_initializer_suffix=zeros_initializer_suffix,
+            literal_constructor_name=literal_constructor_name,
+        )
+        lines.append(f"{tensor.data_variable_name} = {tensor_data_expression}")
     return lines
 
 

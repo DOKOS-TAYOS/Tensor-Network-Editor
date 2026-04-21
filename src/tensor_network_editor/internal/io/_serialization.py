@@ -15,7 +15,8 @@ from ._io import read_utf8_text, write_utf8_text
 from ._payloads import coerce_int
 from ._python_roundtrip import parse_generated_python_network
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+SUPPORTED_SCHEMA_VERSIONS = frozenset({4, 5})
 LOGGER = logging.getLogger(__name__)
 
 
@@ -72,9 +73,10 @@ def deserialize_spec(
         raise SerializationError(
             "Serialized payload must contain a valid schema version."
         ) from exc
-    if schema_version != SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise SerializationError(
-            f"Unsupported schema version {schema_version}. Expected {SCHEMA_VERSION}."
+            "Unsupported schema version "
+            f"{schema_version}. Expected one of {sorted(SUPPORTED_SCHEMA_VERSIONS)!r}."
         )
 
     network_payload = payload.get("network")
