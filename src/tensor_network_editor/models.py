@@ -8,25 +8,29 @@ from .internal.models._model_contraction import (
     ContractionStepSpec,
     ContractionViewSnapshotSpec,
 )
-from .internal.models._model_geometry import CanvasPosition, TensorSize
-from .internal.models._model_graph import (
+from .internal.models._model_entities import (
     CanvasNoteSpec,
     EdgeEndpointRef,
     EdgeSpec,
-    GridPeriodicCellName,
-    GridPeriodicGridSpec,
-    GridPeriodicTensorRole,
     GroupSpec,
     IndexSpec,
-    LinearPeriodicCellName,
+    TensorSpec,
+)
+from .internal.models._model_geometry import CanvasPosition, TensorSize
+from .internal.models._model_network import NetworkSpec
+from .internal.models._model_periodic import (
+    GridPeriodicGridSpec,
     LinearPeriodicCellSpec,
     LinearPeriodicChainSpec,
+    TreePeriodicTreeSpec,
+)
+from .internal.models._model_periodic_types import (
+    GridPeriodicCellName,
+    GridPeriodicTensorRole,
+    LinearPeriodicCellName,
     LinearPeriodicTensorRole,
-    NetworkSpec,
-    TensorSpec,
     TreePeriodicCellName,
     TreePeriodicTensorRole,
-    TreePeriodicTreeSpec,
 )
 from .internal.models._model_results import (
     CodegenResult,

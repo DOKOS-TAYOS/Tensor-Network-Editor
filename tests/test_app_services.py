@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from typing import cast
 from unittest.mock import patch
 
@@ -46,6 +47,31 @@ def test_build_bootstrap_payload_matches_session_contract(
     assert tensor_annotations[0]["label"] == "Tensor role"
     assert index_annotations[0]["key"] == "leg_kind"
     assert index_annotations[0]["label"] == "Leg kind"
+
+
+def test_app_services_module_reexports_split_service_helpers() -> None:
+    bootstrap_module = import_module("tensor_network_editor.app._bootstrap_payloads")
+    session_module = import_module("tensor_network_editor.app._session_requests")
+    template_module = import_module("tensor_network_editor.app._template_services")
+    analysis_module = import_module("tensor_network_editor.app._analysis_services")
+    subnetwork_module = import_module("tensor_network_editor.app._subnetwork_services")
+
+    assert build_bootstrap_payload is bootstrap_module.build_bootstrap_payload
+    assert generate_session_request is session_module.generate_session_request
+    assert complete_session_request is session_module.complete_session_request
+    assert build_template_from_payload is template_module.build_template_from_payload
+    assert (
+        analyze_serialized_contraction
+        is app_services_module.analyze_serialized_contraction
+    )
+    assert (
+        analysis_module.analyze_serialized_contraction.__module__
+        == "tensor_network_editor.app._analysis_services"
+    )
+    assert (
+        app_services_module.extract_serialized_subnetwork
+        is subnetwork_module.extract_serialized_subnetwork
+    )
 
 
 def test_generate_session_request_matches_session_generate(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ...codegen.shared.common import PreparedNetwork, prepare_analyzed_network
 from ...models import NetworkSpec
 from ...validation import ensure_valid_spec
 from ..modes._grid_periodic import grid_periodic_active_cell_as_analysis_network
@@ -23,6 +22,7 @@ from ._contraction_plan import (
     prepare_contraction_inputs,
 )
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
+from ._prepared_network import PreparedNetwork, prepare_analyzed_network
 
 
 def analyze_contraction(

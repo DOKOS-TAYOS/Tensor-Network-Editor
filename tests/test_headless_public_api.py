@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from typing import cast
 from unittest.mock import patch
 
@@ -257,3 +258,18 @@ def test_diff_specs_compares_entities_by_stable_ids() -> None:
 
 def test_list_template_names_is_available_from_public_templates_module() -> None:
     assert list_template_names() == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+
+
+def test_prepared_network_helpers_move_to_internal_analysis_module() -> None:
+    prepared_network_module = import_module(
+        "tensor_network_editor.internal.analysis._prepared_network"
+    )
+    compatibility_module = import_module("tensor_network_editor.codegen.common")
+
+    assert (
+        compatibility_module.prepare_analyzed_network
+        is prepared_network_module.prepare_analyzed_network
+    )
+    assert (
+        compatibility_module.PreparedNetwork is prepared_network_module.PreparedNetwork
+    )

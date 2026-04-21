@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from importlib import import_module
 from typing import Any, cast
 
 import pytest
@@ -216,6 +217,36 @@ def test_canvas_note_round_trip_is_serializable() -> None:
     assert restored.text == "Review this subnet"
     assert restored.position.x == 12.0
     assert restored.position.y == -4.0
+
+
+def test_internal_model_graph_module_reexports_split_model_modules() -> None:
+    entity_module = import_module(
+        "tensor_network_editor.internal.models._model_entities"
+    )
+    periodic_types_module = import_module(
+        "tensor_network_editor.internal.models._model_periodic_types"
+    )
+    periodic_module = import_module(
+        "tensor_network_editor.internal.models._model_periodic"
+    )
+    network_module = import_module(
+        "tensor_network_editor.internal.models._model_network"
+    )
+    compatibility_module = import_module(
+        "tensor_network_editor.internal.models._model_graph"
+    )
+
+    assert compatibility_module.TensorSpec is entity_module.TensorSpec
+    assert compatibility_module.CanvasNoteSpec is entity_module.CanvasNoteSpec
+    assert (
+        compatibility_module.LinearPeriodicTensorRole
+        is periodic_types_module.LinearPeriodicTensorRole
+    )
+    assert (
+        compatibility_module.LinearPeriodicChainSpec
+        is periodic_module.LinearPeriodicChainSpec
+    )
+    assert compatibility_module.NetworkSpec is network_module.NetworkSpec
 
 
 def test_contraction_plan_round_trip_is_serializable() -> None:

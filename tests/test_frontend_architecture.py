@@ -28,6 +28,37 @@ def _run_runtime_script(script_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def test_utilities_ui_modules_use_explicit_internal_contracts() -> None:
+    utilities_dir = (
+        REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils"
+    )
+    facade_body = (utilities_dir / "utilitiesUi.js").read_text(encoding="utf-8")
+    helper_bodies = {
+        "dom": (utilities_dir / "utilitiesUiDom.js").read_text(encoding="utf-8"),
+        "panels": (utilities_dir / "utilitiesUiPanels.js").read_text(encoding="utf-8"),
+        "generated_code": (utilities_dir / "utilitiesUiGeneratedCode.js").read_text(
+            encoding="utf-8"
+        ),
+        "toolbar": (utilities_dir / "utilitiesUiToolbar.js").read_text(
+            encoding="utf-8"
+        ),
+        "status": (utilities_dir / "utilitiesUiStatus.js").read_text(encoding="utf-8"),
+    }
+
+    assert 'from "./utilitiesUiDom.js"' in facade_body
+    assert 'from "./utilitiesUiPanels.js"' in facade_body
+    assert 'from "./utilitiesUiGeneratedCode.js"' in facade_body
+    assert 'from "./utilitiesUiToolbar.js"' in facade_body
+    assert 'from "./utilitiesUiStatus.js"' in facade_body
+    assert "ctx." in facade_body
+    assert "function positionFloatingPanel(" in helper_bodies["dom"]
+    assert "function toggleToolbarMenu(" in helper_bodies["panels"]
+    assert "function toggleGeneratedCodeModal(" in helper_bodies["generated_code"]
+    assert "function updateToolbarState(" in helper_bodies["toolbar"]
+    assert "function formatIssues(" in helper_bodies["status"]
+    assert all("ctx." not in helper_body for helper_body in helper_bodies.values())
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_store_and_selectors_track_template_catalog_state(
     tmp_path: Path,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from .codegen.common import prepare_analyzed_network
 from .internal.analysis._analysis import analyze_network
 from .internal.analysis._contraction_analysis import (
     _analyze_prepared_contraction,
@@ -10,6 +9,7 @@ from .internal.analysis._contraction_analysis import (
     analyze_contraction,
 )
 from .internal.analysis._memory_dtypes import DEFAULT_MEMORY_DTYPE
+from .internal.analysis._prepared_network import prepare_analyzed_network
 from .internal.models._headless_models import NetworkSummary, SpecAnalysisReport
 from .models import NetworkSpec
 from .validation import ensure_valid_spec

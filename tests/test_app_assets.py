@@ -29,6 +29,11 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utils/utilitiesLinearPeriodic.js",
         "js/utils/utilitiesSpec.js",
         "js/utils/utilitiesUi.js",
+        "js/utils/utilitiesUiDom.js",
+        "js/utils/utilitiesUiPanels.js",
+        "js/utils/utilitiesUiGeneratedCode.js",
+        "js/utils/utilitiesUiToolbar.js",
+        "js/utils/utilitiesUiStatus.js",
     )
 
 
@@ -332,6 +337,29 @@ def test_notes_and_planner_feature_modules_are_served(
     assert 'from "./planner.js"' in registrar_body
     assert 'from "./utilitiesTemplates.js"' in utilities_body
     assert "createTemplateOptionHelpers" in utilities_templates_body
+
+
+def test_notes_and_shell_assets_delegate_to_split_helper_modules(
+    editor_server: EditorServer,
+) -> None:
+    notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
+    notes_support_body = request_text(
+        f"{editor_server.base_url}/js/graph/notesSupport.js"
+    )
+    notes_clipboard_body = request_text(
+        f"{editor_server.base_url}/js/graph/notesClipboard.js"
+    )
+    bootstrap_body = request_text(f"{editor_server.base_url}/js/bootstrap.js")
+    shell_actions_body = request_text(
+        f"{editor_server.base_url}/js/shell/shellActions.js"
+    )
+
+    assert 'from "./notesSupport.js"' in notes_body
+    assert 'from "./notesClipboard.js"' in notes_body
+    assert "createNotesSupport" in notes_support_body
+    assert "createNotesClipboardActions" in notes_clipboard_body
+    assert 'from "./shell/shellActions.js"' in bootstrap_body
+    assert "createShellActions" in shell_actions_body
 
 
 def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
@@ -807,6 +835,15 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     main_body = request_text(f"{editor_server.base_url}/js/main.js")
     filter_body = request_text(f"{editor_server.base_url}/js/graph/metadataFilters.js")
+    filter_bindings_body = request_text(
+        f"{editor_server.base_url}/js/graph/metadataFiltersBindings.js"
+    )
+    filter_renderers_body = request_text(
+        f"{editor_server.base_url}/js/graph/metadataFiltersRenderers.js"
+    )
+    filter_state_body = request_text(
+        f"{editor_server.base_url}/js/graph/metadataFiltersState.js"
+    )
     graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     minimap_body = request_text(f"{editor_server.base_url}/js/graph/exportMinimap.js")
     css_body = request_text(f"{editor_server.base_url}/app.css")
@@ -821,25 +858,31 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     )
     assert 'from "./graph/metadataFilters.js"' in main_body
     assert "registerMetadataFilters(context);" in main_body
-    assert "canvas-metadata-filter-button" in filter_body
-    assert "canvas-name-search-button" in filter_body
-    assert "canvas-metadata-filter-clear-button" in filter_body
-    assert "canvas-metadata-filter-select-all-button" in filter_body
-    assert "canvas-metadata-filter-select-none-button" in filter_body
-    assert "Not specified" in filter_body
-    assert "canvas-name-search-input" in filter_body
-    assert 'data-tooltip-enabled="true"' in filter_body
+    assert 'from "./metadataFiltersBindings.js"' in filter_body
+    assert 'from "./metadataFiltersRenderers.js"' in filter_body
+    assert 'from "./metadataFiltersState.js"' in filter_body
+    assert "canvas-metadata-filter-button" in filter_renderers_body
+    assert "canvas-name-search-button" in filter_renderers_body
+    assert "canvas-metadata-filter-clear-button" in filter_renderers_body
+    assert "canvas-metadata-filter-select-all-button" in filter_renderers_body
+    assert "canvas-metadata-filter-select-none-button" in filter_renderers_body
+    assert "Not specified" in filter_renderers_body + filter_state_body
+    assert "canvas-name-search-input" in filter_renderers_body
+    assert 'data-tooltip-enabled="true"' in filter_renderers_body
     assert (
         "Highlight tensors, indices, or bonds by metadata tags without hiding anything."
-        in filter_body
+        in filter_renderers_body
     )
     assert (
         "Highlight tensors, indices, or bonds by exact name without changing the selection."
-        in filter_body
+        in filter_renderers_body
     )
-    assert 'class="canvas-tool-scope-field select-chevron-field"' in filter_body
-    assert '"bond"' in filter_body
-    assert "function getMetadataFilterHighlight(" in filter_body
+    assert (
+        'class="canvas-tool-scope-field select-chevron-field"' in filter_renderers_body
+    )
+    assert '"bond"' in filter_renderers_body
+    assert "function getMetadataFilterHighlight(" in filter_state_body
+    assert "function bindMetadataFilterControls(" in filter_bindings_body
     assert "metadata-filter-dim" in graph_body
     assert "getMetadataFilterEntityState" in graph_body
     assert "getMetadataFilterEntityState" in minimap_body
@@ -864,6 +907,15 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     context_menu_body = request_text(
         f"{editor_server.base_url}/js/graph/canvasContextMenu.js"
     )
+    context_menu_bindings_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuBindings.js"
+    )
+    context_menu_markup_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuMarkup.js"
+    )
+    context_menu_targets_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuTargets.js"
+    )
     graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
     overlays_body = request_text(
         f"{editor_server.base_url}/js/graph/overlaysLayoutTemplates.js"
@@ -872,52 +924,59 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'from "./graph/canvasContextMenu.js"' in main_body
     assert "registerCanvasContextMenu(context);" in main_body
     assert "function openCanvasContextMenu(" in context_menu_body
-    assert 'id="context-menu-name-input"' in context_menu_body
-    assert 'id="context-menu-add-index-button"' in context_menu_body
-    assert 'id="context-menu-tensor-color-input"' in context_menu_body
-    assert 'id="context-menu-delete-tensor-button"' in context_menu_body
-    assert 'inputPrefix: "context-menu-tensor"' in context_menu_body
-    assert 'id="context-menu-dimension-input"' in context_menu_body
-    assert 'id="context-menu-index-color-input"' in context_menu_body
-    assert 'id="context-menu-move-up-button"' in context_menu_body
-    assert 'id="context-menu-move-down-button"' in context_menu_body
-    assert 'id="context-menu-delete-index-button"' in context_menu_body
-    assert 'inputPrefix: "context-menu-index"' in context_menu_body
-    assert 'id="context-menu-edge-color-input"' in context_menu_body
-    assert 'id="context-menu-delete-edge-button"' in context_menu_body
-    assert 'inputPrefix: "context-menu-edge"' in context_menu_body
-    assert 'id="context-menu-add-index-to-selection-button"' in context_menu_body
-    assert 'id="context-menu-extract-selection-button"' in context_menu_body
-    assert 'id="context-menu-promote-selection-template-button"' in context_menu_body
-    assert 'id="context-menu-selection-color-input"' in context_menu_body
-    assert 'id="context-menu-group-selection-button"' in context_menu_body
-    assert 'id="context-menu-delete-selection-button"' in context_menu_body
-    assert 'id="context-menu-toggle-group-button"' in context_menu_body
-    assert 'id="context-menu-add-index-to-group-button"' in context_menu_body
-    assert 'id="context-menu-extract-group-button"' in context_menu_body
-    assert 'id="context-menu-group-color-input"' in context_menu_body
-    assert 'id="context-menu-promote-group-template-button"' in context_menu_body
-    assert 'id="context-menu-delete-group-button"' in context_menu_body
-    assert "function buildTooltipAttributes(" in context_menu_body
-    assert '"Choose color"' in context_menu_body
-    assert '"Move index up"' in context_menu_body
-    assert '"Move index down"' in context_menu_body
-    assert '"Delete index"' in context_menu_body
-    assert '"Index dimension"' in context_menu_body
-    assert "Remove this tensor from the network." in context_menu_body
-    assert "Add one new open index to each selected tensor." in context_menu_body
-    assert "Add index to tensors" not in context_menu_body
-    assert "Extract selection" not in context_menu_body
-    assert "Promote to template" not in context_menu_body
-    assert "Add index" in context_menu_body
-    assert "Extract" in context_menu_body
-    assert "To Template" in context_menu_body
-    assert 'inputPrefix: "context-menu-group"' in context_menu_body
-    assert "Member tensors" in context_menu_body
-    assert "Total elements" in context_menu_body
-    assert "buildMetadataEditorMarkup" in context_menu_body
-    assert "bindMetadataEditors" in context_menu_body
-    assert "canvas-context-menu-title" not in context_menu_body
+    assert 'from "./canvasContextMenuBindings.js"' in context_menu_body
+    assert 'from "./canvasContextMenuMarkup.js"' in context_menu_body
+    assert 'from "./canvasContextMenuTargets.js"' in context_menu_body
+    assert 'id="context-menu-name-input"' in context_menu_markup_body
+    assert 'id="context-menu-add-index-button"' in context_menu_markup_body
+    assert 'id="context-menu-tensor-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-delete-tensor-button"' in context_menu_markup_body
+    assert 'inputPrefix: "context-menu-tensor"' in context_menu_markup_body
+    assert 'id="context-menu-dimension-input"' in context_menu_markup_body
+    assert 'id="context-menu-index-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-move-up-button"' in context_menu_markup_body
+    assert 'id="context-menu-move-down-button"' in context_menu_markup_body
+    assert 'id="context-menu-delete-index-button"' in context_menu_markup_body
+    assert 'inputPrefix: "context-menu-index"' in context_menu_markup_body
+    assert 'id="context-menu-edge-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-delete-edge-button"' in context_menu_markup_body
+    assert 'inputPrefix: "context-menu-edge"' in context_menu_markup_body
+    assert 'id="context-menu-add-index-to-selection-button"' in context_menu_markup_body
+    assert 'id="context-menu-extract-selection-button"' in context_menu_markup_body
+    assert (
+        'id="context-menu-promote-selection-template-button"'
+        in context_menu_markup_body
+    )
+    assert 'id="context-menu-selection-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-group-selection-button"' in context_menu_markup_body
+    assert 'id="context-menu-delete-selection-button"' in context_menu_markup_body
+    assert 'id="context-menu-toggle-group-button"' in context_menu_markup_body
+    assert 'id="context-menu-add-index-to-group-button"' in context_menu_markup_body
+    assert 'id="context-menu-extract-group-button"' in context_menu_markup_body
+    assert 'id="context-menu-group-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-promote-group-template-button"' in context_menu_markup_body
+    assert 'id="context-menu-delete-group-button"' in context_menu_markup_body
+    assert "function buildTooltipAttributes(" in context_menu_markup_body
+    assert '"Choose color"' in context_menu_markup_body
+    assert '"Move index up"' in context_menu_markup_body
+    assert '"Move index down"' in context_menu_markup_body
+    assert '"Delete index"' in context_menu_markup_body
+    assert '"Index dimension"' in context_menu_markup_body
+    assert "Remove this tensor from the network." in context_menu_markup_body
+    assert "Add one new open index to each selected tensor." in context_menu_markup_body
+    assert "Add index to tensors" not in context_menu_markup_body
+    assert "Extract selection" not in context_menu_markup_body
+    assert "Promote to template" not in context_menu_markup_body
+    assert "Add index" in context_menu_markup_body
+    assert "Extract" in context_menu_markup_body
+    assert "To Template" in context_menu_markup_body
+    assert 'inputPrefix: "context-menu-group"' in context_menu_markup_body
+    assert "Member tensors" in context_menu_markup_body
+    assert "Total elements" in context_menu_markup_body
+    assert "buildMetadataEditorMarkup" in context_menu_markup_body
+    assert "bindMetadataEditors" in context_menu_bindings_body
+    assert "function resolveContextTarget(" in context_menu_targets_body
+    assert "canvas-context-menu-title" not in context_menu_markup_body
     assert 'state.cy.on("cxttap"' in graph_body
     assert 'kind !== "tensor" && kind !== "index" && kind !== "edge"' in graph_body
     assert 'addEventListener("contextmenu"' in overlays_body
@@ -1046,17 +1105,21 @@ def test_graph_assets_expose_for_boundary_tensor_hovers(
     editor_server: EditorServer,
 ) -> None:
     graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
+    graph_tooltips_body = request_text(
+        f"{editor_server.base_url}/js/graph/graphRenderTooltips.js"
+    )
 
     assert 'state.cy.on("mouseover", "node[kind = \'tensor\']"' in graph_body
     assert 'state.cy.on("mouseout", "node[kind = \'tensor\']"' in graph_body
-    assert "ctx.shortcutTooltip.showVirtualTooltip" in graph_body
+    assert 'from "./graphRenderTooltips.js"' in graph_body
+    assert "ctx.shortcutTooltip.showVirtualTooltip" in graph_tooltips_body
     assert (
         "Virtual boundary tensor for the next cell in For unidimensional mode."
-        in graph_body
+        in graph_tooltips_body
     )
     assert (
         "Virtual boundary tensor for the cell on the right in For bidimensional mode."
-        in graph_body
+        in graph_tooltips_body
     )
 
 
@@ -1158,8 +1221,8 @@ def test_note_assets_move_note_editing_into_canvas(
 def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     editor_server: EditorServer,
 ) -> None:
-    context_menu_body = request_text(
-        f"{editor_server.base_url}/js/graph/canvasContextMenu.js"
+    context_menu_markup_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuMarkup.js"
     )
     overview_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
@@ -1181,13 +1244,13 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     assert 'title="Delete group"' not in entity_markup_body
     assert 'title="Delete connection"' not in entity_markup_body
     assert 'title="Delete note"' not in entity_markup_body
-    assert '"Delete selection",' in context_menu_body
-    assert '"Delete connection",' in context_menu_body
-    assert '"Delete group",' in context_menu_body
-    assert "Delete bond" not in context_menu_body
-    assert 'title="Delete selection"' not in context_menu_body
-    assert 'title="Delete connection"' not in context_menu_body
-    assert 'title="Delete group"' not in context_menu_body
+    assert '"Delete selection",' in context_menu_markup_body
+    assert '"Delete connection",' in context_menu_markup_body
+    assert '"Delete group",' in context_menu_markup_body
+    assert "Delete bond" not in context_menu_markup_body
+    assert 'title="Delete selection"' not in context_menu_markup_body
+    assert 'title="Delete connection"' not in context_menu_markup_body
+    assert 'title="Delete group"' not in context_menu_markup_body
     assert (
         'data-shortcut-description="Remove all manual steps from the current contraction path."'
         in planner_body
@@ -1197,6 +1260,43 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     assert 'data-shortcut-label="Template warnings"' in html
     assert "codeGenerationWarning.title =" not in utilities_body
     assert "templateCatalogWarning.title =" not in utilities_body
+
+
+def test_ui_utility_assets_route_panels_generated_code_toolbar_and_status_through_helpers(
+    editor_server: EditorServer,
+) -> None:
+    utilities_ui_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUi.js"
+    )
+    utilities_ui_dom_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiDom.js"
+    )
+    utilities_ui_panels_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiPanels.js"
+    )
+    utilities_ui_generated_code_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiGeneratedCode.js"
+    )
+    utilities_ui_toolbar_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbar.js"
+    )
+    utilities_ui_status_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiStatus.js"
+    )
+
+    assert 'from "./utilitiesUiDom.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiPanels.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiGeneratedCode.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiToolbar.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiStatus.js"' in utilities_ui_body
+    assert "function positionFloatingPanel(" in utilities_ui_dom_body
+    assert "function toggleToolbarMenu(" in utilities_ui_panels_body
+    assert "function toggleGeneratedCodeModal(" in utilities_ui_generated_code_body
+    assert "function updateToolbarState(" in utilities_ui_toolbar_body
+    assert "function formatIssues(" in utilities_ui_status_body
+    assert "function positionFloatingPanel(" not in utilities_ui_body
+    assert "function updateToolbarState(" not in utilities_ui_body
+    assert "function formatIssues(" not in utilities_ui_body
 
 
 def test_note_assets_tint_the_full_note_frame_and_avoid_rerendering_text_edits(
@@ -1250,6 +1350,9 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
         f"{editor_server.base_url}/js/actions/plannerCommands.js"
     )
     graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
+    graph_lifecycle_body = request_text(
+        f"{editor_server.base_url}/js/graph/graphRenderLifecycle.js"
+    )
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
     assert (
@@ -1261,8 +1364,9 @@ def test_interaction_assets_support_latest_contraction_scene_editing(
         "Choose a different tensor or intermediate; both selections refer to the same contracted operand."
         not in planner_body
     )
-    assert "const indexNodesInteractive = !readOnlyScene;" in graph_body
-    assert "selectable: !readOnlyScene," in graph_body
+    assert 'from "./graphRenderLifecycle.js"' in graph_body
+    assert "const indexNodesInteractive = !readOnlyScene;" in graph_lifecycle_body
+    assert "selectable: !readOnlyScene," in graph_lifecycle_body
     assert "ctx.ensureContractionViewSnapshots();" in utilities_body
 
 
@@ -1338,10 +1442,14 @@ def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_opera
     contraction_body = request_text(
         f"{editor_server.base_url}/js/graph/contractionScene.js"
     )
+    contraction_cache_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionSceneCache.js"
+    )
 
     assert "invalidate: { lookups: true }" in interactions_body
-    assert "ctx.ensureSpecLookups()" in contraction_body
-    assert "state.tensorById[anchorTensorId] || null" in contraction_body
+    assert 'from "./contractionSceneCache.js"' in contraction_body
+    assert "ensureSpecLookups()" in contraction_cache_body
+    assert "state.tensorById[anchorTensorId] || null" in contraction_cache_body
 
 
 def test_contraction_scene_assets_route_progression_and_snapshots_through_state_modules(
@@ -1350,15 +1458,26 @@ def test_contraction_scene_assets_route_progression_and_snapshots_through_state_
     contraction_body = request_text(
         f"{editor_server.base_url}/js/graph/contractionScene.js"
     )
+    contraction_cache_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionSceneCache.js"
+    )
+    contraction_operands_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionSceneOperands.js"
+    )
 
-    assert 'from "../state/contractionSceneProgression.js"' in contraction_body
-    assert 'from "../state/contractionSceneSnapshots.js"' in contraction_body
+    assert 'from "./contractionSceneCache.js"' in contraction_body
+    assert 'from "./contractionSceneEditing.js"' in contraction_body
+    assert 'from "./contractionSceneOperands.js"' in contraction_body
+    assert 'from "../state/contractionSceneProgression.js"' in contraction_operands_body
+    assert 'from "../state/contractionSceneProgression.js"' in contraction_cache_body
+    assert 'from "../state/contractionSceneSnapshots.js"' in contraction_cache_body
     assert "export function cloneOperand(" not in contraction_body
     assert "export function analyzeOperandPair(" not in contraction_body
     assert (
-        "function buildContractionOperandProgressionUncached(" not in contraction_body
+        "function buildContractionOperandProgressionUncached("
+        not in contraction_operands_body
     )
-    assert "function buildSnapshotLayoutMap(" not in contraction_body
+    assert "function buildSnapshotLayoutMap(" not in contraction_cache_body
 
 
 def test_subnetwork_assets_expose_import_export_controls_and_routes(
@@ -1429,8 +1548,20 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     utilities_ui_body = request_text(
         f"{editor_server.base_url}/js/utils/utilitiesUi.js"
     )
+    utilities_ui_panels_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiPanels.js"
+    )
+    utilities_ui_toolbar_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbar.js"
+    )
     session_template_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
+    )
+    session_template_dialogs_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateDialogs.js"
+    )
+    session_template_manager_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateManager.js"
     )
 
     assert re.search(
@@ -1522,10 +1653,15 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert "Output type" in shell_bindings_body
     assert "Choose how generated code returns the tensors" in shell_bindings_body
-    assert "Create a new benchmark scheme after the current one." in utilities_ui_body
+    assert 'from "./utilitiesUiPanels.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiToolbar.js"' in utilities_ui_body
+    assert (
+        "Create a new benchmark scheme after the current one."
+        in utilities_ui_toolbar_body
+    )
     assert (
         "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
-        in utilities_ui_body
+        in utilities_ui_toolbar_body
     )
     shortcuts_section = re.search(
         r'<section id="help-shortcuts-section"[^>]*>(?P<body>.*?)</section>',
@@ -1612,7 +1748,15 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'nameLabel.textContent = "Template name"' not in session_template_body
     assert 'sourceBadge.textContent = "Session"' not in session_template_body
     assert 'deleteButton.textContent = "Delete"' not in session_template_body
-    assert "deleteButton.innerHTML" in session_template_body
+    assert 'from "./sessionTemplateDialogs.js"' in session_template_body
+    assert 'from "./sessionTemplateManager.js"' in session_template_body
+    assert "deleteButton.innerHTML" in session_template_manager_body
+    assert "title = `Delete ${entry.displayName}`" in session_template_manager_body
+    assert "function buildTemplateManagerRow(" in session_template_manager_body
+    assert "function saveTemplateManagerChanges(" in session_template_manager_body
+    assert "function discardTemplateManagerChanges(" in session_template_manager_body
+    assert "function promptForTemplateDisplayName(" in session_template_dialogs_body
+    assert "function promptForSubnetworkName(" in session_template_dialogs_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1644,11 +1788,11 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "loadSessionTemplatesFromFile" in interactions_body
     assert "exportSelectedTemplateSpec" in interactions_body
     assert "toggleTemplateManager" in interactions_body
-    assert "function syncTemplateCatalogWarning()" in utilities_ui_body
-    assert "function toggleReflowLayoutPopover()" in utilities_ui_body
-    assert "sessionUi.promptText(" in session_template_body
-    assert "Choose a name for this template." in session_template_body
-    assert "Choose a name for this subnetwork." in session_template_body
+    assert "function syncTemplateCatalogWarning()" in utilities_ui_toolbar_body
+    assert "function toggleReflowLayoutPopover()" in utilities_ui_panels_body
+    assert "sessionUi.promptText(" in session_template_dialogs_body
+    assert "Choose a name for this template." in session_template_dialogs_body
+    assert "Choose a name for this subnetwork." in session_template_dialogs_body
 
 
 def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
@@ -1659,6 +1803,15 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
         f"{editor_server.base_url}/js/utils/utilities.js"
     )
     layout_body = request_text(f"{editor_server.base_url}/js/utils/utilitiesLayout.js")
+    layout_algorithms_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLayoutAlgorithms.js"
+    )
+    layout_indices_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLayoutIndices.js"
+    )
+    layout_selection_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLayoutSelection.js"
+    )
     overview_body = request_text(
         f"{editor_server.base_url}/js/properties/propertiesRenderersOverview.js"
     )
@@ -1675,6 +1828,9 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
 
     assert 'from "./utilitiesLayout.js"' in utilities_module_body
     assert "createUtilityLayoutBindings" in layout_body
+    assert 'from "./utilitiesLayoutAlgorithms.js"' in layout_body
+    assert 'from "./utilitiesLayoutIndices.js"' in layout_body
+    assert 'from "./utilitiesLayoutSelection.js"' in layout_body
     assert "function alignSelectedTensors(" in layout_body
     assert "function arrangeSelectedTensors(" in layout_body
     assert "function distributeSelectedTensors(" in layout_body
@@ -1682,6 +1838,10 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert "function applyReflowLayoutAction(" in layout_body
     assert "function applyReflowIndicesAction(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
+    assert "function buildArrangedSelectionPositions(" in layout_algorithms_body
+    assert "function buildImportedReflowPositions(" in layout_algorithms_body
+    assert "function buildReflowIndexOffsets(" in layout_indices_body
+    assert "function getSelectedLayoutTensorIds(" in layout_selection_body
     assert "GRID_SNAP_SIZE" in utilities_body
     assert 'id="add-index-to-selection-button"' in overview_body + overview_markup_body
     assert 'id="extract-selection-button"' in overview_body + overview_markup_body
@@ -1778,6 +1938,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     )
     state_body = request_text(f"{editor_server.base_url}/js/state/state.js")
     notes_body = request_text(f"{editor_server.base_url}/js/graph/notes.js")
+    notes_support_body = request_text(
+        f"{editor_server.base_url}/js/graph/notesSupport.js"
+    )
     properties_body = request_text(
         f"{editor_server.base_url}/js/properties/propertiesSupport.js"
     )
@@ -1826,7 +1989,8 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "edgeById: {}" in state_body
     assert "indexOwnerById: {}" in state_body
     assert "noteById: {}" in state_body
-    assert "return state.noteById[noteId] || null;" in notes_body
+    assert 'from "./notesSupport.js"' in notes_body
+    assert "return state.noteById[noteId] || null;" in notes_support_body
     assert "function propertyInvalidation(overrides = {})" in properties_body
     assert "function selectionColorInvalidation(selectedEntries)" in properties_body
     assert (
@@ -2008,6 +2172,12 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     editor_server: EditorServer,
 ) -> None:
     graph_body = request_text(f"{editor_server.base_url}/js/graph/graphRender.js")
+    graph_drag_body = request_text(
+        f"{editor_server.base_url}/js/graph/graphRenderDrag.js"
+    )
+    graph_lifecycle_body = request_text(
+        f"{editor_server.base_url}/js/graph/graphRenderLifecycle.js"
+    )
     graph_model_body = request_text(
         f"{editor_server.base_url}/js/views/graphElementModel.js"
     )
@@ -2025,9 +2195,15 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert 'from "../core/theme.js"' in graph_body
     assert 'from "../views/graphElementModel.js"' in graph_body
     assert 'from "../views/cytoscapeGraphAdapter.js"' in graph_body
+    assert 'from "./graphRenderLifecycle.js"' in graph_body
+    assert 'from "./graphRenderDrag.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
     assert '"border-width": 4' in graph_body
     assert '"border-color": GRAPH_THEME.selection' in graph_body
+    assert "function renderGraph(" in graph_lifecycle_body
+    assert "function syncPendingInteractionClasses(" in graph_lifecycle_body
+    assert "function createTensorDragState(" in graph_drag_body
+    assert "function moveCompanionTensorsDuringDrag(" in graph_drag_body
     assert "createGraphElementModelBuilder" in graph_model_body
     assert "buildGraphElementUpdatePlan" in graph_diff_body
     assert "createCytoscapeGraphAdapter" in graph_adapter_body

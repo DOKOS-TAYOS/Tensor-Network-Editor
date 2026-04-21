@@ -1,34 +1,9 @@
-function extractFileStem(filename) {
-  if (typeof filename !== "string" || !filename.trim()) {
-    return "template";
-  }
-  const trimmedFilename = filename.trim();
-  const lastDotIndex = trimmedFilename.lastIndexOf(".");
-  return lastDotIndex > 0
-    ? trimmedFilename.slice(0, lastDotIndex)
-    : trimmedFilename;
-}
-
-function buildExportTemplatePayload(displayName, serializedSpec, sanitizeFilename) {
-  return {
-    schema_version: 1,
-    templates: [
-      {
-        name: sanitizeFilename(displayName).replaceAll("-", "_") || "template",
-        display_name: displayName,
-        spec: serializedSpec,
-      },
-    ],
-  };
-}
-
-function renderTrashIcon() {
-  return `
-    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>
-    </svg>
-  `;
-}
+import {
+  buildExportTemplatePayload,
+  createSessionTemplateImportSupport,
+} from "./sessionTemplateImports.js";
+import { createSessionTemplateDialogs } from "./sessionTemplateDialogs.js";
+import { createSessionTemplateManager } from "./sessionTemplateManager.js";
 
 export function createSessionTemplateFlows({
   dom,
@@ -40,14 +15,9 @@ export function createSessionTemplateFlows({
   sessionUi,
   actions,
 }) {
-  const {
-    subnetworkLoadInput,
-    templateLoadInput,
-    templateManagerList,
-  } = dom;
+  const { subnetworkLoadInput, templateLoadInput, templateManagerList } = dom;
   const sessionService = services.session;
   const subnetworkService = services.subnetwork;
-  let templateManagerDraft = null;
   const documentRef =
     templateManagerList && templateManagerList.ownerDocument
       ? templateManagerList.ownerDocument
@@ -90,6 +60,42 @@ export function createSessionTemplateFlows({
     sessionUi.openFilePicker(subnetworkLoadInput);
   }
 
+  const dialogs = createSessionTemplateDialogs({
+    actions,
+    sessionUi,
+  });
+  const {
+    promptForTemplateDisplayName,
+    promptForSubnetworkName,
+  } = dialogs;
+  const importSupport = createSessionTemplateImportSupport({
+    templateLoadInput,
+    subnetworkLoadInput,
+    state,
+    sessionService,
+    subnetworkService,
+    commands,
+    sessionUi,
+    actions,
+    getSubnetworkTargetCenter,
+    isForModeActive,
+  });
+  const {
+    loadSessionTemplatesFromFile,
+    loadSubnetworkFromFile,
+  } = importSupport;
+  const templateManager = createSessionTemplateManager({
+    templateManagerList,
+    documentRef,
+    state,
+    actions,
+  });
+  const {
+    discardTemplateManagerChanges,
+    saveTemplateManagerChanges,
+    toggleTemplateManager,
+  } = templateManager;
+
   async function extractTemplateSpecByTensorIds(tensorIds, emptySelectionMessage) {
     if (isForModeActive()) {
       actions.setStatus(
@@ -123,10 +129,7 @@ export function createSessionTemplateFlows({
     }
   }
 
-  async function exportSubnetworkByTensorIds(
-    tensorIds,
-    label = "subnetwork"
-  ) {
+  async function exportSubnetworkByTensorIds(tensorIds, label = "subnetwork") {
     if (isForModeActive()) {
       actions.setStatus(
         "Subnetwork export is only available in normal graph mode.",
@@ -153,14 +156,12 @@ export function createSessionTemplateFlows({
         return;
       }
       const resolvedDisplayName = promptForSubnetworkName(
-        (
-          payload.spec
-          && payload.spec.network
-          && typeof payload.spec.network.name === "string"
-          && payload.spec.network.name.trim()
-        )
-          || label
-          || "subnetwork",
+        (payload.spec &&
+          payload.spec.network &&
+          typeof payload.spec.network.name === "string" &&
+          payload.spec.network.name.trim()) ||
+          label ||
+          "subnetwork",
         "Subnetwork export cancelled."
       );
       if (!resolvedDisplayName) {
@@ -174,10 +175,7 @@ export function createSessionTemplateFlows({
         JSON.stringify(payload.spec, null, 2),
         "application/json;charset=utf-8"
       );
-      actions.setStatus(
-        `Saved ${resolvedDisplayName} as JSON.`,
-        "success"
-      );
+      actions.setStatus(`Saved ${resolvedDisplayName} as JSON.`, "success");
     } catch (error) {
       actions.setStatus(`Could not export the subnetwork: ${error.message}`, "error");
     }
@@ -254,145 +252,6 @@ export function createSessionTemplateFlows({
     sessionUi.openFilePicker(templateLoadInput);
   }
 
-  function normalizeSerializedSpec(parsedValue) {
-    if (
-      parsedValue
-      && typeof parsedValue === "object"
-      && parsedValue.network
-      && typeof parsedValue.network === "object"
-    ) {
-      return parsedValue;
-    }
-    if (
-      parsedValue
-      && typeof parsedValue === "object"
-      && parsedValue.spec
-      && typeof parsedValue.spec === "object"
-      && parsedValue.spec.network
-      && typeof parsedValue.spec.network === "object"
-    ) {
-      return parsedValue.spec;
-    }
-    return null;
-  }
-
-  function buildTemplateImportsFromFile(parsedValue, filename) {
-    const templateEntries = [];
-    if (
-      parsedValue
-      && typeof parsedValue === "object"
-      && Array.isArray(parsedValue.templates)
-    ) {
-      parsedValue.templates.forEach((entry, index) => {
-        if (!entry || typeof entry !== "object") {
-          return;
-        }
-        const serializedSpec = normalizeSerializedSpec(entry.spec || entry);
-        if (!serializedSpec) {
-          return;
-        }
-        const displayName =
-          (typeof entry.display_name === "string" && entry.display_name.trim())
-          || (typeof entry.displayName === "string" && entry.displayName.trim())
-          || (typeof entry.name === "string" && entry.name.trim())
-          || (serializedSpec.network
-            && typeof serializedSpec.network.name === "string"
-            && serializedSpec.network.name.trim())
-          || `${extractFileStem(filename)} ${index + 1}`;
-        templateEntries.push({
-          displayName,
-          serializedSpec,
-        });
-      });
-      return templateEntries;
-    }
-    const serializedSpec = normalizeSerializedSpec(parsedValue);
-    if (!serializedSpec) {
-      return templateEntries;
-    }
-    const displayName =
-      (parsedValue
-        && typeof parsedValue === "object"
-        && typeof parsedValue.display_name === "string"
-        && parsedValue.display_name.trim())
-      || (serializedSpec.network
-        && typeof serializedSpec.network.name === "string"
-        && serializedSpec.network.name.trim())
-      || extractFileStem(filename);
-    templateEntries.push({
-      displayName,
-      serializedSpec,
-    });
-    return templateEntries;
-  }
-
-  async function loadSessionTemplatesFromFile(event) {
-    const files = Array.from(event.target.files || []);
-    if (!files.length) {
-      return;
-    }
-    let loadedCount = 0;
-    let duplicateCount = 0;
-    let invalidCount = 0;
-    const reservedDisplayNames = new Set(
-      actions.listTemplateEntries().map((entry) => entry.displayName)
-    );
-
-    try {
-      for (const file of files) {
-        const fileText = await sessionUi.requestFileText(file, "utf-8");
-        const parsedValue = JSON.parse(fileText);
-        const templateImports = buildTemplateImportsFromFile(parsedValue, file.name);
-        for (const templateImport of templateImports) {
-          const displayName = templateImport.displayName.trim();
-          if (!displayName || reservedDisplayNames.has(displayName)) {
-            duplicateCount += 1;
-            continue;
-          }
-          const validationResponse = await sessionService.validateSerializedSpec(
-            templateImport.serializedSpec
-          );
-          if (!validationResponse.ok) {
-            invalidCount += 1;
-            continue;
-          }
-          const addResult = actions.addSessionTemplate({
-            displayName,
-            spec: validationResponse.spec,
-            selected: false,
-          });
-          if (!addResult.ok) {
-            duplicateCount += 1;
-            continue;
-          }
-          reservedDisplayNames.add(displayName);
-          loadedCount += 1;
-        }
-      }
-      if (!loadedCount && !duplicateCount && !invalidCount) {
-        actions.setStatus("No reusable templates were found in the selected files.", "error");
-        return;
-      }
-      const summaryParts = [];
-      if (loadedCount) {
-        summaryParts.push(`Loaded ${loadedCount} template(s)`);
-      }
-      if (duplicateCount) {
-        summaryParts.push(`skipped ${duplicateCount} duplicate name(s)`);
-      }
-      if (invalidCount) {
-        summaryParts.push(`skipped ${invalidCount} invalid template(s)`);
-      }
-      actions.setStatus(`${summaryParts.join(", ")}.`, loadedCount ? "success" : "error");
-    } catch (error) {
-      actions.setStatus(`Could not load templates: ${error.message}`, "error");
-    } finally {
-      if (templateLoadInput) {
-        templateLoadInput.value = "";
-      }
-    }
-  }
-
   async function exportSelectedTemplateSpec() {
     const serializedSpec = await extractTemplateSpecByTensorIds(
       getSelectedTensorIds(),
@@ -402,11 +261,10 @@ export function createSessionTemplateFlows({
       return;
     }
     const displayName = promptForTemplateDisplayName(
-      (
-        serializedSpec.network
-        && typeof serializedSpec.network.name === "string"
-        && serializedSpec.network.name.trim()
-      ) || "Selection Template",
+      (serializedSpec.network &&
+        typeof serializedSpec.network.name === "string" &&
+        serializedSpec.network.name.trim()) ||
+        "Selection Template",
       "Template export cancelled."
     );
     if (!displayName) {
@@ -423,234 +281,6 @@ export function createSessionTemplateFlows({
       "application/json;charset=utf-8"
     );
     actions.setStatus(`Exported ${displayName} as a reusable template.`, "success");
-  }
-
-  function promptForTemplateDisplayName(defaultDisplayName, cancelledStatus) {
-    const promptedDisplayName = sessionUi.promptText(
-      "Choose a name for this template.",
-      defaultDisplayName
-    );
-    if (typeof promptedDisplayName !== "string") {
-      actions.setStatus(cancelledStatus);
-      return null;
-    }
-    const trimmedDisplayName = promptedDisplayName.trim();
-    if (!trimmedDisplayName) {
-      actions.setStatus("Template names cannot be empty.", "error");
-      return null;
-    }
-    return trimmedDisplayName;
-  }
-
-  function promptForSubnetworkName(defaultDisplayName, cancelledStatus) {
-    const promptedDisplayName = sessionUi.promptText(
-      "Choose a name for this subnetwork.",
-      defaultDisplayName
-    );
-    if (typeof promptedDisplayName !== "string") {
-      actions.setStatus(cancelledStatus);
-      return null;
-    }
-    const trimmedDisplayName = promptedDisplayName.trim();
-    if (!trimmedDisplayName) {
-      actions.setStatus("Subnetwork names cannot be empty.", "error");
-      return null;
-    }
-    return trimmedDisplayName;
-  }
-
-  function buildTemplateManagerRow(entry) {
-    const row = documentRef.createElement("div");
-    const nameField = documentRef.createElement("label");
-    const nameInput = documentRef.createElement("input");
-    row.className = "template-manager-row";
-    nameInput.value =
-      templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName;
-    nameInput.dataset.templateName = entry.templateName;
-    nameInput.setAttribute("aria-label", `Template name for ${entry.displayName}`);
-    nameInput.disabled = false;
-    nameField.append(nameInput);
-    row.append(nameField);
-    const deleteButton = documentRef.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "icon-button index-action-button danger";
-    deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
-    deleteButton.title = `Delete ${entry.displayName}`;
-    deleteButton.innerHTML = renderTrashIcon();
-    deleteButton.addEventListener("click", () => {
-      templateManagerDraft.deletedTemplateNames.add(entry.templateName);
-      renderTemplateManager();
-    });
-    row.appendChild(deleteButton);
-    return row;
-  }
-
-  function renderTemplateManager() {
-    if (!templateManagerList) {
-      return;
-    }
-    templateManagerList.innerHTML = "";
-    actions.listTemplateEntries().forEach((entry) => {
-      if (entry.source !== "session") {
-        return;
-      }
-      if (
-        templateManagerDraft.deletedTemplateNames.has(entry.templateName)
-      ) {
-        return;
-      }
-      templateManagerList.appendChild(buildTemplateManagerRow(entry));
-    });
-  }
-
-  function openTemplateManager() {
-    const sessionEntries = actions
-      .listTemplateEntries()
-      .filter((entry) => entry.source === "session");
-    templateManagerDraft = {
-      nameByTemplateName: new Map(
-        sessionEntries.map((entry) => [entry.templateName, entry.displayName])
-      ),
-      deletedTemplateNames: new Set(),
-    };
-    state.isTemplateManagerOpen = true;
-    actions.syncTemplateManagerModalState();
-    actions.setTemplateManagerValidationMessage("");
-    renderTemplateManager();
-  }
-
-  function collectTemplateManagerUpdates() {
-    const sessionEntries = actions
-      .listTemplateEntries()
-      .filter((entry) => entry.source === "session");
-    return sessionEntries
-      .filter((entry) => !templateManagerDraft.deletedTemplateNames.has(entry.templateName))
-      .map((entry) => {
-        const input = templateManagerList.querySelector(
-          `input[data-template-name="${entry.templateName}"]`
-        );
-        return {
-          templateName: entry.templateName,
-          displayName:
-            input && typeof input.value === "string" ? input.value.trim() : entry.displayName,
-        };
-      });
-  }
-
-  function validateTemplateManagerUpdates(updates) {
-    const lockedDisplayNames = new Set(
-      actions
-        .listTemplateEntries()
-        .filter((entry) => entry.source !== "session")
-        .map((entry) => entry.displayName)
-    );
-    const seenSessionNames = new Set();
-    for (const update of updates) {
-      if (!update.displayName) {
-        return "Template names cannot be empty.";
-      }
-      if (lockedDisplayNames.has(update.displayName) || seenSessionNames.has(update.displayName)) {
-        return `Template name '${update.displayName}' is already in use.`;
-      }
-      seenSessionNames.add(update.displayName);
-    }
-    return "";
-  }
-
-  function saveTemplateManagerChanges() {
-    if (!state.isTemplateManagerOpen) {
-      return false;
-    }
-    const updates = collectTemplateManagerUpdates();
-    const validationMessage = validateTemplateManagerUpdates(updates);
-    if (validationMessage) {
-      actions.setTemplateManagerValidationMessage(validationMessage);
-      return true;
-    }
-    templateManagerDraft.deletedTemplateNames.forEach((templateName) => {
-      actions.removeSessionTemplate(templateName);
-    });
-    actions.updateSessionTemplateDisplayNames(updates);
-    state.isTemplateManagerOpen = false;
-    templateManagerDraft = null;
-    actions.setTemplateManagerValidationMessage("");
-    actions.syncTemplateManagerModalState();
-    actions.updateToolbarState();
-    actions.setStatus("Updated session templates.", "success");
-    return false;
-  }
-
-  function discardTemplateManagerChanges() {
-    if (!state.isTemplateManagerOpen) {
-      return false;
-    }
-    state.isTemplateManagerOpen = false;
-    templateManagerDraft = null;
-    actions.setTemplateManagerValidationMessage("");
-    actions.syncTemplateManagerModalState();
-    actions.updateToolbarState();
-    actions.setStatus("Discarded template changes.");
-    return false;
-  }
-
-  function toggleTemplateManager(forceOpen) {
-    const shouldOpen =
-      typeof forceOpen === "boolean" ? forceOpen : !state.isTemplateManagerOpen;
-    if (shouldOpen) {
-      openTemplateManager();
-      return true;
-    }
-    return discardTemplateManagerChanges();
-  }
-
-  async function loadSubnetworkFromFile(event) {
-    const file = event.target.files[0];
-    if (!file) {
-      return;
-    }
-    if (isForModeActive()) {
-      actions.setStatus(
-        "Subnetwork insertion is only available in normal graph mode.",
-        "error"
-      );
-      if (subnetworkLoadInput) {
-        subnetworkLoadInput.value = "";
-      }
-      return;
-    }
-
-    try {
-      const fileText = await sessionUi.requestFileText(file, "utf-8");
-      const parsed = JSON.parse(fileText);
-      const serializedSpec =
-        parsed && typeof parsed === "object" && parsed.network
-          ? parsed
-          : {
-              schema_version: state.schemaVersion,
-              network: parsed,
-            };
-      const response = await subnetworkService.prepareSubnetworkForInsert({
-        serializedSpec,
-        targetCenter: getSubnetworkTargetCenter(),
-      });
-      if (!response.ok) {
-        actions.setStatus(
-          response.message || actions.formatIssues(response.issues),
-          "error"
-        );
-        return;
-      }
-      commands.insertPreparedSubnetwork(
-        response.spec.network,
-        response.spec.network.name || file.name
-      );
-    } catch (error) {
-      actions.setStatus(`Could not insert ${file.name}: ${error.message}`, "error");
-    } finally {
-      if (subnetworkLoadInput) {
-        subnetworkLoadInput.value = "";
-      }
-    }
   }
 
   async function insertTemplate() {

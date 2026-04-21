@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from ...models import ContractionPlanSpec, ContractionStepSpec
 
 if TYPE_CHECKING:
-    from ...codegen.shared.common import PreparedNetwork
+    from ._prepared_network import PreparedNetwork
 
 
 @dataclass(slots=True, frozen=True)
