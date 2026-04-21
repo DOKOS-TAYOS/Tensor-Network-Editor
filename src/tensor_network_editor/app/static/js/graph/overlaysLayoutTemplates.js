@@ -1,4 +1,5 @@
 import { GRAPH_THEME } from "../core/theme.js";
+import { formatSignedDelta } from "../planner/plannerAnalysisFormatting.js";
 
 export function registerOverlaysLayoutTemplates(ctx) {
   const state = ctx.state;
@@ -242,18 +243,119 @@ export function registerOverlaysLayoutTemplates(ctx) {
     return badge;
   }
 
+  function hideActiveOverlayTooltip() {
+    if (
+      !ctx.shortcutTooltip ||
+      typeof ctx.shortcutTooltip.hideActiveTooltip !== "function"
+    ) {
+      return;
+    }
+    ctx.shortcutTooltip.hideActiveTooltip();
+  }
+
+  function applyOverlayTooltipData(node, label = "", description = "") {
+    if (!node || !node.dataset || (!label && !description)) {
+      return;
+    }
+    node.dataset.tooltipEnabled = "true";
+    if (label) {
+      node.dataset.shortcutLabel = label;
+    }
+    if (description) {
+      node.dataset.shortcutDescription = description;
+    }
+    const ariaLabel = label
+      ? description
+        ? `${label}. ${description}`
+        : label
+      : description;
+    if (ariaLabel && typeof node.setAttribute === "function") {
+      node.setAttribute("aria-label", ariaLabel);
+    }
+  }
+
+  function buildAutomaticPastPreviewTooltip() {
+    if (state.plannerPreviewMode !== "automaticPast") {
+      return null;
+    }
+    const comparison =
+      state.contractionAnalysis &&
+      state.contractionAnalysis.status === "ready" &&
+      state.contractionAnalysis.payload &&
+      state.contractionAnalysis.payload.comparisons
+        ? state.contractionAnalysis.payload.comparisons
+            .manual_subtrees_vs_automatic_past
+        : null;
+    if (!comparison) {
+      return null;
+    }
+    if (comparison.status !== "complete") {
+      return {
+        label: "Manual contractions vs auto past",
+        description:
+          typeof comparison.message === "string" && comparison.message
+            ? comparison.message
+            : "Comparison is not available for the current auto past preview.",
+      };
+    }
+    return {
+      label: "Manual contractions vs auto past",
+      description: [
+        "Auto - Manual.",
+        `FLOP ${formatSignedDelta(comparison.delta_total_estimated_flops)}`,
+        `MAC ${formatSignedDelta(comparison.delta_total_estimated_macs)}`,
+        `Peak ${formatSignedDelta(comparison.delta_peak_intermediate_size)}`,
+        `Memory ${formatSignedDelta(
+          comparison.delta_peak_intermediate_bytes,
+          "bytes"
+        )}`,
+      ].join(" "),
+    };
+  }
+
   function createPreviewBadgeStack(tensor, orders) {
     const rect = tensorScreenRect(tensor);
     const stack = document.createElement("div");
-    stack.className = "planner-order-badge-stack is-preview";
+    const isOpen = Boolean(state.plannerPreviewBadgeDisclosure[tensor.id]);
+    const tooltip = buildAutomaticPastPreviewTooltip();
+    stack.className = `planner-order-badge-stack is-preview planner-preview-badge-stack${
+      isOpen ? " is-open" : ""
+    }`;
     stack.style.left = `${rect.left + rect.width - 1}px`;
     stack.style.top = `${rect.top + 1}px`;
-    orders.forEach((order) => {
-      const badge = document.createElement("div");
-      badge.className = "planner-preview-badge";
-      badge.textContent = String(order);
-      stack.appendChild(badge);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "planner-preview-badge planner-preview-badge-toggle";
+    toggle.textContent = String(orders[0]);
+    applyOverlayTooltipData(toggle, tooltip && tooltip.label, tooltip && tooltip.description);
+    toggle.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
     });
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.plannerPreviewBadgeDisclosure[tensor.id] = !Boolean(
+        state.plannerPreviewBadgeDisclosure[tensor.id]
+      );
+      hideActiveOverlayTooltip();
+      renderOverlayDecorations();
+    });
+    stack.appendChild(toggle);
+
+    if (isOpen) {
+      orders.slice(1).forEach((order) => {
+        const badge = document.createElement("div");
+        badge.className = "planner-preview-badge";
+        badge.textContent = String(order);
+        applyOverlayTooltipData(
+          badge,
+          tooltip && tooltip.label,
+          tooltip && tooltip.description
+        );
+        stack.appendChild(badge);
+      });
+    }
     return stack;
   }
 

@@ -54,6 +54,7 @@ export function createPlannerAutomaticSupport({
     const previousPreviewMode = state.plannerPreviewMode;
     state.plannerPreviewMode = null;
     state.plannerPreviewOrderByTensorId = {};
+    state.plannerPreviewBadgeDisclosure = {};
     if (
       previousPreviewMode === "automaticPast" &&
       !options.preservePastInspection &&
@@ -84,6 +85,9 @@ export function createPlannerAutomaticSupport({
     }
     clearAutomaticPreview();
     state.plannerPreviewMode = mode;
+    if (mode === "automaticFuture" || mode === "automaticPast") {
+      state.plannerDisclosureState[mode] = true;
+    }
     if (mode === "automaticPast") {
       const rootGroups = buildAutomaticPastRootGroups(analysis.steps);
       if (rootGroups.length && typeof ctx.beginPastInspection === "function") {

@@ -15,6 +15,109 @@ export function createSpecMutationBindings({
     TENSOR_WIDTH,
     TENSOR_HEIGHT,
   } = constants;
+  const INDEX_RADIUS =
+    Number.isFinite(constants && constants.INDEX_RADIUS) &&
+    constants.INDEX_RADIUS >= 0
+      ? constants.INDEX_RADIUS
+      : 15;
+  const INDEX_PADDING =
+    Number.isFinite(constants && constants.INDEX_PADDING) &&
+    constants.INDEX_PADDING >= 0
+      ? constants.INDEX_PADDING
+      : 8;
+  const INDEX_PLACEMENT_STEP = Math.max(INDEX_RADIUS * 2 + INDEX_PADDING, 18);
+
+  function tensorWidth(tensor) {
+    return Math.max(
+      TENSOR_WIDTH,
+      runtime.asFiniteNumber(tensor && tensor.size && tensor.size.width, TENSOR_WIDTH)
+    );
+  }
+
+  function tensorHeight(tensor) {
+    return Math.max(
+      TENSOR_HEIGHT,
+      runtime.asFiniteNumber(tensor && tensor.size && tensor.size.height, TENSOR_HEIGHT)
+    );
+  }
+
+  function buildDistributedAxisOffsets(start, end) {
+    const span = Math.abs(end - start);
+    const count = Math.max(1, Math.floor(span / INDEX_PLACEMENT_STEP) + 1);
+    if (count === 1) {
+      return [(start + end) / 2];
+    }
+    const step = (end - start) / (count - 1);
+    return Array.from({ length: count }, (_, index) => start + step * index);
+  }
+
+  function normalizeOffsetKey(offset) {
+    return [
+      Math.round(runtime.asFiniteNumber(offset && offset.x, 0) * 1000),
+      Math.round(runtime.asFiniteNumber(offset && offset.y, 0) * 1000),
+    ].join(":");
+  }
+
+  function buildBoundaryIndexOffsetCandidates(tensor) {
+    const horizontalExtent =
+      tensorWidth(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING;
+    const verticalExtent =
+      tensorHeight(tensor) / 2 - INDEX_RADIUS - INDEX_PADDING;
+    const xOffsets = buildDistributedAxisOffsets(
+      -horizontalExtent,
+      horizontalExtent
+    );
+    const yOffsets = buildDistributedAxisOffsets(-verticalExtent, verticalExtent);
+    const candidates = [];
+    const candidateKeys = new Set();
+    function pushCandidate(offset) {
+      const key = normalizeOffsetKey(offset);
+      if (candidateKeys.has(key)) {
+        return;
+      }
+      candidateKeys.add(key);
+      candidates.push(offset);
+    }
+
+    xOffsets.forEach((xOffset) => {
+      pushCandidate({ x: xOffset, y: -verticalExtent });
+      pushCandidate({ x: xOffset, y: verticalExtent });
+    });
+    yOffsets.forEach((yOffset) => {
+      pushCandidate({ x: -horizontalExtent, y: yOffset });
+      pushCandidate({ x: horizontalExtent, y: yOffset });
+    });
+
+    return candidates;
+  }
+
+  function findAvailableIndexOffset(tensor, indexPosition) {
+    const occupiedOffsetKeys = new Set(
+      (Array.isArray(tensor && tensor.indices) ? tensor.indices : []).map((index) =>
+        normalizeOffsetKey(index.offset)
+      )
+    );
+    const maxDefaultOrder = Math.max(
+      indexPosition + 12,
+      (Array.isArray(tensor && tensor.indices) ? tensor.indices.length : 0) + 12
+    );
+
+    for (let order = 0; order <= maxDefaultOrder; order += 1) {
+      const candidate = runtime.defaultIndexOffsetForOrder(order, tensor);
+      if (!occupiedOffsetKeys.has(normalizeOffsetKey(candidate))) {
+        return candidate;
+      }
+    }
+
+    const boundaryCandidates = buildBoundaryIndexOffsetCandidates(tensor);
+    for (const candidate of boundaryCandidates) {
+      if (!occupiedOffsetKeys.has(normalizeOffsetKey(candidate))) {
+        return candidate;
+      }
+    }
+
+    return runtime.defaultIndexOffsetForOrder(indexPosition, tensor);
+  }
 
   function moveIndex(tensorId, indexPosition, direction) {
     const tensor = findTensorById(tensorId);
@@ -120,7 +223,7 @@ export function createSpecMutationBindings({
       id: runtime.makeId("index"),
       name: runtime.nextName("i", tensor.indices.map((index) => index.name)),
       dimension: 2,
-      offset: runtime.defaultIndexOffsetForOrder(indexPosition, tensor),
+      offset: findAvailableIndexOffset(tensor, indexPosition),
       metadata: {},
     };
   }

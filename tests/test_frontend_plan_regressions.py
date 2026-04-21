@@ -3122,6 +3122,358 @@ def test_automatic_past_preview_keeps_root_group_order_and_earliest_step(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_automatic_preview_opens_its_matching_disclosure(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "automatic_preview_disclosure_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSpec() {
+          return {
+            id: "network_preview_disclosure",
+            name: "preview-disclosure",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 80, y: 120 },
+                indices: [],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 220, y: 120 },
+                indices: [],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 360, y: 120 },
+                indices: [],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: {
+              id: "plan_preview_disclosure",
+              name: "Preview disclosure",
+              steps: [
+                { id: "step_ab", left_operand_id: "tensor_a", right_operand_id: "tensor_b", metadata: {} },
+              ],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        ctx.dom.plannerPanel = {
+          innerHTML: "",
+          querySelectorAll() {
+            return [];
+          },
+        };
+        await registerContractionScene(ctx);
+        await registerPlanner(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildSpec());
+        ctx.bumpSpecRevision();
+        ctx.state.contractionAnalysis = {
+          status: "ready",
+          payload: {
+            automatic_future: {
+              status: "complete",
+              steps: [
+                {
+                  left_operand_id: "tensor_a",
+                  right_operand_id: "tensor_c",
+                  result_operand_id: "auto_future_step_1",
+                },
+              ],
+              summary: {},
+            },
+            automatic_past: {
+              status: "complete",
+              steps: [
+                {
+                  left_operand_id: "tensor_a",
+                  right_operand_id: "tensor_b",
+                  result_operand_id: "step_ab",
+                },
+              ],
+              summary: {},
+            },
+          },
+        };
+
+        ctx.startAutomaticPreview("automaticFuture");
+        if (!ctx.state.plannerDisclosureState.automaticFuture) {
+          throw new Error("Previewing Auto future should open its disclosure.");
+        }
+
+        ctx.startAutomaticPreview("automaticPast");
+        if (!ctx.state.plannerDisclosureState.automaticPast) {
+          throw new Error("Previewing Auto past should open its disclosure.");
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The automatic-preview disclosure regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_automatic_past_preview_badges_collapse_expand_and_expose_comparison_tooltips(
+    tmp_path: Path,
+) -> None:
+    shortcut_tooltip_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "shell"
+        / "shortcutTooltip.js"
+    )
+    overlays_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "graph"
+        / "overlaysLayoutTemplates.js"
+    )
+    script_path = _write_runtime_script(
+        tmp_path,
+        "automatic_past_preview_badges_regression.mjs",
+        _build_runtime_prelude()
+        + f"""
+        const shortcutTooltipModuleUrl = pathToFileURL({json.dumps(str(shortcut_tooltip_path))}).href;
+        const overlaysModuleUrl = pathToFileURL({json.dumps(str(overlays_path))}).href;
+
+        function createLayer() {{
+          const layer = {{
+            children: [],
+            appendChild(node) {{
+              this.children.push(node);
+              return node;
+            }},
+          }};
+          Object.defineProperty(layer, "innerHTML", {{
+            get() {{
+              return "";
+            }},
+            set(_value) {{
+              this.children = [];
+            }},
+          }});
+          return layer;
+        }}
+
+        function createOverlayNode(tagName) {{
+          return {{
+            tagName,
+            className: "",
+            textContent: "",
+            hidden: false,
+            dataset: {{}},
+            attributes: {{}},
+            style: {{}},
+            listeners: {{}},
+            children: [],
+            classList: {{
+              add() {{}},
+              remove() {{}},
+              toggle() {{}},
+            }},
+            appendChild(child) {{
+              this.children.push(child);
+              return child;
+            }},
+            addEventListener(type, handler) {{
+              this.listeners[type] = handler;
+            }},
+            setAttribute(name, value) {{
+              this.attributes[name] = String(value);
+            }},
+            getAttribute(name) {{
+              return this.attributes[name] || "";
+            }},
+            removeAttribute(name) {{
+              delete this.attributes[name];
+            }},
+            focus() {{}},
+            getBoundingClientRect() {{
+              return {{
+                left: 0,
+                top: 0,
+                right: 20,
+                bottom: 20,
+                width: 20,
+                height: 20,
+              }};
+            }},
+          }};
+        }}
+
+        function findPreviewStack(layer) {{
+          return layer.children.find((child) =>
+            typeof child.className === "string" &&
+            child.className.includes("planner-order-badge-stack is-preview")
+          );
+        }}
+
+        function buildSpec() {{
+          return {{
+            id: "network_preview_badges",
+            name: "preview-badges",
+            tensors: [
+              {{
+                id: "tensor_a",
+                name: "A",
+                position: {{ x: 80, y: 120 }},
+                size: {{ width: 140, height: 84 }},
+                indices: [],
+                metadata: {{}},
+              }},
+              {{
+                id: "tensor_b",
+                name: "B",
+                position: {{ x: 240, y: 120 }},
+                size: {{ width: 140, height: 84 }},
+                indices: [],
+                metadata: {{}},
+              }},
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }};
+        }}
+
+        const [tooltipModule, overlaysModule] = await Promise.all([
+          import(shortcutTooltipModuleUrl),
+          import(overlaysModuleUrl),
+        ]);
+        const ctx = await buildContext();
+        ctx.document.createElement = createOverlayNode;
+        ctx.dom.groupLayer = createLayer();
+        ctx.dom.resizeLayer = createLayer();
+        ctx.state.cy = {{
+          zoom() {{
+            return 1;
+          }},
+          pan() {{
+            return {{ x: 0, y: 0 }};
+          }},
+        }};
+        ctx.dom.canvasShell = {{
+          getBoundingClientRect() {{
+            return {{ left: 0, top: 0, width: 1000, height: 800 }};
+          }},
+          addEventListener() {{}},
+        }};
+        ctx.shortcutTooltip = tooltipModule.createShortcutTooltip({{
+          documentRef: ctx.document,
+          windowRef: ctx.window,
+        }});
+        overlaysModule.registerOverlaysLayoutTemplates(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildSpec());
+        ctx.state.plannerPreviewMode = "automaticPast";
+        ctx.state.plannerPreviewOrderByTensorId = {{
+          tensor_a: [1, 2, 3],
+        }};
+        ctx.state.contractionAnalysis = {{
+          status: "ready",
+          payload: {{
+            comparisons: {{
+              manual_subtrees_vs_automatic_past: {{
+                status: "complete",
+                delta_total_estimated_flops: -24,
+                delta_total_estimated_macs: -12,
+                delta_peak_intermediate_size: -12,
+                delta_peak_intermediate_bytes: -96,
+              }},
+            }},
+          }},
+        }};
+
+        ctx.renderOverlayDecorations({{ immediate: true }});
+
+        const collapsedStack = findPreviewStack(ctx.dom.resizeLayer);
+        if (!collapsedStack) {{
+          throw new Error("Expected a preview badge stack for the auto past preview.");
+        }}
+        if (!collapsedStack.children || collapsedStack.children.length !== 1) {{
+          throw new Error(
+            `Expected auto past preview badges to stay collapsed initially, received ${{collapsedStack.children && collapsedStack.children.length}} badges.`
+          );
+        }}
+        const toggleBadge = collapsedStack.children[0];
+        if (toggleBadge.textContent !== "1") {{
+          throw new Error(`Expected the collapsed preview badge to show the earliest step, received ${{toggleBadge.textContent}}.`);
+        }}
+        if (toggleBadge.dataset.tooltipEnabled !== "true") {{
+          throw new Error("Expected auto past preview badges to opt into the shared tooltip.");
+        }}
+        if (toggleBadge.dataset.shortcutLabel !== "Manual contractions vs auto past") {{
+          throw new Error(
+            `Expected the preview badge tooltip label to describe the comparison, received ${{toggleBadge.dataset.shortcutLabel}}.`
+          );
+        }}
+        if (
+          !toggleBadge.dataset.shortcutDescription.includes("FLOP -24") ||
+          !toggleBadge.dataset.shortcutDescription.includes("MAC -12") ||
+          !toggleBadge.dataset.shortcutDescription.includes("Peak -12") ||
+          !toggleBadge.dataset.shortcutDescription.includes("Memory -96 bytes")
+        ) {{
+          throw new Error(
+            `Expected the preview badge tooltip to summarize the auto-past comparison deltas, received ${{toggleBadge.dataset.shortcutDescription}}.`
+          );
+        }}
+
+        toggleBadge.listeners.click({{
+          preventDefault() {{}},
+          stopPropagation() {{}},
+        }});
+
+        const expandedStack = findPreviewStack(ctx.dom.resizeLayer);
+        if (!expandedStack || !expandedStack.className.includes("is-open")) {{
+          throw new Error("Expected clicking the first preview badge to expand the full preview stack.");
+        }}
+        if (!expandedStack.children || expandedStack.children.length !== 3) {{
+          throw new Error(
+            `Expected the expanded preview stack to show all preview steps, received ${{expandedStack.children && expandedStack.children.length}} badges.`
+          );
+        }}
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The automatic-past preview badge regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_graph_render_reuses_existing_cytoscape_elements_for_stable_graph(
     tmp_path: Path,
 ) -> None:

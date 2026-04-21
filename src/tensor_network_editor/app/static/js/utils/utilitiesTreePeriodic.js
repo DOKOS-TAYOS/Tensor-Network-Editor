@@ -674,6 +674,7 @@ export function createUtilityTreePeriodicBindings({
     state.plannerInspectionStepCount = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     state.activeTensorDrag = null;
     state.activeIndexDrag = null;
     state.activeResize = null;

@@ -2065,6 +2065,43 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         if (createdTensor.indices.length !== 2) {{
           throw new Error(`Expected created tensor to receive two default indices, received ${{createdTensor.indices.length}}.`);
         }}
+        const collisionTensor = {{
+          id: "tensor_collision",
+          name: "Collision",
+          position: {{ x: 180, y: 120 }},
+          size: {{ width: 140, height: 84 }},
+          indices: [],
+          metadata: {{}},
+        }};
+        collisionTensor.indices.push(specMutations.createIndex(collisionTensor, 0));
+        collisionTensor.indices.push(specMutations.createIndex(collisionTensor, 1));
+        collisionTensor.indices.push(specMutations.createIndex(collisionTensor, 2));
+        const survivingOffset = {{
+          x: collisionTensor.indices[2].offset.x,
+          y: collisionTensor.indices[2].offset.y,
+        }};
+        collisionTensor.indices.splice(1, 1);
+        const regeneratedIndex = specMutations.createIndex(
+          collisionTensor,
+          collisionTensor.indices.length
+        );
+        collisionTensor.indices.push(regeneratedIndex);
+        const offsetKeys = collisionTensor.indices.map(
+          (index) => `${{index.offset.x}}:${{index.offset.y}}`
+        );
+        if (new Set(offsetKeys).size !== collisionTensor.indices.length) {{
+          throw new Error(
+            `Expected regenerated tensor indices to keep distinct offsets, received ${{JSON.stringify(collisionTensor.indices.map((index) => index.offset))}}.`
+          );
+        }}
+        if (
+          regeneratedIndex.offset.x === survivingOffset.x &&
+          regeneratedIndex.offset.y === survivingOffset.y
+        ) {{
+          throw new Error(
+            `Expected regenerated index to avoid the surviving slot, received ${{JSON.stringify(regeneratedIndex.offset)}}.`
+          );
+        }}
         const normalizedGraphSection = specNormalization.normalizeGraphSectionInPlace({{
           tensors: [{{ position: {{}}, size: {{}}, indices: [{{ metadata: {{}} }}], metadata: {{}} }}],
           groups: [{{ tensor_ids: ["tensor_a"] }}],

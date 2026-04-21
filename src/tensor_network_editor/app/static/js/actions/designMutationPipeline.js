@@ -55,6 +55,7 @@ export function createDesignMutationPipeline({
     }
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     if (typeof syncCurrentGraphIntoGridPeriodicGrid === "function") {
       syncCurrentGraphIntoGridPeriodicGrid();
     } else if (typeof syncGridPeriodicBoundaryTensors === "function") {

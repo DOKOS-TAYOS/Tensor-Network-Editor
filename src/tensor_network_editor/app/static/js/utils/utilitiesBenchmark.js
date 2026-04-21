@@ -480,6 +480,7 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
     state.plannerInspectionStepCount = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     state.activeTensorDrag = null;
     state.activeIndexDrag = null;
     state.activeResize = null;
@@ -532,6 +533,9 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
       pendingPlannerSelectionId: state.pendingPlannerSelectionId,
       plannerInspectionStepCount: state.plannerInspectionStepCount,
       plannerPreviewMode: state.plannerPreviewMode,
+      plannerPreviewBadgeDisclosure: runtime.deepClone(
+        state.plannerPreviewBadgeDisclosure || {}
+      ),
       plannerFutureBadgeDisclosure: runtime.deepClone(
         state.plannerFutureBadgeDisclosure || {}
       ),
@@ -573,6 +577,8 @@ export function createUtilityBenchmarkBindings({ ctx, state, dom, runtime }) {
       state.plannerInspectionStepCount =
         previousPlannerState.plannerInspectionStepCount;
       state.plannerPreviewMode = previousPlannerState.plannerPreviewMode;
+      state.plannerPreviewBadgeDisclosure =
+        previousPlannerState.plannerPreviewBadgeDisclosure;
       state.plannerFutureBadgeDisclosure =
         previousPlannerState.plannerFutureBadgeDisclosure;
     }

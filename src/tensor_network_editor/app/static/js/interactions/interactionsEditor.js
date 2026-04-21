@@ -156,6 +156,7 @@ export function createInteractionEditorBindings({
       : [];
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     enforceLinearPeriodicEngineSupport();
     ctx.reconcileTensorOrder();
     ctx.clearHistory();

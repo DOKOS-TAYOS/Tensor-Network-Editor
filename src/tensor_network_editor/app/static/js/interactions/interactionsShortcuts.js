@@ -396,6 +396,7 @@ export function createInteractionShortcutBindings({
       if (state.plannerPreviewMode) {
         clearAutomaticPreview();
         state.plannerPreviewMode = null;
+        state.plannerPreviewBadgeDisclosure = {};
         ctx.render();
         ctx.setStatus("Automatic preview cleared.");
         return;

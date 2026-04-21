@@ -68,6 +68,7 @@ export function createPlannerSupport({
     state.pendingPlannerOperandId = null;
     state.pendingPlannerSelectionId = null;
     state.plannerPreviewMode = null;
+    state.plannerPreviewBadgeDisclosure = {};
     if (typeof ctx.syncPendingInteractionClasses === "function") {
       ctx.syncPendingInteractionClasses();
     }
@@ -86,6 +87,7 @@ export function createPlannerSupport({
     state.pendingPlannerSelectionId = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     if (state.spec) {
       state.spec.contraction_plan = null;
     }
@@ -104,6 +106,7 @@ export function createPlannerSupport({
     state.pendingPlannerSelectionId = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     if (state.spec) {
       state.spec.contraction_plan = null;
     }
@@ -293,18 +296,21 @@ export function createPlannerSupport({
       state.spec.contraction_plan = null;
       state.plannerInspectionStepCount = null;
       state.plannerFutureBadgeDisclosure = {};
+      state.plannerPreviewBadgeDisclosure = {};
       return;
     }
     if (isGridPeriodicMode()) {
       state.spec.contraction_plan = null;
       state.plannerInspectionStepCount = null;
       state.plannerFutureBadgeDisclosure = {};
+      state.plannerPreviewBadgeDisclosure = {};
       return;
     }
     if (isBenchmarkBasePosition()) {
       state.spec.contraction_plan = null;
       state.plannerInspectionStepCount = null;
       state.plannerFutureBadgeDisclosure = {};
+      state.plannerPreviewBadgeDisclosure = {};
       return;
     }
     const plan = state.spec.contraction_plan;
@@ -314,6 +320,7 @@ export function createPlannerSupport({
       }
       state.plannerInspectionStepCount = null;
       state.plannerFutureBadgeDisclosure = {};
+      state.plannerPreviewBadgeDisclosure = {};
       return;
     }
     const plannerOperandState = getPlannerOperandState();
@@ -321,6 +328,7 @@ export function createPlannerSupport({
       state.spec.contraction_plan = null;
       state.plannerInspectionStepCount = null;
       state.plannerFutureBadgeDisclosure = {};
+      state.plannerPreviewBadgeDisclosure = {};
       return;
     }
     plan.steps = plannerOperandState.validSteps;
@@ -338,6 +346,7 @@ export function createPlannerSupport({
       state.plannerInspectionStepCount = null;
     }
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
   }
 
   function getPlannerRemainingOperandIds() {
@@ -409,6 +418,7 @@ export function createPlannerSupport({
     }
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     state.plannerInspectionStepCount =
       stepCount <= 0
         ? null

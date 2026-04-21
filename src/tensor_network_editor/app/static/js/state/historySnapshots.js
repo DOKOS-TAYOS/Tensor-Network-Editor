@@ -145,6 +145,7 @@ export function createHistorySnapshotSupport({
     state.plannerInspectionStepCount = null;
     state.plannerPreviewMode = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
     state.activeNoteResize = null;
     state.activeSidebarTab = "selection";
     state.pendingPropertiesIndexFocusId = null;

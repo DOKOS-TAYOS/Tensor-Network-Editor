@@ -713,6 +713,7 @@ export function registerContractionScene(ctx) {
   function clearPastInspection() {
     state.plannerInspectionStepCount = null;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
   }
 
   function beginPastInspection(stepIndex) {
@@ -721,6 +722,7 @@ export function registerContractionScene(ctx) {
     state.plannerInspectionStepCount =
       inspectedStepCount === latestAppliedStepCount ? null : inspectedStepCount;
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
   }
 
   function togglePastInspection(stepIndex) {
@@ -734,6 +736,7 @@ export function registerContractionScene(ctx) {
       state.plannerInspectionStepCount = inspectedStepCount;
     }
     state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
   }
 
   function toggleFutureBadgeDisclosure(operandId) {

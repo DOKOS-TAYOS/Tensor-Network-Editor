@@ -153,6 +153,7 @@ export function createInitialState() {
       automaticPastComparison: false,
     },
     plannerFutureBadgeDisclosure: {},
+    plannerPreviewBadgeDisclosure: {},
     plannerManualOrderByTensorId: {},
     plannerPreviewOrderByTensorId: {},
     contractionAnalysis: null,

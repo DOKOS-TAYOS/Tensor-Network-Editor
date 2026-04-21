@@ -1752,8 +1752,15 @@ select {
   z-index: 4;
 }
 
-.planner-future-badge-toggle {
+.planner-preview-badge-stack {
+  pointer-events: auto;
+  z-index: 4;
+}
+
+.planner-future-badge-toggle,
+.planner-preview-badge-toggle {
   cursor: pointer;
+  font: inherit;
 }
 
 .planner-step.is-active {
