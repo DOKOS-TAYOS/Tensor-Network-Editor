@@ -229,7 +229,7 @@ def test_validate_route_rejects_legacy_schema_versions(
         method="POST",
         payload={
             "spec": {
-                "schema_version": SCHEMA_VERSION - 2,
+                "schema_version": 1,
                 "network": build_sample_spec().to_dict(),
             }
         },

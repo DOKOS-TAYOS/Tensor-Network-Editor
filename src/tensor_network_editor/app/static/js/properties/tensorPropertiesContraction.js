@@ -76,7 +76,11 @@ export function createContractionTensorPropertiesRenderer({
 
   function renderContractionIndexProperties(located) {
     const ownerLabel = located && located.tensor ? located.tensor.name : "Result tensor";
-    const isConnected = Boolean(ctx.findEdgeByIndexId(located.index.id));
+    const isConnected = Boolean(
+      typeof ctx.findConnectionByIndexId === "function"
+        ? ctx.findConnectionByIndexId(located.index.id)
+        : ctx.findEdgeByIndexId(located.index.id)
+    );
 
     propertiesPanel.innerHTML = `
       <div class="properties-summary">

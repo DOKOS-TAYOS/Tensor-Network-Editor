@@ -778,6 +778,17 @@ export function createUtilityGridPeriodicBindings({
       );
       return;
     }
+    if (
+      !isGridPeriodicMode() &&
+      Array.isArray(state.spec?.hyperedges) &&
+      state.spec.hyperedges.length
+    ) {
+      ctx.setStatus(
+        "For bidimensional mode does not support hyperedges yet. Remove them first or stay in normal mode.",
+        "error"
+      );
+      return;
+    }
     if (isGridPeriodicMode()) {
       if (
         !window.confirm(

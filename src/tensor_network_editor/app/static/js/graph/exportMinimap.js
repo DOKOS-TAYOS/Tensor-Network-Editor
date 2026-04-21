@@ -260,7 +260,14 @@ export function registerExportMinimap(ctx) {
           getMetadataFilterAlpha("index", index.id, metadataFilterHighlight),
           () => {
             const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
-            const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
+            const indexColor = ctx.getIndexColor(
+              index,
+              Boolean(
+                typeof ctx.findConnectionByIndexId === "function"
+                  ? ctx.findConnectionByIndexId(index.id)
+                  : ctx.findEdgeByIndexId(index.id)
+              )
+            );
             context.beginPath();
             context.fillStyle = indexColor;
             context.strokeStyle = state.selectionIds.includes(index.id)
@@ -398,7 +405,14 @@ export function registerExportMinimap(ctx) {
 
       tensor.indices.forEach((index, indexPosition) => {
         const absolutePosition = ctx.indexAbsolutePosition(tensor, index);
-        const indexColor = ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)));
+        const indexColor = ctx.getIndexColor(
+          index,
+          Boolean(
+            typeof ctx.findConnectionByIndexId === "function"
+              ? ctx.findConnectionByIndexId(index.id)
+              : ctx.findEdgeByIndexId(index.id)
+          )
+        );
         lines.push(
           `<circle cx="${absolutePosition.x}" cy="${absolutePosition.y}" r="${INDEX_RADIUS}" fill="${indexColor}" stroke="${ctx.shiftColor(indexColor, 26)}" stroke-width="2" />`
         );

@@ -62,7 +62,14 @@ export function createBoundaryTensorPropertiesRenderer({
                     value="${ctx.escapeHtml(
                       ctx.getMetadataColor(
                         index.metadata,
-                        ctx.getIndexColor(index, Boolean(ctx.findEdgeByIndexId(index.id)))
+                        ctx.getIndexColor(
+                          index,
+                          Boolean(
+                            typeof ctx.findConnectionByIndexId === "function"
+                              ? ctx.findConnectionByIndexId(index.id)
+                              : ctx.findEdgeByIndexId(index.id)
+                          )
+                        )
                       )
                     )}"
                   />

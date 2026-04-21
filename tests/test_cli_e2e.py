@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from tensor_network_editor.api import save_spec
+from tensor_network_editor.serialization import SCHEMA_VERSION
 from tests.factories import build_sample_spec
 
 pytestmark = pytest.mark.integration
@@ -119,7 +120,10 @@ def test_headless_cli_commands_work_with_real_files(tmp_path: Path) -> None:
         cwd=repo_root,
     )
     _assert_cli_success(canonicalize_result)
-    assert json.loads(canonical_path.read_text(encoding="utf-8"))["schema_version"] == 4
+    assert (
+        json.loads(canonical_path.read_text(encoding="utf-8"))["schema_version"]
+        == SCHEMA_VERSION
+    )
 
     diff_result = _run_cli(
         "diff",
@@ -145,7 +149,7 @@ def test_headless_cli_commands_work_with_real_files(tmp_path: Path) -> None:
     )
     _assert_cli_success(template_result)
     template_payload = json.loads(template_path.read_text(encoding="utf-8"))
-    assert template_payload["schema_version"] == 4
+    assert template_payload["schema_version"] == SCHEMA_VERSION
     assert template_payload["network"]["name"] == "MPS"
     assert len(template_payload["network"]["tensors"]) == 4
 

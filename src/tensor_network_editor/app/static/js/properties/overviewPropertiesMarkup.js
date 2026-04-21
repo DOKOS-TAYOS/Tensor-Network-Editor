@@ -1,5 +1,6 @@
 export function buildNetworkPropertiesMarkup({
   spec,
+  connectionCount,
   escapeHtml,
   buildMetadataEditorMarkup,
 }) {
@@ -18,7 +19,7 @@ export function buildNetworkPropertiesMarkup({
       </div>
       <div class="properties-chip">
         <span>Connections</span>
-        <strong>${spec.edges.length}</strong>
+        <strong>${connectionCount}</strong>
       </div>
       <div class="properties-chip">
         <span>Groups</span>
@@ -44,10 +45,11 @@ export function buildMultiSelectionPropertiesMarkup({
   baseTensorCount,
   tensorCount,
   indexCount,
-  edgeCount,
+  connectionCount,
   groupCount,
   noteCount,
   hasMultipleTensors,
+  hyperedgeCreationCandidate,
   linearPeriodicMode,
   batchColor,
   totalElementCount,
@@ -72,7 +74,7 @@ export function buildMultiSelectionPropertiesMarkup({
           </div>
           <div class="properties-chip">
             <span>Connections</span>
-            <strong>${edgeCount}</strong>
+            <strong>${connectionCount}</strong>
           </div>
           <div class="properties-chip">
             <span>Groups</span>
@@ -134,6 +136,33 @@ export function buildMultiSelectionPropertiesMarkup({
                 ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
                 : ""
             }
+          `
+          : ""
+      }
+      ${
+        hyperedgeCreationCandidate &&
+        Array.isArray(hyperedgeCreationCandidate.selectedIndexIds) &&
+        hyperedgeCreationCandidate.selectedIndexIds.length
+          ? `
+            <section class="planner-section">
+              <h3>Hyperedge</h3>
+              <p class="property-meta">${escapeHtml(hyperedgeCreationCandidate.message || "")}</p>
+              ${
+                hyperedgeCreationCandidate.selectedIndexIds.length >= 3
+                  ? `
+                    <div class="button-row">
+                      <button
+                        id="create-hyperedge-button"
+                        type="button"
+                        ${hyperedgeCreationCandidate.canCreate ? "" : "disabled"}
+                      >
+                        Create hyperedge
+                      </button>
+                    </div>
+                  `
+                  : ""
+              }
+            </section>
           `
           : ""
       }

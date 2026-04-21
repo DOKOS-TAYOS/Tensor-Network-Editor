@@ -97,6 +97,11 @@ export function createUtilityGeometryBindings({
         syncSingleIndexNodePosition(tensor, index);
       });
     });
+    if (typeof runtime.syncHyperedgeHubNodePositions === "function") {
+      runtime.syncHyperedgeHubNodePositions(
+        tensor.indices.map((index) => index.id)
+      );
+    }
   }
 
   function syncSingleIndexNodePosition(tensor, index) {
@@ -124,10 +129,91 @@ export function createUtilityGeometryBindings({
     labelElement.data(
       "textColor",
       runtime.shiftColor(
-        runtime.getIndexColor(index, Boolean(runtime.findEdgeByIndexId(index.id))),
+        runtime.getIndexColor(
+          index,
+          Boolean(
+            typeof runtime.findConnectionByIndexId === "function"
+              ? runtime.findConnectionByIndexId(index.id)
+              : runtime.findEdgeByIndexId(index.id)
+          )
+        ),
         64
       )
     );
+  }
+
+  function getHyperedgeHubPosition(hyperedge) {
+    const endpoints = Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [];
+    const endpointPositions = endpoints
+      .map((endpoint) =>
+        typeof runtime.findIndexOwner === "function"
+          ? runtime.findIndexOwner(endpoint.index_id)
+          : null
+      )
+      .filter((owner) => owner && owner.tensor && owner.index)
+      .map((owner) => indexAbsolutePosition(owner.tensor, owner.index));
+    if (!endpointPositions.length) {
+      return null;
+    }
+    const summed = endpointPositions.reduce(
+      (accumulator, position) => ({
+        x: accumulator.x + position.x,
+        y: accumulator.y + position.y,
+      }),
+      { x: 0, y: 0 }
+    );
+    return {
+      x: Math.round(summed.x / endpointPositions.length),
+      y: Math.round(summed.y / endpointPositions.length),
+    };
+  }
+
+  function syncHyperedgeHubNodePosition(hyperedgeId) {
+    if (!state.cy || typeof runtime.findHyperedgeById !== "function") {
+      return null;
+    }
+    const hyperedge = runtime.findHyperedgeById(hyperedgeId);
+    if (!hyperedge || typeof runtime.hyperedgeHubNodeId !== "function") {
+      return null;
+    }
+    const hubPosition = getHyperedgeHubPosition(hyperedge);
+    if (!hubPosition) {
+      return null;
+    }
+    const hubElement = state.cy.getElementById(runtime.hyperedgeHubNodeId(hyperedge.id));
+    if (hubElement && hubElement.length) {
+      hubElement.position(hubPosition);
+    }
+    return hubPosition;
+  }
+
+  function syncHyperedgeHubNodePositions(indexIds = null) {
+    if (!state.cy || !state.spec) {
+      return;
+    }
+    const targetedHyperedgeIds = new Set();
+    if (Array.isArray(indexIds) && indexIds.length) {
+      indexIds.forEach((indexId) => {
+        const hyperedge =
+          typeof runtime.findHyperedgeByIndexId === "function"
+            ? runtime.findHyperedgeByIndexId(indexId)
+            : null;
+        if (hyperedge?.id) {
+          targetedHyperedgeIds.add(hyperedge.id);
+        }
+      });
+    } else {
+      (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : []).forEach(
+        (hyperedge) => {
+          if (hyperedge?.id) {
+            targetedHyperedgeIds.add(hyperedge.id);
+          }
+        }
+      );
+    }
+    targetedHyperedgeIds.forEach((hyperedgeId) => {
+      syncHyperedgeHubNodePosition(hyperedgeId);
+    });
   }
 
   function runWithIndexSync(action) {
@@ -358,6 +444,9 @@ export function createUtilityGeometryBindings({
     syncIndexNodePositions,
     syncSingleIndexNodePosition,
     syncIndexLabelNodePosition,
+    getHyperedgeHubPosition,
+    syncHyperedgeHubNodePosition,
+    syncHyperedgeHubNodePositions,
     runWithIndexSync,
     runWithTensorSync,
     buildQuadraticCurve,

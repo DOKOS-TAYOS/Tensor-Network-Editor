@@ -184,8 +184,10 @@ This parser is intentionally limited to standard source layouts emitted by this
 package. For supported standard exports, manual contraction steps now round-trip
 back into `ContractionPlanSpec.steps`. Editor-only `view_snapshots` are still
 reset to an empty list because generated Python does not carry scene layout.
-Linear periodic generated Python remains export-only for now, and this is still
-not a general Python-to-network importer.
+Hyperedges are exported in lowered copy-tensor form and are re-imported in that
+same binary form rather than reconstructed as `HyperedgeSpec`. Linear periodic
+generated Python remains export-only for now, and this is still not a general
+Python-to-network importer.
 
 ## Validate, Lint, Analyze, Canonicalize, and Diff
 

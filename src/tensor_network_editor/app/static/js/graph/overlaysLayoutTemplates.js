@@ -731,6 +731,15 @@ export function registerOverlaysLayoutTemplates(ctx) {
       edge.left.index_id = indexIdMap[edge.left.index_id];
       edge.right.index_id = indexIdMap[edge.right.index_id];
     });
+    (Array.isArray(cloned.hyperedges) ? cloned.hyperedges : []).forEach((hyperedge) => {
+      hyperedge.id = ctx.makeId("hyperedge");
+      hyperedge.endpoints = (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : [])
+        .map((endpoint) => ({
+          tensor_id: tensorIdMap[endpoint.tensor_id],
+          index_id: indexIdMap[endpoint.index_id],
+        }))
+        .filter((endpoint) => endpoint.tensor_id && endpoint.index_id);
+    });
     cloned.groups.forEach((group) => {
       const nextGroupId = ctx.makeId("group");
       groupIdMap[group.id] = nextGroupId;

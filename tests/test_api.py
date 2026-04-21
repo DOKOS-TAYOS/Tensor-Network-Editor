@@ -29,6 +29,7 @@ from tests.factories import (
     build_outer_product_plan_spec,
     build_sample_spec_with_view_snapshots,
     build_three_tensor_complete_plan_spec,
+    build_three_tensor_hyperedge_spec,
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
 )
@@ -63,6 +64,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "EditorResult",
         "EngineName",
         "GroupSpec",
+        "HyperedgeSpec",
         "IndexSpec",
         "NetworkSpec",
         "TensorCollectionFormat",
@@ -261,6 +263,20 @@ def test_load_spec_from_python_code_round_trips_tensor_data(
         mode=TensorDataMode.FILL,
         fill_value=1.5,
     )
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_lowers_hyperedges_to_binary_network(
+    engine: EngineName,
+) -> None:
+    result = generate_code(build_three_tensor_hyperedge_spec(), engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.hyperedges == []
+    assert len(loaded_spec.tensors) == 4
+    assert len(loaded_spec.edges) == 3
+    assert any(tensor.shape == (3, 3, 3) for tensor in loaded_spec.tensors)
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

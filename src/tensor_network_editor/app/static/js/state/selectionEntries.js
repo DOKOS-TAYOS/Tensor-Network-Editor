@@ -5,6 +5,7 @@ export function createSelectionEntrySupport({
   findVisibleTensorById,
   findIndexOwner,
   findEdgeById,
+  findHyperedgeById = () => null,
   findNoteById,
   getVisibleTensors,
   isContractionSceneVisible,
@@ -64,6 +65,10 @@ export function createSelectionEntrySupport({
         return null;
       }
       return { kind: "edge", id: selectionId, edge };
+    }
+    const hyperedge = findHyperedgeById(selectionId);
+    if (hyperedge) {
+      return { kind: "hyperedge", id: selectionId, hyperedge };
     }
     const note = findNoteById(selectionId);
     if (note) {

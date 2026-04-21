@@ -12,6 +12,7 @@ from ...models import (
     EdgeSpec,
     GridPeriodicGridSpec,
     GroupSpec,
+    HyperedgeSpec,
     IndexSpec,
     LinearPeriodicChainSpec,
     NetworkSpec,
@@ -28,6 +29,7 @@ class _GraphSection:
     tensors: list[TensorSpec]
     groups: list[GroupSpec]
     edges: list[EdgeSpec]
+    hyperedges: list[HyperedgeSpec]
     notes: list[CanvasNoteSpec]
     contraction_plan: ContractionPlanSpec | None
 
@@ -49,6 +51,7 @@ def canonicalize_spec(
             tensors=canonical.tensors,
             groups=canonical.groups,
             edges=canonical.edges,
+            hyperedges=canonical.hyperedges,
             notes=canonical.notes,
             contraction_plan=canonical.contraction_plan,
         )
@@ -66,6 +69,7 @@ def canonicalize_spec(
                 tensors=canonical.tensors,
                 groups=canonical.groups,
                 edges=canonical.edges,
+                hyperedges=canonical.hyperedges,
                 notes=canonical.notes,
                 contraction_plan=canonical.contraction_plan,
             )
@@ -93,6 +97,7 @@ def _canonicalize_linear_periodic_chain(chain: LinearPeriodicChainSpec) -> None:
                 tensors=cell.tensors,
                 groups=cell.groups,
                 edges=cell.edges,
+                hyperedges=[],
                 notes=cell.notes,
                 contraction_plan=cell.contraction_plan,
             )
@@ -106,6 +111,7 @@ def _rewrite_linear_periodic_chain_ids(chain: LinearPeriodicChainSpec) -> None:
             tensors=chain.initial_cell.tensors,
             groups=chain.initial_cell.groups,
             edges=chain.initial_cell.edges,
+            hyperedges=[],
             notes=chain.initial_cell.notes,
             contraction_plan=chain.initial_cell.contraction_plan,
         ),
@@ -116,6 +122,7 @@ def _rewrite_linear_periodic_chain_ids(chain: LinearPeriodicChainSpec) -> None:
             tensors=chain.periodic_cell.tensors,
             groups=chain.periodic_cell.groups,
             edges=chain.periodic_cell.edges,
+            hyperedges=[],
             notes=chain.periodic_cell.notes,
             contraction_plan=chain.periodic_cell.contraction_plan,
         ),
@@ -126,6 +133,7 @@ def _rewrite_linear_periodic_chain_ids(chain: LinearPeriodicChainSpec) -> None:
             tensors=chain.final_cell.tensors,
             groups=chain.final_cell.groups,
             edges=chain.final_cell.edges,
+            hyperedges=[],
             notes=chain.final_cell.notes,
             contraction_plan=chain.final_cell.contraction_plan,
         ),
@@ -153,6 +161,7 @@ def _canonicalize_grid_periodic_grid(grid: GridPeriodicGridSpec) -> None:
                 tensors=cell.tensors,
                 groups=cell.groups,
                 edges=cell.edges,
+                hyperedges=[],
                 notes=cell.notes,
                 contraction_plan=cell.contraction_plan,
             )
@@ -166,6 +175,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.top_left_cell.tensors,
             groups=grid.top_left_cell.groups,
             edges=grid.top_left_cell.edges,
+            hyperedges=[],
             notes=grid.top_left_cell.notes,
             contraction_plan=grid.top_left_cell.contraction_plan,
         ),
@@ -176,6 +186,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.top_cell.tensors,
             groups=grid.top_cell.groups,
             edges=grid.top_cell.edges,
+            hyperedges=[],
             notes=grid.top_cell.notes,
             contraction_plan=grid.top_cell.contraction_plan,
         ),
@@ -186,6 +197,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.top_right_cell.tensors,
             groups=grid.top_right_cell.groups,
             edges=grid.top_right_cell.edges,
+            hyperedges=[],
             notes=grid.top_right_cell.notes,
             contraction_plan=grid.top_right_cell.contraction_plan,
         ),
@@ -196,6 +208,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.left_cell.tensors,
             groups=grid.left_cell.groups,
             edges=grid.left_cell.edges,
+            hyperedges=[],
             notes=grid.left_cell.notes,
             contraction_plan=grid.left_cell.contraction_plan,
         ),
@@ -206,6 +219,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.center_cell.tensors,
             groups=grid.center_cell.groups,
             edges=grid.center_cell.edges,
+            hyperedges=[],
             notes=grid.center_cell.notes,
             contraction_plan=grid.center_cell.contraction_plan,
         ),
@@ -216,6 +230,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.right_cell.tensors,
             groups=grid.right_cell.groups,
             edges=grid.right_cell.edges,
+            hyperedges=[],
             notes=grid.right_cell.notes,
             contraction_plan=grid.right_cell.contraction_plan,
         ),
@@ -226,6 +241,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.bottom_left_cell.tensors,
             groups=grid.bottom_left_cell.groups,
             edges=grid.bottom_left_cell.edges,
+            hyperedges=[],
             notes=grid.bottom_left_cell.notes,
             contraction_plan=grid.bottom_left_cell.contraction_plan,
         ),
@@ -236,6 +252,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.bottom_cell.tensors,
             groups=grid.bottom_cell.groups,
             edges=grid.bottom_cell.edges,
+            hyperedges=[],
             notes=grid.bottom_cell.notes,
             contraction_plan=grid.bottom_cell.contraction_plan,
         ),
@@ -246,6 +263,7 @@ def _rewrite_grid_periodic_grid_ids(grid: GridPeriodicGridSpec) -> None:
             tensors=grid.bottom_right_cell.tensors,
             groups=grid.bottom_right_cell.groups,
             edges=grid.bottom_right_cell.edges,
+            hyperedges=[],
             notes=grid.bottom_right_cell.notes,
             contraction_plan=grid.bottom_right_cell.contraction_plan,
         ),
@@ -263,6 +281,7 @@ def _canonicalize_tree_periodic_tree(tree: TreePeriodicTreeSpec) -> None:
                 tensors=cell.tensors,
                 groups=cell.groups,
                 edges=cell.edges,
+                hyperedges=[],
                 notes=cell.notes,
                 contraction_plan=cell.contraction_plan,
             )
@@ -276,6 +295,7 @@ def _rewrite_tree_periodic_tree_ids(tree: TreePeriodicTreeSpec) -> None:
             tensors=tree.root_cell.tensors,
             groups=tree.root_cell.groups,
             edges=tree.root_cell.edges,
+            hyperedges=[],
             notes=tree.root_cell.notes,
             contraction_plan=tree.root_cell.contraction_plan,
         ),
@@ -286,6 +306,7 @@ def _rewrite_tree_periodic_tree_ids(tree: TreePeriodicTreeSpec) -> None:
             tensors=tree.branch_cell.tensors,
             groups=tree.branch_cell.groups,
             edges=tree.branch_cell.edges,
+            hyperedges=[],
             notes=tree.branch_cell.notes,
             contraction_plan=tree.branch_cell.contraction_plan,
         ),
@@ -296,6 +317,7 @@ def _rewrite_tree_periodic_tree_ids(tree: TreePeriodicTreeSpec) -> None:
             tensors=tree.leaf_cell.tensors,
             groups=tree.leaf_cell.groups,
             edges=tree.leaf_cell.edges,
+            hyperedges=[],
             notes=tree.leaf_cell.notes,
             contraction_plan=tree.leaf_cell.contraction_plan,
         ),
@@ -312,6 +334,8 @@ def _canonicalize_graph_section(section: _GraphSection) -> None:
         tensor.indices.sort(key=_index_sort_key)
     for edge in section.edges:
         edge.metadata = _canonicalize_metadata(edge.metadata)
+    for hyperedge in section.hyperedges:
+        hyperedge.metadata = _canonicalize_metadata(hyperedge.metadata)
     for group in section.groups:
         group.metadata = _canonicalize_metadata(group.metadata)
         group.tensor_ids = sorted(group.tensor_ids)
@@ -322,6 +346,7 @@ def _canonicalize_graph_section(section: _GraphSection) -> None:
 
     section.tensors.sort(key=_tensor_sort_key)
     section.edges.sort(key=_edge_sort_key)
+    section.hyperedges.sort(key=_hyperedge_sort_key)
     section.groups.sort(key=_group_sort_key)
     section.notes.sort(key=_note_sort_key)
 
@@ -365,6 +390,15 @@ def _rewrite_graph_section_ids(
             tensor_id=tensor_id_map[edge.right.tensor_id],
             index_id=index_id_map[edge.right.index_id],
         )
+    for hyperedge_index, hyperedge in enumerate(section.hyperedges, start=1):
+        hyperedge.id = _format_canonical_id("hyperedge", hyperedge_index, prefix)
+        hyperedge.endpoints = [
+            EdgeEndpointRef(
+                tensor_id=tensor_id_map[endpoint.tensor_id],
+                index_id=index_id_map[endpoint.index_id],
+            )
+            for endpoint in hyperedge.endpoints
+        ]
     for group_index, group in enumerate(section.groups, start=1):
         group.id = _format_canonical_id("group", group_index, prefix)
         group.tensor_ids = sorted(
@@ -454,6 +488,20 @@ def _edge_sort_key(edge: EdgeSpec) -> tuple[object, ...]:
         endpoints[0],
         endpoints[1],
         edge.id,
+    )
+
+
+def _hyperedge_sort_key(hyperedge: HyperedgeSpec) -> tuple[object, ...]:
+    """Return a stable sort key for hyperedges."""
+    return (
+        hyperedge.name.casefold(),
+        tuple(
+            sorted(
+                (endpoint.tensor_id, endpoint.index_id)
+                for endpoint in hyperedge.endpoints
+            )
+        ),
+        hyperedge.id,
     )
 
 

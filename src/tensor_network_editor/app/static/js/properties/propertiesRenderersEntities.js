@@ -3,6 +3,7 @@ import { createEntityPropertiesBindings } from "./entityPropertiesBindings.js";
 import {
   buildEdgePropertiesMarkup,
   buildGroupPropertiesMarkup,
+  buildHyperedgePropertiesMarkup,
   buildNotePropertiesMarkup,
 } from "./entityPropertiesMarkup.js";
 
@@ -74,6 +75,31 @@ export function createEntityPropertiesRenderers({
     bindings.bindEdgeProperties({ edge, edgeColor });
   }
 
+  function renderHyperedgeProperties(hyperedgeId) {
+    const hyperedge = actions.findHyperedgeById(hyperedgeId);
+    if (!hyperedge) {
+      actions.clearSelection();
+      return;
+    }
+    const hyperedgeColor = actions.getMetadataColor(
+      hyperedge.metadata,
+      GRAPH_THEME.edge
+    );
+    const endpointCount = Array.isArray(hyperedge.endpoints)
+      ? hyperedge.endpoints.length
+      : 0;
+
+    propertiesPanel.innerHTML = buildHyperedgePropertiesMarkup({
+      hyperedge,
+      hyperedgeColor,
+      endpointCount,
+      renderTrashIcon,
+      buildMetadataEditorMarkup,
+      escapeHtml: actions.escapeHtml,
+    });
+    bindings.bindHyperedgeProperties({ hyperedge, hyperedgeColor });
+  }
+
   function renderNoteProperties(noteId) {
     const note = actions.findNoteById(noteId);
     if (!note) {
@@ -98,6 +124,7 @@ export function createEntityPropertiesRenderers({
   return {
     renderGroupProperties,
     renderEdgeProperties,
+    renderHyperedgeProperties,
     renderNoteProperties,
   };
 }

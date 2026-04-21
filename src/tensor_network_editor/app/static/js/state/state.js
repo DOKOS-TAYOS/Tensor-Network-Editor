@@ -55,6 +55,8 @@ export function createInitialState() {
     tensorById: {},
     edgeById: {},
     edgeByIndexId: {},
+    hyperedgeById: {},
+    hyperedgeByIndexId: {},
     groupById: {},
     indexOwnerById: {},
     groupsByTensorId: {},

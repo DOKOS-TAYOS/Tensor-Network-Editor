@@ -17,6 +17,16 @@ export function createNotesClipboardActions({ ctx, state }) {
             tensorIdSet.has(edge.right.tensor_id)
         )
       ),
+      hyperedges: ctx.deepClone(
+        (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : []).filter(
+          (hyperedge) =>
+            Array.isArray(hyperedge.endpoints) &&
+            hyperedge.endpoints.length &&
+            hyperedge.endpoints.every((endpoint) =>
+              tensorIdSet.has(endpoint.tensor_id)
+            )
+        )
+      ),
       groups: ctx.deepClone(
         state.spec.groups.filter(
           (group) =>
@@ -63,6 +73,17 @@ export function createNotesClipboardActions({ ctx, state }) {
       edge.left.index_id = indexIdMap[edge.left.index_id];
       edge.right.index_id = indexIdMap[edge.right.index_id];
     });
+    (Array.isArray(clipboard.hyperedges) ? clipboard.hyperedges : []).forEach(
+      (hyperedge) => {
+        hyperedge.id = ctx.makeId("hyperedge");
+        hyperedge.endpoints = (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : [])
+          .map((endpoint) => ({
+            tensor_id: tensorIdMap[endpoint.tensor_id],
+            index_id: indexIdMap[endpoint.index_id],
+          }))
+          .filter((endpoint) => endpoint.tensor_id && endpoint.index_id);
+      }
+    );
     clipboard.groups.forEach((group) => {
       group.id = ctx.makeId("group");
       group.tensor_ids = group.tensor_ids.map((tensorId) => tensorIdMap[tensorId]);
@@ -73,6 +94,12 @@ export function createNotesClipboardActions({ ctx, state }) {
       () => {
         state.spec.tensors.push(...clipboard.tensors);
         state.spec.edges.push(...clipboard.edges);
+        if (!Array.isArray(state.spec.hyperedges)) {
+          state.spec.hyperedges = [];
+        }
+        state.spec.hyperedges.push(
+          ...((Array.isArray(clipboard.hyperedges) ? clipboard.hyperedges : []))
+        );
         state.spec.groups.push(...clipboard.groups);
         clipboard.tensors.forEach((tensor) => {
           ctx.bringTensorToFront(tensor.id);

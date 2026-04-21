@@ -784,6 +784,17 @@ export function createUtilityTreePeriodicBindings({
       );
       return;
     }
+    if (
+      !isTreePeriodicMode() &&
+      Array.isArray(state.spec?.hyperedges) &&
+      state.spec.hyperedges.length
+    ) {
+      ctx.setStatus(
+        "For Tree mode does not support hyperedges yet. Remove them first or stay in normal mode.",
+        "error"
+      );
+      return;
+    }
     if (isTreePeriodicMode()) {
       if (
         !window.confirm(

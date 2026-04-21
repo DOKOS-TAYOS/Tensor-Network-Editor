@@ -417,9 +417,13 @@ export function createBenchmarkSessionSupport({
     return buildDefaultBenchmarkSchemeName(index);
   }
 
+  function hasHyperedges() {
+    return Boolean(Array.isArray(state.spec?.hyperedges) && state.spec.hyperedges.length);
+  }
+
   function canOpenBenchmarkCompare() {
     const session = getBenchmarkSession();
-    return Boolean(session.enabled && session.schemes.length);
+    return Boolean(session.enabled && session.schemes.length && !hasHyperedges());
   }
 
   function getBenchmarkCompareTableModel(compareModal = getBenchmarkSession().compareModal) {
@@ -656,6 +660,15 @@ export function createBenchmarkSessionSupport({
       if (typeof ctx.setStatus === "function") {
         ctx.setStatus(
           "Benchmark mode is unavailable while a For mode is active.",
+          "error"
+        );
+      }
+      return false;
+    }
+    if (shouldEnable && hasHyperedges()) {
+      if (typeof ctx.setStatus === "function") {
+        ctx.setStatus(
+          "Benchmark mode is unavailable while the design contains hyperedges.",
           "error"
         );
       }
@@ -1015,6 +1028,13 @@ export function createBenchmarkSessionSupport({
 
   async function openBenchmarkCompareModal() {
     const session = getBenchmarkSession();
+    if (hasHyperedges()) {
+      ctx.setStatus(
+        "Benchmark comparison is unavailable while the design contains hyperedges.",
+        "error"
+      );
+      return null;
+    }
     if (!session.enabled || !session.schemes.length) {
       return null;
     }

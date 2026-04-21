@@ -36,8 +36,10 @@ export function registerCanvasContextMenu(ctx) {
     findEdgeById:
       typeof ctx.findEdgeById === "function" ? (edgeId) => ctx.findEdgeById(edgeId) : null,
     findEdgeByIndexId:
-      typeof ctx.findEdgeByIndexId === "function"
-        ? (indexId) => ctx.findEdgeByIndexId(indexId)
+      typeof ctx.findConnectionByIndexId === "function"
+        ? (indexId) => ctx.findConnectionByIndexId(indexId)
+        : typeof ctx.findEdgeByIndexId === "function"
+          ? (indexId) => ctx.findEdgeByIndexId(indexId)
         : null,
     findGroupById:
       typeof ctx.findGroupById === "function"

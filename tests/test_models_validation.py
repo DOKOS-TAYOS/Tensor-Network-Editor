@@ -21,6 +21,7 @@ from tensor_network_editor.models import (
     EdgeSpec,
     GridPeriodicTensorRole,
     GroupSpec,
+    HyperedgeSpec,
     IndexSpec,
     LinearPeriodicCellName,
     LinearPeriodicTensorRole,
@@ -84,6 +85,53 @@ def build_valid_spec() -> NetworkSpec:
                 right=EdgeEndpointRef(
                     tensor_id="tensor_right", index_id="tensor_right_bond"
                 ),
+            )
+        ],
+    )
+
+
+def build_valid_hyperedge_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="network_hyperedge_validation",
+        name="hyperedge-demo",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=40.0, y=80.0),
+                indices=[
+                    IndexSpec(id="tensor_a_open", name="a_open", dimension=2),
+                    IndexSpec(id="tensor_a_h", name="h", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=220.0, y=80.0),
+                indices=[
+                    IndexSpec(id="tensor_b_h", name="h", dimension=3),
+                    IndexSpec(id="tensor_b_open", name="b_open", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_c",
+                name="C",
+                position=CanvasPosition(x=400.0, y=80.0),
+                indices=[
+                    IndexSpec(id="tensor_c_h", name="h", dimension=3),
+                    IndexSpec(id="tensor_c_open", name="c_open", dimension=7),
+                ],
+            ),
+        ],
+        hyperedges=[
+            HyperedgeSpec(
+                id="hyperedge_shared",
+                name="shared_h",
+                endpoints=[
+                    EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+                    EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_h"),
+                    EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_h"),
+                ],
             )
         ],
     )
@@ -384,8 +432,23 @@ def test_open_indices_are_derived_from_unconnected_ports() -> None:
     ]
 
 
+def test_open_indices_and_connected_index_ids_include_hyperedges() -> None:
+    spec = build_valid_hyperedge_spec()
+
+    assert spec.connected_index_ids() == {"tensor_a_h", "tensor_b_h", "tensor_c_h"}
+    assert [index.name for _, index in spec.open_indices()] == [
+        "a_open",
+        "b_open",
+        "c_open",
+    ]
+
+
 def test_validate_spec_accepts_valid_network() -> None:
     assert validate_spec(build_valid_spec()) == []
+
+
+def test_validate_spec_accepts_valid_hyperedge() -> None:
+    assert validate_spec(build_valid_hyperedge_spec()) == []
 
 
 def test_validate_spec_accepts_tensor_literal_data_matching_shape() -> None:
@@ -500,6 +563,86 @@ def test_validate_spec_accepts_valid_tree_periodic_tree() -> None:
 
 def test_validate_spec_accepts_valid_linear_periodic_carry_chain() -> None:
     assert validate_spec(build_linear_periodic_carry_chain_spec()) == []
+
+
+def test_validate_spec_rejects_hyperedge_with_duplicate_endpoints() -> None:
+    spec = build_valid_hyperedge_spec()
+    spec.hyperedges[0] = HyperedgeSpec(
+        id="hyperedge_shared",
+        name="shared_h",
+        endpoints=[
+            EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+            EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+            EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_h"),
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "duplicate-hyperedge-endpoint")
+
+    assert issue.path == "hyperedges.hyperedge_shared.endpoints"
+
+
+def test_validate_spec_rejects_hyperedge_with_dimension_mismatch() -> None:
+    spec = build_valid_hyperedge_spec()
+    spec.tensors[2].indices[0].dimension = 9
+
+    issue = find_issue(validate_spec(spec), "dimension-mismatch")
+
+    assert issue.path == "hyperedges.hyperedge_shared"
+
+
+def test_validate_spec_rejects_hyperedge_with_too_few_endpoints() -> None:
+    spec = build_valid_hyperedge_spec()
+    spec.hyperedges[0] = HyperedgeSpec(
+        id="hyperedge_shared",
+        name="shared_h",
+        endpoints=[
+            EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+            EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_h"),
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-hyperedge")
+
+    assert issue.path == "hyperedges.hyperedge_shared.endpoints"
+
+
+def test_validate_spec_rejects_index_reused_between_edge_and_hyperedge() -> None:
+    spec = build_valid_hyperedge_spec()
+    spec.edges.append(
+        EdgeSpec(
+            id="edge_duplicate",
+            name="duplicate",
+            left=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+            right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_open"),
+        )
+    )
+
+    issue = find_issue(validate_spec(spec), "index-already-connected")
+
+    assert issue.path in {
+        "edges.edge_duplicate.left",
+        "hyperedges.hyperedge_shared.endpoints",
+    }
+
+
+@pytest.mark.parametrize(
+    "spec_factory",
+    [
+        build_linear_periodic_chain_spec,
+        build_grid_periodic_grid_spec,
+        build_tree_periodic_tree_spec,
+    ],
+)
+def test_validate_spec_rejects_hyperedges_in_for_modes(
+    spec_factory: Callable[[], NetworkSpec],
+) -> None:
+    spec = spec_factory()
+    spec.hyperedges = build_valid_hyperedge_spec().hyperedges
+
+    issue = find_issue(validate_spec(spec), "hyperedges-not-supported-in-for-mode")
+
+    assert issue.path == "hyperedges"
 
 
 def test_validate_spec_accepts_linear_periodic_partial_carry_chain() -> None:

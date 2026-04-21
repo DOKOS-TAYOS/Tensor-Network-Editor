@@ -23,6 +23,7 @@ from tensor_network_editor.models import (
 )
 from tests.factories import (
     build_linear_periodic_partial_carry_chain_spec,
+    build_three_tensor_hyperedge_spec,
     build_three_tensor_spec,
 )
 from tests.optional_backends import require_light_optional_module
@@ -165,6 +166,11 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.manual.summary.peak_intermediate_bytes == 64
     assert result.automatic_future is not None
     assert result.automatic_past is not None
+
+
+def test_analyze_contraction_rejects_hyperedges() -> None:
+    with pytest.raises(ValueError, match="Hyperedges are not supported"):
+        analyze_contraction(build_three_tensor_hyperedge_spec())
 
 
 @pytest.mark.optional_backend

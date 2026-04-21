@@ -31,6 +31,10 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
+    if spec.hyperedges:
+        raise ValueError(
+            "Hyperedges are not supported by manual contraction planning or benchmark mode yet."
+        )
     validated_spec = ensure_valid_spec(spec)
     return _analyze_validated_contraction(
         validated_spec,

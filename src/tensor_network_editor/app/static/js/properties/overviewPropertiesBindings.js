@@ -50,6 +50,7 @@ export function createOverviewPropertiesBindings({
     state,
     selectedEntries,
     batchColor,
+    hyperedgeCreationCandidate,
     hasMultipleTensors,
   }) {
     const multiColorInput = documentRef.getElementById("multi-color-input");
@@ -84,6 +85,21 @@ export function createOverviewPropertiesBindings({
 
     bindClick("delete-selection-button", () => {
       commands.deleteCurrentSelection();
+    });
+
+    bindClick("create-hyperedge-button", () => {
+      commands.createHyperedgeFromIndices({
+        indexIds: hyperedgeCreationCandidate?.selectedIndexIds || [],
+        invalidate: propertyInvalidation({
+          graph: true,
+          lookups: true,
+          analysis: true,
+          planner: true,
+          minimap: true,
+          toolbar: true,
+        }),
+        statusMessage: "Created a hyperedge.",
+      });
     });
 
     if (!hasMultipleTensors) {

@@ -4111,3 +4111,349 @@ def test_contraction_scene_render_diffs_visible_elements_without_full_reset(
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_hyperedge_candidate_rejects_connected_indices_and_creates_valid_connection(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "hyperedge_candidate_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildHyperedgeCandidateSpec() {
+          return {
+            id: "network_hyperedge_candidate",
+            name: "hyperedge-candidate",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 2, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 2, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 600, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_c_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_c_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [
+              {
+                id: "edge_ab",
+                name: "bond",
+                left: { tensor_id: "tensor_a", index_id: "tensor_a_right" },
+                right: { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                metadata: {},
+              },
+            ],
+            hyperedges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        ctx.state.spec = ctx.normalizeSpec(buildHyperedgeCandidateSpec());
+        ctx.bumpSpecRevision();
+
+        const rejectedCandidate = ctx.describeHyperedgeCandidate([
+          "tensor_a_right",
+          "tensor_b_left",
+          "tensor_c_left",
+        ]);
+        if (rejectedCandidate.canCreate) {
+          throw new Error(`Expected connected indices to be rejected, received ${JSON.stringify(rejectedCandidate)}.`);
+        }
+        if (!rejectedCandidate.message.includes("open")) {
+          throw new Error(`Expected the rejection message to mention open indices, received ${rejectedCandidate.message}.`);
+        }
+
+        const validCandidate = ctx.describeHyperedgeCandidate([
+          "tensor_a_left",
+          "tensor_b_right",
+          "tensor_c_left",
+        ]);
+        if (!validCandidate.canCreate || validCandidate.dimension !== 2) {
+          throw new Error(`Expected three compatible open indices to be accepted, received ${JSON.stringify(validCandidate)}.`);
+        }
+
+        let createdHyperedge = null;
+        ctx.applyDesignChange(() => {
+          createdHyperedge = ctx.createHyperedge(validCandidate.indexIds);
+        });
+        if (!createdHyperedge || !createdHyperedge.id) {
+          throw new Error("Expected createHyperedge() to return the new hyperedge.");
+        }
+        if (!Array.isArray(ctx.state.spec.hyperedges) || ctx.state.spec.hyperedges.length !== 1) {
+          throw new Error(`Expected the design to store one hyperedge, received ${JSON.stringify(ctx.state.spec.hyperedges)}.`);
+        }
+        if (ctx.findHyperedgeById(createdHyperedge.id) !== createdHyperedge) {
+          throw new Error("Expected findHyperedgeById() to resolve the created hyperedge.");
+        }
+        if (ctx.findConnectionByIndexId("tensor_c_left") !== createdHyperedge) {
+          throw new Error("Expected the created hyperedge to behave like a connection for its endpoints.");
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The hyperedge candidate regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_graph_render_synthesizes_hyperedge_hub_and_spokes(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "hyperedge_graph_render_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildHyperedgeRenderSpec() {
+          return {
+            id: "network_hyperedge_render",
+            name: "hyperedge-render",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 260 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_b_right", name: "right", dimension: 5, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 620, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_c_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_c_right", name: "right", dimension: 7, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            hyperedges: [
+              {
+                id: "hyperedge_h",
+                name: "shared",
+                endpoints: [
+                  { tensor_id: "tensor_a", index_id: "tensor_a_left" },
+                  { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                  { tensor_id: "tensor_c", index_id: "tensor_c_left" },
+                ],
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        await registerGraphRender(ctx);
+        const cyHarness = createCyStub();
+        ctx.state.cy = cyHarness.cy;
+        ctx.state.spec = ctx.normalizeSpec(buildHyperedgeRenderSpec());
+        ctx.bumpSpecRevision();
+
+        ctx.renderGraph();
+
+        const hubId = ctx.hyperedgeHubNodeId("hyperedge_h");
+        const expectedIds = [
+          hubId,
+          ctx.hyperedgeSpokeEdgeId("hyperedge_h", 0),
+          ctx.hyperedgeSpokeEdgeId("hyperedge_h", 1),
+          ctx.hyperedgeSpokeEdgeId("hyperedge_h", 2),
+        ];
+        const actualIds = cyHarness.getElementIds();
+        expectedIds.forEach((elementId) => {
+          if (!actualIds.includes(elementId)) {
+            throw new Error(`Expected the graph render to add ${elementId}, received ${actualIds}.`);
+          }
+        });
+
+        const hubSnapshot = cyHarness.getElementSnapshot(hubId);
+        if (!hubSnapshot || hubSnapshot.data.kind !== "hyperedge-hub") {
+          throw new Error(`Expected ${hubId} to render as a hyperedge hub, received ${JSON.stringify(hubSnapshot)}.`);
+        }
+        const spokeSnapshot = cyHarness.getElementSnapshot(
+          ctx.hyperedgeSpokeEdgeId("hyperedge_h", 1)
+        );
+        if (!spokeSnapshot || spokeSnapshot.data.kind !== "hyperedge-spoke") {
+          throw new Error(`Expected the synthetic spoke edge to render correctly, received ${JSON.stringify(spokeSnapshot)}.`);
+        }
+        const connectedIndexSnapshot = cyHarness.getElementSnapshot("tensor_b_left");
+        if (
+          !connectedIndexSnapshot ||
+          !Array.isArray(connectedIndexSnapshot.classes) ||
+          !connectedIndexSnapshot.classes.includes("index-connected")
+        ) {
+          throw new Error(`Expected hyperedge endpoints to render as connected indices, received ${JSON.stringify(connectedIndexSnapshot)}.`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The hyperedge graph render regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_renders_hyperedge_unavailable_state(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_hyperedge_guard_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildHyperedgePlannerSpec() {
+          return {
+            id: "network_hyperedge_planner",
+            name: "hyperedge-planner",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 80, y: 120 },
+                indices: [
+                  { id: "tensor_a_i", name: "i", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 240, y: 120 },
+                indices: [
+                  { id: "tensor_b_i", name: "i", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 400, y: 120 },
+                indices: [
+                  { id: "tensor_c_i", name: "i", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            hyperedges: [
+              {
+                id: "hyperedge_guard",
+                name: "guard",
+                endpoints: [
+                  { tensor_id: "tensor_a", index_id: "tensor_a_i" },
+                  { tensor_id: "tensor_b", index_id: "tensor_b_i" },
+                  { tensor_id: "tensor_c", index_id: "tensor_c_i" },
+                ],
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: {
+              id: "plan_guard",
+              name: "Manual path",
+              steps: [
+                { id: "step_1", left_operand_id: "tensor_a", right_operand_id: "tensor_b", metadata: {} },
+              ],
+              metadata: {},
+            },
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        ctx.dom.plannerPanel = createPlannerPanel();
+        await registerHistory(ctx);
+        await registerPlanner(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildHyperedgePlannerSpec());
+        ctx.bumpSpecRevision();
+        ctx.refreshContractionAnalysis();
+        ctx.renderPlanner();
+
+        if (ctx.state.contractionAnalysis?.status !== "hyperedgesDisabled") {
+          throw new Error(`Expected refreshContractionAnalysis() to disable planner analysis for hyperedges, received ${JSON.stringify(ctx.state.contractionAnalysis)}.`);
+        }
+        if (ctx.state.spec.contraction_plan !== null) {
+          throw new Error("Expected the stale manual contraction plan to be cleared when hyperedges are present.");
+        }
+
+        const html = ctx.dom.plannerPanel.innerHTML;
+        if (!html.includes("Manual contraction planning is unavailable while the design contains hyperedges.")) {
+          throw new Error(`Expected the planner panel to explain the hyperedge restriction, received: ${html}`);
+        }
+        if (!html.includes('id="toggle-planner-mode-button"')) {
+          throw new Error(`Expected the planner toolbar to stay visible, received: ${html}`);
+        }
+        if (!html.includes('id="toggle-planner-mode-button"') || !html.includes("disabled")) {
+          throw new Error(`Expected planner actions to be disabled while hyperedges exist, received: ${html}`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The planner hyperedge guard regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

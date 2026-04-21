@@ -21,6 +21,7 @@ from tensor_network_editor.internal.cli._cli_benchmark import (
     serialize_benchmark_report_text,
 )
 from tensor_network_editor.models import NetworkSpec
+from tests.factories import build_three_tensor_hyperedge_spec
 
 
 def build_benchmark_analysis(
@@ -233,3 +234,16 @@ def test_benchmark_subcommand_writes_latex_output_file(
     assert output_path.exists()
     assert "\\begin{tabular}{lrrrr}" in output_path.read_text(encoding="utf-8")
     assert f"Wrote benchmark report to {output_path}" in capsys.readouterr().out
+
+
+def test_benchmark_subcommand_rejects_hyperedges(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch(
+        "tensor_network_editor.cli.load_spec",
+        return_value=build_three_tensor_hyperedge_spec(),
+    ):
+        exit_code = main(["benchmark", "saved-network.json"])
+
+    assert exit_code == 2
+    assert "Hyperedges are not supported" in capsys.readouterr().out

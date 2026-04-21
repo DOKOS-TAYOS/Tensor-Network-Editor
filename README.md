@@ -30,6 +30,8 @@ offline use, and generated code you can inspect.
 - Edit tensor initializers in the sidebar with generated zeros, ones, fill
   values, or explicit numeric JSON literals that round-trip through saved
   designs and supported generated Python.
+- Create first-class hyperedges in normal mode; exports lower them
+  automatically into copy tensors plus binary edges for backend code.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.
@@ -137,15 +139,18 @@ print(result.code)
   subnetworks, auto layout, planner, tips, benchmark mode, periodic modes, and
   limits.
 - [Python API](docs/api.md): public functions and practical examples.
-- [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges, groups,
-  notes, contraction plans, and periodic-mode payloads.
+- [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges,
+  hyperedges, groups, notes, contraction plans, and periodic-mode payloads.
 - [CLI](docs/cli.md): terminal commands, subnetwork catalogs,
   benchmark/export workflows, and JSON output.
 - [Troubleshooting](docs/troubleshooting.md): common problems and fixes.
 
 ## Current Limits
 
-- Hyperedges are not supported yet.
+- Hyperedges are supported only in normal mode. They are lowered to generated
+  copy tensors for export, re-imported generated Python stays in that lowered
+  binary form, and planner/manual contraction editing plus benchmark mode are
+  disabled while hyperedges exist in the design.
 - Tensor values in the visual editor are currently limited to generated zeros,
   ones, fill values, and explicit numeric JSON literals. Symbolic
   initializers, random initializers, and direct `.npy` / `.pt` imports are not

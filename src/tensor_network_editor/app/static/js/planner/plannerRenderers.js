@@ -451,6 +451,16 @@ export function createPlannerRenderers({
   }
 
   function renderPlannerAnalysis() {
+    if (
+      Array.isArray(state.spec?.hyperedges) &&
+      state.spec.hyperedges.length &&
+      (!state.contractionAnalysis || state.contractionAnalysis.status !== "ready")
+    ) {
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(
+        state.contractionAnalysis?.message ||
+          "Manual contraction planning is unavailable while the design contains hyperedges."
+      )}</p>`;
+    }
     if (!state.contractionAnalysis || state.contractionAnalysis.status === "loading") {
       return `<p class="planner-inline-meta">Analyzing contraction paths...</p>`;
     }
@@ -462,6 +472,9 @@ export function createPlannerRenderers({
     }
     if (state.contractionAnalysis.status === "treePeriodicDisabled") {
       return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Contractions are disabled in For Tree mode.")}</p>`;
+    }
+    if (state.contractionAnalysis.status === "hyperedgesDisabled") {
+      return `<p class="planner-inline-meta">${ctx.escapeHtml(state.contractionAnalysis.message || "Manual contraction planning is unavailable while the design contains hyperedges.")}</p>`;
     }
     if (state.contractionAnalysis.status === "issues") {
       return `<p class="planner-inline-meta planner-error">${ctx.escapeHtml(ctx.formatIssues(state.contractionAnalysis.issues || []))}</p>`;
@@ -534,6 +547,9 @@ export function createPlannerRenderers({
   }
 
   function renderPlanner() {
+    const hasHyperedges = Boolean(
+      Array.isArray(state.spec?.hyperedges) && state.spec.hyperedges.length
+    );
     if (!plannerPanel) {
       return;
     }
@@ -597,6 +613,7 @@ export function createPlannerRenderers({
           data-shortcut-label="Contract"
           data-tooltip-enabled="true"
           data-shortcut-description="Toggle manual contraction mode, then click two tensors or intermediate results to add a step."
+          ${hasHyperedges ? "disabled" : ""}
         >
           Contract
         </button>
@@ -608,7 +625,7 @@ export function createPlannerRenderers({
           data-shortcut-label="Reset path"
           data-shortcut-description="Remove all manual steps from the current contraction path."
           aria-label="Reset path"
-          ${planSteps.length ? "" : " disabled"}
+          ${planSteps.length && !hasHyperedges ? "" : " disabled"}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d="M6.5 1.5h3l.5 1H13A1.5 1.5 0 0 1 14.5 4v1h-13V4A1.5 1.5 0 0 1 3 2.5h3zM2.5 6h11l-.7 7.1A1.5 1.5 0 0 1 11.3 14.5H4.7a1.5 1.5 0 0 1-1.5-1.4zm3 1.3a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0zm3 0a.5.5 0 0 0-1 0v4.9a.5.5 0 0 0 1 0z"/>

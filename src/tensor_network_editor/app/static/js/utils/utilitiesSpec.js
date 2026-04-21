@@ -21,9 +21,13 @@ export function createUtilitySpecBindings({ ctx, state, constants, runtime }) {
     runtime,
     findTensorById: lookupBindings.findTensorById,
     findEdgeById: lookupBindings.findEdgeById,
+    findHyperedgeById: lookupBindings.findHyperedgeById,
     findIndexOwner: lookupBindings.findIndexOwner,
     findEdgeByIndexId: lookupBindings.findEdgeByIndexId,
+    findHyperedgeByIndexId: lookupBindings.findHyperedgeByIndexId,
+    findConnectionByIndexId: lookupBindings.findConnectionByIndexId,
     resolveBaseEdgeId: lookupBindings.resolveBaseEdgeId,
+    resolveBaseHyperedgeId: lookupBindings.resolveBaseHyperedgeId,
   });
 
   function serializeCurrentSpec(options = {}) {

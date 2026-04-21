@@ -13,6 +13,7 @@ from .internal.models._model_entities import (
     EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
+    HyperedgeSpec,
     IndexSpec,
     TensorSpec,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "EdgeEndpointRef",
     "EdgeSpec",
     "GroupSpec",
+    "HyperedgeSpec",
     "CanvasNoteSpec",
     "ContractionStepSpec",
     "ContractionOperandLayoutSpec",

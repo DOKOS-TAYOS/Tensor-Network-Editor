@@ -16,6 +16,7 @@ from .internal.validation._validation_entities import (
     validate_tensor,
 )
 from .internal.validation._validation_grid_periodic import validate_grid_periodic_grid
+from .internal.validation._validation_hyperedges import validate_hyperedge
 from .internal.validation._validation_linear_periodic import (
     validate_linear_periodic_chain,
 )
@@ -38,6 +39,7 @@ def _validate_spec_with_analysis(
     """Validate ``spec`` and return both issues and the computed analysis."""
     issues: list[ValidationIssue] = []
     _validate_periodic_mode_exclusivity(spec, issues=issues)
+    _validate_hyperedge_mode_compatibility(spec, issues=issues)
     validate_network(spec, issues)
     analysis = analyze_network(spec)
     tensor_ids = set(analysis.tensor_map)
@@ -55,6 +57,14 @@ def _validate_spec_with_analysis(
     for edge in spec.edges:
         validate_edge(
             edge,
+            analysis_tensor_map=analysis.tensor_map,
+            analysis_index_map=analysis.index_map,
+            connected_indices=connected_indices,
+            issues=issues,
+        )
+    for hyperedge in spec.hyperedges:
+        validate_hyperedge(
+            hyperedge,
             analysis_tensor_map=analysis.tensor_map,
             analysis_index_map=analysis.index_map,
             connected_indices=connected_indices,
@@ -112,6 +122,31 @@ def _validate_periodic_mode_exclusivity(
             "'grid_periodic_grid', and 'tree_periodic_tree'."
         ),
         path=populated_modes[-1],
+    )
+
+
+def _validate_hyperedge_mode_compatibility(
+    spec: NetworkSpec,
+    *,
+    issues: list[ValidationIssue],
+) -> None:
+    """Reject hyperedges in the current periodic editor modes."""
+    if not spec.hyperedges:
+        return
+    if (
+        spec.linear_periodic_chain is None
+        and spec.grid_periodic_grid is None
+        and spec.tree_periodic_tree is None
+    ):
+        return
+    append_issue(
+        issues,
+        code="hyperedges-not-supported-in-for-mode",
+        message=(
+            "Hyperedges are only supported in normal mode in this version of the "
+            "editor."
+        ),
+        path="hyperedges",
     )
 
 

@@ -228,7 +228,11 @@ export function createStandardTensorPropertiesRenderer({
     const indexEditors = tensor.indices
       .map((index, indexPosition) => {
         const isOpen = isTensorIndexDisclosureOpen(tensor.id, index.id);
-        const isConnected = Boolean(ctx.findEdgeByIndexId(index.id));
+        const isConnected = Boolean(
+          typeof ctx.findConnectionByIndexId === "function"
+            ? ctx.findConnectionByIndexId(index.id)
+            : ctx.findEdgeByIndexId(index.id)
+        );
         const indexColor = ctx.getIndexColor(index, isConnected);
 
         return `

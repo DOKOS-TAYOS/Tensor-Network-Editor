@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from ...models import EdgeSpec, IndexSpec, NetworkSpec, TensorSpec
 from ._analysis import NetworkAnalysis, analyze_network
+from ._hyperedge_lowering import lower_hyperedges_to_pairwise_spec
 
 _NON_IDENTIFIER_PATTERN = re.compile(r"[^0-9a-zA-Z_]+")
 
@@ -81,7 +82,13 @@ class PreparedNetwork:
 
 def prepare_network(spec: NetworkSpec, *, validate: bool = True) -> PreparedNetwork:
     """Validate and normalize ``spec`` for shared analysis/codegen work."""
-    analysis = analyze_network(spec, validate=validate)
+    resolved_spec = spec
+    if validate and spec.hyperedges:
+        from ...validation import ensure_valid_spec
+
+        resolved_spec = ensure_valid_spec(spec)
+    lowered_spec = lower_hyperedges_to_pairwise_spec(resolved_spec)
+    analysis = analyze_network(lowered_spec, validate=validate and not spec.hyperedges)
     return prepare_analyzed_network(analysis)
 
 

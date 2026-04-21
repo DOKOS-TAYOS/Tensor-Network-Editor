@@ -35,6 +35,7 @@ export function createPropertiesRenderers({
   const {
     renderGroupProperties,
     renderEdgeProperties,
+    renderHyperedgeProperties,
     renderNoteProperties,
   } = createEntityPropertiesRenderers({
     state,
@@ -82,6 +83,10 @@ export function createPropertiesRenderers({
       renderEdgeProperties(singleSelection.id);
       return;
     }
+    if (singleSelection.kind === "hyperedge") {
+      renderHyperedgeProperties(singleSelection.id);
+      return;
+    }
     if (singleSelection.kind === "group") {
       renderGroupProperties(singleSelection.id);
       return;
@@ -101,6 +106,7 @@ export function createPropertiesRenderers({
     renderLinearPeriodicBoundaryTensorProperties,
     renderGroupProperties,
     renderEdgeProperties,
+    renderHyperedgeProperties,
     renderContractionIndexProperties,
     renderNoteProperties,
   };

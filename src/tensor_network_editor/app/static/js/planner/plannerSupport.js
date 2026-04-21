@@ -32,6 +32,8 @@ export function createPlannerSupport({
     "Contractions are disabled in For bidimensional mode.";
   const treePeriodicStatusMessage =
     "Contractions are disabled in For Tree mode.";
+  const hyperedgeStatusMessage =
+    "Manual contraction planning is unavailable while the design contains hyperedges.";
   let pendingContractionAnalysisOptions = null;
   let plannerCommands = null;
 
@@ -58,6 +60,10 @@ export function createPlannerSupport({
 
   function isTreePeriodicMode() {
     return typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode();
+  }
+
+  function hasHyperedges() {
+    return Boolean(Array.isArray(state.spec?.hyperedges) && state.spec.hyperedges.length);
   }
 
   function resetPlannerBadgeDisclosureState() {
@@ -113,6 +119,28 @@ export function createPlannerSupport({
     clearPlannerTransientState({ clearInspectionStepCount: true });
     if (state.spec) {
       state.spec.contraction_plan = null;
+    }
+    renderPlanner();
+    ctx.renderOverlayDecorations();
+    ctx.setStatus(message);
+    return true;
+  }
+
+  function guardHyperedgePlannerAction(message = hyperedgeStatusMessage) {
+    if (!hasHyperedges()) {
+      return false;
+    }
+    state.plannerMode = false;
+    clearPlannerTransientState({ clearInspectionStepCount: true });
+    if (state.spec) {
+      state.spec.contraction_plan = null;
+    }
+    state.contractionAnalysis = {
+      status: "hyperedgesDisabled",
+      message,
+    };
+    if (typeof ctx.syncPendingInteractionClasses === "function") {
+      ctx.syncPendingInteractionClasses();
     }
     renderPlanner();
     ctx.renderOverlayDecorations();
@@ -296,6 +324,11 @@ export function createPlannerSupport({
   }
 
   function repairContractionPlan() {
+    if (hasHyperedges()) {
+      state.spec.contraction_plan = null;
+      clearPlannerTransientState({ clearInspectionStepCount: true });
+      return;
+    }
     if (isTreePeriodicMode()) {
       state.spec.contraction_plan = null;
       clearPlannerTransientState({ clearInspectionStepCount: true });
@@ -387,6 +420,9 @@ export function createPlannerSupport({
   }
 
   function handlePlannerOperandClick(operandId) {
+    if (guardHyperedgePlannerAction()) {
+      return;
+    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -421,6 +457,9 @@ export function createPlannerSupport({
   }
 
   function trimContractionPlan(stepCount) {
+    if (guardHyperedgePlannerAction()) {
+      return;
+    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -454,6 +493,9 @@ export function createPlannerSupport({
   }
 
   function togglePlannerMode() {
+    if (guardHyperedgePlannerAction()) {
+      return;
+    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -510,6 +552,20 @@ export function createPlannerSupport({
   }
 
   function refreshContractionAnalysis(options = {}) {
+    if (hasHyperedges()) {
+      pendingContractionAnalysisOptions = null;
+      state.contractionAnalysisDirty = false;
+      if (state.spec) {
+        state.spec.contraction_plan = null;
+      }
+      state.contractionAnalysis = {
+        status: "hyperedgesDisabled",
+        message: hyperedgeStatusMessage,
+      };
+      renderPlanner();
+      ctx.renderOverlayDecorations();
+      return;
+    }
     if (isTreePeriodicMode()) {
       pendingContractionAnalysisOptions = null;
       state.contractionAnalysisDirty = false;
@@ -587,6 +643,9 @@ export function createPlannerSupport({
   });
 
   function startAutomaticPreview(mode) {
+    if (guardHyperedgePlannerAction()) {
+      return;
+    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -600,6 +659,9 @@ export function createPlannerSupport({
   }
 
   function acceptAutomaticPlan(mode) {
+    if (guardHyperedgePlannerAction()) {
+      return;
+    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }

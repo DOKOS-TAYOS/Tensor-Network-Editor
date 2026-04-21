@@ -19,6 +19,7 @@ from tensor_network_editor.models import (
     TensorCollectionFormat,
     TensorSpec,
 )
+from tests.factories import build_three_tensor_hyperedge_spec
 
 
 class _CountingPosition:
@@ -128,4 +129,16 @@ def test_tensor_collection_reference_by_id_uses_prepared_tensor_lookup() -> None
             "tensors",
         )
         == "tensors[0]"
+    )
+
+
+def test_prepare_network_lowers_hyperedges_to_copy_tensors_for_codegen() -> None:
+    prepared = prepare_network(build_three_tensor_hyperedge_spec())
+
+    assert prepared.spec.hyperedges == []
+    assert len(prepared.tensors) == 4
+    assert len(prepared.edges) == 3
+    assert any(
+        tensor.spec.metadata.get("generated_for_hyperedge") == "hyperedge_h"
+        for tensor in prepared.tensors
     )

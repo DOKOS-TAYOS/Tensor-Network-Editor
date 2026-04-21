@@ -82,7 +82,7 @@ def _build_edge_analysis_maps(
     dict[str, TensorSpec | None],
     dict[str, IndexSpec | None],
 ]:
-    """Build edge-derived connected-index and endpoint lookup maps in one pass."""
+    """Build connection-derived connected-index and edge endpoint lookup maps."""
     connected_index_ids: set[str] = set()
     left_tensor_by_edge_id: dict[str, TensorSpec | None] = {}
     left_index_by_edge_id: dict[str, IndexSpec | None] = {}
@@ -105,6 +105,9 @@ def _build_edge_analysis_maps(
         right_index_by_edge_id[edge.id] = (
             right_item[1] if right_item is not None else None
         )
+    for hyperedge in spec.hyperedges:
+        for endpoint in hyperedge.endpoints:
+            connected_index_ids.add(endpoint.index_id)
     return (
         connected_index_ids,
         left_tensor_by_edge_id,

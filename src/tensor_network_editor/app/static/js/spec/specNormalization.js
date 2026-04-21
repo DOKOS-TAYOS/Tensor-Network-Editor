@@ -25,6 +25,7 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     spec.tensors = [];
     spec.groups = [];
     spec.edges = [];
+    spec.hyperedges = [];
     spec.notes = [];
     spec.contraction_plan = null;
   }
@@ -194,6 +195,29 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
       });
     });
     return contractionPlan;
+  }
+
+  function normalizeHyperedgeInPlace(hyperedge, hyperedgePosition) {
+    hyperedge.metadata = runtime.isObject(hyperedge.metadata)
+      ? hyperedge.metadata
+      : {};
+    hyperedge.endpoints = (Array.isArray(hyperedge.endpoints)
+      ? hyperedge.endpoints
+      : []
+    ).map((endpoint) => {
+      const normalizedEndpoint = runtime.isObject(endpoint) ? endpoint : {};
+      return {
+        tensor_id: String(normalizedEndpoint.tensor_id || ""),
+        index_id: String(normalizedEndpoint.index_id || ""),
+      };
+    });
+    if (!hyperedge.id) {
+      hyperedge.id = runtime.makeId("hyperedge");
+    }
+    if (!hyperedge.name) {
+      hyperedge.name = `hyperedge_${hyperedgePosition + 1}`;
+    }
+    return hyperedge;
   }
 
   function normalizeGraphSectionInPlace(graphSection) {
@@ -399,6 +423,12 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
       ? normalized.metadata
       : {};
     normalizeGraphSectionInPlace(normalized);
+    normalized.hyperedges = Array.isArray(normalized.hyperedges)
+      ? normalized.hyperedges
+      : [];
+    normalized.hyperedges.forEach((hyperedge, hyperedgePosition) => {
+      normalizeHyperedgeInPlace(hyperedge, hyperedgePosition);
+    });
     normalized.linear_periodic_chain = runtime.isObject(normalized.linear_periodic_chain)
       ? runtime.normalizeLinearPeriodicChainInPlace(normalized.linear_periodic_chain)
       : null;

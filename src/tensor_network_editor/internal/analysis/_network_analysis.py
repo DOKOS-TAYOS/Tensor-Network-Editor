@@ -17,10 +17,10 @@ def index_map(spec: NetworkSpec) -> dict[str, tuple[TensorSpec, IndexSpec]]:
 
 
 def connected_index_ids(spec: NetworkSpec) -> set[str]:
-    """Return the set of index ids that participate in edges."""
+    """Return the set of index ids that participate in any connection."""
     return analyze_network(spec).connected_index_ids
 
 
 def open_indices(spec: NetworkSpec) -> list[tuple[TensorSpec, IndexSpec]]:
-    """Return tensor/index pairs that are not connected by any edge."""
+    """Return tensor/index pairs that are not connected by any connection."""
     return analyze_network(spec).open_indices

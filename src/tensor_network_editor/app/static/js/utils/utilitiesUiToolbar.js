@@ -240,6 +240,9 @@ export function createUtilityUiToolbarSupport({
     const hasSelectedIndices = selectedTensors.some(
       (tensor) => Array.isArray(tensor.indices) && tensor.indices.length > 0
     );
+    const hasHyperedges = Boolean(
+      Array.isArray(state.spec?.hyperedges) && state.spec.hyperedges.length
+    );
     runtime.enforceLinearPeriodicEngineSupport();
     syncCodeGenerationWarning();
     syncTemplateCatalogWarning();
@@ -412,11 +415,13 @@ export function createUtilityUiToolbarSupport({
     }
     if (benchmarkModeMenuItem) {
       setMenuItemChecked(benchmarkModeMenuItem, benchmarkMode);
-      benchmarkModeMenuItem.disabled = forMode;
+      benchmarkModeMenuItem.disabled = !benchmarkMode && (forMode || hasHyperedges);
       setTooltipDescription(
         benchmarkModeMenuItem,
         forMode
           ? "Benchmark mode is unavailable while a For mode is active."
+          : hasHyperedges
+            ? "Benchmark mode is unavailable while the design contains hyperedges."
           : "Compare manual contraction schemes on the current tensor network."
       );
     }
@@ -570,7 +575,9 @@ export function createUtilityUiToolbarSupport({
         setTooltipDescription(
           benchmarkCompareButton,
           benchmarkCompareButton.disabled
-            ? "Create at least one scheme first."
+            ? hasHyperedges
+              ? "Benchmark comparison is unavailable while the design contains hyperedges."
+              : "Create at least one scheme first."
             : "Compare the saved contraction schemes."
         );
       }

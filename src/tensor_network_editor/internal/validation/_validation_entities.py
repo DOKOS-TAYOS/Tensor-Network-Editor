@@ -48,6 +48,13 @@ def validate_network(spec: NetworkSpec, issues: list[ValidationIssue]) -> None:
         issues=issues,
     )
     append_duplicate_id_issues(
+        (hyperedge.id for hyperedge in spec.hyperedges),
+        code="duplicate-hyperedge-id",
+        path="hyperedges",
+        message_prefix="Hyperedge id",
+        issues=issues,
+    )
+    append_duplicate_id_issues(
         (index.id for tensor in spec.tensors for index in tensor.indices),
         code="duplicate-index-id",
         path="tensors.indices",

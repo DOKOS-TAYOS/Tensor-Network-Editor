@@ -7,9 +7,13 @@ export function createSpecMutationBindings({
   runtime,
   findTensorById,
   findEdgeById,
+  findHyperedgeById,
   findIndexOwner,
   findEdgeByIndexId,
+  findHyperedgeByIndexId,
+  findConnectionByIndexId,
   resolveBaseEdgeId,
+  resolveBaseHyperedgeId,
 }) {
   const {
     TENSOR_WIDTH,
@@ -148,6 +152,12 @@ export function createSpecMutationBindings({
         !tensorIndexIds.has(edge.left.index_id) &&
         !tensorIndexIds.has(edge.right.index_id)
     );
+    state.spec.hyperedges = (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : [])
+      .filter((hyperedge) =>
+        !(Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).some((endpoint) =>
+          tensorIndexIds.has(endpoint.index_id)
+        )
+      );
     state.spec.tensors = state.spec.tensors.filter(
       (candidate) => candidate.id !== tensorId
     );
@@ -177,6 +187,12 @@ export function createSpecMutationBindings({
     state.spec.edges = state.spec.edges.filter(
       (edge) => edge.left.index_id !== indexId && edge.right.index_id !== indexId
     );
+    state.spec.hyperedges = (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : [])
+      .filter((hyperedge) =>
+        !(Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).some(
+          (endpoint) => endpoint.index_id === indexId
+        )
+      );
     tensor.indices = tensor.indices.filter((index) => index.id !== indexId);
   }
 
@@ -185,23 +201,139 @@ export function createSpecMutationBindings({
     state.spec.edges = state.spec.edges.filter((edge) => edge.id !== resolvedEdgeId);
   }
 
+  function removeHyperedge(hyperedgeId) {
+    const resolvedHyperedgeId = resolveBaseHyperedgeId(hyperedgeId) || hyperedgeId;
+    state.spec.hyperedges = (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : [])
+      .filter((hyperedge) => hyperedge.id !== resolvedHyperedgeId);
+  }
+
   function syncConnectedIndexDimension(indexId, nextDimension) {
     const connectedEdge = findEdgeByIndexId(indexId);
-    if (!connectedEdge) {
+    if (connectedEdge) {
+      const connectedIndexId =
+        connectedEdge.left && connectedEdge.left.index_id === indexId
+          ? connectedEdge.right && connectedEdge.right.index_id
+          : connectedEdge.left && connectedEdge.left.index_id;
+      if (!connectedIndexId) {
+        return;
+      }
+      const connectedOwner = findIndexOwner(connectedIndexId);
+      if (!connectedOwner || !connectedOwner.index) {
+        return;
+      }
+      connectedOwner.index.dimension = nextDimension;
       return;
     }
-    const connectedIndexId =
-      connectedEdge.left && connectedEdge.left.index_id === indexId
-        ? connectedEdge.right && connectedEdge.right.index_id
-        : connectedEdge.left && connectedEdge.left.index_id;
-    if (!connectedIndexId) {
+    const connectedHyperedge = findHyperedgeByIndexId(indexId);
+    if (!connectedHyperedge) {
       return;
     }
-    const connectedOwner = findIndexOwner(connectedIndexId);
-    if (!connectedOwner || !connectedOwner.index) {
-      return;
+    (Array.isArray(connectedHyperedge.endpoints) ? connectedHyperedge.endpoints : []).forEach(
+      (endpoint) => {
+        if (endpoint.index_id === indexId) {
+          return;
+        }
+        const connectedOwner = findIndexOwner(endpoint.index_id);
+        if (connectedOwner && connectedOwner.index) {
+          connectedOwner.index.dimension = nextDimension;
+        }
+      }
+    );
+  }
+
+  function describeHyperedgeCandidate(indexIds = []) {
+    const normalizedIndexIds = [...new Set(
+      (Array.isArray(indexIds) ? indexIds : [])
+        .map((indexId) => String(indexId || ""))
+        .filter(Boolean)
+    )];
+    if (
+      (typeof runtime.isForMode === "function" && runtime.isForMode()) ||
+      (typeof runtime.isLinearPeriodicMode === "function" && runtime.isLinearPeriodicMode()) ||
+      (typeof runtime.isGridPeriodicMode === "function" && runtime.isGridPeriodicMode()) ||
+      (typeof runtime.isTreePeriodicMode === "function" && runtime.isTreePeriodicMode())
+    ) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "Hyperedges are available only in normal mode.",
+      };
     }
-    connectedOwner.index.dimension = nextDimension;
+    if (typeof ctx.isBenchmarkMode === "function" && ctx.isBenchmarkMode()) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "Leave benchmark mode before creating hyperedges.",
+      };
+    }
+    if (normalizedIndexIds.length < 3) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "Select at least three open indices to create a hyperedge.",
+      };
+    }
+    const owners = normalizedIndexIds.map((indexId) => findIndexOwner(indexId));
+    if (owners.some((owner) => !owner || !owner.tensor || !owner.index)) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "Only base graph indices can be used to create hyperedges.",
+      };
+    }
+    const dimensions = [...new Set(owners.map((owner) => owner.index.dimension))];
+    if (dimensions.length !== 1) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "All selected indices must share the same dimension.",
+      };
+    }
+    const connectedIndexId = normalizedIndexIds.find((indexId) =>
+      Boolean(findConnectionByIndexId(indexId))
+    );
+    if (connectedIndexId) {
+      return {
+        canCreate: false,
+        indexIds: normalizedIndexIds,
+        message: "All selected indices must be open before creating a hyperedge.",
+      };
+    }
+    return {
+      canCreate: true,
+      dimension: dimensions[0],
+      indexIds: normalizedIndexIds,
+      message: `Create a hyperedge with ${normalizedIndexIds.length} endpoints of dimension ${dimensions[0]}.`,
+    };
+  }
+
+  function createHyperedge(indexIds = []) {
+    const candidate = describeHyperedgeCandidate(indexIds);
+    if (!candidate.canCreate) {
+      return null;
+    }
+    const hyperedge = {
+      id: runtime.makeId("hyperedge"),
+      name: runtime.nextName(
+        "hyperedge",
+        (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : []).map(
+          (existingHyperedge) => existingHyperedge.name
+        )
+      ),
+      endpoints: candidate.indexIds
+        .map((indexId) => findIndexOwner(indexId))
+        .filter(Boolean)
+        .map((owner) => ({
+          tensor_id: owner.tensor.id,
+          index_id: owner.index.id,
+        })),
+      metadata: {},
+    };
+    if (!Array.isArray(state.spec.hyperedges)) {
+      state.spec.hyperedges = [];
+    }
+    state.spec.hyperedges.push(hyperedge);
+    return hyperedge;
   }
 
   function createTensor(x, y) {
@@ -236,6 +368,8 @@ export function createSpecMutationBindings({
         entry.located.index.metadata.color = colorValue;
       } else if (entry.kind === "edge") {
         entry.edge.metadata.color = colorValue;
+      } else if (entry.kind === "hyperedge") {
+        entry.hyperedge.metadata.color = colorValue;
       } else if (entry.kind === "group") {
         entry.group.metadata.color = colorValue;
       } else if (entry.kind === "note") {
@@ -254,7 +388,10 @@ export function createSpecMutationBindings({
     if (entry.kind === "index") {
       return runtime.getMetadataColor(
         entry.located.index.metadata,
-        runtime.getIndexColor(entry.located.index, Boolean(findEdgeByIndexId(entry.id)))
+        runtime.getIndexColor(
+          entry.located.index,
+          Boolean(findConnectionByIndexId(entry.id))
+        )
       );
     }
     if (entry.kind === "group") {
@@ -268,6 +405,9 @@ export function createSpecMutationBindings({
         entry.note.metadata,
         GRAPH_THEME.noteDefault
       );
+    }
+    if (entry.kind === "hyperedge") {
+      return runtime.getMetadataColor(entry.hyperedge.metadata, GRAPH_THEME.edge);
     }
     return runtime.getMetadataColor(entry.edge.metadata, GRAPH_THEME.edge);
   }
@@ -284,7 +424,10 @@ export function createSpecMutationBindings({
     removeTensor,
     removeIndex,
     removeEdge,
+    removeHyperedge,
     syncConnectedIndexDimension,
+    describeHyperedgeCandidate,
+    createHyperedge,
     createTensor,
     createIndex,
     applyColorToSelection,

@@ -15,7 +15,14 @@ from ..io._payloads import (
     require_list,
 )
 from ._model_contraction import ContractionPlanSpec
-from ._model_entities import CanvasNoteSpec, EdgeSpec, GroupSpec, IndexSpec, TensorSpec
+from ._model_entities import (
+    CanvasNoteSpec,
+    EdgeSpec,
+    GroupSpec,
+    HyperedgeSpec,
+    IndexSpec,
+    TensorSpec,
+)
 from ._model_periodic import (
     GridPeriodicGridSpec,
     LinearPeriodicChainSpec,
@@ -32,6 +39,7 @@ class NetworkSpec:
     tensors: list[TensorSpec] = field(default_factory=list)
     groups: list[GroupSpec] = field(default_factory=list)
     edges: list[EdgeSpec] = field(default_factory=list)
+    hyperedges: list[HyperedgeSpec] = field(default_factory=list)
     notes: list[CanvasNoteSpec] = field(default_factory=list)
     contraction_plan: ContractionPlanSpec | None = None
     linear_periodic_chain: LinearPeriodicChainSpec | None = None
@@ -52,13 +60,13 @@ class NetworkSpec:
         return index_map(self)
 
     def connected_index_ids(self) -> set[str]:
-        """Return the ids of indices that participate in an edge."""
+        """Return the ids of indices that participate in any connection."""
         from ..analysis._network_analysis import connected_index_ids
 
         return connected_index_ids(self)
 
     def open_indices(self) -> list[tuple[TensorSpec, IndexSpec]]:
-        """Return the tensor/index pairs that are not connected by any edge."""
+        """Return the tensor/index pairs that are not connected at all."""
         from ..analysis._network_analysis import open_indices
 
         return open_indices(self)
@@ -71,6 +79,7 @@ class NetworkSpec:
             "tensors": [tensor.to_dict() for tensor in self.tensors],
             "groups": [group.to_dict() for group in self.groups],
             "edges": [edge.to_dict() for edge in self.edges],
+            "hyperedges": [hyperedge.to_dict() for hyperedge in self.hyperedges],
             "notes": [note.to_dict() for note in self.notes],
             "contraction_plan": (
                 self.contraction_plan.to_dict()
@@ -101,6 +110,10 @@ class NetworkSpec:
         tensors_payload = require_list(payload.get("tensors", []), field_name="tensors")
         groups_payload = require_list(payload.get("groups", []), field_name="groups")
         edges_payload = require_list(payload.get("edges", []), field_name="edges")
+        hyperedges_payload = require_list(
+            payload.get("hyperedges", []),
+            field_name="hyperedges",
+        )
         notes_payload = require_list(payload.get("notes", []), field_name="notes")
         contraction_plan_payload = payload.get("contraction_plan")
         linear_periodic_chain_payload = payload.get("linear_periodic_chain")
@@ -120,6 +133,10 @@ class NetworkSpec:
             edges=[
                 EdgeSpec.from_dict(require_dict(edge, field_name="edge"))
                 for edge in edges_payload
+            ],
+            hyperedges=[
+                HyperedgeSpec.from_dict(require_dict(hyperedge, field_name="hyperedge"))
+                for hyperedge in hyperedges_payload
             ],
             notes=[
                 CanvasNoteSpec.from_dict(require_dict(note, field_name="note"))

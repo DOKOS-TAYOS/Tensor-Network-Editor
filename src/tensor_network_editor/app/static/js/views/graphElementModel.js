@@ -4,11 +4,14 @@ export function createGraphElementModelBuilder({
   state,
   buildContractionScene,
   ensureTensorIndexOffsets,
+  findIndexOwner,
   findTensorById,
   getIndexColor,
   getMetadataColor,
   getMetadataFilterEntityState,
   getMetadataFilterHighlight,
+  hyperedgeHubNodeId,
+  hyperedgeSpokeEdgeId,
   indexAbsolutePosition,
   indexLabelNodeId,
   indexLabelPosition,
@@ -54,6 +57,29 @@ export function createGraphElementModelBuilder({
     return "";
   }
 
+  function getHyperedgeHubPosition(hyperedge) {
+    const endpointPositions = (Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [])
+      .map((endpoint) =>
+        typeof findIndexOwner === "function" ? findIndexOwner(endpoint.index_id) : null
+      )
+      .filter((owner) => owner && owner.tensor && owner.index)
+      .map((owner) => indexAbsolutePosition(owner.tensor, owner.index));
+    if (!endpointPositions.length) {
+      return null;
+    }
+    const summed = endpointPositions.reduce(
+      (accumulator, position) => ({
+        x: accumulator.x + position.x,
+        y: accumulator.y + position.y,
+      }),
+      { x: 0, y: 0 }
+    );
+    return {
+      x: Math.round(summed.x / endpointPositions.length),
+      y: Math.round(summed.y / endpointPositions.length),
+    };
+  }
+
   return function buildGraphElementModel(contractionScene = null) {
     const descriptorsById = {};
     const orderedIds = [];
@@ -67,6 +93,11 @@ export function createGraphElementModelBuilder({
     const visibleEdges = resolvedContractionScene
       ? resolvedContractionScene.edges
       : state.spec.edges;
+    const visibleHyperedges = resolvedContractionScene
+      ? []
+      : Array.isArray(state.spec?.hyperedges)
+        ? state.spec.hyperedges
+        : [];
     const readOnlyScene = Boolean(
       resolvedContractionScene &&
         typeof isInspectingPastStage === "function" &&
@@ -86,6 +117,11 @@ export function createGraphElementModelBuilder({
     visibleEdges.forEach((edgeItem) => {
       connectedIndexIds.add(edgeItem.leftIndexId || edgeItem.left.index_id);
       connectedIndexIds.add(edgeItem.rightIndexId || edgeItem.right.index_id);
+    });
+    visibleHyperedges.forEach((hyperedge) => {
+      (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).forEach((endpoint) => {
+        connectedIndexIds.add(endpoint.index_id);
+      });
     });
 
     visibleTensors.forEach((tensorItem) => {
@@ -195,6 +231,58 @@ export function createGraphElementModelBuilder({
         grabbable: false,
         selectable: !readOnlyScene,
       });
+    });
+
+    visibleHyperedges.forEach((hyperedge) => {
+      const hubId = typeof hyperedgeHubNodeId === "function"
+        ? hyperedgeHubNodeId(hyperedge.id)
+        : hyperedge.id;
+      const hubPosition = getHyperedgeHubPosition(hyperedge);
+      if (!hubPosition) {
+        return;
+      }
+      const hyperedgeColor = getMetadataColor(hyperedge.metadata, GRAPH_THEME.edge);
+      appendDescriptor(accumulator, {
+        group: "nodes",
+        data: {
+          id: hubId,
+          kind: "hyperedge-hub",
+          label: hyperedge.name || "",
+          baseHyperedgeId: hyperedge.id,
+          backgroundColor: hyperedgeColor,
+          borderColor: shiftColor(hyperedgeColor, 18),
+          textColor: readableTextColor(hyperedgeColor),
+          zIndex: edge + 1,
+        },
+        classes: getMetadataFilterClass(metadataFilterHighlight, "edge", hubId),
+        position: hubPosition,
+        grabbable: false,
+        selectable: !readOnlyScene,
+      });
+      (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).forEach(
+        (endpoint, endpointPosition) => {
+          appendDescriptor(accumulator, {
+            group: "edges",
+            data: {
+              id:
+                typeof hyperedgeSpokeEdgeId === "function"
+                  ? hyperedgeSpokeEdgeId(hyperedge.id, endpointPosition)
+                  : `${hubId}:${endpointPosition}`,
+              source: endpoint.index_id,
+              target: hubId,
+              kind: "hyperedge-spoke",
+              baseHyperedgeId: hyperedge.id,
+              lineColor: hyperedgeColor,
+              textColor: shiftColor(hyperedgeColor, 64),
+              zIndex: edge,
+            },
+            classes: getMetadataFilterClass(metadataFilterHighlight, "edge", hubId),
+            position: null,
+            grabbable: false,
+            selectable: !readOnlyScene,
+          });
+        }
+      );
     });
 
     return {

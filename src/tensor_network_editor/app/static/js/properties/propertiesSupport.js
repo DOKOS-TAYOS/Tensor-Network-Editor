@@ -72,6 +72,11 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     (Array.isArray(state.spec.edges) ? state.spec.edges : []).forEach((edge) => {
       addTags("edge", edge.metadata);
     });
+    (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : []).forEach(
+      (hyperedge) => {
+        addTags("edge", hyperedge.metadata);
+      }
+    );
     (Array.isArray(state.spec.groups) ? state.spec.groups : []).forEach((group) => {
       addTags("group", group.metadata);
     });

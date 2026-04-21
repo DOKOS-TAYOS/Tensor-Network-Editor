@@ -8,6 +8,37 @@ function resolveContextAction(ctx, actionName, fallback = () => {}) {
 }
 
 function createPropertyActions(ctx) {
+  function describeSelectedHyperedgeCandidate(selectedEntries = []) {
+    const entries = Array.isArray(selectedEntries) ? selectedEntries : [];
+    const indexEntries = entries.filter((entry) => entry.kind === "index");
+    const selectedIndexIds = indexEntries.map((entry) => entry.id);
+    if (!selectedIndexIds.length) {
+      return {
+        canCreate: false,
+        message: "Select indices to create a hyperedge.",
+        selectedIndexIds,
+      };
+    }
+    if (indexEntries.length !== entries.length) {
+      return {
+        canCreate: false,
+        message: "Select only normal-mode indices to create a hyperedge.",
+        selectedIndexIds,
+      };
+    }
+    if (typeof ctx.describeHyperedgeCandidate !== "function") {
+      return {
+        canCreate: false,
+        message: "Hyperedge creation is unavailable in this session.",
+        selectedIndexIds,
+      };
+    }
+    return {
+      ...ctx.describeHyperedgeCandidate(selectedIndexIds),
+      selectedIndexIds,
+    };
+  }
+
   return {
     escapeHtml: (value) => ctx.escapeHtml(value),
     clearSelection: resolveContextAction(ctx, "clearSelection"),
@@ -17,6 +48,7 @@ function createPropertyActions(ctx) {
     isLinearPeriodicMode: resolveContextAction(ctx, "isLinearPeriodicMode", () => false),
     isForMode: resolveContextAction(ctx, "isForMode", () => false),
     deleteSelection: resolveContextAction(ctx, "deleteSelection"),
+    describeSelectedHyperedgeCandidate,
     alignSelectedTensors: (alignment) => ctx.alignSelectedTensors(alignment),
     arrangeSelectedTensors: (layoutKind) => ctx.arrangeSelectedTensors(layoutKind),
     distributeSelectedTensors: (axis) => ctx.distributeSelectedTensors(axis),
@@ -27,6 +59,7 @@ function createPropertyActions(ctx) {
     createGroupFromSelection: () => ctx.createGroupFromSelection(),
     findGroupById: (groupId) => ctx.findGroupById(groupId),
     findEdgeById: (edgeId) => ctx.findEdgeById(edgeId),
+    findHyperedgeById: (hyperedgeId) => ctx.findHyperedgeById(hyperedgeId),
     findNoteById: (noteId) => ctx.findNoteById(noteId),
     getMetadataColor: (metadata, fallbackColor) =>
       ctx.getMetadataColor(metadata, fallbackColor),
@@ -42,7 +75,9 @@ function createCommands(ctx) {
     applyDesignChange: (mutate, options) => ctx.applyDesignChange(mutate, options),
     applyColorToSelection: (nextColor) => ctx.applyColorToSelection(nextColor),
     centerTensor: (tensorId) => ctx.centerTensor(tensorId),
+    createHyperedge: (indexIds) => ctx.createHyperedge(indexIds),
     createIndex: (tensor, indexPosition) => ctx.createIndex(tensor, indexPosition),
+    describeHyperedgeCandidate: (indexIds) => ctx.describeHyperedgeCandidate(indexIds),
     deleteSelection: () => ctx.deleteSelection(),
     findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
     findTensorById: (tensorId) => ctx.findTensorById(tensorId),
@@ -50,6 +85,7 @@ function createCommands(ctx) {
     moveIndex: (tensorId, indexPosition, direction) =>
       ctx.moveIndex(tensorId, indexPosition, direction),
     removeEdge: (edgeId) => ctx.removeEdge(edgeId),
+    removeHyperedge: (hyperedgeId) => ctx.removeHyperedge(hyperedgeId),
     removeGroup: (groupId) => {
       ctx.state.spec.groups = ctx.state.spec.groups.filter(
         (candidate) => candidate.id !== groupId
@@ -58,7 +94,9 @@ function createCommands(ctx) {
     removeIndex: (tensorId, indexId) => ctx.removeIndex(tensorId, indexId),
     removeNote: (noteId) => ctx.removeNote(noteId),
     removeTensor: (tensorId) => ctx.removeTensor(tensorId),
+    resolveHyperedgeSelectionId: (hyperedgeId) => ctx.hyperedgeHubNodeId(hyperedgeId),
     setStatus: (message, level) => ctx.setStatus(message, level),
+    setSelection: (selectionIds, options) => ctx.setSelection(selectionIds, options),
     syncConnectedIndexDimension: (indexId, nextDimension) =>
       ctx.syncConnectedIndexDimension(indexId, nextDimension),
     tensorIndexNameExists: (tensor, proposedName, ignoredIndexId) =>

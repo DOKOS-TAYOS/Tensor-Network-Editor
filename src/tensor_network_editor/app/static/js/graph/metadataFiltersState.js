@@ -38,7 +38,12 @@ export function createMetadataFilterStateSupport({
   getVisibleTensors,
   getVisibleEdges,
   findIndexOwner,
+  getHyperedgeSelectionId = (hyperedgeId) => hyperedgeId,
 }) {
+  function getVisibleHyperedges() {
+    return Array.isArray(state.spec?.hyperedges) ? state.spec.hyperedges : [];
+  }
+
   function normalizeMetadataFilters(filters = state.metadataFilters) {
     const scope =
       filters && (filters.scope === "index" || filters.scope === "bond")
@@ -111,6 +116,24 @@ export function createMetadataFilterStateSupport({
     ];
   }
 
+  function resolveHyperedgeIndexIds(hyperedge) {
+    return (Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [])
+      .map((endpoint) => String(endpoint?.index_id || ""))
+      .filter(Boolean);
+  }
+
+  function resolveHyperedgeTensorIds(hyperedge) {
+    return (Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [])
+      .map((endpoint) => {
+        if (endpoint?.tensor_id) {
+          return String(endpoint.tensor_id);
+        }
+        const owner = endpoint?.index_id ? findIndexOwner(endpoint.index_id) : null;
+        return owner?.tensor?.id || "";
+      })
+      .filter(Boolean);
+  }
+
   function collectTagsForScope(scope) {
     const normalizedScope = scopeToEntityKind(scope);
     const seenTags = new Set();
@@ -147,6 +170,7 @@ export function createMetadataFilterStateSupport({
       });
     } else {
       getVisibleEdges().forEach((edge) => addTags(edge.metadata));
+      getVisibleHyperedges().forEach((hyperedge) => addTags(hyperedge.metadata));
     }
 
     return tags;
@@ -199,6 +223,15 @@ export function createMetadataFilterStateSupport({
         highlight.matchedEdgeIds.add(edge.id);
       }
     });
+    getVisibleHyperedges().forEach((hyperedge) => {
+      const hyperedgeTensorIds = resolveHyperedgeTensorIds(hyperedge);
+      if (
+        hyperedgeTensorIds.length &&
+        hyperedgeTensorIds.every((tensorId) => highlight.matchedTensorIds.has(tensorId))
+      ) {
+        highlight.matchedEdgeIds.add(getHyperedgeSelectionId(hyperedge.id));
+      }
+    });
 
     return highlight;
   }
@@ -225,6 +258,17 @@ export function createMetadataFilterStateSupport({
         highlight.matchedIndexIds.has(rightIndexId)
       ) {
         highlight.matchedEdgeIds.add(edge.id);
+      }
+    });
+    getVisibleHyperedges().forEach((hyperedge) => {
+      const hyperedgeIndexIds = resolveHyperedgeIndexIds(hyperedge);
+      if (hyperedgeIndexIds.some((indexId) => highlight.matchedIndexIds.has(indexId))) {
+        highlight.matchedEdgeIds.add(getHyperedgeSelectionId(hyperedge.id));
+        resolveHyperedgeTensorIds(hyperedge).forEach((tensorId) => {
+          if (tensorId) {
+            highlight.contextTensorIds.add(tensorId);
+          }
+        });
       }
     });
 
@@ -254,6 +298,22 @@ export function createMetadataFilterStateSupport({
       if (rightTensorId) {
         highlight.contextTensorIds.add(rightTensorId);
       }
+    });
+    getVisibleHyperedges().forEach((hyperedge) => {
+      if (!matchBond(hyperedge)) {
+        return;
+      }
+      highlight.matchedEdgeIds.add(getHyperedgeSelectionId(hyperedge.id));
+      resolveHyperedgeIndexIds(hyperedge).forEach((indexId) => {
+        if (indexId) {
+          highlight.contextIndexIds.add(indexId);
+        }
+      });
+      resolveHyperedgeTensorIds(hyperedge).forEach((tensorId) => {
+        if (tensorId) {
+          highlight.contextTensorIds.add(tensorId);
+        }
+      });
     });
 
     return highlight;

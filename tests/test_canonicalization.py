@@ -4,6 +4,7 @@ from tensor_network_editor.canonicalization import canonicalize_spec
 from tests.factories import (
     build_sample_spec,
     build_three_tensor_complete_plan_spec,
+    build_three_tensor_hyperedge_spec,
     build_tree_periodic_tree_spec,
 )
 
@@ -80,3 +81,31 @@ def test_canonicalize_spec_rewrites_tree_periodic_cell_ids_deterministically() -
     assert canonical.tree_periodic_tree.root_cell.tensors[0].id == "root_tensor_001"
     assert canonical.tree_periodic_tree.branch_cell.tensors[0].id == "branch_tensor_001"
     assert canonical.tree_periodic_tree.leaf_cell.tensors[0].id == "leaf_tensor_001"
+
+
+def test_canonicalize_spec_preserves_hyperedges_and_rewrites_their_ids() -> None:
+    spec = build_three_tensor_hyperedge_spec()
+    spec.tensors.reverse()
+
+    canonical = canonicalize_spec(spec, deterministic_ids=True)
+
+    assert [tensor.id for tensor in canonical.tensors] == [
+        "tensor_001",
+        "tensor_002",
+        "tensor_003",
+    ]
+    assert [hyperedge.id for hyperedge in canonical.hyperedges] == ["hyperedge_001"]
+    assert canonical.hyperedges[0].endpoints == [
+        type(canonical.hyperedges[0].endpoints[0])(
+            tensor_id="tensor_001",
+            index_id="index_001",
+        ),
+        type(canonical.hyperedges[0].endpoints[1])(
+            tensor_id="tensor_002",
+            index_id="index_003",
+        ),
+        type(canonical.hyperedges[0].endpoints[2])(
+            tensor_id="tensor_003",
+            index_id="index_005",
+        ),
+    ]

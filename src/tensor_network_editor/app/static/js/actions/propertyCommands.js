@@ -2,18 +2,23 @@ export function createPropertyCommands({
   applyDesignChange,
   applyColorToSelection = () => {},
   centerTensor,
+  createHyperedge = () => null,
   createIndex,
+  describeHyperedgeCandidate = () => ({ canCreate: false, message: "" }),
   deleteSelection = () => {},
   findIndexOwner,
   findTensorById = () => null,
   getSelectedTensorIds = () => [],
   moveIndex,
   removeEdge = () => {},
+  removeHyperedge = () => {},
   removeGroup = () => {},
   removeIndex,
   removeNote = () => {},
   removeTensor,
+  resolveHyperedgeSelectionId = (hyperedgeId) => hyperedgeId,
   setStatus,
+  setSelection = () => {},
   syncConnectedIndexDimension = () => {},
   tensorIndexNameExists = () => false,
 }) {
@@ -376,6 +381,81 @@ export function createPropertyCommands({
     return true;
   }
 
+  function renameHyperedge({
+    hyperedge,
+    proposedName,
+    invalidate,
+    statusMessage,
+  }) {
+    const normalizedName = String(proposedName || "").trim();
+    if (!normalizedName) {
+      setStatus("Hyperedge name cannot be empty.", "error");
+      return false;
+    }
+    if (normalizedName === hyperedge.name) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        hyperedge.name = normalizedName;
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function deleteHyperedge({
+    hyperedgeId,
+    selectionIds,
+    invalidate,
+    statusMessage,
+  }) {
+    applyDesignChange(
+      () => {
+        removeHyperedge(hyperedgeId);
+      },
+      {
+        invalidate,
+        selectionIds,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
+  function createHyperedgeFromIndices({
+    indexIds,
+    invalidate,
+    statusMessage,
+  }) {
+    const candidate = describeHyperedgeCandidate(indexIds);
+    if (!candidate.canCreate) {
+      setStatus(candidate.message || "This selection cannot form a hyperedge.", "error");
+      return false;
+    }
+    let nextHyperedge = null;
+    applyDesignChange(
+      () => {
+        nextHyperedge = createHyperedge(candidate.indexIds);
+      },
+      {
+        invalidate,
+        statusMessage,
+        afterRender: () => {
+          if (!nextHyperedge?.id) {
+            return;
+          }
+          const selectionId = resolveHyperedgeSelectionId(nextHyperedge.id);
+          setSelection([selectionId], { primaryId: selectionId });
+        },
+      }
+    );
+    return Boolean(nextHyperedge);
+  }
+
   function updateNoteText({ note, proposedText, invalidate, statusMessage }) {
     const normalizedText = String(proposedText || "").trim();
     if (!normalizedText) {
@@ -418,16 +498,19 @@ export function createPropertyCommands({
     centerTensorInView,
     deleteCurrentSelection,
     deleteEdge,
+    deleteHyperedge,
     deleteGroup,
     deleteNote,
     deleteTensor,
     deleteTensorIndex,
     moveTensorIndex,
     renameEdge,
+    renameHyperedge,
     renameGroup,
     renameIndex,
     renameNetwork,
     renameTensor,
+    createHyperedgeFromIndices,
     updateTensorData,
     updateNoteText,
     updateIndexDimension,

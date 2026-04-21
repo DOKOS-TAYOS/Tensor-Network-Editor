@@ -56,6 +56,7 @@ export function registerGraphRender(ctx) {
     buildContractionScene: () =>
       typeof ctx.buildContractionScene === "function" ? ctx.buildContractionScene() : null,
     ensureTensorIndexOffsets: (tensor) => ctx.ensureTensorIndexOffsets(tensor),
+    findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
     findTensorById: (tensorId) => ctx.findTensorById(tensorId),
     getIndexColor: (index, isConnected) => ctx.getIndexColor(index, isConnected),
     getMetadataColor: (metadata, fallbackColor) =>
@@ -66,6 +67,9 @@ export function registerGraphRender(ctx) {
       typeof ctx.getMetadataFilterHighlight === "function"
         ? ctx.getMetadataFilterHighlight()
         : null,
+    hyperedgeHubNodeId: (hyperedgeId) => ctx.hyperedgeHubNodeId(hyperedgeId),
+    hyperedgeSpokeEdgeId: (hyperedgeId, endpointPosition) =>
+      ctx.hyperedgeSpokeEdgeId(hyperedgeId, endpointPosition),
     indexAbsolutePosition: (tensor, index) => ctx.indexAbsolutePosition(tensor, index),
     indexLabelNodeId: (indexId) => ctx.indexLabelNodeId(indexId),
     indexLabelPosition: (position) => ctx.indexLabelPosition(position),
@@ -181,6 +185,25 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "node[kind = 'hyperedge-hub']",
+          style: {
+            shape: "diamond",
+            width: 20,
+            height: 20,
+            label: "data(label)",
+            "font-size": 10,
+            color: "data(textColor)",
+            "text-valign": "top",
+            "text-halign": "center",
+            "text-margin-y": -16,
+            "border-width": 2,
+            "border-color": "data(borderColor)",
+            "background-color": "data(backgroundColor)",
+            "overlay-opacity": 0,
+            "z-index": "data(zIndex)",
+          },
+        },
+        {
           selector: "node.index-open",
           style: {
             "background-color": "data(backgroundColor)",
@@ -233,6 +256,13 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "edge[kind = 'hyperedge-spoke']",
+          style: {
+            width: 2,
+            "line-style": "dashed",
+          },
+        },
+        {
           selector: ".metadata-filter-context",
           style: {
             opacity: 0.62,
@@ -262,6 +292,14 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "node[kind = 'hyperedge-hub']:selected",
+          style: {
+            "border-color": GRAPH_THEME.selection,
+            "border-width": 4,
+            "overlay-opacity": 0,
+          },
+        },
+        {
           selector: "edge:selected",
           style: {
             "line-color": GRAPH_THEME.selection,
@@ -287,6 +325,8 @@ export function registerGraphRender(ctx) {
       }
       const element = event.target;
       const kind = element.data("kind");
+      const baseHyperedgeId =
+        typeof element.data === "function" ? element.data("baseHyperedgeId") : null;
       if (kind === "index-label") {
         return;
       }
@@ -303,6 +343,23 @@ export function registerGraphRender(ctx) {
       }
       if (state.connectMode && ctx.isIndexNode(element)) {
         ctx.handleConnectClick(element.id());
+        return;
+      }
+      if (kind === "hyperedge-hub" || baseHyperedgeId) {
+        if (typeof ctx.toggleSidebarCollapsed === "function") {
+          ctx.toggleSidebarCollapsed(false);
+        }
+        if (typeof ctx.setActiveSidebarTab === "function") {
+          ctx.setActiveSidebarTab("selection");
+        }
+        const additiveSelection =
+          typeof ctx.isAdditiveSelectionModifier === "function" &&
+          ctx.isAdditiveSelectionModifier(event.originalEvent);
+        const selectionId =
+          kind === "hyperedge-hub" ? element.id() : ctx.hyperedgeHubNodeId(baseHyperedgeId);
+        ctx.selectElement("hyperedge", selectionId, {
+          additive: additiveSelection,
+        });
         return;
       }
       if (kind === "tensor") {
@@ -508,6 +565,9 @@ export function registerGraphRender(ctx) {
       }, located.tensor);
       const absolutePosition = ctx.indexAbsolutePosition(located.tensor, located.index);
       ctx.syncIndexLabelNodePosition(located.index, absolutePosition);
+      if (typeof ctx.syncHyperedgeHubNodePositions === "function") {
+        ctx.syncHyperedgeHubNodePositions([located.index.id]);
+      }
       if (
         Math.abs(absolutePosition.x - event.target.position("x")) > 0.5 ||
         Math.abs(absolutePosition.y - event.target.position("y")) > 0.5

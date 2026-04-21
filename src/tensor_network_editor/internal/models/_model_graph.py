@@ -7,6 +7,7 @@ from ._model_entities import (
     EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
+    HyperedgeSpec,
     IndexSpec,
     TensorSpec,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "GridPeriodicGridSpec",
     "GridPeriodicTensorRole",
     "GroupSpec",
+    "HyperedgeSpec",
     "IndexSpec",
     "LinearPeriodicCellName",
     "LinearPeriodicCellSpec",

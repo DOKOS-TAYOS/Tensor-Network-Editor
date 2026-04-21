@@ -92,6 +92,8 @@ export function registerHistorySelection(ctx) {
         : null,
     findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
     findEdgeById: (edgeId) => ctx.findEdgeById(edgeId),
+    findHyperedgeById: (hyperedgeId) =>
+      typeof ctx.findHyperedgeById === "function" ? ctx.findHyperedgeById(hyperedgeId) : null,
     findNoteById: (noteId) =>
       typeof ctx.findNoteById === "function" ? ctx.findNoteById(noteId) : null,
     getVisibleTensors: () =>

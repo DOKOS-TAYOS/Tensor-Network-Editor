@@ -48,6 +48,11 @@ export function createInteractionEditorBindings({
       resolveContextValue(ctx, "resolveConnectableIndexOwner", (indexId) =>
         ctx.findIndexOwner(indexId)
       ),
+    findConnectionByIndexId:
+      editorActions.findConnectionByIndexId ||
+      resolveContextValue(ctx, "findConnectionByIndexId", (indexId) =>
+        ctx.findEdgeByIndexId(indexId)
+      ),
     toggleSidebarCollapsed:
       editorActions.toggleSidebarCollapsed ||
       resolveContextAction(ctx, "toggleSidebarCollapsed"),
@@ -73,6 +78,7 @@ export function createInteractionEditorBindings({
     updateCurrentStageOperandLayout = noop,
     isInspectingPastStage = () => false,
     resolveConnectableIndexOwner = (indexId) => ctx.findIndexOwner(indexId),
+    findConnectionByIndexId = (indexId) => ctx.findEdgeByIndexId(indexId),
     toggleSidebarCollapsed = noop,
     setActiveSidebarTab = noop,
     syncPendingInteractionClasses = noop,
@@ -103,6 +109,7 @@ export function createInteractionEditorBindings({
         tensors: [],
         groups: [],
         edges: [],
+        hyperedges: [],
         notes: [],
         contraction_plan: null,
         linear_periodic_chain: null,
@@ -274,7 +281,7 @@ export function createInteractionEditorBindings({
   }
 
   function handleConnectClick(indexId) {
-    if (ctx.findEdgeByIndexId(indexId)) {
+    if (findConnectionByIndexId(indexId)) {
       ctx.setStatus(
         "This index is already connected. Delete the connection first.",
         "error"
@@ -289,7 +296,7 @@ export function createInteractionEditorBindings({
       );
       return;
     }
-    if (ctx.findEdgeByIndexId(located.index.id)) {
+    if (findConnectionByIndexId(located.index.id)) {
       ctx.setStatus(
         "This index is already connected. Delete the connection first.",
         "error"
@@ -381,6 +388,7 @@ export function createInteractionEditorBindings({
     ]);
     const selectedIndexIds = new Set(ctx.getSelectedIdsByKind("index"));
     const selectedEdgeIds = new Set(ctx.getSelectedIdsByKind("edge"));
+    const selectedHyperedgeIds = new Set(ctx.getSelectedIdsByKind("hyperedge"));
     const selectedGroupIds = new Set(ctx.getSelectedIdsByKind("group"));
     const selectedNoteIds = new Set(ctx.getSelectedIdsByKind("note"));
 
@@ -405,6 +413,12 @@ export function createInteractionEditorBindings({
     selectedEdgeIds.forEach((edgeId) => {
       if (ctx.findEdgeById(edgeId)) {
         ctx.removeEdge(edgeId);
+      }
+    });
+
+    selectedHyperedgeIds.forEach((hyperedgeId) => {
+      if (typeof ctx.findHyperedgeById === "function" && ctx.findHyperedgeById(hyperedgeId)) {
+        ctx.removeHyperedge(hyperedgeId);
       }
     });
 
@@ -433,6 +447,7 @@ export function createInteractionEditorBindings({
           !isForBoundaryTensor(entry.located.tensor)) ||
         entry.kind === "contraction-tensor" ||
         entry.kind === "edge" ||
+        entry.kind === "hyperedge" ||
         entry.kind === "group" ||
         entry.kind === "note"
     );

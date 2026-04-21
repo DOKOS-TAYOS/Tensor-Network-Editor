@@ -31,6 +31,7 @@ export function registerMetadataFilters(ctx) {
     getVisibleEdges,
     getVisibleTensors,
     findIndexOwner: (indexId) => ctx.findIndexOwner(indexId),
+    getHyperedgeSelectionId: (hyperedgeId) => ctx.hyperedgeHubNodeId(hyperedgeId),
   });
   const rendererSupport = createMetadataFilterRendererSupport({
     escapeHtml:

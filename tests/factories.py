@@ -14,6 +14,7 @@ from tensor_network_editor.models import (
     GridPeriodicGridSpec,
     GridPeriodicTensorRole,
     GroupSpec,
+    HyperedgeSpec,
     IndexSpec,
     LinearPeriodicCellName,
     LinearPeriodicCellSpec,
@@ -215,6 +216,53 @@ def build_three_tensor_complete_plan_spec() -> NetworkSpec:
         ],
     )
     return spec
+
+
+def build_three_tensor_hyperedge_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="network_hyperedge_chain",
+        name="hyperedge-chain",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=80.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_a_i", name="i", dimension=2),
+                    IndexSpec(id="tensor_a_h", name="h", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=240.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_b_h", name="h", dimension=3),
+                    IndexSpec(id="tensor_b_j", name="j", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_c",
+                name="C",
+                position=CanvasPosition(x=400.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_c_h", name="h", dimension=3),
+                    IndexSpec(id="tensor_c_k", name="k", dimension=7),
+                ],
+            ),
+        ],
+        hyperedges=[
+            HyperedgeSpec(
+                id="hyperedge_h",
+                name="shared_h",
+                endpoints=[
+                    EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+                    EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_h"),
+                    EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_h"),
+                ],
+            )
+        ],
+    )
 
 
 def build_outer_product_plan_spec() -> NetworkSpec:

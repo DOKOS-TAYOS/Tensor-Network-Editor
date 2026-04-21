@@ -44,6 +44,8 @@ export function createSpecLookupBindings({ ctx, state }) {
       state.tensorById = {};
       state.edgeById = {};
       state.edgeByIndexId = {};
+      state.hyperedgeById = {};
+      state.hyperedgeByIndexId = {};
       state.groupById = {};
       state.indexOwnerById = {};
       state.groupsByTensorId = {};
@@ -58,6 +60,8 @@ export function createSpecLookupBindings({ ctx, state }) {
     const tensorById = {};
     const edgeById = {};
     const edgeByIndexId = {};
+    const hyperedgeById = {};
+    const hyperedgeByIndexId = {};
     const groupById = {};
     const indexOwnerById = {};
     const groupsByTensorId = {};
@@ -74,6 +78,16 @@ export function createSpecLookupBindings({ ctx, state }) {
       edgeByIndexId[edge.left.index_id] = edge;
       edgeByIndexId[edge.right.index_id] = edge;
     });
+    (Array.isArray(state.spec.hyperedges) ? state.spec.hyperedges : []).forEach(
+      (hyperedge) => {
+        hyperedgeById[hyperedge.id] = hyperedge;
+        (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).forEach(
+          (endpoint) => {
+            hyperedgeByIndexId[endpoint.index_id] = hyperedge;
+          }
+        );
+      }
+    );
     state.spec.groups.forEach((group) => {
       groupById[group.id] = group;
       group.tensor_ids.forEach((tensorId) => {
@@ -90,6 +104,8 @@ export function createSpecLookupBindings({ ctx, state }) {
     state.tensorById = tensorById;
     state.edgeById = edgeById;
     state.edgeByIndexId = edgeByIndexId;
+    state.hyperedgeById = hyperedgeById;
+    state.hyperedgeByIndexId = hyperedgeByIndexId;
     state.groupById = groupById;
     state.indexOwnerById = indexOwnerById;
     state.groupsByTensorId = groupsByTensorId;
@@ -123,6 +139,33 @@ export function createSpecLookupBindings({ ctx, state }) {
     return null;
   }
 
+  function resolveBaseHyperedgeId(hyperedgeId) {
+    if (!hyperedgeId) {
+      return null;
+    }
+    ensureSpecLookups();
+    if (state.hyperedgeById[hyperedgeId]) {
+      return hyperedgeId;
+    }
+    if (typeof ctx.resolveHyperedgeIdFromSelectionId === "function") {
+      const resolvedHyperedgeId = ctx.resolveHyperedgeIdFromSelectionId(hyperedgeId);
+      if (resolvedHyperedgeId && state.hyperedgeById[resolvedHyperedgeId]) {
+        return resolvedHyperedgeId;
+      }
+    }
+    const visibleEdge =
+      typeof ctx.findVisibleEdgeById === "function" ? ctx.findVisibleEdgeById(hyperedgeId) : null;
+    if (
+      visibleEdge &&
+      typeof visibleEdge.baseHyperedgeId === "string" &&
+      visibleEdge.baseHyperedgeId &&
+      state.hyperedgeById[visibleEdge.baseHyperedgeId]
+    ) {
+      return visibleEdge.baseHyperedgeId;
+    }
+    return null;
+  }
+
   function findTensorById(tensorId) {
     ensureSpecLookups();
     return state.tensorById[tensorId] || null;
@@ -145,6 +188,15 @@ export function createSpecLookupBindings({ ctx, state }) {
     }
     ensureSpecLookups();
     return state.edgeById[resolvedEdgeId] || null;
+  }
+
+  function findHyperedgeById(hyperedgeId) {
+    const resolvedHyperedgeId = resolveBaseHyperedgeId(hyperedgeId);
+    if (!resolvedHyperedgeId) {
+      return null;
+    }
+    ensureSpecLookups();
+    return state.hyperedgeById[resolvedHyperedgeId] || null;
   }
 
   function getVisibleLookupRevisionToken() {
@@ -233,6 +285,19 @@ export function createSpecLookupBindings({ ctx, state }) {
     return state.visibleEdgeByIndexId[indexId] || null;
   }
 
+  function findHyperedgeByIndexId(indexId) {
+    ensureSpecLookups();
+    return state.hyperedgeByIndexId[indexId] || null;
+  }
+
+  function findConnectionByIndexId(indexId) {
+    const baseEdge = findEdgeByIndexId(indexId);
+    if (baseEdge) {
+      return baseEdge;
+    }
+    return findHyperedgeByIndexId(indexId);
+  }
+
   return {
     resetDerivedStateCaches,
     bumpSpecRevision,
@@ -243,9 +308,13 @@ export function createSpecLookupBindings({ ctx, state }) {
     findGroupById,
     findGroupsByTensorId,
     findEdgeById,
+    resolveBaseHyperedgeId,
+    findHyperedgeById,
     findVisibleIndexOwner,
     findIndexOwner,
     resolveConnectableIndexOwner,
     findEdgeByIndexId,
+    findHyperedgeByIndexId,
+    findConnectionByIndexId,
   };
 }

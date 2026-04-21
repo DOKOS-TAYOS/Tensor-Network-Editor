@@ -42,6 +42,15 @@ def extract_subnetwork_spec(
             if edge.left.tensor_id in selected_tensor_id_set
             and edge.right.tensor_id in selected_tensor_id_set
         ],
+        hyperedges=[
+            deepcopy(hyperedge)
+            for hyperedge in spec.hyperedges
+            if hyperedge.endpoints
+            and all(
+                endpoint.tensor_id in selected_tensor_id_set
+                for endpoint in hyperedge.endpoints
+            )
+        ],
         notes=[],
         contraction_plan=None,
         metadata=deepcopy(spec.metadata),
@@ -61,6 +70,7 @@ def prepare_subnetwork_for_insertion(
         tensors=deepcopy(spec.tensors),
         groups=deepcopy(spec.groups),
         edges=deepcopy(spec.edges),
+        hyperedges=deepcopy(spec.hyperedges),
         notes=[],
         contraction_plan=None,
         metadata=deepcopy(spec.metadata),
@@ -101,6 +111,16 @@ def prepare_subnetwork_for_insertion(
             tensor_id=tensor_id_map[edge.right.tensor_id],
             index_id=index_id_map[edge.right.index_id],
         )
+
+    for hyperedge in prepared.hyperedges:
+        hyperedge.id = new_identifier("hyperedge")
+        hyperedge.endpoints = [
+            EdgeEndpointRef(
+                tensor_id=tensor_id_map[endpoint.tensor_id],
+                index_id=index_id_map[endpoint.index_id],
+            )
+            for endpoint in hyperedge.endpoints
+        ]
 
     next_groups = []
     for group in prepared.groups:
@@ -162,7 +182,11 @@ def _recenter_tensors(spec: NetworkSpec, target_center: CanvasPosition) -> None:
 
 def _require_normal_graph_mode(spec: NetworkSpec) -> None:
     """Reject operations that are not yet available in For modes."""
-    if spec.linear_periodic_chain is not None or spec.grid_periodic_grid is not None:
+    if (
+        spec.linear_periodic_chain is not None
+        or spec.grid_periodic_grid is not None
+        or spec.tree_periodic_tree is not None
+    ):
         raise ValueError(
             "Subnetwork extraction and insertion are only available in normal graph mode."
         )

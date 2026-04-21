@@ -15,8 +15,8 @@ from ._io import read_utf8_text, write_utf8_text
 from ._payloads import coerce_int
 from ._python_roundtrip import parse_generated_python_network
 
-SCHEMA_VERSION = 5
-SUPPORTED_SCHEMA_VERSIONS = frozenset({4, 5})
+SCHEMA_VERSION = 6
+SUPPORTED_SCHEMA_VERSIONS = frozenset({4, 5, 6})
 LOGGER = logging.getLogger(__name__)
 
 

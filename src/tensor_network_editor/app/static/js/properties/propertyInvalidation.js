@@ -28,7 +28,8 @@ export function createPropertyInvalidationSupport({
     const affectsGraph =
       entryKinds.has("tensor") ||
       entryKinds.has("index") ||
-      entryKinds.has("edge");
+      entryKinds.has("edge") ||
+      entryKinds.has("hyperedge");
     const affectsOverlays = entryKinds.has("group") || entryKinds.has("note");
     return propertyInvalidation({
       graph: affectsGraph,

@@ -224,6 +224,44 @@ class EdgeSpec:
 
 
 @dataclass(slots=True)
+class HyperedgeSpec:
+    """A shared connection that joins three or more tensor indices."""
+
+    id: str = field(default_factory=lambda: new_identifier("hyperedge"))
+    name: str = "hyperedge"
+    endpoints: list[EdgeEndpointRef] = field(default_factory=list)
+    metadata: MetadataDict = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the hyperedge to a JSON-compatible mapping."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "endpoints": [endpoint.to_dict() for endpoint in self.endpoints],
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> Self:
+        """Build a hyperedge from a serialized mapping."""
+        endpoints_payload = require_list(
+            payload.get("endpoints", []),
+            field_name="endpoints",
+        )
+        return cls(
+            id=coerce_string(payload["id"], field_name="id"),
+            name=coerce_string(payload["name"], field_name="name"),
+            endpoints=[
+                EdgeEndpointRef.from_dict(require_dict(endpoint, field_name="endpoint"))
+                for endpoint in endpoints_payload
+            ],
+            metadata=coerce_metadata(
+                payload.get("metadata", {}), field_name="metadata"
+            ),
+        )
+
+
+@dataclass(slots=True)
 class GroupSpec:
     """A visual grouping of tensor ids in the editor."""
 

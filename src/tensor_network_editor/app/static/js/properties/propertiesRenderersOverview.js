@@ -26,6 +26,9 @@ export function createOverviewPropertiesRenderers({
   function renderNetworkProperties() {
     propertiesPanel.innerHTML = buildNetworkPropertiesMarkup({
       spec: state.spec,
+      connectionCount:
+        (Array.isArray(state.spec?.edges) ? state.spec.edges.length : 0) +
+        (Array.isArray(state.spec?.hyperedges) ? state.spec.hyperedges.length : 0),
       escapeHtml: actions.escapeHtml,
       buildMetadataEditorMarkup,
     });
@@ -43,8 +46,8 @@ export function createOverviewPropertiesRenderers({
     const indexCount = selectedEntries.filter(
       (entry) => entry.kind === "index"
     ).length;
-    const edgeCount = selectedEntries.filter(
-      (entry) => entry.kind === "edge"
+    const connectionCount = selectedEntries.filter(
+      (entry) => entry.kind === "edge" || entry.kind === "hyperedge"
     ).length;
     const groupCount = selectedEntries.filter(
       (entry) => entry.kind === "group"
@@ -61,16 +64,21 @@ export function createOverviewPropertiesRenderers({
         actions.isLinearPeriodicMode());
     const batchColor = actions.getBatchColorValue(selectedEntries);
     const totalElementCount = getSelectionTotalElementCount(selectedEntries);
+    const hyperedgeCreationCandidate =
+      typeof actions.describeSelectedHyperedgeCandidate === "function"
+        ? actions.describeSelectedHyperedgeCandidate(selectedEntries)
+        : null;
 
     propertiesPanel.innerHTML = buildMultiSelectionPropertiesMarkup({
       selectedEntries,
       baseTensorCount,
       tensorCount,
       indexCount,
-      edgeCount,
+      connectionCount,
       groupCount,
       noteCount,
       hasMultipleTensors,
+      hyperedgeCreationCandidate,
       linearPeriodicMode,
       batchColor,
       totalElementCount,
@@ -82,6 +90,7 @@ export function createOverviewPropertiesRenderers({
       state,
       selectedEntries,
       batchColor,
+      hyperedgeCreationCandidate,
       hasMultipleTensors,
     });
   }

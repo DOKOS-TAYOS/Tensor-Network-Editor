@@ -139,6 +139,68 @@ export function createEntityPropertiesBindings({
     });
   }
 
+  function bindHyperedgeProperties({ hyperedge, hyperedgeColor }) {
+    const hyperedgeNameInput = documentRef.getElementById("hyperedge-name-input");
+    const hyperedgeColorInput = documentRef.getElementById("hyperedge-color-input");
+    const hyperedgeTagsInput = documentRef.getElementById("hyperedge-tags-input");
+    const hyperedgeCustomMetadataInput = documentRef.getElementById(
+      "hyperedge-custom-metadata-input"
+    );
+
+    bindDebouncedAutosave(
+      hyperedgeNameInput,
+      `hyperedge:${hyperedge.id}:name`,
+      () => {
+        commands.renameHyperedge({
+          hyperedge,
+          proposedName: hyperedgeNameInput.value,
+          invalidate: propertyInvalidation({ graph: true }),
+          statusMessage: `Updated hyperedge ${hyperedgeNameInput.value.trim()}.`,
+        });
+      }
+    );
+    bindImmediateAutosave(
+      hyperedgeColorInput,
+      `hyperedge:${hyperedge.id}:color`,
+      () => {
+        if (hyperedgeColorInput.value === hyperedgeColor) {
+          return;
+        }
+        commands.updateTargetColor({
+          target: hyperedge,
+          nextColor: hyperedgeColorInput.value,
+          invalidate: propertyInvalidation({ graph: true, minimap: true }),
+          statusMessage: `Updated hyperedge ${hyperedge.name}.`,
+        });
+      },
+      "input"
+    );
+    bindMetadataEditors({
+      target: hyperedge,
+      tagsInput: hyperedgeTagsInput,
+      tagsFieldKey: `hyperedge:${hyperedge.id}:tags`,
+      customMetadataInput: hyperedgeCustomMetadataInput,
+      customMetadataFieldKey: `hyperedge:${hyperedge.id}:custom-metadata`,
+      statusMessage: `Updated hyperedge ${hyperedge.name}.`,
+      invalidate: propertyInvalidation({ graph: false, minimap: false }),
+      annotationScope: "edge",
+    });
+    bindClick("delete-hyperedge-button", () => {
+      commands.deleteHyperedge({
+        hyperedgeId: hyperedge.id,
+        invalidate: propertyInvalidation({
+          graph: true,
+          lookups: true,
+          analysis: true,
+          planner: true,
+          minimap: true,
+        }),
+        selectionIds: [],
+        statusMessage: `Deleted hyperedge ${hyperedge.name}.`,
+      });
+    });
+  }
+
   function bindNoteProperties({ note, noteColor }) {
     const noteTextInput = documentRef.getElementById("note-text-input");
     const noteColorInput = documentRef.getElementById("note-color-input");
@@ -201,6 +263,7 @@ export function createEntityPropertiesBindings({
   return {
     bindGroupProperties,
     bindEdgeProperties,
+    bindHyperedgeProperties,
     bindNoteProperties,
   };
 }

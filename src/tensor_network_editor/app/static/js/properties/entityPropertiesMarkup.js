@@ -117,49 +117,121 @@ export function buildEdgePropertiesMarkup({
   buildMetadataEditorMarkup,
   escapeHtml,
 }) {
+  return buildConnectionPropertiesMarkup({
+    annotationScope: "edge",
+    colorInputId: "edge-color-input",
+    colorValue: edgeColor,
+    connection: edge,
+    customMetadataFocusKey: `edge:${edge.id}:custom-metadata`,
+    customMetadataInputId: "edge-custom-metadata-input",
+    deleteButtonId: "delete-edge-button",
+    deleteDescription: "Remove this connection from the network.",
+    focusPrefix: "edge",
+    label: "Edge name",
+    renderTrashIcon,
+    tagsFocusKey: `edge:${edge.id}:tags`,
+    tagsInputId: "edge-tags-input",
+    buildMetadataEditorMarkup,
+    escapeHtml,
+  });
+}
+
+export function buildHyperedgePropertiesMarkup({
+  hyperedge,
+  hyperedgeColor,
+  endpointCount,
+  renderTrashIcon,
+  buildMetadataEditorMarkup,
+  escapeHtml,
+}) {
+  return `
+      <div class="properties-chip-wrap">
+        <div class="properties-chip">
+          <span>Endpoints</span>
+          <strong>${endpointCount}</strong>
+        </div>
+      </div>
+      ${buildConnectionPropertiesMarkup({
+        annotationScope: "edge",
+        colorInputId: "hyperedge-color-input",
+        colorValue: hyperedgeColor,
+        connection: hyperedge,
+        customMetadataFocusKey: `hyperedge:${hyperedge.id}:custom-metadata`,
+        customMetadataInputId: "hyperedge-custom-metadata-input",
+        deleteButtonId: "delete-hyperedge-button",
+        deleteDescription: "Remove this hyperedge from the network.",
+        focusPrefix: "hyperedge",
+        label: "Hyperedge name",
+        renderTrashIcon,
+        tagsFocusKey: `hyperedge:${hyperedge.id}:tags`,
+        tagsInputId: "hyperedge-tags-input",
+        buildMetadataEditorMarkup,
+        escapeHtml,
+      })}
+    `;
+}
+
+function buildConnectionPropertiesMarkup({
+  annotationScope,
+  colorInputId,
+  colorValue,
+  connection,
+  customMetadataFocusKey,
+  customMetadataInputId,
+  deleteButtonId,
+  deleteDescription,
+  focusPrefix,
+  label,
+  renderTrashIcon,
+  tagsFocusKey,
+  tagsInputId,
+  buildMetadataEditorMarkup,
+  escapeHtml,
+}) {
   return `
       <div class="field-group">
-        <label for="edge-name-input">Edge name</label>
+        <label for="${escapeHtml(focusPrefix)}-name-input">${escapeHtml(label)}</label>
         <input
-          id="edge-name-input"
-          data-focus-key="edge:${edge.id}:name"
-          value="${escapeHtml(edge.name)}"
+          id="${escapeHtml(focusPrefix)}-name-input"
+          data-focus-key="${escapeHtml(focusPrefix)}:${escapeHtml(connection.id)}:name"
+          value="${escapeHtml(connection.name)}"
         />
       </div>
       <div class="button-row">
         <label
           class="control-inline-color"
-          for="edge-color-input"
+          for="${escapeHtml(colorInputId)}"
           data-tooltip-enabled="true"
           data-shortcut-label="Choose color"
           data-shortcut-description="Set the display color for this item."
         >
           <input
-            id="edge-color-input"
-            data-focus-key="edge:${edge.id}:color"
+            id="${escapeHtml(colorInputId)}"
+            data-focus-key="${escapeHtml(focusPrefix)}:${escapeHtml(connection.id)}:color"
             type="color"
             aria-label="Choose color"
-            value="${escapeHtml(edgeColor)}"
+            value="${escapeHtml(colorValue)}"
           />
         </label>
         <button
-          id="delete-edge-button"
+          id="${escapeHtml(deleteButtonId)}"
           type="button"
           class="icon-button index-action-button danger"
           aria-label="Delete connection"
           data-tooltip-enabled="true"
           data-shortcut-label="Delete connection"
-          data-shortcut-description="Remove this connection from the network."
+          data-shortcut-description="${escapeHtml(deleteDescription)}"
         >
           ${renderTrashIcon()}
         </button>
       </div>
       ${buildMetadataEditorMarkup({
-        tagsInputId: "edge-tags-input",
-        tagsFocusKey: `edge:${edge.id}:tags`,
-        customMetadataInputId: "edge-custom-metadata-input",
-        customMetadataFocusKey: `edge:${edge.id}:custom-metadata`,
-        target: edge,
+        tagsInputId,
+        tagsFocusKey,
+        customMetadataInputId,
+        customMetadataFocusKey,
+        target: connection,
+        annotationScope,
         collapsible: true,
       })}
     `;

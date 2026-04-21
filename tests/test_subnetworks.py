@@ -15,7 +15,11 @@ from tensor_network_editor.subnetworks import (
     extract_subnetwork_spec,
     prepare_subnetwork_for_insertion,
 )
-from tests.factories import build_linear_periodic_chain_spec, build_sample_spec
+from tests.factories import (
+    build_linear_periodic_chain_spec,
+    build_sample_spec,
+    build_three_tensor_hyperedge_spec,
+)
 
 
 def _build_grouped_sample_spec() -> NetworkSpec:
@@ -107,3 +111,27 @@ def test_prepare_subnetwork_for_insertion_remaps_ids_and_recenters_fragment() ->
     center_x, center_y = _bounds_center(prepared)
     assert isclose(center_x, 500.0)
     assert isclose(center_y, 420.0)
+
+
+def test_extract_subnetwork_spec_preserves_internal_hyperedges() -> None:
+    extracted = extract_subnetwork_spec(
+        build_three_tensor_hyperedge_spec(),
+        tensor_ids=["tensor_a", "tensor_b", "tensor_c"],
+    )
+
+    assert [hyperedge.id for hyperedge in extracted.hyperedges] == ["hyperedge_h"]
+
+
+def test_prepare_subnetwork_for_insertion_remaps_hyperedge_endpoint_ids() -> None:
+    prepared = prepare_subnetwork_for_insertion(
+        build_three_tensor_hyperedge_spec(),
+        target_center=CanvasPosition(x=500.0, y=420.0),
+    )
+
+    assert len(prepared.hyperedges) == 1
+    assert (
+        len({endpoint.tensor_id for endpoint in prepared.hyperedges[0].endpoints}) == 3
+    )
+    assert (
+        len({endpoint.index_id for endpoint in prepared.hyperedges[0].endpoints}) == 3
+    )

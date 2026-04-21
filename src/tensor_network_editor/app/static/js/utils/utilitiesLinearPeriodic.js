@@ -682,6 +682,17 @@ export function createUtilityLinearPeriodicBindings({
       );
       return;
     }
+    if (
+      !isLinearPeriodicMode() &&
+      Array.isArray(state.spec?.hyperedges) &&
+      state.spec.hyperedges.length
+    ) {
+      ctx.setStatus(
+        "For unidimensional mode does not support hyperedges yet. Remove them first or stay in normal mode.",
+        "error"
+      );
+      return;
+    }
     if (isLinearPeriodicMode()) {
       if (
         !window.confirm(

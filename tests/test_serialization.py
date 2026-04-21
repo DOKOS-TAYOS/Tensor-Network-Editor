@@ -6,7 +6,14 @@ from typing import cast
 import pytest
 
 from tensor_network_editor.errors import SerializationError, SpecValidationError
-from tensor_network_editor.models import NetworkSpec, TensorDataMode, TensorDataSpec
+from tensor_network_editor.models import (
+    EdgeEndpointRef,
+    HyperedgeSpec,
+    IndexSpec,
+    NetworkSpec,
+    TensorDataMode,
+    TensorDataSpec,
+)
 from tensor_network_editor.serialization import (
     SCHEMA_VERSION,
     deserialize_spec,
@@ -17,6 +24,7 @@ from tests.factories import (
     build_grid_periodic_grid_spec,
     build_linear_periodic_chain_spec,
     build_sample_spec_with_view_snapshots,
+    build_three_tensor_spec_without_plan,
 )
 
 
@@ -46,10 +54,46 @@ def test_serialize_spec_preserves_tensor_data_payload() -> None:
     first_tensor = cast(dict[str, JSONValue], tensors_payload[0])
     tensor_data_payload = cast(dict[str, JSONValue], first_tensor["tensor_data"])
 
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == SCHEMA_VERSION
     assert tensor_data_payload == {
         "mode": "fill",
         "fill_value": 2.5,
+    }
+
+
+def test_serialize_spec_preserves_hyperedges_payload() -> None:
+    spec = build_three_tensor_spec_without_plan()
+    spec.tensors[2].indices.insert(
+        0,
+        IndexSpec(id="tensor_c_x", name="x_extra", dimension=3),
+    )
+    spec.hyperedges = [
+        HyperedgeSpec(
+            id="hyperedge_shared",
+            name="shared_h",
+            endpoints=[
+                EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_x"),
+                EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
+                EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_x"),
+            ],
+        )
+    ]
+    spec.edges = []
+
+    payload = serialize_spec(spec)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    hyperedges_payload = cast(list[JSONValue], network_payload["hyperedges"])
+    first_hyperedge = cast(dict[str, JSONValue], hyperedges_payload[0])
+    first_endpoint = cast(
+        dict[str, JSONValue],
+        cast(list[JSONValue], first_hyperedge["endpoints"])[0],
+    )
+
+    assert payload["schema_version"] == SCHEMA_VERSION
+    assert first_hyperedge["name"] == "shared_h"
+    assert first_endpoint == {
+        "tensor_id": "tensor_a",
+        "index_id": "tensor_a_x",
     }
 
 
@@ -80,6 +124,17 @@ def test_deserialize_spec_accepts_schema_version_4_without_tensor_data(
     restored = deserialize_spec(payload)
 
     assert restored.tensors[0].tensor_data is None
+
+
+def test_deserialize_spec_accepts_schema_version_5_without_hyperedges(
+    serialized_sample_spec: dict[str, object],
+) -> None:
+    payload = deepcopy(serialized_sample_spec)
+    payload["schema_version"] = 5
+
+    restored = deserialize_spec(payload)
+
+    assert restored.hyperedges == []
 
 
 def test_serialize_spec_preserves_contraction_view_snapshots() -> None:

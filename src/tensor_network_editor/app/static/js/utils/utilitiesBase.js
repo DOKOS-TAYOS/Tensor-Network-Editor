@@ -105,6 +105,32 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     return `${indexId}__label`;
   }
 
+  function hyperedgeHubNodeId(hyperedgeId) {
+    return `hyperedge-hub:${String(hyperedgeId || "")}`;
+  }
+
+  function hyperedgeSpokeEdgeId(hyperedgeId, endpointPosition) {
+    return `hyperedge-spoke:${String(hyperedgeId || "")}:${Math.max(
+      0,
+      Number.parseInt(endpointPosition, 10) || 0
+    )}`;
+  }
+
+  function resolveHyperedgeIdFromSelectionId(selectionId) {
+    const normalizedId = String(selectionId || "");
+    if (!normalizedId) {
+      return null;
+    }
+    if (normalizedId.startsWith("hyperedge-hub:")) {
+      return normalizedId.slice("hyperedge-hub:".length) || null;
+    }
+    const spokeMatch = /^hyperedge-spoke:(.+):\d+$/u.exec(normalizedId);
+    if (spokeMatch && spokeMatch[1]) {
+      return spokeMatch[1];
+    }
+    return null;
+  }
+
   function indexLabelPosition(indexPositionAbsolute) {
     return {
       x: indexPositionAbsolute.x,
@@ -222,6 +248,9 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     normalizedBox,
     boxesIntersect,
     indexLabelNodeId,
+    hyperedgeHubNodeId,
+    hyperedgeSpokeEdgeId,
+    resolveHyperedgeIdFromSelectionId,
     indexLabelPosition,
     getIndexColor,
     getMetadataColor,
