@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
 from http import HTTPStatus
+from pathlib import Path
 from typing import Protocol, cast
+
+import pytest
 
 from tensor_network_editor.app import server as app_server
 from tensor_network_editor.app.server import EditorServer
@@ -23,6 +27,17 @@ class _HandlerClass(Protocol):
         handler: _RecordingHandler,
         response: app_server._BinaryResponse,
     ) -> None: ...
+
+
+class _ChunkedBodyReader:
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = list(chunks)
+
+    def read(self, size: int | None = -1, /) -> bytes:
+        del size
+        if not self._chunks:
+            return b""
+        return self._chunks.pop(0)
 
 
 def test_binary_response_writer_uses_explicit_response_object(
@@ -65,6 +80,25 @@ def test_parse_content_length_rejects_malformed_values() -> None:
             raise AssertionError(f"Content-Length {raw_value!r} was accepted.")
 
 
+def test_read_request_body_bytes_reads_exact_length_from_chunked_stream() -> None:
+    body = app_server._read_request_body_bytes(
+        _ChunkedBodyReader([b"ab", b"cd", b"ef"]),
+        6,
+    )
+
+    assert body == b"abcdef"
+
+
+def test_read_request_body_bytes_rejects_incomplete_stream() -> None:
+    with pytest.raises(
+        ValueError, match="Request body ended before all bytes arrived."
+    ):
+        app_server._read_request_body_bytes(
+            _ChunkedBodyReader([b"ab", b"c"]),
+            4,
+        )
+
+
 def test_editor_servers_reuse_static_asset_cache_between_instances() -> None:
     first_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
     second_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
@@ -82,3 +116,32 @@ def test_editor_servers_reuse_static_asset_cache_between_instances() -> None:
     finally:
         first_server._server.server_close()
         second_server._server.server_close()
+
+
+def test_static_asset_cache_refreshes_when_static_files_change(
+    tmp_path: Path,
+) -> None:
+    static_dir = tmp_path / "static"
+    asset_path = static_dir / "js" / "app.js"
+    asset_path.parent.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<script src='js/app.js?v=__ASSET_VERSION__'></script>",
+        encoding="utf-8",
+    )
+    asset_path.write_text("console.log('first');", encoding="utf-8")
+
+    first_cache = app_server._get_static_asset_cache(static_dir)
+
+    asset_path.write_text("console.log('second');", encoding="utf-8")
+    future_timestamp_ns = (
+        max(path.stat().st_mtime_ns for path in static_dir.rglob("*") if path.is_file())
+        + 1_000_000_000
+    )
+    os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+
+    refreshed_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert (
+        refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
+    )
+    assert refreshed_cache.asset_version != first_cache.asset_version

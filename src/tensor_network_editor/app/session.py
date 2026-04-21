@@ -234,6 +234,13 @@ class EditorSession:
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
         """Finalize the session and store the resulting editor output."""
+        with self._lock:
+            if self._finished_event.is_set() and self._result is not None:
+                LOGGER.debug(
+                    "[session=%s] Ignoring duplicate completion request",
+                    self.session_id,
+                )
+                return self._result
         LOGGER.info(
             "[session=%s] Completing editor session with engine '%s'",
             self.session_id,
@@ -246,6 +253,12 @@ class EditorSession:
             collection_format,
         )
         with self._lock:
+            if self._finished_event.is_set() and self._result is not None:
+                LOGGER.debug(
+                    "[session=%s] Returning existing completed result",
+                    self.session_id,
+                )
+                return self._result
             self._result = result
             self._finished_event.set()
         return result

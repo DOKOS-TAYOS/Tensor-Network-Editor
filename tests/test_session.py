@@ -132,6 +132,23 @@ def test_complete_supports_collection_format_in_generated_output(
     assert "tensor_rows = []" in result.codegen.code
 
 
+def test_complete_returns_existing_result_when_called_after_finish(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: JsonDict,
+) -> None:
+    session = EditorSession(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+    )
+
+    first_result = session.complete(serialized_sample_spec, EngineName.EINSUM_NUMPY)
+    second_result = session.complete(serialized_sample_spec, EngineName.QUIMB)
+
+    assert second_result is first_result
+    assert session.wait_for_result(timeout=0.01) is first_result
+    assert first_result.engine is EngineName.EINSUM_NUMPY
+
+
 def test_generate_propagates_codegen_errors_from_backend() -> None:
     spec = build_outer_product_plan_spec()
     session = EditorSession(

@@ -60,15 +60,27 @@ export function createPlannerSupport({
     return typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode();
   }
 
+  function resetPlannerBadgeDisclosureState() {
+    state.plannerFutureBadgeDisclosure = {};
+    state.plannerPreviewBadgeDisclosure = {};
+  }
+
+  function clearPlannerTransientState({ clearInspectionStepCount = false } = {}) {
+    state.pendingPlannerOperandId = null;
+    state.pendingPlannerSelectionId = null;
+    state.plannerPreviewMode = null;
+    if (clearInspectionStepCount) {
+      state.plannerInspectionStepCount = null;
+    }
+    resetPlannerBadgeDisclosureState();
+  }
+
   function guardBenchmarkBasePlannerAction(message = benchmarkBaseStatusMessage) {
     if (!isBenchmarkBasePosition()) {
       return false;
     }
     state.plannerMode = false;
-    state.pendingPlannerOperandId = null;
-    state.pendingPlannerSelectionId = null;
-    state.plannerPreviewMode = null;
-    state.plannerPreviewBadgeDisclosure = {};
+    clearPlannerTransientState({ clearInspectionStepCount: true });
     if (typeof ctx.syncPendingInteractionClasses === "function") {
       ctx.syncPendingInteractionClasses();
     }
@@ -83,11 +95,7 @@ export function createPlannerSupport({
       return false;
     }
     state.plannerMode = false;
-    state.pendingPlannerOperandId = null;
-    state.pendingPlannerSelectionId = null;
-    state.plannerPreviewMode = null;
-    state.plannerFutureBadgeDisclosure = {};
-    state.plannerPreviewBadgeDisclosure = {};
+    clearPlannerTransientState({ clearInspectionStepCount: true });
     if (state.spec) {
       state.spec.contraction_plan = null;
     }
@@ -102,11 +110,7 @@ export function createPlannerSupport({
       return false;
     }
     state.plannerMode = false;
-    state.pendingPlannerOperandId = null;
-    state.pendingPlannerSelectionId = null;
-    state.plannerPreviewMode = null;
-    state.plannerFutureBadgeDisclosure = {};
-    state.plannerPreviewBadgeDisclosure = {};
+    clearPlannerTransientState({ clearInspectionStepCount: true });
     if (state.spec) {
       state.spec.contraction_plan = null;
     }
@@ -294,23 +298,17 @@ export function createPlannerSupport({
   function repairContractionPlan() {
     if (isTreePeriodicMode()) {
       state.spec.contraction_plan = null;
-      state.plannerInspectionStepCount = null;
-      state.plannerFutureBadgeDisclosure = {};
-      state.plannerPreviewBadgeDisclosure = {};
+      clearPlannerTransientState({ clearInspectionStepCount: true });
       return;
     }
     if (isGridPeriodicMode()) {
       state.spec.contraction_plan = null;
-      state.plannerInspectionStepCount = null;
-      state.plannerFutureBadgeDisclosure = {};
-      state.plannerPreviewBadgeDisclosure = {};
+      clearPlannerTransientState({ clearInspectionStepCount: true });
       return;
     }
     if (isBenchmarkBasePosition()) {
       state.spec.contraction_plan = null;
-      state.plannerInspectionStepCount = null;
-      state.plannerFutureBadgeDisclosure = {};
-      state.plannerPreviewBadgeDisclosure = {};
+      clearPlannerTransientState({ clearInspectionStepCount: true });
       return;
     }
     const plan = state.spec.contraction_plan;
@@ -318,17 +316,13 @@ export function createPlannerSupport({
       if (plan) {
         plan.view_snapshots = [];
       }
-      state.plannerInspectionStepCount = null;
-      state.plannerFutureBadgeDisclosure = {};
-      state.plannerPreviewBadgeDisclosure = {};
+      clearPlannerTransientState({ clearInspectionStepCount: true });
       return;
     }
     const plannerOperandState = getPlannerOperandState();
     if (!plannerOperandState.validSteps.length) {
       state.spec.contraction_plan = null;
-      state.plannerInspectionStepCount = null;
-      state.plannerFutureBadgeDisclosure = {};
-      state.plannerPreviewBadgeDisclosure = {};
+      clearPlannerTransientState({ clearInspectionStepCount: true });
       return;
     }
     plan.steps = plannerOperandState.validSteps;
@@ -345,8 +339,7 @@ export function createPlannerSupport({
     ) {
       state.plannerInspectionStepCount = null;
     }
-    state.plannerFutureBadgeDisclosure = {};
-    state.plannerPreviewBadgeDisclosure = {};
+    resetPlannerBadgeDisclosureState();
   }
 
   function getPlannerRemainingOperandIds() {
@@ -417,8 +410,7 @@ export function createPlannerSupport({
       plan.steps = plan.steps.slice(0, stepCount);
     }
     state.plannerPreviewMode = null;
-    state.plannerFutureBadgeDisclosure = {};
-    state.plannerPreviewBadgeDisclosure = {};
+    resetPlannerBadgeDisclosureState();
     state.plannerInspectionStepCount =
       stepCount <= 0
         ? null

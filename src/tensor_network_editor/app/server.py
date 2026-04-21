@@ -11,7 +11,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BufferedReader
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 from urllib.parse import urlparse
 
 from . import routes
@@ -32,6 +32,14 @@ _STATIC_ASSET_CACHE_LOCK = threading.Lock()
 _STATIC_ASSET_CACHE_BY_ROOT: dict[Path, _StaticAssetCache] = {}
 
 
+class SupportsReadBytes(Protocol):
+    """Protocol for byte streams that support sized reads."""
+
+    def read(self, size: int | None = -1, /) -> bytes:
+        """Read up to ``size`` bytes from the underlying stream."""
+        ...
+
+
 def _parse_content_length(content_length_text: str | None) -> int:
     """Return a validated request body length from a Content-Length header."""
     if content_length_text is None:
@@ -45,6 +53,21 @@ def _parse_content_length(content_length_text: str | None) -> int:
     if content_length > _MAX_REQUEST_BODY_BYTES:
         raise ValueError("Request body exceeds maximum allowed size.")
     return content_length
+
+
+def _read_request_body_bytes(reader: SupportsReadBytes, content_length: int) -> bytes:
+    """Read exactly ``content_length`` bytes or raise when the stream ends early."""
+    if content_length == 0:
+        return b""
+    chunks: list[bytes] = []
+    remaining = content_length
+    while remaining > 0:
+        chunk = reader.read(remaining)
+        if not chunk:
+            raise ValueError("Request body ended before all bytes arrived.")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
 
 
 @dataclass(slots=True, frozen=True)
@@ -64,6 +87,7 @@ class _StaticAssetCache:
     body_by_relative_path: dict[str, bytes]
     content_type_by_relative_path: dict[str, str]
     index_body: bytes
+    source_signature: tuple[tuple[str, int, int], ...]
 
 
 def _content_type_for_path(path: Path) -> str:
@@ -82,18 +106,41 @@ def _content_type_for_path(path: Path) -> str:
     return guessed_type
 
 
+def _scan_static_asset_files(
+    static_dir: Path,
+) -> list[tuple[Path, str, int, int]]:
+    """Return sorted static asset metadata for one static directory."""
+    resolved_static_dir = static_dir.resolve()
+    return [
+        (
+            path,
+            path.relative_to(resolved_static_dir).as_posix(),
+            path.stat().st_mtime_ns,
+            path.stat().st_size,
+        )
+        for path in sorted(
+            path for path in resolved_static_dir.rglob("*") if path.is_file()
+        )
+    ]
+
+
 def _build_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
     """Read and cache the static editor asset tree for one process."""
     resolved_static_dir = static_dir.resolve()
-    file_paths = sorted(
-        path for path in resolved_static_dir.rglob("*") if path.is_file()
+    scanned_files = _scan_static_asset_files(resolved_static_dir)
+    asset_version = (
+        str(max(mtime_ns for _, _, mtime_ns, _ in scanned_files))
+        if scanned_files
+        else "0"
     )
-    asset_version = str(int(max(path.stat().st_mtime for path in file_paths)))
     body_by_relative_path: dict[str, bytes] = {}
     content_type_by_relative_path: dict[str, str] = {}
+    source_signature = tuple(
+        (relative_path, mtime_ns, size)
+        for _, relative_path, mtime_ns, size in scanned_files
+    )
 
-    for file_path in file_paths:
-        relative_path = file_path.relative_to(resolved_static_dir).as_posix()
+    for file_path, relative_path, _, _ in scanned_files:
         if relative_path == "index.html":
             continue
         body_by_relative_path[relative_path] = file_path.read_bytes()
@@ -110,15 +157,22 @@ def _build_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
         body_by_relative_path=body_by_relative_path,
         content_type_by_relative_path=content_type_by_relative_path,
         index_body=index_body,
+        source_signature=source_signature,
     )
 
 
 def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
     """Return a shared static asset cache for one editor static directory."""
     resolved_static_dir = static_dir.resolve()
+    current_signature = tuple(
+        (relative_path, mtime_ns, size)
+        for _, relative_path, mtime_ns, size in _scan_static_asset_files(
+            resolved_static_dir
+        )
+    )
     with _STATIC_ASSET_CACHE_LOCK:
         cache = _STATIC_ASSET_CACHE_BY_ROOT.get(resolved_static_dir)
-        if cache is None:
+        if cache is None or cache.source_signature != current_signature:
             cache = _build_static_asset_cache(resolved_static_dir)
             _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
         return cache
@@ -329,7 +383,7 @@ class EditorServer:
                 content_length = _parse_content_length(
                     self.headers.get("Content-Length")
                 )
-                return self.rfile.read(content_length)
+                return _read_request_body_bytes(self.rfile, content_length)
 
             def _drain_pending_request_body(self) -> None:
                 """Best-effort drain of pending request bytes before closing."""

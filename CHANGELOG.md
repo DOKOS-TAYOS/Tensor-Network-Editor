@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - The library is now organized around a new `tensor_network_editor.internal` implementation tree, stable public facade modules at the package root, a domain-based `codegen/` layout (`shared`, `backends`, `modes`), and a modularized frontend `app/static/js/` tree with only the browser entrypoints left at the top level.
 - A second conservative modularization pass now moves canonicalization, diffing, linting, serialization, and subnetwork extraction internals behind thin public facades, while internal packages import those implementations directly instead of routing through compatibility wrappers.
 - A third conservative modularization pass now splits linear-periodic carry semantics into `tensor_network_editor.internal.modes`, breaks linear-periodic codegen into smaller `common` / `standard` / `carry` modules, and removes internal dependencies on the old `_linear_periodic_shared` implementation path.
+- The editor server now rebuilds its shared static-asset cache when source files change and uses nanosecond asset versions, avoiding stale in-process assets after fast local edits.
 
 ### Fixed
 
@@ -18,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Frontend runtime contract/regression tests now copy the full `utilities.js` dependency set, including the tree-periodic utility module, and the bootstrap architecture fixture no longer hardcodes a stale app version.
 - Frontend runtime test scaffolding now reuses named local JS dependency presets for shortcut, interaction, utility, and layout/subnetwork runtime scripts, reducing repeated copy boilerplate without changing test behavior.
 - Tree-periodic codegen renderers now include the missing type annotations needed for the targeted CLI `mypy` regression check, and the linear-periodic headless analysis regression test now matches the current single-analysis flow.
+- Editor HTTP request handling now rejects truncated request bodies deterministically, repeated session completion requests keep the first confirmed result instead of overwriting it, and benchmark-base planner guards clear all transient disclosure/inspection state consistently.
 
 ## [0.3.0] - 2026-04-20
 

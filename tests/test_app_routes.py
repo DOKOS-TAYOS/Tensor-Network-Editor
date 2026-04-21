@@ -192,6 +192,22 @@ def test_validate_route_rejects_non_integer_content_length_with_400(
     assert payload == {"ok": False, "message": "Invalid Content-Length header."}
 
 
+def test_validate_route_rejects_oversized_content_length_with_400(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = _post_validate_with_raw_content_length(
+        editor_server,
+        content_length="1048577",
+        body=b"{}",
+    )
+
+    assert status == 400
+    assert payload == {
+        "ok": False,
+        "message": "Request body exceeds maximum allowed size.",
+    }
+
+
 def test_validate_route_rejects_non_object_json_payload_with_400(
     editor_server: EditorServer,
 ) -> None:

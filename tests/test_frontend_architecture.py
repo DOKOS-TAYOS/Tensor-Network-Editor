@@ -481,6 +481,153 @@ def test_planner_support_reuses_cached_analysis_until_spec_revision_changes(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_support_benchmark_guard_clears_transient_planner_state(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "planner_benchmark_guard.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const plannerSupportUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "planner/plannerSupport.js")!r}).href;
+        const plannerSupportModule = await import(plannerSupportUrl);
+
+        const events = [];
+        const state = {{
+          spec: {{
+            id: "network_demo",
+            name: "Demo",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }},
+          specRevision: 1,
+          activeSidebarTab: "planner",
+          plannerMode: true,
+          plannerPreviewMode: "automaticFuture",
+          plannerPreviewOrderByTensorId: {{}},
+          plannerDisclosureState: {{}},
+          plannerFutureBadgeDisclosure: {{ future: true }},
+          plannerPreviewBadgeDisclosure: {{ preview: true }},
+          plannerInspectionStepCount: 3,
+          pendingPlannerOperandId: "tensor_a",
+          pendingPlannerSelectionId: "tensor_a",
+          contractionAnalysis: null,
+          contractionAnalysisDirty: false,
+          contractionAnalysisRequestId: 0,
+          contractionAnalysisCacheRevision: -1,
+          contractionAnalysisCachePayload: null,
+          contractibleCacheRevision: 1,
+          contractibleCacheTensorRef: null,
+          contractibleCacheTensorCount: 0,
+          contractibleCacheEdgeRef: null,
+          contractibleCacheEdgeCount: 0,
+          contractibleCacheToken: 0,
+          plannerOperandStateCacheRevision: -1,
+          plannerOperandStateCacheStepsRef: null,
+          plannerOperandStateCacheStepCount: -1,
+          plannerOperandStateCacheContractibleToken: -1,
+          plannerOperandStateCache: null,
+        }};
+        const ctx = {{
+          apiPost: async () => ({{
+            ok: true,
+            manual: {{ summary: {{}} }},
+            automatic_future: {{ status: "unavailable" }},
+            automatic_past: {{ status: "unavailable" }},
+            automatic_full: {{ status: "unavailable" }},
+            comparisons: {{}},
+          }}),
+          serializeCurrentSpec: () => ({{
+            schema_version: 4,
+            network: {{ id: "network_demo" }},
+          }}),
+          render() {{
+            events.push("render");
+          }},
+          renderOverlayDecorations() {{
+            events.push("renderOverlayDecorations");
+          }},
+          setStatus(message) {{
+            events.push(message);
+          }},
+          syncPendingInteractionClasses() {{
+            events.push("syncPendingInteractionClasses");
+          }},
+          makeId(prefix) {{
+            return `${{prefix}}_1`;
+          }},
+          deepClone(value) {{
+            return structuredClone(value);
+          }},
+          findTensorById() {{
+            return null;
+          }},
+          getContractibleTensors() {{
+            return [];
+          }},
+          isLinearPeriodicBoundaryTensor() {{
+            return false;
+          }},
+          isBenchmarkBasePosition() {{
+            return true;
+          }},
+        }};
+        const support = plannerSupportModule.createPlannerSupport({{
+          ctx,
+          state,
+          analysisRefreshDelayMs: 25,
+          setTimer(callback) {{
+            return callback();
+          }},
+          clearTimer() {{}},
+          getRenderPlanner: () => () => {{
+            events.push("renderPlanner");
+          }},
+        }});
+
+        support.handlePlannerOperandClick("tensor_a");
+
+        if (state.plannerMode !== false) {{
+          throw new Error(`Expected the benchmark guard to disable planner mode, received ${{state.plannerMode}}.`);
+        }}
+        if (state.pendingPlannerOperandId !== null || state.pendingPlannerSelectionId !== null) {{
+          throw new Error(`Expected the benchmark guard to clear pending planner selections, received ${{JSON.stringify({{
+            pendingPlannerOperandId: state.pendingPlannerOperandId,
+            pendingPlannerSelectionId: state.pendingPlannerSelectionId,
+          }})}}.`);
+        }}
+        if (state.plannerPreviewMode !== null) {{
+          throw new Error(`Expected the benchmark guard to clear the preview mode, received ${{state.plannerPreviewMode}}.`);
+        }}
+        if (state.plannerInspectionStepCount !== null) {{
+          throw new Error(`Expected the benchmark guard to clear the inspection step count, received ${{state.plannerInspectionStepCount}}.`);
+        }}
+        if (Object.keys(state.plannerFutureBadgeDisclosure).length !== 0) {{
+          throw new Error(`Expected the benchmark guard to clear future badge disclosure state, received ${{JSON.stringify(state.plannerFutureBadgeDisclosure)}}.`);
+        }}
+        if (Object.keys(state.plannerPreviewBadgeDisclosure).length !== 0) {{
+          throw new Error(`Expected the benchmark guard to clear preview badge disclosure state, received ${{JSON.stringify(state.plannerPreviewBadgeDisclosure)}}.`);
+        }}
+        if (!events.includes("syncPendingInteractionClasses")) {{
+          throw new Error(`Expected the benchmark guard to sync pending interaction classes, received ${{JSON.stringify(events)}}.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The benchmark planner guard script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_code_highlighting_support_loads_prism_once_and_reuses_it(
     tmp_path: Path,
 ) -> None:
