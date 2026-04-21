@@ -2204,12 +2204,13 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }};
         const mutationPipeline = mutationPipelineModule.createDesignMutationPipeline({{
           state: mutationState,
-          isForMode: () => false,
+          isForMode: () => true,
           captureEditableFocus: () => "focus-token",
           restoreEditableFocus: (focusToken) => pipelineEvents.push(`restore:${{focusToken}}`),
           resetDerivedStateCaches: () => pipelineEvents.push("reset-caches"),
           syncCurrentGraphIntoLinearPeriodicChain: () => pipelineEvents.push("sync-chain"),
           syncCurrentGraphIntoGridPeriodicGrid: () => pipelineEvents.push("sync-grid"),
+          syncCurrentGraphIntoTreePeriodicTree: () => pipelineEvents.push("sync-tree"),
           repairContractionPlan: () => pipelineEvents.push("repair-plan"),
           reconcileTensorOrder: () => pipelineEvents.push("reconcile-order"),
           bumpSpecRevision: () => pipelineEvents.push("bump"),
@@ -2257,6 +2258,7 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         }}
         if (
           !pipelineEvents.includes("commit") ||
+          !pipelineEvents.includes("sync-tree") ||
           !pipelineEvents.includes("mark-analysis-dirty") ||
           pipelineEvents.includes("refresh-analysis") ||
           !mutationState.contractionAnalysisDirty ||
@@ -2279,6 +2281,7 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
           }}
         );
         if (
+          !pipelineEvents.includes("sync-tree") ||
           !pipelineEvents.includes("mark-analysis-dirty") ||
           !pipelineEvents.includes("refresh-analysis") ||
           mutationState.contractionAnalysisDirty

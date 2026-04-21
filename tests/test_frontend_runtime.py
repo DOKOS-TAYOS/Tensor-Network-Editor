@@ -3843,6 +3843,448 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
     return script_path
 
 
+def _write_keyboard_navigation_and_nudge_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "keyboard_navigation_and_nudge_runtime_regression.mjs"
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "interactionsShortcuts.js": "interactions/interactionsShortcuts.js",
+            "interactionsEditor.js": "interactions/interactionsEditor.js",
+            "selectionEntries.js": "state/selectionEntries.js",
+            "notes.js": "graph/notes.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, shortcutsModule, editorModule, selectionEntriesModule, notesModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./interactionsShortcuts.js", baseUrl).href),
+                import(new URL("./interactionsEditor.js", baseUrl).href),
+                import(new URL("./selectionEntries.js", baseUrl).href),
+                import(new URL("./notes.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+            const { createInteractionEditorBindings } = editorModule;
+            const { createSelectionEntrySupport } = selectionEntriesModule;
+            const { registerNotesFeature } = notesModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createEvent({
+              key,
+              altKey = false,
+              ctrlKey = false,
+              metaKey = false,
+              shiftKey = false,
+              target = null,
+            }) {
+              return {
+                key,
+                altKey,
+                ctrlKey,
+                metaKey,
+                shiftKey,
+                target,
+                preventDefaultCalls: 0,
+                preventDefault() {
+                  this.preventDefaultCalls += 1;
+                },
+              };
+            }
+
+            const state = createInitialState();
+            const shortcutCalls = [];
+            const committedSnapshots = [];
+            let snapshotCounter = 0;
+            const ctx = {
+              state,
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                NOTE_COLLAPSED_SIZE: 40,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                generatedCode: {},
+                engineSelect: { options: [], value: "tensornetwork" },
+                connectButton: {},
+                loadInput: { click() {} },
+                undoButton: {},
+                redoButton: {},
+                helpCloseButton: { focus() {} },
+                helpModal: { classList: createClassList() },
+                addNoteButton: {},
+                notesLayer: {},
+              },
+              document: {
+                activeElement: null,
+              },
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+              },
+              isTextInput(element) {
+                return Boolean(element) && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+              },
+              setStatus() {},
+              makeId(prefix) {
+                snapshotCounter += 1;
+                return `${prefix}_${snapshotCounter}`;
+              },
+              nextName(prefix, usedNames = []) {
+                let counter = 1;
+                let candidate = `${prefix}${counter}`;
+                while (usedNames.includes(candidate)) {
+                  counter += 1;
+                  candidate = `${prefix}${counter}`;
+                }
+                return candidate;
+              },
+              tensorWidth(tensor) {
+                return tensor?.size?.width ?? 140;
+              },
+              tensorHeight(tensor) {
+                return tensor?.size?.height ?? 84;
+              },
+              defaultIndexOffsetForOrder(indexPosition) {
+                return [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ][indexPosition] || { x: 0, y: 0 };
+              },
+              runWithTensorSync(action) {
+                action();
+              },
+              syncIndexNodePositions() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              updateToolbarState() {},
+              renderProperties() {},
+              createHistorySnapshot() {
+                snapshotCounter += 1;
+                return { id: `snapshot_${snapshotCounter}` };
+              },
+              commitHistorySnapshot(snapshot) {
+                committedSnapshots.push(snapshot.id);
+              },
+              clientPointToWorldPoint(clientX, clientY) {
+                return { x: clientX, y: clientY };
+              },
+              findVisibleTensorById(tensorId) {
+                return ctx.findTensorById(tensorId);
+              },
+              canEditCurrentContractionStage() {
+                return false;
+              },
+              updateCurrentStageOperandLayout() {},
+              toggleSidebarCollapsed() {},
+              setActiveSidebarTab() {},
+              syncPendingInteractionClasses() {},
+              removeNote(noteId) {
+                state.spec.notes = state.spec.notes.filter((note) => note.id !== noteId);
+              },
+              clearSelection() {},
+            };
+
+            state.spec = {
+              id: "network_keyboard",
+              name: "keyboard",
+              tensors: [
+                {
+                  id: "tensor_a",
+                  name: "A",
+                  position: { x: 100, y: 120 },
+                  size: { width: 140, height: 84 },
+                  metadata: {},
+                  indices: [
+                    {
+                      id: "index_a",
+                      name: "a",
+                      dimension: 2,
+                      offset: { x: 14, y: 0 },
+                      metadata: {},
+                    },
+                  ],
+                },
+                {
+                  id: "tensor_b",
+                  name: "B",
+                  position: { x: 220, y: 160 },
+                  size: { width: 140, height: 84 },
+                  metadata: {},
+                  indices: [],
+                },
+              ],
+              edges: [
+                {
+                  id: "edge_ab",
+                  name: "ab",
+                  left: { tensor_id: "tensor_a", index_id: "index_a" },
+                  right: { tensor_id: "tensor_b", index_id: "missing_index" },
+                  metadata: {},
+                },
+              ],
+              groups: [
+                {
+                  id: "group_ab",
+                  name: "AB",
+                  tensor_ids: ["tensor_a", "tensor_b"],
+                  metadata: {},
+                },
+              ],
+              notes: [
+                {
+                  id: "note_a",
+                  text: "Note",
+                  position: { x: 340, y: 280 },
+                  size: { width: 220, height: 120 },
+                  metadata: {},
+                },
+              ],
+              contraction_plan: null,
+              metadata: {},
+            };
+            state.noteById = {
+              note_a: state.spec.notes[0],
+            };
+
+            ctx.findTensorById = (tensorId) =>
+              state.spec.tensors.find((tensor) => tensor.id === tensorId) || null;
+            ctx.findGroupById = (groupId) =>
+              state.spec.groups.find((group) => group.id === groupId) || null;
+            ctx.findEdgeById = (edgeId) =>
+              state.spec.edges.find((edge) => edge.id === edgeId) || null;
+            ctx.findNoteById = (noteId) =>
+              state.spec.notes.find((note) => note.id === noteId) || null;
+            ctx.findIndexOwner = (indexId) => {
+              for (const tensor of state.spec.tensors) {
+                const index = (tensor.indices || []).find((candidate) => candidate.id === indexId);
+                if (index) {
+                  return { tensor, index };
+                }
+              }
+              return null;
+            };
+            ctx.getVisibleTensors = () => state.spec.tensors;
+            ctx.isContractionSceneVisible = () => false;
+            ctx.isInspectingPastStage = () => false;
+            ctx.isPlannerOperandAvailable = () => false;
+
+            const selectionSupport = createSelectionEntrySupport({
+              state,
+              findGroupById: ctx.findGroupById,
+              findTensorById: ctx.findTensorById,
+              findVisibleTensorById: ctx.findVisibleTensorById,
+              findIndexOwner: ctx.findIndexOwner,
+              findEdgeById: ctx.findEdgeById,
+              findNoteById: ctx.findNoteById,
+              getVisibleTensors: ctx.getVisibleTensors,
+              isContractionSceneVisible: ctx.isContractionSceneVisible,
+              isInspectingPastStage: ctx.isInspectingPastStage,
+              isPlannerOperandAvailable: ctx.isPlannerOperandAvailable,
+              renderSelectionUi() {},
+            });
+            Object.assign(ctx, selectionSupport);
+
+            registerNotesFeature(ctx);
+            ctx.findNoteById = (noteId) =>
+              state.spec.notes.find((note) => note.id === noteId) || null;
+            Object.assign(
+              ctx,
+              createInteractionEditorBindings({
+                ctx,
+                state,
+                runtime: {},
+              })
+            );
+            let currentMode = "linear";
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state,
+                dom: ctx.dom,
+                runtime: {},
+                shortcutActions: {
+                  switchLinearPeriodicCell(direction) {
+                    shortcutCalls.push({ kind: "linear-nav", direction });
+                  },
+                  switchGridPeriodicCell(direction) {
+                    shortcutCalls.push({ kind: "grid-nav", direction });
+                  },
+                  switchTreePeriodicCell(direction) {
+                    shortcutCalls.push({ kind: "tree-nav", direction });
+                  },
+                  switchBenchmarkPosition(direction) {
+                    shortcutCalls.push({ kind: "benchmark-nav", direction });
+                  },
+                },
+              })
+            );
+
+            ctx.isLinearPeriodicMode = () => currentMode === "linear";
+            ctx.isGridPeriodicMode = () => currentMode === "grid";
+            ctx.isTreePeriodicMode = () => currentMode === "tree";
+            ctx.isBenchmarkMode = () => currentMode === "benchmark";
+
+            currentMode = "linear";
+            const linearEvent = createEvent({ key: "ArrowRight", altKey: true });
+            ctx.handleKeydown(linearEvent);
+            if (linearEvent.preventDefaultCalls !== 1) {
+              throw new Error("Alt+ArrowRight should prevent default in linear For mode.");
+            }
+            if (JSON.stringify(shortcutCalls.splice(0)) !== JSON.stringify([{ kind: "linear-nav", direction: 1 }])) {
+              throw new Error("Alt+ArrowRight should switch the linear For cell.");
+            }
+
+            currentMode = "grid";
+            const gridEvent = createEvent({ key: "ArrowUp", altKey: true });
+            ctx.handleKeydown(gridEvent);
+            if (gridEvent.preventDefaultCalls !== 1) {
+              throw new Error("Alt+ArrowUp should prevent default in grid For mode.");
+            }
+            if (JSON.stringify(shortcutCalls.splice(0)) !== JSON.stringify([{ kind: "grid-nav", direction: "up" }])) {
+              throw new Error("Alt+ArrowUp should switch the grid For cell.");
+            }
+
+            currentMode = "tree";
+            const treeEvent = createEvent({ key: "ArrowDown", altKey: true });
+            ctx.handleKeydown(treeEvent);
+            if (treeEvent.preventDefaultCalls !== 1) {
+              throw new Error("Alt+ArrowDown should prevent default in tree For mode.");
+            }
+            if (JSON.stringify(shortcutCalls.splice(0)) !== JSON.stringify([{ kind: "tree-nav", direction: "down" }])) {
+              throw new Error("Alt+ArrowDown should switch the tree For cell.");
+            }
+
+            currentMode = "benchmark";
+            const benchmarkEvent = createEvent({ key: "ArrowLeft", altKey: true });
+            ctx.handleKeydown(benchmarkEvent);
+            if (benchmarkEvent.preventDefaultCalls !== 1) {
+              throw new Error("Alt+ArrowLeft should prevent default in benchmark mode.");
+            }
+            if (JSON.stringify(shortcutCalls.splice(0)) !== JSON.stringify([{ kind: "benchmark-nav", direction: -1 }])) {
+              throw new Error("Alt+ArrowLeft should switch the benchmark position.");
+            }
+
+            state.isHelpOpen = true;
+            const blockedAltEvent = createEvent({ key: "ArrowRight", altKey: true });
+            ctx.handleKeydown(blockedAltEvent);
+            if (blockedAltEvent.preventDefaultCalls !== 0 || shortcutCalls.length !== 0) {
+              throw new Error("Alt+Arrow navigation should stay inactive while a blocking modal is open.");
+            }
+            state.isHelpOpen = false;
+
+            ctx.document.activeElement = { tagName: "INPUT" };
+            const typingAltEvent = createEvent({ key: "ArrowRight", altKey: true });
+            ctx.handleKeydown(typingAltEvent);
+            if (typingAltEvent.preventDefaultCalls !== 0 || shortcutCalls.length !== 0) {
+              throw new Error("Alt+Arrow navigation should stay inactive while typing.");
+            }
+            ctx.document.activeElement = null;
+
+            state.selectionIds = ["tensor_a"];
+            state.primarySelectionId = "tensor_a";
+            const tensorEvent = createEvent({ key: "ArrowRight" });
+            ctx.handleKeydown(tensorEvent);
+            if (tensorEvent.preventDefaultCalls !== 1) {
+              throw new Error("ArrowRight should prevent default when nudging a selected tensor.");
+            }
+            if (ctx.findTensorById("tensor_a").position.x !== 120) {
+              throw new Error(`Expected ArrowRight to move the tensor by 20, received ${ctx.findTensorById("tensor_a").position.x}.`);
+            }
+            if (state.selectionIds.join(",") !== "tensor_a" || committedSnapshots.length !== 1) {
+              throw new Error("Tensor nudging should preserve selection and commit one snapshot.");
+            }
+
+            state.selectionIds = ["note_a"];
+            state.primarySelectionId = "note_a";
+            const noteEvent = createEvent({ key: "ArrowDown", shiftKey: true });
+            ctx.handleKeydown(noteEvent);
+            if (noteEvent.preventDefaultCalls !== 1) {
+              throw new Error("Shift+ArrowDown should prevent default when nudging a selected note.");
+            }
+            if (ctx.findNoteById("note_a").position.y !== 340) {
+              throw new Error(`Expected Shift+ArrowDown to move the note by 60, received ${ctx.findNoteById("note_a").position.y}.`);
+            }
+
+            state.selectionIds = ["index_a"];
+            state.primarySelectionId = "index_a";
+            const indexEvent = createEvent({ key: "ArrowLeft" });
+            ctx.handleKeydown(indexEvent);
+            if (indexEvent.preventDefaultCalls !== 1) {
+              throw new Error("ArrowLeft should prevent default when nudging a selected index.");
+            }
+            if (ctx.findIndexOwner("index_a").index.offset.x !== -6) {
+              throw new Error(`Expected ArrowLeft to move the selected index by 20, received ${ctx.findIndexOwner("index_a").index.offset.x}.`);
+            }
+
+            state.selectionIds = ["group_ab"];
+            state.primarySelectionId = "group_ab";
+            const groupEvent = createEvent({ key: "ArrowUp" });
+            ctx.handleKeydown(groupEvent);
+            if (groupEvent.preventDefaultCalls !== 1) {
+              throw new Error("ArrowUp should prevent default when nudging a selected group.");
+            }
+            if (ctx.findTensorById("tensor_a").position.y !== 100 || ctx.findTensorById("tensor_b").position.y !== 140) {
+              throw new Error("Group nudging should move every tensor inside the selected group.");
+            }
+
+            const commitCountBeforeEdge = committedSnapshots.length;
+            state.selectionIds = ["edge_ab"];
+            state.primarySelectionId = "edge_ab";
+            const edgeEvent = createEvent({ key: "ArrowRight" });
+            ctx.handleKeydown(edgeEvent);
+            if (edgeEvent.preventDefaultCalls !== 0) {
+              throw new Error("Arrow nudging should no-op for edge-only selections.");
+            }
+            if (committedSnapshots.length !== commitCountBeforeEdge) {
+              throw new Error("Edge-only selections should not create history snapshots.");
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "shift_only_shortcut_runtime_regression.mjs"
     _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
@@ -3980,6 +4422,448 @@ def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path
               throw new Error(
                 `Shift-only shortcuts should ignore extra modifiers, received ${JSON.stringify(shortcutCalls)}.`
               );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "additive_selection_runtime_regression.mjs"
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "graphRender.js": "graph/graphRender.js",
+            "cytoscapeGraphAdapter.js": "views/cytoscapeGraphAdapter.js",
+            "graphDescriptors.js": "views/graphDescriptors.js",
+            "graphModelDiff.js": "views/graphModelDiff.js",
+            "graphElementModel.js": "views/graphElementModel.js",
+            "notes.js": "graph/notes.js",
+            "overlaysLayoutTemplates.js": "graph/overlaysLayoutTemplates.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, utilitiesModule, graphRenderModule, notesModule, overlaysModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./utilities.runtime.mjs", baseUrl).href),
+                import(new URL("./graphRender.js", baseUrl).href),
+                import(new URL("./notes.js", baseUrl).href),
+                import(new URL("./overlaysLayoutTemplates.js", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { registerGraphRender } = graphRenderModule;
+            const { registerNotesFeature } = notesModule;
+            const { registerOverlaysLayoutTemplates } = overlaysModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            const cyHandlers = {};
+            const fakeCy = {
+              on(eventName, selectorOrHandler, maybeHandler) {
+                const key = `${eventName}:${typeof maybeHandler === "function" ? selectorOrHandler : "*"}`;
+                cyHandlers[key] = typeof maybeHandler === "function" ? maybeHandler : selectorOrHandler;
+              },
+              batch(action) {
+                action();
+              },
+              fit() {},
+              center() {},
+              width() {
+                return 1000;
+              },
+              height() {
+                return 800;
+              },
+              getElementById() {
+                return { length: 0 };
+              },
+              edges() {
+                return {
+                  forEach() {},
+                };
+              },
+              pan() {
+                return { x: 0, y: 0 };
+              },
+              zoom() {
+                return 1;
+              },
+            };
+
+            const state = createInitialState();
+            const selectionCalls = [];
+            let renderedCyFactoryCalls = 0;
+            const documentElements = {};
+            const ctx = {
+              state,
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                NOTE_COLLAPSED_SIZE: 40,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                },
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: {},
+                engineSelect: { value: "tensornetwork" },
+                connectButton: {},
+                loadInput: {},
+                undoButton: {},
+                redoButton: {},
+                templateSelect: { value: "" },
+                insertTemplateButton: {},
+                createGroupButton: {},
+                helpButton: {},
+                helpModal: { classList: createClassList() },
+                helpBackdrop: {},
+                helpCloseButton: { focus() {} },
+                groupLayer: {},
+                resizeLayer: {},
+                selectionBox: { classList: createClassList(), style: {} },
+                minimapCanvas: {},
+                addNoteButton: {},
+                notesLayer: {},
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                requestAnimationFrame(callback) {
+                  callback();
+                  return 1;
+                },
+                cancelAnimationFrame() {},
+              },
+              document: {
+                getElementById(id) {
+                  return documentElements[id] || null;
+                },
+                createElement() {
+                  return {
+                    className: "",
+                    dataset: {},
+                    style: {},
+                    classList: createClassList(),
+                    appendChild() {},
+                    addEventListener() {},
+                    setAttribute() {},
+                    removeAttribute() {},
+                    innerHTML: "",
+                  };
+                },
+              },
+              cytoscape() {
+                renderedCyFactoryCalls += 1;
+                return fakeCy;
+              },
+              setStatus() {},
+              toggleSidebarCollapsed() {},
+              setActiveSidebarTab() {},
+              closeCanvasContextMenu() {},
+              isInspectingPastStage() {
+                return false;
+              },
+              handlePlannerOperandClick() {},
+              handleConnectClick() {},
+              bringTensorToFront() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              renderSidebarTabs() {},
+              renderNotes() {},
+              updateToolbarState() {},
+              renderProperties() {},
+              syncCySelection() {},
+              isContractionSceneVisible() {
+                return false;
+              },
+              canEditCurrentContractionStage() {
+                return false;
+              },
+              updateCurrentStageOperandLayout() {},
+              createHistorySnapshot() {
+                return { id: "snapshot_1" };
+              },
+              clientPointToWorldPoint(clientX, clientY) {
+                return { x: clientX, y: clientY };
+              },
+              getMetadataColor(metadata, fallbackColor) {
+                return metadata && metadata.color ? metadata.color : fallbackColor;
+              },
+              shiftColor(color) {
+                return color;
+              },
+              readableTextColor() {
+                return "#111111";
+              },
+              tensorLayerRank() {
+                return 0;
+              },
+              getIndexColor() {
+                return "#456cbf";
+              },
+              indexAbsolutePosition(tensor, index) {
+                return {
+                  x: tensor.position.x + index.offset.x,
+                  y: tensor.position.y + index.offset.y,
+                };
+              },
+              indexLabelNodeId(indexId) {
+                return `${indexId}__label`;
+              },
+              indexLabelPosition(position) {
+                return position;
+              },
+              getMetadataFilterEntityState() {
+                return "";
+              },
+              getMetadataFilterHighlight() {
+                return null;
+              },
+              findEdgeByIndexId() {
+                return null;
+              },
+              tensorWidth(tensor) {
+                return tensor?.size?.width ?? 140;
+              },
+              tensorHeight(tensor) {
+                return tensor?.size?.height ?? 84;
+              },
+              noteCanvasBounds(note) {
+                return {
+                  x1: note.position.x,
+                  y1: note.position.y,
+                  x2: note.position.x + note.size.width,
+                  y2: note.position.y + note.size.height,
+                  width: note.size.width,
+                  height: note.size.height,
+                };
+              },
+              setSelection(selectionIds, options = {}) {
+                state.selectionIds = [...selectionIds];
+                state.primarySelectionId =
+                  options.primaryId || selectionIds[selectionIds.length - 1] || null;
+                selectionCalls.push([...selectionIds]);
+              },
+              selectElement(kind, id, options = {}) {
+                if (options.additive) {
+                  if (state.selectionIds.includes(id)) {
+                    ctx.setSelection(
+                      state.selectionIds.filter((selectionId) => selectionId !== id),
+                      {
+                        primaryId:
+                          state.primarySelectionId === id
+                            ? state.selectionIds[state.selectionIds.length - 2] || null
+                            : state.primarySelectionId,
+                      }
+                    );
+                    return;
+                  }
+                  ctx.setSelection([...state.selectionIds, id], { primaryId: id });
+                  return;
+                }
+                ctx.setSelection([id], { primaryId: id });
+              },
+              getSelectedEntries() {
+                return state.selectionIds.map((selectionId) => {
+                  if (selectionId === "group_ab") {
+                    return { kind: "group", id: "group_ab", group: ctx.findGroupById("group_ab") };
+                  }
+                  if (selectionId === "note_a") {
+                    return { kind: "note", id: "note_a", note: ctx.findNoteById("note_a") };
+                  }
+                  if (selectionId === "tensor_a" || selectionId === "tensor_b") {
+                    return { kind: "tensor", id: selectionId, tensor: ctx.findTensorById(selectionId) };
+                  }
+                  return null;
+                }).filter(Boolean);
+              },
+            };
+
+            documentElements.canvas = { id: "canvas" };
+            state.spec = {
+              id: "network_additive",
+              name: "additive",
+              tensors: [
+                {
+                  id: "tensor_a",
+                  name: "A",
+                  position: { x: 100, y: 100 },
+                  size: { width: 140, height: 84 },
+                  metadata: {},
+                  indices: [],
+                },
+                {
+                  id: "tensor_b",
+                  name: "B",
+                  position: { x: 260, y: 100 },
+                  size: { width: 140, height: 84 },
+                  metadata: {},
+                  indices: [],
+                },
+              ],
+              groups: [
+                {
+                  id: "group_ab",
+                  name: "AB",
+                  tensor_ids: ["tensor_a", "tensor_b"],
+                  metadata: {},
+                },
+              ],
+              edges: [],
+              notes: [
+                {
+                  id: "note_a",
+                  text: "note",
+                  position: { x: 340, y: 280 },
+                  size: { width: 220, height: 120 },
+                  metadata: {},
+                },
+              ],
+              contraction_plan: null,
+              metadata: {},
+            };
+            ctx.findTensorById = (tensorId) =>
+              state.spec.tensors.find((tensor) => tensor.id === tensorId) || null;
+            ctx.findVisibleTensorById = ctx.findTensorById;
+            ctx.findIndexOwner = () => null;
+            ctx.findEdgeById = () => null;
+            ctx.findNoteById = (noteId) =>
+              state.spec.notes.find((note) => note.id === noteId) || null;
+            ctx.findGroupById = (groupId) =>
+              state.spec.groups.find((group) => group.id === groupId) || null;
+            ctx.buildCanvasSelectionDragState = (anchorId) => ({
+              snapshot: { id: `snapshot_${anchorId}` },
+              tensorIds: anchorId === "group_ab" ? ["tensor_a", "tensor_b"] : [],
+              noteIds: anchorId === "note_a" ? ["note_a"] : [],
+              tensorStartPositions: {},
+              noteStartPositions: {},
+            });
+            ctx.applyCanvasSelectionDragDelta = () => {};
+
+            registerUtilities(ctx);
+            registerNotesFeature(ctx);
+            registerOverlaysLayoutTemplates(ctx);
+            registerGraphRender(ctx);
+            ctx.initGraph();
+
+            if (renderedCyFactoryCalls !== 1) {
+              throw new Error("Graph render should initialize the Cytoscape canvas once.");
+            }
+
+            state.selectionIds = ["tensor_a"];
+            state.primarySelectionId = "tensor_a";
+            cyHandlers["tap:node, edge"]({
+              target: {
+                id() {
+                  return "tensor_b";
+                },
+                data(name) {
+                  return name === "kind" ? "tensor" : null;
+                },
+              },
+              originalEvent: {
+                button: 0,
+                ctrlKey: true,
+              },
+            });
+            if (state.selectionIds.join(",") !== "tensor_a,tensor_b") {
+              throw new Error(`Ctrl+click on a tensor should add it to the selection, received ${state.selectionIds.join(",")}.`);
+            }
+
+            state.selectionIds = ["tensor_a"];
+            state.primarySelectionId = "tensor_a";
+            ctx.startNoteDrag(
+              {
+                button: 0,
+                ctrlKey: true,
+                preventDefault() {},
+                stopPropagation() {},
+                clientX: 0,
+                clientY: 0,
+              },
+              "note_a"
+            );
+            if (state.selectionIds.join(",") !== "tensor_a,note_a") {
+              throw new Error(`Ctrl+drag on a note should preserve additive selection, received ${state.selectionIds.join(",")}.`);
+            }
+
+            state.selectionIds = ["tensor_a"];
+            state.primarySelectionId = "tensor_a";
+            ctx.startGroupDrag(
+              {
+                button: 0,
+                ctrlKey: true,
+                preventDefault() {},
+                stopPropagation() {},
+                clientX: 0,
+                clientY: 0,
+              },
+              "group_ab"
+            );
+            if (state.selectionIds.join(",") !== "tensor_a,group_ab") {
+              throw new Error(`Ctrl+drag on a group should preserve additive selection, received ${state.selectionIds.join(",")}.`);
+            }
+
+            state.selectionIds = ["tensor_a"];
+            state.primarySelectionId = "tensor_a";
+            cyHandlers["tap:node, edge"]({
+              target: {
+                id() {
+                  return "tensor_b";
+                },
+                data(name) {
+                  return name === "kind" ? "tensor" : null;
+                },
+              },
+              originalEvent: {
+                button: 0,
+                metaKey: true,
+              },
+            });
+            if (state.selectionIds.join(",") !== "tensor_a,tensor_b") {
+              throw new Error("Cmd+click should behave like additive selection too.");
             }
             """
         ),
@@ -5838,6 +6722,475 @@ def test_for_mode_reserved_operands_survive_cell_switches_and_scene_updates(
     )
 
 
+def _write_tree_mutation_sync_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "tree_mutation_sync_runtime_regression.mjs"
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "properties.runtime.mjs": "properties/properties.js",
+            "propertiesSupport.js": "properties/propertiesSupport.js",
+            "propertiesRenderers.js": "properties/propertiesRenderers.js",
+            "interactionsEditor.js": "interactions/interactionsEditor.js",
+            "interactionsSession.js": "interactions/interactionsSession.js",
+            "notes.js": "graph/notes.js",
+            "state/editorSelectors.js": "state/editorSelectors.js",
+            "state/editorStore.js": "state/editorStore.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+
+    script_body = textwrap.dedent(
+        """
+        import { pathToFileURL } from "node:url";
+
+        const baseUrl = new URL("./", import.meta.url);
+        const [stateModule, utilitiesModule, historyModule, propertiesModule, editorModule, sessionModule, notesModule, selectorsModule, storeModule] =
+          await Promise.all([
+            import(new URL("./state.runtime.mjs", baseUrl).href),
+            import(new URL("./utilities.runtime.mjs", baseUrl).href),
+            import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+            import(new URL("./properties.runtime.mjs", baseUrl).href),
+            import(new URL("./interactionsEditor.js", baseUrl).href),
+            import(new URL("./interactionsSession.js", baseUrl).href),
+            import(new URL("./notes.js", baseUrl).href),
+            import(new URL("./state/editorSelectors.js", baseUrl).href),
+            import(new URL("./state/editorStore.js", baseUrl).href),
+          ]);
+
+        const { createInitialState } = stateModule;
+        const { registerUtilities } = utilitiesModule;
+        const { registerHistorySelection } = historyModule;
+        const { registerProperties } = propertiesModule;
+        const { createInteractionEditorBindings } = editorModule;
+        const { createInteractionSessionBindings } = sessionModule;
+        const { registerNotesFeature } = notesModule;
+        const { createEditorSelectors } = selectorsModule;
+        const { createEditorStore } = storeModule;
+
+        function createClassList() {
+          return {
+            add() {},
+            remove() {},
+            toggle() {},
+          };
+        }
+
+        function createButton() {
+          return {
+            disabled: false,
+            hidden: false,
+            value: "",
+            classList: createClassList(),
+            dataset: {},
+            addEventListener() {},
+            click() {},
+            focus() {},
+            appendChild() {},
+            setAttribute() {},
+            removeAttribute() {},
+          };
+        }
+
+        const state = createInitialState();
+        const ctx = {
+          state,
+          constants: {
+            TENSOR_WIDTH: 140,
+            TENSOR_HEIGHT: 84,
+            MIN_TENSOR_WIDTH: 96,
+            MIN_TENSOR_HEIGHT: 60,
+            INDEX_RADIUS: 10,
+            INDEX_PADDING: 6,
+            NOTE_WIDTH: 220,
+            NOTE_HEIGHT: 120,
+            NOTE_MIN_WIDTH: 120,
+            NOTE_MIN_HEIGHT: 90,
+            NOTE_COLLAPSED_SIZE: 40,
+            HISTORY_LIMIT: 100,
+            REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+            DEFAULT_INDEX_SLOTS: [
+              { x: -38, y: 0 },
+              { x: 38, y: 0 },
+              { x: 0, y: -24 },
+              { x: 0, y: 24 },
+            ],
+          },
+          dom: {
+            workspace: {},
+            statusMessage: { textContent: "", classList: createClassList() },
+            propertiesPanel: { innerHTML: "" },
+            generatedCode: { value: "" },
+            generatedCodeView: { textContent: "", dataset: {} },
+            engineSelect: { options: [], value: "tensornetwork", appendChild() {} },
+            collectionFormatSelect: { options: [], value: "list", appendChild() {} },
+            exportFormatSelect: { value: "py" },
+            connectButton: createButton(),
+            loadInput: createButton(),
+            undoButton: createButton(),
+            redoButton: createButton(),
+            templateSelect: { value: "mps", appendChild() {} },
+            templateParameterPanel: { hidden: true, innerHTML: "" },
+            templateGraphSizeLabel: { textContent: "" },
+            templateGraphSizeInput: { value: "2", min: "1", addEventListener() {} },
+            templateBondDimensionInput: { value: "3", min: "1", addEventListener() {} },
+            templatePhysicalDimensionInput: { value: "2", min: "1", addEventListener() {} },
+            insertTemplateButton: createButton(),
+            insertSubnetworkButton: createButton(),
+            createGroupButton: createButton(),
+            helpButton: createButton(),
+            helpModal: { classList: createClassList() },
+            helpBackdrop: createButton(),
+            helpCloseButton: createButton(),
+            canvasShell: {
+              getBoundingClientRect() {
+                return { left: 0, top: 0, width: 1000, height: 800 };
+              },
+            },
+            groupLayer: {},
+            resizeLayer: {},
+            notesLayer: {},
+            selectionBox: { classList: createClassList(), style: {} },
+            minimapCanvas: {},
+            subnetworkLoadInput: { value: "", click() {} },
+            addNoteButton: createButton(),
+          },
+          apiGet: async () => null,
+          apiPost: async () => null,
+          window: {
+            structuredClone: globalThis.structuredClone,
+            crypto: globalThis.crypto,
+            setTimeout,
+            clearTimeout,
+            confirm: () => true,
+            prompt: () => "3",
+            Prism: {
+              highlightElement() {},
+            },
+          },
+          document: {
+            activeElement: null,
+            createElement() {
+              return {
+                value: "",
+                textContent: "",
+                selected: false,
+                dataset: {},
+                style: {},
+                classList: createClassList(),
+                appendChild() {},
+                addEventListener() {},
+                setAttribute() {},
+                removeAttribute() {},
+              };
+            },
+            querySelectorAll() {
+              return [];
+            },
+          },
+          cytoscape: null,
+          render() {},
+          renderOverlayDecorations() {},
+          renderMinimap() {},
+          renderPlanner() {},
+          renderSidebarTabs() {},
+          refreshContractionAnalysis() {},
+          syncPendingInteractionClasses() {},
+          clearGeneratedCodePreview() {
+            return false;
+          },
+          setStatus() {},
+          isTextInput() {
+            return false;
+          },
+        };
+
+        ctx.store = createEditorStore(state);
+        ctx.selectors = createEditorSelectors({ store: ctx.store });
+        ctx.services = {
+          session: {
+            async buildTemplate() {
+              return {
+                ok: true,
+                spec: {
+                  network: {
+                    id: "template_fragment",
+                    name: "Template fragment",
+                    tensors: [
+                      {
+                        id: "template_tensor",
+                        name: "Template tensor",
+                        position: { x: 0, y: 0 },
+                        size: { width: 140, height: 84 },
+                        metadata: {},
+                        indices: [
+                          {
+                            id: "template_index",
+                            name: "tmpl",
+                            dimension: 7,
+                            offset: { x: -38, y: 0 },
+                            metadata: {},
+                          },
+                        ],
+                      },
+                    ],
+                    edges: [],
+                    groups: [],
+                    notes: [],
+                    metadata: {},
+                  },
+                },
+              };
+            },
+          },
+          templateCatalog: {},
+          subnetwork: {
+            async extractSubnetwork() {
+              return null;
+            },
+          },
+        };
+
+        registerUtilities(ctx);
+        registerHistorySelection(ctx);
+        registerProperties(ctx);
+        registerNotesFeature(ctx);
+        ctx.uniquifyImportedSpec = (spec) => ctx.normalizeSpec(structuredClone(spec));
+        ctx.translateImportedSpec = (spec) => ctx.normalizeSpec(structuredClone(spec));
+        Object.assign(
+          ctx,
+          createInteractionEditorBindings({
+            ctx,
+            state,
+            runtime: {},
+          })
+        );
+        Object.assign(
+          ctx,
+          createInteractionSessionBindings({
+            ctx,
+            state,
+            dom: ctx.dom,
+            store: ctx.store,
+            selectors: ctx.selectors,
+            services: ctx.services,
+            sessionUi: {
+              async copyText() {},
+              downloadText() {},
+              downloadBlob() {},
+              requestFileText: async () => "",
+              openFilePicker() {},
+              schedule(callback) {
+                callback();
+              },
+              closeWindow() {},
+              promptText: () => null,
+              confirmAction: () => true,
+            },
+            sessionActions: {
+              ensureCodePanelVisible() {},
+              syncCodeGenerationWarning() {},
+              getTensorKrowchManualPlanIssueMessage() {
+                return "";
+              },
+              getSelectedTensorIds() {
+                return ctx.getSelectedIdsByKind("tensor");
+              },
+              findGroupById(groupId) {
+                return ctx.findGroupById(groupId);
+              },
+              isLinearPeriodicMode() {
+                return false;
+              },
+              isForMode() {
+                return ctx.isForMode();
+              },
+              syncGeneratedCodePreview() {},
+              setStatus(message, level) {
+                ctx.setStatus(message, level);
+              },
+              serializeCurrentSpec() {
+                return ctx.serializeCurrentSpec();
+              },
+              formatIssues() {
+                return ctx.formatIssues();
+              },
+              stripImportLines(code) {
+                return ctx.stripImportLines(code);
+              },
+              sanitizeFilename(value) {
+                return ctx.sanitizeFilename(value);
+              },
+              resetDesignState() {},
+              downloadPngExport() {},
+              downloadSvgExport() {},
+              applyTemplateCatalogPayload() {},
+              normalizeSpec(spec) {
+                return ctx.normalizeSpec(spec);
+              },
+              applyDesignChange(mutate, options) {
+                return ctx.applyDesignChange(mutate, options);
+              },
+              bringTensorToFront(tensorId) {
+                return ctx.bringTensorToFront(tensorId);
+              },
+              formatTemplateLabel(templateName) {
+                return ctx.formatTemplateLabel(templateName);
+              },
+              getTemplateSource(templateName) {
+                return ctx.getTemplateSource(templateName);
+              },
+              getTemplateSpec(templateName) {
+                return ctx.getTemplateSpec(templateName);
+              },
+              listTemplateEntries() {
+                return ctx.listTemplateEntries();
+              },
+              hasTemplateDisplayName(displayName, excludedTemplateName) {
+                return ctx.hasTemplateDisplayName(displayName, excludedTemplateName);
+              },
+              getNextSessionTemplateDisplayName(baseDisplayName) {
+                return ctx.getNextSessionTemplateDisplayName(baseDisplayName);
+              },
+              addSessionTemplate(payload) {
+                return ctx.addSessionTemplate(payload);
+              },
+              updateSessionTemplateDisplayNames(updates) {
+                return ctx.updateSessionTemplateDisplayNames(updates);
+              },
+              removeSessionTemplate(templateName) {
+                return ctx.removeSessionTemplate(templateName);
+              },
+              toggleTemplateManager(forceOpen) {
+                return ctx.toggleTemplateManager(forceOpen);
+              },
+              syncTemplateManagerModalState() {},
+              setTemplateManagerValidationMessage() {},
+              persistTemplateParametersFromControls() {
+                return {};
+              },
+              uniquifyImportedSpec(spec, prefix) {
+                return ctx.uniquifyImportedSpec(spec, prefix);
+              },
+              makeId(prefix) {
+                return ctx.makeId(prefix);
+              },
+              translateImportedSpec(spec, targetCenter) {
+                return ctx.translateImportedSpec(spec, targetCenter);
+              },
+              suggestTensorPosition(position) {
+                return ctx.suggestTensorPosition(position);
+              },
+              viewportCenterPosition() {
+                return ctx.viewportCenterPosition();
+              },
+            },
+          })
+        );
+
+        state.selectedEngine = "tensornetwork";
+        state.selectedCollectionFormat = "list";
+        state.availableTemplates = ["mps"];
+        state.templateDefinitions = {
+          mps: {
+            name: "mps",
+            display_name: "MPS",
+            source: "global",
+          },
+        };
+        state.spec = ctx.normalizeSpec({
+          id: "network_tree_mutation",
+          name: "tree mutation",
+          tensors: [
+            {
+              id: "tensor_root",
+              name: "Root",
+              position: { x: 180, y: 160 },
+              size: { width: 140, height: 84 },
+              metadata: {},
+              indices: [
+                {
+                  id: "root_open_0",
+                  name: "a",
+                  dimension: 2,
+                  offset: { x: -38, y: 0 },
+                  metadata: {},
+                },
+                {
+                  id: "root_open_1",
+                  name: "b",
+                  dimension: 3,
+                  offset: { x: 38, y: 0 },
+                  metadata: {},
+                },
+              ],
+            },
+          ],
+          groups: [],
+          edges: [],
+          notes: [],
+          contraction_plan: null,
+          metadata: {},
+        });
+
+        function getChildBoundaryLengths() {
+          return state.spec.tensors
+            .filter((tensor) => tensor.tree_periodic_role === "child")
+            .map((tensor) => tensor.indices.length);
+        }
+
+        ctx.setTreePeriodicMode(true);
+        if (JSON.stringify(getChildBoundaryLengths()) !== JSON.stringify([2, 2, 2])) {
+          throw new Error("Tree mode should start with one child boundary per root free index.");
+        }
+
+        ctx.propertyCommands.addIndexToSelectedTensors({
+          tensorIds: ["tensor_root"],
+          selectionIds: ["tensor_root"],
+          primaryId: "tensor_root",
+          statusMessage: "Added one index to Root.",
+        });
+        if (JSON.stringify(getChildBoundaryLengths()) !== JSON.stringify([3, 3, 3])) {
+          throw new Error(`Adding an index in the root cell should refresh child boundaries immediately, received ${JSON.stringify(getChildBoundaryLengths())}.`);
+        }
+
+        ctx.addTensorAtCenter();
+        if (JSON.stringify(getChildBoundaryLengths()) !== JSON.stringify([5, 5, 5])) {
+          throw new Error(`Adding a tensor in the root cell should refresh child boundaries immediately, received ${JSON.stringify(getChildBoundaryLengths())}.`);
+        }
+
+        await ctx.insertTemplate();
+        if (JSON.stringify(getChildBoundaryLengths()) !== JSON.stringify([6, 6, 6])) {
+          throw new Error(`Inserting a template in the root cell should refresh child boundaries immediately, received ${JSON.stringify(getChildBoundaryLengths())}.`);
+        }
+        """
+    )
+    script_path.write_text(script_body, encoding="utf-8")
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tree_mutations_refresh_child_boundaries_without_switching_cell(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_tree_mutation_sync_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The tree mutation sync runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_benchmark_mode_keeps_temporary_schemes_session_local_and_promotes_active_one_on_exit(
     tmp_path: Path,
@@ -6042,6 +7395,28 @@ def test_mode_and_template_shortcuts_dispatch_the_requested_actions(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_alt_arrow_navigation_and_arrow_nudging_follow_mode_and_selection_rules(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_keyboard_navigation_and_nudge_runtime_regression_script(
+        tmp_path
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The keyboard navigation and nudge runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_shift_only_shortcuts_ignore_extra_modifiers(tmp_path: Path) -> None:
     script_path = _write_shift_only_shortcut_runtime_regression_script(tmp_path)
     completed_process = subprocess.run(
@@ -6054,6 +7429,26 @@ def test_shift_only_shortcuts_ignore_extra_modifiers(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The shift-only shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_ctrl_and_cmd_additive_selection_match_shift_for_canvas_interactions(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_additive_selection_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The additive selection runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

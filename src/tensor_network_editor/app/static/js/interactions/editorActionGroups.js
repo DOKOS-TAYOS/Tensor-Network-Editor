@@ -144,6 +144,28 @@ export function createEditorActionGroups(ctx) {
         ctx,
         "toggleLinearPeriodicMode"
       ),
+      switchLinearPeriodicCell: resolveOptionalAction(
+        ctx,
+        "switchLinearPeriodicCell"
+      ),
+      switchGridPeriodicCell: resolveOptionalAction(
+        ctx,
+        "switchGridPeriodicCell"
+      ),
+      switchTreePeriodicCell: resolveOptionalAction(
+        ctx,
+        "switchTreePeriodicCell"
+      ),
+      switchBenchmarkPosition: resolveOptionalAction(
+        ctx,
+        "switchBenchmarkPosition"
+      ),
+      nudgeSelectedElements: (...args) => {
+        if (typeof ctx.nudgeSelectedElements === "function") {
+          return ctx.nudgeSelectedElements(...args);
+        }
+        return false;
+      },
       closeBenchmarkCompareModal: resolveOptionalAction(
         ctx,
         "closeBenchmarkCompareModal"

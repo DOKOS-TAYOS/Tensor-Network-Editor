@@ -133,7 +133,8 @@ export function registerHistorySelection(ctx) {
     isForMode: () =>
       (typeof ctx.isForMode === "function" && ctx.isForMode()) ||
       (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) ||
-      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()),
+      (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()) ||
+      (typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode()),
     captureEditableFocus: () => callOptionalContext("captureEditableFocus"),
     restoreEditableFocus: (focusState) =>
       callOptionalContext("restoreEditableFocus", focusState),
@@ -146,6 +147,8 @@ export function registerHistorySelection(ctx) {
       callOptionalContext("syncCurrentGraphIntoGridPeriodicGrid"),
     syncGridPeriodicBoundaryTensors: () =>
       callOptionalContext("syncGridPeriodicBoundaryTensors"),
+    syncCurrentGraphIntoTreePeriodicTree: () =>
+      callOptionalContext("syncCurrentGraphIntoTreePeriodicTree"),
     repairContractionPlan: () => callOptionalContext("repairContractionPlan"),
     reconcileTensorOrder: () => ctx.reconcileTensorOrder(),
     bumpSpecRevision: () => callOptionalContext("bumpSpecRevision"),

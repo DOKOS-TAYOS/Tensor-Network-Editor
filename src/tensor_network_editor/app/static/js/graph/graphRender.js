@@ -427,7 +427,11 @@ export function registerGraphRender(ctx) {
       if (typeof ctx.setActiveSidebarTab === "function") {
         ctx.setActiveSidebarTab("selection");
       }
-      ctx.selectElement(kind, element.id(), { additive: Boolean(event.originalEvent && event.originalEvent.shiftKey) });
+      ctx.selectElement(kind, element.id(), {
+        additive:
+          typeof ctx.isAdditiveSelectionModifier === "function" &&
+          ctx.isAdditiveSelectionModifier(event.originalEvent),
+      });
     });
 
     state.cy.on("cxttap", "node, edge", (event) => {

@@ -450,6 +450,161 @@ export function createInteractionEditorBindings({
     );
   }
 
+  function getKeyboardNudgeDistance(options = {}) {
+    const baseDistance =
+      Number.isFinite(ctx.constants?.GRID_SNAP_SIZE) && ctx.constants.GRID_SNAP_SIZE > 0
+        ? ctx.constants.GRID_SNAP_SIZE
+        : 20;
+    return options.fast ? baseDistance * 3 : baseDistance;
+  }
+
+  function getKeyboardNudgeDelta(direction, options = {}) {
+    const distance = getKeyboardNudgeDistance(options);
+    if (direction === "left") {
+      return { x: -distance, y: 0 };
+    }
+    if (direction === "right") {
+      return { x: distance, y: 0 };
+    }
+    if (direction === "up") {
+      return { x: 0, y: -distance };
+    }
+    if (direction === "down") {
+      return { x: 0, y: distance };
+    }
+    return null;
+  }
+
+  function nudgeSelectedElements(direction, options = {}) {
+    if (!Array.isArray(state.selectionIds) || !state.selectionIds.length) {
+      return false;
+    }
+    const delta = getKeyboardNudgeDelta(direction, options);
+    if (!delta) {
+      return false;
+    }
+    const selectedEntries =
+      typeof ctx.getSelectedEntries === "function" ? ctx.getSelectedEntries() : [];
+    if (!selectedEntries.length) {
+      return false;
+    }
+    const anchorSelectionId =
+      state.primarySelectionId || state.selectionIds[state.selectionIds.length - 1] || null;
+    const dragSelection =
+      anchorSelectionId && typeof ctx.buildCanvasSelectionDragState === "function"
+        ? ctx.buildCanvasSelectionDragState(anchorSelectionId)
+        : null;
+    const draggedTensorIds = Array.isArray(dragSelection?.tensorIds)
+      ? dragSelection.tensorIds
+      : [];
+    const draggedNoteIds = Array.isArray(dragSelection?.noteIds)
+      ? dragSelection.noteIds
+      : [];
+    const movableIndexEntries = selectedEntries.filter(
+      (entry) =>
+        entry.kind === "index" &&
+        entry.located &&
+        !draggedTensorIds.includes(entry.located.tensor.id)
+    );
+    const hasDragMove = draggedTensorIds.length > 0 || draggedNoteIds.length > 0;
+    if (!hasDragMove && !movableIndexEntries.length) {
+      return false;
+    }
+
+    const snapshot =
+      dragSelection?.snapshot ||
+      (typeof ctx.createHistorySnapshot === "function"
+        ? ctx.createHistorySnapshot()
+        : null);
+    let changed = false;
+
+    if (hasDragMove && typeof ctx.applyCanvasSelectionDragDelta === "function") {
+      ctx.applyCanvasSelectionDragDelta(dragSelection, delta.x, delta.y);
+      changed =
+        draggedTensorIds.some((tensorId) => {
+          const tensor =
+            typeof ctx.findVisibleTensorById === "function"
+              ? ctx.findVisibleTensorById(tensorId)
+              : ctx.findTensorById(tensorId);
+          const startPosition = dragSelection.tensorStartPositions[tensorId];
+          return (
+            tensor &&
+            startPosition &&
+            (tensor.position.x !== startPosition.x || tensor.position.y !== startPosition.y)
+          );
+        }) ||
+        draggedNoteIds.some((noteId) => {
+          const note = typeof ctx.findNoteById === "function" ? ctx.findNoteById(noteId) : null;
+          const startPosition = dragSelection.noteStartPositions[noteId];
+          return (
+            note &&
+            startPosition &&
+            (note.position.x !== startPosition.x || note.position.y !== startPosition.y)
+          );
+        });
+    }
+
+    const moveIndices = () => {
+      movableIndexEntries.forEach((entry) => {
+        const located =
+          typeof ctx.findIndexOwner === "function" ? ctx.findIndexOwner(entry.id) : null;
+        if (!located) {
+          return;
+        }
+        const nextOffset =
+          typeof ctx.clampIndexOffset === "function"
+            ? ctx.clampIndexOffset(
+                {
+                  x: located.index.offset.x + delta.x,
+                  y: located.index.offset.y + delta.y,
+                },
+                located.tensor
+              )
+            : {
+                x: located.index.offset.x + delta.x,
+                y: located.index.offset.y + delta.y,
+              };
+        if (
+          nextOffset.x === located.index.offset.x &&
+          nextOffset.y === located.index.offset.y
+        ) {
+          return;
+        }
+        located.index.offset = nextOffset;
+        changed = true;
+        if (typeof ctx.syncSingleIndexNodePosition === "function") {
+          ctx.syncSingleIndexNodePosition(located.tensor, located.index);
+        }
+      });
+    };
+
+    if (movableIndexEntries.length) {
+      if (typeof ctx.runWithIndexSync === "function") {
+        ctx.runWithIndexSync(moveIndices);
+      } else {
+        moveIndices();
+      }
+    }
+
+    if (!changed || !snapshot || typeof ctx.commitHistorySnapshot !== "function") {
+      return changed;
+    }
+    ctx.commitHistorySnapshot(snapshot);
+    if (typeof ctx.renderOverlayDecorations === "function") {
+      ctx.renderOverlayDecorations();
+    }
+    if (typeof ctx.renderMinimap === "function") {
+      ctx.renderMinimap();
+    }
+    if (typeof ctx.renderProperties === "function") {
+      ctx.renderProperties();
+    }
+    if (typeof ctx.updateToolbarState === "function") {
+      ctx.updateToolbarState();
+    }
+    return true;
+  }
+
   return {
     handleNewDesign,
     resetDesignState,
@@ -462,5 +617,6 @@ export function createInteractionEditorBindings({
     handleConnectClick,
     deleteSelection,
     removeSelectedElements,
+    nudgeSelectedElements,
   };
 }

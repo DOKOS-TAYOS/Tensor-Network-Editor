@@ -39,6 +39,10 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     return Boolean(element) && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
   }
 
+  function isAdditiveSelectionModifier(event) {
+    return Boolean(event && (event.shiftKey || event.ctrlKey || event.metaKey));
+  }
+
   function deepClone(value) {
     if (typeof window.structuredClone === "function") {
       return window.structuredClone(value);
@@ -210,6 +214,7 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     escapeSvgText,
     isIndexNode,
     isTextInput,
+    isAdditiveSelectionModifier,
     deepClone,
     clientPointToCanvasPoint,
     clientPointToWorldPoint,

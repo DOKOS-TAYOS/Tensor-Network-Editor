@@ -86,6 +86,21 @@ export function createInteractionShortcutBindings({
     setBenchmarkMode:
       shortcutActions.setBenchmarkMode ||
       resolveContextAction(ctx, "setBenchmarkMode"),
+    switchLinearPeriodicCell:
+      shortcutActions.switchLinearPeriodicCell ||
+      resolveContextAction(ctx, "switchLinearPeriodicCell"),
+    switchGridPeriodicCell:
+      shortcutActions.switchGridPeriodicCell ||
+      resolveContextAction(ctx, "switchGridPeriodicCell"),
+    switchTreePeriodicCell:
+      shortcutActions.switchTreePeriodicCell ||
+      resolveContextAction(ctx, "switchTreePeriodicCell"),
+    switchBenchmarkPosition:
+      shortcutActions.switchBenchmarkPosition ||
+      resolveContextAction(ctx, "switchBenchmarkPosition"),
+    nudgeSelectedElements:
+      shortcutActions.nudgeSelectedElements ||
+      resolveContextAction(ctx, "nudgeSelectedElements"),
     openSessionTemplatePicker:
       shortcutActions.openSessionTemplatePicker
       || resolveContextAction(ctx, "openSessionTemplatePicker"),
@@ -121,6 +136,11 @@ export function createInteractionShortcutBindings({
     setGridPeriodicMode,
     setTreePeriodicMode,
     setBenchmarkMode,
+    switchLinearPeriodicCell,
+    switchGridPeriodicCell,
+    switchTreePeriodicCell,
+    switchBenchmarkPosition,
+    nudgeSelectedElements,
     openSessionTemplatePicker,
     exportSelectedTemplateSpec,
     closeBenchmarkCompareModal,
@@ -194,6 +214,135 @@ export function createInteractionShortcutBindings({
     setTreePeriodicMode(true);
   }
 
+  function hasBlockingModalOpen() {
+    return Boolean(
+      state.isHelpOpen ||
+      state.isTemplateManagerOpen ||
+      state.benchmarkSession?.compareModal?.open
+    );
+  }
+
+  function canNavigateLinearPeriodic(direction) {
+    if (typeof ctx.getActiveLinearPeriodicCellName !== "function") {
+      return true;
+    }
+    const activeCellName = ctx.getActiveLinearPeriodicCellName();
+    if (!activeCellName) {
+      return true;
+    }
+    if (direction < 0) {
+      return activeCellName !== "initial";
+    }
+    if (direction > 0) {
+      return activeCellName !== "final";
+    }
+    return false;
+  }
+
+  function canNavigateGridPeriodic(direction) {
+    return typeof ctx.canSwitchGridPeriodicCell === "function"
+      ? ctx.canSwitchGridPeriodicCell(direction)
+      : true;
+  }
+
+  function canNavigateTreePeriodic(direction) {
+    return typeof ctx.canSwitchTreePeriodicCell === "function"
+      ? ctx.canSwitchTreePeriodicCell(direction)
+      : true;
+  }
+
+  function canNavigateBenchmark(direction) {
+    if (!state.benchmarkSession?.enabled) {
+      return true;
+    }
+    const activePosition = state.benchmarkSession?.activePosition;
+    if (!Number.isInteger(activePosition)) {
+      return true;
+    }
+    return direction > 0 || activePosition > 0;
+  }
+
+  function handleAltArrowNavigation(event, hasSystemModifier) {
+    if (hasSystemModifier || !event.altKey || hasBlockingModalOpen()) {
+      return false;
+    }
+    if (typeof ctx.isBenchmarkMode === "function" && ctx.isBenchmarkMode()) {
+      if (event.key === "ArrowLeft" && canNavigateBenchmark(-1)) {
+        event.preventDefault();
+        switchBenchmarkPosition(-1);
+        return true;
+      }
+      if (event.key === "ArrowRight" && canNavigateBenchmark(1)) {
+        event.preventDefault();
+        switchBenchmarkPosition(1);
+        return true;
+      }
+      return false;
+    }
+    if (typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode()) {
+      if (event.key === "ArrowUp" && canNavigateTreePeriodic("up")) {
+        event.preventDefault();
+        switchTreePeriodicCell("up");
+        return true;
+      }
+      if (event.key === "ArrowDown" && canNavigateTreePeriodic("down")) {
+        event.preventDefault();
+        switchTreePeriodicCell("down");
+        return true;
+      }
+      return false;
+    }
+    if (typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode()) {
+      const gridDirections = {
+        ArrowLeft: "left",
+        ArrowRight: "right",
+        ArrowUp: "up",
+        ArrowDown: "down",
+      };
+      const direction = gridDirections[event.key];
+      if (direction && canNavigateGridPeriodic(direction)) {
+        event.preventDefault();
+        switchGridPeriodicCell(direction);
+        return true;
+      }
+      return false;
+    }
+    if (typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode()) {
+      if (event.key === "ArrowLeft" && canNavigateLinearPeriodic(-1)) {
+        event.preventDefault();
+        switchLinearPeriodicCell(-1);
+        return true;
+      }
+      if (event.key === "ArrowRight" && canNavigateLinearPeriodic(1)) {
+        event.preventDefault();
+        switchLinearPeriodicCell(1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function handleSelectionNudge(event, hasSystemModifier) {
+    if (hasSystemModifier || event.altKey || hasBlockingModalOpen()) {
+      return false;
+    }
+    const directionByKey = {
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowUp: "up",
+      ArrowDown: "down",
+    };
+    const direction = directionByKey[event.key];
+    if (!direction || typeof nudgeSelectedElements !== "function") {
+      return false;
+    }
+    if (nudgeSelectedElements(direction, { fast: Boolean(event.shiftKey) })) {
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  }
+
   function handleKeydown(event) {
     const activeElement = ctx.document.activeElement;
     const inTextInput = ctx.isTextInput(event.target) || ctx.isTextInput(activeElement);
@@ -257,6 +406,13 @@ export function createInteractionShortcutBindings({
     }
 
     if (inTextInput) {
+      return;
+    }
+
+    if (handleAltArrowNavigation(event, hasSystemModifier)) {
+      return;
+    }
+    if (handleSelectionNudge(event, hasSystemModifier)) {
       return;
     }
 

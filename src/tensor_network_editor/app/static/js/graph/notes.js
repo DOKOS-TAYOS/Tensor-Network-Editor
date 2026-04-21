@@ -212,44 +212,51 @@ export function registerNotesFeature(ctx) {
       ? options.excludedNoteIds
       : [];
 
-    if (state.cy) {
-      ctx.runWithTensorSync(() => {
-        dragState.tensorIds.forEach((tensorId) => {
-          if (excludedTensorIds.includes(tensorId)) {
-            return;
-          }
-          const tensor =
-            typeof ctx.findVisibleTensorById === "function"
-              ? ctx.findVisibleTensorById(tensorId)
-              : ctx.findTensorById(tensorId);
-          const startPosition = dragState.tensorStartPositions[tensorId];
-          if (!tensor || !startPosition) {
-            return;
-          }
-          const nextPosition = {
-            x: Math.round(startPosition.x + deltaX),
-            y: Math.round(startPosition.y + deltaY),
-          };
-          if (
-            typeof ctx.canEditCurrentContractionStage === "function" &&
-            ctx.canEditCurrentContractionStage() &&
-            typeof ctx.updateCurrentStageOperandLayout === "function"
-          ) {
-            ctx.updateCurrentStageOperandLayout(tensor.id, { position: nextPosition });
-            tensor.position = nextPosition;
-          } else if (ctx.findTensorById(tensorId)) {
-            tensor.position.x = nextPosition.x;
-            tensor.position.y = nextPosition.y;
-          } else {
-            return;
-          }
-          const tensorElement = state.cy.getElementById(tensor.id);
-          if (tensorElement && tensorElement.length) {
-            tensorElement.position(tensor.position);
-          }
-          ctx.syncIndexNodePositions(tensor);
-        });
+    const updateTensorPositions = () => {
+      dragState.tensorIds.forEach((tensorId) => {
+        if (excludedTensorIds.includes(tensorId)) {
+          return;
+        }
+        const tensor =
+          typeof ctx.findVisibleTensorById === "function"
+            ? ctx.findVisibleTensorById(tensorId)
+            : ctx.findTensorById(tensorId);
+        const startPosition = dragState.tensorStartPositions[tensorId];
+        if (!tensor || !startPosition) {
+          return;
+        }
+        const nextPosition = {
+          x: Math.round(startPosition.x + deltaX),
+          y: Math.round(startPosition.y + deltaY),
+        };
+        if (
+          typeof ctx.canEditCurrentContractionStage === "function" &&
+          ctx.canEditCurrentContractionStage() &&
+          typeof ctx.updateCurrentStageOperandLayout === "function"
+        ) {
+          ctx.updateCurrentStageOperandLayout(tensor.id, { position: nextPosition });
+          tensor.position = nextPosition;
+        } else if (ctx.findTensorById(tensorId)) {
+          tensor.position.x = nextPosition.x;
+          tensor.position.y = nextPosition.y;
+        } else {
+          return;
+        }
+        if (!state.cy) {
+          return;
+        }
+        const tensorElement = state.cy.getElementById(tensor.id);
+        if (tensorElement && tensorElement.length) {
+          tensorElement.position(tensor.position);
+        }
+        ctx.syncIndexNodePositions(tensor);
       });
+    };
+
+    if (typeof ctx.runWithTensorSync === "function") {
+      ctx.runWithTensorSync(updateTensorPositions);
+    } else {
+      updateTensorPositions();
     }
 
     dragState.noteIds.forEach((noteId) => {
@@ -329,7 +336,11 @@ export function registerNotesFeature(ctx) {
         header.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
+          selectNoteIfNeeded(note.id, {
+            additive:
+              typeof ctx.isAdditiveSelectionModifier === "function" &&
+              ctx.isAdditiveSelectionModifier(event),
+          });
         });
 
         const actions = document.createElement("div");
@@ -391,7 +402,11 @@ export function registerNotesFeature(ctx) {
         });
         textarea.addEventListener("click", (event) => {
           event.stopPropagation();
-          selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
+          selectNoteIfNeeded(note.id, {
+            additive:
+              typeof ctx.isAdditiveSelectionModifier === "function" &&
+              ctx.isAdditiveSelectionModifier(event),
+          });
         });
         textarea.addEventListener("focus", () => {
           if (state.selectionIds.length === 1 && state.selectionIds[0] === note.id) {
@@ -438,7 +453,11 @@ export function registerNotesFeature(ctx) {
       noteElement.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        selectNoteIfNeeded(note.id, { additive: Boolean(event.shiftKey) });
+        selectNoteIfNeeded(note.id, {
+          additive:
+            typeof ctx.isAdditiveSelectionModifier === "function" &&
+            ctx.isAdditiveSelectionModifier(event),
+        });
       });
       noteElement.appendChild(frame);
       notesLayer.appendChild(noteElement);
@@ -554,7 +573,9 @@ export function registerNotesFeature(ctx) {
       return;
     }
     preserveSelectionForCanvasDrag(noteId, {
-      additive: Boolean(event.shiftKey),
+      additive:
+        typeof ctx.isAdditiveSelectionModifier === "function" &&
+        ctx.isAdditiveSelectionModifier(event),
     });
     const dragSelection = buildCanvasSelectionDragState(noteId);
     state.noteDragState = {

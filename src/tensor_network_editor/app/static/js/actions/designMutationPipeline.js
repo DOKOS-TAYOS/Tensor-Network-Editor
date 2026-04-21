@@ -8,6 +8,7 @@ export function createDesignMutationPipeline({
   syncLinearPeriodicBoundaryTensors,
   syncCurrentGraphIntoGridPeriodicGrid,
   syncGridPeriodicBoundaryTensors,
+  syncCurrentGraphIntoTreePeriodicTree,
   repairContractionPlan,
   reconcileTensorOrder,
   bumpSpecRevision,
@@ -56,13 +57,16 @@ export function createDesignMutationPipeline({
     state.plannerFutureBadgeDisclosure = {};
     if (typeof syncCurrentGraphIntoGridPeriodicGrid === "function") {
       syncCurrentGraphIntoGridPeriodicGrid();
+    } else if (typeof syncGridPeriodicBoundaryTensors === "function") {
+      syncGridPeriodicBoundaryTensors();
     }
     if (typeof syncCurrentGraphIntoLinearPeriodicChain === "function") {
       syncCurrentGraphIntoLinearPeriodicChain();
-    } else if (typeof syncGridPeriodicBoundaryTensors === "function") {
-      syncGridPeriodicBoundaryTensors();
     } else if (typeof syncLinearPeriodicBoundaryTensors === "function") {
       syncLinearPeriodicBoundaryTensors();
+    }
+    if (typeof syncCurrentGraphIntoTreePeriodicTree === "function") {
+      syncCurrentGraphIntoTreePeriodicTree();
     }
     if (typeof repairContractionPlan === "function") {
       repairContractionPlan();

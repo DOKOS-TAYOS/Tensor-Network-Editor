@@ -23,16 +23,16 @@ export function registerInteractions(ctx) {
   Object.assign(runtime, createInteractionCanvasBindings(env));
   Object.assign(
     runtime,
-    createInteractionShortcutBindings({
+    createInteractionEditorBindings({
       ...env,
-      shortcutActions: actionGroups.shortcuts,
+      editorActions: actionGroups.editor,
     })
   );
   Object.assign(
     runtime,
-    createInteractionEditorBindings({
+    createInteractionShortcutBindings({
       ...env,
-      editorActions: actionGroups.editor,
+      shortcutActions: actionGroups.shortcuts,
     })
   );
   Object.assign(

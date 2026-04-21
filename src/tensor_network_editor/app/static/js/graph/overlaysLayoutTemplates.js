@@ -128,7 +128,9 @@ export function registerOverlaysLayoutTemplates(ctx) {
         event.preventDefault();
         event.stopPropagation();
         ctx.selectElement("group", group.id, {
-          additive: Boolean(event.shiftKey),
+          additive:
+            typeof ctx.isAdditiveSelectionModifier === "function" &&
+            ctx.isAdditiveSelectionModifier(event),
         });
       });
       overlay.addEventListener("contextmenu", (event) => {
@@ -356,7 +358,11 @@ export function registerOverlaysLayoutTemplates(ctx) {
     if (!group) {
       return;
     }
-    if (Boolean(event.shiftKey) && !state.selectionIds.includes(groupId)) {
+    if (
+      typeof ctx.isAdditiveSelectionModifier === "function" &&
+      ctx.isAdditiveSelectionModifier(event) &&
+      !state.selectionIds.includes(groupId)
+    ) {
       ctx.setSelection([...state.selectionIds, groupId], { primaryId: groupId });
     } else if (!state.selectionIds.includes(groupId)) {
       ctx.setSelection([groupId], { primaryId: groupId });
