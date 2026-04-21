@@ -13,6 +13,8 @@ specs from Python.
 - [GroupSpec and CanvasNoteSpec](#groupspec-and-canvasnotespec)
 - [Contraction Plans](#contraction-plans)
 - [Linear Periodic Models](#linear-periodic-models)
+- [Grid Periodic Models](#grid-periodic-models)
+- [Tree Periodic Models](#tree-periodic-models)
 - [Result Models and Enums](#result-models-and-enums)
 - [Practical Advice](#practical-advice)
 
@@ -46,6 +48,8 @@ It stores:
 - `notes`
 - `contraction_plan`
 - `linear_periodic_chain`
+- `grid_periodic_grid`
+- `tree_periodic_tree`
 - `metadata`
 
 `metadata` is the place for lightweight annotations. The stable tag convention
@@ -105,8 +109,7 @@ print(tensor.shape)
 above, it is `(2, 3)`.
 
 Each tensor also stores canvas `position`, visual `size`, optional metadata,
-and an optional linear-periodic role used by the specialized periodic editor
-mode.
+and optional periodic-mode roles used by the specialized editors.
 
 In the editor sidebar, tensor and index properties expose:
 
@@ -232,6 +235,61 @@ have tensors, edges, groups, notes, metadata, and its own contraction plan.
 
 Most users can start with normal `NetworkSpec` fields and only use these models
 when working with repeated one-dimensional structures.
+
+## Grid Periodic Models
+
+Grid periodic mode uses:
+
+- `GridPeriodicGridSpec`
+- `LinearPeriodicCellSpec`
+- `GridPeriodicCellName`
+- `GridPeriodicTensorRole`
+
+Import these from `tensor_network_editor.models` when you need them directly.
+
+This mode stores nine representative cells around a center cell:
+
+- `top_left`
+- `top`
+- `top_right`
+- `left`
+- `center`
+- `right`
+- `bottom_left`
+- `bottom`
+- `bottom_right`
+
+Each cell can store tensors, edges, groups, notes, and metadata. The typed
+boundary roles (`up`, `right`, `down`, `left`) describe how open bonds continue
+between neighboring cells.
+
+Grid periodic payloads are mainly for repeated two-dimensional structures.
+Manual contraction plans are intentionally not stored inside these cells.
+
+## Tree Periodic Models
+
+Tree periodic mode uses:
+
+- `TreePeriodicTreeSpec`
+- `LinearPeriodicCellSpec`
+- `TreePeriodicCellName`
+- `TreePeriodicTensorRole`
+
+Import these from `tensor_network_editor.models` when you need them directly.
+
+This mode stores three representative cells:
+
+- `root_cell`
+- `branch_cell`
+- `leaf_cell`
+
+It also stores a `branching_factor` and the active representative cell. Parent
+and child boundary tensors describe how the local graph continues upward or
+downward in the repeated tree.
+
+Tree periodic payloads are for hierarchical repeated structures. Like the grid
+mode, they are focused on modeling, validation, serialization, and code
+generation rather than stored manual contraction plans inside each cell.
 
 ## Result Models and Enums
 

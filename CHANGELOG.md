@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 - A second conservative modularization pass now moves canonicalization, diffing, linting, serialization, and subnetwork extraction internals behind thin public facades, while internal packages import those implementations directly instead of routing through compatibility wrappers.
 - A third conservative modularization pass now splits linear-periodic carry semantics into `tensor_network_editor.internal.modes`, breaks linear-periodic codegen into smaller `common` / `standard` / `carry` modules, and removes internal dependencies on the old `_linear_periodic_shared` implementation path.
 - The editor server now rebuilds its shared static-asset cache when source files change and uses nanosecond asset versions, avoiding stale in-process assets after fast local edits.
+- The CLI now exposes a first-class `benchmark` subcommand with stable `text`, `json`, `csv`, and `latex` outputs for comparing the manual, auto-full, auto-future, and auto-past contraction variants of one saved design.
+- Public docs now surface benchmark workflows and the advanced periodic modes more clearly, including dedicated guidance for `For bidimensional` and `For Tree` instead of focusing almost entirely on the linear workflow.
 
 ### Fixed
 
@@ -20,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - Frontend runtime test scaffolding now reuses named local JS dependency presets for shortcut, interaction, utility, and layout/subnetwork runtime scripts, reducing repeated copy boilerplate without changing test behavior.
 - Tree-periodic codegen renderers now include the missing type annotations needed for the targeted CLI `mypy` regression check, and the linear-periodic headless analysis regression test now matches the current single-analysis flow.
 - Editor HTTP request handling now rejects truncated request bodies deterministically, repeated session completion requests keep the first confirmed result instead of overwriting it, and benchmark-base planner guards clear all transient disclosure/inspection state consistently.
+- The editor toolbar no longer presents `For Tree` as “Not available yet”; its copy now matches the real support level of the mode while still making clear in docs that planner/manual contraction editing remains disabled there.
 
 ## [0.3.0] - 2026-04-20
 

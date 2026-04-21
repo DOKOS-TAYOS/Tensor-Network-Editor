@@ -15,7 +15,8 @@ limits.
 - [Saving and Loading](#saving-and-loading)
 - [Manual Contraction Plans](#manual-contraction-plans)
 - [Planner Extra](#planner-extra)
-- [Linear Periodic Mode](#linear-periodic-mode)
+- [Benchmark Mode](#benchmark-mode)
+- [Periodic Modes](#periodic-modes)
 - [Useful Tips](#useful-tips)
 - [Current Limits](#current-limits)
 
@@ -230,7 +231,35 @@ The planner can compare manual and automatic paths using metrics such as:
 The package still works without the `planner` extra. You only lose automatic
 suggestions.
 
-## Linear Periodic Mode
+## Benchmark Mode
+
+Benchmark mode is the editor workflow for comparing several contraction schemes
+on the same network without permanently changing the saved manual path until
+you leave the benchmark session.
+
+Useful ideas:
+
+- `Benchmark` starts from the current tensor network view and lets you move
+  through saved comparison schemes
+- `Compare` opens a summary table with `Name`, `FLOP`, `MAC`, `Peak`, and
+  `Peak Memory`
+- the compare dialog can export the current table as `CSV` or `TXT`, and can
+  copy a `LaTeX` table for papers or notes
+- the CLI mirrors this workflow with
+  `tensor-network-editor benchmark my_network.json`
+- `--format csv`, `--format latex`, and `--output ...` are useful when you
+  want reproducible tables outside the browser
+
+If the active `.venv` does not include the `planner` extra, manual benchmark
+rows still work and the automatic rows are reported as unavailable.
+
+## Periodic Modes
+
+Periodic modes are the specialized editor workflows for repeated structures.
+They are more constrained than free drawing, but they let you keep a reusable
+typed payload instead of treating repetition as a visual convention only.
+
+### Linear periodic (For unidimensional)
 
 Linear periodic mode is for repeated one-dimensional structures with an
 initial cell, a periodic cell, and a final cell.
@@ -254,6 +283,42 @@ Useful ideas:
 This mode is more specialized than normal free drawing. Start with the regular
 editor workflow unless your network really is a repeated chain.
 
+### Grid periodic (For bidimensional)
+
+Grid periodic mode is for repeated two-dimensional layouts represented by a
+nine-cell neighborhood around the active center cell.
+
+Useful ideas:
+
+- the saved payload uses `GridPeriodicGridSpec` with one representative cell
+  for each position in the `3x3` neighborhood
+- boundary tensors describe how bonds continue toward neighboring cells
+- export works with the bundled backends, so you can keep a reusable 2D design
+  instead of flattening it into one large hand-drawn graph
+- planner/manual contraction editing is intentionally limited here; the mode is
+  focused on modeling, validation, serialization, and code generation
+
+This is a good fit for repeated PEPS-style neighborhoods or other local 2D
+motifs where center, edge, and corner cells differ.
+
+### Tree periodic (For Tree)
+
+Tree periodic mode is for repeated rooted tree structures with representative
+`root`, `branch`, and `leaf` cells plus a configurable branching factor.
+
+Useful ideas:
+
+- the saved payload uses `TreePeriodicTreeSpec`
+- the editor keeps one representative cell for the root, one for internal
+  branches, and one for leaves
+- export works with the bundled backends, so the mode is officially supported
+  for modeling, serialization, and code generation
+- planner/manual contraction editing is still disabled in `For Tree`; this
+  iteration only productizes the mode as a modeling and export workflow
+
+This mode is useful when the repeated structure is genuinely hierarchical and a
+linear or grid neighborhood would hide that intent.
+
 ## Useful Tips
 
 - Keep tensor and index names meaningful. Generated Python is easier to read.
@@ -267,6 +332,8 @@ editor workflow unless your network really is a repeated chain.
   looks suspicious.
 - Run `tensor-network-editor analyze my_network.json --dtype float32` when
   memory estimates should match your intended element width.
+- Run `tensor-network-editor benchmark my_network.json --format csv --output benchmark.csv`
+  when you want a stable comparison table for experiments or papers.
 
 ## Current Limits
 
@@ -274,7 +341,10 @@ editor workflow unless your network really is a repeated chain.
 - The editor does not edit real tensor values.
 - Generated tensors are initialized by generated backend code.
 - TenPy code generation is not included.
-- For mode works with every bundled backend.
+- Linear, grid, and tree periodic code generation work with every bundled
+  backend.
 - Manual outer-product steps cannot be exported to `tensorkrowch`.
+- `For bidimensional` and `For Tree` do not expose the same planner/manual
+  contraction workflow as normal or linear-periodic editing.
 
 For common fixes, see [troubleshooting.md](troubleshooting.md).

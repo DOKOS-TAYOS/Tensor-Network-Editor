@@ -23,6 +23,8 @@ avoid reading one huge document from top to bottom.
 - save those structures as backend-independent JSON
 - reload the same design later
 - generate Python code for several tensor-network backends
+- benchmark contraction variants from the editor or the CLI
+- use linear, grid, and tree periodic editor modes
 - inspect validation, linting, diff, and analysis results from Python or the CLI
 
 The browser interface is local to your machine. The package starts a local
@@ -44,10 +46,10 @@ the stable user-facing API.
 | Install the package quickly | [installation.md](installation.md) |
 | Try the editor for the first time | [getting-started.md](getting-started.md) |
 | Choose a backend or collection format | [user-guide.md](user-guide.md) |
-| Use templates and planner features | [user-guide.md](user-guide.md) |
+| Use templates, benchmark mode, or periodic modes | [user-guide.md](user-guide.md) |
 | Generate code from Python | [api.md](api.md) |
 | Understand `NetworkSpec` and related models | [data-models.md](data-models.md) |
-| Validate, lint, analyze, export, or diff from the terminal | [cli.md](cli.md) |
+| Validate, lint, analyze, benchmark, export, or diff from the terminal | [cli.md](cli.md) |
 | Fix install, backend, schema, or validation problems | [troubleshooting.md](troubleshooting.md) |
 
 ## Typical Workflow

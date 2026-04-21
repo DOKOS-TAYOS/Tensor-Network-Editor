@@ -7,7 +7,7 @@ import sys
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-from .analysis import analyze_spec
+from .analysis import analyze_contraction, analyze_spec
 from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
 from .canonicalization import canonicalize_spec
 from .diffing import diff_specs, semantic_diff_specs
@@ -19,6 +19,7 @@ from .errors import (
 )
 from .internal.cli._cli_formatters import (
     print_analysis_text,
+    print_benchmark_report_text,
     print_diff_text,
     print_json,
     print_lint_result,
@@ -27,6 +28,7 @@ from .internal.cli._cli_formatters import (
 )
 from .internal.cli._cli_handlers import (
     handle_analyze_command,
+    handle_benchmark_command,
     handle_canonicalize_command,
     handle_diff_command,
     handle_edit_command,
@@ -75,6 +77,7 @@ def build_command_parser() -> argparse.ArgumentParser:
             handle_validate=_handle_validate,
             handle_lint=_handle_lint,
             handle_analyze=_handle_analyze,
+            handle_benchmark=_handle_benchmark,
             handle_export=_handle_export,
             handle_diff=_handle_diff,
             handle_canonicalize=_handle_canonicalize,
@@ -148,6 +151,24 @@ def _handle_analyze(args: argparse.Namespace) -> int:
         analyze_spec=analyze_spec,
         print_json=print_json,
         print_analysis_text=print_analysis_text,
+    )
+
+
+def _handle_benchmark(args: argparse.Namespace) -> int:
+    """Compare manual and automatic contraction variants for one saved spec."""
+    from .internal.io._io import write_utf8_text
+
+    return handle_benchmark_command(
+        args,
+        load_spec=load_spec,
+        analyze_contraction=analyze_contraction,
+        print_json=print_json,
+        print_benchmark_report_text=print_benchmark_report_text,
+        write_utf8_text=lambda path, content: write_utf8_text(
+            path,
+            content,
+            description="benchmark report",
+        ),
     )
 
 

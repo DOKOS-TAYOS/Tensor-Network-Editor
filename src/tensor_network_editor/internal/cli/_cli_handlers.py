@@ -6,10 +6,12 @@ import argparse
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 from ...errors import SerializationError
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
 from ...types import JSONValue
+from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
     deserialize_spec,
     deserialize_spec_from_python_code,
@@ -22,6 +24,13 @@ from ..models._headless_models import (
     SpecDiffResult,
 )
 from ..templates._template_catalog import TemplateParameters
+from ._cli_benchmark import (
+    BenchmarkReport,
+    build_benchmark_report,
+    serialize_benchmark_report_csv,
+    serialize_benchmark_report_latex,
+    serialize_benchmark_report_text,
+)
 
 
 def handle_edit_command(
@@ -104,6 +113,33 @@ def handle_analyze_command(
         print_json(report.to_dict())
     else:
         print_analysis_text(report)
+    return 0
+
+
+def handle_benchmark_command(
+    args: argparse.Namespace,
+    *,
+    load_spec: Callable[[str], NetworkSpec],
+    analyze_contraction: Callable[..., ContractionAnalysisResult],
+    print_json: Callable[[object], None],
+    print_benchmark_report_text: Callable[[BenchmarkReport], None],
+    write_utf8_text: Callable[[str, str], None],
+) -> int:
+    """Analyze and export a stable benchmark comparison table."""
+    spec = load_spec(args.path)
+    analysis = analyze_contraction(spec, memory_dtype=args.dtype)
+    report = build_benchmark_report(analysis)
+    if args.output is not None:
+        output_text = _serialize_benchmark_report(report, output_format=args.format)
+        write_utf8_text(args.output, output_text)
+        print(f"Wrote benchmark report to {args.output}")
+        return 0
+    if args.format == "json":
+        print_json(report.to_dict())
+    elif args.format == "text":
+        print_benchmark_report_text(report)
+    else:
+        print(_serialize_benchmark_report(report, output_format=args.format))
     return 0
 
 
@@ -221,6 +257,19 @@ def handle_template_build_command(
         return 0
     print_json(serialize_spec(spec))
     return 0
+
+
+def _serialize_benchmark_report(report: object, *, output_format: str) -> str:
+    """Return the serialized benchmark report for a non-JSON format."""
+    if output_format == "text":
+        return serialize_benchmark_report_text(cast(BenchmarkReport, report))
+    if output_format == "csv":
+        return serialize_benchmark_report_csv(cast(BenchmarkReport, report))
+    if output_format == "latex":
+        return serialize_benchmark_report_latex(cast(BenchmarkReport, report))
+    if output_format == "json":
+        return json.dumps(cast(BenchmarkReport, report).to_dict(), indent=2)
+    raise ValueError(f"Unsupported benchmark output format: {output_format}")
 
 
 def load_spec_for_lint(path: str) -> NetworkSpec:

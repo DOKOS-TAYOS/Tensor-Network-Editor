@@ -15,6 +15,7 @@ from ..models._headless_models import (
     SpecAnalysisReport,
     SpecDiffResult,
 )
+from ._cli_benchmark import BenchmarkReport, serialize_benchmark_report_text
 
 
 def print_json(payload: object) -> None:
@@ -91,6 +92,11 @@ def print_analysis_text(report: SpecAnalysisReport) -> None:
         "Manual subtrees vs automatic past",
         contraction.comparisons.get("manual_subtrees_vs_automatic_past"),
     )
+
+
+def print_benchmark_report_text(report: BenchmarkReport) -> None:
+    """Print a readable benchmark comparison table."""
+    print(serialize_benchmark_report_text(report))
 
 
 def _print_automatic_analysis_text(label: str, analysis: object) -> None:

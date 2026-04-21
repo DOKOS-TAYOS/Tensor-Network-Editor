@@ -28,8 +28,11 @@ offline use, and generated code you can inspect.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
-- Build repeated chains with For mode and export them with any bundled backend.
+- Work with linear, grid, and tree periodic modes and export them with any
+  bundled backend.
 - Inspect manual contraction paths and optional planner suggestions.
+- Benchmark manual and automatic contraction variants from the editor or the
+  CLI, with reproducible CSV/TXT/LaTeX-style tables.
 - Get structural analysis with FLOP and MAC cost summaries.
 - Use the package from the CLI or directly from Python.
 
@@ -79,6 +82,13 @@ Open an existing design and save generated code when the session is confirmed:
 tensor-network-editor edit --load my_network.json --engine quimb --save-code generated_network.py
 ```
 
+Generate a reproducible benchmark table from one saved design:
+
+```bash
+tensor-network-editor benchmark my_network.json
+tensor-network-editor benchmark my_network.json --dtype float32 --format csv --output benchmark.csv
+```
+
 Use the editor from Python:
 
 ```python
@@ -117,11 +127,11 @@ print(result.code)
 - [Installation](docs/installation.md): full setup instructions.
 - [Getting started](docs/getting-started.md): first useful workflow.
 - [User guide](docs/user-guide.md): editor workflow, templates, planner, tips,
-  and limits.
+  benchmark mode, periodic modes, and limits.
 - [Python API](docs/api.md): public functions and practical examples.
 - [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges, groups,
-  notes, and contraction plans.
-- [CLI](docs/cli.md): terminal commands, JSON output, and template workflows.
+  notes, contraction plans, and periodic-mode payloads.
+- [CLI](docs/cli.md): terminal commands, benchmark/export workflows, and JSON output.
 - [Troubleshooting](docs/troubleshooting.md): common problems and fixes.
 
 ## Current Limits
@@ -130,8 +140,11 @@ print(result.code)
 - Real tensor values are not edited in the visual editor; generated tensors are
   initialized by the generated backend code.
 - TenPy code generation is not included.
-- For mode works with all bundled backends. Manual outer-product steps still
-  cannot be exported safely to `tensorkrowch`.
+- Linear, grid, and tree periodic code generation work with all bundled
+  backends.
+- Manual outer-product steps still cannot be exported safely to `tensorkrowch`.
+- Planner/manual contraction editing is more limited in `For bidimensional`
+  and `For Tree` than in normal or linear-periodic workflows.
 
 ## Project Links
 

@@ -21,6 +21,7 @@ class CliHandlerBindings:
     handle_validate: CommandHandler
     handle_lint: CommandHandler
     handle_analyze: CommandHandler
+    handle_benchmark: CommandHandler
     handle_export: CommandHandler
     handle_diff: CommandHandler
     handle_canonicalize: CommandHandler
@@ -81,6 +82,24 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     )
     _add_output_format_argument(analyze_parser)
     analyze_parser.set_defaults(handler=handlers.handle_analyze)
+
+    benchmark_parser = subparsers.add_parser(
+        "benchmark",
+        help="Compare manual and automatic contraction variants for a saved spec.",
+    )
+    benchmark_parser.add_argument("path", type=str)
+    benchmark_parser.add_argument(
+        "--dtype",
+        choices=list(SUPPORTED_MEMORY_DTYPES),
+        default=DEFAULT_MEMORY_DTYPE,
+    )
+    benchmark_parser.add_argument(
+        "--format",
+        choices=["text", "json", "csv", "latex"],
+        default="text",
+    )
+    benchmark_parser.add_argument("--output", type=str)
+    benchmark_parser.set_defaults(handler=handlers.handle_benchmark)
 
     export_parser = subparsers.add_parser(
         "export", help="Generate backend Python code from a saved spec."

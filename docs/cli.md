@@ -2,7 +2,7 @@
 
 This page covers the `tensor-network-editor` command. The CLI can launch the
 visual editor or run headless commands for validation, linting, analysis, code
-generation, diffs, and templates.
+generation, benchmark comparisons, diffs, and templates.
 
 ## Contents
 
@@ -12,6 +12,7 @@ generation, diffs, and templates.
 - [Validate](#validate)
 - [Lint](#lint)
 - [Analyze](#analyze)
+- [Benchmark](#benchmark)
 - [Export](#export)
 - [Canonicalize](#canonicalize)
 - [Diff](#diff)
@@ -89,6 +90,7 @@ Headless commands work without opening the visual editor:
 tensor-network-editor validate my_network.json
 tensor-network-editor lint my_network.json
 tensor-network-editor analyze my_network.json
+tensor-network-editor benchmark my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
 tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
@@ -164,6 +166,46 @@ Supported dtypes:
 
 Analysis can include manual, automatic full, automatic future, and automatic
 past contraction summaries when the design supports those comparisons.
+
+## Benchmark
+
+Benchmark one saved design and compare the stable variants:
+
+```bash
+tensor-network-editor benchmark my_network.json
+```
+
+The benchmark command compares these rows when they are available:
+
+- `Manual`
+- `Auto full`
+- `Auto future`
+- `Auto past`
+
+Useful options:
+
+```bash
+tensor-network-editor benchmark my_network.json --dtype float32
+tensor-network-editor benchmark my_network.json --format json
+tensor-network-editor benchmark my_network.json --format csv --output benchmark.csv
+tensor-network-editor benchmark my_network.json --format latex --output benchmark.tex
+```
+
+The table always uses the same columns:
+
+- `Name`
+- `FLOP`
+- `MAC`
+- `Peak`
+- `Peak Memory`
+
+When the `planner` extra is not installed in the active `.venv`, the manual row
+still works and the automatic rows are marked unavailable. Text, CSV, and LaTeX
+show `-` for those metrics, while JSON preserves each row `status` and
+`message`.
+
+For periodic specs, benchmark uses the same active-cell normalization as
+`analyze`, so it operates on the active linear/grid/tree representative cell.
 
 ## Export
 
@@ -275,6 +317,7 @@ These commands support `--format json`:
 - `validate`
 - `lint`
 - `analyze`
+- `benchmark`
 - `diff`
 - `template list`
 

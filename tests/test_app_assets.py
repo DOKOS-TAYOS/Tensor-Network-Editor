@@ -204,6 +204,7 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert ">For bidimensional<" in html
     assert ">For Tree<" in html
     assert ">Benchmark<" in html
+    assert "Work with the root, branch, and leaf tree cells." in html
     assert 'title="Bidimensional periodic mode is not available yet."' not in html
     assert 'title="Benchmark mode is not available yet."' not in html
     assert 'id="benchmark-compare-button"' in html

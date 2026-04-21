@@ -148,3 +148,43 @@ def test_headless_cli_commands_work_with_real_files(tmp_path: Path) -> None:
     assert template_payload["schema_version"] == 4
     assert template_payload["network"]["name"] == "MPS"
     assert len(template_payload["network"]["tensors"]) == 4
+
+
+def test_benchmark_cli_command_outputs_json_and_csv(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    spec = build_sample_spec()
+    spec_path = tmp_path / "benchmark.json"
+    csv_path = tmp_path / "benchmark.csv"
+    save_spec(spec, spec_path)
+
+    json_result = _run_cli(
+        "benchmark",
+        str(spec_path),
+        "--format",
+        "json",
+        cwd=repo_root,
+    )
+    _assert_cli_success(json_result)
+    json_payload = json.loads(json_result.stdout)
+    assert json_payload["memory_dtype"] == "float64"
+    assert [row["key"] for row in json_payload["rows"]] == [
+        "manual",
+        "auto_full",
+        "auto_future",
+        "auto_past",
+    ]
+
+    csv_result = _run_cli(
+        "benchmark",
+        str(spec_path),
+        "--format",
+        "csv",
+        "--output",
+        str(csv_path),
+        cwd=repo_root,
+    )
+    _assert_cli_success(csv_result)
+    csv_body = csv_path.read_text(encoding="utf-8")
+    assert csv_body.startswith("Name,FLOP,MAC,Peak,Peak Memory")
+    assert "Manual," in csv_body
+    assert "Auto future," in csv_body
