@@ -2,7 +2,8 @@
 
 This page covers the `tensor-network-editor` command. The CLI can launch the
 visual editor or run headless commands for validation, linting, analysis, code
-generation, benchmark comparisons, diffs, and templates.
+generation, benchmark comparisons, diffs, templates, and reusable-subnetwork
+catalogs.
 
 ## Contents
 
@@ -17,6 +18,7 @@ generation, benchmark comparisons, diffs, and templates.
 - [Canonicalize](#canonicalize)
 - [Diff](#diff)
 - [Template Commands](#template-commands)
+- [Subnetwork Commands](#subnetwork-commands)
 - [JSON Output](#json-output)
 - [Exit Codes](#exit-codes)
 
@@ -96,6 +98,8 @@ tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
 tensor-network-editor template list
 tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --physical-dimension 2
+tensor-network-editor subnetwork list my_network.json
+tensor-network-editor subnetwork save my_network.json --tensor-ids tensor_a tensor_b --name local_pair --tags reusable boundary
 ```
 
 These are useful for scripts, quick checks, and CI.
@@ -310,6 +314,52 @@ Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, and Binary Tree.
 When `--output` is omitted, `template build` prints the serialized spec JSON to
 standard output.
 
+## Subnetwork Commands
+
+Reusable subnetworks live in the project catalog resolved from the spec path:
+`.tensor-network-editor/subnetworks.json` next to the saved design. Some
+commands can also merge an explicit shared catalog path.
+
+List the reusable subnetworks available for one project:
+
+```bash
+tensor-network-editor subnetwork list my_network.json
+```
+
+Include a shared catalog in the merged view:
+
+```bash
+tensor-network-editor subnetwork list my_network.json --shared-catalog-path /path/to/shared-subnetworks.json
+```
+
+Save selected tensors from one spec into the project catalog:
+
+```bash
+tensor-network-editor subnetwork save my_network.json --tensor-ids tensor_a tensor_b --name local_pair --tags reusable boundary
+```
+
+Overwrite an existing project entry with the same name:
+
+```bash
+tensor-network-editor subnetwork save my_network.json --tensor-ids tensor_a tensor_b --name local_pair --overwrite
+```
+
+Export one reusable subnetwork back to a normal spec file:
+
+```bash
+tensor-network-editor subnetwork export my_network.json local_pair --output local_pair.json
+```
+
+Useful details:
+
+- `subnetwork save` always writes to the project catalog next to the design
+- `subnetwork list` and `subnetwork export` can merge a shared catalog through
+  `--shared-catalog-path`
+- when project and shared catalogs contain the same subnetwork name, the
+  project entry is used
+- `subnetwork list --format json` includes merged definitions and catalog
+  warnings
+
 ## JSON Output
 
 These commands support `--format json`:
@@ -319,6 +369,7 @@ These commands support `--format json`:
 - `analyze`
 - `benchmark`
 - `diff`
+- `subnetwork list`
 - `template list`
 
 `template build` already emits JSON when you omit `--output`.

@@ -324,6 +324,17 @@ class EditorServer:
                     return routes.handle_subnetwork_extract(session, payload)
                 if path == "/api/subnetwork/prepare-insert":
                     return routes.handle_subnetwork_prepare_insert(session, payload)
+                if path == "/api/subnetwork-library/save":
+                    return routes.handle_subnetwork_library_save(session, payload)
+                if path == "/api/subnetwork-library/rename":
+                    return routes.handle_subnetwork_library_rename(session, payload)
+                if path == "/api/subnetwork-library/delete":
+                    return routes.handle_subnetwork_library_delete(session, payload)
+                if path == "/api/subnetwork-library/prepare-insert":
+                    return routes.handle_subnetwork_library_prepare_insert(
+                        session,
+                        payload,
+                    )
                 if path == "/api/generate":
                     return routes.handle_generate(session, payload)
                 if path == "/api/analyze-contraction":

@@ -58,8 +58,11 @@ export function createEditorActionGroups(ctx) {
       removeSessionTemplate: (templateName) => ctx.removeSessionTemplate(templateName),
       toggleTemplateManager: (forceOpen) => ctx.toggleTemplateManager(forceOpen),
       syncTemplateManagerModalState: () => ctx.syncTemplateManagerModalState(),
+      toggleSubnetworkLibrary: (forceOpen) => ctx.toggleSubnetworkLibrary(forceOpen),
+      syncSubnetworkLibraryModalState: () => ctx.syncSubnetworkLibraryModalState(),
       setTemplateManagerValidationMessage: (message) =>
         ctx.setTemplateManagerValidationMessage(message),
+      updateToolbarState: () => ctx.updateToolbarState(),
       persistTemplateParametersFromControls: () =>
         ctx.persistTemplateParametersFromControls(),
       uniquifyImportedSpec: (spec, prefix) => ctx.uniquifyImportedSpec(spec, prefix),

@@ -33,6 +33,7 @@ def build_bootstrap_payload(session: EditorSession) -> JsonDict:
         ),
         "schema_version": SCHEMA_VERSION,
         **build_template_catalog_payload(session),
+        **build_subnetwork_catalog_payload(session),
         "annotation_definitions": cast(
             JSONValue,
             serialize_annotation_definitions(),
@@ -74,4 +75,26 @@ def build_template_catalog_payload(
     }
     if selected_template is not None:
         payload["selected_template"] = selected_template
+    return payload
+
+
+def build_subnetwork_catalog_payload(
+    session: EditorSession,
+    *,
+    selected_subnetwork: str | None = None,
+) -> JsonDict:
+    """Build the merged reusable-subnetwork catalog payload for the editor."""
+    payload: JsonDict = {
+        "subnetworks": cast(JSONValue, session.list_available_subnetwork_names()),
+        "subnetwork_definitions": cast(
+            JSONValue,
+            session.serialize_available_subnetwork_definitions(),
+        ),
+        "subnetwork_catalog_warnings": cast(
+            JSONValue,
+            session.subnetwork_catalog_warnings,
+        ),
+    }
+    if selected_subnetwork is not None:
+        payload["selected_subnetwork"] = selected_subnetwork
     return payload

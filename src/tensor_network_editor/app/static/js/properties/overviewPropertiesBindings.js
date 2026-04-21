@@ -91,6 +91,9 @@ export function createOverviewPropertiesBindings({
     }
 
     bindClick("extract-selection-button", () => actions.exportSelectedSubnetwork());
+    bindClick("save-selection-subnetwork-library-button", () =>
+      actions.saveSelectionToSubnetworkLibrary()
+    );
     bindClick("promote-selection-template-button", () =>
       actions.promoteSelectedSubnetworkToTemplate()
     );

@@ -111,6 +111,8 @@ def launch_tensor_network_editor(
     print_code: bool = False,
     code_path: StrPath | None = None,
     template_catalog_path: StrPath | None = None,
+    subnetwork_catalog_path: StrPath | None = None,
+    shared_subnetwork_catalog_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
     """Launch the local editor session and wait for it to finish.
@@ -128,6 +130,10 @@ def launch_tensor_network_editor(
         code_path: Optional output path for generated code after confirmation.
         template_catalog_path: Optional per-project static template catalog
             path.
+        subnetwork_catalog_path: Optional per-project reusable subnetwork
+            catalog path.
+        shared_subnetwork_catalog_path: Optional shared reusable subnetwork
+            catalog path.
         _on_server_ready: Internal callback used by tests once the server URL is
             known.
 
@@ -154,5 +160,7 @@ def launch_tensor_network_editor(
         print_code=print_code,
         code_path=code_path,
         template_catalog_path=template_catalog_path,
+        subnetwork_catalog_path=subnetwork_catalog_path,
+        shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
         _on_server_ready=_on_server_ready,
     )

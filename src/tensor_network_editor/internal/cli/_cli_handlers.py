@@ -23,6 +23,13 @@ from ..models._headless_models import (
     SpecAnalysisReport,
     SpecDiffResult,
 )
+from ..subnetworks._catalog import (
+    SubnetworkCatalog,
+    SubnetworkCatalogEntry,
+    append_project_subnetwork,
+    load_project_subnetwork_catalog,
+)
+from ..subnetworks._subnetworks import extract_subnetwork_spec
 from ..templates._template_catalog import TemplateParameters
 from ._cli_benchmark import (
     BenchmarkReport,
@@ -57,6 +64,9 @@ def handle_edit_command(
     if loaded_spec_path is not None:
         launch_kwargs["template_catalog_path"] = (
             loaded_spec_path.parent / ".tensor-network-editor" / "templates.json"
+        )
+        launch_kwargs["subnetwork_catalog_path"] = (
+            loaded_spec_path.parent / ".tensor-network-editor" / "subnetworks.json"
         )
     launch_tensor_network_editor(
         **launch_kwargs,
@@ -259,6 +269,81 @@ def handle_template_build_command(
     return 0
 
 
+def handle_subnetwork_list_command(
+    args: argparse.Namespace,
+    *,
+    print_json: Callable[[object], None],
+) -> int:
+    """Print reusable-subnetwork catalog entries for one project context."""
+    project_catalog_path = _resolve_project_subnetwork_catalog_path_for_spec(args.path)
+    catalog_payload, _ = _build_subnetwork_catalog_payload(
+        project_catalog_path,
+        shared_catalog_path=args.shared_catalog_path,
+    )
+    if args.format == "json":
+        print_json(catalog_payload)
+        return 0
+    subnetwork_definitions = cast(
+        dict[str, dict[str, JSONValue]],
+        catalog_payload["subnetwork_definitions"],
+    )
+    for subnetwork_name in cast(list[str], catalog_payload["subnetworks"]):
+        definition = subnetwork_definitions[subnetwork_name]
+        tags = cast(list[str], definition["tags"])
+        tag_suffix = f" [{', '.join(tags)}]" if tags else ""
+        print(f"{subnetwork_name}: {definition['display_name']}{tag_suffix}")
+    return 0
+
+
+def handle_subnetwork_save_command(
+    args: argparse.Namespace,
+    *,
+    load_spec: Callable[[str], NetworkSpec],
+) -> int:
+    """Extract and save one reusable subnetwork into the project catalog."""
+    spec = load_spec(args.path)
+    project_catalog_path = _resolve_project_subnetwork_catalog_path_for_spec(args.path)
+    subnetwork_spec = extract_subnetwork_spec(
+        spec,
+        tensor_ids=list(cast(list[str], args.tensor_ids)),
+    )
+    append_project_subnetwork(
+        project_catalog_path,
+        str(args.name),
+        subnetwork_spec,
+        tags=list(cast(list[str], args.tags)),
+        overwrite=bool(args.overwrite),
+    )
+    print(f"Saved reusable subnetwork '{args.name}' to {project_catalog_path}")
+    return 0
+
+
+def handle_subnetwork_export_command(
+    args: argparse.Namespace,
+    *,
+    save_spec: Callable[[NetworkSpec, str], None],
+    print_json: Callable[[object], None],
+) -> int:
+    """Export one reusable subnetwork from the merged project/shared catalogs."""
+    project_catalog_path = _resolve_project_subnetwork_catalog_path_for_spec(args.path)
+    _, merged_entries = _build_subnetwork_catalog_payload(
+        project_catalog_path,
+        shared_catalog_path=args.shared_catalog_path,
+    )
+    try:
+        spec = merged_entries[str(args.subnetwork_name)].spec
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown reusable subnetwork '{args.subnetwork_name}'."
+        ) from exc
+    if args.output is not None:
+        save_spec(spec, args.output)
+        print(f"Wrote reusable subnetwork '{args.subnetwork_name}' to {args.output}")
+        return 0
+    print_json(serialize_spec(spec))
+    return 0
+
+
 def _serialize_benchmark_report(report: object, *, output_format: str) -> str:
     """Return the serialized benchmark report for a non-JSON format."""
     if output_format == "text":
@@ -270,6 +355,71 @@ def _serialize_benchmark_report(report: object, *, output_format: str) -> str:
     if output_format == "json":
         return json.dumps(cast(BenchmarkReport, report).to_dict(), indent=2)
     raise ValueError(f"Unsupported benchmark output format: {output_format}")
+
+
+def _resolve_project_subnetwork_catalog_path_for_spec(spec_path: str) -> Path:
+    """Resolve the project reusable-subnetwork catalog path for one spec file."""
+    return (
+        Path(spec_path).resolve().parent / ".tensor-network-editor" / "subnetworks.json"
+    )
+
+
+def _build_subnetwork_catalog_payload(
+    project_catalog_path: Path,
+    *,
+    shared_catalog_path: str | None = None,
+) -> tuple[dict[str, JSONValue], dict[str, SubnetworkCatalogEntry]]:
+    """Build merged reusable-subnetwork payload data for CLI commands."""
+    project_catalog = load_project_subnetwork_catalog(project_catalog_path)
+    shared_catalog = (
+        load_project_subnetwork_catalog(shared_catalog_path)
+        if shared_catalog_path is not None
+        else SubnetworkCatalog(path=project_catalog_path, entries={}, warnings=[])
+    )
+    merged_entries: dict[str, SubnetworkCatalogEntry] = dict(project_catalog.entries)
+    for subnetwork_name, entry in shared_catalog.entries.items():
+        if subnetwork_name in merged_entries:
+            continue
+        merged_entries[subnetwork_name] = entry
+    warnings = list(project_catalog.warnings)
+    warnings.extend(shared_catalog.warnings)
+    warnings.extend(
+        _shadowed_shared_subnetwork_warnings(project_catalog, shared_catalog)
+    )
+    return (
+        {
+            "subnetworks": cast(JSONValue, list(merged_entries)),
+            "subnetwork_definitions": cast(
+                JSONValue,
+                {
+                    subnetwork_name: (
+                        project_catalog.entries[subnetwork_name].to_definition(
+                            source="project"
+                        )
+                        if subnetwork_name in project_catalog.entries
+                        else shared_catalog.entries[subnetwork_name].to_definition(
+                            source="shared"
+                        )
+                    )
+                    for subnetwork_name in merged_entries
+                },
+            ),
+            "subnetwork_catalog_warnings": cast(JSONValue, warnings),
+        },
+        merged_entries,
+    )
+
+
+def _shadowed_shared_subnetwork_warnings(
+    project_catalog: SubnetworkCatalog,
+    shared_catalog: SubnetworkCatalog,
+) -> list[str]:
+    """Return warnings for shared entries shadowed by project-local entries."""
+    return [
+        f"Project reusable subnetwork '{subnetwork_name}' shadows the shared catalog entry."
+        for subnetwork_name in project_catalog.entries
+        if subnetwork_name in shared_catalog.entries
+    ]
 
 
 def load_spec_for_lint(path: str) -> NetworkSpec:

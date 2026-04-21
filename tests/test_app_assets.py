@@ -1502,35 +1502,99 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
+    context_menu_markup_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuMarkup.js"
+    )
+    context_menu_bindings_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuBindings.js"
+    )
 
     assert 'id="reflow-imported-button"' in html
+    assert 'id="save-subnetwork-library-menu-item"' in html
+    assert 'id="open-subnetwork-library-menu-item"' in html
     assert 'id="subnetwork-load-input"' in html
+    assert 'id="subnetwork-library-modal"' in html
+    assert 'id="subnetwork-library-search-input"' in html
+    assert 'id="subnetwork-library-tag-filter"' in html
+    assert 'id="subnetwork-library-list"' in html
+    assert 'id="subnetwork-catalog-warning"' in html
     assert (
         'reflowImportedButton: document.getElementById("reflow-imported-button")'
         in dom_body
     )
+    assert "saveSubnetworkLibraryMenuItem: document.getElementById(" in dom_body
+    assert "openSubnetworkLibraryMenuItem: document.getElementById(" in dom_body
     assert (
         'subnetworkLoadInput: document.getElementById("subnetwork-load-input")'
+        in dom_body
+    )
+    assert (
+        'subnetworkLibraryModal: document.getElementById("subnetwork-library-modal")'
+        in dom_body
+    )
+    assert (
+        'subnetworkCatalogWarning: document.getElementById("subnetwork-catalog-warning")'
         in dom_body
     )
     assert (
         'bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);'
         in shell_bindings_body
     )
+    assert (
+        'bindListener(saveSubnetworkLibraryMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(openSubnetworkLibraryMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
     assert 'id="insert-subnetwork-button"' not in html
     assert '"/api/subnetwork/extract"' in interactions_body
     assert '"/api/subnetwork/prepare-insert"' in interactions_body
+    assert '"/api/subnetwork-library/save"' in interactions_body
+    assert '"/api/subnetwork-library/rename"' in interactions_body
+    assert '"/api/subnetwork-library/delete"' in interactions_body
+    assert '"/api/subnetwork-library/prepare-insert"' in interactions_body
+    assert "prepareLibrarySubnetworkForInsert" in interactions_body
     assert "saveSelectionAsSessionTemplate" in interactions_body
+    assert "saveSelectionToSubnetworkLibrary" in interactions_body
+    assert "openSubnetworkLibrary" in interactions_body
     assert 'id="extract-selection-button"' in overview_body + overview_markup_body
+    assert (
+        'id="save-selection-subnetwork-library-button"'
+        in overview_body + overview_markup_body
+    )
     assert (
         'id="promote-selection-template-button"' in overview_body + overview_markup_body
     )
     assert 'id="extract-group-button"' in entities_body + entity_markup_body
+    assert (
+        'id="save-group-subnetwork-library-button"'
+        in entities_body + entity_markup_body
+    )
     assert 'id="promote-group-template-button"' in entities_body + entity_markup_body
+    assert (
+        'id="context-menu-save-selection-subnetwork-library-button"'
+        in context_menu_markup_body
+    )
+    assert (
+        'id="context-menu-save-group-subnetwork-library-button"'
+        in context_menu_markup_body
+    )
+    assert (
+        "context-menu-save-selection-subnetwork-library-button"
+        in context_menu_bindings_body
+    )
+    assert (
+        "context-menu-save-group-subnetwork-library-button"
+        in context_menu_bindings_body
+    )
     assert "Extract Group" not in entity_markup_body
     assert "Promote Group to Template" not in entity_markup_body
     assert "Extract" in entity_markup_body
     assert "To Template" in entity_markup_body
+    assert "To Library" in overview_markup_body
+    assert "To Library" in entity_markup_body
 
 
 def test_template_management_assets_expose_toolbar_controls_and_routes(
@@ -1575,6 +1639,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="reflow-imported-button"' in html
     assert 'aria-haspopup="dialog"' in html
     assert 'id="reflow-layout-popover"' in html
+    assert 'id="reflow-auto-layout-button"' in html
     assert 'id="reflow-align-left-button"' not in html
     assert 'id="reflow-indices-left-button"' in html
     assert 'id="reflow-indices-reset-button"' in html
@@ -1597,11 +1662,14 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-catalog-warning"' in html
     assert 'id="about-schema-version"' in html
     assert 'id="insert-subnetwork-button"' not in html
+    assert 'id="save-subnetwork-library-menu-item"' in html
+    assert 'id="open-subnetwork-library-menu-item"' in html
+    assert 'id="subnetwork-library-modal"' in html
     assert 'id="help-shared-header"' in html
     assert 'class="help-close-icon"' in html
     assert '<span class="template-parameter-title">Template</span>' not in html
     assert re.search(
-        r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
+        r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-auto-layout-button"[\s\S]*>\s*Auto layout\s*<[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
         html,
     )
     assert re.search(
@@ -1629,6 +1697,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert (
         'title="Snap to Grid: move each selected tensor to the nearest canvas grid point."'
+        in html
+    )
+    assert (
+        'title="Auto layout: detect the best arrangement for the current selection, or for the whole graph when nothing is selected."'
         in html
     )
     assert (
@@ -1748,7 +1820,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert ".help-shortcuts[hidden] {" in body
     assert 'nameLabel.textContent = "Template name"' not in session_template_body
     assert 'sourceBadge.textContent = "Session"' not in session_template_body
-    assert 'deleteButton.textContent = "Delete"' not in session_template_body
+    assert 'deleteButton.textContent = "Delete"' not in session_template_manager_body
     assert 'from "./sessionTemplateDialogs.js"' in session_template_body
     assert 'from "./sessionTemplateManager.js"' in session_template_body
     assert "deleteButton.innerHTML" in session_template_manager_body
@@ -1758,8 +1830,14 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "function discardTemplateManagerChanges(" in session_template_manager_body
     assert "function promptForTemplateDisplayName(" in session_template_dialogs_body
     assert "function promptForSubnetworkName(" in session_template_dialogs_body
+    assert "function promptForSubnetworkTags(" in session_template_dialogs_body
+    assert "function renderSubnetworkLibrary(" in session_template_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(saveSubnetworkLibraryMenuItem, "click", () => {'
         in shell_bindings_body
     )
     assert (
@@ -1769,6 +1847,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "reflowAlignLeftButton" in shell_bindings_body
     assert "reflowIndicesLeftButton" in shell_bindings_body
     assert "reflowArrangeGridButton" in shell_bindings_body
+    assert 'bindReflowAction(reflowAutoLayoutButton, "auto");' in shell_bindings_body
     assert "applyReflowIndicesAction" in shell_bindings_body
     assert (
         'bindListener(loadSessionTemplateMenuItem, "click", () => {'
@@ -1779,7 +1858,15 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in shell_bindings_body
     )
     assert (
+        'bindListener(openSubnetworkLibraryMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
         "templateCatalogWarnings: payload.template_catalog_warnings"
+        in bootstrap_flow_body
+    )
+    assert (
+        "subnetworkCatalogWarnings: payload.subnetwork_catalog_warnings"
         in bootstrap_flow_body
     )
     assert (
@@ -1790,7 +1877,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "exportSelectedTemplateSpec" in interactions_body
     assert "toggleTemplateManager" in interactions_body
     assert "function syncTemplateCatalogWarning()" in utilities_ui_toolbar_body
+    assert "function syncSubnetworkCatalogWarning()" in utilities_ui_toolbar_body
     assert "function toggleReflowLayoutPopover()" in utilities_ui_panels_body
+    assert "function syncSubnetworkLibraryModalState()" in utilities_ui_panels_body
     assert "sessionUi.promptText(" in session_template_dialogs_body
     assert "Choose a name for this template." in session_template_dialogs_body
     assert "Choose a name for this subnetwork." in session_template_dialogs_body
@@ -1838,8 +1927,10 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert "function snapSelectedTensorsToGrid(" in layout_body
     assert "function applyReflowLayoutAction(" in layout_body
     assert "function applyReflowIndicesAction(" in layout_body
+    assert "function applyAutoLayout(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
     assert "function buildArrangedSelectionPositions(" in layout_algorithms_body
+    assert "function buildAutoLayoutPositions(" in layout_algorithms_body
     assert "function buildImportedReflowPositions(" in layout_algorithms_body
     assert "function buildReflowIndexOffsets(" in layout_indices_body
     assert "function getSelectedLayoutTensorIds(" in layout_selection_body

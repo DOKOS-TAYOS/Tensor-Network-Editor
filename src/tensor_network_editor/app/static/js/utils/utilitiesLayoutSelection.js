@@ -19,7 +19,7 @@ export function createUtilityLayoutSelectionSupport({ ctx, state }) {
     tensorIds,
     mutator,
     statusMessage,
-    primaryId = state.primarySelectionId
+    options = {}
   ) {
     if (
       !Array.isArray(tensorIds) ||
@@ -28,15 +28,23 @@ export function createUtilityLayoutSelectionSupport({ ctx, state }) {
     ) {
       return false;
     }
+    const selectionIds = Array.isArray(options.selectionIds)
+      ? [...options.selectionIds]
+      : [...tensorIds];
+    const primaryId = Object.prototype.hasOwnProperty.call(options, "primaryId")
+      ? options.primaryId
+      : state.primarySelectionId;
     ctx.applyDesignChange(mutator, {
       invalidate: {
         lookups: false,
         analysis: false,
       },
-      selectionIds: [...tensorIds],
-      primaryId: tensorIds.includes(primaryId)
+      selectionIds,
+      primaryId: selectionIds.includes(primaryId)
         ? primaryId
-        : tensorIds[tensorIds.length - 1],
+        : selectionIds.length
+          ? selectionIds[selectionIds.length - 1]
+          : null,
       statusMessage,
     });
     return true;
@@ -77,7 +85,12 @@ export function createUtilityLayoutSelectionSupport({ ctx, state }) {
     return true;
   }
 
-  function applyTensorPositions(tensorIds, targetPositions, statusMessage) {
+  function applyTensorPositions(
+    tensorIds,
+    targetPositions,
+    statusMessage,
+    options = {}
+  ) {
     if (!targetPositions) {
       return false;
     }
@@ -94,7 +107,8 @@ export function createUtilityLayoutSelectionSupport({ ctx, state }) {
           tensor.position.y = targetPosition.y;
         });
       },
-      statusMessage
+      statusMessage,
+      options
     );
   }
 

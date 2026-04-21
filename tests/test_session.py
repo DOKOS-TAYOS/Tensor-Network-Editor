@@ -449,3 +449,36 @@ def test_launch_tensor_network_editor_passes_template_catalog_path(
     assert captured_kwargs["template_catalog_path"] == (
         tmp_path / ".tensor-network-editor" / "templates.json"
     )
+
+
+def test_launch_tensor_network_editor_passes_subnetwork_catalog_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_launch_editor_session(*args: object, **kwargs: object) -> None:
+        del args
+        captured_kwargs.update(kwargs)
+        return None
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.session.launch_editor_session",
+        fake_launch_editor_session,
+    )
+
+    result = launch_tensor_network_editor(
+        open_browser=False,
+        subnetwork_catalog_path=tmp_path
+        / ".tensor-network-editor"
+        / "subnetworks.json",
+        shared_subnetwork_catalog_path=tmp_path / "shared" / "subnetworks.json",
+    )
+
+    assert result is None
+    assert captured_kwargs["subnetwork_catalog_path"] == (
+        tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    )
+    assert captured_kwargs["shared_subnetwork_catalog_path"] == (
+        tmp_path / "shared" / "subnetworks.json"
+    )

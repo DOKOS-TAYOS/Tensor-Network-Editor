@@ -124,6 +124,14 @@ export function registerCanvasContextMenu(ctx) {
       typeof ctx.exportSelectedSubnetwork === "function"
         ? () => ctx.exportSelectedSubnetwork()
         : null,
+    saveGroupToSubnetworkLibrary:
+      typeof ctx.saveGroupToSubnetworkLibrary === "function"
+        ? (groupId) => ctx.saveGroupToSubnetworkLibrary(groupId)
+        : null,
+    saveSelectionToSubnetworkLibrary:
+      typeof ctx.saveSelectionToSubnetworkLibrary === "function"
+        ? () => ctx.saveSelectionToSubnetworkLibrary()
+        : null,
     promoteGroupToTemplate:
       typeof ctx.promoteGroupToTemplate === "function"
         ? (groupId) => ctx.promoteGroupToTemplate(groupId)

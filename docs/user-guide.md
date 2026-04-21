@@ -11,6 +11,8 @@ limits.
 - [Choosing a Backend](#choosing-a-backend)
 - [Choosing a Collection Format](#choosing-a-collection-format)
 - [Templates](#templates)
+- [Subnetwork Library](#subnetwork-library)
+- [Layout Tools](#layout-tools)
 - [Metadata and Filters](#metadata-and-filters)
 - [Saving and Loading](#saving-and-loading)
 - [Manual Contraction Plans](#manual-contraction-plans)
@@ -125,6 +127,50 @@ The graph-size label depends on the selected template:
 
 You can also build templates from Python or the CLI. See [api.md](api.md) and
 [cli.md](cli.md#template-commands).
+
+## Subnetwork Library
+
+The subnetwork library is for reusable building blocks that are smaller than a
+full template. It keeps the same extraction and insertion behavior used inside
+the editor, but wraps that workflow in a persistent catalog.
+
+Useful ideas:
+
+- `Save to library` stores the current tensor selection as a reusable
+  subnetwork
+- the default project catalog lives next to your design at
+  `.tensor-network-editor/subnetworks.json`
+- a session can also point to an optional shared catalog, merged at runtime
+  with the project catalog
+- project entries win on name conflicts, and the editor warns when they shadow
+  a shared entry
+- each entry keeps a stable name, a display name, optional tags, and the saved
+  subnetwork spec
+- the library dialog lets you browse, search, filter by tag, inspect a small
+  generated preview, and insert the saved block back into the canvas
+- inserted subnetworks always receive fresh ids, so you can reuse the same
+  block many times safely
+
+This is especially useful when you repeat boundary gadgets, local motifs, or
+hand-tuned fragments across several designs.
+
+## Layout Tools
+
+The `Reflow` popover groups the layout actions that help clean up a network
+after imports, large edits, or repeated insertions.
+
+Useful ideas:
+
+- `Auto layout` chooses a layout for the current tensor selection
+- when nothing is selected, `Auto layout` arranges the whole graph instead
+- chain- and tree-like structures still use those specialized layouts
+- irregular or cyclic structures use a layered placement with overlap-safe
+  spacing instead of falling back immediately to a coarse grid
+- the other manual actions remain available for explicit control: `Chain`,
+  `Tree`, `Grid`, and `Snap to Grid`
+
+When the active editor mode already disables reflow tools, `Auto layout`
+follows the same rule instead of bypassing those restrictions.
 
 ## Metadata and Filters
 
@@ -249,6 +295,8 @@ Useful ideas:
   `tensor-network-editor benchmark my_network.json`
 - `--format csv`, `--format latex`, and `--output ...` are useful when you
   want reproducible tables outside the browser
+- benchmark scheme views keep template, subnetwork-library, and reflow actions
+  disabled so comparison sessions do not drift into normal editing by mistake
 
 If the active `.venv` does not include the `planner` extra, manual benchmark
 rows still work and the automatic rows are reported as unavailable.
@@ -325,7 +373,12 @@ linear or grid neighborhood would hide that intent.
 - Save the JSON design early, not only the generated code.
 - Use groups for larger diagrams so visual organization does not depend only on
   tensor positions.
+- Save repeated motifs into the subnetwork library instead of copying them by
+  hand between files.
 - Use notes to store assumptions, boundary choices, or experiment context.
+- Try `Auto layout` after importing a design or inserting several reusable
+  blocks, then finish with a manual layout action only if you want a specific
+  visual style.
 - If a backend export fails, try `einsum_numpy` to inspect a simpler generated
   representation.
 - Run `tensor-network-editor lint my_network.json` when a network loads but

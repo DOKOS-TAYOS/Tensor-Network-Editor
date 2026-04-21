@@ -14,10 +14,17 @@ from ._analysis_services import (
 from ._bootstrap_payloads import (
     build_app_metadata_payload,
     build_bootstrap_payload,
+    build_subnetwork_catalog_payload,
     build_template_catalog_payload,
 )
 from ._protocol import JsonDict
 from ._session_requests import complete_session_request, generate_session_request
+from ._subnetwork_library_services import (
+    delete_session_project_subnetwork,
+    prepare_saved_subnetwork_for_insertion,
+    rename_session_project_subnetwork,
+    save_serialized_subnetwork_to_library,
+)
 from ._subnetwork_services import (
     extract_serialized_subnetwork,
     prepare_serialized_subnetwork_for_insertion,
@@ -39,15 +46,20 @@ __all__ = [
     "analyze_serialized_contraction",
     "build_app_metadata_payload",
     "build_bootstrap_payload",
+    "build_subnetwork_catalog_payload",
     "build_template_catalog_payload",
     "build_template_from_payload",
     "complete_session_request",
+    "delete_session_project_subnetwork",
     "delete_session_project_template",
     "extract_serialized_subnetwork",
     "generate_session_request",
+    "prepare_saved_subnetwork_for_insertion",
     "prepare_serialized_subnetwork_for_insertion",
     "promote_serialized_subnetwork_to_template",
+    "rename_session_project_subnetwork",
     "rename_session_project_template",
+    "save_serialized_subnetwork_to_library",
 ]
 
 

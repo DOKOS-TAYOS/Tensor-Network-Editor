@@ -9,8 +9,10 @@ export function createCanvasContextMenuBindings({
   closeCanvasContextMenu,
   exportSelectedSubnetwork,
   exportGroupSubnetwork,
+  saveSelectionToSubnetworkLibrary,
   promoteSelectedSubnetworkToTemplate,
   createGroupFromSelection,
+  saveGroupToSubnetworkLibrary,
   promoteGroupToTemplate,
   toggleGroupCollapse,
 }) {
@@ -114,6 +116,9 @@ export function createCanvasContextMenuBindings({
     const extractButton = document.getElementById(
       "context-menu-extract-selection-button"
     );
+    const saveLibraryButton = document.getElementById(
+      "context-menu-save-selection-subnetwork-library-button"
+    );
     const promoteButton = document.getElementById(
       "context-menu-promote-selection-template-button"
     );
@@ -144,6 +149,15 @@ export function createCanvasContextMenuBindings({
       extractButton.addEventListener("click", () => {
         if (typeof exportSelectedSubnetwork === "function") {
           exportSelectedSubnetwork();
+        }
+        closeCanvasContextMenu();
+      });
+    }
+
+    if (saveLibraryButton) {
+      saveLibraryButton.addEventListener("click", () => {
+        if (typeof saveSelectionToSubnetworkLibrary === "function") {
+          saveSelectionToSubnetworkLibrary();
         }
         closeCanvasContextMenu();
       });
@@ -402,6 +416,9 @@ export function createCanvasContextMenuBindings({
       "context-menu-add-index-to-group-button"
     );
     const extractGroupButton = document.getElementById("context-menu-extract-group-button");
+    const saveGroupLibraryButton = document.getElementById(
+      "context-menu-save-group-subnetwork-library-button"
+    );
     const promoteGroupTemplateButton = document.getElementById(
       "context-menu-promote-group-template-button"
     );
@@ -442,6 +459,15 @@ export function createCanvasContextMenuBindings({
       extractGroupButton.addEventListener("click", () => {
         if (typeof exportGroupSubnetwork === "function") {
           exportGroupSubnetwork(group.id);
+        }
+        closeCanvasContextMenu();
+      });
+    }
+
+    if (saveGroupLibraryButton) {
+      saveGroupLibraryButton.addEventListener("click", () => {
+        if (typeof saveGroupToSubnetworkLibrary === "function") {
+          saveGroupToSubnetworkLibrary(group.id);
         }
         closeCanvasContextMenu();
       });

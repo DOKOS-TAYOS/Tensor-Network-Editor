@@ -12,6 +12,7 @@ export function createUtilityUiToolbarSupport({
   syncToolbarTransientUi,
   syncHelpModalState,
   syncTemplateManagerModalState,
+  syncSubnetworkLibraryModalState,
   syncGeneratedCodeActionState,
   syncGeneratedCodeModalState,
 }) {
@@ -39,10 +40,13 @@ export function createUtilityUiToolbarSupport({
     templateSettingsButton,
     insertTemplateButton,
     saveSessionTemplateMenuItem,
+    saveSubnetworkLibraryMenuItem,
     loadSessionTemplateMenuItem,
     exportSessionTemplateMenuItem,
     editSessionTemplateMenuItem,
+    openSubnetworkLibraryMenuItem,
     templateCatalogWarning,
+    subnetworkCatalogWarning,
     reflowImportedButton,
     reflowAlignLeftButton,
     reflowAlignRightButton,
@@ -57,6 +61,7 @@ export function createUtilityUiToolbarSupport({
     reflowArrangeChainButton,
     reflowArrangeTreeButton,
     reflowArrangeGridButton,
+    reflowAutoLayoutButton,
     reflowDistributeHorizontalButton,
     reflowDistributeVerticalButton,
     reflowSnapGridButton,
@@ -134,6 +139,35 @@ export function createUtilityUiToolbarSupport({
     templateCatalogWarning.hidden = false;
   }
 
+  function syncSubnetworkCatalogWarning() {
+    if (!subnetworkCatalogWarning) {
+      return;
+    }
+    const warningMessages = Array.isArray(state.subnetworkCatalogWarnings)
+      ? state.subnetworkCatalogWarnings.filter(
+          (warningMessage) => typeof warningMessage === "string" && warningMessage
+        )
+      : [];
+    if (!subnetworkCatalogWarning.dataset) {
+      subnetworkCatalogWarning.dataset = {};
+    }
+    subnetworkCatalogWarning.dataset.tooltipEnabled = "true";
+    subnetworkCatalogWarning.dataset.shortcutLabel = "Subnetwork warnings";
+    if (!warningMessages.length) {
+      subnetworkCatalogWarning.textContent = "";
+      setTooltipDescription(subnetworkCatalogWarning, "");
+      subnetworkCatalogWarning.hidden = true;
+      return;
+    }
+    const extraWarningCount = warningMessages.length - 1;
+    subnetworkCatalogWarning.textContent =
+      extraWarningCount > 0
+        ? `${warningMessages[0]} (+${extraWarningCount} more)`
+        : warningMessages[0];
+    setTooltipDescription(subnetworkCatalogWarning, warningMessages.join("\n"));
+    subnetworkCatalogWarning.hidden = false;
+  }
+
   function updateToolbarState() {
     const linearPeriodicMode = runtime.isLinearPeriodicMode();
     const activeLinearPeriodicCell = runtime.getActiveLinearPeriodicCellName();
@@ -197,6 +231,9 @@ export function createUtilityUiToolbarSupport({
     const selectedTensorIds = Array.isArray(rawSelectedTensorIds)
       ? rawSelectedTensorIds
       : [];
+    const graphTensorCount =
+      state.spec && Array.isArray(state.spec.tensors) ? state.spec.tensors.length : 0;
+    const autoLayoutTensorCount = selectedTensorIds.length || graphTensorCount;
     const selectedTensors = selectedTensorIds
       .map((tensorId) => findTensorById(tensorId))
       .filter(Boolean);
@@ -206,8 +243,10 @@ export function createUtilityUiToolbarSupport({
     runtime.enforceLinearPeriodicEngineSupport();
     syncCodeGenerationWarning();
     syncTemplateCatalogWarning();
+    syncSubnetworkCatalogWarning();
     syncHelpModalState();
     syncTemplateManagerModalState();
+    syncSubnetworkLibraryModalState();
     syncGeneratedCodeActionState();
     syncGeneratedCodeModalState();
 
@@ -232,6 +271,10 @@ export function createUtilityUiToolbarSupport({
     if (saveSessionTemplateMenuItem) {
       saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
     }
+    if (saveSubnetworkLibraryMenuItem) {
+      saveSubnetworkLibraryMenuItem.disabled =
+        forMode || benchmarkSchemeView || selectedTensorIds.length === 0;
+    }
     if (loadSessionTemplateMenuItem) {
       loadSessionTemplateMenuItem.disabled = false;
     }
@@ -240,6 +283,9 @@ export function createUtilityUiToolbarSupport({
     }
     if (editSessionTemplateMenuItem) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
+    }
+    if (openSubnetworkLibraryMenuItem) {
+      openSubnetworkLibraryMenuItem.disabled = forMode || benchmarkSchemeView;
     }
     setElementHidden(primaryToolbarGroup, benchmarkSchemeView);
     setElementHidden(primaryToolbarDivider, benchmarkSchemeView);
@@ -250,7 +296,8 @@ export function createUtilityUiToolbarSupport({
     }
     if (reflowImportedButton) {
       reflowImportedButton.disabled =
-        benchmarkSchemeView || selectedTensorIds.length === 0;
+        benchmarkSchemeView
+        || (selectedTensorIds.length === 0 && graphTensorCount < 2);
       setElementHidden(
         reflowImportedButton.parentElement || reflowImportedButton,
         benchmarkSchemeView
@@ -259,8 +306,10 @@ export function createUtilityUiToolbarSupport({
         reflowImportedButton,
         benchmarkSchemeView
           ? "Layout tools are unavailable while viewing a benchmark scheme."
+          : selectedTensorIds.length === 0 && graphTensorCount < 2
+          ? "Add or select at least two tensors first."
           : selectedTensorIds.length === 0
-          ? "Select at least one tensor first."
+          ? "Open layout tools. Auto layout will arrange the whole graph."
           : selectedTensorIds.length === 1
             ? "Reflow indices for the selected tensor."
             : "Choose a layout for the selected tensors or reflow their indices."
@@ -284,6 +333,15 @@ export function createUtilityUiToolbarSupport({
       selectedTensorIds.length < 2
         ? "Select at least two tensors first."
         : "Reflow the selected tensors."
+    );
+    setButtonGroupDisabled(
+      [reflowAutoLayoutButton],
+      autoLayoutTensorCount < 2,
+      autoLayoutTensorCount < 2
+        ? "Add or select at least two tensors first."
+        : selectedTensorIds.length
+          ? "Auto-arrange the selected tensors."
+          : "Auto-arrange the whole graph."
     );
     setButtonGroupDisabled(
       [
@@ -326,8 +384,16 @@ export function createUtilityUiToolbarSupport({
     ) {
       state.isTemplateSettingsOpen = false;
     }
-    if ((benchmarkSchemeView || selectedTensorIds.length === 0) && state.isReflowLayoutOpen) {
+    if (
+      (benchmarkSchemeView
+        || (selectedTensorIds.length === 0 && graphTensorCount < 2))
+      && state.isReflowLayoutOpen
+    ) {
       state.isReflowLayoutOpen = false;
+    }
+    if ((benchmarkSchemeView || forMode) && state.isSubnetworkLibraryOpen) {
+      state.isSubnetworkLibraryOpen = false;
+      syncSubnetworkLibraryModalState();
     }
     if (templateSelect) {
       templateSelect.disabled = benchmarkSchemeView;
@@ -520,6 +586,7 @@ export function createUtilityUiToolbarSupport({
   return {
     syncCodeGenerationWarning,
     syncTemplateCatalogWarning,
+    syncSubnetworkCatalogWarning,
     updateToolbarState,
   };
 }

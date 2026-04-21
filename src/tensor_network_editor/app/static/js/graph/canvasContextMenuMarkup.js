@@ -146,6 +146,12 @@ export function createCanvasContextMenuMarkup({
             Extract
           </button>
           <button
+            id="context-menu-save-selection-subnetwork-library-button"
+            type="button"
+          >
+            To Library
+          </button>
+          <button
             id="context-menu-promote-selection-template-button"
             type="button"
           >
@@ -444,6 +450,12 @@ export function createCanvasContextMenuMarkup({
             type="button"
           >
             Extract
+          </button>
+          <button
+            id="context-menu-save-group-subnetwork-library-button"
+            type="button"
+          >
+            To Library
           </button>
           <button
             id="context-menu-promote-group-template-button"

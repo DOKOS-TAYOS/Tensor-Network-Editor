@@ -89,6 +89,11 @@ Main parameters:
 - `port`: local port, default `0` so the OS chooses one
 - `print_code`: print generated code after confirmation
 - `code_path`: write generated code after confirmation
+- `template_catalog_path`: optional per-project static template catalog path
+- `subnetwork_catalog_path`: optional per-project reusable-subnetwork catalog
+  path
+- `shared_subnetwork_catalog_path`: optional shared reusable-subnetwork
+  catalog path merged with the project catalog at runtime
 
 Return value:
 
@@ -96,6 +101,11 @@ Return value:
 - `EditorResult` when the user confirms
 
 `EditorResult` contains `spec`, `engine`, `codegen`, and `confirmed`.
+
+Practical note:
+
+- if project and shared reusable-subnetwork catalogs define the same entry
+  name, the project entry shadows the shared one
 
 ## Generate Code
 

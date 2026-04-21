@@ -237,6 +237,22 @@
                     </span>
                   </button>
                   <button
+                    id="save-subnetwork-library-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Save the selected tensors into the reusable subnetwork library."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Save to library</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Store the current selection in the reusable subnetwork library.</span>
+                    </span>
+                  </button>
+                  <button
                     id="load-session-template-menu-item"
                     class="toolbar-menu-item"
                     type="button"
@@ -283,6 +299,23 @@
                         <span class="toolbar-menu-item-shortcut"></span>
                       </span>
                       <span class="toolbar-menu-item-description">Rename or remove session templates.</span>
+                    </span>
+                  </button>
+                  <div class="toolbar-menu-separator" role="separator"></div>
+                  <button
+                    id="open-subnetwork-library-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Browse the reusable subnetwork library."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Subnetwork library</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Search, filter, and insert saved subnetworks.</span>
                     </span>
                   </button>
                 </div>
@@ -574,6 +607,13 @@
                         <div class="properties-section-heading">Layout</div>
                         <div class="button-row reflow-action-row">
                           <button
+                            id="reflow-auto-layout-button"
+                            type="button"
+                            title="Auto layout: detect the best arrangement for the current selection, or for the whole graph when nothing is selected."
+                          >
+                            Auto layout
+                          </button>
+                          <button
                             id="reflow-arrange-chain-button"
                             type="button"
                             title="Chain: place selected tensors in one ordered row, following bonds when present."
@@ -655,6 +695,14 @@
                     data-tooltip-enabled="true"
                     data-shortcut-label="Template warnings"
                     aria-label="Template warnings"
+                    hidden
+                  ></p>
+                  <p
+                    id="subnetwork-catalog-warning"
+                    class="template-inline-warning"
+                    data-tooltip-enabled="true"
+                    data-shortcut-label="Subnetwork warnings"
+                    aria-label="Subnetwork warnings"
                     hidden
                   ></p>
                 </div>
@@ -1066,6 +1114,56 @@
         </div>
         <p id="template-manager-error" class="template-manager-error" hidden></p>
         <div id="template-manager-list" class="template-manager-list"></div>
+      </section>
+    </div>
+
+    <div id="subnetwork-library-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="subnetwork-library-title">
+      <div id="subnetwork-library-backdrop" class="help-backdrop"></div>
+      <section class="help-dialog subnetwork-library-dialog">
+        <button
+          id="subnetwork-library-close-button"
+          class="help-dialog-close button-close-static"
+          type="button"
+          aria-label="Close subnetwork library"
+          title="Close subnetwork library"
+        >
+          <svg
+            class="help-close-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4.22 3.16 8 6.94l3.78-3.78a.75.75 0 1 1 1.06 1.06L9.06 8l3.78 3.78a.75.75 0 1 1-1.06 1.06L8 9.06l-3.78 3.78a.75.75 0 1 1-1.06-1.06L6.94 8 3.16 4.22a.75.75 0 1 1 1.06-1.06Z"/>
+          </svg>
+        </button>
+        <div class="help-dialog-header">
+          <div>
+            <h2 id="subnetwork-library-title">Subnetwork library</h2>
+            <p class="help-note">Browse project and shared subnetworks, filter by tags, and insert reusable blocks with fresh ids.</p>
+          </div>
+        </div>
+        <div class="subnetwork-library-toolbar">
+          <label class="field-group">
+            <span>Search</span>
+            <input
+              id="subnetwork-library-search-input"
+              type="search"
+              placeholder="Filter by name, source, or tag"
+              autocomplete="off"
+            />
+          </label>
+          <label
+            class="template-parameter-field template-select-field select-chevron-field"
+            for="subnetwork-library-tag-filter"
+            data-expanded="false"
+          >
+            <select id="subnetwork-library-tag-filter" aria-label="Filter subnetworks by tag">
+              <option value="">All tags</option>
+            </select>
+          </label>
+        </div>
+        <p id="subnetwork-library-warning" class="template-manager-error" hidden></p>
+        <div id="subnetwork-library-list" class="subnetwork-library-list"></div>
       </section>
     </div>
 

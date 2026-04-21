@@ -87,6 +87,9 @@ export function getDomRefs(document) {
     saveSessionTemplateMenuItem: document.getElementById(
       "save-session-template-menu-item"
     ),
+    saveSubnetworkLibraryMenuItem: document.getElementById(
+      "save-subnetwork-library-menu-item"
+    ),
     loadSessionTemplateMenuItem: document.getElementById(
       "load-session-template-menu-item"
     ),
@@ -96,7 +99,11 @@ export function getDomRefs(document) {
     editSessionTemplateMenuItem: document.getElementById(
       "edit-session-template-menu-item"
     ),
+    openSubnetworkLibraryMenuItem: document.getElementById(
+      "open-subnetwork-library-menu-item"
+    ),
     templateCatalogWarning: document.getElementById("template-catalog-warning"),
+    subnetworkCatalogWarning: document.getElementById("subnetwork-catalog-warning"),
     reflowImportedButton: document.getElementById("reflow-imported-button"),
     reflowAlignLeftButton: document.getElementById("reflow-align-left-button"),
     reflowAlignRightButton: document.getElementById("reflow-align-right-button"),
@@ -111,6 +118,7 @@ export function getDomRefs(document) {
     reflowArrangeChainButton: document.getElementById("reflow-arrange-chain-button"),
     reflowArrangeTreeButton: document.getElementById("reflow-arrange-tree-button"),
     reflowArrangeGridButton: document.getElementById("reflow-arrange-grid-button"),
+    reflowAutoLayoutButton: document.getElementById("reflow-auto-layout-button"),
     reflowDistributeHorizontalButton: document.getElementById(
       "reflow-distribute-horizontal-button"
     ),
@@ -144,6 +152,23 @@ export function getDomRefs(document) {
     ),
     templateManagerError: document.getElementById("template-manager-error"),
     templateManagerList: document.getElementById("template-manager-list"),
+    subnetworkLibraryModal: document.getElementById("subnetwork-library-modal"),
+    subnetworkLibraryBackdrop: document.getElementById(
+      "subnetwork-library-backdrop"
+    ),
+    subnetworkLibraryCloseButton: document.getElementById(
+      "subnetwork-library-close-button"
+    ),
+    subnetworkLibrarySearchInput: document.getElementById(
+      "subnetwork-library-search-input"
+    ),
+    subnetworkLibraryTagFilter: document.getElementById(
+      "subnetwork-library-tag-filter"
+    ),
+    subnetworkLibraryWarning: document.getElementById(
+      "subnetwork-library-warning"
+    ),
+    subnetworkLibraryList: document.getElementById("subnetwork-library-list"),
     benchmarkCompareModal: document.getElementById("benchmark-compare-modal"),
     benchmarkCompareBackdrop: document.getElementById(
       "benchmark-compare-backdrop"

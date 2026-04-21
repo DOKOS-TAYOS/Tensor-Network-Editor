@@ -114,6 +114,13 @@ export function buildMultiSelectionPropertiesMarkup({
                 Extract
               </button>
               <button
+                id="save-selection-subnetwork-library-button"
+                type="button"
+                ${linearPeriodicMode ? "disabled" : ""}
+              >
+                To Library
+              </button>
+              <button
                 id="promote-selection-template-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}

@@ -84,6 +84,54 @@ export function createEditorStore(state) {
     };
   }
 
+  function setSubnetworkCatalogData({
+    subnetworkNames,
+    subnetworkDefinitions,
+    subnetworkCatalogWarnings,
+    selectedSubnetworkName = null,
+  }) {
+    state.availableSubnetworks = Array.isArray(subnetworkNames)
+      ? [...subnetworkNames]
+      : [];
+    state.subnetworkDefinitions =
+      subnetworkDefinitions && typeof subnetworkDefinitions === "object"
+        ? { ...subnetworkDefinitions }
+        : {};
+    state.subnetworkCatalogWarnings = Array.isArray(subnetworkCatalogWarnings)
+      ? [...subnetworkCatalogWarnings]
+      : [];
+    if (
+      typeof selectedSubnetworkName === "string"
+      && state.availableSubnetworks.includes(selectedSubnetworkName)
+    ) {
+      state.selectedSubnetworkName = selectedSubnetworkName;
+    } else if (
+      state.selectedSubnetworkName &&
+      state.availableSubnetworks.includes(state.selectedSubnetworkName)
+    ) {
+      state.selectedSubnetworkName = state.selectedSubnetworkName;
+    } else {
+      state.selectedSubnetworkName = state.availableSubnetworks[0] || "";
+    }
+    if (
+      state.subnetworkLibraryTagFilter
+      && !Object.values(state.subnetworkDefinitions).some(
+        (definition) =>
+          definition &&
+          Array.isArray(definition.tags) &&
+          definition.tags.includes(state.subnetworkLibraryTagFilter)
+      )
+    ) {
+      state.subnetworkLibraryTagFilter = "";
+    }
+    return {
+      availableSubnetworks: state.availableSubnetworks,
+      subnetworkDefinitions: state.subnetworkDefinitions,
+      subnetworkCatalogWarnings: state.subnetworkCatalogWarnings,
+      selectedSubnetworkName: state.selectedSubnetworkName,
+    };
+  }
+
   return {
     getState,
     setSpec,
@@ -97,5 +145,6 @@ export function createEditorStore(state) {
     setEditorFinished,
     setLastImportedTensorIds,
     setTemplateCatalogData,
+    setSubnetworkCatalogData,
   };
 }

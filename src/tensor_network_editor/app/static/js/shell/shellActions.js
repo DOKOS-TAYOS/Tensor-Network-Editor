@@ -54,6 +54,7 @@ export function createShellActions(ctx) {
     closeTransientToolbarUi: () => ctx.closeTransientToolbarUi(),
     toggleTemplateSettingsPopover: () => ctx.toggleTemplateSettingsPopover(),
     toggleReflowLayoutPopover: () => ctx.toggleReflowLayoutPopover(),
+    toggleSubnetworkLibrary: (forceOpen) => ctx.toggleSubnetworkLibrary(forceOpen),
     updateToolbarState: () => ctx.updateToolbarState(),
     toggleLinearPeriodicMode: () => ctx.toggleLinearPeriodicMode(),
     setLinearPeriodicMode: (enabled) => ctx.setLinearPeriodicMode(enabled),
@@ -86,6 +87,14 @@ export function createShellActions(ctx) {
     handleTemplateParameterInput: (event) => ctx.handleTemplateParameterInput(event),
     insertTemplate: () => ctx.insertTemplate(),
     openSubnetworkPicker: () => ctx.openSubnetworkPicker(),
+    saveSelectionToSubnetworkLibrary: () => ctx.saveSelectionToSubnetworkLibrary(),
+    openSubnetworkLibrary: () => ctx.openSubnetworkLibrary(),
+    insertSelectedSubnetworkFromLibrary: () =>
+      ctx.insertSelectedSubnetworkFromLibrary(),
+    updateSubnetworkLibrarySearch: (query) =>
+      ctx.updateSubnetworkLibrarySearch(query),
+    updateSubnetworkLibraryTagFilter: (tag) =>
+      ctx.updateSubnetworkLibraryTagFilter(tag),
     saveSelectionAsSessionTemplate: () => ctx.saveSelectionAsSessionTemplate(),
     openSessionTemplatePicker: () => ctx.openSessionTemplatePicker(),
     exportSelectedTemplateSpec: () => ctx.exportSelectedTemplateSpec(),

@@ -7839,6 +7839,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 reflowArrangeChainButton: createButton(),
                 reflowArrangeTreeButton: createButton(),
                 reflowArrangeGridButton: createButton(),
+                reflowAutoLayoutButton: createButton(),
                 reflowDistributeHorizontalButton: createButton(),
                 reflowDistributeVerticalButton: createButton(),
                 reflowSnapGridButton: createButton(),
@@ -8025,6 +8026,29 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             runtime.updateToolbarState();
             if (!ctx.dom.reflowImportedButton.disabled) {
               throw new Error("Reflow should disable again when no tensor is selected.");
+            }
+            ctx.state.spec.tensors.push({
+              id: "tensor_b",
+              name: "B",
+              position: { x: 320, y: 220 },
+              size: { width: 140, height: 84 },
+              indices: [],
+              metadata: {},
+            });
+            runtime.updateToolbarState();
+            if (ctx.dom.reflowImportedButton.disabled) {
+              throw new Error("Reflow should stay enabled when the graph has at least two tensors, even with no active tensor selection.");
+            }
+            if (
+              ctx.dom.reflowImportedButton.dataset.shortcutDescription
+              !== "Open layout tools. Auto layout will arrange the whole graph."
+            ) {
+              throw new Error(
+                `Expected the empty-selection Reflow tooltip to explain whole-graph auto layout, received ${ctx.dom.reflowImportedButton.dataset.shortcutDescription}.`
+              );
+            }
+            if (ctx.dom.reflowAutoLayoutButton.disabled) {
+              throw new Error("Auto layout should stay enabled when the whole graph can be arranged.");
             }
             ctx.state.selectionIds = ["tensor_a"];
             runtime.isBenchmarkMode = () => true;
@@ -9983,6 +10007,114 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
             const reflowedTemplateYs = reflowedTemplateTensors.map((tensor) => tensor.position.y);
             if (!reflowedTemplateYs.every((value) => value === reflowedTemplateYs[0])) {
               throw new Error("Reflow Imported should arrange the imported path tensors into a horizontal chain.");
+            }
+
+            ctx.state.spec = ctx.normalizeSpec({
+              id: "network_auto_layout",
+              name: "auto-layout",
+              tensors: [
+                {
+                  id: "auto_a",
+                  name: "A",
+                  position: { x: 120, y: 160 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+                {
+                  id: "auto_b",
+                  name: "B",
+                  position: { x: 360, y: 120 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+                {
+                  id: "auto_c",
+                  name: "C",
+                  position: { x: 280, y: 360 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+                {
+                  id: "auto_d",
+                  name: "D",
+                  position: { x: 520, y: 300 },
+                  size: { width: 180, height: 108 },
+                  indices: [],
+                  metadata: {},
+                },
+              ],
+              groups: [],
+              edges: [
+                {
+                  id: "edge_ab",
+                  name: "ab",
+                  left: { tensor_id: "auto_a", index_id: null },
+                  right: { tensor_id: "auto_b", index_id: null },
+                  metadata: {},
+                },
+                {
+                  id: "edge_bc",
+                  name: "bc",
+                  left: { tensor_id: "auto_b", index_id: null },
+                  right: { tensor_id: "auto_c", index_id: null },
+                  metadata: {},
+                },
+                {
+                  id: "edge_cd",
+                  name: "cd",
+                  left: { tensor_id: "auto_c", index_id: null },
+                  right: { tensor_id: "auto_d", index_id: null },
+                  metadata: {},
+                },
+                {
+                  id: "edge_da",
+                  name: "da",
+                  left: { tensor_id: "auto_d", index_id: null },
+                  right: { tensor_id: "auto_a", index_id: null },
+                  metadata: {},
+                },
+              ],
+              notes: [],
+              contraction_plan: null,
+              metadata: {},
+            });
+            ctx.state.selectionIds = [];
+            ctx.state.primarySelectionId = null;
+            ctx.applyReflowLayoutAction("auto");
+            const autoLayoutTensors = ctx.state.spec.tensors.map((tensor) => ({
+              id: tensor.id,
+              x: tensor.position.x,
+              y: tensor.position.y,
+              width: tensor.size.width,
+              height: tensor.size.height,
+            }));
+            if (ctx.state.selectionIds.length !== 0 || ctx.state.primarySelectionId !== null) {
+              throw new Error("Whole-graph auto layout should preserve an empty tensor selection.");
+            }
+            if (new Set(autoLayoutTensors.map((tensor) => tensor.y)).size < 2) {
+              throw new Error(
+                `Whole-graph auto layout should create multiple layers for cyclic graphs, received ${JSON.stringify(autoLayoutTensors)}.`
+              );
+            }
+            for (let leftIndex = 0; leftIndex < autoLayoutTensors.length; leftIndex += 1) {
+              for (let rightIndex = leftIndex + 1; rightIndex < autoLayoutTensors.length; rightIndex += 1) {
+                const leftTensor = autoLayoutTensors[leftIndex];
+                const rightTensor = autoLayoutTensors[rightIndex];
+                const overlapX =
+                  Math.abs(leftTensor.x - rightTensor.x)
+                  < (leftTensor.width + rightTensor.width) / 2;
+                const overlapY =
+                  Math.abs(leftTensor.y - rightTensor.y)
+                  < (leftTensor.height + rightTensor.height) / 2;
+                if (overlapX && overlapY) {
+                  throw new Error(
+                    `Whole-graph auto layout should avoid tensor overlap, received ${JSON.stringify(autoLayoutTensors)}.`
+                  );
+                }
+              }
             }
             """
         ),

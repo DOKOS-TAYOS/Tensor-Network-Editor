@@ -24,6 +24,10 @@ from tensor_network_editor.internal.cli._cli_formatters import (
     _format_label_list,
     _format_shape,
 )
+from tensor_network_editor.internal.io._serialization import (
+    SCHEMA_VERSION,
+    serialize_spec,
+)
 from tensor_network_editor.internal.models._headless_models import (
     NetworkSummary,
     SemanticDiffEntry,
@@ -33,6 +37,7 @@ from tensor_network_editor.internal.models._headless_models import (
 )
 from tensor_network_editor.linting import LintIssue, LintReport
 from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
+from tests.factories import build_sample_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -220,6 +225,9 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
         "template_catalog_path": Path("saved-network.json").resolve().parent
         / ".tensor-network-editor"
         / "templates.json",
+        "subnetwork_catalog_path": Path("saved-network.json").resolve().parent
+        / ".tensor-network-editor"
+        / "subnetworks.json",
     }
 
 
@@ -243,6 +251,9 @@ def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
     load_mock.assert_called_once_with(str(design_path))
     assert launch_mock.call_args.kwargs["template_catalog_path"] == (
         design_path.parent / ".tensor-network-editor" / "templates.json"
+    )
+    assert launch_mock.call_args.kwargs["subnetwork_catalog_path"] == (
+        design_path.parent / ".tensor-network-editor" / "subnetworks.json"
     )
 
 
@@ -306,6 +317,11 @@ def test_edit_subcommand_loads_initial_spec(sample_spec: NetworkSpec) -> None:
         Path("saved-network.json").resolve().parent
         / ".tensor-network-editor"
         / "templates.json"
+    )
+    assert launch_mock.call_args.kwargs["subnetwork_catalog_path"] == (
+        Path("saved-network.json").resolve().parent
+        / ".tensor-network-editor"
+        / "subnetworks.json"
     )
 
 
@@ -687,3 +703,133 @@ def test_template_build_subcommand_prints_json_when_no_output(
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["network"]["name"] == "MPS (5 sites)"
+
+
+def test_subnetwork_list_subcommand_prints_project_catalog(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    spec_path = tmp_path / "network.json"
+    sample_spec = build_sample_spec()
+    spec_path.write_text(
+        json.dumps(serialize_spec(sample_spec), indent=2), encoding="utf-8"
+    )
+
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    catalog_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "subnetworks": [
+                    {
+                        "name": "project_pair",
+                        "display_name": "Project Pair",
+                        "tags": ["alpha", "project"],
+                        "spec": {
+                            "schema_version": SCHEMA_VERSION,
+                            "network": sample_spec.to_dict(),
+                        },
+                    }
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["subnetwork", "list", str(spec_path)])
+
+    assert exit_code == 0
+    assert "project_pair: Project Pair [alpha, project]" in capsys.readouterr().out
+
+
+def test_subnetwork_save_subcommand_persists_project_catalog(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    spec_path = tmp_path / "network.json"
+    sample_spec = build_sample_spec()
+    spec_path.write_text(
+        json.dumps(serialize_spec(sample_spec), indent=2), encoding="utf-8"
+    )
+
+    exit_code = main(
+        [
+            "subnetwork",
+            "save",
+            str(spec_path),
+            "--tensor-ids",
+            "tensor_a",
+            "tensor_b",
+            "--name",
+            "project_pair",
+            "--tags",
+            "alpha",
+            "project",
+        ]
+    )
+
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+
+    assert exit_code == 0
+    saved_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+    assert saved_payload["schema_version"] == 1
+    assert saved_payload["subnetworks"][0]["name"] == "project_pair"
+    assert saved_payload["subnetworks"][0]["tags"] == ["alpha", "project"]
+    assert [
+        tensor["id"]
+        for tensor in saved_payload["subnetworks"][0]["spec"]["network"]["tensors"]
+    ] == [
+        "tensor_a",
+        "tensor_b",
+    ]
+    assert "Saved reusable subnetwork 'project_pair'" in capsys.readouterr().out
+
+
+def test_subnetwork_export_subcommand_writes_selected_entry_to_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    spec_path = tmp_path / "network.json"
+    output_path = tmp_path / "project_pair.json"
+    sample_spec = build_sample_spec()
+    spec_path.write_text(
+        json.dumps(serialize_spec(sample_spec), indent=2), encoding="utf-8"
+    )
+    save_exit_code = main(
+        [
+            "subnetwork",
+            "save",
+            str(spec_path),
+            "--tensor-ids",
+            "tensor_a",
+            "tensor_b",
+            "--name",
+            "project_pair",
+        ]
+    )
+
+    export_exit_code = main(
+        [
+            "subnetwork",
+            "export",
+            str(spec_path),
+            "project_pair",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    assert save_exit_code == 0
+    assert export_exit_code == 0
+    exported_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert exported_payload["schema_version"] == SCHEMA_VERSION
+    assert [tensor["id"] for tensor in exported_payload["network"]["tensors"]] == [
+        "tensor_a",
+        "tensor_b",
+    ]
+    assert (
+        f"Wrote reusable subnetwork 'project_pair' to {output_path}"
+        in capsys.readouterr().out
+    )

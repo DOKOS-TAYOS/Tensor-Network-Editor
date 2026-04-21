@@ -22,6 +22,7 @@ function createPropertyActions(ctx) {
     distributeSelectedTensors: (axis) => ctx.distributeSelectedTensors(axis),
     snapSelectedTensorsToGrid: () => ctx.snapSelectedTensorsToGrid(),
     exportSelectedSubnetwork: () => ctx.exportSelectedSubnetwork(),
+    saveSelectionToSubnetworkLibrary: () => ctx.saveSelectionToSubnetworkLibrary(),
     promoteSelectedSubnetworkToTemplate: () => ctx.promoteSelectedSubnetworkToTemplate(),
     createGroupFromSelection: () => ctx.createGroupFromSelection(),
     findGroupById: (groupId) => ctx.findGroupById(groupId),
@@ -31,6 +32,7 @@ function createPropertyActions(ctx) {
       ctx.getMetadataColor(metadata, fallbackColor),
     toggleGroupCollapse: (groupId) => ctx.toggleGroupCollapse(groupId),
     exportGroupSubnetwork: (groupId) => ctx.exportGroupSubnetwork(groupId),
+    saveGroupToSubnetworkLibrary: (groupId) => ctx.saveGroupToSubnetworkLibrary(groupId),
     promoteGroupToTemplate: (groupId) => ctx.promoteGroupToTemplate(groupId),
   };
 }

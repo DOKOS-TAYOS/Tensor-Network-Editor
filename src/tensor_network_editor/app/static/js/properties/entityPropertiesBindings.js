@@ -61,6 +61,9 @@ export function createEntityPropertiesBindings({
     });
     bindClick("toggle-group-button", () => actions.toggleGroupCollapse(group.id));
     bindClick("extract-group-button", () => actions.exportGroupSubnetwork(group.id));
+    bindClick("save-group-subnetwork-library-button", () =>
+      actions.saveGroupToSubnetworkLibrary(group.id)
+    );
     bindClick("promote-group-template-button", () =>
       actions.promoteGroupToTemplate(group.id)
     );

@@ -35,6 +35,9 @@ export function createUtilityUiPanelsSupport({
     templateManagerSaveButton,
     templateManagerDiscardButton,
     templateManagerError,
+    subnetworkLibraryModal,
+    subnetworkLibraryCloseButton,
+    subnetworkLibraryWarning,
   } = dom;
 
   const TOOLBAR_MENUS = {
@@ -308,6 +311,35 @@ export function createUtilityUiPanelsSupport({
     return state.isTemplateManagerOpen;
   }
 
+  function syncSubnetworkLibraryModalState() {
+    if (subnetworkLibraryModal) {
+      subnetworkLibraryModal.classList.toggle(
+        "is-hidden",
+        !state.isSubnetworkLibraryOpen
+      );
+    }
+    if (state.isSubnetworkLibraryOpen) {
+      if (
+        subnetworkLibraryCloseButton &&
+        typeof subnetworkLibraryCloseButton.focus === "function"
+      ) {
+        subnetworkLibraryCloseButton.focus();
+      }
+    } else if (subnetworkLibraryWarning) {
+      subnetworkLibraryWarning.hidden = true;
+      subnetworkLibraryWarning.textContent = "";
+    }
+  }
+
+  function toggleSubnetworkLibrary(forceOpen) {
+    state.isSubnetworkLibraryOpen =
+      typeof forceOpen === "boolean"
+        ? forceOpen
+        : !state.isSubnetworkLibraryOpen;
+    syncSubnetworkLibraryModalState();
+    return state.isSubnetworkLibraryOpen;
+  }
+
   function setTemplateManagerValidationMessage(message = "") {
     if (!templateManagerError) {
       return;
@@ -329,5 +361,7 @@ export function createUtilityUiPanelsSupport({
     syncTemplateManagerModalState,
     toggleTemplateManager,
     setTemplateManagerValidationMessage,
+    syncSubnetworkLibraryModalState,
+    toggleSubnetworkLibrary,
   };
 }

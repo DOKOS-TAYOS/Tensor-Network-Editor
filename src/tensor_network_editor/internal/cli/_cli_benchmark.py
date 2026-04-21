@@ -158,8 +158,7 @@ def serialize_benchmark_report_text(report: BenchmarkReport) -> str:
 
     separator = "  ".join("-" * width for width in column_widths)
     return "\n".join(
-        [format_row(cast(tuple[str, ...], rows[0])), separator]
-        + [format_row(cast(tuple[str, ...], row)) for row in rows[1:]]
+        [format_row(rows[0]), separator] + [format_row(row) for row in rows[1:]]
     )
 
 
@@ -174,9 +173,9 @@ def serialize_benchmark_report_latex(report: BenchmarkReport) -> str:
         [
             r"\begin{tabular}{lrrrr}",
             r"\hline",
-            format_row(cast(tuple[str, ...], rows[0])),
+            format_row(rows[0]),
             r"\hline",
-            *[format_row(cast(tuple[str, ...], row)) for row in rows[1:]],
+            *[format_row(row) for row in rows[1:]],
             r"\hline",
             r"\end{tabular}",
         ]

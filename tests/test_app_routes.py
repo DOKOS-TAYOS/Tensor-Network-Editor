@@ -1351,6 +1351,100 @@ def test_subnetwork_prepare_insert_route_rejects_missing_target_center(
     assert "target_center" in payload["message"]
 
 
+def test_subnetwork_library_save_route_persists_project_entry(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            subnetwork_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        payload = request_json(
+            f"{server.base_url}/api/subnetwork-library/save",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "subnetwork_name": "project_pair",
+                "tags": [" alpha ", "project"],
+            },
+        )
+    finally:
+        server.stop()
+
+    assert payload["ok"] is True
+    assert payload["selected_subnetwork"] == "project_pair"
+    assert payload["subnetwork_definitions"]["project_pair"]["source"] == "project"
+    assert payload["subnetwork_definitions"]["project_pair"]["tags"] == [
+        "alpha",
+        "project",
+    ]
+
+
+def test_subnetwork_library_prepare_insert_route_inserts_saved_entry(
+    tmp_path: Path,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            subnetwork_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        request_json(
+            f"{server.base_url}/api/subnetwork-library/save",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_sample_spec().to_dict(),
+                },
+                "tensor_ids": ["tensor_a", "tensor_b"],
+                "subnetwork_name": "project_pair",
+            },
+        )
+        payload = request_json(
+            f"{server.base_url}/api/subnetwork-library/prepare-insert",
+            method="POST",
+            payload={
+                "subnetwork_name": "project_pair",
+                "target_center": {"x": 640.0, "y": 480.0},
+            },
+        )
+    finally:
+        server.stop()
+
+    tensors = payload["spec"]["network"]["tensors"]
+    left = min(
+        tensor["position"]["x"] - tensor["size"]["width"] / 2 for tensor in tensors
+    )
+    right = max(
+        tensor["position"]["x"] + tensor["size"]["width"] / 2 for tensor in tensors
+    )
+    top = min(
+        tensor["position"]["y"] - tensor["size"]["height"] / 2 for tensor in tensors
+    )
+    bottom = max(
+        tensor["position"]["y"] + tensor["size"]["height"] / 2 for tensor in tensors
+    )
+
+    assert payload["ok"] is True
+    assert {tensor["id"] for tensor in tensors}.isdisjoint({"tensor_a", "tensor_b"})
+    assert (left + right) / 2 == pytest.approx(640.0)
+    assert (top + bottom) / 2 == pytest.approx(480.0)
+
+
 def test_analyze_contraction_route_returns_manual_summary(
     editor_server: EditorServer,
     serialized_sample_spec: dict[str, object],

@@ -7,13 +7,21 @@ import signal
 import threading
 import warnings
 import webbrowser
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from types import FrameType
 from typing import Any, Protocol
 from uuid import uuid4
 
 from ..codegen.registry import engine_name_to_text
+from ..internal.subnetworks._catalog import (
+    SubnetworkCatalog,
+    SubnetworkCatalogEntry,
+    append_project_subnetwork,
+    delete_project_subnetwork,
+    load_project_subnetwork_catalog,
+    rename_project_subnetwork,
+)
 from ..internal.templates._project_templates import (
     ProjectTemplateCatalog,
     ProjectTemplateEntry,
@@ -78,6 +86,8 @@ class EditorSession:
         print_code: bool = False,
         code_path: StrPath | None = None,
         template_catalog_path: StrPath | None = None,
+        subnetwork_catalog_path: StrPath | None = None,
+        shared_subnetwork_catalog_path: StrPath | None = None,
     ) -> None:
         """Initialize one mutable editor session.
 
@@ -91,6 +101,10 @@ class EditorSession:
                 confirmation.
             template_catalog_path: Optional per-project static template catalog
                 path.
+            subnetwork_catalog_path: Optional per-project reusable subnetwork
+                catalog path.
+            shared_subnetwork_catalog_path: Optional shared reusable subnetwork
+                catalog path.
         """
         self.initial_spec = initial_spec or build_blank_network_spec()
         self.session_id = uuid4().hex[:8]
@@ -106,6 +120,20 @@ class EditorSession:
             )
         )
         self.template_catalog_path = self._project_template_catalog.path
+        self._project_subnetwork_catalog: SubnetworkCatalog = (
+            load_project_subnetwork_catalog(subnetwork_catalog_path)
+        )
+        self.subnetwork_catalog_path = self._project_subnetwork_catalog.path
+        self._shared_subnetwork_catalog: SubnetworkCatalog | None = (
+            load_project_subnetwork_catalog(shared_subnetwork_catalog_path)
+            if shared_subnetwork_catalog_path is not None
+            else None
+        )
+        self.shared_subnetwork_catalog_path = (
+            self._shared_subnetwork_catalog.path
+            if self._shared_subnetwork_catalog is not None
+            else None
+        )
         self._finished_event = threading.Event()
         self._result: EditorResult | None = None
         self._lock = threading.Lock()
@@ -124,6 +152,33 @@ class EditorSession:
     def template_catalog_warnings(self) -> list[str]:
         """Return any warnings raised while loading the local template catalog."""
         return list(self._project_template_catalog.warnings)
+
+    @property
+    def project_subnetwork_entries(self) -> Mapping[str, SubnetworkCatalogEntry]:
+        """Return the project-local reusable subnetwork entries keyed by name."""
+        return self._project_subnetwork_catalog.entries
+
+    @property
+    def shared_subnetwork_entries(self) -> Mapping[str, SubnetworkCatalogEntry]:
+        """Return the shared reusable subnetwork entries keyed by name."""
+        if self._shared_subnetwork_catalog is None:
+            return {}
+        return self._shared_subnetwork_catalog.entries
+
+    @property
+    def subnetwork_catalog_warnings(self) -> list[str]:
+        """Return any warnings raised while loading reusable-subnetwork catalogs."""
+        warnings = list(self._project_subnetwork_catalog.warnings)
+        if self._shared_subnetwork_catalog is not None:
+            warnings.extend(self._shared_subnetwork_catalog.warnings)
+            warnings.extend(
+                [
+                    f"Project reusable subnetwork '{name}' shadows the shared catalog entry."
+                    for name in self._project_subnetwork_catalog.entries
+                    if name in self._shared_subnetwork_catalog.entries
+                ]
+            )
+        return warnings
 
     def list_available_template_names(self) -> list[str]:
         """Return the merged project-local and globally registered templates."""
@@ -144,6 +199,37 @@ class EditorSession:
         definitions.update(serialize_template_definitions())
         return definitions
 
+    def list_available_subnetwork_names(self) -> list[str]:
+        """Return merged project-local and shared reusable subnetworks."""
+        shared_names = (
+            list(self._shared_subnetwork_catalog.entries)
+            if self._shared_subnetwork_catalog is not None
+            else []
+        )
+        return list(self._project_subnetwork_catalog.entries) + [
+            name
+            for name in shared_names
+            if name not in self._project_subnetwork_catalog.entries
+        ]
+
+    def serialize_available_subnetwork_definitions(
+        self,
+    ) -> dict[str, dict[str, JSONValue]]:
+        """Return serialized reusable-subnetwork definitions for the editor."""
+        definitions = {
+            subnetwork_name: entry.to_definition(source="project")
+            for subnetwork_name, entry in self._project_subnetwork_catalog.entries.items()
+        }
+        if self._shared_subnetwork_catalog is not None:
+            for (
+                subnetwork_name,
+                entry,
+            ) in self._shared_subnetwork_catalog.entries.items():
+                if subnetwork_name in definitions:
+                    continue
+                definitions[subnetwork_name] = entry.to_definition(source="shared")
+        return definitions
+
     def has_project_template(self, template_name: str) -> bool:
         """Return whether the session exposes a project-local template name."""
         return template_name in self._project_template_catalog.entries
@@ -151,6 +237,10 @@ class EditorSession:
     def has_global_template(self, template_name: str) -> bool:
         """Return whether the session exposes a globally registered template."""
         return template_name in list_template_names()
+
+    def has_project_subnetwork(self, subnetwork_name: str) -> bool:
+        """Return whether the session exposes a project-local reusable subnetwork."""
+        return subnetwork_name in self._project_subnetwork_catalog.entries
 
     def build_project_template(self, template_name: str) -> NetworkSpec:
         """Build a copied project-local template spec for insertion."""
@@ -163,6 +253,59 @@ class EditorSession:
     def build_project_template_display_name(self, template_name: str) -> str:
         """Return the derived display name used for one promoted template."""
         return derive_project_template_display_name(template_name)
+
+    def build_saved_subnetwork(self, subnetwork_name: str) -> NetworkSpec:
+        """Build a copied saved reusable subnetwork spec for insertion."""
+        if subnetwork_name in self._project_subnetwork_catalog.entries:
+            return deepcopy(
+                self._project_subnetwork_catalog.entries[subnetwork_name].spec
+            )
+        if self._shared_subnetwork_catalog is not None and (
+            subnetwork_name in self._shared_subnetwork_catalog.entries
+        ):
+            return deepcopy(
+                self._shared_subnetwork_catalog.entries[subnetwork_name].spec
+            )
+        raise ValueError(f"Unknown reusable subnetwork '{subnetwork_name}'.")
+
+    def save_project_subnetwork(
+        self,
+        subnetwork_name: str,
+        spec: NetworkSpec,
+        *,
+        tags: Sequence[str] | None = None,
+        overwrite: bool = False,
+    ) -> None:
+        """Persist one reusable subnetwork and reload the project catalog."""
+        self._project_subnetwork_catalog = append_project_subnetwork(
+            self.subnetwork_catalog_path,
+            subnetwork_name,
+            spec,
+            tags=tags,
+            overwrite=overwrite,
+        )
+
+    def rename_project_subnetwork(
+        self,
+        subnetwork_name: str,
+        new_subnetwork_name: str,
+        *,
+        overwrite: bool = False,
+    ) -> None:
+        """Rename one project-local reusable subnetwork and reload the catalog."""
+        self._project_subnetwork_catalog = rename_project_subnetwork(
+            self.subnetwork_catalog_path,
+            subnetwork_name,
+            new_subnetwork_name,
+            overwrite=overwrite,
+        )
+
+    def delete_project_subnetwork(self, subnetwork_name: str) -> None:
+        """Delete one project-local reusable subnetwork and reload the catalog."""
+        self._project_subnetwork_catalog = delete_project_subnetwork(
+            self.subnetwork_catalog_path,
+            subnetwork_name,
+        )
 
     def save_project_template(
         self,
@@ -332,6 +475,8 @@ def launch_editor_session(
     print_code: bool = False,
     code_path: StrPath | None = None,
     template_catalog_path: StrPath | None = None,
+    subnetwork_catalog_path: StrPath | None = None,
+    shared_subnetwork_catalog_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
     """Create the local server, optionally open the browser, and wait.
@@ -348,6 +493,10 @@ def launch_editor_session(
         code_path: Optional output path for generated code after confirmation.
         template_catalog_path: Optional per-project static template catalog
             path.
+        subnetwork_catalog_path: Optional per-project reusable subnetwork
+            catalog path.
+        shared_subnetwork_catalog_path: Optional shared reusable subnetwork
+            catalog path.
         _on_server_ready: Internal callback used by tests once the local URL is
             available.
 
@@ -367,6 +516,8 @@ def launch_editor_session(
         print_code=print_code,
         code_path=code_path,
         template_catalog_path=template_catalog_path,
+        subnetwork_catalog_path=subnetwork_catalog_path,
+        shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
     )
     LOGGER.info("[session=%s] Starting editor session", session.session_id)
     server = EditorServer(session=session, host=host, port=port)

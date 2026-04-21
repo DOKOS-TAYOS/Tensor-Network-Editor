@@ -24,6 +24,10 @@ from ._protocol import (
     issues_response,
     ok_response,
     parse_codegen_request,
+    parse_subnetwork_library_delete_request,
+    parse_subnetwork_library_prepare_insert_request,
+    parse_subnetwork_library_rename_request,
+    parse_subnetwork_library_save_request,
     parse_subnetwork_prepare_insert_request,
     parse_subnetwork_selection_request,
     parse_template_delete_request,
@@ -38,11 +42,15 @@ from ._services import (
     analyze_serialized_contraction,
     build_bootstrap_payload,
     build_template_from_payload,
+    delete_session_project_subnetwork,
     delete_session_project_template,
     extract_serialized_subnetwork,
+    prepare_saved_subnetwork_for_insertion,
     prepare_serialized_subnetwork_for_insertion,
     promote_serialized_subnetwork_to_template,
+    rename_session_project_subnetwork,
     rename_session_project_template,
+    save_serialized_subnetwork_to_library,
 )
 from .session import EditorSession
 
@@ -236,6 +244,77 @@ def handle_subnetwork_prepare_insert(
         request = parse_subnetwork_prepare_insert_request(payload)
         spec = prepare_serialized_subnetwork_for_insertion(
             request.serialized_spec,
+            target_center=request.target_center,
+        )
+    except (SerializationError, TypeError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response({"spec": serialize_spec(spec)})
+
+
+def handle_subnetwork_library_save(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonResponse:
+    """Save one selected fragment into the reusable-subnetwork catalog."""
+    try:
+        request = parse_subnetwork_library_save_request(payload)
+        catalog_payload = save_serialized_subnetwork_to_library(
+            session,
+            request.serialized_spec,
+            tensor_ids=request.tensor_ids,
+            subnetwork_name=request.subnetwork_name,
+            tags=request.tags,
+            overwrite=request.overwrite,
+        )
+    except (PackageIOError, SerializationError, TypeError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response(catalog_payload)
+
+
+def handle_subnetwork_library_rename(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonResponse:
+    """Rename one project-local reusable-subnetwork catalog entry."""
+    try:
+        request = parse_subnetwork_library_rename_request(payload)
+        catalog_payload = rename_session_project_subnetwork(
+            session,
+            subnetwork_name=request.subnetwork_name,
+            new_subnetwork_name=request.new_subnetwork_name,
+            overwrite=request.overwrite,
+        )
+    except (PackageIOError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response(catalog_payload)
+
+
+def handle_subnetwork_library_delete(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonResponse:
+    """Delete one project-local reusable-subnetwork catalog entry."""
+    try:
+        request = parse_subnetwork_library_delete_request(payload)
+        catalog_payload = delete_session_project_subnetwork(
+            session,
+            subnetwork_name=request.subnetwork_name,
+        )
+    except (PackageIOError, ValueError) as exc:
+        return bad_request_response(str(exc))
+    return ok_response(catalog_payload)
+
+
+def handle_subnetwork_library_prepare_insert(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonResponse:
+    """Prepare one saved reusable subnetwork for insertion into the graph."""
+    try:
+        request = parse_subnetwork_library_prepare_insert_request(payload)
+        spec = prepare_saved_subnetwork_for_insertion(
+            session,
+            subnetwork_name=request.subnetwork_name,
             target_center=request.target_center,
         )
     except (SerializationError, TypeError, ValueError) as exc:

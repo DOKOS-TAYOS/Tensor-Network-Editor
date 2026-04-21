@@ -58,9 +58,11 @@ export function createEditorShellBindings({
     templatePhysicalDimensionInput,
     insertTemplateButton,
     saveSessionTemplateMenuItem,
+    saveSubnetworkLibraryMenuItem,
     loadSessionTemplateMenuItem,
     exportSessionTemplateMenuItem,
     editSessionTemplateMenuItem,
+    openSubnetworkLibraryMenuItem,
     reflowImportedButton,
     reflowAlignLeftButton,
     reflowAlignRightButton,
@@ -75,6 +77,7 @@ export function createEditorShellBindings({
     reflowArrangeChainButton,
     reflowArrangeTreeButton,
     reflowArrangeGridButton,
+    reflowAutoLayoutButton,
     reflowDistributeHorizontalButton,
     reflowDistributeVerticalButton,
     reflowSnapGridButton,
@@ -87,6 +90,10 @@ export function createEditorShellBindings({
     templateManagerBackdrop,
     templateManagerSaveButton,
     templateManagerDiscardButton,
+    subnetworkLibraryBackdrop,
+    subnetworkLibraryCloseButton,
+    subnetworkLibrarySearchInput,
+    subnetworkLibraryTagFilter,
     benchmarkCompareBackdrop,
     benchmarkCompareCloseButton,
     benchmarkCompareExportCsvButton,
@@ -306,9 +313,11 @@ export function createEditorShellBindings({
         "benchmark-mode-menu-item",
         "benchmark-compare-button",
         "save-session-template-menu-item",
+        "save-subnetwork-library-menu-item",
         "load-session-template-menu-item",
         "export-session-template-menu-item",
         "edit-session-template-menu-item",
+        "open-subnetwork-library-menu-item",
         "help-shortcuts-menu-item",
         "help-about-menu-item",
         "done-button",
@@ -327,6 +336,7 @@ export function createEditorShellBindings({
         "reflow-arrange-chain-button",
         "reflow-arrange-tree-button",
         "reflow-arrange-grid-button",
+        "reflow-auto-layout-button",
         "reflow-snap-grid-button",
         "reflow-indices-left-button",
         "reflow-indices-right-button",
@@ -543,6 +553,10 @@ export function createEditorShellBindings({
       actions.closeTransientToolbarUi();
       actions.saveSelectionAsSessionTemplate();
     });
+    bindListener(saveSubnetworkLibraryMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.saveSelectionToSubnetworkLibrary();
+    });
     bindListener(loadSessionTemplateMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.openSessionTemplatePicker();
@@ -554,6 +568,10 @@ export function createEditorShellBindings({
     bindListener(editSessionTemplateMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.toggleTemplateManager(true);
+    });
+    bindListener(openSubnetworkLibraryMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.openSubnetworkLibrary();
     });
     bindListener(reflowImportedButton, "click", () => {
       actions.toggleReflowLayoutPopover();
@@ -571,6 +589,7 @@ export function createEditorShellBindings({
     bindReflowAction(reflowArrangeChainButton, "chain");
     bindReflowAction(reflowArrangeTreeButton, "tree");
     bindReflowAction(reflowArrangeGridButton, "grid");
+    bindReflowAction(reflowAutoLayoutButton, "auto");
     bindReflowAction(reflowDistributeHorizontalButton, "horizontal");
     bindReflowAction(reflowDistributeVerticalButton, "vertical");
     bindReflowAction(reflowSnapGridButton, "snap");
@@ -598,6 +617,18 @@ export function createEditorShellBindings({
       if (typeof actions.discardTemplateManagerChanges === "function") {
         actions.discardTemplateManagerChanges();
       }
+    });
+    bindListener(subnetworkLibraryBackdrop, "click", () =>
+      actions.toggleSubnetworkLibrary(false)
+    );
+    bindListener(subnetworkLibraryCloseButton, "click", () =>
+      actions.toggleSubnetworkLibrary(false)
+    );
+    bindListener(subnetworkLibrarySearchInput, "input", (event) => {
+      actions.updateSubnetworkLibrarySearch(event.target.value);
+    });
+    bindListener(subnetworkLibraryTagFilter, "change", (event) => {
+      actions.updateSubnetworkLibraryTagFilter(event.target.value);
     });
     bindListener(benchmarkCompareBackdrop, "click", () =>
       actions.closeBenchmarkCompareModal()

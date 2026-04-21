@@ -67,6 +67,13 @@ export function buildGroupPropertiesMarkup({
           Extract
         </button>
         <button
+          id="save-group-subnetwork-library-button"
+          type="button"
+          ${linearPeriodicMode ? "disabled" : ""}
+        >
+          To Library
+        </button>
+        <button
           id="promote-group-template-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}

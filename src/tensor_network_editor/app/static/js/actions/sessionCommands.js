@@ -53,6 +53,49 @@ export function createSessionCommands({
     setStatus(successMessage, "success");
   }
 
+  function applySubnetworkCatalogUpdate(
+    payload,
+    successMessage = "Updated the subnetwork library."
+  ) {
+    if (typeof store.setSubnetworkCatalogData === "function") {
+      store.setSubnetworkCatalogData({
+        subnetworkNames: payload.subnetworks,
+        subnetworkDefinitions: payload.subnetwork_definitions,
+        subnetworkCatalogWarnings: payload.subnetwork_catalog_warnings,
+        selectedSubnetworkName:
+          typeof payload.selected_subnetwork === "string"
+            ? payload.selected_subnetwork
+            : null,
+      });
+    } else {
+      state.availableSubnetworks = Array.isArray(payload.subnetworks)
+        ? [...payload.subnetworks]
+        : [];
+      state.subnetworkDefinitions =
+        payload.subnetwork_definitions &&
+        typeof payload.subnetwork_definitions === "object"
+          ? { ...payload.subnetwork_definitions }
+          : {};
+      state.subnetworkCatalogWarnings = Array.isArray(
+        payload.subnetwork_catalog_warnings
+      )
+        ? [...payload.subnetwork_catalog_warnings]
+        : [];
+      state.selectedSubnetworkName =
+        typeof payload.selected_subnetwork === "string"
+          ? payload.selected_subnetwork
+          : state.availableSubnetworks[0] || "";
+    }
+    if (
+      Array.isArray(payload.subnetwork_catalog_warnings)
+      && payload.subnetwork_catalog_warnings.length
+    ) {
+      setStatus(payload.subnetwork_catalog_warnings[0], "error");
+      return;
+    }
+    setStatus(successMessage, "success");
+  }
+
   function insertPreparedSubnetwork(preparedSpec, label = null) {
     const normalizedSpec = normalizeSpec(preparedSpec);
     applyDesignChange(
@@ -81,6 +124,7 @@ export function createSessionCommands({
   return {
     syncGeneratedCodePreview,
     applyTemplateCatalogUpdate,
+    applySubnetworkCatalogUpdate,
     insertPreparedSubnetwork,
   };
 }

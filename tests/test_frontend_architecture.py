@@ -92,6 +92,23 @@ def test_editor_store_and_selectors_track_template_catalog_state(
           }},
           templateCatalogWarnings: ["warning one"],
         }});
+        store.setSubnetworkCatalogData({{
+          subnetworkNames: ["project_fragment", "shared_block"],
+          subnetworkDefinitions: {{
+            project_fragment: {{
+              display_name: "Project Fragment",
+              source: "project",
+              tags: ["alpha"],
+            }},
+            shared_block: {{
+              display_name: "Shared Block",
+              source: "shared",
+              tags: ["beta"],
+            }},
+          }},
+          subnetworkCatalogWarnings: ["warning two"],
+          selectedSubnetworkName: "shared_block",
+        }});
 
         const selectors = selectorsModule.createEditorSelectors({{ store }});
         if (store.getState().schemaVersion !== 4) {{
@@ -108,6 +125,15 @@ def test_editor_store_and_selectors_track_template_catalog_state(
         }}
         if (!selectors.hasTemplateCatalogWarnings()) {{
           throw new Error("Expected warning state to be tracked.");
+        }}
+        if (store.getState().selectedSubnetworkName !== "shared_block") {{
+          throw new Error(`Expected the selected reusable subnetwork to be tracked, received ${{store.getState().selectedSubnetworkName}}.`);
+        }}
+        if (store.getState().availableSubnetworks.join(",") !== "project_fragment,shared_block") {{
+          throw new Error(`Expected reusable subnetworks to be tracked in the store, received ${{store.getState().availableSubnetworks.join(",")}}.`);
+        }}
+        if (store.getState().subnetworkCatalogWarnings.join(",") !== "warning two") {{
+          throw new Error(`Expected reusable-subnetwork warnings to be tracked, received ${{store.getState().subnetworkCatalogWarnings.join(",")}}.`);
         }}
         if (selectors.getSelectedEngine() !== "quimb") {{
           throw new Error(`Expected selected engine quimb, received ${{selectors.getSelectedEngine()}}.`);
@@ -2761,11 +2787,15 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           singleModeMenuItem: getButton("single-mode-menu-item"),
           linearPeriodicModeMenuItem: getButton("linear-periodic-mode-menu-item"),
           gridPeriodicModeMenuItem: getButton("grid-periodic-mode-menu-item"),
+          treeModeMenuItem: getButton("tree-mode-menu-item"),
+          benchmarkModeMenuItem: getButton("benchmark-mode-menu-item"),
           linearPeriodicPreviousCellButton: getButton("linear-periodic-previous-cell-button"),
           linearPeriodicCellLabel: {{ textContent: "" }},
           gridPeriodicUpCellButton: getButton("grid-periodic-up-cell-button"),
           gridPeriodicDownCellButton: getButton("grid-periodic-down-cell-button"),
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
+          benchmarkSchemeNameInput: getButton("benchmark-scheme-name-input"),
+          benchmarkCompareButton: getButton("benchmark-compare-button"),
           copyCodeButton: getButton("copy-code-button"),
           expandGeneratedCodeButton: getButton("expand-generated-code-button"),
           generatedCodeModal: getButton("generated-code-modal"),
@@ -2786,9 +2816,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           insertTemplateButton: getButton("insert-template-button"),
           saveSessionTemplateMenuItem: getButton("save-session-template-menu-item"),
+          saveSubnetworkLibraryMenuItem: getButton("save-subnetwork-library-menu-item"),
           loadSessionTemplateMenuItem: getButton("load-session-template-menu-item"),
           exportSessionTemplateMenuItem: getButton("export-session-template-menu-item"),
           editSessionTemplateMenuItem: getButton("edit-session-template-menu-item"),
+          openSubnetworkLibraryMenuItem: getButton("open-subnetwork-library-menu-item"),
           reflowImportedButton: getButton("reflow-imported-button"),
           reflowAlignLeftButton: getButton("reflow-align-left-button"),
           reflowAlignRightButton: getButton("reflow-align-right-button"),
@@ -2803,6 +2835,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           reflowArrangeChainButton: getButton("reflow-arrange-chain-button"),
           reflowArrangeTreeButton: getButton("reflow-arrange-tree-button"),
           reflowArrangeGridButton: getButton("reflow-arrange-grid-button"),
+          reflowAutoLayoutButton: getButton("reflow-auto-layout-button"),
           reflowDistributeHorizontalButton: getButton("reflow-distribute-horizontal-button"),
           reflowDistributeVerticalButton: getButton("reflow-distribute-vertical-button"),
           reflowSnapGridButton: getButton("reflow-snap-grid-button"),
@@ -2816,6 +2849,15 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           templateManagerBackdrop: getButton("template-manager-backdrop"),
           templateManagerSaveButton: getButton("template-manager-save-button"),
           templateManagerDiscardButton: getButton("template-manager-discard-button"),
+          subnetworkLibraryBackdrop: getButton("subnetwork-library-backdrop"),
+          subnetworkLibraryCloseButton: getButton("subnetwork-library-close-button"),
+          subnetworkLibrarySearchInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          subnetworkLibraryTagFilter: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          benchmarkCompareBackdrop: getButton("benchmark-compare-backdrop"),
+          benchmarkCompareCloseButton: getButton("benchmark-compare-close-button"),
+          benchmarkCompareExportCsvButton: getButton("benchmark-compare-export-csv-button"),
+          benchmarkCompareExportTextButton: getButton("benchmark-compare-export-text-button"),
+          benchmarkCompareCopyLatexButton: getButton("benchmark-compare-copy-latex-button"),
           canvasShell: {{ addEventListener(type, handler) {{ this[type] = handler; }}, getBoundingClientRect() {{ return {{ left: 0, top: 0, width: 1000, height: 800 }}; }} }},
           minimapCanvas: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           engineSelect: {{ value: "cotengra", addEventListener(type, handler) {{ this[type] = handler; }} }},
@@ -2852,18 +2894,44 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           toggleLinearPeriodicMode: () => flowEvents.push("toggleLinearPeriodicMode"),
           setLinearPeriodicMode: (enabled) =>
             flowEvents.push(`setLinearPeriodicMode:${{enabled}}`),
+          setGridPeriodicMode: (enabled) =>
+            flowEvents.push(`setGridPeriodicMode:${{enabled}}`),
+          setTreePeriodicMode: (enabled) =>
+            flowEvents.push(`setTreePeriodicMode:${{enabled}}`),
+          setBenchmarkMode: (enabled) =>
+            flowEvents.push(`setBenchmarkMode:${{enabled}}`),
           switchLinearPeriodicCell: (direction) =>
             flowEvents.push(`switchLinearPeriodicCell:${{direction}}`),
+          switchGridPeriodicCell: (direction) =>
+            flowEvents.push(`switchGridPeriodicCell:${{direction}}`),
+          switchTreePeriodicCell: (direction) =>
+            flowEvents.push(`switchTreePeriodicCell:${{direction}}`),
+          switchBenchmarkPosition: (direction) =>
+            flowEvents.push(`switchBenchmarkPosition:${{direction}}`),
+          renameActiveBenchmarkScheme: (value) =>
+            flowEvents.push(`renameActiveBenchmarkScheme:${{value}}`),
+          openBenchmarkCompareModal: () =>
+            flowEvents.push("openBenchmarkCompareModal"),
           handleTemplateSelectionChange: () => flowEvents.push("handleTemplateSelectionChange"),
           handleTemplateParameterInput: () => flowEvents.push("handleTemplateParameterInput"),
           insertTemplate: () => flowEvents.push("insertTemplate"),
           openSubnetworkPicker: () => flowEvents.push("openSubnetworkPicker"),
           saveSelectionAsSessionTemplate: () =>
             flowEvents.push("saveSelectionAsSessionTemplate"),
+          saveSelectionToSubnetworkLibrary: () =>
+            flowEvents.push("saveSelectionToSubnetworkLibrary"),
           openSessionTemplatePicker: () =>
             flowEvents.push("openSessionTemplatePicker"),
           exportSelectedTemplateSpec: () =>
             flowEvents.push("exportSelectedTemplateSpec"),
+          openSubnetworkLibrary: () =>
+            flowEvents.push("openSubnetworkLibrary"),
+          toggleSubnetworkLibrary: (isOpen) =>
+            flowEvents.push(`toggleSubnetworkLibrary:${{isOpen}}`),
+          updateSubnetworkLibrarySearch: (value) =>
+            flowEvents.push(`updateSubnetworkLibrarySearch:${{value}}`),
+          updateSubnetworkLibraryTagFilter: (value) =>
+            flowEvents.push(`updateSubnetworkLibraryTagFilter:${{value}}`),
           toggleTemplateManager: (isOpen) =>
             flowEvents.push(`toggleTemplateManager:${{isOpen}}`),
           saveTemplateManagerChanges: () =>
@@ -2880,6 +2948,14 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           createGroupFromSelection: () => flowEvents.push("createGroupFromSelection"),
           toggleHelpModal: (isOpen) => flowEvents.push(`toggleHelpModal:${{isOpen}}`),
           openHelpSection: (section) => flowEvents.push(`openHelpSection:${{section}}`),
+          closeBenchmarkCompareModal: () =>
+            flowEvents.push("closeBenchmarkCompareModal"),
+          exportBenchmarkCompareAsCsv: () =>
+            flowEvents.push("exportBenchmarkCompareAsCsv"),
+          exportBenchmarkCompareAsText: () =>
+            flowEvents.push("exportBenchmarkCompareAsText"),
+          copyBenchmarkCompareAsLatex: () =>
+            flowEvents.push("copyBenchmarkCompareAsLatex"),
           enforceLinearPeriodicEngineSupport: () =>
             flowEvents.push("binding.enforceLinearPeriodicEngineSupport"),
           renderPlanner: () => flowEvents.push("binding.renderPlanner"),
@@ -2922,15 +2998,22 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.fileMenuButton.click();
         dom.exportPngMenuItem.click();
         dom.saveSessionTemplateMenuItem.click();
+        dom.saveSubnetworkLibraryMenuItem.click();
         dom.loadSessionTemplateMenuItem.click();
         dom.editSessionTemplateMenuItem.click();
+        dom.openSubnetworkLibraryMenuItem.click();
         dom.helpInfoMenuItem.click();
         dom.templateSettingsButton.click();
         dom.reflowImportedButton.click();
+        dom.reflowAutoLayoutButton.click();
         dom.reflowArrangeGridButton.click();
         dom.reflowIndicesResetButton.click();
         dom.templateManagerSaveButton.click();
         dom.templateManagerDiscardButton.click();
+        dom.subnetworkLibraryBackdrop.click();
+        dom.subnetworkLibraryCloseButton.click();
+        dom.subnetworkLibrarySearchInput.input({{ target: {{ value: "pair" }} }});
+        dom.subnetworkLibraryTagFilter.change({{ target: {{ value: "project" }} }});
         dom.templateSelect.mousedown({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
@@ -2978,11 +3061,17 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         if (!flowEvents.includes("saveSelectionAsSessionTemplate")) {{
           throw new Error(`Expected the Templates menu to save selection templates, received ${{JSON.stringify(flowEvents)}}.`);
         }}
+        if (!flowEvents.includes("saveSelectionToSubnetworkLibrary")) {{
+          throw new Error(`Expected the Templates menu to save subnetworks into the reusable library, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
         if (!flowEvents.includes("openSessionTemplatePicker")) {{
           throw new Error(`Expected the Templates menu to open the template file picker, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("toggleTemplateManager:true")) {{
           throw new Error(`Expected the Templates menu to open the template manager, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("openSubnetworkLibrary")) {{
+          throw new Error(`Expected the Templates menu to open the subnetwork library, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("saveTemplateManagerChanges")) {{
           throw new Error(`Expected the template manager save action to be wired, received ${{JSON.stringify(flowEvents)}}.`);
@@ -2999,11 +3088,21 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         if (!flowEvents.includes("toggleReflowLayoutPopover")) {{
           throw new Error(`Expected the Reflow button to toggle its popover, received ${{JSON.stringify(flowEvents)}}.`);
         }}
+        if (!flowEvents.includes("applyReflowLayoutAction:auto")) {{
+          throw new Error(`Expected the Auto layout action to dispatch through the Reflow popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
         if (!flowEvents.includes("applyReflowLayoutAction:grid")) {{
           throw new Error(`Expected the Reflow popover actions to dispatch the requested layout, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("applyReflowIndicesAction:reset")) {{
           throw new Error(`Expected the Reflow indices actions to dispatch the requested reflow, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (
+          !flowEvents.includes("toggleSubnetworkLibrary:false")
+          || !flowEvents.includes("updateSubnetworkLibrarySearch:pair")
+          || !flowEvents.includes("updateSubnetworkLibraryTagFilter:project")
+        ) {{
+          throw new Error(`Expected the subnetwork library dialog controls to be wired, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("binding.enforceLinearPeriodicEngineSupport") || !flowEvents.includes("binding.renderPlanner")) {{
           throw new Error(`Expected engine change binding to run its injected actions, received ${{JSON.stringify(flowEvents)}}.`);

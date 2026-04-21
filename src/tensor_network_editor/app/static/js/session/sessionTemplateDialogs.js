@@ -33,8 +33,24 @@ export function createSessionTemplateDialogs({ sessionUi, actions }) {
     return trimmedDisplayName;
   }
 
+  function promptForSubnetworkTags(defaultTags = [], cancelledStatus) {
+    const promptedTags = sessionUi.promptText(
+      "Add tags separated by commas. Leave empty for no tags.",
+      Array.isArray(defaultTags) ? defaultTags.join(", ") : ""
+    );
+    if (typeof promptedTags !== "string") {
+      actions.setStatus(cancelledStatus);
+      return null;
+    }
+    return promptedTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag);
+  }
+
   return {
     promptForTemplateDisplayName,
     promptForSubnetworkName,
+    promptForSubnetworkTags,
   };
 }

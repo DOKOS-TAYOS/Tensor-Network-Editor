@@ -28,8 +28,12 @@ offline use, and generated code you can inspect.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
+- Save reusable subnetworks into project or shared catalogs and reinsert them
+  later with fresh ids, tags, and quick previews.
 - Work with linear, grid, and tree periodic modes and export them with any
   bundled backend.
+- Reflow the current selection or the whole graph with `Auto layout` when
+  imported or irregular networks need a cleaner arrangement.
 - Inspect manual contraction paths and optional planner suggestions.
 - Benchmark manual and automatic contraction variants from the editor or the
   CLI, with reproducible CSV/TXT/LaTeX-style tables.
@@ -126,12 +130,14 @@ print(result.code)
 - [Documentation index](docs/README.md): where to go for each topic.
 - [Installation](docs/installation.md): full setup instructions.
 - [Getting started](docs/getting-started.md): first useful workflow.
-- [User guide](docs/user-guide.md): editor workflow, templates, planner, tips,
-  benchmark mode, periodic modes, and limits.
+- [User guide](docs/user-guide.md): editor workflow, templates, reusable
+  subnetworks, auto layout, planner, tips, benchmark mode, periodic modes, and
+  limits.
 - [Python API](docs/api.md): public functions and practical examples.
 - [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges, groups,
   notes, contraction plans, and periodic-mode payloads.
-- [CLI](docs/cli.md): terminal commands, benchmark/export workflows, and JSON output.
+- [CLI](docs/cli.md): terminal commands, subnetwork catalogs,
+  benchmark/export workflows, and JSON output.
 - [Troubleshooting](docs/troubleshooting.md): common problems and fixes.
 
 ## Current Limits

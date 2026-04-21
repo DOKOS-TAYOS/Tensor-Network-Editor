@@ -27,6 +27,32 @@ export function createEditorBootstrapFlow({
       templateDefinitions: payload.template_definitions,
       templateCatalogWarnings: payload.template_catalog_warnings,
     });
+    if (typeof store.setSubnetworkCatalogData === "function") {
+      store.setSubnetworkCatalogData({
+        subnetworkNames: payload.subnetworks,
+        subnetworkDefinitions: payload.subnetwork_definitions,
+        subnetworkCatalogWarnings: payload.subnetwork_catalog_warnings,
+        selectedSubnetworkName: payload.selected_subnetwork,
+      });
+    } else {
+      state.availableSubnetworks = Array.isArray(payload.subnetworks)
+        ? [...payload.subnetworks]
+        : [];
+      state.subnetworkDefinitions =
+        payload.subnetwork_definitions &&
+        typeof payload.subnetwork_definitions === "object"
+          ? { ...payload.subnetwork_definitions }
+          : {};
+      state.subnetworkCatalogWarnings = Array.isArray(
+        payload.subnetwork_catalog_warnings
+      )
+        ? [...payload.subnetwork_catalog_warnings]
+        : [];
+      state.selectedSubnetworkName =
+        typeof payload.selected_subnetwork === "string"
+          ? payload.selected_subnetwork
+          : state.availableSubnetworks[0] || "";
+    }
     store.setAnnotationDefinitions(payload.annotation_definitions);
     store.setSelectedEngine(payload.default_engine);
     store.setSelectedCollectionFormat(payload.default_collection_format || "list");
@@ -44,6 +70,8 @@ export function createEditorBootstrapFlow({
     }
     if (state.templateCatalogWarnings.length) {
       actions.setStatus(state.templateCatalogWarnings[0], "error");
+    } else if (state.subnetworkCatalogWarnings.length) {
+      actions.setStatus(state.subnetworkCatalogWarnings[0], "error");
     } else {
       actions.setStatus(READY_STATUS_MESSAGE, "success");
     }

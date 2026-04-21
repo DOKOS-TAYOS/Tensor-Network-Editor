@@ -34,6 +34,9 @@ from .internal.cli._cli_handlers import (
     handle_edit_command,
     handle_export_command,
     handle_lint_command,
+    handle_subnetwork_export_command,
+    handle_subnetwork_list_command,
+    handle_subnetwork_save_command,
     handle_template_build_command,
     handle_template_list_command,
     handle_validate_command,
@@ -83,6 +86,9 @@ def build_command_parser() -> argparse.ArgumentParser:
             handle_canonicalize=_handle_canonicalize,
             handle_template_list=_handle_template_list,
             handle_template_build=_handle_template_build,
+            handle_subnetwork_list=_handle_subnetwork_list,
+            handle_subnetwork_save=_handle_subnetwork_save,
+            handle_subnetwork_export=_handle_subnetwork_export,
         )
     )
 
@@ -221,6 +227,31 @@ def _handle_template_build(args: argparse.Namespace) -> int:
         args,
         parse_template_parameters=parse_template_parameters,
         build_template_spec=build_template_spec,
+        save_spec=save_spec,
+        print_json=print_json,
+    )
+
+
+def _handle_subnetwork_list(args: argparse.Namespace) -> int:
+    """Print reusable-subnetwork entries for the requested project context."""
+    return handle_subnetwork_list_command(
+        args,
+        print_json=print_json,
+    )
+
+
+def _handle_subnetwork_save(args: argparse.Namespace) -> int:
+    """Save a reusable subnetwork from one source spec."""
+    return handle_subnetwork_save_command(
+        args,
+        load_spec=load_spec,
+    )
+
+
+def _handle_subnetwork_export(args: argparse.Namespace) -> int:
+    """Export a reusable subnetwork from the merged project/shared catalogs."""
+    return handle_subnetwork_export_command(
+        args,
         save_spec=save_spec,
         print_json=print_json,
     )

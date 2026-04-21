@@ -46,6 +46,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     syncToolbarTransientUi: panelsSupport.syncToolbarTransientUi,
     syncHelpModalState: panelsSupport.syncHelpModalState,
     syncTemplateManagerModalState: panelsSupport.syncTemplateManagerModalState,
+    syncSubnetworkLibraryModalState: panelsSupport.syncSubnetworkLibraryModalState,
     syncGeneratedCodeActionState: generatedCodeSupport.syncGeneratedCodeActionState,
     syncGeneratedCodeModalState: generatedCodeSupport.syncGeneratedCodeModalState,
   });
@@ -66,6 +67,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     updateToolbarState: toolbarSupport.updateToolbarState,
     syncCodeGenerationWarning: toolbarSupport.syncCodeGenerationWarning,
     syncTemplateCatalogWarning: toolbarSupport.syncTemplateCatalogWarning,
+    syncSubnetworkCatalogWarning: toolbarSupport.syncSubnetworkCatalogWarning,
     syncHelpModalState: panelsSupport.syncHelpModalState,
     toggleHelpModal: panelsSupport.toggleHelpModal,
     openHelpSection: panelsSupport.openHelpSection,
@@ -73,6 +75,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     toggleTemplateManager: panelsSupport.toggleTemplateManager,
     setTemplateManagerValidationMessage:
       panelsSupport.setTemplateManagerValidationMessage,
+    syncSubnetworkLibraryModalState: panelsSupport.syncSubnetworkLibraryModalState,
+    toggleSubnetworkLibrary: panelsSupport.toggleSubnetworkLibrary,
     formatIssues: statusSupport.formatIssues,
     setStatus: statusSupport.setStatus,
   };

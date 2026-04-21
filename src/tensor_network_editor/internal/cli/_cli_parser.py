@@ -27,6 +27,9 @@ class CliHandlerBindings:
     handle_canonicalize: CommandHandler
     handle_template_list: CommandHandler
     handle_template_build: CommandHandler
+    handle_subnetwork_list: CommandHandler
+    handle_subnetwork_save: CommandHandler
+    handle_subnetwork_export: CommandHandler
 
 
 def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParser:
@@ -169,6 +172,87 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     template_build_parser.add_argument("--output", type=str)
     _add_output_format_argument(template_build_parser)
     template_build_parser.set_defaults(handler=handlers.handle_template_build)
+
+    subnetwork_parser = subparsers.add_parser(
+        "subnetwork",
+        help="Inspect, save, and export reusable subnetworks from project catalogs.",
+    )
+    subnetwork_subparsers = subnetwork_parser.add_subparsers(
+        dest="subnetwork_command",
+        required=True,
+    )
+
+    subnetwork_list_parser = subnetwork_subparsers.add_parser(
+        "list",
+        help="List reusable subnetworks available for one project spec path.",
+    )
+    subnetwork_list_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved spec path used to resolve the project catalog directory.",
+    )
+    subnetwork_list_parser.add_argument(
+        "--shared-catalog-path",
+        type=str,
+        help="Optional shared reusable-subnetwork catalog path.",
+    )
+    _add_output_format_argument(subnetwork_list_parser)
+    subnetwork_list_parser.set_defaults(handler=handlers.handle_subnetwork_list)
+
+    subnetwork_save_parser = subnetwork_subparsers.add_parser(
+        "save",
+        help="Extract tensors from a spec and persist them into the project catalog.",
+    )
+    subnetwork_save_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved spec path to extract from.",
+    )
+    subnetwork_save_parser.add_argument(
+        "--tensor-ids",
+        nargs="+",
+        required=True,
+        help="Tensor ids to include in the saved reusable subnetwork.",
+    )
+    subnetwork_save_parser.add_argument(
+        "--name",
+        required=True,
+        help="Catalog name for the saved reusable subnetwork.",
+    )
+    subnetwork_save_parser.add_argument(
+        "--tags",
+        nargs="*",
+        default=[],
+        help="Optional tags attached to the saved reusable subnetwork.",
+    )
+    subnetwork_save_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace an existing project subnetwork with the same name.",
+    )
+    subnetwork_save_parser.set_defaults(handler=handlers.handle_subnetwork_save)
+
+    subnetwork_export_parser = subnetwork_subparsers.add_parser(
+        "export",
+        help="Export one reusable subnetwork from the project/shared catalog.",
+    )
+    subnetwork_export_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved spec path used to resolve the project catalog directory.",
+    )
+    subnetwork_export_parser.add_argument(
+        "subnetwork_name",
+        type=str,
+        help="Catalog name of the reusable subnetwork to export.",
+    )
+    subnetwork_export_parser.add_argument(
+        "--shared-catalog-path",
+        type=str,
+        help="Optional shared reusable-subnetwork catalog path.",
+    )
+    subnetwork_export_parser.add_argument("--output", type=str)
+    subnetwork_export_parser.set_defaults(handler=handlers.handle_subnetwork_export)
     return parser
 
 

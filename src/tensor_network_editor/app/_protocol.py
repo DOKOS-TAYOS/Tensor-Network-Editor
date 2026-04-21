@@ -83,6 +83,41 @@ class SubnetworkPrepareInsertRequest:
     target_center: CanvasPosition
 
 
+@dataclass(slots=True, frozen=True)
+class SubnetworkLibrarySaveRequest:
+    """Normalized payload for reusable-subnetwork save requests."""
+
+    serialized_spec: JsonDict
+    tensor_ids: list[str]
+    subnetwork_name: str
+    tags: list[str]
+    overwrite: bool
+
+
+@dataclass(slots=True, frozen=True)
+class SubnetworkLibraryRenameRequest:
+    """Normalized payload for reusable-subnetwork rename requests."""
+
+    subnetwork_name: str
+    new_subnetwork_name: str
+    overwrite: bool
+
+
+@dataclass(slots=True, frozen=True)
+class SubnetworkLibraryDeleteRequest:
+    """Normalized payload for reusable-subnetwork delete requests."""
+
+    subnetwork_name: str
+
+
+@dataclass(slots=True, frozen=True)
+class SubnetworkLibraryPrepareInsertRequest:
+    """Normalized payload for reusable-subnetwork insertion requests."""
+
+    subnetwork_name: str
+    target_center: CanvasPosition
+
+
 def read_json(body: bytes) -> JsonDict:
     """Decode a request body into a JSON object payload."""
     if not body:
@@ -134,6 +169,21 @@ def require_string_list(payload: JsonDict, field_name: str) -> list[str]:
         values.append(raw_value)
     if not values:
         raise ValueError(f"'{field_name}' must be a non-empty list of values.")
+    return values
+
+
+def optional_string_list(payload: JsonDict, field_name: str) -> list[str]:
+    """Return a string list from ``payload`` or an empty list when omitted."""
+    raw_values = payload.get(field_name, [])
+    if raw_values is None:
+        return []
+    if not isinstance(raw_values, list):
+        raise ValueError(f"'{field_name}' must be a list of values when provided.")
+    values: list[str] = []
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str):
+            raise ValueError(f"'{field_name}' must be a list of values when provided.")
+        values.append(raw_value)
     return values
 
 
@@ -217,6 +267,49 @@ def parse_subnetwork_prepare_insert_request(
     """Normalize a subnetwork insertion-preparation request payload."""
     return SubnetworkPrepareInsertRequest(
         serialized_spec=require_serialized_spec(payload),
+        target_center=require_canvas_position(payload, "target_center"),
+    )
+
+
+def parse_subnetwork_library_save_request(
+    payload: JsonDict,
+) -> SubnetworkLibrarySaveRequest:
+    """Normalize a reusable-subnetwork save request payload."""
+    return SubnetworkLibrarySaveRequest(
+        serialized_spec=require_serialized_spec(payload),
+        tensor_ids=require_string_list(payload, "tensor_ids"),
+        subnetwork_name=require_non_empty_string(payload, "subnetwork_name"),
+        tags=optional_string_list(payload, "tags"),
+        overwrite=require_boolean(payload, "overwrite", default=False),
+    )
+
+
+def parse_subnetwork_library_rename_request(
+    payload: JsonDict,
+) -> SubnetworkLibraryRenameRequest:
+    """Normalize a reusable-subnetwork rename request payload."""
+    return SubnetworkLibraryRenameRequest(
+        subnetwork_name=require_non_empty_string(payload, "subnetwork_name"),
+        new_subnetwork_name=require_non_empty_string(payload, "new_subnetwork_name"),
+        overwrite=require_boolean(payload, "overwrite", default=False),
+    )
+
+
+def parse_subnetwork_library_delete_request(
+    payload: JsonDict,
+) -> SubnetworkLibraryDeleteRequest:
+    """Normalize a reusable-subnetwork delete request payload."""
+    return SubnetworkLibraryDeleteRequest(
+        subnetwork_name=require_non_empty_string(payload, "subnetwork_name"),
+    )
+
+
+def parse_subnetwork_library_prepare_insert_request(
+    payload: JsonDict,
+) -> SubnetworkLibraryPrepareInsertRequest:
+    """Normalize a reusable-subnetwork insertion request payload."""
+    return SubnetworkLibraryPrepareInsertRequest(
+        subnetwork_name=require_non_empty_string(payload, "subnetwork_name"),
         target_center=require_canvas_position(payload, "target_center"),
     )
 

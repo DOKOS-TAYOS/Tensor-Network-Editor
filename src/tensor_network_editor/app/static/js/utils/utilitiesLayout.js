@@ -28,6 +28,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
   const {
     buildAlignedTensorPositions,
     buildArrangedSelectionPositions,
+    buildAutoLayoutPositions,
     buildImportedReflowPositions,
     computeTensorBounds,
   } = algorithms;
@@ -142,6 +143,33 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     );
   }
 
+  function applyAutoLayout() {
+    const selectedTensorIds = getSelectedLayoutTensorIds();
+    const graphTensorIds = Array.isArray(state.spec && state.spec.tensors)
+      ? state.spec.tensors.map((tensor) => tensor.id)
+      : [];
+    const tensorIds = selectedTensorIds.length ? selectedTensorIds : graphTensorIds;
+    if (tensorIds.length < 2) {
+      ctx.setStatus("Add or select at least two tensors first.");
+      return false;
+    }
+    const targetPositions = buildAutoLayoutPositions(
+      tensorIds,
+      tensorIds.includes(state.primarySelectionId) ? state.primarySelectionId : null
+    );
+    return applyTensorPositions(
+      tensorIds,
+      targetPositions,
+      selectedTensorIds.length
+        ? "Auto-arranged the selected tensors."
+        : "Auto-arranged the whole graph.",
+      {
+        selectionIds: Array.isArray(state.selectionIds) ? [...state.selectionIds] : [],
+        primaryId: state.primarySelectionId,
+      }
+    );
+  }
+
   function applyReflowLayoutAction(layoutAction) {
     const action = typeof layoutAction === "string" ? layoutAction : "";
     if (
@@ -161,6 +189,9 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     }
     if (action === "snap") {
       return snapSelectedTensorsToGrid();
+    }
+    if (action === "auto") {
+      return applyAutoLayout();
     }
     if (action === "smart") {
       return reflowLastImportedTensors();
@@ -234,6 +265,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     alignSelectedTensors,
     applyReflowIndicesAction,
     applyReflowLayoutAction,
+    applyAutoLayout,
     arrangeSelectedTensors,
     distributeSelectedTensors,
     reflowLastImportedTensors,

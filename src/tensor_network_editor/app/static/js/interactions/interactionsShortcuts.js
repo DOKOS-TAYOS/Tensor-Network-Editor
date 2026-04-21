@@ -219,6 +219,7 @@ export function createInteractionShortcutBindings({
       state.isHelpOpen ||
       state.isGeneratedCodeModalOpen ||
       state.isTemplateManagerOpen ||
+      state.isSubnetworkLibraryOpen ||
       state.benchmarkSession?.compareModal?.open
     );
   }
@@ -366,6 +367,10 @@ export function createInteractionShortcutBindings({
       }
       if (state.isTemplateManagerOpen) {
         toggleTemplateManager(false);
+        return;
+      }
+      if (state.isSubnetworkLibraryOpen && typeof ctx.toggleSubnetworkLibrary === "function") {
+        ctx.toggleSubnetworkLibrary(false);
         return;
       }
       if (state.isHelpOpen) {

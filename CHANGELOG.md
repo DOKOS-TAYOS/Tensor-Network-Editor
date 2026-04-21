@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - The editor server now rebuilds its shared static-asset cache when source files change and uses nanosecond asset versions, avoiding stale in-process assets after fast local edits.
 - The CLI now exposes a first-class `benchmark` subcommand with stable `text`, `json`, `csv`, and `latex` outputs for comparing the manual, auto-full, auto-future, and auto-past contraction variants of one saved design.
 - Public docs now surface benchmark workflows and the advanced periodic modes more clearly, including dedicated guidance for `For bidimensional` and `For Tree` instead of focusing almost entirely on the linear workflow.
+- Editor sessions now support a reusable subnetwork library with dedicated project/shared catalogs, CRUD routes, bootstrap payloads, preview/tag metadata, and matching `subnetwork list/save/export` CLI commands built on top of the existing extract/prepare-insert primitives.
+- The `Reflow` popover now exposes an explicit `Auto layout` action that can arrange the active tensor selection or the whole graph when nothing is selected, while keeping benchmark-scheme and `For`-mode restrictions aligned with the rest of the toolbar.
 
 ### Fixed
 
@@ -23,6 +25,8 @@ All notable changes to this project will be documented in this file.
 - Tree-periodic codegen renderers now include the missing type annotations needed for the targeted CLI `mypy` regression check, and the linear-periodic headless analysis regression test now matches the current single-analysis flow.
 - Editor HTTP request handling now rejects truncated request bodies deterministically, repeated session completion requests keep the first confirmed result instead of overwriting it, and benchmark-base planner guards clear all transient disclosure/inspection state consistently.
 - The editor toolbar no longer presents `For Tree` as “Not available yet”; its copy now matches the real support level of the mode while still making clear in docs that planner/manual contraction editing remains disabled there.
+
+- Irregular imported graphs no longer fall back to a coarse grid-only reflow path; auto layout now uses layered component placement with overlap-safe spacing, and the toolbar keeps whole-graph layout available without requiring a temporary tensor selection.
 
 ## [0.3.0] - 2026-04-20
 

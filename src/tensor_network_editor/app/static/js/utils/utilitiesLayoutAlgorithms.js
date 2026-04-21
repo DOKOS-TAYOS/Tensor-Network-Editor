@@ -74,6 +74,10 @@ export function createUtilityLayoutAlgorithmSupport({
   }
 
   function buildImportedReflowPositions(tensorIds) {
+    return buildAutoLayoutPositions(tensorIds);
+  }
+
+  function buildAutoLayoutPositions(tensorIds, preferredRootId = null) {
     const adjacency = buildTensorAdjacency(tensorIds);
     const componentLayouts = buildConnectedComponents(tensorIds, adjacency).map(
       (componentIds) => {
@@ -84,13 +88,16 @@ export function createUtilityLayoutAlgorithmSupport({
           );
         }
         if (isTreeComponent(componentIds, adjacency)) {
-          return buildTreeComponentLayout(componentIds, adjacency);
+          return buildTreeComponentLayout(
+            componentIds,
+            adjacency,
+            componentIds.includes(preferredRootId) ? preferredRootId : null
+          );
         }
-        return buildComponentLayoutFromLocalPositions(
+        return buildLayeredComponentLayout(
           componentIds,
-          buildGridLocalPositions(
-            buildComponentTraversalOrder(componentIds, adjacency)
-          )
+          adjacency,
+          componentIds.includes(preferredRootId) ? preferredRootId : null
         );
       }
     );
@@ -233,6 +240,29 @@ export function createUtilityLayoutAlgorithmSupport({
     };
   }
 
+  function buildLayeredComponentLayout(
+    componentIds,
+    adjacency,
+    preferredRootId = null
+  ) {
+    const rootId = resolveLayeredRootId(componentIds, adjacency, preferredRootId);
+    const { depthById, idsByDepth } = buildBreadthFirstLevels(
+      componentIds,
+      adjacency,
+      rootId
+    );
+    const layeredIds = [...idsByDepth.keys()]
+      .sort((leftDepth, rightDepth) => leftDepth - rightDepth)
+      .map((depth) =>
+        sortLayerTensorIds(idsByDepth.get(depth) || [], adjacency, depthById)
+      )
+      .filter((layerIds) => layerIds.length > 0);
+    return buildComponentLayoutFromLocalPositions(
+      componentIds,
+      buildLayeredLocalPositions(layeredIds)
+    );
+  }
+
   function buildTreeComponentLayout(componentIds, adjacency, preferredRootId = null) {
     const { rootId, childrenById } = buildSpanningTree(
       componentIds,
@@ -314,6 +344,38 @@ export function createUtilityLayoutAlgorithmSupport({
     };
   }
 
+  function buildLayerRowPositions(orderedIds) {
+    const positions = {};
+    const rowHeight = Math.max(
+      0,
+      ...orderedIds.map((tensorId) =>
+        ctx.tensorHeight(ctx.findTensorById(tensorId))
+      )
+    );
+    let nextCenterX = 0;
+    let previousHalfWidth = 0;
+    orderedIds.forEach((tensorId, index) => {
+      const tensor = ctx.findTensorById(tensorId);
+      const halfWidth = ctx.tensorWidth(tensor) / 2;
+      if (index === 0) {
+        nextCenterX = halfWidth;
+      } else {
+        nextCenterX += previousHalfWidth + LAYOUT_HORIZONTAL_GAP + halfWidth;
+      }
+      positions[tensorId] = {
+        x: nextCenterX,
+        y: rowHeight / 2,
+      };
+      previousHalfWidth = halfWidth;
+    });
+    const bounds = computePositionBounds(orderedIds, positions);
+    return {
+      positions,
+      rowHeight,
+      width: bounds.right - bounds.left,
+    };
+  }
+
   function buildChainLocalPositions(orderedIds) {
     return buildHorizontalRowPositions(orderedIds).positions;
   }
@@ -348,6 +410,34 @@ export function createUtilityLayoutAlgorithmSupport({
         left += columnWidths[columnIndex] + LAYOUT_HORIZONTAL_GAP;
       });
       top += rowHeights[rowIndex] + LAYOUT_VERTICAL_GAP;
+    });
+    return positions;
+  }
+
+  function buildLayeredLocalPositions(layeredIds) {
+    const layerRows = layeredIds.map((layerIds) => ({
+      ids: [...layerIds],
+      ...buildLayerRowPositions(layerIds),
+    }));
+    const maxLayerWidth = Math.max(
+      0,
+      ...layerRows.map((layerRow) => layerRow.width)
+    );
+    const positions = {};
+    let top = 0;
+    layerRows.forEach((layerRow, rowIndex) => {
+      const offsetX = (maxLayerWidth - layerRow.width) / 2;
+      layerRow.ids.forEach((tensorId) => {
+        const position = layerRow.positions[tensorId];
+        positions[tensorId] = {
+          x: position.x + offsetX,
+          y: position.y + top,
+        };
+      });
+      top += layerRow.rowHeight;
+      if (rowIndex < layerRows.length - 1) {
+        top += LAYOUT_VERTICAL_GAP;
+      }
     });
     return positions;
   }
@@ -400,6 +490,33 @@ export function createUtilityLayoutAlgorithmSupport({
       components.push(componentIds);
     });
     return components;
+  }
+
+  function buildBreadthFirstLevels(componentIds, adjacency, rootId) {
+    const componentIdSet = new Set(componentIds);
+    const depthById = new Map([[rootId, 0]]);
+    const idsByDepth = new Map([[0, [rootId]]]);
+    const queue = [rootId];
+    while (queue.length) {
+      const currentId = queue.shift();
+      const currentDepth = depthById.get(currentId) || 0;
+      sortTensorIdsByPosition(adjacency.get(currentId) || []).forEach((neighborId) => {
+        if (!componentIdSet.has(neighborId) || depthById.has(neighborId)) {
+          return;
+        }
+        const nextDepth = currentDepth + 1;
+        depthById.set(neighborId, nextDepth);
+        if (!idsByDepth.has(nextDepth)) {
+          idsByDepth.set(nextDepth, []);
+        }
+        idsByDepth.get(nextDepth).push(neighborId);
+        queue.push(neighborId);
+      });
+    }
+    return {
+      depthById,
+      idsByDepth,
+    };
   }
 
   function buildTensorAdjacency(tensorIds) {
@@ -488,6 +605,37 @@ export function createUtilityLayoutAlgorithmSupport({
     return null;
   }
 
+  function sortLayerTensorIds(layerIds, adjacency, depthById) {
+    return [...layerIds].sort((leftId, rightId) => {
+      const leftAnchor = computeLayerAnchorX(leftId, adjacency, depthById);
+      const rightAnchor = computeLayerAnchorX(rightId, adjacency, depthById);
+      if (leftAnchor !== rightAnchor) {
+        return leftAnchor - rightAnchor;
+      }
+      return compareTensorIdsByPosition(leftId, rightId);
+    });
+  }
+
+  function computeLayerAnchorX(tensorId, adjacency, depthById) {
+    const tensorDepth = depthById.get(tensorId) || 0;
+    const parentXs = (adjacency.get(tensorId) || [])
+      .filter((neighborId) => (depthById.get(neighborId) || 0) < tensorDepth)
+      .map((neighborId) => {
+        const neighborTensor = ctx.findTensorById(neighborId);
+        return neighborTensor ? neighborTensor.position.x : 0;
+      });
+    if (parentXs.length) {
+      return (
+        parentXs.reduce(
+          (sum, currentValue) => sum + currentValue,
+          0
+        ) / parentXs.length
+      );
+    }
+    const tensor = ctx.findTensorById(tensorId);
+    return tensor ? tensor.position.x : 0;
+  }
+
   function buildComponentTraversalOrder(
     componentIds,
     adjacency,
@@ -535,6 +683,20 @@ export function createUtilityLayoutAlgorithmSupport({
       childrenById,
       rootId,
     };
+  }
+
+  function resolveLayeredRootId(componentIds, adjacency, preferredRootId = null) {
+    if (preferredRootId && componentIds.includes(preferredRootId)) {
+      return preferredRootId;
+    }
+    return [...componentIds].sort((leftId, rightId) => {
+      const leftDegree = (adjacency.get(leftId) || []).length;
+      const rightDegree = (adjacency.get(rightId) || []).length;
+      if (leftDegree !== rightDegree) {
+        return rightDegree - leftDegree;
+      }
+      return compareTensorIdsByPosition(leftId, rightId);
+    })[0];
   }
 
   function resolveComponentRootId(componentIds, adjacency, preferredRootId = null) {
@@ -620,18 +782,23 @@ export function createUtilityLayoutAlgorithmSupport({
     );
   }
 
-  function sortTensorIdsByPosition(tensorIds) {
-    return [...tensorIds].sort((leftId, rightId) => {
-      const leftTensor = ctx.findTensorById(leftId);
-      const rightTensor = ctx.findTensorById(rightId);
-      if (!leftTensor || !rightTensor) {
-        return 0;
-      }
-      if (leftTensor.position.y !== rightTensor.position.y) {
-        return leftTensor.position.y - rightTensor.position.y;
-      }
+  function compareTensorIdsByPosition(leftId, rightId) {
+    const leftTensor = ctx.findTensorById(leftId);
+    const rightTensor = ctx.findTensorById(rightId);
+    if (!leftTensor || !rightTensor) {
+      return 0;
+    }
+    if (leftTensor.position.y !== rightTensor.position.y) {
+      return leftTensor.position.y - rightTensor.position.y;
+    }
+    if (leftTensor.position.x !== rightTensor.position.x) {
       return leftTensor.position.x - rightTensor.position.x;
-    });
+    }
+    return String(leftId).localeCompare(String(rightId));
+  }
+
+  function sortTensorIdsByPosition(tensorIds) {
+    return [...tensorIds].sort(compareTensorIdsByPosition);
   }
 
   function computeTensorBounds(tensors) {
@@ -687,6 +854,7 @@ export function createUtilityLayoutAlgorithmSupport({
   return {
     buildAlignedTensorPositions,
     buildArrangedSelectionPositions,
+    buildAutoLayoutPositions,
     buildImportedReflowPositions,
     computeTensorBounds,
   };
