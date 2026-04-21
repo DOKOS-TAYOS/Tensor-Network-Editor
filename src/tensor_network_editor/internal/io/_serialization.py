@@ -13,6 +13,12 @@ from ...types import JSONValue, StrPath
 from ...validation import ensure_valid_spec
 from ._io import read_utf8_text, write_utf8_text
 from ._payloads import coerce_int
+from ._python_import_profiles import (
+    PythonSourceProfile,
+    detect_python_source_profile,
+    normalize_python_source_profile,
+    parse_python_source_by_profile,
+)
 from ._python_roundtrip import parse_generated_python_network
 
 SCHEMA_VERSION = 6
@@ -112,12 +118,16 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
     write_utf8_text(path, body, description="network specification JSON")
 
 
-def load_spec(path: StrPath) -> NetworkSpec:
+def load_spec(
+    path: StrPath, *, source_profile: PythonSourceProfile = "auto"
+) -> NetworkSpec:
     """Load a saved JSON spec or supported generated Python file from disk.
 
     Args:
         path: Path to a serialized JSON design or supported generated Python
             export.
+        source_profile: Optional supported Python import profile used for ``.py``
+            files. ``"auto"`` detects a supported profile from the source.
 
     Returns:
         The parsed network specification.
@@ -129,7 +139,7 @@ def load_spec(path: StrPath) -> NetworkSpec:
     if Path(path).suffix.lower() == ".py":
         body = read_utf8_text(path, description="generated Python code")
         LOGGER.debug("Loaded generated Python code payload from %s", path)
-        return load_spec_from_python_code(body)
+        return load_spec_from_python_code(body, source_profile=source_profile)
 
     body = read_utf8_text(path, description="network specification JSON")
     LOGGER.debug("Loaded serialized network payload from %s", path)
@@ -143,7 +153,10 @@ def load_spec(path: StrPath) -> NetworkSpec:
 
 
 def deserialize_spec_from_python_code(
-    code: str, *, validate: bool = True
+    code: str,
+    *,
+    validate: bool = True,
+    source_profile: PythonSourceProfile = "auto",
 ) -> NetworkSpec:
     """Parse supported generated Python source into a ``NetworkSpec``.
 
@@ -151,6 +164,8 @@ def deserialize_spec_from_python_code(
         code: Generated Python source emitted by a supported standard network
             export.
         validate: Whether to validate the reconstructed specification.
+        source_profile: Optional supported Python import profile. ``"auto"``
+            detects a supported profile from the source.
 
     Returns:
         The reconstructed network specification.
@@ -166,18 +181,36 @@ def deserialize_spec_from_python_code(
         raise SerializationError(
             "Loading generated Python from bidimensional For mode is not supported."
         )
-    spec = parse_generated_python_network(code)
+    normalized_profile = normalize_python_source_profile(source_profile)
+    resolved_profile = (
+        detect_python_source_profile(code)
+        if normalized_profile == "auto"
+        else normalized_profile
+    )
+    spec = (
+        parse_generated_python_network(code)
+        if resolved_profile == "generated"
+        else parse_python_source_by_profile(code, source_profile=resolved_profile)
+    )
     return ensure_valid_spec(spec) if validate else spec
 
 
-def load_spec_from_python_code(code: str) -> NetworkSpec:
+def load_spec_from_python_code(
+    code: str, *, source_profile: PythonSourceProfile = "auto"
+) -> NetworkSpec:
     """Parse and validate supported generated Python source.
 
     Args:
         code: Generated Python source emitted by a supported standard network
             export.
+        source_profile: Optional supported Python import profile. ``"auto"``
+            detects a supported profile from the source.
 
     Returns:
         The parsed and validated network specification.
     """
-    return deserialize_spec_from_python_code(code, validate=True)
+    return deserialize_spec_from_python_code(
+        code,
+        validate=True,
+        source_profile=source_profile,
+    )

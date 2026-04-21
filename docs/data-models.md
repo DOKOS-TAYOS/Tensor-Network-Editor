@@ -69,6 +69,11 @@ new saved-file schema:
 These values stay free-form text. You can still keep any extra keys you want in
 the same `metadata` object.
 
+`lint_spec(...)` understands these guided keys more deeply than generic custom
+metadata. For example, it can warn about open indices marked as `leg_kind="bond"`
+or conflicting `symmetry` annotations across connected legs while still keeping
+those checks as soft lint findings rather than hard validation errors.
+
 Useful helper methods:
 
 - `tensor_map()`: map tensor ids to tensors
@@ -388,6 +393,8 @@ headless output.
   when they fit what you want to describe.
 - Prefer guided index keys like `leg_kind`, `symmetry`, and `observable` for
   leg semantics.
+- Expect `lint_spec(...)` to treat those guided keys specially and surface
+  higher-signal modeling warnings when they conflict with the graph structure.
 - Keep free-form metadata reasonably small so the editor stays responsive.
 - Prefer JSON as the long-term design artifact and generated code as the
   backend-specific artifact.

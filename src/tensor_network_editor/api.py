@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import Literal
 
 from .codegen.registry import engine_name_to_text
 from .codegen.registry import generate_code as _generate_code
@@ -75,29 +76,45 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
     _save_spec(spec, path)
 
 
-def load_spec(path: StrPath) -> NetworkSpec:
+def load_spec(
+    path: StrPath,
+    *,
+    source_profile: Literal[
+        "auto", "generated", "quimb", "tensornetwork", "einsum"
+    ] = "auto",
+) -> NetworkSpec:
     """Load a saved JSON spec or a supported generated Python export.
 
     Args:
         path: Path to a saved JSON design or supported generated Python file.
+        source_profile: Optional supported Python import profile used for ``.py``
+            files. ``"auto"`` detects a supported profile from the source.
 
     Returns:
         The parsed network specification.
     """
-    return _load_spec(path)
+    return _load_spec(path, source_profile=source_profile)
 
 
-def load_spec_from_python_code(code: str) -> NetworkSpec:
+def load_spec_from_python_code(
+    code: str,
+    *,
+    source_profile: Literal[
+        "auto", "generated", "quimb", "tensornetwork", "einsum"
+    ] = "auto",
+) -> NetworkSpec:
     """Reconstruct a network specification from generated Python source.
 
     Args:
         code: Generated Python source emitted by a supported standard network
             export.
+        source_profile: Optional supported Python import profile. ``"auto"``
+            detects a supported profile from the source.
 
     Returns:
         The reconstructed network specification.
     """
-    return _load_spec_from_python_code(code)
+    return _load_spec_from_python_code(code, source_profile=source_profile)
 
 
 def launch_tensor_network_editor(

@@ -110,7 +110,7 @@ def _literal_string(expression: ast.expr | None) -> str | None:
 
 def _literal_string_sequence(expression: ast.expr | None) -> list[str] | None:
     """Return a list of literal strings or ``None`` if unsupported."""
-    if not isinstance(expression, (ast.List, ast.Tuple)):
+    if not isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
         return None
     values: list[str] = []
     for item in expression.elts:

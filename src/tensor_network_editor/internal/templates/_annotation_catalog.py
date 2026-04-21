@@ -90,3 +90,11 @@ def serialize_annotation_definitions() -> dict[str, list[dict[str, JSONValue]]]:
         scope.value: [definition.to_dict() for definition in definitions]
         for scope, definitions in ANNOTATION_DEFINITIONS.items()
     }
+
+
+def annotation_keys_by_scope() -> dict[AnnotationScope, tuple[str, ...]]:
+    """Return the canonical guided metadata keys grouped by supported scope."""
+    return {
+        scope: tuple(definition.key for definition in definitions)
+        for scope, definitions in ANNOTATION_DEFINITIONS.items()
+    }

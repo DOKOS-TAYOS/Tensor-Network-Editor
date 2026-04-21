@@ -160,10 +160,12 @@ Important details:
 
 - `save_spec(...)` validates before writing
 - `load_spec(...)` accepts saved JSON designs
-- `load_spec(...)` also accepts supported generated `.py` exports from the
-  standard network workflow
-- `load_spec_from_python_code(...)` works when generated source is already in
-  memory for the same supported standard exports
+- `load_spec(...)` also accepts supported `.py` sources and autodetects one of
+  the built-in Python import profiles: `generated`, `quimb`,
+  `tensornetwork`, or `einsum`
+- `load_spec_from_python_code(...)` works when source is already in memory and
+  also accepts `source_profile="generated" | "quimb" | "tensornetwork" |
+  "einsum"` when you want to lock the parser explicitly
 
 Round-trip from generated source:
 
@@ -180,13 +182,25 @@ round_tripped_spec = load_spec_from_python_code(result.code)
 print(round_tripped_spec.name)
 ```
 
-This parser is intentionally limited to standard source layouts emitted by this
-package. For supported standard exports, manual contraction steps now round-trip
-back into `ContractionPlanSpec.steps`. Editor-only `view_snapshots` are still
-reset to an empty list because generated Python does not carry scene layout.
-Hyperedges are exported in lowered copy-tensor form and are re-imported in that
-same binary form rather than reconstructed as `HyperedgeSpec`. Linear periodic
-generated Python remains export-only for now, and this is still not a general
+Explicit profile selection:
+
+```python
+from tensor_network_editor import load_spec_from_python_code
+
+
+spec = load_spec_from_python_code(quimb_source, source_profile="quimb")
+```
+
+The Python importer is intentionally conservative. Supported generated exports
+still provide the richest round-trip, including recovery of manual contraction
+steps into `ContractionPlanSpec.steps`. The external `quimb`,
+`tensornetwork`, and `einsum` profiles only parse supported static AST shapes;
+they do not execute user code, recover editor layout/groups/notes, or rebuild
+manual contraction plans. Editor-only `view_snapshots` are still reset to an
+empty list because Python source does not carry scene layout. Hyperedges from
+generated exports are still re-imported in lowered copy-tensor form rather than
+reconstructed as `HyperedgeSpec`. Linear, grid, and tree periodic generated
+Python remain export-only for now, and this is still not a general
 Python-to-network importer.
 
 ## Validate, Lint, Analyze, Canonicalize, and Diff
@@ -227,7 +241,9 @@ print(semantic_diff.to_dict())
 Use:
 
 - `validate_spec(...)` for hard consistency rules
-- `lint_spec(...)` for softer warnings and suggestions
+- `lint_spec(...)` for softer warnings and suggestions, including metadata-aware
+  checks built on guided keys like `role`, `symmetry`, `leg_kind`, and
+  `observable`
 - `analyze_spec(...)` for structural counts and contraction summaries
 - `analyze_contraction(...)` when you only need contraction analysis
 - `canonicalize_spec(...)` for stable ordering, recursive metadata key ordering,

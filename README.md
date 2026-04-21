@@ -27,6 +27,8 @@ offline use, and generated code you can inspect.
 - Save and reload backend-independent JSON designs.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
+- Import supported Python network layouts from generated exports plus simple
+  `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files.
 - Edit tensor initializers in the sidebar with generated zeros, ones, fill
   values, or explicit numeric JSON literals that round-trip through saved
   designs and supported generated Python.
@@ -151,6 +153,11 @@ print(result.code)
   copy tensors for export, re-imported generated Python stays in that lowered
   binary form, and planner/manual contraction editing plus benchmark mode are
   disabled while hyperedges exist in the design.
+- Python import is intentionally conservative. It supports the package's own
+  generated exports plus static AST patterns for simple `quimb`,
+  `tensornetwork`, and `einsum` / `opt_einsum` sources, but it does not execute
+  user code, import live objects, recover editor layout/groups/notes, or load
+  periodic-mode Python back into editable specs.
 - Tensor values in the visual editor are currently limited to generated zeros,
   ones, fill values, and explicit numeric JSON literals. Symbolic
   initializers, random initializers, and direct `.npy` / `.pt` imports are not

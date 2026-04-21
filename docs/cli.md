@@ -106,7 +106,7 @@ These are useful for scripts, quick checks, and CI.
 
 ## Validate
 
-Validate a saved JSON design or supported generated Python export:
+Validate a saved JSON design or a supported Python import profile:
 
 ```bash
 tensor-network-editor validate my_network.json
@@ -145,6 +145,13 @@ Linting reports things that may be suspicious even if the spec is valid:
 - empty groups
 - uninformative names
 - incomplete manual plans
+- guided metadata conflicts such as open `bond` legs, observable annotations on
+  connected bonds, and mismatched `symmetry` metadata
+
+For `.py` inputs, the CLI autodetects the same supported Python import
+profiles as the library API: generated exports plus conservative static AST
+imports for simple `quimb`, `tensornetwork`, and `einsum` / `opt_einsum`
+sources.
 
 ## Analyze
 

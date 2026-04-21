@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Literal, cast
 
 import pytest
 
@@ -33,6 +34,8 @@ from tests.factories import (
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
 )
+
+PythonSourceProfile = Literal["auto", "generated", "quimb", "tensornetwork", "einsum"]
 
 
 def test_package_version_matches_installed_metadata() -> None:
@@ -207,6 +210,35 @@ def test_load_spec_round_trips_generated_python_file(
     assert loaded_spec.contraction_plan is None
 
 
+def test_load_spec_imports_quimb_python_file_with_auto_detection(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "quimb_network.py"
+    source_path.write_text(
+        "\n".join(
+            [
+                "import numpy as np",
+                "import quimb.tensor as qtn",
+                "",
+                "a_data = np.zeros((2, 3))",
+                "b_data = np.zeros((3, 5))",
+                "tensor_a = qtn.Tensor(a_data, inds=('i', 'bond_x'), tags=('A',))",
+                "tensor_b = qtn.Tensor(b_data, inds=('bond_x', 'j'), tags=('B',))",
+                "network = qtn.TensorNetwork([tensor_a, tensor_b])",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded_spec = load_spec(source_path)
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert loaded_spec.hyperedges == []
+    assert loaded_spec.contraction_plan is None
+
+
 @pytest.mark.parametrize("engine", list(EngineName))
 @pytest.mark.parametrize(
     "collection_format",
@@ -316,6 +348,149 @@ def test_load_spec_from_python_code_round_trips_chained_manual_plan_steps(
     ]
     assert loaded_spec.contraction_plan.steps[1].left_operand_id == "step_ab"
     assert loaded_spec.contraction_plan.steps[1].right_operand_id == "tensor_c"
+
+
+def test_load_spec_from_python_code_imports_quimb_tensor_network_profile() -> None:
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            "tensor_a = qtn.Tensor(a_data, inds=('i', 'bond_x'), tags=('A',))",
+            "tensor_b = qtn.Tensor(b_data, inds=('bond_x', 'j'), tags=('B',))",
+            "network = qtn.TensorNetwork([tensor_a, tensor_b])",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(code, source_profile="quimb")
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert loaded_spec.hyperedges == []
+    assert loaded_spec.contraction_plan is None
+
+
+def test_load_spec_from_python_code_imports_quimb_ampersand_chain_hyperedge() -> None:
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            "c_data = np.zeros((3, 7))",
+            "tensor_a = qtn.Tensor(a_data, inds=('i', 'shared_h'), tags=('A',))",
+            "tensor_b = qtn.Tensor(b_data, inds=('shared_h', 'j'), tags=('B',))",
+            "tensor_c = qtn.Tensor(c_data, inds=('shared_h', 'k'), tags=('C',))",
+            "network = tensor_a & tensor_b & tensor_c",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(code)
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert loaded_spec.edges == []
+    assert len(loaded_spec.hyperedges) == 1
+    assert loaded_spec.hyperedges[0].name == "shared_h"
+    assert len(loaded_spec.hyperedges[0].endpoints) == 3
+
+
+@pytest.mark.parametrize(
+    ("statement", "source_profile"),
+    [
+        (
+            "edge_x = tn.connect(node_a['bond_x'], node_b['bond_x'], name='bond_x')",
+            "tensornetwork",
+        ),
+        (
+            "bond_x = node_a['bond_x'] ^ node_b['bond_x']",
+            "tensornetwork",
+        ),
+    ],
+)
+def test_load_spec_from_python_code_imports_tensornetwork_profile(
+    statement: str,
+    source_profile: str,
+) -> None:
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import tensornetwork as tn",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            "node_a = tn.Node(a_data, name='A', axis_names=['i', 'bond_x'])",
+            "node_b = tn.Node(b_data, name='B', axis_names=['bond_x', 'j'])",
+            statement,
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        source_profile=cast(PythonSourceProfile, source_profile),
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert loaded_spec.hyperedges == []
+    assert loaded_spec.contraction_plan is None
+
+
+@pytest.mark.parametrize(
+    ("statement", "source_profile"),
+    [
+        ("result = np.einsum('ab,bc->ac', a_data, b_data)", "einsum"),
+        ("result = oe.contract('ab,bc->ac', a_data, b_data)", "einsum"),
+    ],
+)
+def test_load_spec_from_python_code_imports_einsum_profiles(
+    statement: str,
+    source_profile: str,
+) -> None:
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import opt_einsum as oe",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            statement,
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        source_profile=cast(PythonSourceProfile, source_profile),
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["b"]
+    assert loaded_spec.hyperedges == []
+    assert loaded_spec.contraction_plan is None
+
+
+def test_load_spec_from_python_code_rejects_external_profiles_without_static_shapes() -> (
+    None
+):
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "shape = (2, 3)",
+            "a_data = np.zeros(shape)",
+            "tensor_a = qtn.Tensor(a_data, inds=('i', 'j'), tags=('A',))",
+            "network = qtn.TensorNetwork([tensor_a])",
+        ]
+    )
+
+    with pytest.raises(SerializationError, match="supported"):
+        load_spec_from_python_code(code, source_profile="quimb")
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
