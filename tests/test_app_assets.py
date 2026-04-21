@@ -143,6 +143,8 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     engine_index = html.index('id="engine-select"')
     collection_index = html.index('id="collection-format-select"')
     generate_index = html.index('id="generate-button"')
+    copy_index = html.index('id="copy-code-button"')
+    expand_index = html.index('id="expand-generated-code-button"')
     warning_index = html.index('id="code-generation-warning"')
 
     assert (
@@ -150,8 +152,12 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
         < engine_index
         < collection_index
         < generate_index
+        < copy_index
+        < expand_index
         < warning_index
     )
+    assert 'id="copy-code-button"' in html
+    assert 'id="expand-generated-code-button"' in html
     assert 'id="generated-code-view"' in html
     assert 'id="generated-code"' in html
     assert "/vendor/prism-core.min.js?v=" not in html
@@ -218,6 +224,16 @@ def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> No
     assert html.index('class="toolbar-mode-controls"') < html.index(
         'id="template-select-field"'
     )
+
+
+def test_root_exposes_generated_code_modal(editor_server: EditorServer) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert 'id="generated-code-modal"' in html
+    assert 'id="generated-code-modal-backdrop"' in html
+    assert 'id="generated-code-modal-close-button"' in html
+    assert 'id="generated-code-modal-view"' in html
+    assert ">Generated code<" in html
 
 
 def test_main_module_is_served_from_static_directory(
@@ -524,6 +540,8 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert "padding-right: 2.1rem;" in body
     assert ".code-header-row {" in body
     assert ".code-preview {" in body
+    assert "padding: 3.4rem 1rem 1rem;" not in body
+    assert "padding: 1rem;" in body
     assert ".code-preview .token.keyword {" in body
     assert ".code-preview .token.function {" in body
 
@@ -1425,7 +1443,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="reflow-imported-button"' in html
     assert 'aria-haspopup="dialog"' in html
     assert 'id="reflow-layout-popover"' in html
-    assert 'id="reflow-align-left-button"' in html
+    assert 'id="reflow-align-left-button"' not in html
     assert 'id="reflow-indices-left-button"' in html
     assert 'id="reflow-indices-reset-button"' in html
     assert 'id="reflow-arrange-chain-button"' in html
@@ -1451,23 +1469,19 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'class="help-close-icon"' in html
     assert '<span class="template-parameter-title">Template</span>' not in html
     assert re.search(
-        r'<div class="button-row reflow-align-row">[\s\S]*id="reflow-align-left-button"[\s\S]*id="reflow-align-right-button"[\s\S]*id="reflow-align-top-button"[\s\S]*id="reflow-align-middle-button"[\s\S]*id="reflow-align-bottom-button"',
-        html,
-    )
-    assert re.search(
         r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
         html,
     )
     assert re.search(
-        r'Indices[\s\S]*<div class="button-row reflow-align-row reflow-indices-row">[\s\S]*id="reflow-indices-left-button"[\s\S]*id="reflow-indices-right-button"[\s\S]*id="reflow-indices-top-button"[\s\S]*id="reflow-indices-reset-button"[\s\S]*id="reflow-indices-bottom-button"',
+        r'Indices[\s\S]*<div class="button-row reflow-align-row reflow-indices-row">[\s\S]*id="reflow-indices-left-button"[\s\S]*id="reflow-indices-right-button"[\s\S]*id="reflow-indices-top-button"[\s\S]*id="reflow-indices-bottom-button"[\s\S]*id="reflow-indices-reset-button"',
         html,
     )
-    assert 'aria-label="Align left"' in html
-    assert 'aria-label="Align middle"' in html
+    assert 'aria-label="Align left"' not in html
+    assert 'aria-label="Align middle"' not in html
     assert 'aria-label="Move indices left"' in html
     assert (
         'title="Align left: place selected tensors on the same left edge while keeping them separated."'
-        in html
+        not in html
     )
     assert (
         'title="Chain: place selected tensors in one ordered row, following bonds when present."'
@@ -1492,7 +1506,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert not re.search(r'<button id="help-close-button"[^>]*title=', html)
     assert re.search(r">\s*Reset\s*<", html)
     assert "&larr;" in html
-    assert "&#8857;" in html
+    assert "&#8857;" not in html
     assert "Arrange Chain" not in html
     assert "Distribute Horizontally" not in html
     assert "Distribute Vertically" not in html

@@ -48,6 +48,7 @@ function createShellActions(ctx) {
     completeEditor: () => ctx.completeEditor(),
     cancelEditor: () => ctx.cancelEditor(),
     copyGeneratedCode: () => ctx.copyGeneratedCode(),
+    toggleGeneratedCodeModal: (isOpen) => ctx.toggleGeneratedCodeModal(isOpen),
     performUndo: () => ctx.performUndo(),
     performRedo: () => ctx.performRedo(),
     downloadSelectedExport: () => ctx.downloadSelectedExport(),

@@ -427,10 +427,20 @@ export function registerGraphRender(ctx) {
       if (typeof ctx.setActiveSidebarTab === "function") {
         ctx.setActiveSidebarTab("selection");
       }
+      const additiveSelection =
+        typeof ctx.isAdditiveSelectionModifier === "function" &&
+        ctx.isAdditiveSelectionModifier(event.originalEvent);
+      if (
+        kind === "tensor" &&
+        additiveSelection &&
+        state.activeTensorDrag &&
+        state.activeTensorDrag.anchorId === element.id() &&
+        state.activeTensorDrag.addedSelectionOnGrab
+      ) {
+        return;
+      }
       ctx.selectElement(kind, element.id(), {
-        additive:
-          typeof ctx.isAdditiveSelectionModifier === "function" &&
-          ctx.isAdditiveSelectionModifier(event.originalEvent),
+        additive: additiveSelection,
       });
     });
 
@@ -503,11 +513,20 @@ export function registerGraphRender(ctx) {
     state.cy.on("grab", "node[kind = 'tensor']", (event) => {
       hideBoundaryTensorTooltip();
       const tensorId = event.target.id();
+      const additiveSelection =
+        typeof ctx.isAdditiveSelectionModifier === "function" &&
+        ctx.isAdditiveSelectionModifier(event.originalEvent);
+      const tensorWasSelected = state.selectionIds.includes(tensorId);
       ctx.bringTensorToFront(tensorId);
-      if (!state.selectionIds.includes(tensorId)) {
+      if (additiveSelection && !tensorWasSelected) {
+        ctx.setSelection([...state.selectionIds, tensorId], { primaryId: tensorId });
+      } else if (!tensorWasSelected) {
         ctx.setSelection([tensorId], { primaryId: tensorId });
       }
-      state.activeTensorDrag = createTensorDragState(tensorId);
+      state.activeTensorDrag = {
+        addedSelectionOnGrab: additiveSelection && !tensorWasSelected,
+        ...createTensorDragState(tensorId),
+      };
     });
 
     state.cy.on("position", "node[kind = 'tensor']", (event) => {

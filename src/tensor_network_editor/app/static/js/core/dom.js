@@ -5,6 +5,7 @@ export function getDomRefs(document) {
     propertiesPanel: document.getElementById("properties-panel"),
     generatedCode: document.getElementById("generated-code"),
     generatedCodeView: document.getElementById("generated-code-view"),
+    generatedCodeModalView: document.getElementById("generated-code-modal-view"),
     engineSelectField: document.getElementById("engine-select-field"),
     engineSelect: document.getElementById("engine-select"),
     collectionFormatSelectField: document.getElementById(
@@ -54,6 +55,13 @@ export function getDomRefs(document) {
     ),
     benchmarkSchemeNameInput: document.getElementById("benchmark-scheme-name-input"),
     benchmarkCompareButton: document.getElementById("benchmark-compare-button"),
+    copyCodeButton: document.getElementById("copy-code-button"),
+    expandGeneratedCodeButton: document.getElementById("expand-generated-code-button"),
+    generatedCodeModal: document.getElementById("generated-code-modal"),
+    generatedCodeModalBackdrop: document.getElementById("generated-code-modal-backdrop"),
+    generatedCodeModalCloseButton: document.getElementById(
+      "generated-code-modal-close-button"
+    ),
     templateSelectField: document.getElementById("template-select-field"),
     templateSelect: document.getElementById("template-select"),
     templateSettingsButton: document.getElementById("template-settings-button"),

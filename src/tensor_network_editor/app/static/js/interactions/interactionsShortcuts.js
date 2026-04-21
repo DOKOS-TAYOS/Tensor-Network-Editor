@@ -217,6 +217,7 @@ export function createInteractionShortcutBindings({
   function hasBlockingModalOpen() {
     return Boolean(
       state.isHelpOpen ||
+      state.isGeneratedCodeModalOpen ||
       state.isTemplateManagerOpen ||
       state.benchmarkSession?.compareModal?.open
     );
@@ -354,6 +355,10 @@ export function createInteractionShortcutBindings({
       event.preventDefault();
       if (state.benchmarkSession?.compareModal?.open) {
         closeBenchmarkCompareModal();
+        return;
+      }
+      if (state.isGeneratedCodeModalOpen) {
+        ctx.toggleGeneratedCodeModal(false);
         return;
       }
       if (closeTransientToolbarUi()) {

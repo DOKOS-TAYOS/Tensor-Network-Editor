@@ -2551,6 +2551,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           gridPeriodicUpCellButton: getButton("grid-periodic-up-cell-button"),
           gridPeriodicDownCellButton: getButton("grid-periodic-down-cell-button"),
           linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
+          copyCodeButton: getButton("copy-code-button"),
+          expandGeneratedCodeButton: getButton("expand-generated-code-button"),
+          generatedCodeModal: getButton("generated-code-modal"),
+          generatedCodeModalBackdrop: getButton("generated-code-modal-backdrop"),
+          generatedCodeModalCloseButton: getButton("generated-code-modal-close-button"),
           templateSelectField: getButton("template-select-field"),
           engineSelectField: getButton("engine-select-field"),
           collectionFormatSelectField: getButton("collection-format-select-field"),
@@ -2622,6 +2627,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             flowEvents.push("closeTransientToolbarUi");
             return true;
           }},
+          toggleGeneratedCodeModal: (isOpen) =>
+            flowEvents.push(`toggleGeneratedCodeModal:${{isOpen}}`),
           toggleTemplateSettingsPopover: () =>
             flowEvents.push("toggleTemplateSettingsPopover"),
           toggleReflowLayoutPopover: () =>
@@ -2692,6 +2699,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }});
         shellBindings.attachToolbarHandlers();
         getButton("generate-button").click();
+        getButton("copy-code-button").click();
+        getButton("expand-generated-code-button").click();
+        dom.generatedCodeModalBackdrop.click();
+        dom.generatedCodeModalCloseButton.click();
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
         dom.fileMenuButton.click();
         dom.exportPngMenuItem.click();
@@ -2731,6 +2742,17 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("copyGeneratedCode")) {{
+          throw new Error(`Expected the copy-code button to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("toggleGeneratedCodeModal:true")) {{
+          throw new Error(`Expected the full-size code button to open the generated-code modal, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (
+          flowEvents.filter((entry) => entry === "toggleGeneratedCodeModal:false").length < 2
+        ) {{
+          throw new Error(`Expected the generated-code modal close controls to close the modal, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("toggleToolbarMenu:file")) {{
           throw new Error(`Expected the File button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);

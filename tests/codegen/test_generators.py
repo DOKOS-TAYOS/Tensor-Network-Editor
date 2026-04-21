@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from unittest.mock import patch
 
 import pytest
 
@@ -9,6 +10,8 @@ from tensor_network_editor.codegen.common import render_remaining_operands_mappi
 from tensor_network_editor.errors import CodeGenerationError
 from tensor_network_editor.models import (
     CanvasPosition,
+    EdgeEndpointRef,
+    EdgeSpec,
     EngineName,
     IndexSpec,
     NetworkSpec,
@@ -24,6 +27,7 @@ from tests.factories import (
     build_sample_spec,
     build_sample_spec_without_plan,
     build_three_tensor_spec,
+    build_three_tensor_spec_without_plan,
     build_tree_periodic_tree_spec,
 )
 from tests.optional_backends import require_engine_backend
@@ -81,6 +85,115 @@ def build_matrix_layout_spec() -> NetworkSpec:
                     IndexSpec(id="tensor_c_y", name="y", dimension=5),
                     IndexSpec(id="tensor_c_j", name="j", dimension=7),
                 ],
+            ),
+        ],
+    )
+
+
+def build_disconnected_pairs_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="disconnected_pairs",
+        name="disconnected pairs",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=80.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_a_i", name="i", dimension=2),
+                    IndexSpec(id="tensor_a_x", name="x", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=240.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_b_x", name="x", dimension=3),
+                    IndexSpec(id="tensor_b_j", name="j", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_c",
+                name="C",
+                position=CanvasPosition(x=440.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_c_k", name="k", dimension=7),
+                    IndexSpec(id="tensor_c_y", name="y", dimension=11),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_d",
+                name="D",
+                position=CanvasPosition(x=600.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_d_y", name="y", dimension=11),
+                    IndexSpec(id="tensor_d_l", name="l", dimension=13),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="edge_x",
+                name="bond_x",
+                left=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_x"),
+                right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
+            ),
+            EdgeSpec(
+                id="edge_y",
+                name="bond_y",
+                left=EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_y"),
+                right=EdgeEndpointRef(tensor_id="tensor_d", index_id="tensor_d_y"),
+            ),
+        ],
+    )
+
+
+def build_random_better_chain_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="random_better_chain",
+        name="random better chain",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=80.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_a_i", name="i", dimension=100),
+                    IndexSpec(id="tensor_a_x", name="x", dimension=2),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=240.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_b_x", name="x", dimension=2),
+                    IndexSpec(id="tensor_b_y", name="y", dimension=100),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_c",
+                name="C",
+                position=CanvasPosition(x=400.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_c_y", name="y", dimension=100),
+                    IndexSpec(id="tensor_c_j", name="j", dimension=2),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="edge_x",
+                name="bond_x",
+                left=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_x"),
+                right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
+            ),
+            EdgeSpec(
+                id="edge_y",
+                name="bond_y",
+                left=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_y"),
+                right=EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_y"),
             ),
         ],
     )
@@ -165,14 +278,20 @@ def _execute_generated_code(
         ),
         (
             EngineName.EINSUM_NUMPY,
-            ["import numpy as np", "np.zeros((2, 3)", "result = np.einsum("],
+            [
+                "import numpy as np",
+                "np.zeros((2, 3)",
+                "results_list.append(np.einsum(",
+                "result = results_list[-1]",
+            ],
         ),
         (
             EngineName.EINSUM_TORCH,
             [
                 "import torch",
                 "torch.zeros((2, 3), dtype=torch.float32)",
-                "result = torch.einsum(",
+                "results_list.append(torch.einsum(",
+                "result = results_list[-1]",
             ],
         ),
     ],
@@ -238,7 +357,7 @@ def test_matrix_collection_format_groups_tensors_by_visual_rows() -> None:
     )
 
     assignment_start = result.code.index("tensor_rows = []")
-    assignment_end = result.code.index("# Einsum equation:")
+    assignment_end = result.code.index("# Contraction")
     assignment = result.code[assignment_start:assignment_end]
 
     assert "tensor_rows = []" in assignment
@@ -320,6 +439,106 @@ def test_generate_code_keeps_partial_manual_plan_as_prefix(
     assert "'A-B': results_list[-1]" in result.code
     assert "'C': tensors[2]" in result.code
     assert "result =" not in result.code
+
+
+@pytest.mark.parametrize(
+    ("engine", "append_snippet"),
+    [
+        (EngineName.EINSUM_NUMPY, "results_list.append(np.einsum("),
+        (EngineName.EINSUM_TORCH, "results_list.append(torch.einsum("),
+    ],
+)
+def test_einsum_codegen_without_plan_emits_pairwise_steps(
+    engine: EngineName,
+    append_snippet: str,
+) -> None:
+    result = generate_code(build_three_tensor_spec_without_plan(), engine=engine)
+
+    assert "# Contraction" in result.code
+    assert "results_list = []" in result.code
+    assert result.code.count(append_snippet) == 2
+    assert "result = results_list[-1]" in result.code
+    assert (
+        f"result = {'np' if engine is EngineName.EINSUM_NUMPY else 'torch'}.einsum("
+        not in result.code
+    )
+
+
+@pytest.mark.parametrize(
+    ("engine", "append_snippet"),
+    [
+        (EngineName.EINSUM_NUMPY, "results_list.append(np.einsum("),
+        (EngineName.EINSUM_TORCH, "results_list.append(torch.einsum("),
+    ],
+)
+def test_einsum_codegen_without_plan_contracts_connected_pairs_first(
+    engine: EngineName,
+    append_snippet: str,
+) -> None:
+    with patch(
+        "tensor_network_editor.codegen.backends.einsum._load_random_optimizer_tools",
+        return_value=None,
+    ):
+        result = generate_code(build_disconnected_pairs_spec(), engine=engine)
+
+    assert result.code.count(append_snippet) == 3
+    first_connected_step = f"{append_snippet}'ab,bc->ac', tensors[0], tensors[1]))"
+    second_connected_step = f"{append_snippet}'de,ef->df', tensors[2], tensors[3]))"
+
+    assert first_connected_step in result.code
+    assert second_connected_step in result.code
+    assert result.code.index(first_connected_step) < result.code.index(
+        second_connected_step
+    )
+
+
+@pytest.mark.parametrize(
+    ("engine", "module_name"),
+    [
+        (EngineName.EINSUM_NUMPY, "np"),
+        (EngineName.EINSUM_TORCH, "torch"),
+    ],
+)
+def test_einsum_codegen_without_plan_prefers_better_random_route_when_available(
+    engine: EngineName,
+    module_name: str,
+) -> None:
+    class FakeRandomGreedy:
+        def __init__(
+            self,
+            *,
+            max_time: float | None = None,
+            minimize: str = "flops",
+        ) -> None:
+            self.max_time = max_time
+            self.minimize = minimize
+
+    def fake_contract_path(
+        equation: str,
+        *operand_shapes: tuple[int, ...],
+        shapes: bool = True,
+        optimize: object | None = None,
+    ) -> tuple[list[tuple[int, int]], object]:
+        assert equation == "ab,bc,cd->ad"
+        assert shapes is True
+        assert operand_shapes == ((100, 2), (2, 100), (100, 2))
+        assert isinstance(optimize, FakeRandomGreedy)
+        assert optimize.max_time == 0.05
+        assert optimize.minimize == "flops"
+        return [(1, 2), (0, 1)], object()
+
+    with patch(
+        "tensor_network_editor.codegen.backends.einsum._load_random_optimizer_tools",
+        return_value=(fake_contract_path, FakeRandomGreedy),
+    ):
+        result = generate_code(build_random_better_chain_spec(), engine=engine)
+
+    first_step = f"results_list.append({module_name}.einsum('bc,cd->bd', tensors[1], tensors[2]))"
+    second_step = f"results_list.append({module_name}.einsum('ab,bd->ad', tensors[0], results_list[-1]))"
+
+    assert first_step in result.code
+    assert second_step in result.code
+    assert result.code.index(first_step) < result.code.index(second_step)
 
 
 def test_tensorkrowch_codegen_rejects_manual_outer_product_plan() -> None:
@@ -910,10 +1129,15 @@ def test_einsum_codegen_uses_integer_sublist_form_for_many_labels(
 ) -> None:
     result = generate_code(build_many_label_spec(), engine=engine)
 
-    module_alias = "np" if engine is EngineName.EINSUM_NUMPY else "torch"
+    append_snippet = (
+        "results_list.append(np.einsum("
+        if engine is EngineName.EINSUM_NUMPY
+        else "results_list.append(torch.einsum("
+    )
 
     assert "integer-sublist form because the network uses many labels" in result.code
-    assert f"result = {module_alias}.einsum(" in result.code
+    assert append_snippet in result.code
+    assert "result = results_list[-1]" in result.code
     assert "# Einsum equation:" not in result.code
 
 

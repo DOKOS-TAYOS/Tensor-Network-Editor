@@ -42,6 +42,10 @@ export function createEditorShellBindings({
     gridPeriodicDownCellButton,
     benchmarkSchemeNameInput,
     benchmarkCompareButton,
+    copyCodeButton,
+    expandGeneratedCodeButton,
+    generatedCodeModalBackdrop,
+    generatedCodeModalCloseButton,
     templateSelectField,
     templateSelect,
     engineSelectField,
@@ -330,6 +334,8 @@ export function createEditorShellBindings({
         "reflow-indices-reset-button",
         "reflow-indices-bottom-button",
         "copy-code-button",
+        "expand-generated-code-button",
+        "generated-code-modal-close-button",
         "template-manager-save-button",
         "template-manager-discard-button",
       ].forEach((controlId) => {
@@ -408,7 +414,16 @@ export function createEditorShellBindings({
     bindListener(documentRef.getElementById("generate-button"), "click", actions.generateCode);
     bindListener(documentRef.getElementById("done-button"), "click", actions.completeEditor);
     bindListener(documentRef.getElementById("cancel-button"), "click", actions.cancelEditor);
-    bindListener(documentRef.getElementById("copy-code-button"), "click", actions.copyGeneratedCode);
+    bindListener(copyCodeButton, "click", actions.copyGeneratedCode);
+    bindListener(expandGeneratedCodeButton, "click", () =>
+      actions.toggleGeneratedCodeModal(true)
+    );
+    bindListener(generatedCodeModalBackdrop, "click", () =>
+      actions.toggleGeneratedCodeModal(false)
+    );
+    bindListener(generatedCodeModalCloseButton, "click", () =>
+      actions.toggleGeneratedCodeModal(false)
+    );
     bindListener(undoButton, "click", actions.performUndo);
     bindListener(redoButton, "click", actions.performRedo);
     bindListener(exportPythonMenuItem, "click", () => {

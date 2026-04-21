@@ -572,48 +572,6 @@
                     <div id="reflow-layout-popover" class="reflow-layout-popover" hidden>
                       <div class="reflow-layout-panel">
                         <div class="properties-section-heading">Layout</div>
-                        <div class="button-row reflow-align-row">
-                          <button
-                            id="reflow-align-left-button"
-                            type="button"
-                            aria-label="Align left"
-                            title="Align left: place selected tensors on the same left edge while keeping them separated."
-                          >
-                            &larr;
-                          </button>
-                          <button
-                            id="reflow-align-right-button"
-                            type="button"
-                            aria-label="Align right"
-                            title="Align right: place selected tensors on the same right edge while keeping them separated."
-                          >
-                            &rarr;
-                          </button>
-                          <button
-                            id="reflow-align-top-button"
-                            type="button"
-                            aria-label="Align top"
-                            title="Align top: place selected tensors on the same top edge while keeping them separated."
-                          >
-                            &uarr;
-                          </button>
-                          <button
-                            id="reflow-align-middle-button"
-                            type="button"
-                            aria-label="Align middle"
-                            title="Align middle: place selected tensors on the same horizontal midline while keeping them separated."
-                          >
-                            &#8857;
-                          </button>
-                          <button
-                            id="reflow-align-bottom-button"
-                            type="button"
-                            aria-label="Align bottom"
-                            title="Align bottom: place selected tensors on the same bottom edge while keeping them separated."
-                          >
-                            &darr;
-                          </button>
-                        </div>
                         <div class="button-row reflow-action-row">
                           <button
                             id="reflow-arrange-chain-button"
@@ -672,20 +630,20 @@
                             &uarr;
                           </button>
                           <button
-                            id="reflow-indices-reset-button"
-                            type="button"
-                            aria-label="Reset index positions"
-                            title="Indices reset: redistribute selected tensor indices evenly around each tensor."
-                          >
-                            Reset
-                          </button>
-                          <button
                             id="reflow-indices-bottom-button"
                             type="button"
                             aria-label="Move indices down"
                             title="Indices bottom: move selected tensor indices to the bottom side of each tensor."
                           >
                             &darr;
+                          </button>
+                          <button
+                            id="reflow-indices-reset-button"
+                            type="button"
+                            aria-label="Reset index positions"
+                            title="Indices reset: redistribute selected tensor indices evenly around each tensor."
+                          >
+                            Reset
                           </button>
                         </div>
                       </div>
@@ -838,7 +796,43 @@
                       </label>
                     </div>
                     <div class="code-generate-group">
-                      <button id="generate-button" type="button" class="button-accent-positive">Generate</button>
+                      <div class="code-generate-actions">
+                        <button
+                          id="generate-button"
+                          type="button"
+                          class="button-accent-positive"
+                        >
+                          Generate
+                        </button>
+                        <button
+                          id="copy-code-button"
+                          type="button"
+                          class="icon-button code-action-button"
+                          aria-label="Copy generated code"
+                          title="Copy generated code"
+                          disabled
+                        >
+                          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <path
+                              d="M3.75 2.5A1.75 1.75 0 0 1 5.5.75h5A1.75 1.75 0 0 1 12.25 2.5v.75h.25A1.75 1.75 0 0 1 14.25 5v7.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 12.5v-.25H4A1.75 1.75 0 0 1 2.25 10.5Zm1.5 8h5.25A1.75 1.75 0 0 0 12.25 8.75V4.5h.25a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5Zm1-.75h4.5a.5.5 0 0 0 .5-.5v-6.75a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0-.5.5v7.25a.5.5 0 0 0 .5.5Z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          id="expand-generated-code-button"
+                          type="button"
+                          class="icon-button code-action-button"
+                          aria-label="Open generated code full size"
+                          title="Open generated code full size"
+                          disabled
+                        >
+                          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <path
+                              d="M2.5 2h4a.5.5 0 0 1 0 1H3.7l2.65 2.65a.5.5 0 0 1-.7.7L3 3.7v2.8a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 2.5 2Zm7 0h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V3.7l-2.65 2.65a.5.5 0 0 1-.7-.7L12.3 3H9.5a.5.5 0 0 1 0-1Zm-7 7a.5.5 0 0 1 .5.5v2.8l2.65-2.65a.5.5 0 1 1 .7.7L3.7 13H6.5a.5.5 0 0 1 0 1h-4A.5.5 0 0 1 2 13.5v-4a.5.5 0 0 1 .5-.5Zm11 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1 0-1h2.8l-2.65-2.65a.5.5 0 0 1 .7-.7L13 12.3V9.5a.5.5 0 0 1 .5-.5Z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                       <p
                         id="code-generation-warning"
                         class="code-inline-warning"
@@ -852,19 +846,6 @@
                 </div>
               </div>
               <div class="code-output-shell">
-                <button
-                  id="copy-code-button"
-                  type="button"
-                  class="icon-button code-copy-floating"
-                  aria-label="Copy generated code"
-                  title="Copy generated code"
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                    <path
-                      d="M3.75 2.5A1.75 1.75 0 0 1 5.5.75h5A1.75 1.75 0 0 1 12.25 2.5v.75h.25A1.75 1.75 0 0 1 14.25 5v7.5a1.75 1.75 0 0 1-1.75 1.75H6A1.75 1.75 0 0 1 4.25 12.5v-.25H4A1.75 1.75 0 0 1 2.25 10.5Zm1.5 8h5.25A1.75 1.75 0 0 0 12.25 8.75V4.5h.25a.5.5 0 0 1 .5.5v7.5a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5Zm1-.75h4.5a.5.5 0 0 0 .5-.5v-6.75a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0-.5.5v7.25a.5.5 0 0 0 .5.5Z"
-                    />
-                  </svg>
-                </button>
                 <pre class="code-preview-shell" aria-label="Generated code preview">
                   <code id="generated-code-view" class="code-preview language-python"></code>
                 </pre>
@@ -1150,6 +1131,36 @@
             <tbody id="benchmark-compare-table-body"></tbody>
           </table>
         </div>
+      </section>
+    </div>
+
+    <div id="generated-code-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="generated-code-modal-title" hidden>
+      <div id="generated-code-modal-backdrop" class="help-backdrop"></div>
+      <section class="help-dialog generated-code-modal-dialog">
+        <button
+          id="generated-code-modal-close-button"
+          class="help-dialog-close button-close-static"
+          type="button"
+          aria-label="Close generated code"
+          title="Close generated code"
+        >
+          <svg
+            class="help-close-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4.22 3.16 8 6.94l3.78-3.78a.75.75 0 1 1 1.06 1.06L9.06 8l3.78 3.78a.75.75 0 1 1-1.06 1.06L8 9.06l-3.78 3.78a.75.75 0 1 1-1.06-1.06L6.94 8 3.16 4.22a.75.75 0 1 1 1.06-1.06Z"/>
+          </svg>
+        </button>
+        <div class="help-dialog-header generated-code-modal-header">
+          <div>
+            <h2 id="generated-code-modal-title">Generated code</h2>
+          </div>
+        </div>
+        <pre class="code-preview-shell generated-code-modal-shell" aria-label="Generated code full-size preview">
+          <code id="generated-code-modal-view" class="code-preview language-python"></code>
+        </pre>
       </section>
     </div>
 

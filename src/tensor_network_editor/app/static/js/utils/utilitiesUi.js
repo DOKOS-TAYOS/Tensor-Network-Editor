@@ -12,6 +12,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     exportFormatSelect,
     generatedCode,
     generatedCodeView,
+    generatedCodeModalView,
     codeGenerationWarning,
     undoButton,
     redoButton,
@@ -31,6 +32,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     linearPeriodicNextCellButton,
     benchmarkSchemeNameInput,
     benchmarkCompareButton,
+    copyCodeButton,
+    expandGeneratedCodeButton,
+    generatedCodeModal,
+    generatedCodeModalBackdrop,
+    generatedCodeModalCloseButton,
     templateSelect,
     templateSettingsButton,
     templateSettingsPopover,
@@ -429,18 +435,86 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     return state.isReflowLayoutOpen;
   }
 
+  function syncGeneratedCodeActionState(
+    renderedCode =
+      generatedCode && typeof generatedCode.value === "string"
+        ? generatedCode.value
+        : state.generatedCode
+  ) {
+    const hasGeneratedCode =
+      typeof renderedCode === "string" && Boolean(renderedCode.trim());
+    setTooltipDescription(
+      copyCodeButton,
+      hasGeneratedCode
+        ? "Copy generated code without import lines."
+        : "Generate code first."
+    );
+    setTooltipDescription(
+      expandGeneratedCodeButton,
+      hasGeneratedCode
+        ? "Open the generated code in a larger modal preview."
+        : "Generate code first."
+    );
+    if (copyCodeButton) {
+      copyCodeButton.disabled = !hasGeneratedCode;
+    }
+    if (expandGeneratedCodeButton) {
+      expandGeneratedCodeButton.disabled = !hasGeneratedCode;
+    }
+    if (!hasGeneratedCode) {
+      state.isGeneratedCodeModalOpen = false;
+    }
+    return hasGeneratedCode;
+  }
+
+  function syncGeneratedCodeModalState() {
+    if (generatedCodeModal?.classList) {
+      generatedCodeModal.classList.toggle("is-hidden", !state.isGeneratedCodeModalOpen);
+    }
+    if (generatedCodeModal) {
+      generatedCodeModal.hidden = !state.isGeneratedCodeModalOpen;
+    }
+    if (
+      state.isGeneratedCodeModalOpen &&
+      generatedCodeModalCloseButton &&
+      typeof generatedCodeModalCloseButton.focus === "function"
+    ) {
+      generatedCodeModalCloseButton.focus();
+    }
+  }
+
+  function toggleGeneratedCodeModal(forceOpen) {
+    const hasGeneratedCode = syncGeneratedCodeActionState();
+    const nextOpen =
+      typeof forceOpen === "boolean" ? forceOpen : !state.isGeneratedCodeModalOpen;
+    state.isGeneratedCodeModalOpen = hasGeneratedCode ? nextOpen : false;
+    state.openToolbarMenu = null;
+    state.isTemplateSettingsOpen = false;
+    state.isReflowLayoutOpen = false;
+    syncToolbarTransientUi();
+    syncGeneratedCodeModalState();
+    return state.isGeneratedCodeModalOpen;
+  }
+
   function renderGeneratedCodePreview(code = state.generatedCode) {
     const renderedCode = typeof code === "string" ? code : "";
     if (generatedCode) {
       generatedCode.value = renderedCode;
     }
-    if (!generatedCodeView) {
-      return;
+    if (generatedCodeView) {
+      generatedCodeView.textContent = renderedCode;
+      if (typeof runtime.highlightCodeElement === "function") {
+        void runtime.highlightCodeElement(generatedCodeView);
+      }
     }
-    generatedCodeView.textContent = renderedCode;
-    if (typeof runtime.highlightCodeElement === "function") {
-      void runtime.highlightCodeElement(generatedCodeView);
+    if (generatedCodeModalView) {
+      generatedCodeModalView.textContent = renderedCode;
+      if (typeof runtime.highlightCodeElement === "function") {
+        void runtime.highlightCodeElement(generatedCodeModalView);
+      }
     }
+    syncGeneratedCodeActionState(renderedCode);
+    syncGeneratedCodeModalState();
   }
 
   function syncCodeGenerationWarning() {
@@ -696,6 +770,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     syncTemplateCatalogWarning();
     syncHelpModalState();
     syncTemplateManagerModalState();
+    syncGeneratedCodeActionState();
+    syncGeneratedCodeModalState();
 
     if (undoButton) {
       undoButton.disabled = state.undoStack.length === 0;
@@ -963,7 +1039,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     }
     if (benchmarkMode) {
       if (linearPeriodicCellLabel) {
-        linearPeriodicCellLabel.hidden = benchmarkActivePosition > 0;
+        linearPeriodicCellLabel.hidden = true;
         linearPeriodicCellLabel.textContent =
           typeof runtime.getBenchmarkBaseLabel === "function"
             ? runtime.getBenchmarkBaseLabel()
@@ -1034,6 +1110,8 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     toggleToolbarMenu,
     toggleTemplateSettingsPopover,
     toggleReflowLayoutPopover,
+    syncGeneratedCodeModalState,
+    toggleGeneratedCodeModal,
     renderGeneratedCodePreview,
     updateToolbarState,
     syncCodeGenerationWarning,

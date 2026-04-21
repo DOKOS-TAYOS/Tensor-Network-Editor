@@ -127,6 +127,7 @@ export function createInitialState() {
     openToolbarMenu: null,
     isTemplateSettingsOpen: false,
     isReflowLayoutOpen: false,
+    isGeneratedCodeModalOpen: false,
     isTemplateManagerOpen: false,
     nameSearch: {
       scope: "tensor",

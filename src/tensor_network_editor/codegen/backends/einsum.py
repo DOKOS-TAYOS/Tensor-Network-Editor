@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from abc import ABC
+from collections.abc import Callable
+from dataclasses import dataclass
+from importlib import import_module
 from string import ascii_letters
+from typing import Any, cast
 
 from ...internal.analysis._contraction_plan import (
+    PreparedContractionInputs,
     prepare_contraction_inputs,
     simulate_contraction_plan,
+    simulate_contraction_step,
 )
 from ...models import (
     CodegenResult,
+    ContractionPlanSpec,
+    ContractionStepSpec,
     EngineIdentifier,
     NetworkSpec,
     TensorCollectionFormat,
@@ -31,6 +39,252 @@ from ..shared.common import (
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
+
+
+@dataclass(slots=True, frozen=True)
+class PairwiseContractionCandidate:
+    """One automatic pairwise route plus its simulated cost summary."""
+
+    plan: ContractionPlanSpec
+    simulation: object
+    total_estimated_flops: int
+    peak_intermediate_size: int
+
+
+def _build_pairwise_candidate(
+    contraction_inputs: PreparedContractionInputs,
+    plan: ContractionPlanSpec,
+) -> PairwiseContractionCandidate:
+    """Simulate one pairwise plan and capture its headline metrics."""
+    simulation = simulate_contraction_plan(
+        initial_operand_ids=contraction_inputs.initial_operand_ids,
+        initial_operands=contraction_inputs.initial_operands,
+        initial_axis_names=contraction_inputs.initial_axis_names,
+        dimension_by_label=contraction_inputs.dimension_by_label,
+        plan=plan,
+    )
+    total_estimated_flops = sum(step.estimated_flops for step in simulation.steps)
+    peak_intermediate_size = max(
+        (step.intermediate_size for step in simulation.steps),
+        default=0,
+    )
+    return PairwiseContractionCandidate(
+        plan=plan,
+        simulation=simulation,
+        total_estimated_flops=total_estimated_flops,
+        peak_intermediate_size=peak_intermediate_size,
+    )
+
+
+def _build_heuristic_pairwise_plan(
+    contraction_inputs: PreparedContractionInputs,
+) -> ContractionPlanSpec:
+    """Build a deterministic connected-first pairwise contraction plan."""
+    remaining_order = list(contraction_inputs.initial_operand_ids)
+    remaining_operands = dict(contraction_inputs.initial_operands)
+    steps: list[ContractionStepSpec] = []
+
+    while len(remaining_order) > 1:
+        left_operand_id, right_operand_id = _select_connected_pair(
+            remaining_order=remaining_order,
+            remaining_operands=remaining_operands,
+        )
+        step = ContractionStepSpec(
+            id=f"auto_step_{len(steps) + 1}",
+            left_operand_id=left_operand_id,
+            right_operand_id=right_operand_id,
+        )
+        left_labels = remaining_operands.pop(left_operand_id)
+        right_labels = remaining_operands.pop(right_operand_id)
+        simulated_step = simulate_contraction_step(
+            step=step,
+            left_labels=left_labels,
+            right_labels=right_labels,
+            left_axis_names=left_labels,
+            right_axis_names=right_labels,
+            dimension_by_label=contraction_inputs.dimension_by_label,
+        )
+        remaining_order.remove(left_operand_id)
+        remaining_order.remove(right_operand_id)
+        remaining_order.append(step.id)
+        remaining_operands[step.id] = simulated_step.surviving_labels
+        steps.append(step)
+
+    return ContractionPlanSpec(
+        id="auto_pairwise_plan",
+        name="Automatic pairwise path",
+        steps=steps,
+    )
+
+
+def _select_connected_pair(
+    *,
+    remaining_order: list[str],
+    remaining_operands: dict[str, tuple[str, ...]],
+) -> tuple[str, str]:
+    """Return the next operand pair, preferring shared-label contractions."""
+    for left_index, left_operand_id in enumerate(remaining_order[:-1]):
+        left_labels = set(remaining_operands[left_operand_id])
+        for right_operand_id in remaining_order[left_index + 1 :]:
+            if left_labels.intersection(remaining_operands[right_operand_id]):
+                return left_operand_id, right_operand_id
+    return remaining_order[0], remaining_order[1]
+
+
+def _load_random_optimizer_tools(
+    importer: Callable[[str], Any],
+) -> tuple[Any, Any] | None:
+    """Resolve the optional opt_einsum helpers used for route comparison."""
+    try:
+        opt_einsum_module = cast(Any, importer("opt_einsum"))
+        path_random_module = cast(Any, importer("opt_einsum.path_random"))
+    except ImportError:
+        return None
+    return opt_einsum_module.contract_path, path_random_module.RandomGreedy
+
+
+def _build_random_pairwise_plan(
+    contraction_inputs: PreparedContractionInputs,
+) -> ContractionPlanSpec | None:
+    """Build an opt_einsum-assisted random pairwise plan when available."""
+    if len(contraction_inputs.initial_operand_ids) <= 1:
+        return None
+
+    label_order = list(
+        dict.fromkeys(
+            label
+            for operand_id in contraction_inputs.initial_operand_ids
+            for label in contraction_inputs.initial_operands[operand_id]
+        )
+    )
+    if len(label_order) > len(ascii_letters):
+        return None
+
+    random_tools = _load_random_optimizer_tools(import_module)
+    if random_tools is None:
+        return None
+    contract_path, random_optimizer_type = random_tools
+    symbol_map = {
+        label: ascii_letters[offset]
+        for offset, label in enumerate(label_order[: len(ascii_letters)])
+    }
+    label_counts = {label: 0 for label in label_order}
+    for operand_id in contraction_inputs.initial_operand_ids:
+        for label in contraction_inputs.initial_operands[operand_id]:
+            label_counts[label] += 1
+    output_labels = [label for label in label_order if label_counts[label] == 1]
+    equation = (
+        ",".join(
+            "".join(
+                symbol_map[label]
+                for label in contraction_inputs.initial_operands[operand_id]
+            )
+            for operand_id in contraction_inputs.initial_operand_ids
+        )
+        + "->"
+        + "".join(symbol_map[label] for label in output_labels)
+    )
+    shapes = [
+        tuple(
+            contraction_inputs.dimension_by_label[label]
+            for label in contraction_inputs.initial_operands[operand_id]
+        )
+        for operand_id in contraction_inputs.initial_operand_ids
+    ]
+
+    try:
+        path, _ = contract_path(
+            equation,
+            *shapes,
+            shapes=True,
+            optimize=random_optimizer_type(max_time=0.05, minimize="flops"),
+        )
+    except (NotImplementedError, TypeError, ValueError):
+        return None
+
+    return _build_pairwise_plan_from_path(
+        contraction_inputs=contraction_inputs,
+        path=path,
+    )
+
+
+def _build_pairwise_plan_from_path(
+    *,
+    contraction_inputs: PreparedContractionInputs,
+    path: list[tuple[int, int]],
+) -> ContractionPlanSpec | None:
+    """Translate an opt_einsum path into a stored pairwise plan."""
+    remaining_order = list(contraction_inputs.initial_operand_ids)
+    remaining_operands = dict(contraction_inputs.initial_operands)
+    steps: list[ContractionStepSpec] = []
+
+    for step_index, raw_indices in enumerate(path, start=1):
+        indices = tuple(int(value) for value in raw_indices)
+        if len(indices) != 2:
+            return None
+        try:
+            left_operand_id = remaining_order[indices[0]]
+            right_operand_id = remaining_order[indices[1]]
+        except IndexError:
+            return None
+        step = ContractionStepSpec(
+            id=f"auto_step_{step_index}",
+            left_operand_id=left_operand_id,
+            right_operand_id=right_operand_id,
+        )
+        left_labels = remaining_operands.pop(left_operand_id, None)
+        right_labels = remaining_operands.pop(right_operand_id, None)
+        if left_labels is None or right_labels is None:
+            return None
+        simulated_step = simulate_contraction_step(
+            step=step,
+            left_labels=left_labels,
+            right_labels=right_labels,
+            left_axis_names=left_labels,
+            right_axis_names=right_labels,
+            dimension_by_label=contraction_inputs.dimension_by_label,
+        )
+        higher_index, lower_index = sorted(indices, reverse=True)
+        remaining_order.pop(higher_index)
+        remaining_order.pop(lower_index)
+        remaining_order.append(step.id)
+        remaining_operands[step.id] = simulated_step.surviving_labels
+        steps.append(step)
+
+    return ContractionPlanSpec(
+        id="auto_random_plan",
+        name="Automatic random path",
+        steps=steps,
+    )
+
+
+def _select_pairwise_candidate(
+    contraction_inputs: PreparedContractionInputs,
+) -> PairwiseContractionCandidate:
+    """Choose the best available automatic pairwise route."""
+    heuristic_candidate = _build_pairwise_candidate(
+        contraction_inputs,
+        _build_heuristic_pairwise_plan(contraction_inputs),
+    )
+    random_plan = _build_random_pairwise_plan(contraction_inputs)
+    if random_plan is None:
+        return heuristic_candidate
+    random_candidate = _build_pairwise_candidate(contraction_inputs, random_plan)
+    if _is_better_pairwise_candidate(random_candidate, heuristic_candidate):
+        return random_candidate
+    return heuristic_candidate
+
+
+def _is_better_pairwise_candidate(
+    candidate: PairwiseContractionCandidate,
+    baseline: PairwiseContractionCandidate,
+) -> bool:
+    """Return whether ``candidate`` beats ``baseline`` for export quality."""
+    if candidate.total_estimated_flops != baseline.total_estimated_flops:
+        return candidate.total_estimated_flops < baseline.total_estimated_flops
+    if candidate.peak_intermediate_size != baseline.peak_intermediate_size:
+        return candidate.peak_intermediate_size < baseline.peak_intermediate_size
+    return False
 
 
 class BaseEinsumCodeGenerator(CodeGenerator, ABC):
@@ -106,11 +360,24 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         collection_format: TensorCollectionFormat,
         collection_name: str,
     ) -> tuple[list[str], list[str]]:
-        """Render a single einsum call for the full network."""
+        """Render an automatic pairwise einsum contraction for the full network."""
         if not prepared.tensors:
             return (
                 ["# Empty network contracts to the scalar identity."],
                 [f"result = {self.empty_network_expression}"],
+            )
+        if len(prepared.tensors) == 1:
+            only_tensor = prepared.tensors[0]
+            return (
+                ["# Single tensor already represents the result."],
+                [
+                    "result = "
+                    + tensor_collection_reference(
+                        only_tensor,
+                        collection_format,
+                        collection_name,
+                    )
+                ],
             )
 
         label_order = list(
@@ -118,45 +385,74 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
                 index.label for tensor in prepared.tensors for index in tensor.indices
             )
         )
-
-        label_to_int = {label: offset for offset, label in enumerate(label_order)}
-        output_labels = [index.label for index in prepared.open_indices]
-
         use_string_equation = len(label_order) <= len(ascii_letters)
         symbol_map = {
             label: ascii_letters[offset]
             for offset, label in enumerate(label_order[: len(ascii_letters)])
         }
-        if use_string_equation:
-            equation = self._build_equation(
-                tensors=prepared.tensors,
-                output_labels=output_labels,
-                symbol_map=symbol_map,
+        label_to_int = {label: offset for offset, label in enumerate(label_order)}
+        contraction_inputs = prepare_contraction_inputs(prepared)
+        candidate = _select_pairwise_candidate(contraction_inputs)
+        simulation = cast(Any, candidate.simulation)
+        base_operand_expressions = {
+            tensor.spec.id: tensor_collection_reference(
+                tensor,
+                collection_format,
+                collection_name,
             )
-            operand_names = ", ".join(
-                tensor_collection_reference(tensor, collection_format, collection_name)
-                for tensor in prepared.tensors
+            for tensor in prepared.tensors
+        }
+        step_result_indexes = {
+            step.step_id: result_index
+            for result_index, step in enumerate(simulation.steps)
+        }
+        contraction_lines: list[str] = ["results_list = []", ""]
+        if not use_string_equation:
+            contraction_lines.insert(
+                0,
+                "# Pairwise einsum uses the integer-sublist form because the network uses many labels.",
             )
-            return (
-                [f"# Einsum equation: {equation}"],
-                [f"result = {self.module_alias}.einsum({equation!r}, {operand_names})"],
-            )
+            contraction_lines.insert(1, "")
 
-        sublist_args: list[str] = []
-        for tensor in prepared.tensors:
-            sublist_args.append(
-                tensor_collection_reference(tensor, collection_format, collection_name)
+        for step_index, step in enumerate(simulation.steps):
+            latest_result_index = step_index - 1 if step_index > 0 else None
+            contraction_lines.append(
+                "results_list.append("
+                + self._render_manual_step_call(
+                    left_expression=render_operand_expression(
+                        step.left_operand_id,
+                        base_operand_expressions=base_operand_expressions,
+                        step_result_indexes=step_result_indexes,
+                        latest_result_index=latest_result_index,
+                    ),
+                    right_expression=render_operand_expression(
+                        step.right_operand_id,
+                        base_operand_expressions=base_operand_expressions,
+                        step_result_indexes=step_result_indexes,
+                        latest_result_index=latest_result_index,
+                    ),
+                    left_labels=step.left_labels,
+                    right_labels=step.right_labels,
+                    output_labels=step.surviving_labels,
+                    use_string_labels=use_string_equation,
+                    symbol_map=symbol_map,
+                    label_to_int=label_to_int,
+                )
+                + ")"
             )
-            sublist_args.append(
-                str([label_to_int[index.label] for index in tensor.indices])
+            contraction_lines.append("")
+
+        final_result_index = len(simulation.steps) - 1 if simulation.steps else None
+        output_lines = [
+            "result = "
+            + render_operand_expression(
+                simulation.remaining_operand_ids[0],
+                base_operand_expressions=base_operand_expressions,
+                step_result_indexes=step_result_indexes,
+                latest_result_index=final_result_index,
             )
-        sublist_args.append(str([label_to_int[label] for label in output_labels]))
-        return (
-            [
-                "# Einsum uses the integer-sublist form because the network uses many labels.",
-            ],
-            [f"result = {self.module_alias}.einsum(" + ", ".join(sublist_args) + ")"],
-        )
+        ]
+        return contraction_lines, output_lines
 
     def _render_manual_plan(
         self,

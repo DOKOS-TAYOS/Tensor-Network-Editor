@@ -4794,6 +4794,17 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
 
             state.selectionIds = ["tensor_a"];
             state.primarySelectionId = "tensor_a";
+            cyHandlers["grab:node[kind = 'tensor']"]({
+              target: {
+                id() {
+                  return "tensor_b";
+                },
+              },
+              originalEvent: {
+                button: 0,
+                ctrlKey: true,
+              },
+            });
             cyHandlers["tap:node, edge"]({
               target: {
                 id() {
@@ -4848,6 +4859,17 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
 
             state.selectionIds = ["tensor_a"];
             state.primarySelectionId = "tensor_a";
+            cyHandlers["grab:node[kind = 'tensor']"]({
+              target: {
+                id() {
+                  return "tensor_b";
+                },
+              },
+              originalEvent: {
+                button: 0,
+                metaKey: true,
+              },
+            });
             cyHandlers["tap:node, edge"]({
               target: {
                 id() {
@@ -7531,11 +7553,15 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 style: createStyleObject(),
                 attributes: {},
                 dataset: {},
+                focusCalls: 0,
                 setAttribute(name, value) {
                   this.attributes[name] = String(value);
                 },
                 getAttribute(name) {
                   return this.attributes[name] ?? null;
+                },
+                focus() {
+                  this.focusCalls += 1;
                 },
                 getBoundingClientRect() {
                   return rect;
@@ -7621,6 +7647,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 propertiesPanel: { innerHTML: "" },
                 generatedCode: { value: "" },
                 generatedCodeView: { textContent: "", dataset: {} },
+                generatedCodeModalView: { textContent: "", dataset: {} },
                 engineSelect: { options: [], value: "tensornetwork" },
                 collectionFormatSelect: { options: [], value: "list" },
                 exportFormatSelect: { value: "py" },
@@ -7666,6 +7693,14 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 gridPeriodicUpCellButton: createButton(),
                 gridPeriodicDownCellButton: createButton(),
                 linearPeriodicNextCellButton: createButton(),
+                copyCodeButton: createButton(),
+                expandGeneratedCodeButton: createButton(),
+                generatedCodeModal: {
+                  ...createButton(),
+                  classList: createClassList(),
+                },
+                generatedCodeModalBackdrop: createButton(),
+                generatedCodeModalCloseButton: createButton(),
                 benchmarkSchemeNameInput: createButton(),
                 benchmarkCompareButton: createButton(),
                 templateSelect: {
@@ -7795,6 +7830,13 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 confirm: () => true,
                 innerWidth: 1280,
                 innerHeight: 720,
+                Prism: {
+                  highlightElement(element) {
+                    if (element?.dataset) {
+                      element.dataset.highlighted = "true";
+                    }
+                  },
+                },
               },
               document: {
                 activeElement: null,
@@ -7898,6 +7940,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (ctx.dom.reflowImportedButton.disabled) {
               throw new Error("Reflow should stay enabled when one tensor is selected so indices can be reflowed.");
             }
+            if (!ctx.dom.copyCodeButton.disabled || !ctx.dom.expandGeneratedCodeButton.disabled) {
+              throw new Error("Generated-code actions should stay disabled until code exists.");
+            }
             if (
               ctx.dom.reflowImportedButton.dataset.shortcutDescription
               !== "Reflow indices for the selected tensor."
@@ -7912,6 +7957,19 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               throw new Error("Reflow should disable again when no tensor is selected.");
             }
             ctx.state.selectionIds = ["tensor_a"];
+            runtime.isBenchmarkMode = () => true;
+            runtime.getBenchmarkSession = () => ({
+              activePosition: 0,
+              schemes: [{ name: "Scheme A" }],
+            });
+            runtime.getActiveBenchmarkScheme = () => null;
+            runtime.canOpenBenchmarkCompare = () => true;
+            runtime.getBenchmarkNextButtonLabel = () => ">";
+            runtime.getBenchmarkBaseLabel = () => "Tensor network";
+            runtime.updateToolbarState();
+            if (!ctx.dom.linearPeriodicCellLabel.hidden) {
+              throw new Error("The benchmark base view should not show the redundant tensor-network label.");
+            }
             runtime.isBenchmarkMode = () => true;
             runtime.getBenchmarkSession = () => ({
               activePosition: 1,
@@ -7959,6 +8017,33 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             }
             if (ctx.state.isTemplateSettingsOpen || ctx.state.isReflowLayoutOpen) {
               throw new Error("Benchmark schemes should close template and reflow popovers.");
+            }
+            runtime.renderGeneratedCodePreview("result = 1");
+            if (ctx.dom.generatedCode.value !== "result = 1") {
+              throw new Error(`Expected the raw generated code buffer to stay in sync, received ${ctx.dom.generatedCode.value}.`);
+            }
+            if (ctx.dom.generatedCodeView.textContent !== "result = 1") {
+              throw new Error(`Expected the inline generated-code preview to stay in sync, received ${ctx.dom.generatedCodeView.textContent}.`);
+            }
+            if (ctx.dom.generatedCodeModalView.textContent !== "result = 1") {
+              throw new Error(`Expected the full-size generated-code preview to stay in sync, received ${ctx.dom.generatedCodeModalView.textContent}.`);
+            }
+            if (ctx.dom.copyCodeButton.disabled || ctx.dom.expandGeneratedCodeButton.disabled) {
+              throw new Error("Generated-code actions should enable once code exists.");
+            }
+            runtime.toggleGeneratedCodeModal(true);
+            if (!ctx.state.isGeneratedCodeModalOpen || ctx.dom.generatedCodeModal.hidden) {
+              throw new Error("Expected the generated-code modal to open when requested.");
+            }
+            if (ctx.dom.generatedCodeModalCloseButton.focusCalls !== 1) {
+              throw new Error("Opening the generated-code modal should focus its close button.");
+            }
+            runtime.renderGeneratedCodePreview("");
+            if (ctx.state.isGeneratedCodeModalOpen || !ctx.dom.generatedCodeModal.hidden) {
+              throw new Error("Clearing generated code should close the full-size generated-code modal.");
+            }
+            if (!ctx.dom.copyCodeButton.disabled || !ctx.dom.expandGeneratedCodeButton.disabled) {
+              throw new Error("Generated-code actions should disable again when the preview is cleared.");
             }
             runtime.isBenchmarkMode = () => false;
             runtime.updateToolbarState();
