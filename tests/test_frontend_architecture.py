@@ -113,6 +113,16 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     grid_flow_body = (utils_dir / "utilitiesGridPeriodicFlow.js").read_text(
         encoding="utf-8"
     )
+    linear_body = (utils_dir / "utilitiesLinearPeriodic.js").read_text(encoding="utf-8")
+    linear_state_body = (utils_dir / "utilitiesLinearPeriodicState.js").read_text(
+        encoding="utf-8"
+    )
+    linear_boundaries_body = (
+        utils_dir / "utilitiesLinearPeriodicBoundaries.js"
+    ).read_text(encoding="utf-8")
+    linear_flow_body = (utils_dir / "utilitiesLinearPeriodicFlow.js").read_text(
+        encoding="utf-8"
+    )
     layout_body = (utils_dir / "utilitiesLayoutAlgorithms.js").read_text(
         encoding="utf-8"
     )
@@ -134,6 +144,19 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     tensor_bindings_body = (
         properties_dir / "tensorPropertiesStandardBindings.js"
     ).read_text(encoding="utf-8")
+    toolbar_body = (utils_dir / "utilitiesUiToolbar.js").read_text(encoding="utf-8")
+    toolbar_warnings_body = (utils_dir / "utilitiesUiToolbarWarnings.js").read_text(
+        encoding="utf-8"
+    )
+    toolbar_derived_state_body = (
+        utils_dir / "utilitiesUiToolbarDerivedState.js"
+    ).read_text(encoding="utf-8")
+    toolbar_mode_controls_body = (
+        utils_dir / "utilitiesUiToolbarModeControls.js"
+    ).read_text(encoding="utf-8")
+    toolbar_action_state_body = (
+        utils_dir / "utilitiesUiToolbarActionState.js"
+    ).read_text(encoding="utf-8")
 
     assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_flow_body
     assert "function createSubnetworkLibrarySupport(" in session_helper_body
@@ -151,10 +174,24 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     assert "function createGridPeriodicStateSupport(" in grid_state_body
     assert "function createGridPeriodicBoundarySupport(" in grid_boundaries_body
     assert "function createGridPeriodicFlowSupport(" in grid_flow_body
+    assert 'from "./utilitiesLinearPeriodicState.js"' in linear_body
+    assert 'from "./utilitiesLinearPeriodicBoundaries.js"' in linear_body
+    assert 'from "./utilitiesLinearPeriodicFlow.js"' in linear_body
+    assert "function createLinearPeriodicStateSupport(" in linear_state_body
+    assert "function createLinearPeriodicBoundarySupport(" in linear_boundaries_body
+    assert "function createLinearPeriodicFlowSupport(" in linear_flow_body
     assert 'from "./utilitiesLayoutAlgorithmsGraph.js"' in layout_body
     assert 'from "./utilitiesLayoutAlgorithmsPositions.js"' in layout_body
     assert "function createLayoutAlgorithmGraphSupport(" in layout_graph_body
     assert "function createLayoutAlgorithmPositionSupport(" in layout_positions_body
+    assert 'from "./utilitiesUiToolbarWarnings.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarDerivedState.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarModeControls.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarActionState.js"' in toolbar_body
+    assert "function createUiToolbarWarningSupport(" in toolbar_warnings_body
+    assert "function createUiToolbarDerivedStateSupport(" in toolbar_derived_state_body
+    assert "function createUiToolbarModeControlSupport(" in toolbar_mode_controls_body
+    assert "function createUiToolbarActionStateSupport(" in toolbar_action_state_body
     assert 'from "./tensorPropertiesStandardData.js"' in tensor_standard_body
     assert 'from "./tensorPropertiesStandardMarkup.js"' in tensor_standard_body
     assert 'from "./tensorPropertiesStandardBindings.js"' in tensor_standard_body

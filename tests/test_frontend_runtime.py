@@ -71,6 +71,9 @@ JS_RELOCATION_MAP: dict[str, str] = {
     "utilitiesLayoutIndices.js": "utils/utilitiesLayoutIndices.js",
     "utilitiesLayoutSelection.js": "utils/utilitiesLayoutSelection.js",
     "utilitiesLinearPeriodic.js": "utils/utilitiesLinearPeriodic.js",
+    "utilitiesLinearPeriodicBoundaries.js": "utils/utilitiesLinearPeriodicBoundaries.js",
+    "utilitiesLinearPeriodicFlow.js": "utils/utilitiesLinearPeriodicFlow.js",
+    "utilitiesLinearPeriodicState.js": "utils/utilitiesLinearPeriodicState.js",
     "utilitiesSpec.js": "utils/utilitiesSpec.js",
     "utilitiesTemplates.js": "utils/utilitiesTemplates.js",
     "utilitiesTreePeriodic.js": "utils/utilitiesTreePeriodic.js",
@@ -83,6 +86,10 @@ JS_RELOCATION_MAP: dict[str, str] = {
     "utilitiesUiPanels.js": "utils/utilitiesUiPanels.js",
     "utilitiesUiStatus.js": "utils/utilitiesUiStatus.js",
     "utilitiesUiToolbar.js": "utils/utilitiesUiToolbar.js",
+    "utilitiesUiToolbarActionState.js": "utils/utilitiesUiToolbarActionState.js",
+    "utilitiesUiToolbarDerivedState.js": "utils/utilitiesUiToolbarDerivedState.js",
+    "utilitiesUiToolbarModeControls.js": "utils/utilitiesUiToolbarModeControls.js",
+    "utilitiesUiToolbarWarnings.js": "utils/utilitiesUiToolbarWarnings.js",
     "sessionTemplateDialogs.js": "session/sessionTemplateDialogs.js",
     "sessionTemplateFlowSubnetworkLibrary.js": "session/sessionTemplateFlowSubnetworkLibrary.js",
     "sessionTemplateImports.js": "session/sessionTemplateImports.js",
@@ -143,6 +150,13 @@ _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "utilitiesLayoutIndices.js": _js_source_name("utilitiesLayoutIndices.js"),
     "utilitiesLayoutSelection.js": _js_source_name("utilitiesLayoutSelection.js"),
     "utilitiesLinearPeriodic.js": _js_source_name("utilitiesLinearPeriodic.js"),
+    "utilitiesLinearPeriodicBoundaries.js": _js_source_name(
+        "utilitiesLinearPeriodicBoundaries.js"
+    ),
+    "utilitiesLinearPeriodicFlow.js": _js_source_name("utilitiesLinearPeriodicFlow.js"),
+    "utilitiesLinearPeriodicState.js": _js_source_name(
+        "utilitiesLinearPeriodicState.js"
+    ),
     "utilitiesTreePeriodic.js": _js_source_name("utilitiesTreePeriodic.js"),
     "utilitiesTreePeriodicBoundaries.js": _js_source_name(
         "utilitiesTreePeriodicBoundaries.js"
@@ -156,6 +170,16 @@ _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "utilitiesUiPanels.js": _js_source_name("utilitiesUiPanels.js"),
     "utilitiesUiStatus.js": _js_source_name("utilitiesUiStatus.js"),
     "utilitiesUiToolbar.js": _js_source_name("utilitiesUiToolbar.js"),
+    "utilitiesUiToolbarActionState.js": _js_source_name(
+        "utilitiesUiToolbarActionState.js"
+    ),
+    "utilitiesUiToolbarDerivedState.js": _js_source_name(
+        "utilitiesUiToolbarDerivedState.js"
+    ),
+    "utilitiesUiToolbarModeControls.js": _js_source_name(
+        "utilitiesUiToolbarModeControls.js"
+    ),
+    "utilitiesUiToolbarWarnings.js": _js_source_name("utilitiesUiToolbarWarnings.js"),
     "metadataFiltersBindings.js": _js_source_name("metadataFiltersBindings.js"),
     "metadataFiltersRenderers.js": _js_source_name("metadataFiltersRenderers.js"),
     "metadataFiltersState.js": _js_source_name("metadataFiltersState.js"),
@@ -209,6 +233,9 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
         "utilitiesLayoutIndices.js",
         "utilitiesLayoutSelection.js",
         "utilitiesLinearPeriodic.js",
+        "utilitiesLinearPeriodicBoundaries.js",
+        "utilitiesLinearPeriodicFlow.js",
+        "utilitiesLinearPeriodicState.js",
         "utilitiesTreePeriodic.js",
         "utilitiesTreePeriodicBoundaries.js",
         "utilitiesTreePeriodicFlow.js",
@@ -221,6 +248,10 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
         "utilitiesUiPanels.js",
         "utilitiesUiStatus.js",
         "utilitiesUiToolbar.js",
+        "utilitiesUiToolbarActionState.js",
+        "utilitiesUiToolbarDerivedState.js",
+        "utilitiesUiToolbarModeControls.js",
+        "utilitiesUiToolbarWarnings.js",
         "interactionsCanvas.js",
         "interactionsEditor.js",
         "interactionsSession.js",

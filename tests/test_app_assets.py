@@ -33,6 +33,9 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utils/utilitiesLayoutAlgorithmsGraph.js",
         "js/utils/utilitiesLayoutAlgorithmsPositions.js",
         "js/utils/utilitiesLinearPeriodic.js",
+        "js/utils/utilitiesLinearPeriodicState.js",
+        "js/utils/utilitiesLinearPeriodicBoundaries.js",
+        "js/utils/utilitiesLinearPeriodicFlow.js",
         "js/utils/utilitiesSpec.js",
         "js/utils/utilitiesTreePeriodic.js",
         "js/utils/utilitiesTreePeriodicState.js",
@@ -43,6 +46,10 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utils/utilitiesUiPanels.js",
         "js/utils/utilitiesUiGeneratedCode.js",
         "js/utils/utilitiesUiToolbar.js",
+        "js/utils/utilitiesUiToolbarWarnings.js",
+        "js/utils/utilitiesUiToolbarDerivedState.js",
+        "js/utils/utilitiesUiToolbarModeControls.js",
+        "js/utils/utilitiesUiToolbarActionState.js",
         "js/utils/utilitiesUiStatus.js",
     )
 
@@ -1658,6 +1665,12 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     utilities_ui_toolbar_body = request_text(
         f"{editor_server.base_url}/js/utils/utilitiesUiToolbar.js"
     )
+    utilities_ui_toolbar_warnings_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarWarnings.js"
+    )
+    utilities_ui_toolbar_mode_controls_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarModeControls.js"
+    )
     session_template_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
     )
@@ -1770,13 +1783,14 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "Choose how generated code returns the tensors" in shell_bindings_body
     assert 'from "./utilitiesUiPanels.js"' in utilities_ui_body
     assert 'from "./utilitiesUiToolbar.js"' in utilities_ui_body
+    assert 'from "./utilitiesUiToolbarModeControls.js"' in utilities_ui_toolbar_body
     assert (
         "Create a new benchmark scheme after the current one."
-        in utilities_ui_toolbar_body
+        in utilities_ui_toolbar_mode_controls_body
     )
     assert (
         "Cell navigation is available in For unidimensional, For bidimensional, and Benchmark modes."
-        in utilities_ui_toolbar_body
+        in utilities_ui_toolbar_mode_controls_body
     )
     shortcuts_section = re.search(
         r'<section id="help-shortcuts-section"[^>]*>(?P<body>.*?)</section>',
@@ -1920,8 +1934,11 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "loadSessionTemplatesFromFile" in interactions_body
     assert "exportSelectedTemplateSpec" in interactions_body
     assert "toggleTemplateManager" in interactions_body
-    assert "function syncTemplateCatalogWarning()" in utilities_ui_toolbar_body
-    assert "function syncSubnetworkCatalogWarning()" in utilities_ui_toolbar_body
+    assert 'from "./utilitiesUiToolbarWarnings.js"' in utilities_ui_toolbar_body
+    assert "function syncTemplateCatalogWarning()" in utilities_ui_toolbar_warnings_body
+    assert (
+        "function syncSubnetworkCatalogWarning()" in utilities_ui_toolbar_warnings_body
+    )
     assert "function toggleReflowLayoutPopover()" in utilities_ui_panels_body
     assert "function syncSubnetworkLibraryModalState()" in utilities_ui_panels_body
     assert "sessionUi.promptText(" in session_template_dialogs_body
@@ -2054,6 +2071,33 @@ def test_periodic_mode_assets_delegate_to_internal_helpers(
     grid_flow_body = request_text(
         f"{editor_server.base_url}/js/utils/utilitiesGridPeriodicFlow.js"
     )
+    linear_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLinearPeriodic.js"
+    )
+    linear_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLinearPeriodicState.js"
+    )
+    linear_boundaries_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLinearPeriodicBoundaries.js"
+    )
+    linear_flow_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLinearPeriodicFlow.js"
+    )
+    toolbar_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbar.js"
+    )
+    toolbar_warnings_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarWarnings.js"
+    )
+    toolbar_derived_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarDerivedState.js"
+    )
+    toolbar_mode_controls_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarModeControls.js"
+    )
+    toolbar_action_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarActionState.js"
+    )
 
     assert 'from "./utilitiesTreePeriodicState.js"' in tree_body
     assert 'from "./utilitiesTreePeriodicBoundaries.js"' in tree_body
@@ -2067,6 +2111,20 @@ def test_periodic_mode_assets_delegate_to_internal_helpers(
     assert "function createGridPeriodicStateSupport(" in grid_state_body
     assert "function createGridPeriodicBoundarySupport(" in grid_boundaries_body
     assert "function createGridPeriodicFlowSupport(" in grid_flow_body
+    assert 'from "./utilitiesLinearPeriodicState.js"' in linear_body
+    assert 'from "./utilitiesLinearPeriodicBoundaries.js"' in linear_body
+    assert 'from "./utilitiesLinearPeriodicFlow.js"' in linear_body
+    assert "function createLinearPeriodicStateSupport(" in linear_state_body
+    assert "function createLinearPeriodicBoundarySupport(" in linear_boundaries_body
+    assert "function createLinearPeriodicFlowSupport(" in linear_flow_body
+    assert 'from "./utilitiesUiToolbarWarnings.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarDerivedState.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarModeControls.js"' in toolbar_body
+    assert 'from "./utilitiesUiToolbarActionState.js"' in toolbar_body
+    assert "function createUiToolbarWarningSupport(" in toolbar_warnings_body
+    assert "function createUiToolbarDerivedStateSupport(" in toolbar_derived_state_body
+    assert "function createUiToolbarModeControlSupport(" in toolbar_mode_controls_body
+    assert "function createUiToolbarActionStateSupport(" in toolbar_action_state_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
