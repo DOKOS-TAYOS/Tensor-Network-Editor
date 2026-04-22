@@ -23,6 +23,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Unexpected editor-server failures now return safer but more actionable browser-visible messages, including retry guidance and the local session reference instead of a flat generic `500`.
+- When automatic browser opening fails, the editor now explains that the local server is still running before printing the manual URL to open.
 - Checkout-based test runs now skip installed-distribution metadata assertions when `importlib.metadata` resolves a different package installation than the active `src/` checkout.
 - Frontend runtime contract/regression tests now copy the full `utilities.js` dependency set, including the tree-periodic utility module, and the bootstrap architecture fixture no longer hardcodes a stale app version.
 - Frontend runtime test scaffolding now reuses named local JS dependency presets for shortcut, interaction, utility, and layout/subnetwork runtime scripts, reducing repeated copy boilerplate without changing test behavior.

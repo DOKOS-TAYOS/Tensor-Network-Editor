@@ -1611,7 +1611,7 @@ def test_analyze_contraction_route_deserializes_the_spec_once(
     assert deserialize_call_count == 1
 
 
-def test_unexpected_server_errors_return_generic_500_payload(
+def test_unexpected_server_errors_return_enriched_500_payload(
     editor_server: EditorServer,
     serialized_sample_spec: dict[str, object],
 ) -> None:
@@ -1629,4 +1629,12 @@ def test_unexpected_server_errors_return_generic_500_payload(
         )
 
     assert status == 500
-    assert payload == {"ok": False, "message": "Internal server error."}
+    assert payload == {
+        "ok": False,
+        "message": "Unexpected internal error.",
+        "guidance": (
+            "Try again. If the problem continues, check the terminal output for "
+            "this session or rerun with debug logging."
+        ),
+        "reference": editor_server.session_id,
+    }

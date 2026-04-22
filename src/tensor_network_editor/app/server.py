@@ -30,6 +30,11 @@ _SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
 _MAX_REQUEST_BODY_BYTES: int = 1_048_576
 _STATIC_ASSET_CACHE_LOCK = threading.Lock()
 _STATIC_ASSET_CACHE_BY_ROOT: dict[Path, _StaticAssetCache] = {}
+_UNEXPECTED_INTERNAL_ERROR_MESSAGE = "Unexpected internal error."
+_UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
+    "Try again. If the problem continues, check the terminal output for this "
+    "session or rerun with debug logging."
+)
 
 
 class SupportsReadBytes(Protocol):
@@ -178,6 +183,15 @@ def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
         return cache
 
 
+def _unexpected_internal_error_response(session_id: str) -> JsonResponse:
+    """Return an actionable but safe error payload for unexpected failures."""
+    return internal_server_error_response(
+        message=_UNEXPECTED_INTERNAL_ERROR_MESSAGE,
+        guidance=_UNEXPECTED_INTERNAL_ERROR_GUIDANCE,
+        reference=session_id,
+    )
+
+
 class EditorServer:
     """Serve the browser app and JSON API for one editor session."""
 
@@ -252,7 +266,7 @@ class EditorServer:
                         self.command,
                         parsed.path,
                     )
-                    response = internal_server_error_response()
+                    response = _unexpected_internal_error_response(session_id)
                 self._write_response(response)
 
             def do_POST(self) -> None:
@@ -292,7 +306,7 @@ class EditorServer:
                         self.command,
                         parsed.path,
                     )
-                    response = internal_server_error_response()
+                    response = _unexpected_internal_error_response(session_id)
                 self._write_response(response)
 
             def log_message(self, format: str, *args: object) -> None:

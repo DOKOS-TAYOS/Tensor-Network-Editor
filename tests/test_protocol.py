@@ -10,6 +10,7 @@ from tensor_network_editor.app._protocol import (
     JsonDict,
     bad_request_response,
     deserialize_spec_with_issues,
+    internal_server_error_response,
     issues_response,
     ok_response,
     parse_codegen_request,
@@ -149,6 +150,23 @@ def test_serialize_helpers_expose_public_response_shapes(
     assert bad_request_response("bad") == (
         HTTPStatus.BAD_REQUEST,
         {"ok": False, "message": "bad"},
+    )
+    assert internal_server_error_response() == (
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        {"ok": False, "message": "Unexpected internal error."},
+    )
+    assert internal_server_error_response(
+        message="Unexpected internal error.",
+        guidance="Try again. Check the terminal output if the problem continues.",
+        reference="deadbeef",
+    ) == (
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        {
+            "ok": False,
+            "message": "Unexpected internal error.",
+            "guidance": "Try again. Check the terminal output if the problem continues.",
+            "reference": "deadbeef",
+        },
     )
     assert issues_response(issues) == (
         HTTPStatus.OK,

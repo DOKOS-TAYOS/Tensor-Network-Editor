@@ -1012,6 +1012,97 @@ def test_editor_services_route_session_requests_through_explicit_dependencies(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_api_service_builds_actionable_error_messages(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "api_error_messages.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const apiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "services" / "api.js")!r}).href;
+        const apiModule = await import(apiUrl);
+
+        globalThis.fetch = async () =>
+          new Response(
+            JSON.stringify({{
+              ok: false,
+              message: "Unexpected internal error.",
+              guidance: "Try again. Check the terminal output if the problem continues.",
+              reference: "deadbeef",
+            }}),
+            {{
+              status: 500,
+              headers: {{ "Content-Type": "application/json" }},
+            }}
+          );
+
+        try {{
+          await apiModule.apiGet("/api/bootstrap");
+          throw new Error("Expected apiGet to throw for a failing response.");
+        }} catch (error) {{
+          if (
+            error.message
+            !== "Unexpected internal error. Try again. Check the terminal output if the problem continues. Reference: deadbeef"
+          ) {{
+            throw new Error(`Unexpected apiGet error message: ${{error.message}}`);
+          }}
+        }}
+
+        globalThis.fetch = async () =>
+          new Response(
+            JSON.stringify({{
+              ok: false,
+              message: "Unexpected internal error.",
+              guidance: "Try again later.",
+              reference: "cafebabe",
+            }}),
+            {{
+              status: 500,
+              headers: {{ "Content-Type": "application/json" }},
+            }}
+          );
+
+        try {{
+          await apiModule.apiPost("/api/complete", {{}});
+          throw new Error("Expected apiPost to throw for a failing response.");
+        }} catch (error) {{
+          if (
+            error.message
+            !== "Unexpected internal error. Try again later. Reference: cafebabe"
+          ) {{
+            throw new Error(`Unexpected apiPost error message: ${{error.message}}`);
+          }}
+        }}
+
+        globalThis.fetch = async () =>
+          new Response("Gateway exploded", {{
+            status: 502,
+            headers: {{ "Content-Type": "text/plain" }},
+          }});
+
+        try {{
+          await apiModule.apiGet("/api/bootstrap");
+          throw new Error("Expected apiGet to throw for a text error response.");
+        }} catch (error) {{
+          if (error.message !== "Gateway exploded") {{
+            throw new Error(`Unexpected fallback error message: ${{error.message}}`);
+          }}
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The api.js error-message runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_graph_view_modules_build_and_apply_descriptor_diffs(
     tmp_path: Path,
 ) -> None:

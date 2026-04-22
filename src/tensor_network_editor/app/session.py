@@ -41,6 +41,16 @@ def _print_editor_url(base_url: str) -> None:
     print(f"Open the editor at {base_url}", flush=True)
 
 
+def _print_browser_open_fallback_message(base_url: str) -> None:
+    """Explain that browser opening failed but the local server is still live."""
+    print(
+        "Could not open the browser automatically. "
+        "The local editor server is still running.",
+        flush=True,
+    )
+    _print_editor_url(base_url)
+
+
 class EditorSession:
     """Mutable session state shared between the HTTP server and the caller."""
 
@@ -412,6 +422,7 @@ def launch_editor_session(
         if _on_server_ready is not None:
             _on_server_ready(server.base_url)
         should_print_editor_url = not open_browser
+        should_print_browser_fallback_message = False
         if open_browser:
             LOGGER.info(
                 "[session=%s] Opening browser at %s",
@@ -426,6 +437,7 @@ def launch_editor_session(
                     session.session_id,
                 )
                 should_print_editor_url = True
+                should_print_browser_fallback_message = True
             else:
                 if not opened:
                     LOGGER.warning(
@@ -433,7 +445,10 @@ def launch_editor_session(
                         session.session_id,
                     )
                     should_print_editor_url = True
-        if should_print_editor_url:
+                    should_print_browser_fallback_message = True
+        if should_print_browser_fallback_message:
+            _print_browser_open_fallback_message(server.base_url)
+        elif should_print_editor_url:
             _print_editor_url(server.base_url)
         return wait_for_editor_result(session)
     except KeyboardInterrupt:

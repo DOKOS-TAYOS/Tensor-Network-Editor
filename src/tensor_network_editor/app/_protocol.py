@@ -413,12 +413,26 @@ def not_found_response() -> JsonResponse:
     return HTTPStatus.NOT_FOUND, {"ok": False, "message": "Not found."}
 
 
-def internal_server_error_response() -> JsonResponse:
+def internal_server_error_response(
+    message: str = "Unexpected internal error.",
+    *,
+    guidance: str | None = None,
+    reference: str | None = None,
+) -> JsonResponse:
     """Return a standard internal-server-error JSON response."""
-    return HTTPStatus.INTERNAL_SERVER_ERROR, {
+    payload: JsonDict = {
         "ok": False,
-        "message": "Internal server error.",
+        "message": message,
     }
+    if guidance is not None:
+        normalized_guidance = guidance.strip()
+        if normalized_guidance:
+            payload["guidance"] = normalized_guidance
+    if reference is not None:
+        normalized_reference = reference.strip()
+        if normalized_reference:
+            payload["reference"] = normalized_reference
+    return HTTPStatus.INTERNAL_SERVER_ERROR, payload
 
 
 def issues_response(issues: list[ValidationIssue]) -> JsonResponse:
