@@ -388,6 +388,15 @@ export function registerGraphRender(ctx) {
       ) {
         return;
       }
+      if (
+        kind === "index" &&
+        additiveSelection &&
+        state.activeIndexDrag &&
+        state.activeIndexDrag.indexId === element.id() &&
+        state.activeIndexDrag.addedSelectionOnGrab
+      ) {
+        return;
+      }
       ctx.selectElement(kind, element.id(), {
         additive: additiveSelection,
       });
@@ -521,7 +530,7 @@ export function registerGraphRender(ctx) {
       ctx.renderOverlayDecorations();
     });
 
-    state.cy.on("dragfree", "node[kind = 'tensor']", (event) => {
+    function handleTensorRelease(event) {
       const tensor = typeof ctx.findVisibleTensorById === "function"
         ? ctx.findVisibleTensorById(event.target.id())
         : ctx.findTensorById(event.target.id());
@@ -531,16 +540,30 @@ export function registerGraphRender(ctx) {
       finishTensorDrag(event.target.id());
       ctx.renderProperties();
       ctx.renderMinimap();
-    });
+    }
+
+    state.cy.on("dragfree", "node[kind = 'tensor']", handleTensorRelease);
+    state.cy.on("free", "node[kind = 'tensor']", handleTensorRelease);
 
     state.cy.on("grab", "node[kind = 'index']", (event) => {
       hideBoundaryTensorTooltip();
-      const located = ctx.findIndexOwner(event.target.id());
+      const indexId = event.target.id();
+      const additiveSelection =
+        typeof ctx.isAdditiveSelectionModifier === "function" &&
+        ctx.isAdditiveSelectionModifier(event.originalEvent);
+      const indexWasSelected = state.selectionIds.includes(indexId);
+      const located = ctx.findIndexOwner(indexId);
       if (located) {
         ctx.bringTensorToFront(located.tensor.id);
       }
+      if (additiveSelection && !indexWasSelected) {
+        ctx.setSelection([...state.selectionIds, indexId], { primaryId: indexId });
+      } else if (!indexWasSelected) {
+        ctx.setSelection([indexId], { primaryId: indexId });
+      }
       state.activeIndexDrag = {
-        indexId: event.target.id(),
+        addedSelectionOnGrab: additiveSelection && !indexWasSelected,
+        indexId,
         startOffset: located
           ? {
             x: located.index.offset.x,
@@ -578,7 +601,7 @@ export function registerGraphRender(ctx) {
       }
     });
 
-    state.cy.on("dragfree", "node[kind = 'index']", (event) => {
+    function handleIndexRelease(event) {
       const located = ctx.findIndexOwner(event.target.id());
       if (located) {
         located.index.offset = ctx.clampIndexOffset(located.index.offset, located.tensor);
@@ -587,7 +610,10 @@ export function registerGraphRender(ctx) {
       finishIndexDrag(event.target.id());
       ctx.renderProperties();
       ctx.renderMinimap();
-    });
+    }
+
+    state.cy.on("dragfree", "node[kind = 'index']", handleIndexRelease);
+    state.cy.on("free", "node[kind = 'index']", handleIndexRelease);
 
     state.cy.on("pan zoom resize", () => {
       hideBoundaryTensorTooltip();

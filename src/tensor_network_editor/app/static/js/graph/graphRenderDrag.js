@@ -112,6 +112,7 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     if (!state.activeIndexDrag || state.activeIndexDrag.indexId !== indexId) {
       return;
     }
+    const shouldResyncSelection = Boolean(state.activeIndexDrag.addedSelectionOnGrab);
     const located = ctx.findIndexOwner(indexId);
     const changed =
       located &&
@@ -123,6 +124,12 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     }
     state.activeIndexDrag = null;
     ctx.updateToolbarState();
+    if (
+      shouldResyncSelection &&
+      typeof ctx.syncCySelection === "function"
+    ) {
+      ctx.syncCySelection();
+    }
   }
 
   return {

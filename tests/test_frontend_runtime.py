@@ -4711,6 +4711,7 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
 
             const state = createInitialState();
             const selectionCalls = [];
+            const selectionSyncCalls = [];
             let renderedCyFactoryCalls = 0;
             const documentElements = {};
             const ctx = {
@@ -4744,7 +4745,7 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
                 },
                 statusMessage: { textContent: "", classList: createClassList() },
                 propertiesPanel: {},
-                engineSelect: { value: "tensornetwork" },
+                engineSelect: { value: "tensornetwork", options: [] },
                 connectButton: {},
                 loadInput: {},
                 undoButton: {},
@@ -4815,7 +4816,9 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
               renderNotes() {},
               updateToolbarState() {},
               renderProperties() {},
-              syncCySelection() {},
+              syncCySelection() {
+                selectionSyncCalls.push([...state.selectionIds]);
+              },
               isContractionSceneVisible() {
                 return false;
               },
@@ -4917,6 +4920,9 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
                   if (selectionId === "tensor_a" || selectionId === "tensor_b") {
                     return { kind: "tensor", id: selectionId, tensor: ctx.findTensorById(selectionId) };
                   }
+                  if (selectionId === "index_a" || selectionId === "index_b") {
+                    return { kind: "index", id: selectionId, located: ctx.findIndexOwner(selectionId) };
+                  }
                   return null;
                 }).filter(Boolean);
               },
@@ -4933,7 +4939,15 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
                   position: { x: 100, y: 100 },
                   size: { width: 140, height: 84 },
                   metadata: {},
-                  indices: [],
+                  indices: [
+                    {
+                      id: "index_a",
+                      name: "a",
+                      dimension: 2,
+                      offset: { x: -38, y: 0 },
+                      metadata: {},
+                    },
+                  ],
                 },
                 {
                   id: "tensor_b",
@@ -4941,7 +4955,15 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
                   position: { x: 260, y: 100 },
                   size: { width: 140, height: 84 },
                   metadata: {},
-                  indices: [],
+                  indices: [
+                    {
+                      id: "index_b",
+                      name: "b",
+                      dimension: 2,
+                      offset: { x: -38, y: 0 },
+                      metadata: {},
+                    },
+                  ],
                 },
               ],
               groups: [
@@ -4968,7 +4990,15 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
             ctx.findTensorById = (tensorId) =>
               state.spec.tensors.find((tensor) => tensor.id === tensorId) || null;
             ctx.findVisibleTensorById = ctx.findTensorById;
-            ctx.findIndexOwner = () => null;
+            ctx.findIndexOwner = (indexId) => {
+              for (const tensor of state.spec.tensors) {
+                const index = tensor.indices.find((candidate) => candidate.id === indexId);
+                if (index) {
+                  return { tensor, index };
+                }
+              }
+              return null;
+            };
             ctx.findEdgeById = () => null;
             ctx.findNoteById = (noteId) =>
               state.spec.notes.find((note) => note.id === noteId) || null;
@@ -5006,6 +5036,9 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
                 ctrlKey: true,
               },
             });
+            if (typeof cyHandlers["free:node[kind = 'tensor']"] !== "function") {
+              throw new Error("Tensor nodes should register a free handler to finish additive clicks without dragging.");
+            }
             cyHandlers["tap:node, edge"]({
               target: {
                 id() {
@@ -5022,6 +5055,69 @@ def _write_additive_selection_runtime_regression_script(tmp_path: Path) -> Path:
             });
             if (state.selectionIds.join(",") !== "tensor_a,tensor_b") {
               throw new Error(`Ctrl+click on a tensor should add it to the selection, received ${state.selectionIds.join(",")}.`);
+            }
+            cyHandlers["free:node[kind = 'tensor']"]({
+              target: {
+                id() {
+                  return "tensor_b";
+                },
+              },
+            });
+            if (
+              JSON.stringify(selectionSyncCalls.slice(-1)[0] || []) !==
+              JSON.stringify(["tensor_a", "tensor_b"])
+            ) {
+              throw new Error(`Ctrl+click on a tensor should resync the visual selection on release, received ${JSON.stringify(selectionSyncCalls)}.`);
+            }
+
+            state.selectionIds = ["index_a"];
+            state.primarySelectionId = "index_a";
+            cyHandlers["grab:node[kind = 'index']"]({
+              target: {
+                id() {
+                  return "index_b";
+                },
+              },
+              originalEvent: {
+                button: 0,
+                ctrlKey: true,
+              },
+            });
+            if (state.selectionIds.join(",") !== "index_a,index_b") {
+              throw new Error(`Ctrl+grab on an index should add it to the selection even before dragging, received ${state.selectionIds.join(",")}.`);
+            }
+            if (typeof cyHandlers["free:node[kind = 'index']"] !== "function") {
+              throw new Error("Index nodes should register a free handler to finish additive clicks without dragging.");
+            }
+            cyHandlers["tap:node, edge"]({
+              target: {
+                id() {
+                  return "index_b";
+                },
+                data(name) {
+                  return name === "kind" ? "index" : null;
+                },
+              },
+              originalEvent: {
+                button: 0,
+                ctrlKey: true,
+              },
+            });
+            if (state.selectionIds.join(",") !== "index_a,index_b") {
+              throw new Error(`Ctrl+click on an index should keep additive selection instead of toggling it off, received ${state.selectionIds.join(",")}.`);
+            }
+            cyHandlers["free:node[kind = 'index']"]({
+              target: {
+                id() {
+                  return "index_b";
+                },
+              },
+            });
+            if (
+              JSON.stringify(selectionSyncCalls.slice(-1)[0] || []) !==
+              JSON.stringify(["index_a", "index_b"])
+            ) {
+              throw new Error(`Ctrl+click on an index should resync the visual selection on release, received ${JSON.stringify(selectionSyncCalls)}.`);
             }
 
             state.selectionIds = ["tensor_a"];

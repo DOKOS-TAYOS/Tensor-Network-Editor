@@ -159,7 +159,7 @@ def test_validate_route_returns_live_import_warnings(
             "import quimb.tensor as qtn",
             "",
             "def build_network() -> qtn.TensorNetwork:",
-            "    left = qtn.Tensor(np.ones((65, 65), dtype=float), inds=('i', 'bond_x'), tags=('A',))",
+            "    left = qtn.Tensor(np.arange(65 * 65, dtype=float).reshape(65, 65), inds=('i', 'bond_x'), tags=('A',))",
             "    right = qtn.Tensor(np.ones((65, 5), dtype=float), inds=('bond_x', 'j'), tags=('B',))",
             "    return qtn.TensorNetwork([left, right])",
             "",
