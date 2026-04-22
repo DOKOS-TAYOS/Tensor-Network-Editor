@@ -59,6 +59,22 @@ def test_python_live_import_tensor_data_helpers_accept_numpy_like_values() -> No
     assert tensor_data.values == [[1.0, 2.0], [3.0, 4.0]]
 
 
+def test_python_live_import_tensor_data_helpers_preserve_large_uniform_ones() -> None:
+    tensor_data_module = import_module(
+        "tensor_network_editor.internal.io._python_live_import_tensor_data"
+    )
+
+    tensor_data, warning = tensor_data_module.lower_runtime_tensor_data(
+        [[1.0] * 65 for _ in range(65)],
+        shape=(65, 65),
+        tensor_name="LargeOnes",
+    )
+
+    assert warning is None
+    assert tensor_data is not None
+    assert tensor_data.mode is TensorDataMode.ONES
+
+
 def test_python_live_import_runner_rejects_non_live_source_profiles_before_exec() -> (
     None
 ):
