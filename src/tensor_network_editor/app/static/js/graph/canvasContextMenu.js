@@ -66,6 +66,10 @@ export function registerCanvasContextMenu(ctx) {
       typeof ctx.getBatchColorValue === "function"
         ? (entries) => ctx.getBatchColorValue(entries)
         : null,
+    describeHyperedgeCandidate:
+      typeof ctx.describeHyperedgeCandidate === "function"
+        ? (indexIds) => ctx.describeHyperedgeCandidate(indexIds)
+        : null,
     getIndexColor:
       typeof ctx.getIndexColor === "function"
         ? (index, isConnected) => ctx.getIndexColor(index, isConnected)
@@ -122,6 +126,7 @@ export function registerCanvasContextMenu(ctx) {
         ? (options) => ctx.bindMetadataEditors(options)
         : null,
     closeCanvasContextMenu,
+    createHyperedgeFromSelection: resolveOptionalAction("createHyperedgeFromSelection"),
     createGroupFromSelection: resolveOptionalAction("createGroupFromSelection"),
     document,
     exportGroupSubnetwork: resolveOptionalAction("exportGroupSubnetwork"),
@@ -150,7 +155,11 @@ export function registerCanvasContextMenu(ctx) {
       closeCanvasContextMenu();
       return;
     }
-    if (resolvedTarget.kind !== "selection" && typeof ctx.setSelection === "function") {
+    if (
+      resolvedTarget.kind !== "selection" &&
+      resolvedTarget.kind !== "index-selection" &&
+      typeof ctx.setSelection === "function"
+    ) {
       ctx.setSelection([resolvedTarget.id], {
         primaryId: resolvedTarget.id,
       });

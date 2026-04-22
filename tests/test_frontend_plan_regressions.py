@@ -403,6 +403,7 @@ def _build_runtime_prelude() -> str:
         toggleClassIds: [],
         unselectCalls: [],
       }};
+      const handlers = {{}};
       const elementsById = new Map();
 
       function recordUnique(entries, value) {{
@@ -660,7 +661,19 @@ def _build_runtime_prelude() -> str:
             matchesNodeSelector(element, selector)
           );
         }},
-        on() {{}},
+        on(eventName, selectorOrHandler, maybeHandler) {{
+          const selector =
+            typeof selectorOrHandler === "function" ? "*" : selectorOrHandler;
+          const handler =
+            typeof selectorOrHandler === "function"
+              ? selectorOrHandler
+              : maybeHandler;
+          const handlerKey = `${{eventName}}:${{selector || "*"}}`;
+          if (!handlers[handlerKey]) {{
+            handlers[handlerKey] = [];
+          }}
+          handlers[handlerKey].push(handler);
+        }},
         $(selector) {{
           if (selector !== ":selected") {{
             return {{
@@ -698,6 +711,16 @@ def _build_runtime_prelude() -> str:
         getElementSnapshot(id) {{
           const element = elementsById.get(id);
           return element ? element.snapshot() : null;
+        }},
+        trigger(eventName, selector = "*", payload = {{}}) {{
+          const handlerKey = `${{eventName}}:${{selector || "*"}}`;
+          const targetHandlers = handlers[handlerKey] || [];
+          if (!targetHandlers.length) {{
+            throw new Error(`Missing Cytoscape handler for ${{handlerKey}}.`);
+          }}
+          targetHandlers.forEach((handler) => {{
+            handler(payload);
+          }});
         }},
         resetStats,
         stats,
@@ -4347,6 +4370,168 @@ def test_graph_render_synthesizes_hyperedge_hub_and_spokes(
 
     assert completed_process.returncode == 0, (
         "The hyperedge graph render regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_hyperedge_hub_drag_updates_saved_offset_and_stays_relative(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "hyperedge_hub_drag_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildHyperedgeRenderSpec() {
+          return {
+            id: "network_hyperedge_hub_drag",
+            name: "hyperedge-hub-drag",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_b",
+                name: "B",
+                position: { x: 360, y: 260 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_b_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+              {
+                id: "tensor_c",
+                name: "C",
+                position: { x: 620, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_c_left", name: "left", dimension: 3, offset: { x: -38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            hyperedges: [
+              {
+                id: "hyperedge_h",
+                name: "shared",
+                endpoints: [
+                  { tensor_id: "tensor_a", index_id: "tensor_a_left" },
+                  { tensor_id: "tensor_b", index_id: "tensor_b_left" },
+                  { tensor_id: "tensor_c", index_id: "tensor_c_left" },
+                ],
+                hub_offset: { x: 0, y: 0 },
+                metadata: {},
+              },
+            ],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        function getAutomaticHubCenter(ctx, hyperedge) {
+          const endpointPositions = hyperedge.endpoints
+            .map((endpoint) => ctx.findIndexOwner(endpoint.index_id))
+            .filter((owner) => owner && owner.tensor && owner.index)
+            .map((owner) => ctx.indexAbsolutePosition(owner.tensor, owner.index));
+          const summed = endpointPositions.reduce(
+            (accumulator, position) => ({
+              x: accumulator.x + position.x,
+              y: accumulator.y + position.y,
+            }),
+            { x: 0, y: 0 }
+          );
+          return {
+            x: Math.round(summed.x / endpointPositions.length),
+            y: Math.round(summed.y / endpointPositions.length),
+          };
+        }
+
+        const ctx = await buildContext();
+        const cyHarness = createCyStub();
+        ctx.cytoscape = () => cyHarness.cy;
+        await registerHistory(ctx);
+        const committedSnapshots = [];
+        ctx.createHistorySnapshot = () => ({ id: "hub_drag_snapshot" });
+        ctx.commitHistorySnapshot = (snapshot) => {
+          committedSnapshots.push(snapshot.id);
+        };
+        await registerGraphRender(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildHyperedgeRenderSpec());
+        ctx.bumpSpecRevision();
+        ctx.initGraph();
+        ctx.renderGraph();
+
+        const hubId = ctx.hyperedgeHubNodeId("hyperedge_h");
+        const hubElement = ctx.state.cy.getElementById(hubId);
+        const initialHubSnapshot = cyHarness.getElementSnapshot(hubId);
+        if (!initialHubSnapshot?.grabbable) {
+          throw new Error(`Expected ${hubId} to render as draggable, received ${JSON.stringify(initialHubSnapshot)}.`);
+        }
+
+        cyHarness.trigger("grab", "node[kind = 'hyperedge-hub']", {
+          originalEvent: { button: 0 },
+          target: hubElement,
+        });
+        hubElement.position({
+          x: initialHubSnapshot.position.x + 30,
+          y: initialHubSnapshot.position.y + 10,
+        });
+        cyHarness.trigger("position", "node[kind = 'hyperedge-hub']", {
+          target: hubElement,
+        });
+        cyHarness.trigger("free", "node[kind = 'hyperedge-hub']", {
+          target: hubElement,
+        });
+
+        const savedHyperedge = ctx.findHyperedgeById("hyperedge_h");
+        if (
+          !savedHyperedge?.hub_offset ||
+          savedHyperedge.hub_offset.x !== 30 ||
+          savedHyperedge.hub_offset.y !== 10
+        ) {
+          throw new Error(`Expected the hub drag to persist a relative offset, received ${JSON.stringify(savedHyperedge)}.`);
+        }
+        if (JSON.stringify(committedSnapshots) !== JSON.stringify(["hub_drag_snapshot"])) {
+          throw new Error(`Expected exactly one committed history snapshot for the hub drag, received ${JSON.stringify(committedSnapshots)}.`);
+        }
+
+        const movedIndex = ctx.findIndexOwner("tensor_b_left");
+        movedIndex.index.offset = {
+          x: movedIndex.index.offset.x + 24,
+          y: movedIndex.index.offset.y,
+        };
+        ctx.syncSingleIndexNodePosition(movedIndex.tensor, movedIndex.index);
+        ctx.syncHyperedgeHubNodePositions(["tensor_b_left"]);
+
+        const expectedHubPosition = getAutomaticHubCenter(ctx, savedHyperedge);
+        const movedHubSnapshot = cyHarness.getElementSnapshot(hubId);
+        if (
+          !movedHubSnapshot ||
+          movedHubSnapshot.position.x !== expectedHubPosition.x + savedHyperedge.hub_offset.x ||
+          movedHubSnapshot.position.y !== expectedHubPosition.y + savedHyperedge.hub_offset.y
+        ) {
+          throw new Error(`Expected the hub to stay relative to the updated centroid, received ${JSON.stringify(movedHubSnapshot)} with expected ${JSON.stringify(expectedHubPosition)} and offset ${JSON.stringify(savedHyperedge.hub_offset)}.`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The hyperedge hub drag regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

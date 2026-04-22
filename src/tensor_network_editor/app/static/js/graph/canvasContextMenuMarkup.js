@@ -344,6 +344,65 @@ export function createCanvasContextMenuMarkup({
     `;
   }
 
+  function renderIndexSelectionMarkup(resolvedTarget) {
+    const candidate = resolvedTarget.hyperedgeCreationCandidate || {
+      canCreate: false,
+      message: "This selection cannot form a hyperedge.",
+    };
+    return `
+      <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+        <div class="properties-chip-wrap canvas-context-menu-stats">
+          <div class="properties-chip">
+            <span>Indices</span>
+            <strong>${resolvedTarget.indexCount}</strong>
+          </div>
+        </div>
+        <div class="button-row canvas-context-menu-actions">
+          <label
+            class="control-inline-color"
+            for="context-menu-selection-color-input"
+            ${buildTooltipAttributes(
+              "Choose color",
+              "Set the display color for this item."
+            )}
+          >
+            <input
+              id="context-menu-selection-color-input"
+              type="color"
+              aria-label="Choose color"
+              value="${escapeHtml(resolvedTarget.selectionColor)}"
+            />
+          </label>
+          <button
+            id="context-menu-create-hyperedge-button"
+            type="button"
+            ${candidate.canCreate ? "" : "disabled"}
+            ${buildTooltipAttributes(
+              "Create hyperedge",
+              candidate.canCreate
+                ? "Create a hyperedge from the selected open indices."
+                : candidate.message || "This selection cannot form a hyperedge."
+            )}
+          >
+            Create hyperedge
+          </button>
+          <button
+            id="context-menu-delete-selection-button"
+            type="button"
+            class="icon-button danger"
+            aria-label="Delete selection"
+            ${buildTooltipAttributes(
+              "Delete selection",
+              "Remove the current selection from the network."
+            )}
+          >
+            ${renderTrashIcon()}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   function renderIndexMarkup(resolvedTarget) {
     return `
       <div class="canvas-context-menu-section canvas-context-menu-input-stack">
@@ -587,6 +646,9 @@ export function createCanvasContextMenuMarkup({
     }
     if (resolvedTarget.kind === "selection") {
       return renderSelectionMarkup(resolvedTarget);
+    }
+    if (resolvedTarget.kind === "index-selection") {
+      return renderIndexSelectionMarkup(resolvedTarget);
     }
     if (resolvedTarget.kind === "tensor") {
       return renderTensorMarkup(resolvedTarget);

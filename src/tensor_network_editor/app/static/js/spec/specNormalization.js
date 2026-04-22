@@ -201,6 +201,10 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     hyperedge.metadata = runtime.isObject(hyperedge.metadata)
       ? hyperedge.metadata
       : {};
+    hyperedge.hub_offset = {
+      x: runtime.asFiniteNumber(hyperedge.hub_offset && hyperedge.hub_offset.x, 0),
+      y: runtime.asFiniteNumber(hyperedge.hub_offset && hyperedge.hub_offset.y, 0),
+    };
     hyperedge.endpoints = (Array.isArray(hyperedge.endpoints)
       ? hyperedge.endpoints
       : []

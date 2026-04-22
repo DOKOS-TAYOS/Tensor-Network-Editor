@@ -230,6 +230,9 @@ class HyperedgeSpec:
     id: str = field(default_factory=lambda: new_identifier("hyperedge"))
     name: str = "hyperedge"
     endpoints: list[EdgeEndpointRef] = field(default_factory=list)
+    hub_offset: CanvasPosition = field(
+        default_factory=lambda: CanvasPosition(x=0.0, y=0.0)
+    )
     metadata: MetadataDict = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JSONValue]:
@@ -238,6 +241,7 @@ class HyperedgeSpec:
             "id": self.id,
             "name": self.name,
             "endpoints": [endpoint.to_dict() for endpoint in self.endpoints],
+            "hub_offset": self.hub_offset.to_dict(),
             "metadata": self.metadata,
         }
 
@@ -248,6 +252,10 @@ class HyperedgeSpec:
             payload.get("endpoints", []),
             field_name="endpoints",
         )
+        hub_offset_payload = require_dict(
+            payload.get("hub_offset", {"x": 0.0, "y": 0.0}),
+            field_name="hub_offset",
+        )
         return cls(
             id=coerce_string(payload["id"], field_name="id"),
             name=coerce_string(payload["name"], field_name="name"),
@@ -255,6 +263,7 @@ class HyperedgeSpec:
                 EdgeEndpointRef.from_dict(require_dict(endpoint, field_name="endpoint"))
                 for endpoint in endpoints_payload
             ],
+            hub_offset=CanvasPosition.from_dict(hub_offset_payload),
             metadata=coerce_metadata(
                 payload.get("metadata", {}), field_name="metadata"
             ),

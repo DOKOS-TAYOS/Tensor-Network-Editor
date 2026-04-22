@@ -386,6 +386,43 @@ def test_index_offset_round_trip_is_serializable() -> None:
     assert restored.offset.y == -18.0
 
 
+def test_hyperedge_hub_offset_round_trip_is_serializable() -> None:
+    hyperedge = HyperedgeSpec(
+        id="hyperedge_with_offset",
+        name="shared_h",
+        endpoints=[
+            EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_h"),
+            EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_h"),
+            EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_h"),
+        ],
+        hub_offset=CanvasPosition(x=18.0, y=-12.0),
+    )
+
+    payload = hyperedge.to_dict()
+    restored = HyperedgeSpec.from_dict(cast(dict[str, object], payload))
+
+    assert restored.hub_offset.x == 18.0
+    assert restored.hub_offset.y == -12.0
+
+
+def test_hyperedge_without_hub_offset_defaults_to_origin_on_load() -> None:
+    restored = HyperedgeSpec.from_dict(
+        {
+            "id": "hyperedge_legacy",
+            "name": "legacy_h",
+            "endpoints": [
+                {"tensor_id": "tensor_a", "index_id": "tensor_a_h"},
+                {"tensor_id": "tensor_b", "index_id": "tensor_b_h"},
+                {"tensor_id": "tensor_c", "index_id": "tensor_c_h"},
+            ],
+            "metadata": {},
+        }
+    )
+
+    assert restored.hub_offset.x == 0.0
+    assert restored.hub_offset.y == 0.0
+
+
 def test_tensor_size_round_trip_is_serializable() -> None:
     tensor = TensorSpec(
         id="tensor_with_size",

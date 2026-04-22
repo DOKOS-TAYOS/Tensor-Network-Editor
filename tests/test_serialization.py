@@ -12,6 +12,7 @@ from tensor_network_editor.io import (
     serialize_spec,
 )
 from tensor_network_editor.models import (
+    CanvasPosition,
     EdgeEndpointRef,
     HyperedgeSpec,
     IndexSpec,
@@ -76,6 +77,7 @@ def test_serialize_spec_preserves_hyperedges_payload() -> None:
                 EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
                 EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_x"),
             ],
+            hub_offset=CanvasPosition(x=22.0, y=-14.0),
         )
     ]
     spec.edges = []
@@ -91,10 +93,41 @@ def test_serialize_spec_preserves_hyperedges_payload() -> None:
 
     assert payload["schema_version"] == SCHEMA_VERSION
     assert first_hyperedge["name"] == "shared_h"
+    assert first_hyperedge["hub_offset"] == {"x": 22.0, "y": -14.0}
     assert first_endpoint == {
         "tensor_id": "tensor_a",
         "index_id": "tensor_a_x",
     }
+
+
+def test_deserialize_spec_defaults_missing_hyperedge_hub_offset_to_origin() -> None:
+    spec = build_three_tensor_spec_without_plan()
+    spec.tensors[2].indices.insert(
+        0,
+        IndexSpec(id="tensor_c_x", name="x_extra", dimension=3),
+    )
+    spec.hyperedges = [
+        HyperedgeSpec(
+            id="hyperedge_shared",
+            name="shared_h",
+            endpoints=[
+                EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_x"),
+                EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_x"),
+                EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_x"),
+            ],
+        )
+    ]
+    spec.edges = []
+    payload = serialize_spec(spec)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    hyperedges_payload = cast(list[JSONValue], network_payload["hyperedges"])
+    first_hyperedge = cast(dict[str, JSONValue], hyperedges_payload[0])
+    first_hyperedge.pop("hub_offset", None)
+
+    restored = deserialize_spec(payload)
+
+    assert restored.hyperedges[0].hub_offset.x == 0.0
+    assert restored.hyperedges[0].hub_offset.y == 0.0
 
 
 def test_serialize_spec_rejects_invalid_network(sample_spec: NetworkSpec) -> None:

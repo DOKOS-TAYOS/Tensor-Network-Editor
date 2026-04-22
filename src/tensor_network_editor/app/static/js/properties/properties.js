@@ -7,38 +7,44 @@ function resolveContextAction(ctx, actionName, fallback = () => {}) {
   return typeof candidate === "function" ? candidate.bind(ctx) : fallback;
 }
 
-function createPropertyActions(ctx) {
-  function describeSelectedHyperedgeCandidate(selectedEntries = []) {
-    const entries = Array.isArray(selectedEntries) ? selectedEntries : [];
-    const indexEntries = entries.filter((entry) => entry.kind === "index");
-    const selectedIndexIds = indexEntries.map((entry) => entry.id);
-    if (!selectedIndexIds.length) {
-      return {
-        canCreate: false,
-        message: "Select indices to create a hyperedge.",
-        selectedIndexIds,
-      };
-    }
-    if (indexEntries.length !== entries.length) {
-      return {
-        canCreate: false,
-        message: "Select only normal-mode indices to create a hyperedge.",
-        selectedIndexIds,
-      };
-    }
-    if (typeof ctx.describeHyperedgeCandidate !== "function") {
-      return {
-        canCreate: false,
-        message: "Hyperedge creation is unavailable in this session.",
-        selectedIndexIds,
-      };
-    }
+function describeSelectedHyperedgeCandidate(ctx, selectedEntries = []) {
+  const entries = Array.isArray(selectedEntries) ? selectedEntries : [];
+  const indexEntries = entries.filter((entry) => entry.kind === "index");
+  const selectedIndexIds = indexEntries.map((entry) => entry.id);
+  const selectionContainsOnlyIndices =
+    entries.length > 0 && indexEntries.length === entries.length;
+  if (!selectedIndexIds.length) {
     return {
-      ...ctx.describeHyperedgeCandidate(selectedIndexIds),
+      canCreate: false,
+      message: "Select indices to create a hyperedge.",
       selectedIndexIds,
+      selectionContainsOnlyIndices: false,
     };
   }
+  if (!selectionContainsOnlyIndices) {
+    return {
+      canCreate: false,
+      message: "Select only normal-mode indices to create a hyperedge.",
+      selectedIndexIds,
+      selectionContainsOnlyIndices: false,
+    };
+  }
+  if (typeof ctx.describeHyperedgeCandidate !== "function") {
+    return {
+      canCreate: false,
+      message: "Hyperedge creation is unavailable in this session.",
+      selectedIndexIds,
+      selectionContainsOnlyIndices,
+    };
+  }
+  return {
+    ...ctx.describeHyperedgeCandidate(selectedIndexIds),
+    selectedIndexIds,
+    selectionContainsOnlyIndices,
+  };
+}
 
+function createPropertyActions(ctx) {
   return {
     escapeHtml: (value) => ctx.escapeHtml(value),
     clearSelection: resolveContextAction(ctx, "clearSelection"),
@@ -48,7 +54,9 @@ function createPropertyActions(ctx) {
     isLinearPeriodicMode: resolveContextAction(ctx, "isLinearPeriodicMode", () => false),
     isForMode: resolveContextAction(ctx, "isForMode", () => false),
     deleteSelection: resolveContextAction(ctx, "deleteSelection"),
-    describeSelectedHyperedgeCandidate,
+    createHyperedgeFromSelection: (options) => ctx.createHyperedgeFromSelection(options),
+    describeSelectedHyperedgeCandidate: (selectedEntries = []) =>
+      describeSelectedHyperedgeCandidate(ctx, selectedEntries),
     alignSelectedTensors: (alignment) => ctx.alignSelectedTensors(alignment),
     arrangeSelectedTensors: (layoutKind) => ctx.arrangeSelectedTensors(layoutKind),
     distributeSelectedTensors: (axis) => ctx.distributeSelectedTensors(axis),
@@ -121,12 +129,38 @@ export function registerProperties(ctx) {
     support,
     actions,
   });
+  function createHyperedgeFromSelection(options = {}) {
+    const selectedEntries =
+      typeof ctx.getSelectedEntries === "function" ? ctx.getSelectedEntries() : [];
+    const candidate = describeSelectedHyperedgeCandidate(ctx, selectedEntries);
+    if (!candidate.selectionContainsOnlyIndices) {
+      ctx.setStatus(candidate.message || "This selection cannot form a hyperedge.", "error");
+      return false;
+    }
+    return commands.createHyperedgeFromIndices({
+      indexIds: candidate.selectedIndexIds,
+      invalidate:
+        options.invalidate ??
+        (typeof ctx.propertyInvalidation === "function"
+          ? ctx.propertyInvalidation({
+            analysis: true,
+            graph: true,
+            lookups: true,
+            minimap: true,
+            planner: true,
+            toolbar: true,
+          })
+          : undefined),
+      statusMessage: options.statusMessage ?? "Created a hyperedge.",
+    });
+  }
 
   Object.assign(ctx, {
     bindDebouncedAutosave: support.bindDebouncedAutosave,
     bindImmediateAutosave: support.bindImmediateAutosave,
     buildMetadataEditorMarkup: support.buildMetadataEditorMarkup,
     bindMetadataEditors: support.bindMetadataEditors,
+    createHyperedgeFromSelection,
     propertyCommands: commands,
     propertyInvalidation: support.propertyInvalidation,
     ...renderers,

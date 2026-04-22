@@ -50,7 +50,6 @@ export function createOverviewPropertiesBindings({
     state,
     selectedEntries,
     batchColor,
-    hyperedgeCreationCandidate,
     hasMultipleTensors,
   }) {
     const multiColorInput = documentRef.getElementById("multi-color-input");
@@ -88,14 +87,13 @@ export function createOverviewPropertiesBindings({
     });
 
     bindClick("create-hyperedge-button", () => {
-      commands.createHyperedgeFromIndices({
-        indexIds: hyperedgeCreationCandidate?.selectedIndexIds || [],
+      actions.createHyperedgeFromSelection({
         invalidate: propertyInvalidation({
+          analysis: true,
           graph: true,
           lookups: true,
-          analysis: true,
-          planner: true,
           minimap: true,
+          planner: true,
           toolbar: true,
         }),
         statusMessage: "Created a hyperedge.",

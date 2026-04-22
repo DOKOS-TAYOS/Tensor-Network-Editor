@@ -327,6 +327,7 @@ export function createSpecMutationBindings({
           tensor_id: owner.tensor.id,
           index_id: owner.index.id,
         })),
+      hub_offset: { x: 0, y: 0 },
       metadata: {},
     };
     if (!Array.isArray(state.spec.hyperedges)) {

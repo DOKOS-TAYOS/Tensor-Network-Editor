@@ -3637,6 +3637,563 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "hyperedge_shortcut_and_context_menu_runtime.mjs"
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "properties.runtime.mjs": "properties/properties.js",
+            "propertiesSupport.js": "properties/propertiesSupport.js",
+            "propertiesRenderers.js": "properties/propertiesRenderers.js",
+            "canvasContextMenu.runtime.mjs": "graph/canvasContextMenu.js",
+            "interactionsShortcuts.js": "interactions/interactionsShortcuts.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [
+              stateModule,
+              utilitiesModule,
+              historyModule,
+              propertiesModule,
+              canvasContextMenuModule,
+              shortcutsModule,
+            ] = await Promise.all([
+              import(new URL("./state.runtime.mjs", baseUrl).href),
+              import(new URL("./utilities.runtime.mjs", baseUrl).href),
+              import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+              import(new URL("./properties.runtime.mjs", baseUrl).href),
+              import(new URL("./canvasContextMenu.runtime.mjs", baseUrl).href),
+              import(new URL("./interactionsShortcuts.js", baseUrl).href),
+            ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { registerHistorySelection } = historyModule;
+            const { registerProperties } = propertiesModule;
+            const { registerCanvasContextMenu } = canvasContextMenuModule;
+            const { createInteractionShortcutBindings } = shortcutsModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createFakeElement(id = null, tagName = "div") {
+              return {
+                id,
+                tagName: String(tagName || "div").toUpperCase(),
+                value: "",
+                textContent: "",
+                selected: false,
+                checked: false,
+                disabled: false,
+                hidden: false,
+                dataset: {},
+                attributes: {},
+                style: {},
+                className: "",
+                classList: createClassList(),
+                listeners: {},
+                ownerDocument: null,
+                addEventListener(eventName, listener) {
+                  if (!this.listeners[eventName]) {
+                    this.listeners[eventName] = [];
+                  }
+                  this.listeners[eventName].push(listener);
+                },
+                dispatchEvent(eventName, event = {}) {
+                  (this.listeners[eventName] || []).forEach((listener) => {
+                    listener({
+                      preventDefault() {},
+                      stopPropagation() {},
+                      target: this,
+                      ...event,
+                    });
+                  });
+                },
+                click() {
+                  this.dispatchEvent("click");
+                },
+                focus() {
+                  if (this.ownerDocument) {
+                    this.ownerDocument.activeElement = this;
+                  }
+                },
+                setAttribute(name, value) {
+                  this.attributes[name] = value;
+                },
+                removeAttribute(name) {
+                  delete this.attributes[name];
+                },
+                appendChild() {},
+                closest() {
+                  return null;
+                },
+              };
+            }
+
+            function createFakeDocument() {
+              const elements = new Map();
+              return {
+                activeElement: null,
+                registerHtml(html) {
+                  elements.clear();
+                  const tagPattern = /<(input|textarea|button|select)[^>]*id="([^"]+)"[^>]*>/g;
+                  let tagMatch = tagPattern.exec(html);
+                  while (tagMatch) {
+                    const element = createFakeElement(tagMatch[2], tagMatch[1]);
+                    element.ownerDocument = this;
+                    elements.set(tagMatch[2], element);
+                    tagMatch = tagPattern.exec(html);
+                  }
+                },
+                getElementById(id) {
+                  return elements.get(id) || null;
+                },
+                createElement(tagName) {
+                  const element = createFakeElement(null, tagName);
+                  element.ownerDocument = this;
+                  return element;
+                },
+                querySelectorAll() {
+                  return [];
+                },
+                addEventListener() {},
+                removeEventListener() {},
+                body: {
+                  appendChild() {},
+                },
+              };
+            }
+
+            function createPanel(document) {
+              let html = "";
+              return {
+                get innerHTML() {
+                  return html;
+                },
+                set innerHTML(value) {
+                  html = value;
+                  document.registerHtml(value);
+                },
+                querySelectorAll() {
+                  return [];
+                },
+                getBoundingClientRect() {
+                  return {
+                    left: 0,
+                    top: 0,
+                    width: 1000,
+                    height: 800,
+                    right: 1000,
+                    bottom: 800,
+                  };
+                },
+              };
+            }
+
+            function createButton() {
+              return createFakeElement(null, "button");
+            }
+
+            function createSelectElement(value = "") {
+              const element = createFakeElement(null, "select");
+              element.value = value;
+              element.options = [];
+              element.appendChild = function appendOption(option) {
+                this.options.push(option);
+                if (option.selected) {
+                  this.value = option.value;
+                }
+              };
+              return element;
+            }
+
+            function createEvent({
+              key,
+              altKey = false,
+              ctrlKey = false,
+              metaKey = false,
+              shiftKey = false,
+            }) {
+              return {
+                key,
+                altKey,
+                ctrlKey,
+                metaKey,
+                shiftKey,
+                preventDefaultCalls: 0,
+                preventDefault() {
+                  this.preventDefaultCalls += 1;
+                },
+                target: null,
+              };
+            }
+
+            function buildSpec() {
+              return {
+                id: "network_hyperedge_shortcuts",
+                name: "hyperedge-shortcuts",
+                tensors: [
+                  {
+                    id: "tensor_a",
+                    name: "A",
+                    position: { x: 120, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_a_left",
+                        name: "left",
+                        dimension: 3,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "tensor_b",
+                    name: "B",
+                    position: { x: 320, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_b_left",
+                        name: "left",
+                        dimension: 3,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "tensor_c",
+                    name: "C",
+                    position: { x: 520, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_c_left",
+                        name: "left",
+                        dimension: 3,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                ],
+                edges: [],
+                hyperedges: [],
+                groups: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {},
+              };
+            }
+
+            function assertSingleHyperedge(ctx, sourceLabel) {
+              if (!Array.isArray(ctx.state.spec.hyperedges) || ctx.state.spec.hyperedges.length !== 1) {
+                throw new Error(`${sourceLabel} should create exactly one hyperedge, received ${JSON.stringify(ctx.state.spec.hyperedges)}.`);
+              }
+              const createdHyperedge = ctx.state.spec.hyperedges[0];
+              if (
+                !createdHyperedge.hub_offset
+                || createdHyperedge.hub_offset.x !== 0
+                || createdHyperedge.hub_offset.y !== 0
+              ) {
+                throw new Error(`${sourceLabel} should create a hyperedge with a zero hub offset, received ${JSON.stringify(createdHyperedge)}.`);
+              }
+              const expectedSelection = ctx.hyperedgeHubNodeId(createdHyperedge.id);
+              if (JSON.stringify(ctx.state.selectionIds) !== JSON.stringify([expectedSelection])) {
+                throw new Error(`${sourceLabel} should select the new hyperedge hub, received ${JSON.stringify(ctx.state.selectionIds)}.`);
+              }
+            }
+
+            const document = createFakeDocument();
+            const propertiesPanel = createPanel(document);
+            const canvasContextMenuRoot = createPanel(document);
+            const statusCalls = [];
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel,
+                canvasContextMenuRoot,
+                generatedCode: { value: "" },
+                engineSelect: createSelectElement("tensornetwork"),
+                collectionFormatSelect: createSelectElement("list"),
+                exportFormatSelect: { value: "py" },
+                addNoteButton: createButton(),
+                connectButton: createButton(),
+                loadInput: { click() {} },
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: createButton(),
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: { textContent: "" },
+                linearPeriodicNextCellButton: createButton(),
+                templateSelect: createSelectElement(""),
+                templateParameterPanel: { hidden: true },
+                templateGraphSizeLabel: { textContent: "" },
+                templateGraphSizeInput: { value: "2", min: "1", addEventListener() {} },
+                templateBondDimensionInput: { value: "3", min: "1", addEventListener() {} },
+                templatePhysicalDimensionInput: { value: "2", min: "1", addEventListener() {} },
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                  addEventListener() {},
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                notesLayer: {},
+                selectionBox: {},
+                minimapCanvas: {},
+                sidebar: {},
+                plannerPanel: {},
+                generateButton: createButton(),
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+                addEventListener() {},
+                removeEventListener() {},
+              },
+              document,
+              cytoscape: null,
+              tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+              tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+              renderGraph() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              renderSidebarTabs() {},
+              refreshContractionAnalysis() {},
+              repairContractionPlan() {},
+              updateToolbarState() {},
+              captureEditableFocus() {
+                return null;
+              },
+              restoreEditableFocus() {},
+              findNoteById() {
+                return null;
+              },
+              isTextInput() {
+                return false;
+              },
+              setStatus(message, level) {
+                statusCalls.push({ message, level });
+                this.dom.statusMessage.textContent = message;
+              },
+              toggleSidebarCollapsed() {},
+              setActiveSidebarTab() {},
+              createGroupFromSelection() {},
+              addNoteAtCenter() {},
+              toggleTemplateManager() {},
+              openCanvasMetadataFilter() {},
+              openCanvasNameSearch() {},
+              toggleLinearPeriodicMode() {},
+              setLinearPeriodicMode() {},
+              setGridPeriodicMode() {},
+              setTreePeriodicMode() {},
+              setBenchmarkMode() {},
+              switchLinearPeriodicCell() {},
+              switchGridPeriodicCell() {},
+              switchTreePeriodicCell() {},
+              switchBenchmarkPosition() {},
+              nudgeSelectedElements() {
+                return false;
+              },
+              openSessionTemplatePicker() {},
+              exportSelectedTemplateSpec() {},
+              closeBenchmarkCompareModal() {},
+              addTensorAtCenter() {},
+              toggleConnectMode() {},
+              insertTemplate() {},
+              saveDesign() {},
+              performUndo() {},
+              performRedo() {},
+              toggleGeneratedCodeModal() {},
+              finishBoxSelection() {},
+              generateCode() {},
+              deleteSelection() {},
+            };
+
+            registerUtilities(ctx);
+            const runtimeSetStatus = ctx.setStatus.bind(ctx);
+            ctx.setStatus = (message, level) => {
+              statusCalls.push({ message, level });
+              runtimeSetStatus(message, level);
+            };
+            registerHistorySelection(ctx);
+            registerProperties(ctx);
+            registerCanvasContextMenu(ctx);
+            Object.assign(
+              ctx,
+              createInteractionShortcutBindings({
+                ctx,
+                state: ctx.state,
+                dom: ctx.dom,
+                runtime: {},
+                shortcutActions: {},
+              })
+            );
+
+            ctx.render = (options = {}) => {
+              const resolvedOptions = {
+                graph: true,
+                properties: true,
+                code: true,
+                toolbar: true,
+                overlays: true,
+                planner: true,
+                sidebarTabs: true,
+                minimap: true,
+                syncSelection: false,
+                ...options,
+              };
+              if (resolvedOptions.properties) {
+                ctx.renderProperties();
+              }
+            };
+
+            ctx.state.selectedEngine = "tensornetwork";
+            ctx.state.selectedCollectionFormat = "list";
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a_left", "tensor_b_left", "tensor_c_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            ctx.renderProperties();
+
+            const selectionButton = document.getElementById("create-hyperedge-button");
+            if (!selectionButton) {
+              throw new Error("Expected the Selection panel to expose the hyperedge button.");
+            }
+            selectionButton.click();
+            assertSingleHyperedge(ctx, "The Selection panel button");
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a_left", "tensor_b_left", "tensor_c_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            const validShortcutEvent = createEvent({ key: "h" });
+            ctx.handleKeydown(validShortcutEvent);
+            if (validShortcutEvent.preventDefaultCalls !== 1) {
+              throw new Error("H should prevent the browser default for a valid hyperedge selection.");
+            }
+            assertSingleHyperedge(ctx, "The H shortcut");
+
+            statusCalls.length = 0;
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a_left", "tensor_b_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            const invalidShortcutEvent = createEvent({ key: "h" });
+            ctx.handleKeydown(invalidShortcutEvent);
+            if (invalidShortcutEvent.preventDefaultCalls !== 1) {
+              throw new Error("H should still prevent the browser default when the selection is invalid.");
+            }
+            if (ctx.state.spec.hyperedges.length !== 0) {
+              throw new Error("An invalid H shortcut should not create a hyperedge.");
+            }
+            if (
+              !statusCalls.length
+              || !statusCalls[statusCalls.length - 1].message.includes(
+                "Select at least three open indices"
+              )
+            ) {
+              throw new Error(`Expected the invalid H shortcut to reuse the hyperedge validation message, received ${JSON.stringify(statusCalls)}.`);
+            }
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a_left", "tensor_b_left", "tensor_c_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            ctx.openCanvasContextMenu({
+              kind: "index",
+              id: "tensor_b_left",
+              clientX: 120,
+              clientY: 160,
+            });
+            if (
+              !ctx.dom.canvasContextMenuRoot.innerHTML.includes(
+                "context-menu-create-hyperedge-button"
+              )
+            ) {
+              throw new Error(`Expected the multi-index context menu to expose a hyperedge action, received ${ctx.dom.canvasContextMenuRoot.innerHTML}.`);
+            }
+            const contextButton = document.getElementById(
+              "context-menu-create-hyperedge-button"
+            );
+            if (!contextButton) {
+              throw new Error("Expected the context-menu hyperedge button to be registered in the fake document.");
+            }
+            contextButton.click();
+            assertSingleHyperedge(ctx, "The multi-index context menu");
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "planner_auto_shortcut_runtime_regression.mjs"
     _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
@@ -7870,6 +8427,28 @@ def test_mode_and_template_shortcuts_dispatch_the_requested_actions(
 
     assert completed_process.returncode == 0, (
         "The mode/template shortcut runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_hyperedge_shortcut_and_index_selection_context_menu_share_creation_logic(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
+        tmp_path
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The hyperedge shortcut/context-menu runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

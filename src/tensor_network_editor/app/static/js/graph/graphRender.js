@@ -67,6 +67,7 @@ export function registerGraphRender(ctx) {
       typeof ctx.getMetadataFilterHighlight === "function"
         ? ctx.getMetadataFilterHighlight()
         : null,
+    getHyperedgeHubPosition: (hyperedge) => ctx.getHyperedgeHubPosition(hyperedge),
     hyperedgeHubNodeId: (hyperedgeId) => ctx.hyperedgeHubNodeId(hyperedgeId),
     hyperedgeSpokeEdgeId: (hyperedgeId, endpointPosition) =>
       ctx.hyperedgeSpokeEdgeId(hyperedgeId, endpointPosition),
@@ -615,6 +616,70 @@ export function registerGraphRender(ctx) {
     state.cy.on("dragfree", "node[kind = 'index']", handleIndexRelease);
     state.cy.on("free", "node[kind = 'index']", handleIndexRelease);
 
+    state.cy.on("grab", "node[kind = 'hyperedge-hub']", (event) => {
+      hideBoundaryTensorTooltip();
+      const selectionId = event.target.id();
+      const hyperedgeId = ctx.resolveHyperedgeIdFromSelectionId(selectionId);
+      if (!hyperedgeId) {
+        return;
+      }
+      const additiveSelection =
+        typeof ctx.isAdditiveSelectionModifier === "function" &&
+        ctx.isAdditiveSelectionModifier(event.originalEvent);
+      const hubWasSelected = state.selectionIds.includes(selectionId);
+      if (additiveSelection && !hubWasSelected) {
+        ctx.setSelection([...state.selectionIds, selectionId], { primaryId: selectionId });
+      } else if (!hubWasSelected) {
+        ctx.setSelection([selectionId], { primaryId: selectionId });
+      }
+      state.activeHyperedgeDrag = {
+        addedSelectionOnGrab: additiveSelection && !hubWasSelected,
+        selectionId,
+        ...createHyperedgeDragState(hyperedgeId),
+      };
+    });
+
+    state.cy.on("position", "node[kind = 'hyperedge-hub']", (event) => {
+      if (state.syncingHyperedgeHubPositions) {
+        return;
+      }
+      const hyperedgeId = ctx.resolveHyperedgeIdFromSelectionId(event.target.id());
+      const hyperedge = hyperedgeId ? ctx.findHyperedgeById(hyperedgeId) : null;
+      const automaticHubCenter = hyperedge
+        ? ctx.getAutomaticHyperedgeHubCenter(hyperedge)
+        : null;
+      if (!hyperedge || !automaticHubCenter) {
+        return;
+      }
+      hyperedge.hub_offset = {
+        x: Math.round(event.target.position("x") - automaticHubCenter.x),
+        y: Math.round(event.target.position("y") - automaticHubCenter.y),
+      };
+      const resolvedHubPosition = ctx.getHyperedgeHubPosition(hyperedge);
+      if (
+        resolvedHubPosition &&
+        (Math.abs(resolvedHubPosition.x - event.target.position("x")) > 0.5 ||
+          Math.abs(resolvedHubPosition.y - event.target.position("y")) > 0.5)
+      ) {
+        ctx.runWithHyperedgeHubSync(() => {
+          event.target.position(resolvedHubPosition);
+        });
+      }
+    });
+
+    function handleHyperedgeHubRelease(event) {
+      const hyperedgeId = ctx.resolveHyperedgeIdFromSelectionId(event.target.id());
+      if (hyperedgeId) {
+        ctx.syncHyperedgeHubNodePosition(hyperedgeId);
+        finishHyperedgeDrag(hyperedgeId);
+      }
+      ctx.renderProperties();
+      ctx.renderMinimap();
+    }
+
+    state.cy.on("dragfree", "node[kind = 'hyperedge-hub']", handleHyperedgeHubRelease);
+    state.cy.on("free", "node[kind = 'hyperedge-hub']", handleHyperedgeHubRelease);
+
     state.cy.on("pan zoom resize", () => {
       hideBoundaryTensorTooltip();
       ctx.renderOverlayDecorations();
@@ -626,9 +691,11 @@ export function registerGraphRender(ctx) {
     lifecycle;
   const {
     createTensorDragState,
+    createHyperedgeDragState,
     moveCompanionTensorsDuringDrag,
     finishTensorDrag,
     finishIndexDrag,
+    finishHyperedgeDrag,
   } = dragSupport;
 
   Object.assign(ctx, {
@@ -638,8 +705,10 @@ export function registerGraphRender(ctx) {
     syncPendingInteractionClasses,
     buildGraphElements,
     createTensorDragState,
+    createHyperedgeDragState,
     moveCompanionTensorsDuringDrag,
     finishTensorDrag,
-    finishIndexDrag
+    finishIndexDrag,
+    finishHyperedgeDrag,
   });
 }

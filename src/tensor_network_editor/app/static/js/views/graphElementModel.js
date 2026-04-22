@@ -10,6 +10,7 @@ export function createGraphElementModelBuilder({
   getMetadataColor,
   getMetadataFilterEntityState,
   getMetadataFilterHighlight,
+  getHyperedgeHubPosition,
   hyperedgeHubNodeId,
   hyperedgeSpokeEdgeId,
   indexAbsolutePosition,
@@ -57,7 +58,7 @@ export function createGraphElementModelBuilder({
     return "";
   }
 
-  function getHyperedgeHubPosition(hyperedge) {
+  function getFallbackHyperedgeHubPosition(hyperedge) {
     const endpointPositions = (Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [])
       .map((endpoint) =>
         typeof findIndexOwner === "function" ? findIndexOwner(endpoint.index_id) : null
@@ -237,7 +238,10 @@ export function createGraphElementModelBuilder({
       const hubId = typeof hyperedgeHubNodeId === "function"
         ? hyperedgeHubNodeId(hyperedge.id)
         : hyperedge.id;
-      const hubPosition = getHyperedgeHubPosition(hyperedge);
+      const hubPosition =
+        typeof getHyperedgeHubPosition === "function"
+          ? getHyperedgeHubPosition(hyperedge)
+          : getFallbackHyperedgeHubPosition(hyperedge);
       if (!hubPosition) {
         return;
       }
@@ -256,7 +260,7 @@ export function createGraphElementModelBuilder({
         },
         classes: getMetadataFilterClass(metadataFilterHighlight, "edge", hubId),
         position: hubPosition,
-        grabbable: false,
+        grabbable: !readOnlyScene,
         selectable: !readOnlyScene,
       });
       (Array.isArray(hyperedge.endpoints) ? hyperedge.endpoints : []).forEach(

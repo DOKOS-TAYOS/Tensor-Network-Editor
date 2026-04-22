@@ -178,34 +178,28 @@ export function buildMultiSelectionPropertiesMarkup({
           `
           : ""
       }
-      ${
-        hyperedgeCreationCandidate &&
-        Array.isArray(hyperedgeCreationCandidate.selectedIndexIds) &&
-        hyperedgeCreationCandidate.selectedIndexIds.length
-          ? `
-            <section class="planner-section">
-              <h3>Hyperedge</h3>
-              <p class="property-meta">${escapeHtml(hyperedgeCreationCandidate.message || "")}</p>
-              ${
-                hyperedgeCreationCandidate.selectedIndexIds.length >= 3
-                  ? `
-                    <div class="button-row">
-                      <button
-                        id="create-hyperedge-button"
-                        type="button"
-                        ${hyperedgeCreationCandidate.canCreate ? "" : "disabled"}
-                      >
-                        Create hyperedge
-                      </button>
-                    </div>
-                  `
-                  : ""
-              }
-            </section>
-          `
-          : ""
-      }
       <div class="button-row">
+        ${
+          hyperedgeCreationCandidate?.selectionContainsOnlyIndices &&
+          Array.isArray(hyperedgeCreationCandidate.selectedIndexIds) &&
+          hyperedgeCreationCandidate.selectedIndexIds.length
+            ? `
+              <button
+                id="create-hyperedge-button"
+                type="button"
+                ${hyperedgeCreationCandidate.canCreate ? "" : "disabled"}
+                ${buildTooltipAttributes(
+                  "Create hyperedge",
+                  hyperedgeCreationCandidate.canCreate
+                    ? "Create a hyperedge from the selected open indices."
+                    : hyperedgeCreationCandidate.message || "This selection cannot form a hyperedge."
+                )}
+              >
+                Create hyperedge
+              </button>
+            `
+            : ""
+        }
         <label
           class="control-inline-color"
           for="multi-color-input"
