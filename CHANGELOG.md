@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 - Python loading now accepts explicit or autodetected source profiles (`generated`, `quimb`, `tensornetwork`, and `einsum`), conservative external AST imports can recover simple static ecosystem sources without executing user code, and linting now uses guided metadata keys like `role`, `symmetry`, `leg_kind`, and `observable` for higher-signal modeling warnings.
 - Hyperedge hubs now store a persistent relative `hub_offset`, can be dragged directly on the canvas, and share one creation workflow across the Selection panel, a dedicated multi-index context menu, and the global `H` shortcut.
 - Public docs now explain `HyperedgeSpec.hub_offset`, the draggable hyperedge hub, and the shared `H` / Selection / context-menu creation workflow.
+- Hyperedges now expose their own right-click mini menu from either the hub or any spoke, including quick edits for name, color, metadata, and deletion.
 
 ### Fixed
 

@@ -4,11 +4,13 @@ export function createCanvasContextMenuTargetResolver({
   state,
   findTensorById,
   findEdgeById,
+  findHyperedgeById,
   findIndexOwner,
   findGroupById,
   findEdgeByIndexId,
   getSelectedIdsByKind,
   getSelectedEntries,
+  getHyperedgeSelectionId,
   getBatchColorValue,
   describeHyperedgeCandidate,
   getMetadataColor,
@@ -184,6 +186,33 @@ export function createCanvasContextMenuTargetResolver({
     };
   }
 
+  function getHyperedgeContextTarget(hyperedgeId) {
+    const hyperedge =
+      typeof findHyperedgeById === "function"
+        ? findHyperedgeById(hyperedgeId)
+        : null;
+    if (!hyperedge) {
+      return null;
+    }
+    const hyperedgeColor =
+      typeof getMetadataColor === "function"
+        ? getMetadataColor(hyperedge.metadata, GRAPH_THEME.edge)
+        : GRAPH_THEME.edge;
+    return {
+      hyperedgeColor,
+      id:
+        typeof getHyperedgeSelectionId === "function"
+          ? getHyperedgeSelectionId(hyperedge.id)
+          : typeof hyperedgeId === "string" &&
+              (hyperedgeId.startsWith("hyperedge-hub:")
+                || hyperedgeId.startsWith("hyperedge-spoke:"))
+            ? `hyperedge-hub:${hyperedge.id}`
+          : hyperedge.id,
+      kind: "hyperedge",
+      target: hyperedge,
+    };
+  }
+
   function getGroupContextTarget(groupId) {
     const group =
       typeof findGroupById === "function" ? findGroupById(groupId) : null;
@@ -229,6 +258,9 @@ export function createCanvasContextMenuTargetResolver({
     if (menuState.kind === "edge") {
       return getEdgeContextTarget(menuState.id);
     }
+    if (menuState.kind === "hyperedge") {
+      return getHyperedgeContextTarget(menuState.id);
+    }
     if (menuState.kind === "group") {
       return getGroupContextTarget(menuState.id);
     }
@@ -238,6 +270,7 @@ export function createCanvasContextMenuTargetResolver({
   return {
     getEdgeContextTarget,
     getGroupContextTarget,
+    getHyperedgeContextTarget,
     getIndexContextTarget,
     getIndexSelectionContextTarget,
     getSelectionContextTarget,

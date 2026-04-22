@@ -407,7 +407,13 @@ export function registerGraphRender(ctx) {
       hideBoundaryTensorTooltip();
       const element = event.target;
       const kind = element.data("kind");
-      if (kind !== "tensor" && kind !== "index" && kind !== "edge") {
+      if (
+        kind !== "tensor" &&
+        kind !== "index" &&
+        kind !== "edge" &&
+        kind !== "hyperedge-hub" &&
+        kind !== "hyperedge-spoke"
+      ) {
         return;
       }
       if (typeof ctx.cancelPendingBoxSelection === "function") {
@@ -422,16 +428,28 @@ export function registerGraphRender(ctx) {
           kind === "tensor" && typeof ctx.getSelectedIdsByKind === "function"
             ? ctx.getSelectedIdsByKind("tensor")
             : [];
+        const isHyperedgeTarget =
+          kind === "hyperedge-hub" || kind === "hyperedge-spoke";
         const menuKind =
-          kind === "tensor" &&
-          Array.isArray(state.selectionIds) &&
-          selectedTensorIds.length >= 2 &&
-          selectedTensorIds.includes(element.id())
+          isHyperedgeTarget
+            ? "hyperedge"
+            : kind === "tensor" &&
+                Array.isArray(state.selectionIds) &&
+                selectedTensorIds.length >= 2 &&
+                selectedTensorIds.includes(element.id())
             ? "selection"
             : kind;
+        const menuId =
+          kind === "hyperedge-hub"
+            ? element.id()
+            : kind === "hyperedge-spoke" &&
+                typeof ctx.hyperedgeHubNodeId === "function" &&
+                typeof element.data("baseHyperedgeId") === "string"
+              ? ctx.hyperedgeHubNodeId(element.data("baseHyperedgeId"))
+              : element.id();
         ctx.openCanvasContextMenu({
           kind: menuKind,
-          id: element.id(),
+          id: menuId,
           clientX:
             event.originalEvent && Number.isFinite(event.originalEvent.clientX)
               ? event.originalEvent.clientX
