@@ -59,6 +59,38 @@ def test_utilities_ui_modules_use_explicit_internal_contracts() -> None:
     assert all("ctx." not in helper_body for helper_body in helper_bodies.values())
 
 
+def test_session_and_benchmark_modules_delegate_large_flows_to_helper_modules() -> None:
+    session_dir = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "session"
+    )
+    utils_dir = (
+        REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils"
+    )
+    session_flow_body = (session_dir / "sessionTemplateFlows.js").read_text(
+        encoding="utf-8"
+    )
+    session_helper_body = (
+        session_dir / "sessionTemplateFlowSubnetworkLibrary.js"
+    ).read_text(encoding="utf-8")
+    benchmark_body = (utils_dir / "utilitiesBenchmarkSession.js").read_text(
+        encoding="utf-8"
+    )
+    benchmark_helper_body = (utils_dir / "utilitiesBenchmarkSessionState.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_flow_body
+    assert "function createSubnetworkLibrarySupport(" in session_helper_body
+    assert 'from "./utilitiesBenchmarkSessionState.js"' in benchmark_body
+    assert "function normalizeBenchmarkSessionInPlace(" in benchmark_helper_body
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_store_and_selectors_track_template_catalog_state(
     tmp_path: Path,

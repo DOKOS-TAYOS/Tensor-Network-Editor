@@ -299,6 +299,18 @@ def test_internal_model_graph_module_reexports_split_model_modules() -> None:
     assert compatibility_module.NetworkSpec is network_module.NetworkSpec
 
 
+def test_validation_module_reuses_internal_spec_validation_helpers() -> None:
+    validation_module = import_module("tensor_network_editor.validation")
+    internal_module = import_module(
+        "tensor_network_editor.internal.validation._validation_spec"
+    )
+
+    assert (
+        validation_module._validate_spec_with_analysis
+        is internal_module.validate_spec_with_analysis
+    )
+
+
 def test_contraction_plan_round_trip_is_serializable() -> None:
     plan = ContractionPlanSpec(
         id="plan_manual",

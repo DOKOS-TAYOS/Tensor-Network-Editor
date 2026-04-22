@@ -8,8 +8,11 @@ from http import HTTPStatus
 from typing import TypeAlias, cast
 
 from ..codegen.registry import engine_name_to_text, resolve_registered_engine
+from ..internal.io._python_import_profiles import PythonSourceProfile
+from ..internal.io._python_live_import import PythonImportMode
 from ..internal.io._serialization import (
     SCHEMA_VERSION,
+    PythonReconstructionLevel,
     deserialize_spec,
     deserialize_spec_from_python_code,
     deserialize_spec_from_python_code_result,
@@ -451,20 +454,20 @@ def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     return deserialize_spec(serialized_spec, validate=False)
 
 
-def _optional_python_source_profile(payload: JsonDict) -> str:
+def _optional_python_source_profile(payload: JsonDict) -> PythonSourceProfile:
     """Return the requested Python source profile or the default."""
     raw_value = payload.get("source_profile", "auto")
     if not isinstance(raw_value, str):
         raise ValueError("'source_profile' must be a string when provided.")
-    return raw_value
+    return cast(PythonSourceProfile, raw_value)
 
 
-def _optional_python_import_mode(payload: JsonDict) -> str:
+def _optional_python_import_mode(payload: JsonDict) -> PythonImportMode:
     """Return the requested Python import mode or the default."""
     raw_value = payload.get("python_import_mode", "static")
     if not isinstance(raw_value, str):
         raise ValueError("'python_import_mode' must be a string when provided.")
-    return raw_value
+    return cast(PythonImportMode, raw_value)
 
 
 def _optional_python_object_name(payload: JsonDict) -> str | None:
@@ -478,11 +481,13 @@ def _optional_python_object_name(payload: JsonDict) -> str | None:
     return stripped_value or None
 
 
-def _optional_python_reconstruction_level(payload: JsonDict) -> str:
+def _optional_python_reconstruction_level(
+    payload: JsonDict,
+) -> PythonReconstructionLevel:
     """Return the requested Python reconstruction level or the default."""
     raw_value = payload.get("python_reconstruction_level", "auto")
     if not isinstance(raw_value, str):
         raise ValueError(
             "'python_reconstruction_level' must be a string when provided."
         )
-    return raw_value
+    return cast(PythonReconstructionLevel, raw_value)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from http import HTTPStatus
-from typing import Literal
+from typing import Literal, cast
 
 from ..errors import (
     CodeGenerationError,
@@ -15,6 +15,7 @@ from ..errors import (
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..models import CodegenResult, EditorResult
 from ..serialization import serialize_spec
+from ..types import JSONValue
 from ..validation import validate_spec
 from ._protocol import (
     JsonDict,
@@ -88,14 +89,14 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
         status, response = issues_response(issues)
         response["spec"] = serialize_spec_payload(spec)
         if validation_request.warnings:
-            response["warnings"] = validation_request.warnings
+            response["warnings"] = cast(JSONValue, validation_request.warnings)
         return status, response
     response_payload: JsonDict = {
         "issues": [],
         "spec": serialize_spec_payload(spec),
     }
     if validation_request.warnings:
-        response_payload["warnings"] = validation_request.warnings
+        response_payload["warnings"] = cast(JSONValue, validation_request.warnings)
     return ok_response(response_payload)
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import signal
 import threading
+from importlib import import_module
 from pathlib import Path
 from queue import Queue
 from typing import cast
@@ -50,6 +51,19 @@ def test_editor_session_exposes_short_logging_identifier() -> None:
 
     assert len(session.session_id) == 8
     assert session.session_id.isalnum()
+
+
+def test_session_module_reuses_internal_runtime_helpers() -> None:
+    session_module = import_module("tensor_network_editor.app.session")
+    runtime_module = import_module("tensor_network_editor.app._session_runtime")
+
+    assert (
+        session_module.build_blank_network_spec
+        is runtime_module.build_blank_network_spec
+    )
+    assert (
+        session_module.wait_for_editor_result is runtime_module.wait_for_editor_result
+    )
 
 
 def test_bootstrap_payload_includes_template_parameter_definitions(

@@ -1626,6 +1626,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     session_template_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateFlows.js"
     )
+    session_template_library_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateFlowSubnetworkLibrary.js"
+    )
     session_template_dialogs_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateDialogs.js"
     )
@@ -1827,6 +1830,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'deleteButton.textContent = "Delete"' not in session_template_manager_body
     assert 'from "./sessionTemplateDialogs.js"' in session_template_body
     assert 'from "./sessionTemplateManager.js"' in session_template_body
+    assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_template_body
     assert "deleteButton.innerHTML" in session_template_manager_body
     assert "title = `Delete ${entry.displayName}`" in session_template_manager_body
     assert "function buildTemplateManagerRow(" in session_template_manager_body
@@ -1835,7 +1839,8 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "function promptForTemplateDisplayName(" in session_template_dialogs_body
     assert "function promptForSubnetworkName(" in session_template_dialogs_body
     assert "function promptForSubnetworkTags(" in session_template_dialogs_body
-    assert "function renderSubnetworkLibrary(" in session_template_body
+    assert "function createSubnetworkLibrarySupport(" in session_template_library_body
+    assert "function renderSubnetworkLibrary(" in session_template_library_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body

@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import json
-import math
 import subprocess
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Literal, cast
 
 from ...errors import SerializationError
-from ...models import NetworkSpec, TensorDataMode, TensorDataSpec
+from ...models import NetworkSpec
 from ._python_import_profiles import (
     PythonSourceProfile,
     normalize_python_source_profile,
@@ -24,6 +23,33 @@ from ._python_import_shared import (
     build_network_from_explicit_connections,
     build_network_from_shared_labels,
 )
+from ._python_live_import_runtime import (
+    candidate_collection_items as _candidate_collection_items,
+)
+from ._python_live_import_runtime import (
+    coerce_iterable_items as _coerce_iterable_items,
+)
+from ._python_live_import_runtime import (
+    coerce_label_tuple as _coerce_label_tuple,
+)
+from ._python_live_import_runtime import (
+    coerce_optional_axis_position as _coerce_optional_axis_position,
+)
+from ._python_live_import_runtime import (
+    coerce_shape as _coerce_shape,
+)
+from ._python_live_import_runtime import (
+    get_attribute as _get_attribute,
+)
+from ._python_live_import_runtime import (
+    module_name as _module_name,
+)
+from ._python_live_import_runtime import (
+    shape_from_runtime_tensor as _shape_from_runtime_tensor,
+)
+from ._python_live_import_tensor_data import (
+    lower_runtime_tensor_data as _lower_runtime_tensor_data,
+)
 
 PythonImportMode = Literal["static", "live"]
 LivePythonSourceProfile = Literal["auto", "quimb", "tensornetwork"]
@@ -32,7 +58,6 @@ ResolvedLivePythonSourceProfile = Literal["quimb", "tensornetwork"]
 _SUPPORTED_PYTHON_IMPORT_MODES = frozenset({"static", "live"})
 _SUPPORTED_LIVE_SOURCE_PROFILES = frozenset({"auto", "quimb", "tensornetwork"})
 _LIVE_IMPORT_TIMEOUT_SECONDS = 30.0
-_LITERAL_DATA_ELEMENT_LIMIT = 4096
 _SYNTHETIC_LIVE_IMPORT_FILENAME = "tensor_network_editor_live_import.py"
 
 
@@ -579,241 +604,3 @@ def _tensornetwork_node_collection_items(value: object) -> list[object]:
         if all(_is_tensornetwork_node(item) for item in candidate_items):
             return candidate_items
     return []
-
-
-def _candidate_collection_items(
-    value: object,
-    attribute_name: str,
-) -> list[list[object]]:
-    """Return the collection views that should be inspected for runtime objects."""
-    collection_candidates: list[list[object]] = []
-    if isinstance(value, Mapping):
-        collection_candidates.append(list(value.values()))
-    elif not isinstance(value, (str, bytes, bytearray)):
-        direct_items = _coerce_iterable_items(value)
-        if direct_items:
-            collection_candidates.append(direct_items)
-    attribute_value = _get_attribute(value, attribute_name)
-    attribute_items = _coerce_iterable_items(attribute_value)
-    if attribute_items or attribute_value is not None:
-        collection_candidates.append(attribute_items)
-    return collection_candidates
-
-
-def _get_attribute(value: object, attribute_name: str) -> object | None:
-    """Return one attribute value when present."""
-    try:
-        return getattr(value, attribute_name)
-    except AttributeError:
-        return None
-
-
-def _module_name(value: object) -> str:
-    """Return the runtime module path for one object type."""
-    return type(value).__module__
-
-
-def _coerce_iterable_items(value: object | None) -> list[object]:
-    """Return the items from one runtime iterable."""
-    if value is None:
-        return []
-    if isinstance(value, (str, bytes, bytearray)):
-        return []
-    if isinstance(value, Mapping):
-        return list(value.values())
-    if isinstance(value, Iterable):
-        return list(value)
-    return []
-
-
-def _coerce_shape(shape_value: object, *, context: str) -> tuple[int, ...]:
-    """Convert one runtime shape object into a tuple of dimensions."""
-    if shape_value is None:
-        raise SerializationError(
-            f"Live import could not determine the shape for tensor '{context}'."
-        )
-    if isinstance(shape_value, (str, bytes, bytearray)):
-        raise SerializationError(
-            f"Live import recovered an invalid shape for tensor '{context}'."
-        )
-    if not isinstance(shape_value, Iterable):
-        raise SerializationError(
-            f"Live import recovered an invalid shape for tensor '{context}'."
-        )
-    shape: list[int] = []
-    for raw_dimension in shape_value:
-        if isinstance(raw_dimension, bool):
-            raise SerializationError(
-                f"Live import recovered a non-numeric dimension for tensor '{context}'."
-            )
-        try:
-            dimension = int(raw_dimension)
-        except (TypeError, ValueError) as exc:
-            raise SerializationError(
-                f"Live import recovered a non-numeric dimension for tensor '{context}'."
-            ) from exc
-        if dimension < 0:
-            raise SerializationError(
-                f"Live import recovered a negative dimension for tensor '{context}'."
-            )
-        shape.append(dimension)
-    return tuple(shape)
-
-
-def _shape_from_runtime_tensor(data: object | None) -> object | None:
-    """Return the shape attribute from runtime tensor data when present."""
-    return _get_attribute(data, "shape") if data is not None else None
-
-
-def _coerce_label_tuple(
-    labels_value: object,
-    *,
-    expected_length: int,
-    fallback_prefix: str,
-    allow_fallback: bool,
-) -> tuple[str, ...]:
-    """Convert runtime labels into a stable tuple of strings."""
-    if labels_value is None:
-        if allow_fallback:
-            return tuple(
-                f"{fallback_prefix}_{index + 1}" for index in range(expected_length)
-            )
-        raise SerializationError(
-            "Live import requires runtime indices or axis names for the selected object."
-        )
-    if isinstance(labels_value, (str, bytes, bytearray)):
-        raise SerializationError(
-            "Live import requires runtime indices or axis names to be sequences."
-        )
-    if not isinstance(labels_value, Iterable):
-        raise SerializationError(
-            "Live import requires runtime indices or axis names to be sequences."
-        )
-    labels = [str(label) for label in labels_value]
-    if len(labels) != expected_length:
-        if allow_fallback:
-            return tuple(
-                f"{fallback_prefix}_{index + 1}" for index in range(expected_length)
-            )
-        raise SerializationError(
-            "Live import requires tensor shapes to match their runtime labels."
-        )
-    return tuple(labels)
-
-
-def _coerce_optional_axis_position(value: object) -> int | None:
-    """Convert one runtime axis position into an ``int`` when possible."""
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        axis_position = int(value)
-    except (TypeError, ValueError):
-        return None
-    if axis_position < 0:
-        return None
-    return axis_position
-
-
-def _lower_runtime_tensor_data(
-    data: object,
-    *,
-    shape: tuple[int, ...],
-    tensor_name: str,
-) -> tuple[TensorDataSpec | None, str | None]:
-    """Lower one runtime tensor payload into the editor's tensor-data formats."""
-    if data is None:
-        return None, None
-    element_count = _shape_cardinality(shape)
-    if element_count == 0:
-        return (
-            None,
-            f"Dropped tensor data for tensor {tensor_name} because empty runtime tensors are not preserved.",
-        )
-    try:
-        literal_values = _coerce_tensor_literal(data)
-    except TypeError:
-        return (
-            None,
-            f"Dropped tensor data for tensor {tensor_name} because live import only preserves finite real tensor values.",
-        )
-    flattened_values = _flatten_tensor_literal(literal_values)
-    if len(flattened_values) != element_count:
-        return (
-            None,
-            f"Dropped tensor data for tensor {tensor_name} because the runtime values do not match the reported tensor shape.",
-        )
-    if flattened_values and all(value == 1 for value in flattened_values):
-        return TensorDataSpec(mode=TensorDataMode.ONES), None
-    if flattened_values and _all_values_identical(flattened_values):
-        return (
-            TensorDataSpec(
-                mode=TensorDataMode.FILL,
-                fill_value=float(flattened_values[0]),
-            ),
-            None,
-        )
-    if element_count <= _LITERAL_DATA_ELEMENT_LIMIT:
-        return (
-            TensorDataSpec(mode=TensorDataMode.LITERAL, values=literal_values),
-            None,
-        )
-    return (
-        None,
-        f"Dropped tensor data for tensor {tensor_name} because literal runtime data is limited to {_LITERAL_DATA_ELEMENT_LIMIT} elements.",
-    )
-
-
-def _shape_cardinality(shape: tuple[int, ...]) -> int:
-    """Return the total number of elements implied by ``shape``."""
-    cardinality = 1
-    for dimension in shape:
-        cardinality *= dimension
-    return cardinality
-
-
-def _all_values_identical(values: list[int | float]) -> bool:
-    """Return whether every value in one flat literal sequence matches."""
-    first_value = values[0]
-    return all(value == first_value for value in values[1:])
-
-
-def _coerce_tensor_literal(data: object) -> int | float | list[object]:
-    """Convert runtime tensor data into finite real Python literals."""
-    if isinstance(data, bool):
-        raise TypeError("Tensor literals must be numeric.")
-    if isinstance(data, int):
-        return data
-    if isinstance(data, float):
-        if not math.isfinite(data):
-            raise TypeError("Tensor literals must be finite.")
-        return data
-    if isinstance(data, complex):
-        raise TypeError("Complex tensor literals are not supported.")
-    if hasattr(data, "item") and callable(data.item):
-        try:
-            scalar_value = data.item()
-        except (TypeError, ValueError):
-            scalar_value = None
-        else:
-            return _coerce_tensor_literal(scalar_value)
-    if hasattr(data, "tolist") and callable(data.tolist):
-        return _coerce_tensor_literal(data.tolist())
-    if isinstance(data, tuple):
-        return [_coerce_tensor_literal(item) for item in data]
-    if isinstance(data, list):
-        return [_coerce_tensor_literal(item) for item in data]
-    raise TypeError("Unsupported tensor literal.")
-
-
-def _flatten_tensor_literal(
-    values: int | float | list[object],
-) -> list[int | float]:
-    """Flatten one nested tensor literal tree into a simple numeric list."""
-    if isinstance(values, (int, float)):
-        return [values]
-    flattened_values: list[int | float] = []
-    for item in values:
-        flattened_values.extend(
-            _flatten_tensor_literal(cast(int | float | list[object], item))
-        )
-    return flattened_values
