@@ -87,6 +87,7 @@ export function createCanvasContextMenuBindings({
     target,
     annotationScope,
     inputPrefix,
+    fieldKeyPrefix = annotationScope,
     statusMessage,
     invalidate,
   }) {
@@ -99,11 +100,11 @@ export function createCanvasContextMenuBindings({
     );
     bindMetadataEditors({
       annotationScope,
-      customMetadataFieldKey: `${annotationScope}:${target.id}:custom-metadata`,
+      customMetadataFieldKey: `${fieldKeyPrefix}:${target.id}:custom-metadata`,
       customMetadataInput,
       invalidate,
       statusMessage,
-      tagsFieldKey: `${annotationScope}:${target.id}:tags`,
+      tagsFieldKey: `${fieldKeyPrefix}:${target.id}:tags`,
       tagsInput,
       target,
     });
@@ -443,6 +444,62 @@ export function createCanvasContextMenuBindings({
     });
   }
 
+  function bindHyperedgeContextTarget(resolvedTarget) {
+    const hyperedge = resolvedTarget.target;
+    const nameInput = document.getElementById("context-menu-name-input");
+    const colorInput = document.getElementById(
+      "context-menu-hyperedge-color-input"
+    );
+    const deleteHyperedgeButton = document.getElementById(
+      "context-menu-delete-hyperedge-button"
+    );
+
+    bindCommitOnBlurAndEnter(nameInput, () => {
+      propertyCommands.renameHyperedge({
+        hyperedge,
+        invalidate: propertyInvalidation({ graph: true }),
+        proposedName: nameInput.value,
+        statusMessage: `Updated hyperedge ${nameInput.value.trim()}.`,
+      });
+    });
+
+    bindColorInput(colorInput, {
+      statusMessage: `Updated hyperedge ${hyperedge.name}.`,
+      target: hyperedge,
+    });
+
+    if (
+      deleteHyperedgeButton &&
+      propertyCommands &&
+      typeof propertyCommands.deleteHyperedge === "function"
+    ) {
+      deleteHyperedgeButton.addEventListener("click", () => {
+        propertyCommands.deleteHyperedge({
+          hyperedgeId: hyperedge.id,
+          invalidate: propertyInvalidation({
+            analysis: true,
+            graph: true,
+            lookups: true,
+            minimap: true,
+            planner: true,
+          }),
+          selectionIds: [],
+          statusMessage: `Deleted hyperedge ${hyperedge.name}.`,
+        });
+        closeCanvasContextMenu();
+      });
+    }
+
+    bindInlineMetadataEditor({
+      annotationScope: "edge",
+      fieldKeyPrefix: "hyperedge",
+      inputPrefix: "context-menu-hyperedge",
+      invalidate: propertyInvalidation({ graph: false, minimap: false }),
+      statusMessage: `Updated hyperedge ${hyperedge.name}.`,
+      target: hyperedge,
+    });
+  }
+
   function bindGroupContextTarget(resolvedTarget) {
     const group = resolvedTarget.target;
     const nameInput = document.getElementById("context-menu-name-input");
@@ -577,6 +634,10 @@ export function createCanvasContextMenuBindings({
     }
     if (resolvedTarget.kind === "edge") {
       bindEdgeContextTarget(resolvedTarget);
+      return;
+    }
+    if (resolvedTarget.kind === "hyperedge") {
+      bindHyperedgeContextTarget(resolvedTarget);
       return;
     }
     if (resolvedTarget.kind === "group") {

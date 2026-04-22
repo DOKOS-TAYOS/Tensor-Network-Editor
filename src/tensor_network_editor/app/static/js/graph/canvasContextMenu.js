@@ -44,6 +44,10 @@ export function registerCanvasContextMenu(ctx) {
     state,
     findEdgeById:
       typeof ctx.findEdgeById === "function" ? (edgeId) => ctx.findEdgeById(edgeId) : null,
+    findHyperedgeById:
+      typeof ctx.findHyperedgeById === "function"
+        ? (hyperedgeId) => ctx.findHyperedgeById(hyperedgeId)
+        : null,
     findEdgeByIndexId:
       typeof ctx.findConnectionByIndexId === "function"
         ? (indexId) => ctx.findConnectionByIndexId(indexId)
@@ -65,6 +69,10 @@ export function registerCanvasContextMenu(ctx) {
     getBatchColorValue:
       typeof ctx.getBatchColorValue === "function"
         ? (entries) => ctx.getBatchColorValue(entries)
+        : null,
+    getHyperedgeSelectionId:
+      typeof ctx.hyperedgeHubNodeId === "function"
+        ? (hyperedgeId) => ctx.hyperedgeHubNodeId(hyperedgeId)
         : null,
     describeHyperedgeCandidate:
       typeof ctx.describeHyperedgeCandidate === "function"

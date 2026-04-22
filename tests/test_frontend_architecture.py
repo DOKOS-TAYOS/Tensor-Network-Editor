@@ -1912,6 +1912,16 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           name: "bond_ab",
           metadata: {{ color: "#778899" }},
         }};
+        const hyperedge = {{
+          id: "hyperedge_shared",
+          name: "shared_h",
+          endpoints: [
+            {{ tensor_id: "tensor_a", index_id: "index_left" }},
+            {{ tensor_id: "tensor_a", index_id: "index_right" }},
+            {{ tensor_id: "tensor_b", index_id: "index_up" }},
+          ],
+          metadata: {{ color: "#446688" }},
+        }};
         const group = {{
           id: "group_a",
           name: "Group A",
@@ -1927,6 +1937,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             spec: {{
               tensors: [tensor, tensorB],
               edges: [edge],
+              hyperedges: [hyperedge],
               groups: [group],
             }},
             canvasContextMenu: null,
@@ -2042,6 +2053,13 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             deleteEdge: (payload) => {{
               contextMenuEvents.push(`deleteEdge:${{payload.edgeId}}`);
             }},
+            renameHyperedge: (payload) => {{
+              contextMenuEvents.push(`renameHyperedge:${{payload.proposedName}}`);
+              return true;
+            }},
+            deleteHyperedge: (payload) => {{
+              contextMenuEvents.push(`deleteHyperedge:${{payload.hyperedgeId}}`);
+            }},
             renameGroup: (payload) => {{
               contextMenuEvents.push(`renameGroup:${{payload.proposedName}}`);
               return true;
@@ -2057,6 +2075,17 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           }}),
           findTensorById: (tensorId) => tensorsById[tensorId] || null,
           findEdgeById: (edgeId) => (edgeId === edge.id ? edge : null),
+          findHyperedgeById: (hyperedgeId) => {{
+            const normalizedId = String(hyperedgeId || "");
+            if (
+              normalizedId === hyperedge.id ||
+              normalizedId === `hyperedge-hub:${{hyperedge.id}}` ||
+              normalizedId === `hyperedge-spoke:${{hyperedge.id}}:0`
+            ) {{
+              return hyperedge;
+            }}
+            return null;
+          }},
           findIndexOwner: (indexId) => {{
             const index = tensor.indices.find((candidate) => candidate.id === indexId) || null;
             return index ? {{ tensor, index }} : null;
@@ -2292,6 +2321,55 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         }}
         document.getElementById("context-menu-delete-edge-button").click();
 
+        ctx.openCanvasContextMenu({{
+          kind: "hyperedge",
+          id: "hyperedge-hub:hyperedge_shared",
+          clientX: 140,
+          clientY: 250,
+        }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-hyperedge-color-input"')) {{
+          throw new Error("Expected the hyperedge context menu to expose the color picker.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-delete-hyperedge-button"')) {{
+          throw new Error("Expected the hyperedge context menu to expose deletion.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-hyperedge-tags-input"')) {{
+          throw new Error("Expected the hyperedge context menu to expose inline metadata tags.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-hyperedge-custom-metadata-input"')) {{
+          throw new Error("Expected the hyperedge context menu to expose inline custom metadata.");
+        }}
+        const hyperedgeNameInput = document.getElementById("context-menu-name-input");
+        hyperedgeNameInput.value = "shared_h_renamed";
+        hyperedgeNameInput.dispatchEvent("keydown", {{
+          key: "Enter",
+          preventDefault() {{}},
+        }});
+
+        ctx.openCanvasContextMenu({{
+          kind: "hyperedge",
+          id: "hyperedge-spoke:hyperedge_shared:0",
+          clientX: 150,
+          clientY: 255,
+        }});
+        const hyperedgeSelectionEvent = contextMenuEvents
+          .filter((entry) => entry && typeof entry === "object" && entry.selectionIds)
+          .at(-1);
+        if (
+          !hyperedgeSelectionEvent ||
+          hyperedgeSelectionEvent.selectionIds[0] !== "hyperedge-hub:hyperedge_shared"
+        ) {{
+          throw new Error(
+            `Expected a spoke context menu to normalize selection to the hyperedge hub, received ${{JSON.stringify(hyperedgeSelectionEvent)}}.`
+          );
+        }}
+        const hyperedgeColorInput = document.getElementById(
+          "context-menu-hyperedge-color-input"
+        );
+        hyperedgeColorInput.value = "#224466";
+        hyperedgeColorInput.dispatchEvent("input");
+        document.getElementById("context-menu-delete-hyperedge-button").click();
+
         ctx.openCanvasContextMenu({{ kind: "group", id: "group_a", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-group-color-input"')) {{
           throw new Error("Expected the group context menu to expose the color picker.");
@@ -2345,6 +2423,9 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           !contextMenuEvents.includes("deleteTensor:tensor_a") ||
           !contextMenuEvents.includes("deleteTensorIndex:index_left") ||
           !contextMenuEvents.includes("deleteEdge:edge_ab") ||
+          !contextMenuEvents.includes("renameHyperedge:shared_h_renamed") ||
+          !contextMenuEvents.includes("updateTargetColor:hyperedge_shared:#224466") ||
+          !contextMenuEvents.includes("deleteHyperedge:hyperedge_shared") ||
           !contextMenuEvents.includes("addIndexToSelectedTensors:tensor_a,tensor_b:group_a") ||
           !contextMenuEvents.includes("exportGroupSubnetwork:group_a") ||
           !contextMenuEvents.includes("promoteGroupToTemplate:group_a") ||

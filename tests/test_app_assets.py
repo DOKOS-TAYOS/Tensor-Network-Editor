@@ -1028,6 +1028,9 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert 'id="context-menu-edge-color-input"' in context_menu_markup_body
     assert 'id="context-menu-delete-edge-button"' in context_menu_markup_body
     assert 'inputPrefix: "context-menu-edge"' in context_menu_markup_body
+    assert 'id="context-menu-hyperedge-color-input"' in context_menu_markup_body
+    assert 'id="context-menu-delete-hyperedge-button"' in context_menu_markup_body
+    assert 'inputPrefix: "context-menu-hyperedge"' in context_menu_markup_body
     assert 'id="context-menu-add-index-to-selection-button"' in context_menu_markup_body
     assert 'id="context-menu-extract-selection-button"' in context_menu_markup_body
     assert (
@@ -1093,11 +1096,19 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert "Total elements" in context_menu_markup_body
     assert "buildMetadataEditorMarkup" in context_menu_markup_body
     assert "bindMetadataEditors" in context_menu_bindings_body
+    assert "renameHyperedge" in context_menu_bindings_body
+    assert "deleteHyperedge" in context_menu_bindings_body
     assert "function resolveContextTarget(" in context_menu_targets_body
+    assert "getHyperedgeContextTarget" in context_menu_targets_body
+    assert "findHyperedgeById" in context_menu_body + context_menu_targets_body
     assert "canvas-context-menu-title" not in context_menu_markup_body
     assert "max-height: ${maxHeight}px;" not in context_menu_markup_body
     assert 'state.cy.on("cxttap"' in graph_body
-    assert 'kind !== "tensor" && kind !== "index" && kind !== "edge"' in graph_body
+    assert 'kind !== "tensor"' in graph_body
+    assert 'kind !== "index"' in graph_body
+    assert 'kind !== "edge"' in graph_body
+    assert 'kind !== "hyperedge-hub"' in graph_body
+    assert 'kind !== "hyperedge-spoke"' in graph_body
     assert 'addEventListener("contextmenu"' in overlays_body
     assert ".canvas-context-menu {" in css_body
     assert "max-height: calc(100% - 1rem);" not in css_body

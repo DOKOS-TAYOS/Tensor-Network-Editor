@@ -151,7 +151,12 @@ export function createCanvasContextMenuMarkup({
     }`;
   }
 
-  function buildInlineMetadataEditor({ target, annotationScope, inputPrefix }) {
+  function buildInlineMetadataEditor({
+    target,
+    annotationScope,
+    inputPrefix,
+    focusKeyPrefix = annotationScope,
+  }) {
     if (typeof buildMetadataEditorMarkup !== "function") {
       return "";
     }
@@ -160,9 +165,9 @@ export function createCanvasContextMenuMarkup({
         ${buildMetadataEditorMarkup({
           annotationScope,
           collapsible: false,
-          customMetadataFocusKey: `${annotationScope}:${target.id}:custom-metadata`,
+          customMetadataFocusKey: `${focusKeyPrefix}:${target.id}:custom-metadata`,
           customMetadataInputId: `${inputPrefix}-custom-metadata-input`,
-          tagsFocusKey: `${annotationScope}:${target.id}:tags`,
+          tagsFocusKey: `${focusKeyPrefix}:${target.id}:tags`,
           tagsInputId: `${inputPrefix}-tags-input`,
           target,
         })}
@@ -537,6 +542,51 @@ export function createCanvasContextMenuMarkup({
     `;
   }
 
+  function renderHyperedgeMarkup(resolvedTarget) {
+    return `
+      <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+        <div class="field-group">
+          <input id="context-menu-name-input" value="${escapeHtml(resolvedTarget.target.name || "")}" />
+        </div>
+        <div class="button-row canvas-context-menu-actions">
+          <label
+            class="control-inline-color"
+            for="context-menu-hyperedge-color-input"
+            ${buildTooltipAttributes(
+              "Choose color",
+              "Set the display color for this item."
+            )}
+          >
+            <input
+              id="context-menu-hyperedge-color-input"
+              type="color"
+              aria-label="Choose color"
+              value="${escapeHtml(resolvedTarget.hyperedgeColor)}"
+            />
+          </label>
+          <button
+            id="context-menu-delete-hyperedge-button"
+            type="button"
+            class="icon-button danger"
+            aria-label="Delete hyperedge"
+            ${buildTooltipAttributes(
+              "Delete hyperedge",
+              "Remove this hyperedge from the network."
+            )}
+          >
+            ${renderTrashIcon()}
+          </button>
+        </div>
+      </div>
+      ${buildInlineMetadataEditor({
+        annotationScope: "edge",
+        focusKeyPrefix: "hyperedge",
+        inputPrefix: "context-menu-hyperedge",
+        target: resolvedTarget.target,
+      })}
+    `;
+  }
+
   function renderGroupMarkup(resolvedTarget) {
     return `
       <div class="canvas-context-menu-section canvas-context-menu-input-stack">
@@ -658,6 +708,9 @@ export function createCanvasContextMenuMarkup({
     }
     if (resolvedTarget.kind === "edge") {
       return renderEdgeMarkup(resolvedTarget);
+    }
+    if (resolvedTarget.kind === "hyperedge") {
+      return renderHyperedgeMarkup(resolvedTarget);
     }
     if (resolvedTarget.kind === "group") {
       return renderGroupMarkup(resolvedTarget);
