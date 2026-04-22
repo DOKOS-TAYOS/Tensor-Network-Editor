@@ -3,20 +3,27 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Literal, cast
+from unittest.mock import patch
 
 import pytest
 
 import tensor_network_editor
-from tensor_network_editor.api import (
-    generate_code,
-    load_spec,
-    load_spec_from_python_code,
-    save_spec,
-)
+from tensor_network_editor import generate_code as _generate_code
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
 from tensor_network_editor.errors import (
     CodeGenerationError,
     PackageIOError,
     SerializationError,
+)
+from tensor_network_editor.io import (
+    PythonLoadOptions,
+    load_python_spec,
+)
+from tensor_network_editor.io import (
+    load_spec as _load_spec,
+)
+from tensor_network_editor.io import (
+    save_spec as _save_spec,
 )
 from tensor_network_editor.models import (
     EngineName,
@@ -40,6 +47,66 @@ PythonSourceProfile = Literal["auto", "generated", "quimb", "tensornetwork", "ei
 PythonImportMode = Literal["static", "live"]
 
 
+def generate_code(
+    spec: NetworkSpec,
+    *,
+    engine: EngineName,
+    collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    print_code: bool = False,
+    path: Path | str | None = None,
+    output_path: Path | str | None = None,
+):
+    return _generate_code(
+        spec,
+        engine=engine,
+        collection_format=collection_format,
+        output_path=output_path if output_path is not None else path,
+        print_code=print_code,
+    )
+
+
+def load_spec(
+    path: Path | str,
+    *,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
+    python_object_name: str | None = None,
+) -> NetworkSpec:
+    return _load_spec(
+        path,
+        python=PythonLoadOptions(
+            source_profile=source_profile,
+            import_mode=python_import_mode,
+            reconstruction_level=python_reconstruction_level,
+            object_name=python_object_name,
+        ),
+    )
+
+
+def load_spec_from_python_code(
+    code: str,
+    *,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
+    python_object_name: str | None = None,
+) -> NetworkSpec:
+    return load_python_spec(
+        code,
+        python=PythonLoadOptions(
+            source_profile=source_profile,
+            import_mode=python_import_mode,
+            reconstruction_level=python_reconstruction_level,
+            object_name=python_object_name,
+        ),
+    )
+
+
+def save_spec(spec: NetworkSpec, path: Path | str) -> None:
+    _save_spec(spec, path=path)
+
+
 def test_package_version_matches_installed_metadata() -> None:
     distribution = distribution_for_checkout_import_or_skip(tensor_network_editor)
 
@@ -58,7 +125,6 @@ def test_package_root_exports_supported_public_api() -> None:
     assert set(tensor_network_editor.__all__) == {
         "CanvasPosition",
         "CanvasNoteSpec",
-        "CodeGenerationError",
         "CodegenResult",
         "ContractionOperandLayoutSpec",
         "ContractionPlanSpec",
@@ -66,17 +132,20 @@ def test_package_root_exports_supported_public_api() -> None:
         "ContractionViewSnapshotSpec",
         "EdgeEndpointRef",
         "EdgeSpec",
+        "EditorLaunchOptions",
         "EditorResult",
         "EngineName",
         "GroupSpec",
         "HyperedgeSpec",
         "IndexSpec",
         "NetworkSpec",
+        "PythonLoadOptions",
         "TensorCollectionFormat",
         "TensorDataMode",
         "TensorDataSpec",
         "TensorSize",
         "TensorSpec",
+        "ValidationIssue",
         "__version__",
         "analyze_contraction",
         "analyze_spec",
@@ -85,28 +154,87 @@ def test_package_root_exports_supported_public_api() -> None:
         "diff_specs",
         "generate_code",
         "lint_spec",
-        "list_generator_names",
-        "launch_tensor_network_editor",
         "list_template_names",
+        "load_python_spec",
         "load_spec",
-        "load_spec_from_python_code",
-        "register_generator",
-        "register_static_template",
-        "register_template",
+        "open_editor",
         "save_spec",
-        "SemanticDiffEntry",
-        "SemanticFieldChange",
-        "SemanticSpecDiffResult",
         "semantic_diff_specs",
         "validate_spec",
     }
-    assert tensor_network_editor.generate_code is generate_code
-    assert tensor_network_editor.load_spec is load_spec
-    assert (
-        tensor_network_editor.load_spec_from_python_code is load_spec_from_python_code
-    )
-    assert tensor_network_editor.save_spec is save_spec
+    assert tensor_network_editor.generate_code is _generate_code
+    assert tensor_network_editor.open_editor is open_editor
+    assert tensor_network_editor.load_spec is _load_spec
+    assert tensor_network_editor.load_python_spec is load_python_spec
+    assert tensor_network_editor.save_spec is _save_spec
     assert not hasattr(tensor_network_editor, "tensor_network_creation")
+    assert not hasattr(tensor_network_editor, "launch_tensor_network_editor")
+    assert not hasattr(tensor_network_editor, "load_spec_from_python_code")
+    assert not hasattr(tensor_network_editor, "register_generator")
+    assert not hasattr(tensor_network_editor, "register_template")
+    assert not hasattr(tensor_network_editor, "register_static_template")
+    assert not hasattr(tensor_network_editor, "list_generator_names")
+
+
+def test_python_load_options_defaults_match_public_contract() -> None:
+    options = PythonLoadOptions()
+
+    assert options.source_profile == "auto"
+    assert options.import_mode == "static"
+    assert options.reconstruction_level == "auto"
+    assert options.object_name is None
+
+
+def test_editor_launch_options_defaults_match_public_contract() -> None:
+    options = EditorLaunchOptions()
+
+    assert options.default_engine is EngineName.TENSORKROWCH
+    assert options.default_collection_format is TensorCollectionFormat.LIST
+    assert options.open_browser is True
+    assert options.host == "127.0.0.1"
+    assert options.port == 0
+    assert options.print_code is False
+    assert options.code_path is None
+
+
+def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> None:
+    launch_result = object()
+
+    with patch(
+        "tensor_network_editor.editor.launch_editor_session",
+        return_value=launch_result,
+    ) as launch_editor_session_mock:
+        result = open_editor(
+            sample_spec,
+            options=EditorLaunchOptions(
+                default_engine=EngineName.EINSUM_NUMPY,
+                default_collection_format=TensorCollectionFormat.DICT,
+                open_browser=False,
+                host="0.0.0.0",
+                port=8123,
+                print_code=True,
+                code_path="generated.py",
+                template_catalog_path="templates.json",
+                subnetwork_catalog_path="subnetworks.json",
+                shared_subnetwork_catalog_path="shared.json",
+            ),
+        )
+
+    assert result is launch_result
+    launch_editor_session_mock.assert_called_once_with(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+        default_collection_format=TensorCollectionFormat.DICT,
+        open_browser=False,
+        host="0.0.0.0",
+        port=8123,
+        print_code=True,
+        code_path="generated.py",
+        template_catalog_path="templates.json",
+        subnetwork_catalog_path="subnetworks.json",
+        shared_subnetwork_catalog_path="shared.json",
+        _on_server_ready=None,
+    )
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
@@ -132,7 +260,7 @@ def test_generate_code_can_print_and_write_code(
         sample_spec,
         engine=EngineName.EINSUM_NUMPY,
         print_code=True,
-        path=output_path,
+        output_path=output_path,
     )
 
     assert output_path.read_text(encoding="utf-8") == result.code
@@ -146,7 +274,7 @@ def test_generate_code_wraps_file_write_failures(sample_spec: NetworkSpec) -> No
         generate_code(
             sample_spec,
             engine=EngineName.EINSUM_NUMPY,
-            path=missing_parent_path,
+            output_path=missing_parent_path,
         )
 
 

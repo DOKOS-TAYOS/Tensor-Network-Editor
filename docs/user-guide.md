@@ -101,7 +101,7 @@ Use:
 
 From Python, pass `TensorCollectionFormat.LIST`,
 `TensorCollectionFormat.MATRIX`, or `TensorCollectionFormat.DICT` to
-`generate_code(...)` or `launch_tensor_network_editor(...)`.
+`generate_code(...)` or `open_editor(...)`.
 
 ## Templates
 
@@ -224,7 +224,7 @@ Saved files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 1,
   "network": {
     "...": "..."
   }
@@ -232,8 +232,8 @@ Saved files use a schema wrapper:
 ```
 
 The package validates saved designs when loading or saving. New saves use
-schema version `6`, while older schema version `5` and `4` files are still
-accepted on load.
+schema version `1`, which matches the current canonical payload shape.
+Historical compatibility-only schema numbers are no longer accepted on load.
 
 ## Tensor Values
 

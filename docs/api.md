@@ -21,24 +21,21 @@ The package exposes the main functions and models at the top level:
 
 ```python
 from tensor_network_editor import (
-    CodeGenerationError,
     EngineName,
     NetworkSpec,
-    SemanticDiffEntry,
-    SemanticFieldChange,
-    SemanticSpecDiffResult,
     TensorCollectionFormat,
+    ValidationIssue,
     analyze_contraction,
     analyze_spec,
     build_template_spec,
     canonicalize_spec,
     diff_specs,
     generate_code,
-    launch_tensor_network_editor,
     lint_spec,
     list_template_names,
+    load_python_spec,
     load_spec,
-    load_spec_from_python_code,
+    open_editor,
     save_spec,
     semantic_diff_specs,
     validate_spec,
@@ -47,26 +44,29 @@ from tensor_network_editor import (
 
 Most workflows only need a few of these imports.
 
-The documented imports above are the stable public surface. The package also
-contains implementation modules under `tensor_network_editor.internal`, plus a
-few public compatibility wrappers such as `tensor_network_editor.serialization`
-and `tensor_network_editor.diffing`. Those public modules are safe to import.
-The `internal` tree is not a stable API and may be reorganized between
-releases.
+The documented imports above are the stable guided public surface. Explicit
+public modules such as `tensor_network_editor.editor`,
+`tensor_network_editor.io`, `tensor_network_editor.models`, and
+`tensor_network_editor.templates` stay available when you want more structure
+or advanced hooks. The `internal` tree is not a stable API and may be
+reorganized between releases.
 
 ## Launch the Editor
 
-Use `launch_tensor_network_editor(...)` when you want a local browser editing
-session from Python.
+Use `open_editor(...)` when you want a local browser editing session from
+Python.
 
 ```python
-from tensor_network_editor import EngineName, launch_tensor_network_editor
+from tensor_network_editor import EngineName
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
 
 
 def main() -> None:
-    result = launch_tensor_network_editor(
-        default_engine=EngineName.EINSUM_NUMPY,
-        open_browser=True,
+    result = open_editor(
+        options=EditorLaunchOptions(
+            default_engine=EngineName.EINSUM_NUMPY,
+            open_browser=True,
+        ),
     )
 
     if result is None:
@@ -81,18 +81,18 @@ def main() -> None:
 
 Main parameters:
 
-- `initial_spec`: preload an existing `NetworkSpec`
-- `default_engine`: initial target backend shown in the editor
-- `default_collection_format`: initial tensor collection layout
-- `open_browser`: open the browser automatically
-- `host`: local host address, default `127.0.0.1`
-- `port`: local port, default `0` so the OS chooses one
-- `print_code`: print generated code after confirmation
-- `code_path`: write generated code after confirmation
-- `template_catalog_path`: optional per-project static template catalog path
-- `subnetwork_catalog_path`: optional per-project reusable-subnetwork catalog
+- `spec`: preload an existing `NetworkSpec`
+- `options.default_engine`: initial target backend shown in the editor
+- `options.default_collection_format`: initial tensor collection layout
+- `options.open_browser`: open the browser automatically
+- `options.host`: local host address, default `127.0.0.1`
+- `options.port`: local port, default `0` so the OS chooses one
+- `options.print_code`: print generated code after confirmation
+- `options.code_path`: write generated code after confirmation
+- `options.template_catalog_path`: optional per-project static template catalog path
+- `options.subnetwork_catalog_path`: optional per-project reusable-subnetwork catalog
   path
-- `shared_subnetwork_catalog_path`: optional shared reusable-subnetwork
+- `options.shared_subnetwork_catalog_path`: optional shared reusable-subnetwork
   catalog path merged with the project catalog at runtime
 
 Return value:
@@ -125,7 +125,7 @@ result = generate_code(
     spec,
     engine=EngineName.QUIMB,
     collection_format=TensorCollectionFormat.DICT,
-    path="generated_network.py",
+    output_path="generated_network.py",
 )
 
 print(result.engine.value)
@@ -136,9 +136,10 @@ print(result.warnings)
 Useful behavior:
 
 - `print_code=True` prints the generated source
-- `path="..."` writes the generated source to a file
+- `output_path="..."` writes the generated source to a file
 - `collection_format` can be `LIST`, `MATRIX`, or `DICT`
-- a backend-specific export problem raises `CodeGenerationError`
+- a backend-specific export problem raises `CodeGenerationError` from
+  `tensor_network_editor.errors`
 
 If a saved `contraction_plan` exists, generated code follows that manual plan.
 Complete plans emit a final `result`. Partial plans emit intermediate values
@@ -153,7 +154,7 @@ from tensor_network_editor import load_spec, save_spec
 
 
 spec = load_spec("my_network.json")
-save_spec(spec, "copy_of_my_network.json")
+save_spec(spec, path="copy_of_my_network.json")
 ```
 
 Important details:
@@ -163,23 +164,20 @@ Important details:
 - `load_spec(...)` also accepts supported `.py` sources and autodetects one of
   the built-in Python import profiles: `generated`, `quimb`,
   `tensornetwork`, or `einsum`
-- `load_spec_from_python_code(...)` works when source is already in memory and
-  also accepts `source_profile="generated" | "quimb" | "tensornetwork" |
-  "einsum"` when you want to lock the parser explicitly
-- `load_spec(...)` and `load_spec_from_python_code(...)` also accept
-  `python_import_mode="static" | "live"`, with `static` as the default
-- both functions also accept
-  `python_reconstruction_level="auto" | "simple" | "best_available"`, with
-  `auto` as the default
-- `python_import_mode="live"` executes the source in a subprocess using the
+- `load_python_spec(...)` works when source is already in memory
+- both functions accept `python=PythonLoadOptions(...)` when you want to lock
+  the parser or import behavior explicitly
+- `PythonLoadOptions.source_profile` accepts `generated`, `quimb`,
+  `tensornetwork`, or `einsum` when you want to pin the parser explicitly
+- `PythonLoadOptions.import_mode="live"` executes the source in a subprocess using the
   active Python interpreter, supports live `quimb` and `tensornetwork`
-  objects, and accepts `python_object_name="..."` when several compatible
+  objects, and accepts `object_name="..."` when several compatible
   globals exist
-- `python_reconstruction_level="simple"` rebuilds only the portable network
+- `PythonLoadOptions.reconstruction_level="simple"` rebuilds only the portable network
   structure: tensors, inferable connections, and portable tensor-data payloads
-- `python_reconstruction_level="best_available"` is currently only supported
+- `PythonLoadOptions.reconstruction_level="best_available"` is currently only supported
   for the package's own `generated` profile
-- `python_reconstruction_level="auto"` resolves to `best_available` for the
+- `PythonLoadOptions.reconstruction_level="auto"` resolves to `best_available` for the
   `generated` profile and to `simple` for external static profiles plus live
   imports
 - live import preserves tensor data when it can be lowered to `ones`, `fill`,
@@ -191,36 +189,41 @@ Round-trip from generated source:
 from tensor_network_editor import (
     EngineName,
     generate_code,
-    load_spec_from_python_code,
+    load_python_spec,
 )
 
 
 result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
-round_tripped_spec = load_spec_from_python_code(result.code)
+round_tripped_spec = load_python_spec(result.code)
 print(round_tripped_spec.name)
 ```
 
 Explicit profile selection:
 
 ```python
-from tensor_network_editor import load_spec_from_python_code
+from tensor_network_editor import PythonLoadOptions, load_python_spec
 
 
-spec = load_spec_from_python_code(quimb_source, source_profile="quimb")
+spec = load_python_spec(
+    quimb_source,
+    python=PythonLoadOptions(source_profile="quimb"),
+)
 ```
 
 Explicit live import from one named global:
 
 ```python
-from tensor_network_editor import load_spec
+from tensor_network_editor import PythonLoadOptions, load_spec
 
 
 spec = load_spec(
     "runtime_network.py",
-    source_profile="quimb",
-    python_import_mode="live",
-    python_reconstruction_level="simple",
-    python_object_name="network",
+    python=PythonLoadOptions(
+        source_profile="quimb",
+        import_mode="live",
+        reconstruction_level="simple",
+        object_name="network",
+    ),
 )
 ```
 
@@ -331,13 +334,13 @@ every tensor manually.
 
 ## Extension Hooks
 
-The package also exposes a few registration hooks when you want to extend the
-editor instead of only consuming it.
+Advanced registration hooks now live in explicit public modules when you want
+to extend the editor instead of only consuming it.
 
 Inspect registered generator names:
 
 ```python
-from tensor_network_editor import list_generator_names
+from tensor_network_editor.codegen.registry import list_generator_names
 
 
 print(list_generator_names())
@@ -346,7 +349,8 @@ print(list_generator_names())
 Register a fixed project template from an existing `NetworkSpec`:
 
 ```python
-from tensor_network_editor import NetworkSpec, register_static_template
+from tensor_network_editor.models import NetworkSpec
+from tensor_network_editor.templates import register_static_template
 
 
 spec = NetworkSpec(name="Reference cell")
@@ -361,7 +365,7 @@ register_static_template(
 Register a parameterized template builder:
 
 ```python
-from tensor_network_editor import NetworkSpec
+from tensor_network_editor.models import NetworkSpec
 from tensor_network_editor.templates import (
     TemplateDefinition,
     TemplateParameters,
@@ -395,13 +399,13 @@ register_template(
 Register a custom backend code generator:
 
 ```python
-from tensor_network_editor import (
+from tensor_network_editor.codegen.registry import register_generator
+from tensor_network_editor.codegen.shared.base import CodeGenerator
+from tensor_network_editor.models import (
     CodegenResult,
     NetworkSpec,
     TensorCollectionFormat,
-    register_generator,
 )
-from tensor_network_editor.codegen.base import CodeGenerator
 
 
 class MyGenerator(CodeGenerator):
@@ -493,7 +497,7 @@ def main() -> None:
         ],
     )
 
-    save_spec(spec, "demo_network.json")
+    save_spec(spec, path="demo_network.json")
     result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
     print(result.code)
 

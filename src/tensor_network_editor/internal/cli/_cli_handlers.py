@@ -6,11 +6,13 @@ import argparse
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, cast
+from typing import Protocol, cast
 
+from ...editor import EditorLaunchOptions
 from ...errors import SerializationError
+from ...io import PythonLoadOptions
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
-from ...types import JSONValue
+from ...types import JSONValue, StrPath
 from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
     deserialize_spec,
@@ -44,7 +46,7 @@ def handle_edit_command(
     args: argparse.Namespace,
     *,
     load_spec: Callable[..., NetworkSpec],
-    launch_tensor_network_editor: Callable[..., object],
+    open_editor: Callable[..., object],
 ) -> int:
     """Launch the browser editor using explicit edit arguments."""
     loaded_spec_path = Path(args.load).resolve() if args.load else None
@@ -55,23 +57,29 @@ def handle_edit_command(
         candidate_code_path = Path(args.save_code)
         if not candidate_code_path.is_absolute():
             code_path = loaded_spec_path.parent / candidate_code_path
-    launch_kwargs: dict[str, object] = {
-        "initial_spec": initial_spec,
-        "default_engine": EngineName(args.engine),
-        "open_browser": not args.no_browser,
-        "print_code": args.print_code,
-        "code_path": code_path,
+    open_editor_kwargs: dict[str, object] = {
+        "spec": initial_spec,
+        "options": EditorLaunchOptions(
+            default_engine=EngineName(args.engine),
+            open_browser=not args.no_browser,
+            print_code=args.print_code,
+            code_path=code_path,
+        ),
     }
     if loaded_spec_path is not None:
-        launch_kwargs["template_catalog_path"] = (
-            loaded_spec_path.parent / ".tensor-network-editor" / "templates.json"
+        open_editor_kwargs["options"] = EditorLaunchOptions(
+            default_engine=EngineName(args.engine),
+            open_browser=not args.no_browser,
+            print_code=args.print_code,
+            code_path=code_path,
+            template_catalog_path=(
+                loaded_spec_path.parent / ".tensor-network-editor" / "templates.json"
+            ),
+            subnetwork_catalog_path=(
+                loaded_spec_path.parent / ".tensor-network-editor" / "subnetworks.json"
+            ),
         )
-        launch_kwargs["subnetwork_catalog_path"] = (
-            loaded_spec_path.parent / ".tensor-network-editor" / "subnetworks.json"
-        )
-    launch_tensor_network_editor(
-        **launch_kwargs,
-    )
+    open_editor(**open_editor_kwargs)
     return 0
 
 
@@ -167,7 +175,7 @@ def handle_export_command(
         engine=EngineName(args.engine),
         collection_format=TensorCollectionFormat(args.collection_format),
         print_code=args.output is None,
-        path=args.output,
+        output_path=args.output,
     )
     if args.output is not None:
         print(f"Wrote generated code to {args.output}")
@@ -208,14 +216,14 @@ def handle_canonicalize_command(
     *,
     load_spec: Callable[..., NetworkSpec],
     canonicalize_spec: Callable[..., NetworkSpec],
-    save_spec: Callable[[NetworkSpec, str], None],
+    save_spec: _SaveSpecFunction,
     print_json: Callable[[object], None],
 ) -> int:
     """Canonicalize a spec and print or save the normalized result."""
     spec = load_spec(args.path, **_python_load_kwargs(args))
     canonical_spec = canonicalize_spec(spec, deterministic_ids=args.deterministic_ids)
     if args.output is not None:
-        save_spec(canonical_spec, args.output)
+        save_spec(canonical_spec, path=args.output)
         print(f"Wrote canonical spec to {args.output}")
         return 0
     print_json(serialize_spec(canonical_spec))
@@ -245,7 +253,7 @@ def handle_template_build_command(
     *,
     parse_template_parameters: Callable[..., TemplateParameters],
     build_template_spec: Callable[[str, TemplateParameters | None], NetworkSpec],
-    save_spec: Callable[[NetworkSpec, str], None],
+    save_spec: _SaveSpecFunction,
     print_json: Callable[[object], None],
 ) -> int:
     """Build a template spec and print or save the resulting serialized spec."""
@@ -264,7 +272,7 @@ def handle_template_build_command(
     )
     spec = build_template_spec(args.template_name, parameters)
     if args.output is not None:
-        save_spec(spec, args.output)
+        save_spec(spec, path=args.output)
         print(f"Wrote template spec to {args.output}")
         return 0
     print_json(serialize_spec(spec))
@@ -323,7 +331,7 @@ def handle_subnetwork_save_command(
 def handle_subnetwork_export_command(
     args: argparse.Namespace,
     *,
-    save_spec: Callable[[NetworkSpec, str], None],
+    save_spec: _SaveSpecFunction,
     print_json: Callable[[object], None],
 ) -> int:
     """Export one reusable subnetwork from the merged project/shared catalogs."""
@@ -339,7 +347,7 @@ def handle_subnetwork_export_command(
             f"Unknown reusable subnetwork '{args.subnetwork_name}'."
         ) from exc
     if args.output is not None:
-        save_spec(spec, args.output)
+        save_spec(spec, path=args.output)
         print(f"Wrote reusable subnetwork '{args.subnetwork_name}' to {args.output}")
         return 0
     print_json(serialize_spec(spec))
@@ -427,21 +435,21 @@ def _shadowed_shared_subnetwork_warnings(
 def load_spec_for_lint(
     path: str,
     *,
-    python_import_mode: Literal["static", "live"] = "static",
-    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
-    python_object_name: str | None = None,
+    python: PythonLoadOptions | None = None,
 ) -> NetworkSpec:
     """Load a spec for linting without enforcing hard validation first."""
     from ..io._io import read_utf8_text
 
+    options = python or PythonLoadOptions()
     source_path = Path(path)
     if source_path.suffix.lower() == ".py":
         return deserialize_spec_from_python_code_result(
             read_utf8_text(path, description="generated Python code"),
             validate=False,
-            python_import_mode=python_import_mode,
-            python_reconstruction_level=python_reconstruction_level,
-            python_object_name=python_object_name,
+            source_profile=options.source_profile,
+            python_import_mode=options.import_mode,
+            python_reconstruction_level=options.reconstruction_level,
+            python_object_name=options.object_name,
             source_path=source_path,
         ).spec
     try:
@@ -457,14 +465,17 @@ def load_spec_for_lint(
 
 def _python_load_kwargs(args: argparse.Namespace) -> dict[str, object]:
     """Return the optional Python import arguments requested on the CLI."""
-    kwargs: dict[str, object] = {}
-    python_import_mode = getattr(args, "python_import_mode", "static")
-    python_reconstruction_level = getattr(args, "python_reconstruction_level", "auto")
-    python_object_name = getattr(args, "python_object", None)
-    if python_import_mode != "static":
-        kwargs["python_import_mode"] = python_import_mode
-    if python_reconstruction_level != "auto":
-        kwargs["python_reconstruction_level"] = python_reconstruction_level
-    if python_object_name is not None:
-        kwargs["python_object_name"] = python_object_name
-    return kwargs
+    options = PythonLoadOptions(
+        import_mode=getattr(args, "python_import_mode", "static"),
+        reconstruction_level=getattr(args, "python_reconstruction_level", "auto"),
+        object_name=getattr(args, "python_object", None),
+    )
+    if options == PythonLoadOptions():
+        return {}
+    return {"python": options}
+
+
+class _SaveSpecFunction(Protocol):
+    """Callable protocol for public spec writers with keyword-only paths."""
+
+    def __call__(self, spec: NetworkSpec, *, path: StrPath) -> None: ...

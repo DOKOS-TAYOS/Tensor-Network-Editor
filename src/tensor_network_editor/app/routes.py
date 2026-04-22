@@ -13,8 +13,8 @@ from ..errors import (
     SpecValidationError,
 )
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
+from ..io import serialize_spec
 from ..models import CodegenResult, EditorResult
-from ..serialization import serialize_spec
 from ..types import JSONValue
 from ..validation import validate_spec
 from ._protocol import (

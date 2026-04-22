@@ -2,6 +2,26 @@
 
 from __future__ import annotations
 
+from .internal.analysis._contraction_analysis_types import (
+    AutomaticContractionPlanAnalysis,
+    AutomaticContractionSummary,
+    ContractionAnalysisResult,
+    ContractionComparison,
+    ContractionStepAnalysis,
+    ManualContractionPlanAnalysis,
+    ManualContractionSummary,
+)
+from .internal.models._headless_models import (
+    DiffEntityChanges,
+    LintIssue,
+    LintReport,
+    NetworkSummary,
+    SemanticDiffEntry,
+    SemanticFieldChange,
+    SemanticSpecDiffResult,
+    SpecAnalysisReport,
+    SpecDiffResult,
+)
 from .internal.models._model_contraction import (
     ContractionOperandLayoutSpec,
     ContractionPlanSpec,
@@ -69,11 +89,27 @@ __all__ = [
     "ContractionOperandLayoutSpec",
     "ContractionViewSnapshotSpec",
     "ContractionPlanSpec",
+    "ContractionStepAnalysis",
+    "ManualContractionSummary",
+    "AutomaticContractionSummary",
+    "ManualContractionPlanAnalysis",
+    "AutomaticContractionPlanAnalysis",
+    "ContractionComparison",
+    "ContractionAnalysisResult",
     "ValidationIssue",
+    "LintIssue",
+    "LintReport",
     "EngineIdentifier",
     "EngineName",
     "TensorCollectionFormat",
     "CodegenResult",
     "EditorResult",
+    "DiffEntityChanges",
+    "SpecDiffResult",
+    "SemanticFieldChange",
+    "SemanticDiffEntry",
+    "SemanticSpecDiffResult",
+    "NetworkSummary",
+    "SpecAnalysisReport",
     "NetworkSpec",
 ]

@@ -10,21 +10,21 @@ from unittest.mock import patch
 
 import pytest
 
-from tensor_network_editor.api import launch_tensor_network_editor
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.session import (
     EditorSession,
     build_blank_network_spec,
     wait_for_editor_result,
 )
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
 from tensor_network_editor.errors import CodeGenerationError
+from tensor_network_editor.io import SCHEMA_VERSION
 from tensor_network_editor.models import (
     EditorResult,
     EngineName,
     NetworkSpec,
     TensorCollectionFormat,
 )
-from tensor_network_editor.serialization import SCHEMA_VERSION
 from tests.app_support import request_json
 from tests.factories import build_outer_product_plan_spec, serialize_spec_payload
 
@@ -237,7 +237,7 @@ def test_wait_for_editor_result_warns_when_poll_interval_is_passed() -> None:
     assert result is None
 
 
-def test_launch_tensor_network_editor_waits_for_complete(
+def test_open_editor_waits_for_complete(
     sample_spec: NetworkSpec,
     serialized_sample_spec: JsonDict,
 ) -> None:
@@ -245,11 +245,13 @@ def test_launch_tensor_network_editor_waits_for_complete(
     result_queue: Queue[EditorResult | None] = Queue()
 
     def run_editor() -> None:
-        result = launch_tensor_network_editor(
-            initial_spec=sample_spec,
-            default_engine=EngineName.EINSUM_NUMPY,
-            open_browser=False,
-            _on_server_ready=ready_queue.put,
+        result = open_editor(
+            sample_spec,
+            options=EditorLaunchOptions(
+                default_engine=EngineName.EINSUM_NUMPY,
+                open_browser=False,
+                _on_server_ready=ready_queue.put,
+            ),
         )
         result_queue.put(result)
 
@@ -275,18 +277,20 @@ def test_launch_tensor_network_editor_waits_for_complete(
     assert result.engine is EngineName.EINSUM_NUMPY
 
 
-def test_launch_tensor_network_editor_returns_none_on_cancel(
+def test_open_editor_returns_none_on_cancel(
     sample_spec: NetworkSpec,
 ) -> None:
     ready_queue: Queue[str] = Queue()
     result_queue: Queue[EditorResult | None] = Queue()
 
     def run_editor() -> None:
-        result = launch_tensor_network_editor(
-            initial_spec=sample_spec,
-            default_engine=EngineName.EINSUM_NUMPY,
-            open_browser=False,
-            _on_server_ready=ready_queue.put,
+        result = open_editor(
+            sample_spec,
+            options=EditorLaunchOptions(
+                default_engine=EngineName.EINSUM_NUMPY,
+                open_browser=False,
+                _on_server_ready=ready_queue.put,
+            ),
         )
         result_queue.put(result)
 
@@ -492,7 +496,7 @@ def test_launch_editor_session_prints_local_url_when_browser_open_is_not_acknowl
     assert "http://127.0.0.1:43210" in captured
 
 
-def test_launch_tensor_network_editor_passes_template_catalog_path(
+def test_open_editor_passes_template_catalog_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -504,13 +508,17 @@ def test_launch_tensor_network_editor_passes_template_catalog_path(
         return None
 
     monkeypatch.setattr(
-        "tensor_network_editor.app.session.launch_editor_session",
+        "tensor_network_editor.editor.launch_editor_session",
         fake_launch_editor_session,
     )
 
-    result = launch_tensor_network_editor(
-        open_browser=False,
-        template_catalog_path=tmp_path / ".tensor-network-editor" / "templates.json",
+    result = open_editor(
+        options=EditorLaunchOptions(
+            open_browser=False,
+            template_catalog_path=(
+                tmp_path / ".tensor-network-editor" / "templates.json"
+            ),
+        ),
     )
 
     assert result is None
@@ -519,7 +527,7 @@ def test_launch_tensor_network_editor_passes_template_catalog_path(
     )
 
 
-def test_launch_tensor_network_editor_passes_subnetwork_catalog_paths(
+def test_open_editor_passes_subnetwork_catalog_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -531,16 +539,18 @@ def test_launch_tensor_network_editor_passes_subnetwork_catalog_paths(
         return None
 
     monkeypatch.setattr(
-        "tensor_network_editor.app.session.launch_editor_session",
+        "tensor_network_editor.editor.launch_editor_session",
         fake_launch_editor_session,
     )
 
-    result = launch_tensor_network_editor(
-        open_browser=False,
-        subnetwork_catalog_path=tmp_path
-        / ".tensor-network-editor"
-        / "subnetworks.json",
-        shared_subnetwork_catalog_path=tmp_path / "shared" / "subnetworks.json",
+    result = open_editor(
+        options=EditorLaunchOptions(
+            open_browser=False,
+            subnetwork_catalog_path=(
+                tmp_path / ".tensor-network-editor" / "subnetworks.json"
+            ),
+            shared_subnetwork_catalog_path=(tmp_path / "shared" / "subnetworks.json"),
+        ),
     )
 
     assert result is None

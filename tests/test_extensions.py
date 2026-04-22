@@ -7,16 +7,16 @@ from typing import cast
 
 import pytest
 
-from tensor_network_editor.api import generate_code
+from tensor_network_editor import generate_code
 from tensor_network_editor.app._protocol import JsonDict, resolve_engine
 from tensor_network_editor.app._services import build_bootstrap_payload
 from tensor_network_editor.app.session import EditorSession
-from tensor_network_editor.codegen.base import CodeGenerator
 from tensor_network_editor.codegen.registry import (
     _reset_generator_registry_for_tests,
     list_generator_names,
     register_generator,
 )
+from tensor_network_editor.codegen.shared.base import CodeGenerator
 from tensor_network_editor.errors import PackageIOError
 from tensor_network_editor.internal.templates._project_templates import (
     append_project_template,
@@ -28,12 +28,12 @@ from tensor_network_editor.internal.templates._template_catalog import (
     _reset_template_registry_for_tests,
     list_template_names,
 )
+from tensor_network_editor.io import SCHEMA_VERSION, serialize_spec
 from tensor_network_editor.models import (
     CodegenResult,
     NetworkSpec,
     TensorCollectionFormat,
 )
-from tensor_network_editor.serialization import SCHEMA_VERSION, serialize_spec
 from tensor_network_editor.templates import (
     TemplateDefinition,
     TemplateParameters,

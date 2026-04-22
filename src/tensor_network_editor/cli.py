@@ -7,10 +7,10 @@ import sys
 from collections.abc import Sequence
 from typing import Protocol, cast
 
+from ._public_codegen import generate_code
 from .analysis import analyze_contraction, analyze_spec
-from .api import generate_code, launch_tensor_network_editor, load_spec, save_spec
 from .canonicalization import canonicalize_spec
-from .diffing import diff_specs, semantic_diff_specs
+from .editor import open_editor
 from .errors import (
     CodeGenerationError,
     PackageIOError,
@@ -48,6 +48,8 @@ from .internal.cli._logging import (
     configure_package_logging,
     emit_runtime_diagnostics,
 )
+from .internal.diffing._diffing import diff_specs, semantic_diff_specs
+from .io import load_spec, save_spec
 from .linting import lint_spec
 from .templates import (
     build_template_spec,
@@ -125,7 +127,7 @@ def _handle_edit(args: argparse.Namespace) -> int:
     return handle_edit_command(
         args,
         load_spec=load_spec,
-        launch_tensor_network_editor=launch_tensor_network_editor,
+        open_editor=open_editor,
     )
 
 

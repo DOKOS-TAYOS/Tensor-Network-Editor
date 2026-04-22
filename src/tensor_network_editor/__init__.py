@@ -13,24 +13,12 @@ if sys.version_info < (3, 11):  # noqa: UP036 - explicit runtime guard for unsup
 from ._version import __version__
 
 if TYPE_CHECKING:
+    from ._public_codegen import generate_code
     from .analysis import analyze_contraction, analyze_spec
-    from .api import (
-        generate_code,
-        launch_tensor_network_editor,
-        load_spec,
-        load_spec_from_python_code,
-        save_spec,
-    )
     from .canonicalization import canonicalize_spec
-    from .codegen.registry import list_generator_names, register_generator
-    from .diffing import (
-        SemanticDiffEntry,
-        SemanticFieldChange,
-        SemanticSpecDiffResult,
-        diff_specs,
-        semantic_diff_specs,
-    )
-    from .errors import CodeGenerationError
+    from .editor import EditorLaunchOptions, open_editor
+    from .internal.diffing._diffing import diff_specs, semantic_diff_specs
+    from .io import PythonLoadOptions, load_python_spec, load_spec, save_spec
     from .linting import lint_spec
     from .models import (
         CanvasNoteSpec,
@@ -53,13 +41,9 @@ if TYPE_CHECKING:
         TensorDataSpec,
         TensorSize,
         TensorSpec,
+        ValidationIssue,
     )
-    from .templates import (
-        build_template_spec,
-        list_template_names,
-        register_static_template,
-        register_template,
-    )
+    from .templates import build_template_spec, list_template_names
     from .validation import validate_spec
 
 PACKAGE_LOGGER = logging.getLogger(__name__)
@@ -71,7 +55,6 @@ if not any(
 __all__ = [
     "CanvasPosition",
     "CanvasNoteSpec",
-    "CodeGenerationError",
     "CodegenResult",
     "ContractionOperandLayoutSpec",
     "ContractionPlanSpec",
@@ -79,17 +62,20 @@ __all__ = [
     "ContractionViewSnapshotSpec",
     "EdgeEndpointRef",
     "EdgeSpec",
+    "EditorLaunchOptions",
     "EditorResult",
     "EngineName",
     "GroupSpec",
     "HyperedgeSpec",
     "IndexSpec",
     "NetworkSpec",
+    "PythonLoadOptions",
     "TensorCollectionFormat",
     "TensorDataMode",
     "TensorDataSpec",
     "TensorSize",
     "TensorSpec",
+    "ValidationIssue",
     "__version__",
     "analyze_contraction",
     "analyze_spec",
@@ -98,18 +84,11 @@ __all__ = [
     "diff_specs",
     "generate_code",
     "lint_spec",
-    "list_generator_names",
-    "launch_tensor_network_editor",
     "list_template_names",
+    "load_python_spec",
     "load_spec",
-    "load_spec_from_python_code",
-    "register_generator",
-    "register_static_template",
-    "register_template",
+    "open_editor",
     "save_spec",
-    "SemanticDiffEntry",
-    "SemanticFieldChange",
-    "SemanticSpecDiffResult",
     "semantic_diff_specs",
     "validate_spec",
 ]
@@ -117,7 +96,6 @@ __all__ = [
 _LAZY_EXPORTS: dict[str, str] = {
     "CanvasNoteSpec": ".models",
     "CanvasPosition": ".models",
-    "CodeGenerationError": ".errors",
     "CodegenResult": ".models",
     "ContractionOperandLayoutSpec": ".models",
     "ContractionPlanSpec": ".models",
@@ -125,37 +103,33 @@ _LAZY_EXPORTS: dict[str, str] = {
     "ContractionViewSnapshotSpec": ".models",
     "EdgeEndpointRef": ".models",
     "EdgeSpec": ".models",
+    "EditorLaunchOptions": ".editor",
     "EditorResult": ".models",
     "EngineName": ".models",
     "GroupSpec": ".models",
     "HyperedgeSpec": ".models",
     "IndexSpec": ".models",
     "NetworkSpec": ".models",
-    "SemanticDiffEntry": ".diffing",
-    "SemanticFieldChange": ".diffing",
-    "SemanticSpecDiffResult": ".diffing",
+    "PythonLoadOptions": ".io",
     "TensorCollectionFormat": ".models",
     "TensorDataMode": ".models",
     "TensorDataSpec": ".models",
     "TensorSize": ".models",
     "TensorSpec": ".models",
+    "ValidationIssue": ".models",
     "analyze_contraction": ".analysis",
     "analyze_spec": ".analysis",
     "build_template_spec": ".templates",
     "canonicalize_spec": ".canonicalization",
-    "diff_specs": ".diffing",
-    "generate_code": ".api",
+    "diff_specs": ".internal.diffing._diffing",
+    "generate_code": "._public_codegen",
     "lint_spec": ".linting",
-    "list_generator_names": ".codegen.registry",
     "list_template_names": ".templates",
-    "launch_tensor_network_editor": ".api",
-    "load_spec": ".api",
-    "load_spec_from_python_code": ".api",
-    "register_generator": ".codegen.registry",
-    "register_static_template": ".templates",
-    "register_template": ".templates",
-    "save_spec": ".api",
-    "semantic_diff_specs": ".diffing",
+    "load_python_spec": ".io",
+    "load_spec": ".io",
+    "open_editor": ".editor",
+    "save_spec": ".io",
+    "semantic_diff_specs": ".internal.diffing._diffing",
     "validate_spec": ".validation",
 }
 

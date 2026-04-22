@@ -6,6 +6,11 @@ from typing import cast
 import pytest
 
 from tensor_network_editor.errors import SerializationError, SpecValidationError
+from tensor_network_editor.io import (
+    SCHEMA_VERSION,
+    deserialize_spec,
+    serialize_spec,
+)
 from tensor_network_editor.models import (
     EdgeEndpointRef,
     HyperedgeSpec,
@@ -13,11 +18,6 @@ from tensor_network_editor.models import (
     NetworkSpec,
     TensorDataMode,
     TensorDataSpec,
-)
-from tensor_network_editor.serialization import (
-    SCHEMA_VERSION,
-    deserialize_spec,
-    serialize_spec,
 )
 from tensor_network_editor.types import JSONValue
 from tests.factories import (
@@ -115,26 +115,16 @@ def test_deserialize_spec_round_trips_valid_payload(
     assert restored.contraction_plan.steps[0].id == "step_contract_ab"
 
 
-def test_deserialize_spec_accepts_schema_version_4_without_tensor_data(
+@pytest.mark.parametrize("schema_version", [4, 5, 6])
+def test_deserialize_spec_rejects_removed_legacy_schema_versions(
     serialized_sample_spec: dict[str, object],
+    schema_version: int,
 ) -> None:
     payload = deepcopy(serialized_sample_spec)
-    payload["schema_version"] = 4
+    payload["schema_version"] = schema_version
 
-    restored = deserialize_spec(payload)
-
-    assert restored.tensors[0].tensor_data is None
-
-
-def test_deserialize_spec_accepts_schema_version_5_without_hyperedges(
-    serialized_sample_spec: dict[str, object],
-) -> None:
-    payload = deepcopy(serialized_sample_spec)
-    payload["schema_version"] = 5
-
-    restored = deserialize_spec(payload)
-
-    assert restored.hyperedges == []
+    with pytest.raises(SerializationError, match="Unsupported schema version"):
+        deserialize_spec(payload)
 
 
 def test_serialize_spec_preserves_contraction_view_snapshots() -> None:

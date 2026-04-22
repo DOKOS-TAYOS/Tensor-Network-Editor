@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tensor_network_editor.app._protocol import JsonDict
+from tensor_network_editor.io import serialize_spec
 from tensor_network_editor.models import (
     CanvasNoteSpec,
     CanvasPosition,
@@ -27,7 +28,6 @@ from tensor_network_editor.models import (
     TreePeriodicTensorRole,
     TreePeriodicTreeSpec,
 )
-from tensor_network_editor.serialization import serialize_spec
 
 
 def build_sample_spec_without_plan() -> NetworkSpec:

@@ -28,8 +28,8 @@ from ._python_live_import import (
 )
 from ._python_roundtrip import parse_generated_python_network
 
-SCHEMA_VERSION = 6
-SUPPORTED_SCHEMA_VERSIONS = frozenset({4, 5, 6})
+SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
 LOGGER = logging.getLogger(__name__)
 
 PythonReconstructionLevel = Literal["auto", "simple", "best_available"]

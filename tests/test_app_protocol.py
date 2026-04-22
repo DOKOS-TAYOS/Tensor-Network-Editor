@@ -39,7 +39,7 @@ def test_app_protocol_tests_pass_targeted_pyright_check() -> None:
 def test_parse_template_promote_request_reads_typed_fields() -> None:
     request = parse_template_promote_request(
         {
-            "spec": {"schema_version": 4, "network": {"id": "network_demo"}},
+            "spec": {"schema_version": 1, "network": {"id": "network_demo"}},
             "tensor_ids": ["tensor_a", "tensor_b"],
             "template_name": "project_pair",
             "overwrite": True,
@@ -61,7 +61,7 @@ def test_parse_template_delete_request_rejects_blank_name() -> None:
 def test_parse_subnetwork_prepare_insert_request_reads_target_center() -> None:
     request = parse_subnetwork_prepare_insert_request(
         {
-            "spec": {"schema_version": 4, "network": {"id": "network_demo"}},
+            "spec": {"schema_version": 1, "network": {"id": "network_demo"}},
             "target_center": {"x": 125.5, "y": 220.0},
         }
     )

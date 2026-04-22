@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The guided public API is now centered on `open_editor`, `load_python_spec`, `tensor_network_editor.editor`, and `tensor_network_editor.io`; compatibility-only root exports and wrapper modules such as `api`, `serialization`, `diffing`, and legacy `codegen.*` re-export shims have been removed.
+- Saved designs now keep the current payload shape but reset the public file wrapper to `schema_version = 1`, and loaders now reject the old compatibility-only schema numbers `4`, `5`, and `6`.
 - Importing `tensor_network_editor` now resolves the public headless/API exports lazily, so the package root loads faster and avoids importing analysis, template, diffing, linting, and editor helpers until they are first accessed.
 - Frontend planner and periodic-mode assets now reuse canonical shared constants for linear boundary operand ids and periodic cell labels, while helper-only formatting/navigation maps stay private to their defining modules to reduce drift in the browser codebase.
 - Editor sessions now reuse a shared in-process cache of static asset bytes and the rendered `index.html`, defer contraction analysis until the planner actually needs it, cache serialized specs and analysis results by spec revision, and load Prism syntax-highlighting assets on demand instead of during the initial page load.

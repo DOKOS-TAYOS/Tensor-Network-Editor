@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tensor_network_editor.api import save_spec
-from tensor_network_editor.serialization import SCHEMA_VERSION
+from tensor_network_editor.io import SCHEMA_VERSION, save_spec
 from tests.factories import build_sample_spec
 
 pytestmark = pytest.mark.integration
@@ -78,8 +77,8 @@ def test_headless_cli_commands_work_with_real_files(tmp_path: Path) -> None:
     generated_path = tmp_path / "generated.py"
     canonical_path = tmp_path / "canonical.json"
     template_path = tmp_path / "template.json"
-    save_spec(before_spec, before_path)
-    save_spec(after_spec, after_path)
+    save_spec(before_spec, path=before_path)
+    save_spec(after_spec, path=after_path)
 
     validate_result = _run_cli(
         "validate", str(before_path), "--format", "json", cwd=repo_root
@@ -159,7 +158,7 @@ def test_benchmark_cli_command_outputs_json_and_csv(tmp_path: Path) -> None:
     spec = build_sample_spec()
     spec_path = tmp_path / "benchmark.json"
     csv_path = tmp_path / "benchmark.csv"
-    save_spec(spec, spec_path)
+    save_spec(spec, path=spec_path)
 
     json_result = _run_cli(
         "benchmark",

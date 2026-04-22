@@ -25,7 +25,7 @@ Saved JSON files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 1,
   "network": {
     "...": "..."
   }
@@ -33,8 +33,8 @@ Saved JSON files use a schema wrapper:
 ```
 
 The wrapper lets the package reject unsupported file versions clearly instead
-of guessing how to load them. New saves use schema version `6`, and older
-schema version `5` and `4` files still load for backward compatibility.
+of guessing how to load them. New saves use schema version `1`, which is the
+current canonical payload shape for this release.
 
 ## NetworkSpec
 

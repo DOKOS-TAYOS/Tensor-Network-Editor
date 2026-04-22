@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tensor_network_editor.codegen.common import prepare_network
+from tensor_network_editor.codegen.shared.common import prepare_network
 from tensor_network_editor.internal.analysis._contraction_analysis import (
     analyze_contraction,
 )

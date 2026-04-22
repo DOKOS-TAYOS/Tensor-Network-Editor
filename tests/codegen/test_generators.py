@@ -5,8 +5,10 @@ from unittest.mock import patch
 
 import pytest
 
-from tensor_network_editor.api import generate_code
-from tensor_network_editor.codegen.common import render_remaining_operands_mapping
+from tensor_network_editor import generate_code
+from tensor_network_editor.codegen.shared.common import (
+    render_remaining_operands_mapping,
+)
 from tensor_network_editor.errors import CodeGenerationError
 from tensor_network_editor.models import (
     CanvasPosition,

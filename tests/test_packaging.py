@@ -128,33 +128,58 @@ import tensor_network_editor as tne
 
 before = {
     "analysis": "tensor_network_editor.analysis" in sys.modules,
-    "api": "tensor_network_editor.api" in sys.modules,
+    "editor": "tensor_network_editor.editor" in sys.modules,
+    "io": "tensor_network_editor.io" in sys.modules,
+    "public_codegen": "tensor_network_editor._public_codegen" in sys.modules,
     "templates": "tensor_network_editor.templates" in sys.modules,
-    "diffing": "tensor_network_editor.diffing" in sys.modules,
     "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
     "linting": "tensor_network_editor.linting" in sys.modules,
 }
 _ = tne.generate_code
 after_generate = {
     "analysis": "tensor_network_editor.analysis" in sys.modules,
-    "api": "tensor_network_editor.api" in sys.modules,
+    "editor": "tensor_network_editor.editor" in sys.modules,
+    "io": "tensor_network_editor.io" in sys.modules,
+    "public_codegen": "tensor_network_editor._public_codegen" in sys.modules,
     "templates": "tensor_network_editor.templates" in sys.modules,
-    "diffing": "tensor_network_editor.diffing" in sys.modules,
+    "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
+    "linting": "tensor_network_editor.linting" in sys.modules,
+}
+_ = tne.open_editor
+after_editor = {
+    "analysis": "tensor_network_editor.analysis" in sys.modules,
+    "editor": "tensor_network_editor.editor" in sys.modules,
+    "io": "tensor_network_editor.io" in sys.modules,
+    "public_codegen": "tensor_network_editor._public_codegen" in sys.modules,
+    "templates": "tensor_network_editor.templates" in sys.modules,
+    "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
+    "linting": "tensor_network_editor.linting" in sys.modules,
+}
+_ = tne.load_spec
+after_io = {
+    "analysis": "tensor_network_editor.analysis" in sys.modules,
+    "editor": "tensor_network_editor.editor" in sys.modules,
+    "io": "tensor_network_editor.io" in sys.modules,
+    "public_codegen": "tensor_network_editor._public_codegen" in sys.modules,
+    "templates": "tensor_network_editor.templates" in sys.modules,
     "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
     "linting": "tensor_network_editor.linting" in sys.modules,
 }
 _ = tne.analyze_spec
 after_analysis = {
     "analysis": "tensor_network_editor.analysis" in sys.modules,
-    "api": "tensor_network_editor.api" in sys.modules,
+    "editor": "tensor_network_editor.editor" in sys.modules,
+    "io": "tensor_network_editor.io" in sys.modules,
+    "public_codegen": "tensor_network_editor._public_codegen" in sys.modules,
     "templates": "tensor_network_editor.templates" in sys.modules,
-    "diffing": "tensor_network_editor.diffing" in sys.modules,
     "canonicalization": "tensor_network_editor.canonicalization" in sys.modules,
     "linting": "tensor_network_editor.linting" in sys.modules,
 }
 print(json.dumps({
     "before": before,
     "after_generate": after_generate,
+    "after_editor": after_editor,
+    "after_io": after_io,
     "after_analysis": after_analysis,
 }))
 """
@@ -171,12 +196,17 @@ print(json.dumps({
     payload = json.loads(result.stdout)
     assert payload["before"] == {
         "analysis": False,
-        "api": False,
+        "editor": False,
+        "io": False,
+        "public_codegen": False,
         "templates": False,
-        "diffing": False,
         "canonicalization": False,
         "linting": False,
     }
-    assert payload["after_generate"]["api"] is True
+    assert payload["after_generate"]["public_codegen"] is True
     assert payload["after_generate"]["analysis"] is False
+    assert payload["after_editor"]["editor"] is True
+    assert payload["after_editor"]["analysis"] is False
+    assert payload["after_io"]["io"] is True
+    assert payload["after_io"]["analysis"] is False
     assert payload["after_analysis"]["analysis"] is True

@@ -110,11 +110,11 @@ The JSON design and the generated Python code serve different purposes:
 The editor can be launched from Python:
 
 ```python
-from tensor_network_editor import launch_tensor_network_editor
+from tensor_network_editor import open_editor
 
 
 def main() -> None:
-    result = launch_tensor_network_editor()
+    result = open_editor()
     if result is None:
         print("Editor cancelled.")
         return
@@ -135,7 +135,7 @@ from tensor_network_editor import EngineName, generate_code, load_spec, save_spe
 
 
 spec = load_spec("my_network.json")
-save_spec(spec, "copy_of_my_network.json")
+save_spec(spec, path="copy_of_my_network.json")
 
 result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
 print(result.code)

@@ -35,7 +35,10 @@ Then open the printed local URL manually.
 From Python, browser opening is controlled with:
 
 ```python
-launch_tensor_network_editor(open_browser=True)
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
+
+
+open_editor(options=EditorLaunchOptions(open_browser=True))
 ```
 
 Some terminals, remote sessions, and locked-down environments block automatic
@@ -191,17 +194,16 @@ Saved designs use this wrapper:
 
 ```json
 {
-  "schema_version": 6,
+  "schema_version": 1,
   "network": {
     "...": "..."
   }
 }
 ```
 
-New saves use schema version `6`, and schema version `5` plus `4` designs are
-still accepted for backward compatibility. If the schema version is otherwise
-different, `load_spec(...)` rejects the file clearly. This is safer than
-guessing how to interpret an unknown file shape.
+Saved designs now use schema version `1`. Older schema numbers such as `4`,
+`5`, and `6` are rejected on purpose so the loader does not silently guess how
+to interpret an outdated file shape.
 
 ## Validation Errors
 
@@ -232,11 +234,14 @@ Validation catches hard errors. Linting reports softer warnings and suggestions.
 The package can load supported generated Python exports:
 
 ```python
-from tensor_network_editor import load_spec, load_spec_from_python_code
+from tensor_network_editor import PythonLoadOptions, load_python_spec, load_spec
 
 
 spec_from_file = load_spec("generated_network.py")
-spec_from_text = load_spec_from_python_code(generated_source)
+spec_from_text = load_python_spec(
+    generated_source,
+    python=PythonLoadOptions(),
+)
 ```
 
 This is intentionally limited to source produced by this package. It is not a

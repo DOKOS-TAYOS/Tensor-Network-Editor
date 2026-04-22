@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 
-from tensor_network_editor.codegen.common import (
+from tensor_network_editor.codegen.shared.common import (
     group_tensors_by_visual_rows,
     make_unique_identifiers,
     prepare_network,

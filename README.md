@@ -105,11 +105,11 @@ tensor-network-editor benchmark my_network.json --dtype float32 --format csv --o
 Use the editor from Python:
 
 ```python
-from tensor_network_editor import launch_tensor_network_editor
+from tensor_network_editor import open_editor
 
 
 def main() -> None:
-    result = launch_tensor_network_editor()
+    result = open_editor()
     if result is None:
         print("Editor cancelled.")
         return
@@ -137,13 +137,15 @@ print(result.code)
 Load a live `quimb` or `tensornetwork` object from Python source:
 
 ```python
-from tensor_network_editor import load_spec_from_python_code
+from tensor_network_editor import PythonLoadOptions, load_python_spec
 
 
-spec = load_spec_from_python_code(
+spec = load_python_spec(
     python_source,
-    python_import_mode="live",
-    python_object_name="network",
+    python=PythonLoadOptions(
+        import_mode="live",
+        object_name="network",
+    ),
 )
 ```
 
@@ -153,7 +155,7 @@ possible, and falls back to `python_object_name` when several compatible
 globals exist.
 
 Python imports also expose an explicit reconstruction contract through
-`python_reconstruction_level="auto" | "simple" | "best_available"`:
+`PythonLoadOptions(reconstruction_level="auto" | "simple" | "best_available")`:
 
 - `auto` keeps the richest supported result for the selected profile
 - `generated` resolves `auto` to `best_available`, which preserves supported
@@ -188,7 +190,7 @@ Python imports also expose an explicit reconstruction contract through
   explicit live-import mode for `quimb` and `tensornetwork`, but that mode
   still does not recover editor layout/groups/notes, rebuild manual
   contraction plans, or load periodic-mode Python back into editable specs.
-- `python_reconstruction_level="best_available"` is currently only supported
+- `PythonLoadOptions(reconstruction_level="best_available")` is currently only supported
   for the package's own `generated` Python profile. External static profiles
   and live imports use the portable `simple` reconstruction contract instead.
 - Browser-based live import from the editor works best for self-contained

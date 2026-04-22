@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from tensor_network_editor.cli import build_command_parser, main
-from tensor_network_editor.diffing import DiffEntityChanges, SpecDiffResult
+from tensor_network_editor.editor import EditorLaunchOptions
 from tensor_network_editor.internal.analysis._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     AutomaticContractionSummary,
@@ -24,10 +24,6 @@ from tensor_network_editor.internal.cli._cli_formatters import (
     _format_label_list,
     _format_shape,
 )
-from tensor_network_editor.internal.io._serialization import (
-    SCHEMA_VERSION,
-    serialize_spec,
-)
 from tensor_network_editor.internal.models._headless_models import (
     NetworkSummary,
     SemanticDiffEntry,
@@ -35,8 +31,15 @@ from tensor_network_editor.internal.models._headless_models import (
     SemanticSpecDiffResult,
     SpecAnalysisReport,
 )
+from tensor_network_editor.io import SCHEMA_VERSION, PythonLoadOptions, serialize_spec
 from tensor_network_editor.linting import LintIssue, LintReport
-from tensor_network_editor.models import EngineName, NetworkSpec, ValidationIssue
+from tensor_network_editor.models import (
+    DiffEntityChanges,
+    EngineName,
+    NetworkSpec,
+    SpecDiffResult,
+    ValidationIssue,
+)
 from tests.factories import build_sample_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -132,11 +135,11 @@ def build_analysis_report(memory_dtype: str = "float64") -> SpecAnalysisReport:
 
 
 def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
-    with patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
         exit_code = main([])
 
     assert exit_code == 2
-    launch_mock.assert_not_called()
+    open_editor_mock.assert_not_called()
     assert "the following arguments are required: command" in capsys.readouterr().err
 
 
@@ -200,18 +203,14 @@ def test_format_label_list_accepts_list_sequences() -> None:
 
 
 def test_edit_subcommand_uses_expected_defaults() -> None:
-    with patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
         exit_code = main(["edit"])
 
     assert exit_code == 0
-    launch_mock.assert_called_once()
-    assert launch_mock.call_args.kwargs == {
-        "initial_spec": None,
-        "default_engine": EngineName.TENSORKROWCH,
-        "open_browser": True,
-        "print_code": False,
-        "code_path": None,
-    }
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(),
+    )
 
 
 def test_edit_subcommand_passes_live_python_import_options(
@@ -221,7 +220,7 @@ def test_edit_subcommand_passes_live_python_import_options(
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec
         ) as load_mock,
-        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+        patch("tensor_network_editor.cli.open_editor") as open_editor_mock,
     ):
         exit_code = main(
             [
@@ -241,11 +240,24 @@ def test_edit_subcommand_passes_live_python_import_options(
     assert exit_code == 0
     load_mock.assert_called_once_with(
         "saved-network.py",
-        python_import_mode="live",
-        python_reconstruction_level="simple",
-        python_object_name="network",
+        python=PythonLoadOptions(
+            import_mode="live",
+            reconstruction_level="simple",
+            object_name="network",
+        ),
     )
-    assert launch_mock.call_args.kwargs["initial_spec"] is sample_spec
+    open_editor_mock.assert_called_once_with(
+        spec=sample_spec,
+        options=EditorLaunchOptions(
+            open_browser=False,
+            template_catalog_path=Path("saved-network.py").resolve().parent
+            / ".tensor-network-editor"
+            / "templates.json",
+            subnetwork_catalog_path=Path("saved-network.py").resolve().parent
+            / ".tensor-network-editor"
+            / "subnetworks.json",
+        ),
+    )
 
 
 def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> None:
@@ -253,7 +265,7 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec
         ) as load_mock,
-        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+        patch("tensor_network_editor.cli.open_editor") as open_editor_mock,
     ):
         exit_code = main(
             [
@@ -271,20 +283,21 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
 
     assert exit_code == 0
     load_mock.assert_called_once_with("saved-network.json")
-    launch_mock.assert_called_once()
-    assert launch_mock.call_args.kwargs == {
-        "initial_spec": sample_spec,
-        "default_engine": EngineName.EINSUM_NUMPY,
-        "open_browser": False,
-        "print_code": True,
-        "code_path": Path("saved-network.json").resolve().parent / "generated.py",
-        "template_catalog_path": Path("saved-network.json").resolve().parent
-        / ".tensor-network-editor"
-        / "templates.json",
-        "subnetwork_catalog_path": Path("saved-network.json").resolve().parent
-        / ".tensor-network-editor"
-        / "subnetworks.json",
-    }
+    open_editor_mock.assert_called_once_with(
+        spec=sample_spec,
+        options=EditorLaunchOptions(
+            default_engine=EngineName.EINSUM_NUMPY,
+            open_browser=False,
+            print_code=True,
+            code_path=Path("saved-network.json").resolve().parent / "generated.py",
+            template_catalog_path=Path("saved-network.json").resolve().parent
+            / ".tensor-network-editor"
+            / "templates.json",
+            subnetwork_catalog_path=Path("saved-network.json").resolve().parent
+            / ".tensor-network-editor"
+            / "subnetworks.json",
+        ),
+    )
 
 
 def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
@@ -299,16 +312,18 @@ def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec
         ) as load_mock,
-        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+        patch("tensor_network_editor.cli.open_editor") as open_editor_mock,
     ):
         exit_code = main(["edit", "--load", str(design_path), "--no-browser"])
 
     assert exit_code == 0
     load_mock.assert_called_once_with(str(design_path))
-    assert launch_mock.call_args.kwargs["template_catalog_path"] == (
+    options = open_editor_mock.call_args.kwargs["options"]
+    assert isinstance(options, EditorLaunchOptions)
+    assert options.template_catalog_path == (
         design_path.parent / ".tensor-network-editor" / "templates.json"
     )
-    assert launch_mock.call_args.kwargs["subnetwork_catalog_path"] == (
+    assert options.subnetwork_catalog_path == (
         design_path.parent / ".tensor-network-editor" / "subnetworks.json"
     )
 
@@ -325,7 +340,7 @@ def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec
         ) as load_mock,
-        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+        patch("tensor_network_editor.cli.open_editor") as open_editor_mock,
     ):
         exit_code = main(
             [
@@ -340,20 +355,20 @@ def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
 
     assert exit_code == 0
     load_mock.assert_called_once_with(str(design_path))
-    assert (
-        launch_mock.call_args.kwargs["code_path"] == design_path.parent / "generated.py"
-    )
+    options = open_editor_mock.call_args.kwargs["options"]
+    assert isinstance(options, EditorLaunchOptions)
+    assert options.code_path == design_path.parent / "generated.py"
 
 
 def test_main_returns_130_on_keyboard_interrupt() -> None:
     with patch(
-        "tensor_network_editor.cli.launch_tensor_network_editor",
+        "tensor_network_editor.cli.open_editor",
         side_effect=KeyboardInterrupt,
-    ) as launch_mock:
+    ) as open_editor_mock:
         exit_code = main(["edit"])
 
     assert exit_code == 130
-    launch_mock.assert_called_once()
+    open_editor_mock.assert_called_once()
 
 
 def test_edit_subcommand_loads_initial_spec(sample_spec: NetworkSpec) -> None:
@@ -361,20 +376,22 @@ def test_edit_subcommand_loads_initial_spec(sample_spec: NetworkSpec) -> None:
         patch(
             "tensor_network_editor.cli.load_spec", return_value=sample_spec
         ) as load_mock,
-        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+        patch("tensor_network_editor.cli.open_editor") as open_editor_mock,
     ):
         exit_code = main(["edit", "--load", "saved-network.json", "--no-browser"])
 
     assert exit_code == 0
     load_mock.assert_called_once_with("saved-network.json")
-    assert launch_mock.call_args.kwargs["initial_spec"] is sample_spec
-    assert launch_mock.call_args.kwargs["open_browser"] is False
-    assert launch_mock.call_args.kwargs["template_catalog_path"] == (
+    assert open_editor_mock.call_args.kwargs["spec"] is sample_spec
+    options = open_editor_mock.call_args.kwargs["options"]
+    assert isinstance(options, EditorLaunchOptions)
+    assert options.open_browser is False
+    assert options.template_catalog_path == (
         Path("saved-network.json").resolve().parent
         / ".tensor-network-editor"
         / "templates.json"
     )
-    assert launch_mock.call_args.kwargs["subnetwork_catalog_path"] == (
+    assert options.subnetwork_catalog_path == (
         Path("saved-network.json").resolve().parent
         / ".tensor-network-editor"
         / "subnetworks.json"
@@ -556,7 +573,7 @@ def test_export_subcommand_calls_generate_code_with_requested_output(
     assert exit_code == 0
     load_mock.assert_called_once_with("saved-network.json")
     generate_mock.assert_called_once()
-    assert generate_mock.call_args.kwargs["path"] == "generated.py"
+    assert generate_mock.call_args.kwargs["output_path"] == "generated.py"
     assert generate_mock.call_args.kwargs["print_code"] is False
 
 
@@ -704,7 +721,7 @@ def test_canonicalize_subcommand_writes_output(
     assert exit_code == 0
     load_mock.assert_called_once_with("before.json")
     canonicalize_mock.assert_called_once_with(sample_spec, deterministic_ids=True)
-    save_mock.assert_called_once_with(canonical_spec, "canonical.json")
+    save_mock.assert_called_once_with(canonical_spec, path="canonical.json")
 
 
 def test_template_list_subcommand_preserves_json_and_text_output_formats(

@@ -4,25 +4,24 @@ from importlib import import_module
 from typing import cast
 from unittest.mock import patch
 
+import pytest
+
 import tensor_network_editor as tne
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
 from tensor_network_editor.canonicalization import canonicalize_spec
-from tensor_network_editor.diffing import (
+from tensor_network_editor.linting import lint_spec
+from tensor_network_editor.models import (
     DiffEntityChanges,
-    SpecDiffResult,
-    diff_specs,
-    semantic_diff_specs,
-)
-from tensor_network_editor.internal.models._headless_models import (
+    LintIssue,
+    LintReport,
     SemanticDiffEntry,
     SemanticFieldChange,
     SemanticSpecDiffResult,
+    SpecDiffResult,
 )
-from tensor_network_editor.linting import LintIssue, LintReport, lint_spec
 from tensor_network_editor.templates import (
     build_template_spec,
     list_template_names,
-    register_static_template,
 )
 from tensor_network_editor.types import JSONValue
 from tests.factories import (
@@ -38,11 +37,11 @@ def test_package_root_exports_headless_entry_points() -> None:
     assert tne.analyze_contraction is analyze_contraction
     assert tne.canonicalize_spec is canonicalize_spec
     assert tne.lint_spec is lint_spec
-    assert tne.diff_specs is diff_specs
-    assert tne.semantic_diff_specs is semantic_diff_specs
+    assert callable(tne.diff_specs)
+    assert callable(tne.semantic_diff_specs)
     assert tne.build_template_spec is build_template_spec
     assert tne.list_template_names is list_template_names
-    assert tne.register_static_template is register_static_template
+    assert not hasattr(tne, "register_static_template")
 
 
 def test_lint_models_preserve_public_payload_shape() -> None:
@@ -249,7 +248,7 @@ def test_diff_specs_compares_entities_by_stable_ids() -> None:
     after.groups.clear()
     after.notes[0].text = "Updated note"
 
-    result = diff_specs(before, after)
+    result = tne.diff_specs(before, after)
 
     assert result.tensor.changed == ["tensor_a"]
     assert result.group.removed == ["group_demo"]
@@ -260,16 +259,21 @@ def test_list_template_names_is_available_from_public_templates_module() -> None
     assert list_template_names() == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
 
 
-def test_prepared_network_helpers_move_to_internal_analysis_module() -> None:
-    prepared_network_module = import_module(
-        "tensor_network_editor.internal.analysis._prepared_network"
-    )
-    compatibility_module = import_module("tensor_network_editor.codegen.common")
+def test_removed_compatibility_modules_are_not_importable() -> None:
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.api")
 
-    assert (
-        compatibility_module.prepare_analyzed_network
-        is prepared_network_module.prepare_analyzed_network
-    )
-    assert (
-        compatibility_module.PreparedNetwork is prepared_network_module.PreparedNetwork
-    )
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.serialization")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.diffing")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.codegen.common")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.codegen.base")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.codegen.einsum")

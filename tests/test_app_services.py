@@ -5,7 +5,7 @@ from typing import cast
 from unittest.mock import patch
 
 import tensor_network_editor.app._services as app_services_module
-import tensor_network_editor.codegen.einsum as einsum_codegen_module
+import tensor_network_editor.codegen.backends.einsum as einsum_codegen_module
 import tensor_network_editor.internal.analysis._contraction_analysis as contraction_analysis_module
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app._services import (
@@ -17,9 +17,9 @@ from tensor_network_editor.app._services import (
 )
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.codegen.registry import engine_name_to_text
+from tensor_network_editor.io import SCHEMA_VERSION
 from tensor_network_editor.models import CodegenResult, EditorResult, NetworkSpec
 from tensor_network_editor.models import EngineName as SessionEngineName
-from tensor_network_editor.serialization import SCHEMA_VERSION
 from tests.factories import (
     build_grid_periodic_grid_spec,
     build_linear_periodic_chain_spec,

@@ -10,20 +10,16 @@ from urllib.parse import urlparse
 
 import pytest
 
+from tensor_network_editor import generate_code
 from tensor_network_editor.analysis import analyze_contraction
-from tensor_network_editor.api import generate_code
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.errors import PackageIOError
+from tensor_network_editor.io import SCHEMA_VERSION
+from tensor_network_editor.io import deserialize_spec as deserialize_spec_impl
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
-from tensor_network_editor.serialization import (
-    SCHEMA_VERSION,
-)
-from tensor_network_editor.serialization import (
-    deserialize_spec as deserialize_spec_impl,
-)
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
     build_linear_periodic_carry_chain_spec,
@@ -258,15 +254,17 @@ def test_validate_route_rejects_non_object_json_payload_with_400(
     assert payload == {"ok": False, "message": "Expected a JSON object payload."}
 
 
+@pytest.mark.parametrize("legacy_schema_version", [4, 5, 6])
 def test_validate_route_rejects_legacy_schema_versions(
     editor_server: EditorServer,
+    legacy_schema_version: int,
 ) -> None:
     status, payload = request_json_with_status(
         f"{editor_server.base_url}/api/validate",
         method="POST",
         payload={
             "spec": {
-                "schema_version": 1,
+                "schema_version": legacy_schema_version,
                 "network": build_sample_spec().to_dict(),
             }
         },
