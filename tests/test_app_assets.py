@@ -740,6 +740,9 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
     css_body = request_text(f"{editor_server.base_url}/app.css")
     dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
     sidebar_body = request_text(f"{editor_server.base_url}/js/core/sidebarTabs.js")
+    sidebar_toggle_start = css_body.index(".sidebar-toggle-button {")
+    sidebar_toggle_end = css_body.index(".sidebar-toggle-button svg {")
+    sidebar_toggle_block = css_body[sidebar_toggle_start:sidebar_toggle_end]
 
     assert 'id="sidebar-resize-handle"' in html
     assert 'class="sidebar-toggle-icon"' in html
@@ -748,6 +751,7 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
     assert "--sidebar-width: 360px;" in css_body
     assert ".sidebar-resize-handle {" in css_body
     assert ".sidebar-toggle-button {" in css_body
+    assert "background: #000;" in sidebar_toggle_block
     assert "height: 2.5rem;" in css_body
     assert "align-self: center;" in css_body
     assert ".sidebar-toggle-button svg {" in css_body
@@ -1435,6 +1439,11 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
         'data-shortcut-description="Remove all manual steps from the current contraction path."'
         in planner_body
     )
+    assert re.search(
+        r'id="planner-reset-button"[^>]*data-tooltip-enabled="true"',
+        planner_body,
+        re.DOTALL,
+    )
     assert 'title="Reset path"' not in planner_body
     assert 'data-shortcut-label="Code generation warning"' in html
     assert 'data-shortcut-label="Template warnings"' in html
@@ -1490,23 +1499,10 @@ def test_button_assets_apply_semantic_action_color_families(
     ):
         assert_button_class(html, button_id, "button-accent-insert")
 
-    for button_id in (
-        "save-button",
-        "export-python-menu-item",
-        "export-png-menu-item",
-        "export-svg-menu-item",
-        "generate-button",
-        "template-manager-save-button",
-    ):
+    for button_id in ("generate-button", "template-manager-save-button"):
         assert_button_class(html, button_id, "button-accent-positive")
 
     for button_id in (
-        "save-session-template-menu-item",
-        "save-subnetwork-library-menu-item",
-        "load-session-template-menu-item",
-        "export-session-template-menu-item",
-        "edit-session-template-menu-item",
-        "open-subnetwork-library-menu-item",
         "subnetwork-library-add-selected-button",
         "template-settings-button",
     ):
@@ -1587,12 +1583,61 @@ def test_button_assets_apply_semantic_action_color_families(
     assert 'class="button-accent-contraction${isPreviewing ? " is-active" : ""}"' in (
         planner_automatic_body
     )
-    assert 'class="button-accent-contraction"' in planner_automatic_body
+    assert 'class="button-accent-positive"' in planner_automatic_body
     assert (
         'class="planner-trim-button button-accent-contraction"' in planner_manual_body
     )
 
     assert 'renameButton.className = "button-accent-template";' in library_body
+
+
+def test_top_toolbar_menu_items_keep_neutral_surface_style(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    top_menu_button_ids = (
+        "save-button",
+        "export-python-menu-item",
+        "export-png-menu-item",
+        "export-svg-menu-item",
+        "save-session-template-menu-item",
+        "save-subnetwork-library-menu-item",
+        "load-session-template-menu-item",
+        "export-session-template-menu-item",
+        "edit-session-template-menu-item",
+        "open-subnetwork-library-menu-item",
+    )
+
+    for button_id in top_menu_button_ids:
+        assert not re.search(
+            rf'id="{re.escape(button_id)}"[^>]*class="[^"]*button-accent-',
+            html,
+            re.DOTALL,
+        ), (
+            f"Expected top toolbar menu item {button_id!r} to keep the neutral menu style."
+        )
+
+
+def test_planner_comparison_assets_color_improvements_and_regressions(
+    editor_server: EditorServer,
+) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+    planner_common_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersCommon.js"
+    )
+    tooltip_body = request_text(f"{editor_server.base_url}/js/shell/shortcutTooltip.js")
+
+    assert "planner-chip-value-better" in planner_common_body
+    assert "planner-chip-value-worse" in planner_common_body
+    assert ".planner-chip-value-better {" in css_body
+    assert ".planner-chip-value-worse {" in css_body
+    assert "shortcut-tooltip-description-line" in tooltip_body
+    assert "shortcut-tooltip-metric-value-better" in tooltip_body
+    assert "shortcut-tooltip-metric-value-worse" in tooltip_body
+    assert ".shortcut-tooltip-description-line {" in css_body
+    assert ".shortcut-tooltip-metric-value-better {" in css_body
+    assert ".shortcut-tooltip-metric-value-worse {" in css_body
 
 
 def test_ui_utility_assets_route_panels_generated_code_toolbar_and_status_through_helpers(

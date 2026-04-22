@@ -1445,6 +1445,10 @@ select {
   justify-content: center;
   align-self: center;
   font-weight: 700;
+  background: #000;
+  border-color: rgba(132, 143, 167, 0.44);
+  color: var(--ink);
+  --button-hover-bg: #000;
 }
 
 .sidebar-toggle-button svg {
@@ -1587,6 +1591,18 @@ select {
 .planner-chip span {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.planner-chip-value {
+  color: var(--ink);
+}
+
+.planner-chip-value-better {
+  color: var(--positive);
+}
+
+.planner-chip-value-worse {
+  color: var(--danger);
 }
 
 .planner-chip-label {
@@ -1952,9 +1968,37 @@ select {
 }
 
 .shortcut-tooltip-description {
+  display: grid;
+  gap: 0.18rem;
   color: var(--muted);
   line-height: 1.35;
   white-space: pre-line;
+}
+
+.shortcut-tooltip-description-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.55rem;
+  white-space: normal;
+}
+
+.shortcut-tooltip-description-label {
+  min-width: 0;
+}
+
+.shortcut-tooltip-metric-value {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shortcut-tooltip-metric-value-better {
+  color: var(--positive);
+}
+
+.shortcut-tooltip-metric-value-worse {
+  color: var(--danger);
 }
 
 #group-layer {

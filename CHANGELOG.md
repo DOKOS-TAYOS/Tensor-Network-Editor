@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The planner reset button now opts into the shared shortcut hover, planner comparisons color automatic improvements in green and regressions in red both in the panel and in auto-past hover summaries, `Accept` actions use the positive green styling, the sidebar collapse toggle uses a solid black background for stronger contrast, and the top toolbar dropdown entries are back to the neutral menu styling instead of semantic accent colors.
 - The planner now keeps `Auto past` visible without the redundant unlock helper text before the first manual contraction, auto-past comparison tooltips render as a compact four-line `FLOP` / `MAC` / `Peak` / `Peak Memory` summary, tensor value controls are now shown inline under `Initialization`, and `For`-mode boundary tensors expose only informational, color, and metadata controls instead of structural index editing actions.
 - Editor action buttons now follow a clearer semantic color palette: add/create actions reuse the tensor-insert cyan, delete/trash actions stay red, template/library actions use a light yellow, contraction/planner actions use orange, and save/generate/export actions use green where they fit best.
 - The guided public API is now centered on `open_editor`, `load_python_spec`, `tensor_network_editor.editor`, and `tensor_network_editor.io`; compatibility-only root exports and wrapper modules such as `api`, `serialization`, `diffing`, and legacy `codegen.*` re-export shims have been removed.

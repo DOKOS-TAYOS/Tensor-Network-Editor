@@ -134,6 +134,46 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
       .replaceAll("'", "&#39;");
   }
 
+  function getMetricValueToneClass(value) {
+    if (typeof value !== "string" || !value) {
+      return "";
+    }
+    if (value.startsWith("-")) {
+      return " shortcut-tooltip-metric-value-better";
+    }
+    if (value.startsWith("+")) {
+      return " shortcut-tooltip-metric-value-worse";
+    }
+    return "";
+  }
+
+  function buildTooltipDescriptionLineMarkup(line) {
+    const text = String(line || "");
+    const metricMatch = text.match(/^(.*?)([+-]\d[\d,]*(?: bytes)?)$/);
+    if (!metricMatch) {
+      return `<span class="shortcut-tooltip-description-line">${escapeTooltipText(
+        text
+      )}</span>`;
+    }
+    const label = metricMatch[1].trimEnd();
+    const value = metricMatch[2];
+    return `
+      <span class="shortcut-tooltip-description-line">
+        <span class="shortcut-tooltip-description-label">${escapeTooltipText(label)}</span>
+        <span class="shortcut-tooltip-metric-value${getMetricValueToneClass(value)}">${escapeTooltipText(
+          value
+        )}</span>
+      </span>
+    `;
+  }
+
+  function buildTooltipDescriptionMarkup(description) {
+    return String(description)
+      .split("\n")
+      .map((line) => buildTooltipDescriptionLineMarkup(line))
+      .join("");
+  }
+
   function buildTooltipMarkup(button) {
     const label = button.dataset.shortcutLabel || String(button.textContent || "").trim();
     const shortcut = button.dataset.shortcut || "";
@@ -157,7 +197,9 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
     }
     if (description) {
       sections.push(
-        `<span class="shortcut-tooltip-description">${escapeTooltipText(description)}</span>`
+        `<span class="shortcut-tooltip-description">${buildTooltipDescriptionMarkup(
+          description
+        )}</span>`
       );
     }
     return sections.join("");

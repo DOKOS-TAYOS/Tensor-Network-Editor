@@ -19,6 +19,14 @@ export function createPlannerAutomaticRendererSupport({
     );
   }
 
+  function getComparisonValueTone(value) {
+    const numericValue = Number(value || 0);
+    if (!Number.isFinite(numericValue) || numericValue === 0) {
+      return "";
+    }
+    return numericValue < 0 ? "better" : "worse";
+  }
+
   function renderComparisonBody(comparison, options = {}) {
     if (!comparison) {
       return "";
@@ -44,24 +52,28 @@ export function createPlannerAutomaticRendererSupport({
           value: formatSignedDelta(comparison.delta_total_estimated_flops),
           detail: "Auto - Manual",
           description: METRIC_DESCRIPTIONS.FLOP,
+          valueTone: getComparisonValueTone(comparison.delta_total_estimated_flops),
         },
         {
           label: "MAC",
           value: formatSignedDelta(comparison.delta_total_estimated_macs),
           detail: "Auto - Manual",
           description: METRIC_DESCRIPTIONS.MAC,
+          valueTone: getComparisonValueTone(comparison.delta_total_estimated_macs),
         },
         {
           label: "Peak",
           value: formatSignedDelta(comparison.delta_peak_intermediate_size),
           detail: "Auto - Manual",
           description: METRIC_DESCRIPTIONS.Peak,
+          valueTone: getComparisonValueTone(comparison.delta_peak_intermediate_size),
         },
         {
           label: "Memory",
           value: formatSignedDelta(comparison.delta_peak_intermediate_bytes, "bytes"),
           detail: "Auto - Manual",
           description: METRIC_DESCRIPTIONS.Memory,
+          valueTone: getComparisonValueTone(comparison.delta_peak_intermediate_bytes),
         },
       ])}
     `;
@@ -247,7 +259,7 @@ export function createPlannerAutomaticRendererSupport({
                     </button>
                     <button
                       type="button"
-                      class="button-accent-contraction"
+                      class="button-accent-positive"
                       data-accept-mode="${ctx.escapeHtml(mode)}"
                       data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
                       data-shortcut-label="Accept"

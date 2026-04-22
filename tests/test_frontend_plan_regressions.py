@@ -2082,19 +2082,25 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         if (!html.includes("planner-disclosure-state planner-disclosure-state-show")) {
           throw new Error(`Expected closed disclosures to render the pale Show state, received: ${html}`);
         }
-        if (!html.includes(">FLOP</span>") || !html.includes("<strong>-376</strong>")) {
+        if (
+          !html.includes(">FLOP</span>")
+          || !html.includes('<strong class="planner-chip-value planner-chip-value-better">-376</strong>')
+        ) {
           throw new Error(`Expected the FLOP comparison chip to render the raw delta, received: ${html}`);
         }
-        if (!html.includes(">Memory</span>") || !html.includes("<strong>-752 bytes</strong>")) {
+        if (
+          !html.includes(">Memory</span>")
+          || !html.includes('<strong class="planner-chip-value planner-chip-value-better">-752 bytes</strong>')
+        ) {
           throw new Error(`Expected the memory comparison chip to render the raw delta, received: ${html}`);
         }
-        if (!html.includes("<strong>800 bytes</strong>")) {
+        if (!html.includes('<strong class="planner-chip-value">800 bytes</strong>')) {
           throw new Error(`Expected the manual summary to include peak memory, received: ${html}`);
         }
-        if (!html.includes("<strong>112 bytes</strong>")) {
+        if (!html.includes('<strong class="planner-chip-value">112 bytes</strong>')) {
           throw new Error(`Expected the automatic future summary to include peak memory, received: ${html}`);
         }
-        if (!html.includes("<strong>96 bytes</strong>")) {
+        if (!html.includes('<strong class="planner-chip-value">96 bytes</strong>')) {
           throw new Error(`Expected the automatic past summary to include peak memory, received: ${html}`);
         }
 
@@ -3493,6 +3499,23 @@ def test_automatic_past_preview_badges_collapse_expand_and_expose_comparison_too
         ) {{
           throw new Error(
             `Expected the preview badge tooltip to summarize the auto-past comparison deltas, received ${{toggleBadge.dataset.shortcutDescription}}.`
+          );
+        }}
+        ctx.document.body.appendChild = (node) => {{
+          ctx.document.body.lastAppended = node;
+          return node;
+        }};
+        ctx.shortcutTooltip.showVirtualTooltip({{
+          label: toggleBadge.dataset.shortcutLabel,
+          description: toggleBadge.dataset.shortcutDescription,
+          rect: toggleBadge.getBoundingClientRect(),
+        }});
+        const tooltipMarkup = ctx.document.body.lastAppended
+          ? ctx.document.body.lastAppended.innerHTML
+          : "";
+        if (!tooltipMarkup.includes("shortcut-tooltip-metric-value-better")) {{
+          throw new Error(
+            `Expected auto-past hover markup to color better comparison deltas, received ${{tooltipMarkup}}.`
           );
         }}
 

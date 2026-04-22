@@ -64,6 +64,17 @@ export function createPlannerRendererCommonSupport({ ctx }) {
     `;
   }
 
+  function getPlannerChipValueClass(valueTone = "") {
+    switch (valueTone) {
+      case "better":
+        return "planner-chip-value planner-chip-value-better";
+      case "worse":
+        return "planner-chip-value planner-chip-value-worse";
+      default:
+        return "planner-chip-value";
+    }
+  }
+
   function renderMetricChips(items) {
     return `
       <div class="planner-chip-grid">
@@ -72,7 +83,9 @@ export function createPlannerRendererCommonSupport({ ctx }) {
             (item) => `
               <div class="planner-chip">
                 ${renderMetricLabel(item.label, item.description)}
-                <strong>${ctx.escapeHtml(String(item.value))}</strong>
+                <strong class="${getPlannerChipValueClass(item.valueTone)}">${ctx.escapeHtml(
+                  String(item.value)
+                )}</strong>
                 ${
                   item.detail
                     ? `<small class="planner-chip-detail">${ctx.escapeHtml(String(item.detail))}</small>`

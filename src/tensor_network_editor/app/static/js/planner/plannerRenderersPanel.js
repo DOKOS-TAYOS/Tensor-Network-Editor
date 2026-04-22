@@ -134,12 +134,13 @@ export function createPlannerPanelRendererSupport({
         >
           Contract
         </button>
-          <button
-            id="planner-reset-button"
-            type="button"
+        <button
+          id="planner-reset-button"
+          type="button"
           class="icon-button planner-icon-button danger"
           data-shortcut="Shift+R"
           data-shortcut-label="Reset path"
+          data-tooltip-enabled="true"
           data-shortcut-description="Remove all manual steps from the current contraction path."
           aria-label="Reset path"
           disabled
@@ -188,6 +189,7 @@ export function createPlannerPanelRendererSupport({
           class="icon-button planner-icon-button danger"
           data-shortcut="Shift+R"
           data-shortcut-label="Reset path"
+          data-tooltip-enabled="true"
           data-shortcut-description="Remove all manual steps from the current contraction path."
           aria-label="Reset path"
           ${planSteps.length && !hasHyperedges ? "" : " disabled"}
