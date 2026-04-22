@@ -62,7 +62,7 @@ export function createUtilityUiPanelsSupport({
   const HELP_SECTION_CONTENT = {
     info: {
       title: "Info",
-      note: "How to use the editor.",
+      note: "Quick guide to the main editor workflows and current limits.",
     },
     shortcuts: {
       title: "Shortcuts",

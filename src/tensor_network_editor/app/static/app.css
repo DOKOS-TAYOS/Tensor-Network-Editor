@@ -742,6 +742,17 @@ select {
   -moz-appearance: none;
 }
 
+.tensor-data-mode-field::after {
+  top: 50%;
+}
+
+.tensor-data-mode-field select {
+  padding-right: 2.2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
 
 .template-number-field input {
   width: 6rem;

@@ -939,71 +939,54 @@
         </button>
         <div id="help-shared-header" class="help-dialog-header">
           <h2 id="help-title">Info</h2>
-          <p id="help-note" class="help-note">Use the menu to switch between Info, Shortcuts, and About.</p>
+          <p id="help-note" class="help-note">Quick guide to the main editor workflows and current limits.</p>
         </div>
 
         <div id="help-info-section" class="help-sections">
           <section class="help-section">
-            <h3>Navigation</h3>
+            <h3>What you can do</h3>
             <ul>
-              <li>Use <strong>Ctrl/Cmd + wheel</strong> or a pinch gesture to zoom.</li>
-              <li>Use the mouse wheel or trackpad without Ctrl/Cmd to pan the canvas.</li>
-              <li>Drag empty canvas space to move the view.</li>
-              <li>Use the minimap to recenter or drag the visible area.</li>
+              <li>Draw tensor networks, save reusable JSON designs, and generate Python for supported backends.</li>
+              <li>Keep notes, groups, metadata, colors, tensor values, and reusable subnetworks inside the same saved design.</li>
+              <li>Export clean figures as <strong>PNG</strong> or <strong>SVG</strong>, or keep working from generated code outside the editor.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Selection</h3>
+            <h3>Recommended workflow</h3>
             <ul>
-              <li>Left click selects one tensor, index, or connection.</li>
-              <li>Drag with <strong>right click</strong> to select many elements at once. Box selection also includes notes.</li>
-              <li>Use <strong>Ctrl/Cmd+C</strong> and <strong>Ctrl/Cmd+V</strong> to copy and paste a tensor subgraph.</li>
-              <li>Use <strong>Metadata filters</strong> in the Selection tab to highlight matching tensors or indices without hiding anything.</li>
+              <li>Start from an empty canvas, a built-in template, a saved JSON design, or imported generated Python.</li>
+              <li>Use <strong>Templates and Template settings</strong> to choose graph size and dimensions before inserting.</li>
+              <li>Arrange tensors on the canvas, then add metadata, notes, and tensor initialization only where they help your model.</li>
+              <li>Use <strong>Ctrl/Cmd + wheel</strong> to zoom, drag empty canvas space to pan, and use the minimap to re-center quickly.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Organize and edit</h3>
+            <h3>Useful tools</h3>
             <ul>
-              <li>Templates insert ready-to-edit network layouts with the expected open legs and bond structure.</li>
-              <li>Use <strong>Template settings</strong> to adjust the selected template before inserting it, and use the <strong>Templates</strong> menu to save, load, export, or edit your session templates.</li>
-              <li>Use <strong>Extract</strong> from the selection or group panel to save a reusable JSON fragment, then use <strong>Insert Subnetwork</strong> to bring it back with fresh ids.</li>
-              <li>Use <strong>Graph size</strong>, <strong>Bond dimension</strong>, and <strong>Physical dimension</strong> before inserting a template.</li>
-              <li><strong>Graph size</strong> means sites for MPS and MPO, side length for PEPS, and depth for MERA or Binary Tree.</li>
-              <li>Use <strong>F</strong> or <strong>Modes &gt; For unidimensional</strong> to switch into the three-cell chain workflow, then move between <strong>Initial</strong>, <strong>Periodic</strong>, and <strong>Final</strong> with the arrow buttons.</li>
-              <li>Choose the code engine that fits your workflow, including <strong>NumPy einsum</strong> and <strong>PyTorch einsum</strong>.</li>
-              <li>Drag one selected tensor to move all selected tensors together.</li>
-              <li>Use the Selection panel to align, distribute, or snap selected tensors to the grid.</li>
-              <li>Use the multi-selection panel to recolor or delete everything selected.</li>
-              <li>If only tensors are selected, you can add one default index to each tensor.</li>
-              <li>Resize tensors from the corner handles directly on the canvas.</li>
-              <li>Use <strong>Group</strong> to keep related tensors together and drag the group box as one block.</li>
-              <li>Notes can be moved, resized, collapsed, and expanded directly on the canvas, and they move together with other selected items.</li>
-              <li>Notes, groups, colors, and copied selections are all part of the saved design.</li>
+              <li><strong>Subnetwork library</strong> lets you save a selected fragment and reuse it later with fresh ids.</li>
+              <li><strong>Auto layout in Reflow</strong> can tidy the current selection or the whole graph after imports and edits.</li>
+              <li>Tensor Initialization lets you keep generated zeros, ones, fill values, or explicit JSON values per tensor.</li>
+              <li><strong>Metadata filters</strong> highlight matching tensors, indices, groups, notes, or hyperedges without hiding anything.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Metadata</h3>
+            <h3>Contraction and analysis</h3>
             <ul>
-              <li>Use <strong>Tags</strong> for short reusable labels such as physical, logical, symmetry names, or block ids.</li>
-              <li><strong>Metadata</strong> lets you keep reusable tags plus any custom JSON fields on tensors, indices, bonds, groups, notes, and the full network.</li>
-              <li>Leaving a guided annotation blank removes that key from metadata.</li>
-              <li><strong>Custom metadata (JSON)</strong> is still available for everything else, and it hides the guided keys so you do not edit the same value twice.</li>
-              <li>Filters only affect emphasis on the graph and the minimap. They do not change selection, saved files, or undo/redo history.</li>
+              <li>Use the planner to build a manual contraction path and compare it with <strong>Auto full, Auto future, and Auto past</strong>.</li>
+              <li><strong>Benchmark mode compares saved manual schemes</strong> against the automatic variants for the current design.</li>
+              <li>Preview and comparison rows help you see when an automatic proposal improves or worsens cost metrics before accepting it.</li>
             </ul>
           </section>
 
           <section class="help-section">
-            <h3>Connect and contract</h3>
+            <h3>Modes and current limits</h3>
             <ul>
-              <li>Activate <strong>Connect</strong> and click two open indices with the same dimension.</li>
-              <li>Activate <strong>Contract</strong> in the planner, then click tensors or previous steps to build a manual contraction path.</li>
-              <li><strong>Auto future</strong> plans the remaining visible operands, while <strong>Auto past</strong> replans the tensors that are already inside contracted results.</li>
-              <li>The preview buttons are toggles: pressing the same one again disables it, and opening another preview or a manual step closes the previous preview.</li>
-              <li>Export <strong>PNG</strong> for a clean image or <strong>SVG</strong> for a vector version.</li>
-              <li>Undo and redo affect the design, not the current zoom or viewport.</li>
+              <li><strong>Hyperedges are available in normal mode</strong> and behave like first-class graph elements.</li>
+              <li><strong>For unidimensional</strong>, <strong>For bidimensional</strong>, and <strong>For Tree</strong> help you model periodic families when you need them.</li>
+              <li>Planner editing and <strong>Benchmark mode</strong> are not available for designs with hyperedges, and advanced planner workflows remain centered on the normal mode flow.</li>
             </ul>
           </section>
         </div>

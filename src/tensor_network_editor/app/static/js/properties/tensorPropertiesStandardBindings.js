@@ -18,6 +18,57 @@ export function createStandardTensorPropertiesBindingSupport({
     analyzeTensorLiteralInput,
   } = dataSupport;
 
+  function bindListener(target, eventName, handler) {
+    if (!target || typeof target.addEventListener !== "function") {
+      return;
+    }
+    target.addEventListener(eventName, handler);
+  }
+
+  function readTensorDataModeChevronExpanded(fieldElement) {
+    if (!fieldElement) {
+      return false;
+    }
+    if (typeof fieldElement.getAttribute === "function") {
+      return fieldElement.getAttribute("data-expanded") === "true";
+    }
+    return fieldElement.attributes?.["data-expanded"] === "true";
+  }
+
+  function setTensorDataModeChevronExpanded(fieldElement, isExpanded) {
+    if (!fieldElement || typeof fieldElement.setAttribute !== "function") {
+      return;
+    }
+    fieldElement.setAttribute("data-expanded", String(Boolean(isExpanded)));
+  }
+
+  function bindTensorDataModeChevronDisclosure(fieldElement, selectElement) {
+    if (!fieldElement || !selectElement) {
+      return;
+    }
+    setTensorDataModeChevronExpanded(fieldElement, false);
+    bindListener(selectElement, "mousedown", () => {
+      setTensorDataModeChevronExpanded(
+        fieldElement,
+        !readTensorDataModeChevronExpanded(fieldElement)
+      );
+    });
+    bindListener(selectElement, "keydown", (event) => {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+        setTensorDataModeChevronExpanded(fieldElement, true);
+      }
+      if (["Escape", "Tab"].includes(event.key)) {
+        setTensorDataModeChevronExpanded(fieldElement, false);
+      }
+    });
+    bindListener(selectElement, "change", () => {
+      setTensorDataModeChevronExpanded(fieldElement, false);
+    });
+    bindListener(selectElement, "blur", () => {
+      setTensorDataModeChevronExpanded(fieldElement, false);
+    });
+  }
+
   function bindStandardTensorProperties(tensor) {
     const tensorShape = getTensorShape(tensor);
     const tensorDataMode = getTensorDataMode(tensor);
@@ -33,6 +84,7 @@ export function createStandardTensorPropertiesBindingSupport({
     const tensorCustomMetadataInput = document.getElementById(
       "tensor-custom-metadata-input"
     );
+    const tensorDataModeField = document.getElementById("tensor-data-mode-field");
     const tensorDataModeSelect = document.getElementById("tensor-data-mode-select");
     const tensorDataFillInput = document.getElementById("tensor-data-fill-input");
     const tensorDataValuesInput = document.getElementById("tensor-data-values-input");
@@ -109,11 +161,13 @@ export function createStandardTensorPropertiesBindingSupport({
       invalidate: propertyInvalidation(),
       annotationScope: "tensor",
     });
+    bindTensorDataModeChevronDisclosure(tensorDataModeField, tensorDataModeSelect);
     bindImmediateAutosave(
       tensorDataModeSelect,
       `tensor:${tensor.id}:tensor-data-mode`,
       () => {
         const nextMode = String(tensorDataModeSelect.value || "zeros");
+        setTensorDataModeChevronExpanded(tensorDataModeField, false);
         setTensorDataValidationMessage("");
         commands.updateTensorData({
           tensorId: tensor.id,

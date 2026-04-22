@@ -5778,13 +5778,27 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           };
         }
 
-        function createFakeElement(id = null, tagName = "div") {
+        function toDatasetKey(attributeName) {
+          return String(attributeName || "")
+            .replace(/^data-/, "")
+            .replace(/-([a-z])/g, (_, character) => character.toUpperCase());
+        }
+
+        function createFakeElement(id = null, tagName = "div", initialAttributes = {}) {
+          const attributes = { ...initialAttributes };
+          const dataset = {};
+          Object.entries(attributes).forEach(([name, value]) => {
+            if (name.startsWith("data-")) {
+              dataset[toDatasetKey(name)] = String(value);
+            }
+          });
           return {
             id,
             tagName: String(tagName || "div").toUpperCase(),
             value: "",
             textContent: "",
-            dataset: {},
+            dataset,
+            attributes,
             checked: false,
             disabled: false,
             classList: createClassList(),
@@ -5810,8 +5824,26 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
               this.dispatchEvent("click");
             },
             focus() {},
-            setAttribute() {},
-            removeAttribute() {},
+            getAttribute(name) {
+              return Object.prototype.hasOwnProperty.call(this.attributes, name)
+                ? this.attributes[name]
+                : null;
+            },
+            setAttribute(name, value) {
+              this.attributes[name] = String(value);
+              if (name === "id") {
+                this.id = String(value);
+              }
+              if (name.startsWith("data-")) {
+                this.dataset[toDatasetKey(name)] = String(value);
+              }
+            },
+            removeAttribute(name) {
+              delete this.attributes[name];
+              if (name.startsWith("data-")) {
+                delete this.dataset[toDatasetKey(name)];
+              }
+            },
             appendChild() {},
           };
         }
@@ -5826,10 +5858,23 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
               elements.clear();
               toggleElements.length = 0;
 
-              const tagPattern = /<(input|textarea|button|select)[^>]*id="([^"]+)"[^>]*>/g;
+              const tagPattern =
+                /<(div|input|textarea|button|select)([^>]*)id="([^"]+)"([^>]*)>/g;
               let tagMatch = tagPattern.exec(html);
               while (tagMatch) {
-                elements.set(tagMatch[2], createFakeElement(tagMatch[2], tagMatch[1]));
+                const attributes = {};
+                const attributeSource = `${tagMatch[2]} id="${tagMatch[3]}"${tagMatch[4]}`;
+                attributeSource.replace(
+                  /([a-zA-Z_:][-a-zA-Z0-9_:.]*)="([^"]*)"/g,
+                  (_, name, value) => {
+                    attributes[name] = value;
+                    return "";
+                  }
+                );
+                elements.set(
+                  tagMatch[3],
+                  createFakeElement(tagMatch[3], tagMatch[1], attributes)
+                );
                 tagMatch = tagPattern.exec(html);
               }
 
@@ -6210,8 +6255,23 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (!tensorDataModeSelect) {
           throw new Error("Selecting a tensor should expose the tensor data mode selector.");
         }
+        const tensorDataModeField = document.getElementById("tensor-data-mode-field");
+        if (!tensorDataModeField) {
+          throw new Error("Selecting a tensor should expose the initialization chevron field.");
+        }
+        tensorDataModeSelect.dispatchEvent("mousedown");
+        if (tensorDataModeField.getAttribute("data-expanded") !== "true") {
+          throw new Error(
+            `Expected initialization select mouse down to expand the chevron, received ${tensorDataModeField.getAttribute("data-expanded")}.`
+          );
+        }
         tensorDataModeSelect.value = "fill";
         tensorDataModeSelect.dispatchEvent("change");
+        if (tensorDataModeField.getAttribute("data-expanded") !== "false") {
+          throw new Error(
+            `Expected initialization select change to collapse the chevron, received ${tensorDataModeField.getAttribute("data-expanded")}.`
+          );
+        }
         if (
           JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
           !== JSON.stringify({ mode: "fill", fill_value: 0 })

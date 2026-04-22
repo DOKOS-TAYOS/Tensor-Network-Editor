@@ -104,6 +104,37 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert headers["Content-Type"].startswith("text/html")
 
 
+def test_help_info_section_surfaces_current_editor_workflows(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+
+    assert '<div id="help-info-section" class="help-sections">' in html
+    assert ">What you can do<" in html
+    assert ">Recommended workflow<" in html
+    assert ">Useful tools<" in html
+    assert ">Contraction and analysis<" in html
+    assert ">Modes and current limits<" in html
+    assert (
+        "Draw tensor networks, save reusable JSON designs, and generate Python" in html
+    )
+    assert (
+        "Start from an empty canvas, a built-in template, a saved JSON design" in html
+    )
+    assert "Templates and Template settings" in html
+    assert "Subnetwork library" in html
+    assert "Auto layout in Reflow" in html
+    assert (
+        "Tensor Initialization lets you keep generated zeros, ones, fill values" in html
+    )
+    assert "Auto full, Auto future, and Auto past" in html
+    assert "Benchmark mode compares saved manual schemes" in html
+    assert "Hyperedges are available in normal mode" in html
+    assert "Navigation" not in html
+    assert "Organize and edit" not in html
+    assert "Connect and contract" not in html
+
+
 def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_requested_order(
     editor_server: EditorServer,
 ) -> None:
@@ -1318,6 +1349,12 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
         '<label for="tensor-data-mode-select">Initialization</label>'
         in tensor_standard_markup_body
     )
+    assert 'id="tensor-data-mode-field"' in tensor_standard_markup_body
+    assert (
+        'class="select-chevron-field tensor-data-mode-field"'
+        in tensor_standard_markup_body
+    )
+    assert 'data-expanded="false"' in tensor_standard_markup_body
     assert 'id="tensor-data-mode-select"' in tensor_standard_markup_body
     assert 'id="tensor-data-validation-message"' in tensor_standard_markup_body
     assert "Explicit values (JSON)" in tensor_standard_markup_body
@@ -1331,7 +1368,11 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
         "Use JSON numbers that match the tensor shape exactly."
         not in tensor_standard_markup_body
     )
+    assert ".tensor-data-mode-field::after {" in css_body
+    assert ".tensor-data-mode-field select {" in css_body
     assert ".tensor-values-disclosure {" not in css_body
+    assert "setTensorDataModeChevronExpanded" in tensor_standard_bindings_body
+    assert "bindTensorDataModeChevronDisclosure" in tensor_standard_bindings_body
     assert "commands.updateTensorData" in tensor_standard_bindings_body
 
 

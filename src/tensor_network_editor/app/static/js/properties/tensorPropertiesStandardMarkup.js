@@ -264,23 +264,29 @@ export function createStandardTensorPropertiesMarkupSupport({
       </div>
       <div class="field-group">
         <label for="tensor-data-mode-select">Initialization</label>
-        <select
-          id="tensor-data-mode-select"
-          data-focus-key="tensor:${tensor.id}:tensor-data-mode"
+        <div
+          id="tensor-data-mode-field"
+          class="select-chevron-field tensor-data-mode-field"
+          data-expanded="false"
         >
-          <option value="zeros"${tensorDataMode === "zeros" ? " selected" : ""}>
-            Generated zeros
-          </option>
-          <option value="ones"${tensorDataMode === "ones" ? " selected" : ""}>
-            Ones
-          </option>
-          <option value="fill"${tensorDataMode === "fill" ? " selected" : ""}>
-            Fill value
-          </option>
-          <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
-            Explicit values
-          </option>
-        </select>
+          <select
+            id="tensor-data-mode-select"
+            data-focus-key="tensor:${tensor.id}:tensor-data-mode"
+          >
+            <option value="zeros"${tensorDataMode === "zeros" ? " selected" : ""}>
+              Generated zeros
+            </option>
+            <option value="ones"${tensorDataMode === "ones" ? " selected" : ""}>
+              Ones
+            </option>
+            <option value="fill"${tensorDataMode === "fill" ? " selected" : ""}>
+              Fill value
+            </option>
+            <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
+              Explicit values
+            </option>
+          </select>
+        </div>
       </div>
       ${
         tensorDataMode === "fill"
