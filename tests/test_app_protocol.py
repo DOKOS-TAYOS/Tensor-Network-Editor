@@ -4,11 +4,14 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 
 from tensor_network_editor.app._protocol import (
     JsonDict,
+    deserialize_validation_payload,
+    deserialize_validation_request,
     parse_subnetwork_prepare_insert_request,
     parse_template_delete_request,
     parse_template_promote_request,
@@ -67,3 +70,51 @@ def test_parse_subnetwork_prepare_insert_request_reads_target_center() -> None:
     assert network_payload["id"] == "network_demo"
     assert request.target_center.x == pytest.approx(125.5)
     assert request.target_center.y == pytest.approx(220.0)
+
+
+def test_deserialize_validation_payload_passes_live_python_import_options() -> None:
+    with patch(
+        "tensor_network_editor.app._protocol.deserialize_spec_from_python_code",
+        return_value=object(),
+    ) as deserialize_mock:
+        deserialize_validation_payload(
+            {
+                "python_code": "network = object()",
+                "python_import_mode": "live",
+                "python_reconstruction_level": "simple",
+                "python_object_name": "network",
+                "source_profile": "quimb",
+            }
+        )
+
+    deserialize_mock.assert_called_once_with(
+        "network = object()",
+        validate=False,
+        source_profile="quimb",
+        python_import_mode="live",
+        python_reconstruction_level="simple",
+        python_object_name="network",
+    )
+
+
+def test_deserialize_validation_request_passes_python_reconstruction_level() -> None:
+    with patch(
+        "tensor_network_editor.app._protocol.deserialize_spec_from_python_code_result",
+    ) as deserialize_mock:
+        deserialize_validation_request(
+            {
+                "python_code": "network = object()",
+                "python_import_mode": "static",
+                "python_reconstruction_level": "auto",
+                "source_profile": "generated",
+            }
+        )
+
+    deserialize_mock.assert_called_once_with(
+        "network = object()",
+        validate=False,
+        source_profile="generated",
+        python_import_mode="static",
+        python_reconstruction_level="auto",
+        python_object_name=None,
+    )

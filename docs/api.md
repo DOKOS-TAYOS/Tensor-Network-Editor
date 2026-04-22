@@ -166,6 +166,24 @@ Important details:
 - `load_spec_from_python_code(...)` works when source is already in memory and
   also accepts `source_profile="generated" | "quimb" | "tensornetwork" |
   "einsum"` when you want to lock the parser explicitly
+- `load_spec(...)` and `load_spec_from_python_code(...)` also accept
+  `python_import_mode="static" | "live"`, with `static` as the default
+- both functions also accept
+  `python_reconstruction_level="auto" | "simple" | "best_available"`, with
+  `auto` as the default
+- `python_import_mode="live"` executes the source in a subprocess using the
+  active Python interpreter, supports live `quimb` and `tensornetwork`
+  objects, and accepts `python_object_name="..."` when several compatible
+  globals exist
+- `python_reconstruction_level="simple"` rebuilds only the portable network
+  structure: tensors, inferable connections, and portable tensor-data payloads
+- `python_reconstruction_level="best_available"` is currently only supported
+  for the package's own `generated` profile
+- `python_reconstruction_level="auto"` resolves to `best_available` for the
+  `generated` profile and to `simple` for external static profiles plus live
+  imports
+- live import preserves tensor data when it can be lowered to `ones`, `fill`,
+  or small numeric literals, and otherwise drops that data with a warning
 
 Round-trip from generated source:
 
@@ -191,17 +209,35 @@ from tensor_network_editor import load_spec_from_python_code
 spec = load_spec_from_python_code(quimb_source, source_profile="quimb")
 ```
 
+Explicit live import from one named global:
+
+```python
+from tensor_network_editor import load_spec
+
+
+spec = load_spec(
+    "runtime_network.py",
+    source_profile="quimb",
+    python_import_mode="live",
+    python_reconstruction_level="simple",
+    python_object_name="network",
+)
+```
+
 The Python importer is intentionally conservative. Supported generated exports
 still provide the richest round-trip, including recovery of manual contraction
-steps into `ContractionPlanSpec.steps`. The external `quimb`,
-`tensornetwork`, and `einsum` profiles only parse supported static AST shapes;
-they do not execute user code, recover editor layout/groups/notes, or rebuild
-manual contraction plans. Editor-only `view_snapshots` are still reset to an
-empty list because Python source does not carry scene layout. Hyperedges from
-generated exports are still re-imported in lowered copy-tensor form rather than
-reconstructed as `HyperedgeSpec`. Linear, grid, and tree periodic generated
-Python remain export-only for now, and this is still not a general
-Python-to-network importer.
+steps into `ContractionPlanSpec.steps`, so that is the only profile that
+currently supports `best_available`. The external `quimb`, `tensornetwork`, and
+`einsum` profiles only parse supported static AST shapes, and the live `quimb`
+/ `tensornetwork` mode executes user code in a subprocess but still follows the
+portable `simple` reconstruction contract. That means external and live imports
+do not recover editor layout/groups/notes or rebuild manual contraction plans.
+Editor-only `view_snapshots` are still reset to an empty list because Python
+source does not carry scene layout. Hyperedges from generated exports are still
+re-imported in lowered copy-tensor form rather than reconstructed as
+`HyperedgeSpec`. Linear, grid, and tree periodic generated Python remain
+export-only for now, and this is still not a general Python-to-network
+importer.
 
 ## Validate, Lint, Analyze, Canonicalize, and Diff
 

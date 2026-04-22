@@ -44,6 +44,24 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         default=None,
         help="Enable package logs at the requested severity.",
     )
+    parser.add_argument(
+        "--python-import-mode",
+        choices=["static", "live"],
+        default="static",
+        help="Choose how Python files are imported when a command loads a .py source.",
+    )
+    parser.add_argument(
+        "--python-reconstruction-level",
+        choices=["auto", "simple", "best_available"],
+        default="auto",
+        help="Choose how much editor metadata to reconstruct from Python imports.",
+    )
+    parser.add_argument(
+        "--python-object",
+        type=str,
+        default=None,
+        help="Optional global object name used by live Python imports.",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     edit_parser = subparsers.add_parser(

@@ -126,12 +126,39 @@ export function createSessionEditorFlows({
     try {
       const fileText = await sessionUi.requestFileText(file, "utf-8");
       const isPythonSource = file.name.toLowerCase().endsWith(".py");
+      let pythonImportMode = "static";
+      let pythonObjectName = null;
+      if (isPythonSource && sessionUi.confirmAction(
+        "Run this Python file in a subprocess to import a live tensor network object? Choose Cancel to keep the static parser."
+      )) {
+        pythonImportMode = "live";
+        const promptedObjectName = sessionUi.promptText(
+          "Optional global object name for the live import. Leave blank to auto-detect it.",
+          ""
+        );
+        pythonObjectName =
+          typeof promptedObjectName === "string" && promptedObjectName.trim()
+            ? promptedObjectName.trim()
+            : null;
+      }
       const response = isPythonSource
-        ? await sessionService.validatePythonCode(fileText)
+        ? await sessionService.validatePythonCode({
+            pythonCode: fileText,
+            pythonImportMode,
+            pythonReconstructionLevel: "auto",
+            pythonObjectName,
+            sourceProfile: "auto",
+          })
         : await sessionService.validateSerializedSpec(JSON.parse(fileText));
       if (!response.ok) {
-        actions.setStatus(actions.formatIssues(response.issues), "error");
+        actions.setStatus(
+          response.message || actions.formatIssues(response.issues),
+          "error"
+        );
         return;
+      }
+      if (Array.isArray(response.warnings) && response.warnings.length) {
+        actions.setStatus(response.warnings[0]);
       }
       actions.resetDesignState(
         response.spec.network,

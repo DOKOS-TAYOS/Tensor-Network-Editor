@@ -12,6 +12,7 @@ from ..internal.io._serialization import (
     SCHEMA_VERSION,
     deserialize_spec,
     deserialize_spec_from_python_code,
+    deserialize_spec_from_python_code_result,
 )
 from ..models import (
     CanvasPosition,
@@ -118,6 +119,14 @@ class SubnetworkLibraryPrepareInsertRequest:
     target_center: CanvasPosition
 
 
+@dataclass(slots=True, frozen=True)
+class ValidationPayloadResult:
+    """Normalized validation input together with any import warnings."""
+
+    spec: NetworkSpec
+    warnings: list[str]
+
+
 def read_json(body: bytes) -> JsonDict:
     """Decode a request body into a JSON object payload."""
     if not body:
@@ -208,7 +217,40 @@ def deserialize_validation_payload(payload: JsonDict) -> NetworkSpec:
     if isinstance(python_code, str):
         if not python_code.strip():
             raise ValueError("Missing 'spec' or 'python_code' payload.")
-        return deserialize_spec_from_python_code(python_code, validate=False)
+        return deserialize_spec_from_python_code(
+            python_code,
+            validate=False,
+            source_profile=_optional_python_source_profile(payload),
+            python_import_mode=_optional_python_import_mode(payload),
+            python_reconstruction_level=_optional_python_reconstruction_level(payload),
+            python_object_name=_optional_python_object_name(payload),
+        )
+
+    raise ValueError("Missing 'spec' or 'python_code' payload.")
+
+
+def deserialize_validation_request(payload: JsonDict) -> ValidationPayloadResult:
+    """Load validation input from serialized spec or Python code with warnings."""
+    serialized_spec = payload.get("spec")
+    if isinstance(serialized_spec, dict):
+        return ValidationPayloadResult(
+            spec=deserialize_spec_with_issues(serialized_spec),
+            warnings=[],
+        )
+
+    python_code = payload.get("python_code")
+    if isinstance(python_code, str):
+        if not python_code.strip():
+            raise ValueError("Missing 'spec' or 'python_code' payload.")
+        result = deserialize_spec_from_python_code_result(
+            python_code,
+            validate=False,
+            source_profile=_optional_python_source_profile(payload),
+            python_import_mode=_optional_python_import_mode(payload),
+            python_reconstruction_level=_optional_python_reconstruction_level(payload),
+            python_object_name=_optional_python_object_name(payload),
+        )
+        return ValidationPayloadResult(spec=result.spec, warnings=result.warnings)
 
     raise ValueError("Missing 'spec' or 'python_code' payload.")
 
@@ -407,3 +449,40 @@ def serialize_editor_result(result: EditorResult) -> JsonDict:
 def deserialize_spec_with_issues(serialized_spec: JsonDict) -> NetworkSpec:
     """Deserialize a spec payload without raising on validation issues."""
     return deserialize_spec(serialized_spec, validate=False)
+
+
+def _optional_python_source_profile(payload: JsonDict) -> str:
+    """Return the requested Python source profile or the default."""
+    raw_value = payload.get("source_profile", "auto")
+    if not isinstance(raw_value, str):
+        raise ValueError("'source_profile' must be a string when provided.")
+    return raw_value
+
+
+def _optional_python_import_mode(payload: JsonDict) -> str:
+    """Return the requested Python import mode or the default."""
+    raw_value = payload.get("python_import_mode", "static")
+    if not isinstance(raw_value, str):
+        raise ValueError("'python_import_mode' must be a string when provided.")
+    return raw_value
+
+
+def _optional_python_object_name(payload: JsonDict) -> str | None:
+    """Return the requested live Python object name when provided."""
+    raw_value = payload.get("python_object_name")
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str):
+        raise ValueError("'python_object_name' must be a string when provided.")
+    stripped_value = raw_value.strip()
+    return stripped_value or None
+
+
+def _optional_python_reconstruction_level(payload: JsonDict) -> str:
+    """Return the requested Python reconstruction level or the default."""
+    raw_value = payload.get("python_reconstruction_level", "auto")
+    if not isinstance(raw_value, str):
+        raise ValueError(
+            "'python_reconstruction_level' must be a string when provided."
+        )
+    return raw_value

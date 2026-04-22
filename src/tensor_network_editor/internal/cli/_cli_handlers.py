@@ -6,7 +6,7 @@ import argparse
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from ...errors import SerializationError
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
@@ -14,7 +14,7 @@ from ...types import JSONValue
 from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
     deserialize_spec,
-    deserialize_spec_from_python_code,
+    deserialize_spec_from_python_code_result,
     serialize_spec,
 )
 from ..models._headless_models import (
@@ -43,12 +43,13 @@ from ._cli_benchmark import (
 def handle_edit_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     launch_tensor_network_editor: Callable[..., object],
 ) -> int:
     """Launch the browser editor using explicit edit arguments."""
     loaded_spec_path = Path(args.load).resolve() if args.load else None
-    initial_spec = load_spec(args.load) if args.load else None
+    load_kwargs = _python_load_kwargs(args)
+    initial_spec = load_spec(args.load, **load_kwargs) if args.load else None
     code_path: str | Path | None = args.save_code
     if loaded_spec_path is not None and args.save_code:
         candidate_code_path = Path(args.save_code)
@@ -77,12 +78,12 @@ def handle_edit_command(
 def handle_validate_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     validate_spec: Callable[[NetworkSpec], list[ValidationIssue]],
     print_validation_result: Callable[..., None],
 ) -> int:
     """Validate a spec file and emit text or JSON results."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     issues = validate_spec(spec)
     print_validation_result(issues, output_format=args.format)
     return 1 if issues else 0
@@ -91,12 +92,12 @@ def handle_validate_command(
 def handle_lint_command(
     args: argparse.Namespace,
     *,
-    load_spec_for_lint: Callable[[str], NetworkSpec],
+    load_spec_for_lint: Callable[..., NetworkSpec],
     lint_spec: Callable[..., LintReport],
     print_lint_result: Callable[..., None],
 ) -> int:
     """Run the soft linter against a spec file."""
-    spec = load_spec_for_lint(args.path)
+    spec = load_spec_for_lint(args.path, **_python_load_kwargs(args))
     report = lint_spec(
         spec,
         max_tensor_rank=args.max_tensor_rank,
@@ -111,13 +112,13 @@ def handle_lint_command(
 def handle_analyze_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     analyze_spec: Callable[..., SpecAnalysisReport],
     print_json: Callable[[object], None],
     print_analysis_text: Callable[[SpecAnalysisReport], None],
 ) -> int:
     """Analyze structure and contraction metrics for a saved spec."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     report = analyze_spec(spec, memory_dtype=args.dtype)
     if args.format == "json":
         print_json(report.to_dict())
@@ -129,14 +130,14 @@ def handle_analyze_command(
 def handle_benchmark_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     analyze_contraction: Callable[..., ContractionAnalysisResult],
     print_json: Callable[[object], None],
     print_benchmark_report_text: Callable[[BenchmarkReport], None],
     write_utf8_text: Callable[[str, str], None],
 ) -> int:
     """Analyze and export a stable benchmark comparison table."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     analysis = analyze_contraction(spec, memory_dtype=args.dtype)
     report = build_benchmark_report(analysis)
     if args.output is not None:
@@ -156,11 +157,11 @@ def handle_benchmark_command(
 def handle_export_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     generate_code: Callable[..., object],
 ) -> int:
     """Generate backend code from a saved spec without launching the editor."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     generate_code(
         spec,
         engine=EngineName(args.engine),
@@ -176,7 +177,7 @@ def handle_export_command(
 def handle_diff_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     diff_specs: Callable[[NetworkSpec, NetworkSpec], SpecDiffResult],
     semantic_diff_specs: Callable[[NetworkSpec, NetworkSpec], SemanticSpecDiffResult],
     print_json: Callable[[object], None],
@@ -184,8 +185,9 @@ def handle_diff_command(
     print_semantic_diff_text: Callable[[SemanticSpecDiffResult], None],
 ) -> int:
     """Compare two specs and print the resulting structured diff."""
-    before = load_spec(args.before)
-    after = load_spec(args.after)
+    load_kwargs = _python_load_kwargs(args)
+    before = load_spec(args.before, **load_kwargs)
+    after = load_spec(args.after, **load_kwargs)
     if args.semantic:
         semantic_result = semantic_diff_specs(before, after)
         if args.format == "json":
@@ -204,13 +206,13 @@ def handle_diff_command(
 def handle_canonicalize_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
     canonicalize_spec: Callable[..., NetworkSpec],
     save_spec: Callable[[NetworkSpec, str], None],
     print_json: Callable[[object], None],
 ) -> int:
     """Canonicalize a spec and print or save the normalized result."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     canonical_spec = canonicalize_spec(spec, deterministic_ids=args.deterministic_ids)
     if args.output is not None:
         save_spec(canonical_spec, args.output)
@@ -298,10 +300,10 @@ def handle_subnetwork_list_command(
 def handle_subnetwork_save_command(
     args: argparse.Namespace,
     *,
-    load_spec: Callable[[str], NetworkSpec],
+    load_spec: Callable[..., NetworkSpec],
 ) -> int:
     """Extract and save one reusable subnetwork into the project catalog."""
-    spec = load_spec(args.path)
+    spec = load_spec(args.path, **_python_load_kwargs(args))
     project_catalog_path = _resolve_project_subnetwork_catalog_path_for_spec(args.path)
     subnetwork_spec = extract_subnetwork_spec(
         spec,
@@ -422,16 +424,26 @@ def _shadowed_shared_subnetwork_warnings(
     ]
 
 
-def load_spec_for_lint(path: str) -> NetworkSpec:
+def load_spec_for_lint(
+    path: str,
+    *,
+    python_import_mode: Literal["static", "live"] = "static",
+    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
+    python_object_name: str | None = None,
+) -> NetworkSpec:
     """Load a spec for linting without enforcing hard validation first."""
     from ..io._io import read_utf8_text
 
     source_path = Path(path)
     if source_path.suffix.lower() == ".py":
-        return deserialize_spec_from_python_code(
+        return deserialize_spec_from_python_code_result(
             read_utf8_text(path, description="generated Python code"),
             validate=False,
-        )
+            python_import_mode=python_import_mode,
+            python_reconstruction_level=python_reconstruction_level,
+            python_object_name=python_object_name,
+            source_path=source_path,
+        ).spec
     try:
         payload = json.loads(
             read_utf8_text(path, description="network specification JSON")
@@ -441,3 +453,18 @@ def load_spec_for_lint(path: str) -> NetworkSpec:
     if not isinstance(payload, dict):
         raise SerializationError("Serialized network must be a JSON object.")
     return deserialize_spec(payload, validate=False)
+
+
+def _python_load_kwargs(args: argparse.Namespace) -> dict[str, object]:
+    """Return the optional Python import arguments requested on the CLI."""
+    kwargs: dict[str, object] = {}
+    python_import_mode = getattr(args, "python_import_mode", "static")
+    python_reconstruction_level = getattr(args, "python_reconstruction_level", "auto")
+    python_object_name = getattr(args, "python_object", None)
+    if python_import_mode != "static":
+        kwargs["python_import_mode"] = python_import_mode
+    if python_reconstruction_level != "auto":
+        kwargs["python_reconstruction_level"] = python_reconstruction_level
+    if python_object_name is not None:
+        kwargs["python_object_name"] = python_object_name
+    return kwargs

@@ -82,6 +82,9 @@ def load_spec(
     source_profile: Literal[
         "auto", "generated", "quimb", "tensornetwork", "einsum"
     ] = "auto",
+    python_import_mode: Literal["static", "live"] = "static",
+    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
+    python_object_name: str | None = None,
 ) -> NetworkSpec:
     """Load a saved JSON spec or a supported generated Python export.
 
@@ -89,11 +92,24 @@ def load_spec(
         path: Path to a saved JSON design or supported generated Python file.
         source_profile: Optional supported Python import profile used for ``.py``
             files. ``"auto"`` detects a supported profile from the source.
+        python_import_mode: Whether Python files should use static AST parsing or
+            live execution in a subprocess.
+        python_reconstruction_level: Whether Python imports should reconstruct
+            the portable minimum or the best supported result for the selected
+            profile.
+        python_object_name: Optional global object name to select during live
+            Python imports.
 
     Returns:
         The parsed network specification.
     """
-    return _load_spec(path, source_profile=source_profile)
+    return _load_spec(
+        path,
+        source_profile=source_profile,
+        python_import_mode=python_import_mode,
+        python_reconstruction_level=python_reconstruction_level,
+        python_object_name=python_object_name,
+    )
 
 
 def load_spec_from_python_code(
@@ -102,6 +118,9 @@ def load_spec_from_python_code(
     source_profile: Literal[
         "auto", "generated", "quimb", "tensornetwork", "einsum"
     ] = "auto",
+    python_import_mode: Literal["static", "live"] = "static",
+    python_reconstruction_level: Literal["auto", "simple", "best_available"] = "auto",
+    python_object_name: str | None = None,
 ) -> NetworkSpec:
     """Reconstruct a network specification from generated Python source.
 
@@ -110,11 +129,24 @@ def load_spec_from_python_code(
             export.
         source_profile: Optional supported Python import profile. ``"auto"``
             detects a supported profile from the source.
+        python_import_mode: Whether to use static AST parsing or live execution
+            in a subprocess.
+        python_reconstruction_level: Whether Python imports should reconstruct
+            the portable minimum or the best supported result for the selected
+            profile.
+        python_object_name: Optional global object name to select during live
+            Python imports.
 
     Returns:
         The reconstructed network specification.
     """
-    return _load_spec_from_python_code(code, source_profile=source_profile)
+    return _load_spec_from_python_code(
+        code,
+        source_profile=source_profile,
+        python_import_mode=python_import_mode,
+        python_reconstruction_level=python_reconstruction_level,
+        python_object_name=python_object_name,
+    )
 
 
 def launch_tensor_network_editor(

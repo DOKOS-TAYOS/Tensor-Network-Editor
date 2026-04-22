@@ -84,6 +84,24 @@ package prints a short runtime diagnostic summary with the active Python
 executable, current working directory, imported package path, version, and any
 editable-install root that may point to a different checkout or worktree.
 
+Python import flags are also global and must appear before the subcommand:
+
+```bash
+tensor-network-editor --python-import-mode live validate runtime_network.py
+tensor-network-editor --python-reconstruction-level simple validate external_network.py
+tensor-network-editor --python-import-mode live --python-object network edit --load runtime_network.py
+```
+
+The reconstruction flag controls how much editor metadata the Python importer
+tries to rebuild:
+
+- `--python-reconstruction-level auto`: choose the best supported level for the
+  detected profile
+- `--python-reconstruction-level simple`: portable tensors plus inferred
+  connections only
+- `--python-reconstruction-level best_available`: currently only supported for
+  the package's own `generated` Python exports
+
 ## Headless Commands
 
 Headless commands work without opening the visual editor:
@@ -114,6 +132,16 @@ tensor-network-editor validate my_network.json
 
 Validation checks hard consistency rules such as missing endpoints, duplicated
 ids, invalid dimensions, and schema problems.
+
+For Python files, the default mode is the conservative static parser. When you
+want to execute the source and import a live `quimb` or `tensornetwork`
+object instead, use:
+
+```bash
+tensor-network-editor --python-import-mode live validate runtime_network.py
+tensor-network-editor --python-import-mode live --python-object network validate runtime_network.py
+tensor-network-editor --python-reconstruction-level simple validate runtime_network.py
+```
 
 JSON output:
 
@@ -151,7 +179,11 @@ Linting reports things that may be suspicious even if the spec is valid:
 For `.py` inputs, the CLI autodetects the same supported Python import
 profiles as the library API: generated exports plus conservative static AST
 imports for simple `quimb`, `tensornetwork`, and `einsum` / `opt_einsum`
-sources.
+sources. You can switch to subprocess execution for live `quimb` or
+`tensornetwork` objects with the same global `--python-import-mode live`
+option shown above. The global `--python-reconstruction-level` flag uses
+`auto` by default, which resolves to `best_available` for `generated` exports
+and to `simple` for external static or live imports.
 
 ## Analyze
 
@@ -296,6 +328,11 @@ tensor-network-editor diff before.json after.json --semantic --format json
 The basic diff groups changes by tensor, edge, group, note, and plan. The
 semantic diff reports field-level tensor, index, edge, group, note, plan, and
 step changes, plus step reordering and opaque `linear_periodic_chain` changes.
+
+When either input is a `.py` file, `diff` uses the same global Python import
+mode and reconstruction level for both files. Mixed static/live or
+mixed simple/best-available settings per file are not supported in one `diff`
+command.
 
 ## Template Commands
 

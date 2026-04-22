@@ -247,6 +247,10 @@ _INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_mod
     )
 )
 
+_SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_modules(
+    ("session/sessionEditorFlows.js",)
+)
+
 _INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES: dict[str, str] = {
     "state.runtime.mjs": _js_source_name("state.js"),
     "interactions.runtime.mjs": _js_source_name("interactions.js"),
@@ -9142,6 +9146,299 @@ def test_interaction_session_bindings_use_injected_services_and_ui_adapters(
 
     assert completed_process.returncode == 0, (
         "The interaction-session dependency injection runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_session_editor_live_python_import_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "session_editor_live_python_import.mjs"
+    _copy_js_modules(tmp_path, _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES)
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createSessionEditorFlows } = await import(
+              new URL("./session/sessionEditorFlows.js", baseUrl).href
+            );
+
+            const validateCalls = [];
+            const statusCalls = [];
+            const resetCalls = [];
+            const confirmMessages = [];
+            const promptMessages = [];
+            const confirmQueue = [false, true, true];
+            const promptQueue = ["named_network", ""];
+
+            const flows = createSessionEditorFlows({
+              dom: {
+                exportFormatSelect: { value: "py" },
+                generatedCode: { value: "" },
+                loadInput: { value: "pending" },
+              },
+              state: {
+                generatedCode: "",
+                spec: { name: "demo_network" },
+              },
+              store: {
+                setGeneratedCode() {},
+                setEditorFinished() {},
+              },
+              selectors: {
+                getSelectedEngine() {
+                  return "quimb";
+                },
+                getSelectedCollectionFormat() {
+                  return "dict";
+                },
+              },
+              services: {
+                session: {
+                  async validatePythonCode(payload) {
+                    validateCalls.push(payload);
+                    return {
+                      ok: true,
+                      spec: {
+                        schema_version: 6,
+                        network: {
+                          id: "imported_network",
+                          name: "Imported Python Network",
+                          tensors: [],
+                          groups: [],
+                          edges: [],
+                          notes: [],
+                          metadata: {},
+                        },
+                      },
+                      warnings:
+                        payload.pythonImportMode === "live"
+                          ? ["Dropped tensor data for tensor A."]
+                          : [],
+                    };
+                  },
+                  async validateSerializedSpec() {
+                    throw new Error("Serialized validation should not run for Python files.");
+                  },
+                },
+              },
+              commands: {
+                syncGeneratedCodePreview() {},
+              },
+              sessionUi: {
+                async requestFileText(file) {
+                  return file.text();
+                },
+                confirmAction(message) {
+                  confirmMessages.push(message);
+                  return confirmQueue.shift();
+                },
+                promptText(message, defaultValue = "") {
+                  promptMessages.push({ message, defaultValue });
+                  return promptQueue.shift() ?? null;
+                },
+                downloadText() {},
+                copyText() {},
+                schedule() {},
+                closeWindow() {},
+              },
+              actions: {
+                ensureCodePanelVisible() {},
+                syncCodeGenerationWarning() {},
+                getTensorKrowchManualPlanIssueMessage() {
+                  return "";
+                },
+                serializeCurrentSpec() {
+                  return {};
+                },
+                formatIssues(issues) {
+                  return JSON.stringify(issues || []);
+                },
+                stripImportLines(code) {
+                  return code;
+                },
+                sanitizeFilename(value) {
+                  return value;
+                },
+                resetDesignState(spec, message, schemaVersion) {
+                  resetCalls.push({ spec, message, schemaVersion });
+                },
+                setStatus(message, level = "info") {
+                  statusCalls.push({ message, level });
+                },
+                downloadPngExport() {},
+                downloadSvgExport() {},
+              },
+            });
+
+            const buildEvent = (name) => ({
+              target: {
+                files: [
+                  {
+                    name,
+                    async text() {
+                      return "network = object()";
+                    },
+                  },
+                ],
+              },
+            });
+
+            await flows.loadDesignFromFile(buildEvent("static_import.py"));
+            await flows.loadDesignFromFile(buildEvent("live_named.py"));
+            await flows.loadDesignFromFile(buildEvent("live_auto.py"));
+
+            if (validateCalls.length !== 3) {
+              throw new Error(`Expected three Python validation calls, received ${JSON.stringify(validateCalls)}.`);
+            }
+            if (validateCalls[0].pythonImportMode !== "static") {
+              throw new Error(`Expected the first Python load to stay in static mode, received ${JSON.stringify(validateCalls[0])}.`);
+            }
+            if (validateCalls[0].pythonReconstructionLevel !== "auto") {
+              throw new Error(`Expected the first Python load to request automatic reconstruction, received ${JSON.stringify(validateCalls[0])}.`);
+            }
+            if (validateCalls[0].pythonObjectName !== null) {
+              throw new Error(`Static Python loads should not set an object override, received ${JSON.stringify(validateCalls[0])}.`);
+            }
+            if (validateCalls[1].pythonImportMode !== "live" || validateCalls[1].pythonObjectName !== "named_network") {
+              throw new Error(`Expected the second Python load to use live mode with the prompted object name, received ${JSON.stringify(validateCalls[1])}.`);
+            }
+            if (validateCalls[1].pythonReconstructionLevel !== "auto") {
+              throw new Error(`Expected live Python loads to request automatic reconstruction, received ${JSON.stringify(validateCalls[1])}.`);
+            }
+            if (validateCalls[2].pythonImportMode !== "live" || validateCalls[2].pythonObjectName !== null) {
+              throw new Error(`Expected blank live-object prompts to fall back to auto-discovery, received ${JSON.stringify(validateCalls[2])}.`);
+            }
+            if (validateCalls[2].pythonReconstructionLevel !== "auto") {
+              throw new Error(`Expected blank live-object prompts to keep automatic reconstruction, received ${JSON.stringify(validateCalls[2])}.`);
+            }
+            if (confirmMessages.length !== 3) {
+              throw new Error(`Expected the Python load flow to ask about live execution every time, received ${JSON.stringify(confirmMessages)}.`);
+            }
+            if (promptMessages.length !== 2) {
+              throw new Error(`Expected object-name prompts only for live imports, received ${JSON.stringify(promptMessages)}.`);
+            }
+            if (!resetCalls.every((entry) => entry.message.includes("Loaded design from"))) {
+              throw new Error(`Expected each successful Python load to reset the design state, received ${JSON.stringify(resetCalls)}.`);
+            }
+            if (!statusCalls.some((entry) => entry.message.includes("Dropped tensor data for tensor A."))) {
+              throw new Error(`Expected live-import warnings to surface as a non-blocking status message, received ${JSON.stringify(statusCalls)}.`);
+            }
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_editor_flows_support_live_python_import_runtime(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_session_editor_live_python_import_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The session-editor live Python import runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_editor_session_service_validate_python_runtime_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "editor_session_service_validate_python_runtime.mjs"
+    _copy_js_modules(
+        tmp_path,
+        {"services/editorSessionService.js": "services/editorSessionService.js"},
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createEditorSessionService } = await import(
+              new URL("./services/editorSessionService.js", baseUrl).href
+            );
+
+            const apiCalls = [];
+            const service = createEditorSessionService({
+              apiGet() {
+                throw new Error("validatePythonCode should not call apiGet.");
+              },
+              async apiPost(path, payload) {
+                apiCalls.push({ path, payload });
+                return { ok: true };
+              },
+            });
+
+            await service.validatePythonCode("network = object()");
+            await service.validatePythonCode({
+              pythonCode: "network = other_object()",
+              sourceProfile: "quimb",
+              pythonImportMode: "live",
+              pythonReconstructionLevel: "simple",
+              pythonObjectName: "network",
+            });
+
+            if (apiCalls.length !== 2) {
+              throw new Error(`Expected two validate calls, received ${JSON.stringify(apiCalls)}.`);
+            }
+            if (apiCalls[0].path !== "/api/validate") {
+              throw new Error(`Expected validatePythonCode to target /api/validate, received ${JSON.stringify(apiCalls[0])}.`);
+            }
+            if (apiCalls[0].payload.python_code !== "network = object()") {
+              throw new Error(`Expected string requests to be wrapped as python_code, received ${JSON.stringify(apiCalls[0])}.`);
+            }
+            if (apiCalls[0].payload.python_reconstruction_level !== "auto") {
+              throw new Error(`Expected string requests to default to automatic reconstruction, received ${JSON.stringify(apiCalls[0])}.`);
+            }
+            if (apiCalls[0].payload.python_import_mode !== "static") {
+              throw new Error(`Expected string requests to default to static import, received ${JSON.stringify(apiCalls[0])}.`);
+            }
+            if (apiCalls[1].payload.python_code !== "network = other_object()") {
+              throw new Error(`Expected object requests to preserve python_code, received ${JSON.stringify(apiCalls[1])}.`);
+            }
+            if (apiCalls[1].payload.source_profile !== "quimb") {
+              throw new Error(`Expected object requests to preserve source_profile, received ${JSON.stringify(apiCalls[1])}.`);
+            }
+            if (apiCalls[1].payload.python_import_mode !== "live") {
+              throw new Error(`Expected object requests to preserve python_import_mode, received ${JSON.stringify(apiCalls[1])}.`);
+            }
+            if (apiCalls[1].payload.python_reconstruction_level !== "simple") {
+              throw new Error(`Expected object requests to preserve python_reconstruction_level, received ${JSON.stringify(apiCalls[1])}.`);
+            }
+            if (apiCalls[1].payload.python_object_name !== "network") {
+              throw new Error(`Expected object requests to preserve python_object_name, received ${JSON.stringify(apiCalls[1])}.`);
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_editor_session_service_validate_python_runtime_contract(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_editor_session_service_validate_python_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The editor-session-service validatePythonCode runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

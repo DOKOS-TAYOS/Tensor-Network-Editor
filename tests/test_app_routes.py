@@ -33,6 +33,7 @@ from tests.factories import (
     build_sample_spec,
     build_sample_spec_with_view_snapshots,
 )
+from tests.optional_backends import require_light_optional_modules
 
 
 def test_bootstrap_returns_session_contract(
@@ -145,6 +146,42 @@ def test_validate_route_accepts_generated_python_code_payload(
         "A",
         "B",
     ]
+
+
+@pytest.mark.optional_backend
+def test_validate_route_returns_live_import_warnings(
+    editor_server: EditorServer,
+) -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "def build_network() -> qtn.TensorNetwork:",
+            "    left = qtn.Tensor(np.ones((65, 65), dtype=float), inds=('i', 'bond_x'), tags=('A',))",
+            "    right = qtn.Tensor(np.ones((65, 5), dtype=float), inds=('bond_x', 'j'), tags=('B',))",
+            "    return qtn.TensorNetwork([left, right])",
+            "",
+            "network = build_network()",
+        ]
+    )
+
+    payload = request_json(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={
+            "python_code": code,
+            "python_import_mode": "live",
+            "source_profile": "quimb",
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert payload["warnings"]
+    assert "tensor data" in payload["warnings"][0].lower()
+    assert payload["spec"]["network"]["tensors"][0]["tensor_data"] is None
 
 
 def test_validate_route_rejects_linear_periodic_generated_python_with_clear_message(

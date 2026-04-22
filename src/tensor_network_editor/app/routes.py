@@ -20,7 +20,7 @@ from ._protocol import (
     JsonDict,
     JsonResponse,
     bad_request_response,
-    deserialize_validation_payload,
+    deserialize_validation_request,
     issues_response,
     ok_response,
     parse_codegen_request,
@@ -66,7 +66,8 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Validate a serialized spec or supported Python source payload."""
     session_id = session.session_id
     try:
-        spec = deserialize_validation_payload(payload)
+        validation_request = deserialize_validation_request(payload)
+        spec = validation_request.spec
     except SerializationError as exc:
         LOGGER.warning(
             "[session=%s] Validation request contained malformed spec payload: %s",
@@ -86,8 +87,16 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     if issues:
         status, response = issues_response(issues)
         response["spec"] = serialize_spec_payload(spec)
+        if validation_request.warnings:
+            response["warnings"] = validation_request.warnings
         return status, response
-    return ok_response({"issues": [], "spec": serialize_spec_payload(spec)})
+    response_payload: JsonDict = {
+        "issues": [],
+        "spec": serialize_spec_payload(spec),
+    }
+    if validation_request.warnings:
+        response_payload["warnings"] = validation_request.warnings
+    return ok_response(response_payload)
 
 
 def handle_generate(session: EditorSession, payload: JsonDict) -> JsonResponse:

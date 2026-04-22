@@ -28,7 +28,9 @@ offline use, and generated code you can inspect.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Import supported Python network layouts from generated exports plus simple
-  `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files.
+  `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
+  explicit live imports for `quimb` and `tensornetwork` objects in a
+  subprocess.
 - Edit tensor initializers in the sidebar with generated zeros, ones, fill
   values, or explicit numeric JSON literals that round-trip through saved
   designs and supported generated Python.
@@ -132,6 +134,33 @@ result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
 print(result.code)
 ```
 
+Load a live `quimb` or `tensornetwork` object from Python source:
+
+```python
+from tensor_network_editor import load_spec_from_python_code
+
+
+spec = load_spec_from_python_code(
+    python_source,
+    python_import_mode="live",
+    python_object_name="network",
+)
+```
+
+This live mode executes the source in a subprocess with the active Python
+interpreter from your `.venv`, auto-detects one supported runtime object when
+possible, and falls back to `python_object_name` when several compatible
+globals exist.
+
+Python imports also expose an explicit reconstruction contract through
+`python_reconstruction_level="auto" | "simple" | "best_available"`:
+
+- `auto` keeps the richest supported result for the selected profile
+- `generated` resolves `auto` to `best_available`, which preserves supported
+  manual contraction steps
+- external static profiles and live imports resolve `auto` to `simple`, which
+  rebuilds only the portable network structure
+
 ## Documentation
 
 - [Documentation index](docs/README.md): where to go for each topic.
@@ -155,9 +184,17 @@ print(result.code)
   disabled while hyperedges exist in the design.
 - Python import is intentionally conservative. It supports the package's own
   generated exports plus static AST patterns for simple `quimb`,
-  `tensornetwork`, and `einsum` / `opt_einsum` sources, but it does not execute
-  user code, import live objects, recover editor layout/groups/notes, or load
-  periodic-mode Python back into editable specs.
+  `tensornetwork`, and `einsum` / `opt_einsum` sources. It also offers an
+  explicit live-import mode for `quimb` and `tensornetwork`, but that mode
+  still does not recover editor layout/groups/notes, rebuild manual
+  contraction plans, or load periodic-mode Python back into editable specs.
+- `python_reconstruction_level="best_available"` is currently only supported
+  for the package's own `generated` Python profile. External static profiles
+  and live imports use the portable `simple` reconstruction contract instead.
+- Browser-based live import from the editor works best for self-contained
+  scripts or imports already resolvable from the active `.venv`. If a Python
+  file depends on sibling modules or path-sensitive imports, prefer the Python
+  API or CLI with the real file path.
 - Tensor values in the visual editor are currently limited to generated zeros,
   ones, fill values, and explicit numeric JSON literals. Symbolic
   initializers, random initializers, and direct `.npy` / `.pt` imports are not

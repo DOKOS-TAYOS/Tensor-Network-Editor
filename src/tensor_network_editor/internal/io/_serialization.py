@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, cast
 
 from ...errors import SerializationError
 from ...models import NetworkSpec
@@ -19,11 +21,67 @@ from ._python_import_profiles import (
     normalize_python_source_profile,
     parse_python_source_by_profile,
 )
+from ._python_live_import import (
+    PythonImportMode,
+    import_live_python_source,
+    normalize_python_import_mode,
+)
 from ._python_roundtrip import parse_generated_python_network
 
 SCHEMA_VERSION = 6
 SUPPORTED_SCHEMA_VERSIONS = frozenset({4, 5, 6})
 LOGGER = logging.getLogger(__name__)
+
+PythonReconstructionLevel = Literal["auto", "simple", "best_available"]
+ResolvedPythonReconstructionLevel = Literal["simple", "best_available"]
+
+_SUPPORTED_PYTHON_RECONSTRUCTION_LEVELS = frozenset(
+    {"auto", "simple", "best_available"}
+)
+
+
+@dataclass(slots=True, frozen=True)
+class PythonSpecLoadResult:
+    """A loaded network specification together with soft import warnings."""
+
+    spec: NetworkSpec
+    warnings: list[str]
+
+
+def normalize_python_reconstruction_level(
+    python_reconstruction_level: str,
+) -> PythonReconstructionLevel:
+    """Normalize and validate one requested Python reconstruction level."""
+    normalized_level = python_reconstruction_level.strip().lower()
+    if normalized_level not in _SUPPORTED_PYTHON_RECONSTRUCTION_LEVELS:
+        raise ValueError(
+            "Unsupported Python reconstruction level "
+            f"{python_reconstruction_level!r}. Expected one of "
+            f"{sorted(_SUPPORTED_PYTHON_RECONSTRUCTION_LEVELS)!r}."
+        )
+    return cast(PythonReconstructionLevel, normalized_level)
+
+
+def resolve_python_reconstruction_level(
+    python_reconstruction_level: PythonReconstructionLevel,
+    *,
+    resolved_source_profile: PythonSourceProfile,
+    python_import_mode: PythonImportMode,
+) -> ResolvedPythonReconstructionLevel:
+    """Resolve the effective reconstruction level for one Python import."""
+    if python_reconstruction_level == "auto":
+        if python_import_mode == "live":
+            return "simple"
+        return "best_available" if resolved_source_profile == "generated" else "simple"
+    if python_reconstruction_level == "best_available":
+        if python_import_mode == "live" or resolved_source_profile != "generated":
+            raise SerializationError(
+                "Python reconstruction level 'best_available' is only supported "
+                "for static imports of the 'generated' source profile. Use "
+                "'simple' or 'auto' for external and live imports."
+            )
+        return "best_available"
+    return "simple"
 
 
 def serialize_spec(spec: NetworkSpec) -> dict[str, JSONValue]:
@@ -119,7 +177,12 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
 
 
 def load_spec(
-    path: StrPath, *, source_profile: PythonSourceProfile = "auto"
+    path: StrPath,
+    *,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: PythonReconstructionLevel = "auto",
+    python_object_name: str | None = None,
 ) -> NetworkSpec:
     """Load a saved JSON spec or supported generated Python file from disk.
 
@@ -136,10 +199,37 @@ def load_spec(
         SerializationError: If the file contents cannot be interpreted as a
             supported specification payload.
     """
-    if Path(path).suffix.lower() == ".py":
+    return load_spec_result(
+        path,
+        source_profile=source_profile,
+        python_import_mode=python_import_mode,
+        python_reconstruction_level=python_reconstruction_level,
+        python_object_name=python_object_name,
+    ).spec
+
+
+def load_spec_result(
+    path: StrPath,
+    *,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: PythonReconstructionLevel = "auto",
+    python_object_name: str | None = None,
+) -> PythonSpecLoadResult:
+    """Load one specification from disk together with soft import warnings."""
+    source_path = Path(path)
+    if source_path.suffix.lower() == ".py":
         body = read_utf8_text(path, description="generated Python code")
         LOGGER.debug("Loaded generated Python code payload from %s", path)
-        return load_spec_from_python_code(body, source_profile=source_profile)
+        return deserialize_spec_from_python_code_result(
+            body,
+            validate=True,
+            source_profile=source_profile,
+            python_import_mode=python_import_mode,
+            python_reconstruction_level=python_reconstruction_level,
+            python_object_name=python_object_name,
+            source_path=source_path,
+        )
 
     body = read_utf8_text(path, description="network specification JSON")
     LOGGER.debug("Loaded serialized network payload from %s", path)
@@ -149,7 +239,7 @@ def load_spec(
         raise SerializationError("Could not parse network specification JSON.") from exc
     if not isinstance(payload, dict):
         raise SerializationError("Serialized network must be a JSON object.")
-    return deserialize_spec(payload)
+    return PythonSpecLoadResult(spec=deserialize_spec(payload), warnings=[])
 
 
 def deserialize_spec_from_python_code(
@@ -157,6 +247,9 @@ def deserialize_spec_from_python_code(
     *,
     validate: bool = True,
     source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: PythonReconstructionLevel = "auto",
+    python_object_name: str | None = None,
 ) -> NetworkSpec:
     """Parse supported generated Python source into a ``NetworkSpec``.
 
@@ -173,6 +266,46 @@ def deserialize_spec_from_python_code(
     Raises:
         SerializationError: If the source is unsupported or cannot be parsed.
     """
+    return deserialize_spec_from_python_code_result(
+        code,
+        validate=validate,
+        source_profile=source_profile,
+        python_import_mode=python_import_mode,
+        python_reconstruction_level=python_reconstruction_level,
+        python_object_name=python_object_name,
+    ).spec
+
+
+def deserialize_spec_from_python_code_result(
+    code: str,
+    *,
+    validate: bool = True,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: PythonReconstructionLevel = "auto",
+    python_object_name: str | None = None,
+    source_path: Path | None = None,
+) -> PythonSpecLoadResult:
+    """Parse Python source into a ``NetworkSpec`` together with warnings."""
+    normalized_import_mode = normalize_python_import_mode(python_import_mode)
+    normalized_reconstruction_level = normalize_python_reconstruction_level(
+        python_reconstruction_level
+    )
+    if normalized_import_mode == "live":
+        resolve_python_reconstruction_level(
+            normalized_reconstruction_level,
+            resolved_source_profile="generated",
+            python_import_mode=normalized_import_mode,
+        )
+        result = import_live_python_source(
+            code,
+            source_profile=source_profile,
+            python_object_name=python_object_name,
+            source_path=source_path,
+        )
+        spec = ensure_valid_spec(result.spec) if validate else result.spec
+        return PythonSpecLoadResult(spec=spec, warnings=result.warnings)
+
     if "# Tensor Network Editor linear periodic mode" in code:
         raise SerializationError(
             "Loading generated Python from linear periodic mode is not supported."
@@ -187,16 +320,30 @@ def deserialize_spec_from_python_code(
         if normalized_profile == "auto"
         else normalized_profile
     )
+    resolved_reconstruction_level = resolve_python_reconstruction_level(
+        normalized_reconstruction_level,
+        resolved_source_profile=resolved_profile,
+        python_import_mode=normalized_import_mode,
+    )
     spec = (
-        parse_generated_python_network(code)
+        parse_generated_python_network(
+            code,
+            include_manual_plan=resolved_reconstruction_level == "best_available",
+        )
         if resolved_profile == "generated"
         else parse_python_source_by_profile(code, source_profile=resolved_profile)
     )
-    return ensure_valid_spec(spec) if validate else spec
+    validated_spec = ensure_valid_spec(spec) if validate else spec
+    return PythonSpecLoadResult(spec=validated_spec, warnings=[])
 
 
 def load_spec_from_python_code(
-    code: str, *, source_profile: PythonSourceProfile = "auto"
+    code: str,
+    *,
+    source_profile: PythonSourceProfile = "auto",
+    python_import_mode: PythonImportMode = "static",
+    python_reconstruction_level: PythonReconstructionLevel = "auto",
+    python_object_name: str | None = None,
 ) -> NetworkSpec:
     """Parse and validate supported generated Python source.
 
@@ -213,4 +360,7 @@ def load_spec_from_python_code(
         code,
         validate=True,
         source_profile=source_profile,
+        python_import_mode=python_import_mode,
+        python_reconstruction_level=python_reconstruction_level,
+        python_object_name=python_object_name,
     )

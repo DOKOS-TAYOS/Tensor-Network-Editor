@@ -150,6 +150,28 @@ def test_global_log_level_is_accepted_before_subcommand() -> None:
     assert parsed_args.no_browser is True
 
 
+def test_global_python_import_arguments_are_accepted_before_subcommand() -> None:
+    parser = build_command_parser()
+
+    parsed_args = parser.parse_args(
+        [
+            "--python-import-mode",
+            "live",
+            "--python-reconstruction-level",
+            "simple",
+            "--python-object",
+            "network",
+            "edit",
+            "--no-browser",
+        ]
+    )
+
+    assert parsed_args.python_import_mode == "live"
+    assert parsed_args.python_reconstruction_level == "simple"
+    assert parsed_args.python_object == "network"
+    assert parsed_args.command == "edit"
+
+
 def test_cli_modules_pass_targeted_mypy_check() -> None:
     result = subprocess.run(
         [
@@ -190,6 +212,40 @@ def test_edit_subcommand_uses_expected_defaults() -> None:
         "print_code": False,
         "code_path": None,
     }
+
+
+def test_edit_subcommand_passes_live_python_import_options(
+    sample_spec: NetworkSpec,
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch("tensor_network_editor.cli.launch_tensor_network_editor") as launch_mock,
+    ):
+        exit_code = main(
+            [
+                "--python-import-mode",
+                "live",
+                "--python-reconstruction-level",
+                "simple",
+                "--python-object",
+                "network",
+                "edit",
+                "--load",
+                "saved-network.py",
+                "--no-browser",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with(
+        "saved-network.py",
+        python_import_mode="live",
+        python_reconstruction_level="simple",
+        python_object_name="network",
+    )
+    assert launch_mock.call_args.kwargs["initial_spec"] is sample_spec
 
 
 def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> None:

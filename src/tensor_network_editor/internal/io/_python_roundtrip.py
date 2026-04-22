@@ -90,7 +90,9 @@ def _resolve_roundtrip_tensor_labels(state: _RoundtripParseState) -> None:
         parsed_tensor.index_labels = labels
 
 
-def parse_generated_python_network(code: str) -> NetworkSpec:
+def parse_generated_python_network(
+    code: str, *, include_manual_plan: bool = True
+) -> NetworkSpec:
     """Reconstruct a ``NetworkSpec`` from supported generated Python source."""
     state = _build_roundtrip_parse_state(code)
     for statement in state.module.body:
@@ -113,6 +115,8 @@ def parse_generated_python_network(code: str) -> NetworkSpec:
         tensors_by_reference=state.tensors_by_reference,
         tensor_rows=state.tensor_rows or [state.tensor_order],
         edge_specs=edge_specs,
-        pending_manual_steps=state.pending_manual_steps,
+        pending_manual_steps=(
+            state.pending_manual_steps if include_manual_plan else None
+        ),
         preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
     )

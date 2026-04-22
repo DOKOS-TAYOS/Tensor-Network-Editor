@@ -34,8 +34,10 @@ from tests.factories import (
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
 )
+from tests.optional_backends import require_light_optional_modules
 
 PythonSourceProfile = Literal["auto", "generated", "quimb", "tensornetwork", "einsum"]
+PythonImportMode = Literal["static", "live"]
 
 
 def test_package_version_matches_installed_metadata() -> None:
@@ -239,6 +241,89 @@ def test_load_spec_imports_quimb_python_file_with_auto_detection(
     assert loaded_spec.contraction_plan is None
 
 
+@pytest.mark.optional_backend
+def test_load_spec_imports_quimb_python_file_with_live_mode(
+    tmp_path: Path,
+) -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    source_path = tmp_path / "quimb_network_live.py"
+    source_path.write_text(
+        "\n".join(
+            [
+                "import numpy as np",
+                "import quimb.tensor as qtn",
+                "",
+                "def build_network() -> qtn.TensorNetwork:",
+                "    left = qtn.Tensor(np.arange(6, dtype=float).reshape(2, 3), inds=('i', 'bond_x'), tags=('A',))",
+                "    right = qtn.Tensor(np.full((3, 5), 1.5, dtype=float), inds=('bond_x', 'j'), tags=('B',))",
+                "    return qtn.TensorNetwork([left, right])",
+                "",
+                "network = build_network()",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded_spec = load_spec(
+        source_path,
+        python_import_mode="live",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert loaded_spec.tensors[0].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
+    )
+    assert loaded_spec.tensors[1].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value=1.5,
+    )
+
+
+@pytest.mark.optional_backend
+def test_load_spec_imports_live_python_file_with_relative_helper_import(
+    tmp_path: Path,
+) -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    helper_path = tmp_path / "helper_module.py"
+    helper_path.write_text(
+        "\n".join(
+            [
+                "import numpy as np",
+                "import quimb.tensor as qtn",
+                "",
+                "def build_network() -> qtn.TensorNetwork:",
+                "    left = qtn.Tensor(np.ones((2, 3)), inds=('i', 'bond_x'), tags=('A',))",
+                "    right = qtn.Tensor(np.ones((3, 5)), inds=('bond_x', 'j'), tags=('B',))",
+                "    return qtn.TensorNetwork([left, right])",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    source_path = tmp_path / "quimb_network_from_helper.py"
+    source_path.write_text(
+        "\n".join(
+            [
+                "from helper_module import build_network",
+                "",
+                "network = build_network()",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    loaded_spec = load_spec(
+        source_path,
+        source_profile="quimb",
+        python_import_mode="live",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+
+
 @pytest.mark.parametrize("engine", list(EngineName))
 @pytest.mark.parametrize(
     "collection_format",
@@ -333,6 +418,39 @@ def test_load_spec_from_python_code_round_trips_manual_plan_steps(
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_generated_simple_reconstruction_omits_manual_plan(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_spec()
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(
+        result.code,
+        python_reconstruction_level="simple",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert len(loaded_spec.edges) == 2
+    assert loaded_spec.contraction_plan is None
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_generated_best_available_preserves_manual_plan(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_spec()
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(
+        result.code,
+        python_reconstruction_level="best_available",
+    )
+
+    assert loaded_spec.contraction_plan is not None
+    assert [step.id for step in loaded_spec.contraction_plan.steps] == ["step_ab"]
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
 def test_load_spec_from_python_code_round_trips_chained_manual_plan_steps(
     engine: EngineName,
 ) -> None:
@@ -371,6 +489,188 @@ def test_load_spec_from_python_code_imports_quimb_tensor_network_profile() -> No
     assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
     assert loaded_spec.hyperedges == []
     assert loaded_spec.contraction_plan is None
+
+
+def test_load_spec_from_python_code_auto_reconstruction_keeps_external_profiles_simple() -> (
+    None
+):
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            "tensor_a = qtn.Tensor(a_data, inds=('i', 'bond_x'), tags=('A',))",
+            "tensor_b = qtn.Tensor(b_data, inds=('bond_x', 'j'), tags=('B',))",
+            "network = qtn.TensorNetwork([tensor_a, tensor_b])",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        python_reconstruction_level="auto",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert loaded_spec.contraction_plan is None
+
+
+def test_load_spec_from_python_code_rejects_best_available_for_external_profiles() -> (
+    None
+):
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "a_data = np.zeros((2, 3))",
+            "b_data = np.zeros((3, 5))",
+            "tensor_a = qtn.Tensor(a_data, inds=('i', 'bond_x'), tags=('A',))",
+            "tensor_b = qtn.Tensor(b_data, inds=('bond_x', 'j'), tags=('B',))",
+            "network = qtn.TensorNetwork([tensor_a, tensor_b])",
+        ]
+    )
+
+    with pytest.raises(SerializationError, match="best_available"):
+        load_spec_from_python_code(
+            code,
+            source_profile="quimb",
+            python_reconstruction_level="best_available",
+        )
+
+
+@pytest.mark.optional_backend
+def test_load_spec_from_python_code_live_imports_quimb_tensor_network() -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "def build_network() -> qtn.TensorNetwork:",
+            "    left = qtn.Tensor(np.ones((2, 3)), inds=('i', 'bond_x'), tags=('A',))",
+            "    right = qtn.Tensor(np.ones((3, 5)), inds=('bond_x', 'j'), tags=('B',))",
+            "    return qtn.TensorNetwork([left, right])",
+            "",
+            "network = build_network()",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        python_import_mode="live",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+
+
+@pytest.mark.optional_backend
+def test_load_spec_from_python_code_live_import_rejects_best_available() -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "left = qtn.Tensor(np.ones((2, 3)), inds=('i', 'bond_x'), tags=('A',))",
+            "right = qtn.Tensor(np.ones((3, 5)), inds=('bond_x', 'j'), tags=('B',))",
+            "network = qtn.TensorNetwork([left, right])",
+        ]
+    )
+
+    with pytest.raises(SerializationError, match="best_available"):
+        load_spec_from_python_code(
+            code,
+            python_import_mode="live",
+            python_reconstruction_level="best_available",
+        )
+
+
+@pytest.mark.optional_backend
+def test_load_spec_from_python_code_live_imports_tensornetwork_object() -> None:
+    require_light_optional_modules(("numpy", "tensornetwork"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import tensornetwork as tn",
+            "",
+            "def build_network() -> list[tn.Node]:",
+            "    left = tn.Node(np.ones((2, 3)), name='A', axis_names=['i', 'bond_x'])",
+            "    right = tn.Node(np.arange(15, dtype=float).reshape(3, 5), name='B', axis_names=['bond_x', 'j'])",
+            "    tn.connect(left['bond_x'], right['bond_x'], name='bond_x')",
+            "    return [left, right]",
+            "",
+            "network = build_network()",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        python_import_mode="live",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in loaded_spec.tensors] == [(2, 3), (3, 5)]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_x"]
+    assert loaded_spec.tensors[1].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=[
+            [0.0, 1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0, 9.0],
+            [10.0, 11.0, 12.0, 13.0, 14.0],
+        ],
+    )
+
+
+@pytest.mark.optional_backend
+def test_load_spec_from_python_code_live_import_uses_explicit_object_name() -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "def build_network(tag: str, bond: str) -> qtn.TensorNetwork:",
+            "    left = qtn.Tensor(np.ones((2, 3)), inds=('i', bond), tags=(tag,))",
+            "    right = qtn.Tensor(np.ones((3, 5)), inds=(bond, 'j'), tags=(f'{tag}R',))",
+            "    return qtn.TensorNetwork([left, right])",
+            "",
+            "first_network = build_network('A', 'bond_a')",
+            "second_network = build_network('B', 'bond_b')",
+        ]
+    )
+
+    loaded_spec = load_spec_from_python_code(
+        code,
+        python_import_mode="live",
+        python_object_name="second_network",
+    )
+
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["B", "BR"]
+    assert [edge.name for edge in loaded_spec.edges] == ["bond_b"]
+
+
+@pytest.mark.optional_backend
+def test_load_spec_from_python_code_live_import_rejects_ambiguous_globals() -> None:
+    require_light_optional_modules(("numpy", "quimb"))
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "tensor_a = qtn.Tensor(np.ones((2, 3)), inds=('i', 'j'), tags=('A',))",
+            "tensor_b = qtn.Tensor(np.ones((2, 3)), inds=('k', 'l'), tags=('B',))",
+        ]
+    )
+
+    with pytest.raises(SerializationError, match="python_object_name"):
+        load_spec_from_python_code(
+            code,
+            python_import_mode="live",
+        )
 
 
 def test_load_spec_from_python_code_imports_quimb_ampersand_chain_hyperedge() -> None:
@@ -491,6 +791,17 @@ def test_load_spec_from_python_code_rejects_external_profiles_without_static_sha
 
     with pytest.raises(SerializationError, match="supported"):
         load_spec_from_python_code(code, source_profile="quimb")
+
+
+def test_load_spec_from_python_code_live_import_rejects_generated_profile() -> None:
+    code = "network = object()\n"
+
+    with pytest.raises(SerializationError, match="live import"):
+        load_spec_from_python_code(
+            code,
+            source_profile="generated",
+            python_import_mode="live",
+        )
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
