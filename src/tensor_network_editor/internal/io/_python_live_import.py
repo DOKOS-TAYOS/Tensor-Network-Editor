@@ -23,6 +23,9 @@ from ._python_import_shared import (
     build_network_from_explicit_connections,
     build_network_from_shared_labels,
 )
+from ._python_import_shared import (
+    default_connection_name as _default_connection_name,
+)
 from ._python_live_import_runtime import (
     candidate_collection_items as _candidate_collection_items,
 )
@@ -489,13 +492,6 @@ def _recover_tensornetwork_edge_name(
     if isinstance(raw_name, str) and raw_name.strip():
         return raw_name.strip()
     return _default_connection_name(left_index_name, right_index_name)
-
-
-def _default_connection_name(left_index_name: str, right_index_name: str) -> str:
-    """Choose a readable fallback connection name."""
-    if left_index_name == right_index_name:
-        return left_index_name
-    return f"{left_index_name}_{right_index_name}"
 
 
 def _recover_quimb_tensor_name(tensor: object, tensor_index: int) -> str:

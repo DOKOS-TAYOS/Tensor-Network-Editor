@@ -13,8 +13,13 @@ _SRC_ROOT = Path(__file__).resolve().parents[3]
 if str(_SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(_SRC_ROOT))
 
+from tensor_network_editor.errors import SerializationError  # noqa: E402
+from tensor_network_editor.internal.io._python_import_profiles import (  # noqa: E402
+    PythonSourceProfile,
+)
 from tensor_network_editor.internal.io._python_live_import import (  # noqa: E402
     build_live_import_result_from_namespace,
+    normalize_live_source_profile,
 )
 
 
@@ -61,6 +66,7 @@ def _run_request(request_payload: dict[str, object]) -> dict[str, object]:
         raise ValueError(
             "Live import subprocess requires a string 'source_profile' field."
         )
+    normalized_source_profile = _validate_live_source_profile(source_profile)
     if python_object_name is not None and not isinstance(python_object_name, str):
         raise ValueError(
             "Live import subprocess requires 'python_object_name' to be a string when provided."
@@ -85,7 +91,7 @@ def _run_request(request_payload: dict[str, object]) -> dict[str, object]:
         exec(compiled_code, namespace, namespace)
     result = build_live_import_result_from_namespace(
         namespace,
-        source_profile=source_profile,
+        source_profile=normalized_source_profile,
         python_object_name=python_object_name,
     )
     return {
@@ -93,6 +99,17 @@ def _run_request(request_payload: dict[str, object]) -> dict[str, object]:
         "network": result.spec.to_dict(),
         "warnings": result.warnings,
     }
+
+
+def _validate_live_source_profile(source_profile: str) -> PythonSourceProfile:
+    """Validate one live-import source profile before executing user code."""
+    try:
+        return normalize_live_source_profile(source_profile)
+    except (SerializationError, ValueError, TypeError) as exc:
+        raise ValueError(
+            "Live import subprocess supports only 'auto', 'quimb', or "
+            "'tensornetwork' source_profile values."
+        ) from exc
 
 
 def _write_response(response_payload: dict[str, object]) -> None:

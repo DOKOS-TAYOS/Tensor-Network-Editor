@@ -203,6 +203,13 @@ def build_imported_tensor_specs(
     return tensor_specs, index_lookup
 
 
+def default_connection_name(left_index_name: str, right_index_name: str) -> str:
+    """Choose a readable fallback connection name."""
+    if left_index_name == right_index_name:
+        return left_index_name
+    return f"{left_index_name}_{right_index_name}"
+
+
 def unique_identifier(
     *,
     preferred_identifier: str,

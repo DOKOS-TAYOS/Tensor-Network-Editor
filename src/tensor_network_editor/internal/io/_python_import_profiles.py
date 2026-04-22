@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 from ...errors import SerializationError
 from ...models import NetworkSpec, TensorDataSpec
@@ -16,6 +16,7 @@ from ._python_import_shared import (
 from ._python_import_shared import (
     build_network_from_shared_labels as _build_network_from_shared_labels,
 )
+from ._python_import_shared import default_connection_name as _default_connection_name
 from ._python_roundtrip_ast import (
     _call_name,
     _extract_name_from_expression,
@@ -61,7 +62,7 @@ def normalize_python_source_profile(source_profile: str) -> PythonSourceProfile:
             "Unsupported Python source profile "
             f"{source_profile!r}. Expected one of {sorted(_SUPPORTED_SOURCE_PROFILES)!r}."
         )
-    return normalized_profile  # type: ignore[return-value]
+    return cast(PythonSourceProfile, normalized_profile)
 
 
 def detect_python_source_profile(code: str) -> ResolvedPythonSourceProfile:
@@ -600,13 +601,6 @@ def _parse_named_index_operand(expression: ast.expr) -> tuple[str, str] | None:
     if reference is None or index_name is None:
         return None
     return reference, index_name
-
-
-def _default_connection_name(left_index_name: str, right_index_name: str) -> str:
-    """Choose a readable fallback connection name."""
-    if left_index_name == right_index_name:
-        return left_index_name
-    return f"{left_index_name}_{right_index_name}"
 
 
 def _resolve_selected_references(state: _ImportState) -> list[str]:

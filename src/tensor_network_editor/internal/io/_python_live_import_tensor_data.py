@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import math
+from typing import Protocol, TypeGuard
 
 from ...models import TensorDataMode, TensorDataSpec
 from ..models._model_tensor_data import TensorNumericLiteral
 
 _LITERAL_DATA_ELEMENT_LIMIT = 4096
+
+
+class _ItemLike(Protocol):
+    def item(self) -> object: ...
+
+
+class _ToListLike(Protocol):
+    def tolist(self) -> object: ...
 
 
 def lower_runtime_tensor_data(
@@ -85,14 +94,14 @@ def coerce_tensor_literal(data: object) -> TensorNumericLiteral:
         return data
     if isinstance(data, complex):
         raise TypeError("Complex tensor literals are not supported.")
-    if hasattr(data, "item") and callable(data.item):
+    if _is_item_like(data):
         try:
             scalar_value = data.item()
         except (TypeError, ValueError):
             scalar_value = None
         else:
             return coerce_tensor_literal(scalar_value)
-    if hasattr(data, "tolist") and callable(data.tolist):
+    if _is_tolist_like(data):
         return coerce_tensor_literal(data.tolist())
     if isinstance(data, tuple):
         return [coerce_tensor_literal(item) for item in data]
@@ -109,3 +118,13 @@ def flatten_tensor_literal(values: TensorNumericLiteral) -> list[int | float]:
     for item in values:
         flattened_values.extend(flatten_tensor_literal(item))
     return flattened_values
+
+
+def _is_item_like(value: object) -> TypeGuard[_ItemLike]:
+    """Return whether ``value`` exposes one callable ``item()`` method."""
+    return callable(getattr(value, "item", None))
+
+
+def _is_tolist_like(value: object) -> TypeGuard[_ToListLike]:
+    """Return whether ``value`` exposes one callable ``tolist()`` method."""
+    return callable(getattr(value, "tolist", None))
