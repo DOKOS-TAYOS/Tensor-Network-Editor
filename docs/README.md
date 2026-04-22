@@ -23,6 +23,8 @@ avoid reading one huge document from top to bottom.
 - save those structures as backend-independent JSON
 - reload the same design later
 - generate Python code for several tensor-network backends
+- create first-class hyperedges with a saved draggable hub position in normal
+  mode
 - keep reusable subnetworks in project or shared catalogs
 - auto-layout the current selection or the whole graph when needed
 - benchmark contraction variants from the editor or the CLI

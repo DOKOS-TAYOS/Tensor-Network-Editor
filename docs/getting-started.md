@@ -70,6 +70,10 @@ A simple first design is enough:
 4. Connect the matching indices.
 5. Press `Done`.
 
+If you select three or more compatible open indices, you can also press `H` to
+create one hyperedge instead of several pairwise edges. The same action is
+available from the `Selection` sidebar.
+
 If you want a prebuilt shape, insert one of the templates instead of drawing
 everything manually. Templates are explained in [user-guide.md](user-guide.md).
 

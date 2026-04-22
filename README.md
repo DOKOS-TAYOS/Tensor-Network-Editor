@@ -34,8 +34,9 @@ offline use, and generated code you can inspect.
 - Edit tensor initializers in the sidebar with generated zeros, ones, fill
   values, or explicit numeric JSON literals that round-trip through saved
   designs and supported generated Python.
-- Create first-class hyperedges in normal mode; exports lower them
-  automatically into copy tensors plus binary edges for backend code.
+- Create first-class hyperedges in normal mode, reposition their virtual hubs
+  in the editor, and let exports lower them automatically into copy tensors
+  plus binary edges for backend code.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.

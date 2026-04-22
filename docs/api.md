@@ -183,6 +183,12 @@ Important details:
 - live import preserves tensor data when it can be lowered to `ones`, `fill`,
   or small numeric literals, and otherwise drops that data with a warning
 
+When you build `HyperedgeSpec` values from Python,
+`hub_offset=CanvasPosition(...)` stores the editor's draggable hub displacement
+in the saved JSON. That offset is relative to the automatic hub center
+computed from the endpoints, and older JSON payloads that predate this field
+still load with a zero offset.
+
 Round-trip from generated source:
 
 ```python
