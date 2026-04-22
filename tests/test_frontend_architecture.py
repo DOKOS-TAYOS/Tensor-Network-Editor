@@ -81,6 +81,15 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
         / "js"
         / "properties"
     )
+    planner_dir = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "planner"
+    )
     session_flow_body = (session_dir / "sessionTemplateFlows.js").read_text(
         encoding="utf-8"
     )
@@ -157,6 +166,36 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     toolbar_action_state_body = (
         utils_dir / "utilitiesUiToolbarActionState.js"
     ).read_text(encoding="utf-8")
+    planner_support_body = (planner_dir / "plannerSupport.js").read_text(
+        encoding="utf-8"
+    )
+    planner_support_guards_body = (planner_dir / "plannerSupportGuards.js").read_text(
+        encoding="utf-8"
+    )
+    planner_support_operands_body = (
+        planner_dir / "plannerSupportOperands.js"
+    ).read_text(encoding="utf-8")
+    planner_support_analysis_body = (
+        planner_dir / "plannerSupportAnalysis.js"
+    ).read_text(encoding="utf-8")
+    planner_support_actions_body = (planner_dir / "plannerSupportActions.js").read_text(
+        encoding="utf-8"
+    )
+    planner_renderers_body = (planner_dir / "plannerRenderers.js").read_text(
+        encoding="utf-8"
+    )
+    planner_renderers_common_body = (
+        planner_dir / "plannerRenderersCommon.js"
+    ).read_text(encoding="utf-8")
+    planner_renderers_automatic_body = (
+        planner_dir / "plannerRenderersAutomatic.js"
+    ).read_text(encoding="utf-8")
+    planner_renderers_manual_body = (
+        planner_dir / "plannerRenderersManual.js"
+    ).read_text(encoding="utf-8")
+    planner_renderers_panel_body = (planner_dir / "plannerRenderersPanel.js").read_text(
+        encoding="utf-8"
+    )
 
     assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_flow_body
     assert "function createSubnetworkLibrarySupport(" in session_helper_body
@@ -192,6 +231,29 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     assert "function createUiToolbarDerivedStateSupport(" in toolbar_derived_state_body
     assert "function createUiToolbarModeControlSupport(" in toolbar_mode_controls_body
     assert "function createUiToolbarActionStateSupport(" in toolbar_action_state_body
+    assert 'from "./plannerSupportGuards.js"' in planner_support_body
+    assert 'from "./plannerSupportOperands.js"' in planner_support_body
+    assert 'from "./plannerSupportAnalysis.js"' in planner_support_body
+    assert 'from "./plannerSupportActions.js"' in planner_support_body
+    assert "function createPlannerGuardSupport(" in planner_support_guards_body
+    assert "function createPlannerOperandSupport(" in planner_support_operands_body
+    assert "function createPlannerAnalysisSupport(" in planner_support_analysis_body
+    assert "function createPlannerActionSupport(" in planner_support_actions_body
+    assert 'from "./plannerRenderersCommon.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersAutomatic.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersManual.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersPanel.js"' in planner_renderers_body
+    assert (
+        "function createPlannerRendererCommonSupport(" in planner_renderers_common_body
+    )
+    assert (
+        "function createPlannerAutomaticRendererSupport("
+        in planner_renderers_automatic_body
+    )
+    assert (
+        "function createPlannerManualRendererSupport(" in planner_renderers_manual_body
+    )
+    assert "function createPlannerPanelRendererSupport(" in planner_renderers_panel_body
     assert 'from "./tensorPropertiesStandardData.js"' in tensor_standard_body
     assert 'from "./tensorPropertiesStandardMarkup.js"' in tensor_standard_body
     assert 'from "./tensorPropertiesStandardBindings.js"' in tensor_standard_body

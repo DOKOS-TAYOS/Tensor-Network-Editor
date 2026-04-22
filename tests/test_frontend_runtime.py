@@ -41,7 +41,15 @@ JS_RELOCATION_MAP: dict[str, str] = {
     "overlaysLayoutTemplates.js": "graph/overlaysLayoutTemplates.js",
     "planner.js": "planner/planner.js",
     "plannerAutomaticSupport.js": "planner/plannerAutomaticSupport.js",
+    "plannerRenderersAutomatic.js": "planner/plannerRenderersAutomatic.js",
+    "plannerRenderersCommon.js": "planner/plannerRenderersCommon.js",
+    "plannerRenderersManual.js": "planner/plannerRenderersManual.js",
+    "plannerRenderersPanel.js": "planner/plannerRenderersPanel.js",
     "plannerRenderers.js": "planner/plannerRenderers.js",
+    "plannerSupportActions.js": "planner/plannerSupportActions.js",
+    "plannerSupportAnalysis.js": "planner/plannerSupportAnalysis.js",
+    "plannerSupportGuards.js": "planner/plannerSupportGuards.js",
+    "plannerSupportOperands.js": "planner/plannerSupportOperands.js",
     "plannerSupport.js": "planner/plannerSupport.js",
     "properties.js": "properties/properties.js",
     "propertiesRenderers.js": "properties/propertiesRenderers.js",
@@ -193,7 +201,15 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
         "actions/sessionCommands.js",
         "codeHighlighting.js",
         "planner/plannerAnalysisFormatting.js",
+        "planner/plannerRenderersAutomatic.js",
+        "planner/plannerRenderersCommon.js",
+        "planner/plannerRenderersManual.js",
+        "planner/plannerRenderersPanel.js",
         "planner/plannerPanelBindings.js",
+        "planner/plannerSupportActions.js",
+        "planner/plannerSupportAnalysis.js",
+        "planner/plannerSupportGuards.js",
+        "planner/plannerSupportOperands.js",
         "properties/entityPropertiesBindings.js",
         "properties/entityPropertiesMarkup.js",
         "properties/metadataEditors.js",
@@ -429,6 +445,8 @@ def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
     _copy_runtime_editor_support_modules(tmp_path)
 
     assert (tmp_path / "plannerAutomaticSupport.js").exists()
+    assert (tmp_path / "planner" / "plannerRenderersAutomatic.js").exists()
+    assert (tmp_path / "planner" / "plannerSupportActions.js").exists()
     assert (tmp_path / "utilitiesBenchmark.js").exists()
 
 

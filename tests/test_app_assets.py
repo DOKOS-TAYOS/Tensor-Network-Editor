@@ -303,7 +303,12 @@ def test_static_server_rejects_parent_directory_traversal(
 def test_notes_planner_uses_singular_operation_labels(
     editor_server: EditorServer,
 ) -> None:
-    body = request_text(f"{editor_server.base_url}/js/planner/plannerRenderers.js")
+    body = request_runtime_bundle(
+        editor_server,
+        "js/planner/plannerRenderers.js",
+        "js/planner/plannerRenderersAutomatic.js",
+        "js/planner/plannerRenderersManual.js",
+    )
 
     assert '"FLOPs"' not in body
     assert '"MACs"' not in body
@@ -321,6 +326,30 @@ def test_notes_and_planner_feature_modules_are_served(
     )
     planner_renderers_body = request_text(
         f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    )
+    planner_support_guards_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupportGuards.js"
+    )
+    planner_support_operands_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupportOperands.js"
+    )
+    planner_support_analysis_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupportAnalysis.js"
+    )
+    planner_support_actions_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupportActions.js"
+    )
+    planner_renderers_common_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersCommon.js"
+    )
+    planner_renderers_automatic_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersAutomatic.js"
+    )
+    planner_renderers_manual_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersManual.js"
+    )
+    planner_renderers_panel_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersPanel.js"
     )
     planner_selectors_body = request_text(
         f"{editor_server.base_url}/js/state/plannerSelectors.js"
@@ -344,10 +373,28 @@ def test_notes_and_planner_feature_modules_are_served(
     assert 'from "./plannerSupport.js"' in planner_body
     assert 'from "./plannerRenderers.js"' in planner_body
     assert 'from "../state/plannerSelectors.js"' in planner_support_body
-    assert 'from "../actions/plannerCommands.js"' in planner_support_body
-    assert 'from "../services/plannerAnalysisService.js"' in planner_support_body
+    assert 'from "./plannerSupportGuards.js"' in planner_support_body
+    assert 'from "./plannerSupportOperands.js"' in planner_support_body
+    assert 'from "./plannerSupportAnalysis.js"' in planner_support_body
+    assert 'from "./plannerSupportActions.js"' in planner_support_body
+    assert 'from "../actions/plannerCommands.js"' in planner_support_actions_body
+    assert (
+        'from "../services/plannerAnalysisService.js"' in planner_support_analysis_body
+    )
     assert "createPlannerSupport" in planner_support_body
     assert "createPlannerRenderers" in planner_renderers_body
+    assert 'from "./plannerRenderersCommon.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersAutomatic.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersManual.js"' in planner_renderers_body
+    assert 'from "./plannerRenderersPanel.js"' in planner_renderers_body
+    assert "createPlannerGuardSupport" in planner_support_guards_body
+    assert "createPlannerOperandSupport" in planner_support_operands_body
+    assert "createPlannerAnalysisSupport" in planner_support_analysis_body
+    assert "createPlannerActionSupport" in planner_support_actions_body
+    assert "createPlannerRendererCommonSupport" in planner_renderers_common_body
+    assert "createPlannerAutomaticRendererSupport" in planner_renderers_automatic_body
+    assert "createPlannerManualRendererSupport" in planner_renderers_manual_body
+    assert "createPlannerPanelRendererSupport" in planner_renderers_panel_body
     assert "buildPlannerOperandState" in planner_selectors_body
     assert "createPlannerCommands" in planner_commands_body
     assert "createPlannerAnalysisService" in planner_service_body
@@ -1277,8 +1324,10 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
-    planner_body = request_text(
-        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    planner_body = request_runtime_bundle(
+        editor_server,
+        "js/planner/plannerRenderers.js",
+        "js/planner/plannerRenderersPanel.js",
     )
     html = request_text(f"{editor_server.base_url}/")
     utilities_body = request_text(f"{editor_server.base_url}/js/utils/utilitiesUi.js")
@@ -2340,8 +2389,10 @@ def test_properties_assets_sync_dimensions_across_connected_ports(
 def test_planner_assets_expose_total_elements_and_step_spacing(
     editor_server: EditorServer,
 ) -> None:
-    planner_body = request_text(
-        f"{editor_server.base_url}/js/planner/plannerRenderers.js"
+    planner_body = request_runtime_bundle(
+        editor_server,
+        "js/planner/plannerRenderers.js",
+        "js/planner/plannerRenderersManual.js",
     )
     planner_formatting_body = request_text(
         f"{editor_server.base_url}/js/planner/plannerAnalysisFormatting.js"
