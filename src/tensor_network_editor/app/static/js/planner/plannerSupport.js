@@ -1,4 +1,8 @@
 import { getAutomaticAnalysisByMode as getAutomaticAnalysisByModeFromSelectors } from "../state/plannerSelectors.js";
+import {
+  LINEAR_PERIODIC_NEXT_OPERAND_ID,
+  LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+} from "../utils/utilitiesLinearPeriodicState.js";
 import { createPlannerActionSupport } from "./plannerSupportActions.js";
 import { createPlannerAnalysisSupport } from "./plannerSupportAnalysis.js";
 import { createPlannerGuardSupport } from "./plannerSupportGuards.js";
@@ -15,11 +19,11 @@ export function createPlannerSupport({
   const previousOperandId =
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("previous")
-      : "__linear_previous__";
+      : LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
   const nextOperandId =
     typeof ctx.getLinearPeriodicReservedOperandId === "function"
       ? ctx.getLinearPeriodicReservedOperandId("next")
-      : "__linear_next__";
+      : LINEAR_PERIODIC_NEXT_OPERAND_ID;
   const renderPlanner = () => getRenderPlanner()();
   const guardSupport = createPlannerGuardSupport({
     ctx,

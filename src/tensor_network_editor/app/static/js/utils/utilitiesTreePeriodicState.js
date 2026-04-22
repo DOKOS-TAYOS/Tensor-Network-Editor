@@ -6,7 +6,7 @@ export const TREE_PERIODIC_CELL_LABELS = {
   leaf: "Leaf cell",
 };
 
-export const TREE_PERIODIC_NAVIGATION = {
+const TREE_PERIODIC_NAVIGATION = {
   root: { up: null, down: "branch" },
   branch: { up: "root", down: "leaf" },
   leaf: { up: "branch", down: null },

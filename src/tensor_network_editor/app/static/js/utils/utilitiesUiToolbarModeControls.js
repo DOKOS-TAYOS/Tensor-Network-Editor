@@ -1,3 +1,13 @@
+import {
+  GRID_PERIODIC_CELL_LABELS,
+} from "./utilitiesGridPeriodicState.js";
+import {
+  LINEAR_PERIODIC_CELL_LABELS,
+} from "./utilitiesLinearPeriodicState.js";
+import {
+  TREE_PERIODIC_CELL_LABELS,
+} from "./utilitiesTreePeriodicState.js";
+
 export function createUiToolbarModeControlSupport({
   dom,
   runtime,
@@ -19,28 +29,6 @@ export function createUiToolbarModeControlSupport({
     benchmarkSchemeNameInput,
     benchmarkCompareButton,
   } = dom;
-
-  const LINEAR_PERIODIC_CELL_LABELS = {
-    initial: "Initial cell",
-    periodic: "Periodic cell",
-    final: "Final cell",
-  };
-  const GRID_PERIODIC_CELL_LABELS = {
-    top_left: "Top-left cell",
-    top: "Top cell",
-    top_right: "Top-right cell",
-    left: "Left cell",
-    center: "Center cell",
-    right: "Right cell",
-    bottom_left: "Bottom-left cell",
-    bottom: "Bottom cell",
-    bottom_right: "Bottom-right cell",
-  };
-  const TREE_PERIODIC_CELL_LABELS = {
-    root: "Root cell",
-    branch: "Branch cell",
-    leaf: "Leaf cell",
-  };
 
   function syncToolbarModeControls(derivedState) {
     const {

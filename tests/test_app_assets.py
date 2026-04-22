@@ -2300,6 +2300,66 @@ def test_periodic_mode_assets_delegate_to_internal_helpers(
     assert "function createUiToolbarActionStateSupport(" in toolbar_action_state_body
 
 
+def test_periodic_frontend_assets_centralize_shared_constants(
+    editor_server: EditorServer,
+) -> None:
+    planner_support_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerSupport.js"
+    )
+    contraction_operands_body = request_text(
+        f"{editor_server.base_url}/js/graph/contractionSceneOperands.js"
+    )
+    toolbar_mode_controls_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarModeControls.js"
+    )
+    planner_formatting_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerAnalysisFormatting.js"
+    )
+    grid_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesGridPeriodicState.js"
+    )
+    linear_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLinearPeriodicState.js"
+    )
+    tree_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesTreePeriodicState.js"
+    )
+
+    assert 'from "../utils/utilitiesLinearPeriodicState.js"' in planner_support_body
+    assert "LINEAR_PERIODIC_PREVIOUS_OPERAND_ID" in planner_support_body
+    assert "LINEAR_PERIODIC_NEXT_OPERAND_ID" in planner_support_body
+    assert "__linear_previous__" not in planner_support_body
+    assert "__linear_next__" not in planner_support_body
+    assert (
+        'from "../utils/utilitiesLinearPeriodicState.js"' in contraction_operands_body
+    )
+    assert "LINEAR_PERIODIC_PREVIOUS_OPERAND_ID" in contraction_operands_body
+    assert "LINEAR_PERIODIC_NEXT_OPERAND_ID" in contraction_operands_body
+    assert "__linear_previous__" not in contraction_operands_body
+    assert "__linear_next__" not in contraction_operands_body
+    assert 'from "./utilitiesLinearPeriodicState.js"' in toolbar_mode_controls_body
+    assert 'from "./utilitiesGridPeriodicState.js"' in toolbar_mode_controls_body
+    assert 'from "./utilitiesTreePeriodicState.js"' in toolbar_mode_controls_body
+    assert "const LINEAR_PERIODIC_CELL_LABELS =" not in toolbar_mode_controls_body
+    assert "const GRID_PERIODIC_CELL_LABELS =" not in toolbar_mode_controls_body
+    assert "const TREE_PERIODIC_CELL_LABELS =" not in toolbar_mode_controls_body
+    assert "export function formatShapeElementCount(" not in planner_formatting_body
+    assert "function formatShapeElementCount(" in planner_formatting_body
+    assert "export const GRID_PERIODIC_NAVIGATION =" not in grid_state_body
+    assert "const GRID_PERIODIC_NAVIGATION =" in grid_state_body
+    assert "export const GRID_PERIODIC_CELL_KEYS =" not in grid_state_body
+    assert "const GRID_PERIODIC_CELL_KEYS =" in grid_state_body
+    assert "export const GRID_PERIODIC_EXPECTED_ROLES =" not in grid_state_body
+    assert "const GRID_PERIODIC_EXPECTED_ROLES =" in grid_state_body
+    assert (
+        "export const LINEAR_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE ="
+        not in linear_state_body
+    )
+    assert "const LINEAR_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE =" in linear_state_body
+    assert "export const TREE_PERIODIC_NAVIGATION =" not in tree_state_body
+    assert "const TREE_PERIODIC_NAVIGATION =" in tree_state_body
+
+
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
     editor_server: EditorServer,
 ) -> None:

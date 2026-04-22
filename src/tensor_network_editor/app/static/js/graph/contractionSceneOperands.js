@@ -2,6 +2,10 @@ import {
   buildContractionOperandProgression as buildContractionOperandProgressionFromState,
   buildContractionStateFromProgression,
 } from "../state/contractionSceneProgression.js";
+import {
+  LINEAR_PERIODIC_NEXT_OPERAND_ID,
+  LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+} from "../utils/utilitiesLinearPeriodicState.js";
 
 export function createContractionSceneOperandsSupport({
   state,
@@ -15,14 +19,14 @@ export function createContractionSceneOperandsSupport({
 }) {
   const TENSORKROWCH_MANUAL_PLAN_BASE_MESSAGE =
     "TensorKrowch manual plans cannot include outer product steps.";
-  const LINEAR_PERIODIC_PREVIOUS_OPERAND_ID =
+  const previousOperandId =
     typeof getLinearPeriodicReservedOperandId === "function"
       ? getLinearPeriodicReservedOperandId("previous")
-      : "__linear_previous__";
-  const LINEAR_PERIODIC_NEXT_OPERAND_ID =
+      : LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
+  const nextOperandId =
     typeof getLinearPeriodicReservedOperandId === "function"
       ? getLinearPeriodicReservedOperandId("next")
-      : "__linear_next__";
+      : LINEAR_PERIODIC_NEXT_OPERAND_ID;
 
   function getContractionPlan() {
     return state.spec && state.spec.contraction_plan ? state.spec.contraction_plan : null;
@@ -46,11 +50,11 @@ export function createContractionSceneOperandsSupport({
   }
 
   function isPreviousOperandId(operandId) {
-    return operandId === LINEAR_PERIODIC_PREVIOUS_OPERAND_ID;
+    return operandId === previousOperandId;
   }
 
   function isNextOperandId(operandId) {
-    return operandId === LINEAR_PERIODIC_NEXT_OPERAND_ID;
+    return operandId === nextOperandId;
   }
 
   function buildBoundaryOperands() {
@@ -137,9 +141,9 @@ export function createContractionSceneOperandsSupport({
   function buildContractionOperandProgressionForSteps(planSteps) {
     return buildContractionOperandProgressionFromState({
       initialOperands: buildInitialOperands(),
-      nextOperandId: LINEAR_PERIODIC_NEXT_OPERAND_ID,
+      nextOperandId,
       planSteps,
-      previousOperandId: LINEAR_PERIODIC_PREVIOUS_OPERAND_ID,
+      previousOperandId,
     });
   }
 

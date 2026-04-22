@@ -30,7 +30,7 @@ export function getShapeElementCount(shape) {
   }, 1n);
 }
 
-export function formatShapeElementCount(shape) {
+function formatShapeElementCount(shape) {
   const elementCount = getShapeElementCount(shape);
   return elementCount === null ? "" : elementCount.toString();
 }

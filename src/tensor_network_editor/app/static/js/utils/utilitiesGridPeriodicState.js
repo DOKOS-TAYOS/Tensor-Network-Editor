@@ -22,7 +22,7 @@ export const GRID_PERIODIC_CELL_LABELS = {
   bottom_right: "Bottom-right cell",
 };
 
-export const GRID_PERIODIC_NAVIGATION = {
+const GRID_PERIODIC_NAVIGATION = {
   top_left: { up: null, right: "top", down: "left", left: null },
   top: { up: null, right: "top_right", down: "center", left: "top_left" },
   top_right: { up: null, right: null, down: "right", left: "top" },
@@ -53,7 +53,7 @@ export const GRID_PERIODIC_BOUNDARY_SETTINGS = {
   },
 };
 
-export const GRID_PERIODIC_CELL_KEYS = Object.fromEntries(
+const GRID_PERIODIC_CELL_KEYS = Object.fromEntries(
   GRID_PERIODIC_CELL_ORDER.map((cellName) => [cellName, `${cellName}_cell`])
 );
 
@@ -102,7 +102,7 @@ export const GRID_PERIODIC_FAMILY_BY_CELL_ROLE = {
   },
 };
 
-export const GRID_PERIODIC_EXPECTED_ROLES = {
+const GRID_PERIODIC_EXPECTED_ROLES = {
   top_left: ["right", "down"],
   top: ["left", "right", "down"],
   top_right: ["left", "down"],
