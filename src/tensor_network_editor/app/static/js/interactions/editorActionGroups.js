@@ -141,6 +141,10 @@ export function createEditorActionGroups(ctx) {
         ctx,
         "createGroupFromSelection"
       ),
+      createHyperedgeFromSelection: resolveOptionalAction(
+        ctx,
+        "createHyperedgeFromSelection"
+      ),
       addNoteAtCenter: resolveOptionalAction(ctx, "addNoteAtCenter"),
       toggleTemplateManager: resolveOptionalAction(ctx, "toggleTemplateManager"),
       toggleLinearPeriodicMode: resolveOptionalAction(

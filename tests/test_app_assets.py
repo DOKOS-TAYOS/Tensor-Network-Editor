@@ -503,6 +503,8 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
         'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "s") {'
         in body
     )
+    assert 'if (!hasAnyModifier && lowerKey === "h") {' in body
+    assert "createHyperedgeFromSelection();" in body
     assert (
         'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "e") {'
         in body
@@ -1032,6 +1034,7 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
         'id="context-menu-promote-selection-template-button"'
         in context_menu_markup_body
     )
+    assert 'id="context-menu-create-hyperedge-button"' in context_menu_markup_body
     assert 'id="context-menu-selection-color-input"' in context_menu_markup_body
     assert 'id="context-menu-group-selection-button"' in context_menu_markup_body
     assert 'id="context-menu-delete-selection-button"' in context_menu_markup_body
@@ -1063,6 +1066,9 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     )
     assert (
         "Create a visual group from the selected tensors." in context_menu_markup_body
+    )
+    assert (
+        "Create a hyperedge from the selected open indices." in context_menu_markup_body
     )
     assert (
         "Extract the tensors inside this group as a reusable subnetwork."
@@ -1951,6 +1957,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert shortcuts_section is not None
     assert "<h3>" not in shortcuts_section.group("body")
+    assert (
+        "<strong>H</strong><span>Create hyperedge from selected indices</span>"
+        in shortcuts_section.group("body")
+    )
     about_section = re.search(
         r'<section id="help-about-section"[^>]*>(?P<body>.*?)</section>',
         html,
@@ -2188,12 +2198,14 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert (
         'id="promote-selection-template-button"' in overview_body + overview_markup_body
     )
+    assert 'id="create-hyperedge-button"' in overview_body + overview_markup_body
     assert "Add Index to Tensors" not in overview_markup_body
     assert "Extract Selection" not in overview_markup_body
     assert "Promote to Template" not in overview_markup_body
     assert "Add index" in overview_markup_body
     assert "Extract" in overview_markup_body
     assert "To Template" in overview_markup_body
+    assert "<h3>Hyperedge</h3>" not in overview_markup_body
     assert 'id="group-selection-button"' in overview_body + overview_markup_body
     assert (
         'id="align-selection-left-button"' not in overview_body + overview_markup_body

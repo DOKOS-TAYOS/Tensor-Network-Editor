@@ -142,7 +142,18 @@ export function createUtilityGeometryBindings({
     );
   }
 
-  function getHyperedgeHubPosition(hyperedge) {
+  function normalizeHyperedgeHubOffset(hyperedge) {
+    const hubOffset = {
+      x: runtime.asFiniteNumber(hyperedge?.hub_offset?.x, 0),
+      y: runtime.asFiniteNumber(hyperedge?.hub_offset?.y, 0),
+    };
+    if (hyperedge) {
+      hyperedge.hub_offset = hubOffset;
+    }
+    return hubOffset;
+  }
+
+  function getAutomaticHyperedgeHubCenter(hyperedge) {
     const endpoints = Array.isArray(hyperedge?.endpoints) ? hyperedge.endpoints : [];
     const endpointPositions = endpoints
       .map((endpoint) =>
@@ -168,6 +179,18 @@ export function createUtilityGeometryBindings({
     };
   }
 
+  function getHyperedgeHubPosition(hyperedge) {
+    const automaticCenter = getAutomaticHyperedgeHubCenter(hyperedge);
+    if (!automaticCenter) {
+      return null;
+    }
+    const hubOffset = normalizeHyperedgeHubOffset(hyperedge);
+    return {
+      x: automaticCenter.x + hubOffset.x,
+      y: automaticCenter.y + hubOffset.y,
+    };
+  }
+
   function syncHyperedgeHubNodePosition(hyperedgeId) {
     if (!state.cy || typeof runtime.findHyperedgeById !== "function") {
       return null;
@@ -182,7 +205,9 @@ export function createUtilityGeometryBindings({
     }
     const hubElement = state.cy.getElementById(runtime.hyperedgeHubNodeId(hyperedge.id));
     if (hubElement && hubElement.length) {
-      hubElement.position(hubPosition);
+      runWithHyperedgeHubSync(() => {
+        hubElement.position(hubPosition);
+      });
     }
     return hubPosition;
   }
@@ -231,6 +256,15 @@ export function createUtilityGeometryBindings({
       action();
     } finally {
       state.syncingTensorPositions = false;
+    }
+  }
+
+  function runWithHyperedgeHubSync(action) {
+    state.syncingHyperedgeHubPositions = true;
+    try {
+      action();
+    } finally {
+      state.syncingHyperedgeHubPositions = false;
     }
   }
 
@@ -444,11 +478,14 @@ export function createUtilityGeometryBindings({
     syncIndexNodePositions,
     syncSingleIndexNodePosition,
     syncIndexLabelNodePosition,
+    normalizeHyperedgeHubOffset,
+    getAutomaticHyperedgeHubCenter,
     getHyperedgeHubPosition,
     syncHyperedgeHubNodePosition,
     syncHyperedgeHubNodePositions,
     runWithIndexSync,
     runWithTensorSync,
+    runWithHyperedgeHubSync,
     buildQuadraticCurve,
     quadraticPointAt,
     drawRoundRectPath,

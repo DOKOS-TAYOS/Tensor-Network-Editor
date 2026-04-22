@@ -7,6 +7,7 @@ export function createCanvasContextMenuBindings({
   bindMetadataEditors,
   renderCanvasContextMenu,
   closeCanvasContextMenu,
+  createHyperedgeFromSelection,
   exportSelectedSubnetwork,
   exportGroupSubnetwork,
   saveSelectionToSubnetworkLibrary,
@@ -364,6 +365,40 @@ export function createCanvasContextMenuBindings({
     });
   }
 
+  function bindIndexSelectionContextTarget() {
+    const colorInput = document.getElementById("context-menu-selection-color-input");
+    const createHyperedgeButton = document.getElementById(
+      "context-menu-create-hyperedge-button"
+    );
+    const deleteButton = document.getElementById("context-menu-delete-selection-button");
+
+    bindSelectionColorInput(colorInput, {
+      statusMessage: "Updated the selection color.",
+    });
+
+    if (createHyperedgeButton && typeof createHyperedgeFromSelection === "function") {
+      createHyperedgeButton.addEventListener("click", () => {
+        const created = createHyperedgeFromSelection({
+          statusMessage: "Created a hyperedge.",
+        });
+        if (created) {
+          closeCanvasContextMenu();
+        }
+      });
+    }
+
+    if (
+      deleteButton &&
+      propertyCommands &&
+      typeof propertyCommands.deleteCurrentSelection === "function"
+    ) {
+      deleteButton.addEventListener("click", () => {
+        propertyCommands.deleteCurrentSelection();
+        closeCanvasContextMenu();
+      });
+    }
+  }
+
   function bindEdgeContextTarget(resolvedTarget) {
     const edge = resolvedTarget.target;
     const nameInput = document.getElementById("context-menu-name-input");
@@ -526,6 +561,10 @@ export function createCanvasContextMenuBindings({
     }
     if (resolvedTarget.kind === "selection") {
       bindSelectionContextTarget(resolvedTarget);
+      return;
+    }
+    if (resolvedTarget.kind === "index-selection") {
+      bindIndexSelectionContextTarget(resolvedTarget);
       return;
     }
     if (resolvedTarget.kind === "tensor") {

@@ -63,6 +63,9 @@ export function createInteractionShortcutBindings({
     createGroupFromSelection:
       shortcutActions.createGroupFromSelection ||
       resolveContextAction(ctx, "createGroupFromSelection"),
+    createHyperedgeFromSelection:
+      shortcutActions.createHyperedgeFromSelection ||
+      resolveContextAction(ctx, "createHyperedgeFromSelection"),
     selectAllTensors:
       shortcutActions.selectAllTensors ||
       resolveContextAction(ctx, "selectAllTensors"),
@@ -134,6 +137,7 @@ export function createInteractionShortcutBindings({
     trimContractionPlan,
     togglePlannerMode,
     createGroupFromSelection,
+    createHyperedgeFromSelection,
     selectAllTensors,
     addNoteAtCenter,
     toggleTemplateManager,
@@ -579,6 +583,13 @@ export function createInteractionShortcutBindings({
     if (!hasAnyModifier && lowerKey === "g") {
       event.preventDefault();
       createGroupFromSelection();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "h") {
+      event.preventDefault();
+      if (!hasBlockingModalOpen()) {
+        createHyperedgeFromSelection();
+      }
       return;
     }
     if (!hasAnyModifier && lowerKey === "t") {

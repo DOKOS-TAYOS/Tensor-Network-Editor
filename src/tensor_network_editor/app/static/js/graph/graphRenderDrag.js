@@ -7,6 +7,20 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     };
   }
 
+  function createHyperedgeDragState(hyperedgeId) {
+    const hyperedge = ctx.findHyperedgeById(hyperedgeId);
+    return {
+      hyperedgeId,
+      startOffset: hyperedge?.hub_offset
+        ? {
+          x: hyperedge.hub_offset.x,
+          y: hyperedge.hub_offset.y,
+        }
+        : { x: 0, y: 0 },
+      snapshot: ctx.createHistorySnapshot(),
+    };
+  }
+
   function moveCompanionTensorsDuringDrag() {
     if (!state.activeTensorDrag || !state.cy) {
       return;
@@ -132,10 +146,42 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     }
   }
 
+  function finishHyperedgeDrag(hyperedgeId) {
+    if (
+      !state.activeHyperedgeDrag ||
+      state.activeHyperedgeDrag.hyperedgeId !== hyperedgeId
+    ) {
+      return;
+    }
+    const shouldResyncSelection = Boolean(
+      state.activeHyperedgeDrag.addedSelectionOnGrab
+    );
+    const hyperedge = ctx.findHyperedgeById(hyperedgeId);
+    const startOffset = state.activeHyperedgeDrag.startOffset;
+    const changed =
+      hyperedge &&
+      startOffset &&
+      ((hyperedge.hub_offset?.x ?? 0) !== startOffset.x ||
+        (hyperedge.hub_offset?.y ?? 0) !== startOffset.y);
+    if (changed) {
+      ctx.commitHistorySnapshot(state.activeHyperedgeDrag.snapshot);
+    }
+    state.activeHyperedgeDrag = null;
+    ctx.updateToolbarState();
+    if (
+      shouldResyncSelection &&
+      typeof ctx.syncCySelection === "function"
+    ) {
+      ctx.syncCySelection();
+    }
+  }
+
   return {
     createTensorDragState,
+    createHyperedgeDragState,
     moveCompanionTensorsDuringDrag,
     finishTensorDrag,
     finishIndexDrag,
+    finishHyperedgeDrag,
   };
 }

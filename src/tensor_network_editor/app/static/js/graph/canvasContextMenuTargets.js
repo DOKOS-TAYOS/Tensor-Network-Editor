@@ -10,6 +10,7 @@ export function createCanvasContextMenuTargetResolver({
   getSelectedIdsByKind,
   getSelectedEntries,
   getBatchColorValue,
+  describeHyperedgeCandidate,
   getMetadataColor,
   getIndexColor,
   getTensorTotalElementCount,
@@ -22,12 +23,27 @@ export function createCanvasContextMenuTargetResolver({
       : [];
   }
 
+  function getSelectedIndexIdsForContext() {
+    return typeof getSelectedIdsByKind === "function"
+      ? getSelectedIdsByKind("index")
+      : [];
+  }
+
   function isMultiTensorSelectionContext(tensorId) {
     const selectedTensorIds = getSelectedTensorIdsForContext();
     return (
       Array.isArray(state.selectionIds) &&
       selectedTensorIds.length >= 2 &&
       selectedTensorIds.includes(tensorId)
+    );
+  }
+
+  function isMultiIndexSelectionContext(indexId) {
+    const selectedIndexIds = getSelectedIndexIdsForContext();
+    return (
+      Array.isArray(state.selectionIds) &&
+      selectedIndexIds.length >= 2 &&
+      selectedIndexIds.includes(indexId)
     );
   }
 
@@ -75,7 +91,45 @@ export function createCanvasContextMenuTargetResolver({
     };
   }
 
+  function getIndexSelectionContextTarget(anchorIndexId) {
+    const selectedEntries =
+      typeof getSelectedEntries === "function" ? getSelectedEntries() : [];
+    const selectedIndexIds = getSelectedIndexIdsForContext();
+    if (
+      selectedIndexIds.length < 2 ||
+      !selectedIndexIds.includes(anchorIndexId) ||
+      selectedEntries.length !== selectedIndexIds.length
+    ) {
+      return null;
+    }
+    const selectionColor =
+      typeof getBatchColorValue === "function"
+        ? getBatchColorValue(selectedEntries) || "#456cbf"
+        : "#456cbf";
+    const hyperedgeCreationCandidate =
+      typeof describeHyperedgeCandidate === "function"
+        ? describeHyperedgeCandidate(selectedIndexIds)
+        : {
+          canCreate: false,
+          message: "Hyperedge creation is unavailable in this session.",
+        };
+    return {
+      hyperedgeCreationCandidate,
+      id: anchorIndexId,
+      indexCount: selectedIndexIds.length,
+      indexIds: [...selectedIndexIds],
+      kind: "index-selection",
+      primarySelectionId: state.primarySelectionId,
+      selectionColor,
+      selectionIds: Array.isArray(state.selectionIds) ? [...state.selectionIds] : [],
+      target: null,
+    };
+  }
+
   function getIndexContextTarget(indexId) {
+    if (isMultiIndexSelectionContext(indexId)) {
+      return getIndexSelectionContextTarget(indexId);
+    }
     const located =
       typeof findIndexOwner === "function" ? findIndexOwner(indexId) : null;
     if (!located || !located.tensor || !located.index) {
@@ -166,6 +220,9 @@ export function createCanvasContextMenuTargetResolver({
     if (menuState.kind === "selection") {
       return getSelectionContextTarget(menuState.id);
     }
+    if (menuState.kind === "index-selection") {
+      return getIndexSelectionContextTarget(menuState.id);
+    }
     if (menuState.kind === "index") {
       return getIndexContextTarget(menuState.id);
     }
@@ -182,6 +239,7 @@ export function createCanvasContextMenuTargetResolver({
     getEdgeContextTarget,
     getGroupContextTarget,
     getIndexContextTarget,
+    getIndexSelectionContextTarget,
     getSelectionContextTarget,
     getTensorContextTarget,
     resolveContextTarget,
