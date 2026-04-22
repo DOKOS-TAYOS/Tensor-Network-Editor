@@ -123,9 +123,29 @@ export function createSpecMutationBindings({
     return runtime.defaultIndexOffsetForOrder(indexPosition, tensor);
   }
 
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          (typeof runtime.isForBoundaryTensor === "function" &&
+            runtime.isForBoundaryTensor(tensor)) ||
+          (typeof runtime.isLinearPeriodicBoundaryTensor === "function" &&
+            runtime.isLinearPeriodicBoundaryTensor(tensor)) ||
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
+  }
+
   function moveIndex(tensorId, indexPosition, direction) {
     const tensor = findTensorById(tensorId);
-    if (!tensor) {
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
       return;
     }
     const targetPosition = indexPosition + direction;
@@ -138,12 +158,7 @@ export function createSpecMutationBindings({
 
   function removeTensor(tensorId) {
     const tensor = findTensorById(tensorId);
-    if (
-      !tensor ||
-      (typeof runtime.isForBoundaryTensor === "function" &&
-        runtime.isForBoundaryTensor(tensor)) ||
-      runtime.isLinearPeriodicBoundaryTensor(tensor)
-    ) {
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
       return;
     }
     const tensorIndexIds = new Set(tensor.indices.map((index) => index.id));
@@ -176,12 +191,7 @@ export function createSpecMutationBindings({
 
   function removeIndex(tensorId, indexId) {
     const tensor = findTensorById(tensorId);
-    if (
-      !tensor ||
-      (typeof runtime.isForBoundaryTensor === "function" &&
-        runtime.isForBoundaryTensor(tensor)) ||
-      runtime.isLinearPeriodicBoundaryTensor(tensor)
-    ) {
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
       return;
     }
     state.spec.edges = state.spec.edges.filter(

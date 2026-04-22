@@ -7,6 +7,32 @@ export function createCanvasContextMenuMarkup({
   const CONTEXT_MENU_EDGE_MARGIN = 8;
   const CONTEXT_MENU_MAX_WIDTH = 320;
 
+  function getBoundaryRoleDetails(tensor) {
+    if (tensor.grid_periodic_role === "up") {
+      return { roleKey: "up", roleLabel: "Upper cell" };
+    }
+    if (tensor.grid_periodic_role === "right") {
+      return { roleKey: "right", roleLabel: "Right cell" };
+    }
+    if (tensor.grid_periodic_role === "down") {
+      return { roleKey: "down", roleLabel: "Lower cell" };
+    }
+    if (tensor.grid_periodic_role === "left") {
+      return { roleKey: "left", roleLabel: "Left cell" };
+    }
+    if (tensor.tree_periodic_role === "parent") {
+      return { roleKey: "parent", roleLabel: "Parent cell" };
+    }
+    if (tensor.tree_periodic_role === "child") {
+      return { roleKey: "child", roleLabel: "Child cell" };
+    }
+    return {
+      roleKey: tensor.linear_periodic_role === "previous" ? "previous" : "next",
+      roleLabel:
+        tensor.linear_periodic_role === "previous" ? "Previous cell" : "Next cell",
+    };
+  }
+
   function clampMenuAnchor(offset, extent) {
     if (!Number.isFinite(offset)) {
       return CONTEXT_MENU_EDGE_MARGIN;
@@ -199,17 +225,24 @@ export function createCanvasContextMenuMarkup({
           }
         </div>
         <div class="button-row canvas-context-menu-actions">
-          <button
-            id="context-menu-add-index-to-selection-button"
-            type="button"
-            class="button-accent-insert"
-            ${buildTooltipAttributes(
-              "Add index",
-              "Add one new open index to each selected tensor."
-            )}
-          >
-            Add index
-          </button>
+          ${
+            Array.isArray(resolvedTarget.editableTensorIds) &&
+            resolvedTarget.editableTensorIds.length
+              ? `
+                <button
+                  id="context-menu-add-index-to-selection-button"
+                  type="button"
+                  class="button-accent-insert"
+                  ${buildTooltipAttributes(
+                    "Add index",
+                    "Add one new open index to each selected tensor."
+                  )}
+                >
+                  Add index
+                </button>
+              `
+              : ""
+          }
           <button
             id="context-menu-extract-selection-button"
             type="button"
@@ -289,6 +322,49 @@ export function createCanvasContextMenuMarkup({
   }
 
   function renderTensorMarkup(resolvedTarget) {
+    if (resolvedTarget.isStructuralBoundaryTensor) {
+      const { roleKey, roleLabel } = getBoundaryRoleDetails(resolvedTarget.target);
+      return `
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Virtual tensor</span>
+              <strong>${escapeHtml(roleLabel)}</strong>
+            </div>
+            <div class="properties-chip">
+              <span>Ports</span>
+              <strong>${Array.isArray(resolvedTarget.target.indices) ? resolvedTarget.target.indices.length : 0}</strong>
+            </div>
+            <div class="properties-chip">
+              <span>Role</span>
+              <strong>${escapeHtml(roleKey)}</strong>
+            </div>
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label
+              class="control-inline-color"
+              for="context-menu-tensor-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
+              <input
+                id="context-menu-tensor-color-input"
+                type="color"
+                aria-label="Choose color"
+                value="${escapeHtml(resolvedTarget.tensorColor)}"
+              />
+            </label>
+          </div>
+        </div>
+        ${buildInlineMetadataEditor({
+          annotationScope: "tensor",
+          inputPrefix: "context-menu-tensor",
+          target: resolvedTarget.target,
+        })}
+      `;
+    }
     return `
       <div class="canvas-context-menu-section canvas-context-menu-input-stack">
         <div class="field-group">
@@ -414,6 +490,44 @@ export function createCanvasContextMenuMarkup({
   }
 
   function renderIndexMarkup(resolvedTarget) {
+    if (resolvedTarget.isStructuralBoundaryTensor) {
+      return `
+        <div class="canvas-context-menu-section canvas-context-menu-input-stack">
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Port</span>
+              <strong>${escapeHtml(resolvedTarget.index.name)}</strong>
+            </div>
+            <div class="properties-chip">
+              <span>Dimension</span>
+              <strong>${resolvedTarget.index.dimension}</strong>
+            </div>
+          </div>
+          <div class="button-row canvas-context-menu-actions">
+            <label
+              class="control-inline-color"
+              for="context-menu-index-color-input"
+              ${buildTooltipAttributes(
+                "Choose color",
+                "Set the display color for this item."
+              )}
+            >
+              <input
+                id="context-menu-index-color-input"
+                type="color"
+                aria-label="Choose color"
+                value="${escapeHtml(resolvedTarget.indexColor)}"
+              />
+            </label>
+          </div>
+        </div>
+        ${buildInlineMetadataEditor({
+          annotationScope: "index",
+          inputPrefix: "context-menu-index",
+          target: resolvedTarget.index,
+        })}
+      `;
+    }
     return `
       <div class="canvas-context-menu-section canvas-context-menu-input-stack">
         <div class="field-row canvas-context-menu-index-fields">
@@ -630,17 +744,24 @@ export function createCanvasContextMenuMarkup({
               value="${escapeHtml(resolvedTarget.groupColor)}"
             />
           </label>
-          <button
-            id="context-menu-add-index-to-group-button"
-            type="button"
-            class="button-accent-insert"
-            ${buildTooltipAttributes(
-              "Add index",
-              "Add one new open index to each tensor inside this group."
-            )}
-          >
-            Add index
-          </button>
+          ${
+            Array.isArray(resolvedTarget.editableTensorIds) &&
+            resolvedTarget.editableTensorIds.length
+              ? `
+                <button
+                  id="context-menu-add-index-to-group-button"
+                  type="button"
+                  class="button-accent-insert"
+                  ${buildTooltipAttributes(
+                    "Add index",
+                    "Add one new open index to each tensor inside this group."
+                  )}
+                >
+                  Add index
+                </button>
+              `
+              : ""
+          }
           <button
             id="context-menu-extract-group-button"
             type="button"

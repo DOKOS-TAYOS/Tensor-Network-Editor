@@ -126,6 +126,7 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
 
   function escapeTooltipText(value) {
     return String(value)
+      .replaceAll("\r\n", "\n")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")

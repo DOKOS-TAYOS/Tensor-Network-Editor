@@ -711,6 +711,7 @@ def test_css_asset_uses_two_row_shortcut_tooltips(
     assert "white-space: nowrap;" in css_body
     assert ".shortcut-tooltip-description {" in css_body
     assert "line-height: 1.35;" in css_body
+    assert "white-space: pre-line;" in css_body
 
 
 def test_css_asset_standardizes_hover_across_controls(
@@ -1306,15 +1307,19 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
         "function createStandardTensorPropertiesBindingSupport("
         in tensor_standard_bindings_body
     )
-    assert 'id="tensor-values-disclosure"' in tensor_standard_markup_body
-    assert '<div class="properties-disclosure-body">' in tensor_standard_markup_body
-    assert "tensor-values-disclosure-body" not in tensor_standard_markup_body
+    assert 'id="tensor-values-disclosure"' not in tensor_standard_markup_body
+    assert "Tensor values" not in tensor_standard_markup_body
+    assert "<details" not in tensor_standard_markup_body
+    assert (
+        '<label for="tensor-data-mode-select">Initialization</label>'
+        in tensor_standard_markup_body
+    )
     assert 'id="tensor-data-mode-select"' in tensor_standard_markup_body
     assert 'id="tensor-data-validation-message"' in tensor_standard_markup_body
     assert "Explicit values (JSON)" in tensor_standard_markup_body
     assert (
         "Choose how this tensor is initialized and edit explicit values when needed."
-        in tensor_standard_markup_body
+        not in tensor_standard_markup_body
     )
     assert "Expected shape:" in tensor_standard_markup_body
     assert "Current initializer:" not in tensor_standard_markup_body
@@ -1322,10 +1327,7 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
         "Use JSON numbers that match the tensor shape exactly."
         not in tensor_standard_markup_body
     )
-    assert (
-        ".tensor-values-disclosure > .properties-disclosure-summary {" not in css_body
-    )
-    assert ".tensor-values-disclosure-body {" not in css_body
+    assert ".tensor-values-disclosure {" not in css_body
     assert "commands.updateTensorData" in tensor_standard_bindings_body
 
 

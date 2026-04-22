@@ -20,8 +20,6 @@ export function createTensorPropertiesRenderers({
     getContractionTensorTotalElementCount,
     formatTotalElementCount,
     isTensorIndexDisclosureOpen,
-    isTensorValueDisclosureOpen,
-    setTensorValueDisclosureOpen,
     toggleTensorIndexDisclosure,
   } = support;
 
@@ -37,11 +35,9 @@ export function createTensorPropertiesRenderers({
     getContractionTensorTotalElementCount,
     getTensorTotalElementCount,
     isTensorIndexDisclosureOpen,
-    isTensorValueDisclosureOpen,
     propertiesPanel,
     propertyInvalidation,
     renderTrashIcon,
-    setTensorValueDisclosureOpen,
     toggleTensorIndexDisclosure,
   };
 
@@ -56,7 +52,11 @@ export function createTensorPropertiesRenderers({
   );
 
   const renderTensorProperties = (tensorId, options = {}) => {
-    const tensor = ctx.findTensorById(tensorId);
+    const tensor =
+      ctx.findTensorById(tensorId) ||
+      (Array.isArray(ctx.state?.spec?.tensors)
+        ? ctx.state.spec.tensors.find((candidate) => candidate.id === tensorId) || null
+        : null);
     if (!tensor) {
       ctx.clearSelection();
       return;

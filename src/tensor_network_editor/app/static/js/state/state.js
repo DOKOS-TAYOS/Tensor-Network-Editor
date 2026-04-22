@@ -150,7 +150,6 @@ export function createInitialState() {
     canvasContextMenu: null,
     metadataDisclosureState: {},
     tensorIndexDisclosureState: {},
-    tensorValueDisclosureState: {},
     autoExpandedTensorIndex: null,
     pendingPropertiesIndexFocusId: null,
     plannerMode: false,

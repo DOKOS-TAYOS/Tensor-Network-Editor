@@ -6184,18 +6184,14 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (!propertiesPanel.innerHTML.includes('rows="1"')) {
           throw new Error("Custom metadata should start with a single visible row.");
         }
-        if (!propertiesPanel.innerHTML.includes("Tensor values")) {
-          throw new Error("Selecting a tensor should expose the tensor values editor.");
+        if (propertiesPanel.innerHTML.includes("Tensor values")) {
+          throw new Error("Tensor values should no longer render as a separate disclosure.");
         }
-        if (!propertiesPanel.innerHTML.includes('id="tensor-values-disclosure"')) {
-          throw new Error("Tensor values should render inside its own disclosure.");
+        if (propertiesPanel.innerHTML.includes('id="tensor-values-disclosure"')) {
+          throw new Error("Tensor values should no longer use a disclosure container.");
         }
-        if (
-          /<details[\\s\\S]*id="tensor-values-disclosure"[\\s\\S]*\\sopen(?:\\s|>)/.test(
-            propertiesPanel.innerHTML
-          )
-        ) {
-          throw new Error("Tensor values should start collapsed by default.");
+        if (!propertiesPanel.innerHTML.includes(">Initialization<")) {
+          throw new Error("Selecting a tensor should expose the inline Initialization controls.");
         }
         if (propertiesPanel.innerHTML.includes("Current initializer:")) {
           throw new Error("Tensor values should no longer render the current initializer helper text.");
@@ -6206,15 +6202,6 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           )
         ) {
           throw new Error("Tensor values should no longer render the redundant JSON helper text.");
-        }
-        ctx.state.tensorValueDisclosureState["tensor_a"] = true;
-        ctx.renderProperties();
-        if (
-          !/<details[\\s\\S]*id="tensor-values-disclosure"[\\s\\S]*\\sopen(?:\\s|>)/.test(
-            propertiesPanel.innerHTML
-          )
-        ) {
-          throw new Error("Tensor values should reopen when its disclosure state is set.");
         }
         renderCalls.length = 0;
         graphRenderCount = 0;
@@ -6478,6 +6465,65 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (propertiesPanel.innerHTML.includes('id="align-selection-left-button"')) {
           throw new Error("The Selection panel should no longer render tensor reflow controls.");
         }
+
+        ctx.state.spec.tensors.push({
+          id: "tensor_boundary",
+          name: "Next cell",
+          linear_periodic_role: "next",
+          position: { x: 420, y: 180 },
+          size: { width: 140, height: 84 },
+          metadata: {},
+          indices: [
+            {
+              id: "index_boundary",
+              name: "slot_1",
+              dimension: 7,
+              metadata: {},
+            },
+          ],
+        });
+        const editableTensorBefore = ctx.state.spec.tensors.find(
+          (candidate) => candidate.id === "tensor_a"
+        ).indices.length;
+        ctx.setSelection(["tensor_boundary"], { primaryId: "tensor_boundary" });
+        if (propertiesPanel.innerHTML.includes('id="add-index-button"')) {
+          throw new Error("Boundary tensors should not expose the add-index action in properties.");
+        }
+        if (propertiesPanel.innerHTML.includes('id="index-dimension-input-index_boundary"')) {
+          throw new Error("Boundary tensor ports should not expose a dimension editor.");
+        }
+        if (propertiesPanel.innerHTML.includes('id="move-index-up-button-index_boundary"')) {
+          throw new Error("Boundary tensor ports should not expose reordering controls.");
+        }
+        if (propertiesPanel.innerHTML.includes('id="delete-index-button-index_boundary"')) {
+          throw new Error("Boundary tensor ports should not expose deletion controls.");
+        }
+        if (!propertiesPanel.innerHTML.includes(">Virtual tensor<")) {
+          throw new Error("Boundary tensors should render the read-only virtual summary.");
+        }
+
+        ctx.setSelection(["tensor_a", "tensor_boundary"], { primaryId: "tensor_a" });
+        if (!propertiesPanel.innerHTML.includes('id="add-index-to-selection-button"')) {
+          throw new Error("Mixed selections should keep the bulk Add index action when editable tensors remain.");
+        }
+        document.getElementById("add-index-to-selection-button").click();
+        const editableTensorAfter = ctx.state.spec.tensors.find(
+          (candidate) => candidate.id === "tensor_a"
+        ).indices.length;
+        const boundaryTensorAfter = ctx.state.spec.tensors.find(
+          (candidate) => candidate.id === "tensor_boundary"
+        ).indices.length;
+        if (editableTensorAfter !== editableTensorBefore + 1) {
+          throw new Error(
+            `Expected bulk Add index to keep working for editable tensors, received ${editableTensorAfter} indices.`
+          );
+        }
+        if (boundaryTensorAfter !== 1) {
+          throw new Error(
+            `Expected bulk Add index to ignore boundary tensors, received ${boundaryTensorAfter} boundary indices.`
+          );
+        }
+
         ctx.renderNoteProperties("note_a");
         if (!propertiesPanel.innerHTML.includes(">Metadata</summary>")) {
           throw new Error("Selecting a note should keep metadata inside a disclosure.");

@@ -100,6 +100,8 @@ export function createPlannerPanelRendererSupport({
                   comparison:
                     payload.comparisons &&
                     payload.comparisons.manual_subtrees_vs_automatic_past,
+                  hideUnavailableMessage: true,
+                  hideUnavailableComparisonMessage: true,
                 }
               )}
             </div>

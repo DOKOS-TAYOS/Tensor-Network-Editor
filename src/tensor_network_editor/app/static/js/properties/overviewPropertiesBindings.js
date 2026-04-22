@@ -50,6 +50,7 @@ export function createOverviewPropertiesBindings({
     state,
     selectedEntries,
     batchColor,
+    editableTensorIds,
     hasMultipleTensors,
   }) {
     const multiColorInput = documentRef.getElementById("multi-color-input");
@@ -75,6 +76,7 @@ export function createOverviewPropertiesBindings({
     if (addIndexButton) {
       addIndexButton.addEventListener("click", () => {
         commands.addIndexToSelectedTensors({
+          tensorIds: editableTensorIds,
           selectionIds: [...state.selectionIds],
           primaryId: state.primarySelectionId,
           statusMessage: "Added one index to each selected tensor.",

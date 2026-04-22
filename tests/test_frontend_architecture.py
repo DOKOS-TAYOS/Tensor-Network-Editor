@@ -1534,6 +1534,19 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
             indices: [],
             metadata: {{}},
           }},
+          tensor_boundary: {{
+            id: "tensor_boundary",
+            indices: [
+              {{
+                id: "boundary_index",
+                name: "slot_1",
+                dimension: 11,
+                metadata: {{}},
+              }},
+            ],
+            linear_periodic_role: "next",
+            metadata: {{}},
+          }},
         }};
         const applyColorToSelection = (nextColor) => {{
           Object.values(tensorById).forEach((candidate) => {{
@@ -1558,8 +1571,15 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
           findIndexOwner: (indexId) =>
             indexId === "index_left"
               ? {{ tensor, index: tensor.indices[0] }}
+              : indexId === "boundary_index"
+                ? {{
+                    tensor: tensorById.tensor_boundary,
+                    index: tensorById.tensor_boundary.indices[0],
+                  }}
               : null,
           getSelectedTensorIds: () => ["tensor_a", "tensor_b"],
+          isStructuralBoundaryTensor: (candidateTensor) =>
+            Boolean(candidateTensor && candidateTensor.linear_periodic_role),
           removeGroup: (groupId) => {{
             spec.groups = spec.groups.filter((candidate) => candidate.id !== groupId);
           }},
@@ -1642,13 +1662,47 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
           invalidate: {{ overlays: true, lookups: true }},
           statusMessage: "Deleted the note.",
         }});
+        propertyCommands.addTensorIndex({{
+          tensor: tensorById.tensor_boundary,
+          selectionIds: ["tensor_boundary"],
+          primaryId: "tensor_boundary",
+          statusMessage: "Should not add to the boundary tensor.",
+        }});
+        propertyCommands.addIndexToSelectedTensors({{
+          tensorIds: ["tensor_a", "tensor_boundary"],
+          selectionIds: ["tensor_a", "tensor_boundary"],
+          primaryId: "tensor_a",
+          statusMessage: "Added one index to editable tensors.",
+        }});
+        propertyCommands.updateIndexDimension({{
+          indexId: "boundary_index",
+          rawValue: "9",
+          invalidate: {{ graph: true, analysis: true }},
+          statusMessage: "Should not resize the boundary index.",
+        }});
+        propertyCommands.moveTensorIndex({{
+          tensorId: "tensor_boundary",
+          indexPosition: 0,
+          direction: 1,
+          invalidate: {{ graph: true }},
+          primaryId: "tensor_boundary",
+          selectionIds: ["tensor_boundary"],
+          statusMessage: "Should not move the boundary index.",
+        }});
+        propertyCommands.deleteTensorIndex({{
+          tensorId: "tensor_boundary",
+          indexId: "boundary_index",
+          primaryId: "tensor_boundary",
+          selectionIds: ["tensor_boundary"],
+          statusMessage: "Should not delete the boundary index.",
+        }});
         if (spec.name !== "Refined network") {{
           throw new Error(`Expected renamed network, received ${{spec.name}}.`);
         }}
         if (tensorById.tensor_a.metadata.color !== "#ff8800" || tensorById.tensor_b.metadata.color !== "#ff8800") {{
           throw new Error(`Expected batch color to update all selected tensors, received ${{JSON.stringify(tensorById)}}.`);
         }}
-        if (tensor.indices.length !== 3 || tensorById.tensor_b.indices.length !== 1) {{
+        if (tensor.indices.length !== 4 || tensorById.tensor_b.indices.length !== 1) {{
           throw new Error(`Expected addIndexToSelectedTensors to append indices, received ${{JSON.stringify(tensorById)}}.`);
         }}
         if (spec.groups.length !== 0) {{
@@ -1659,6 +1713,12 @@ def test_planner_and_property_modules_use_explicit_internal_contracts(
         }}
         if (spec.notes.length !== 0) {{
           throw new Error(`Expected deleteNote to remove the note, received ${{JSON.stringify(spec.notes)}}.`);
+        }}
+        if (tensorById.tensor_boundary.indices.length !== 1) {{
+          throw new Error(`Boundary tensors should ignore structural mutations, received ${{JSON.stringify(tensorById.tensor_boundary)}}.`);
+        }}
+        if (tensorById.tensor_boundary.indices[0].dimension !== 11) {{
+          throw new Error(`Boundary index dimensions should stay read-only, received ${{JSON.stringify(tensorById.tensor_boundary.indices[0])}}.`);
         }}
         if (tensor.indices[0].dimension !== 5) {{
           throw new Error(`Expected index dimension 5, received ${{tensor.indices[0].dimension}}.`);
@@ -1907,6 +1967,17 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           ],
           metadata: {{ color: "#345678" }},
         }};
+        const boundaryTensor = {{
+          id: "tensor_boundary",
+          name: "Next cell",
+          linear_periodic_role: "next",
+          position: {{ x: 520, y: 180 }},
+          size: {{ width: 140, height: 84 }},
+          indices: [
+            {{ id: "index_boundary", name: "slot_1", dimension: 7, metadata: {{}} }},
+          ],
+          metadata: {{ color: "#89abcd" }},
+        }};
         const edge = {{
           id: "edge_ab",
           name: "bond_ab",
@@ -1925,17 +1996,18 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         const group = {{
           id: "group_a",
           name: "Group A",
-          tensor_ids: ["tensor_a", "tensor_b"],
+          tensor_ids: ["tensor_a", "tensor_b", "tensor_boundary"],
           metadata: {{}},
         }};
         const tensorsById = {{
           tensor_a: tensor,
           tensor_b: tensorB,
+          tensor_boundary: boundaryTensor,
         }};
         const ctx = {{
           state: {{
             spec: {{
-              tensors: [tensor, tensorB],
+              tensors: [tensor, tensorB, boundaryTensor],
               edges: [edge],
               hyperedges: [hyperedge],
               groups: [group],
@@ -1989,6 +2061,10 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           getMetadataColor: (metadata, fallbackColor) =>
             metadata && metadata.color ? metadata.color : fallbackColor,
           render: () => contextMenuEvents.push("render"),
+          isLinearPeriodicBoundaryTensor: (candidate) =>
+            Boolean(candidate && candidate.linear_periodic_role),
+          isForBoundaryTensor: (candidate) =>
+            Boolean(candidate && candidate.grid_periodic_role),
           setSelection: (selectionIds, options = {{}}) => {{
             ctx.state.selectionIds = [...selectionIds];
             ctx.state.primarySelectionId =
@@ -2087,8 +2163,16 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             return null;
           }},
           findIndexOwner: (indexId) => {{
-            const index = tensor.indices.find((candidate) => candidate.id === indexId) || null;
-            return index ? {{ tensor, index }} : null;
+            for (const candidate of Object.values(tensorsById)) {{
+              const index =
+                Array.isArray(candidate.indices)
+                  ? candidate.indices.find((entry) => entry.id === indexId) || null
+                  : null;
+              if (index) {{
+                return {{ tensor: candidate, index }};
+              }}
+            }}
+            return null;
           }},
           findGroupById: (groupId) => (groupId === group.id ? group : null),
           exportSelectedSubnetwork: () => {{
@@ -2283,6 +2367,14 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
         document.getElementById("context-menu-delete-selection-button").click();
 
+        ctx.state.selectionIds = ["tensor_a", "tensor_boundary"];
+        ctx.state.primarySelectionId = "tensor_a";
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 180, clientY: 260 }});
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-to-selection-button"')) {{
+          throw new Error("Mixed selections should keep the selection bulk Add index action.");
+        }}
+        document.getElementById("context-menu-add-index-to-selection-button").click();
+
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-dimension-input"')) {{
           throw new Error("Expected the index context menu to expose the dimension editor.");
@@ -2305,6 +2397,28 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         document.getElementById("context-menu-move-up-button").click();
         ctx.openCanvasContextMenu({{ kind: "index", id: "index_left", clientX: 10, clientY: 20 }});
         document.getElementById("context-menu-delete-index-button").click();
+
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_boundary", clientX: 160, clientY: 260 }});
+        if (contextMenuRoot.innerHTML.includes('id="context-menu-add-index-button"')) {{
+          throw new Error("Boundary tensors should not expose Add index in the context menu.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-tensor-color-input"')) {{
+          throw new Error("Boundary tensors should keep the color picker in the context menu.");
+        }}
+
+        ctx.openCanvasContextMenu({{ kind: "index", id: "index_boundary", clientX: 40, clientY: 20 }});
+        if (contextMenuRoot.innerHTML.includes('id="context-menu-dimension-input"')) {{
+          throw new Error("Boundary ports should not expose the dimension editor.");
+        }}
+        if (contextMenuRoot.innerHTML.includes('id="context-menu-move-up-button"')) {{
+          throw new Error("Boundary ports should not expose move controls.");
+        }}
+        if (contextMenuRoot.innerHTML.includes('id="context-menu-delete-index-button"')) {{
+          throw new Error("Boundary ports should not expose deletion controls.");
+        }}
+        if (!contextMenuRoot.innerHTML.includes('id="context-menu-index-color-input"')) {{
+          throw new Error("Boundary ports should keep inline metadata and color controls.");
+        }}
 
         ctx.openCanvasContextMenu({{ kind: "edge", id: "edge_ab", clientX: 130, clientY: 240 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-edge-color-input"')) {{
@@ -2415,6 +2529,7 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           !contextMenuEvents.includes("addTensorIndex:tensor_a") ||
           !contextMenuEvents.includes("applySelectionColor:#aa5500") ||
           !contextMenuEvents.includes("addIndexToSelectedTensors::tensor_a,tensor_b,index_left,edge_ab") ||
+          !contextMenuEvents.includes("addIndexToSelectedTensors::tensor_a,tensor_boundary") ||
           !contextMenuEvents.includes("exportSelectedSubnetwork") ||
           !contextMenuEvents.includes("promoteSelectedSubnetworkToTemplate") ||
           !contextMenuEvents.includes("createGroupFromSelection") ||

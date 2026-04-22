@@ -23,6 +23,28 @@ export function createOverviewPropertiesRenderers({
     actions,
   });
 
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          (typeof actions.isForBoundaryTensor === "function" &&
+            actions.isForBoundaryTensor(tensor)) ||
+          (typeof actions.isLinearPeriodicBoundaryTensor === "function" &&
+            actions.isLinearPeriodicBoundaryTensor(tensor)) ||
+          (typeof actions.isTreePeriodicBoundaryTensor === "function" &&
+            actions.isTreePeriodicBoundaryTensor(tensor)) ||
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
+  }
+
   function renderNetworkProperties() {
     propertiesPanel.innerHTML = buildNetworkPropertiesMarkup({
       spec: state.spec,
@@ -58,6 +80,11 @@ export function createOverviewPropertiesRenderers({
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
     const hasMultipleTensors = baseTensorCount > 1;
+    const editableTensorIds = selectedEntries
+      .filter((entry) => entry.kind === "tensor")
+      .map((entry) => entry.tensor || null)
+      .filter((tensor) => tensor && !isStructuralBoundaryTensor(tensor))
+      .map((tensor) => tensor.id);
     const linearPeriodicMode =
       (typeof actions.isForMode === "function" && actions.isForMode()) ||
       (typeof actions.isLinearPeriodicMode === "function" &&
@@ -78,6 +105,7 @@ export function createOverviewPropertiesRenderers({
       groupCount,
       noteCount,
       hasMultipleTensors,
+      showAddIndexAction: editableTensorIds.length > 0,
       hyperedgeCreationCandidate,
       linearPeriodicMode,
       batchColor,
@@ -90,6 +118,7 @@ export function createOverviewPropertiesRenderers({
       state,
       selectedEntries,
       batchColor,
+      editableTensorIds,
       hyperedgeCreationCandidate,
       hasMultipleTensors,
     });

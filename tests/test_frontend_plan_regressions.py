@@ -2097,6 +2097,33 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
         if (!html.includes("<strong>96 bytes</strong>")) {
           throw new Error(`Expected the automatic past summary to include peak memory, received: ${html}`);
         }
+
+        ctx.state.contractionAnalysis.payload.automatic_past = {
+          status: "unavailable",
+          steps: [],
+          summary: {
+            total_estimated_flops: 0,
+            total_estimated_macs: 0,
+            peak_intermediate_size: 0,
+            peak_intermediate_bytes: 0,
+          },
+          message: "Contract at least one tensor pair to unlock the auto past preview.",
+        };
+        ctx.state.contractionAnalysis.payload.comparisons.manual_subtrees_vs_automatic_past = {
+          status: "unavailable",
+          message: "Contract at least one tensor pair to unlock the auto past preview.",
+        };
+        ctx.renderPlanner();
+
+        const unavailableAutoPastHtml = ctx.dom.plannerPanel.innerHTML;
+        if (unavailableAutoPastHtml.includes("Contract at least one tensor pair to unlock the auto past preview.")) {
+          throw new Error(
+            `Expected the auto-past unlock helper to stay hidden in the planner UI, received: ${unavailableAutoPastHtml}`
+          );
+        }
+        if (!unavailableAutoPastHtml.includes("Auto past")) {
+          throw new Error(`Expected Auto past to remain visible even when unavailable, received: ${unavailableAutoPastHtml}`);
+        }
         """,
     )
     completed_process = _run_runtime_script(script_path)
@@ -3461,10 +3488,8 @@ def test_automatic_past_preview_badges_collapse_expand_and_expose_comparison_too
           );
         }}
         if (
-          !toggleBadge.dataset.shortcutDescription.includes("FLOP -24") ||
-          !toggleBadge.dataset.shortcutDescription.includes("MAC -12") ||
-          !toggleBadge.dataset.shortcutDescription.includes("Peak -12") ||
-          !toggleBadge.dataset.shortcutDescription.includes("Memory -96 bytes")
+          toggleBadge.dataset.shortcutDescription
+          !== "FLOP -24\\nMAC -12\\nPeak -12\\nPeak Memory -96 bytes"
         ) {{
           throw new Error(
             `Expected the preview badge tooltip to summarize the auto-past comparison deltas, received ${{toggleBadge.dataset.shortcutDescription}}.`

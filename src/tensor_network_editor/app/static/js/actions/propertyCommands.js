@@ -9,6 +9,20 @@ export function createPropertyCommands({
   findIndexOwner,
   findTensorById = () => null,
   getSelectedTensorIds = () => [],
+  isStructuralBoundaryTensor = (tensor) =>
+    Boolean(
+      tensor &&
+        (
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    ),
   moveIndex,
   removeEdge = () => {},
   removeHyperedge = () => {},
@@ -130,6 +144,9 @@ export function createPropertyCommands({
   }
 
   function addTensorIndex({ tensor, selectionIds, primaryId, statusMessage }) {
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
+      return false;
+    }
     applyDesignChange(
       () => {
         tensor.indices.push(createIndex(tensor, tensor.indices.length));
@@ -140,6 +157,7 @@ export function createPropertyCommands({
         statusMessage,
       }
     );
+    return true;
   }
 
   function centerTensorInView({ tensorId, invalidate, statusMessage }) {
@@ -155,6 +173,10 @@ export function createPropertyCommands({
   }
 
   function deleteTensor({ tensorId, selectionIds, statusMessage }) {
+    const tensor = findTensorById(tensorId);
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
+      return false;
+    }
     applyDesignChange(
       () => {
         removeTensor(tensorId);
@@ -164,6 +186,7 @@ export function createPropertyCommands({
         statusMessage,
       }
     );
+    return true;
   }
 
   function deleteCurrentSelection() {
@@ -215,6 +238,12 @@ export function createPropertyCommands({
     if (!currentIndex) {
       return false;
     }
+    if (
+      !currentOwner.tensor ||
+      isStructuralBoundaryTensor(currentOwner.tensor)
+    ) {
+      return false;
+    }
     const parsed = Number.parseInt(rawValue, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       setStatus("Index dimension must be a positive integer.", "error");
@@ -226,7 +255,12 @@ export function createPropertyCommands({
     applyDesignChange(
       () => {
         const nextOwner = findIndexOwner(indexId);
-        if (!nextOwner || !nextOwner.index) {
+        if (
+          !nextOwner ||
+          !nextOwner.index ||
+          !nextOwner.tensor ||
+          isStructuralBoundaryTensor(nextOwner.tensor)
+        ) {
           return;
         }
         nextOwner.index.dimension = parsed;
@@ -249,6 +283,10 @@ export function createPropertyCommands({
     selectionIds,
     statusMessage,
   }) {
+    const tensor = findTensorById(tensorId);
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
+      return false;
+    }
     applyDesignChange(
       () => {
         moveIndex(tensorId, indexPosition, direction);
@@ -260,6 +298,7 @@ export function createPropertyCommands({
         statusMessage,
       }
     );
+    return true;
   }
 
   function deleteTensorIndex({
@@ -269,6 +308,10 @@ export function createPropertyCommands({
     selectionIds,
     statusMessage,
   }) {
+    const tensor = findTensorById(tensorId);
+    if (!tensor || isStructuralBoundaryTensor(tensor)) {
+      return false;
+    }
     applyDesignChange(
       () => {
         removeIndex(tensorId, indexId);
@@ -279,6 +322,7 @@ export function createPropertyCommands({
         statusMessage,
       }
     );
+    return true;
   }
 
   function addIndexToSelectedTensors({
@@ -291,9 +335,16 @@ export function createPropertyCommands({
     if (!Array.isArray(tensorIds) || !tensorIds.length) {
       return false;
     }
+    const editableTensorIds = tensorIds.filter((tensorId) => {
+      const tensor = findTensorById(tensorId);
+      return tensor && !isStructuralBoundaryTensor(tensor);
+    });
+    if (!editableTensorIds.length) {
+      return false;
+    }
     applyDesignChange(
       () => {
-        tensorIds.forEach((tensorId) => {
+        editableTensorIds.forEach((tensorId) => {
           const tensor = findTensorById(tensorId);
           if (!tensor) {
             return;

@@ -176,21 +176,6 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     ctx.renderProperties();
   }
 
-  function isTensorValueDisclosureOpen(tensorId) {
-    return Boolean(state.tensorValueDisclosureState[tensorId]);
-  }
-
-  function setTensorValueDisclosureOpen(tensorId, isOpen) {
-    if (!tensorId) {
-      return;
-    }
-    if (isOpen) {
-      state.tensorValueDisclosureState[tensorId] = true;
-      return;
-    }
-    delete state.tensorValueDisclosureState[tensorId];
-  }
-
   return {
     bindDebouncedAutosave: autosave.bindDebouncedAutosave,
     bindImmediateAutosave: autosave.bindImmediateAutosave,
@@ -234,8 +219,6 @@ export function createPropertiesSupport({ ctx, state, window, commands }) {
     tensorDisclosureState,
     isTensorIndexDisclosureOpen,
     setTensorIndexDisclosureOpen,
-    isTensorValueDisclosureOpen,
-    setTensorValueDisclosureOpen,
     syncPendingTensorIndexDisclosure,
     toggleTensorIndexDisclosure,
   };

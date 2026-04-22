@@ -538,10 +538,12 @@ export function createCanvasContextMenuBindings({
     ) {
       addIndexToGroupButton.addEventListener("click", () => {
         propertyCommands.addIndexToSelectedTensors({
+          tensorIds: Array.isArray(resolvedTarget.editableTensorIds)
+            ? [...resolvedTarget.editableTensorIds]
+            : [],
           primaryId: group.id,
           selectionIds: [group.id],
           statusMessage: "Added one index to each group tensor.",
-          tensorIds: [...group.tensor_ids],
         });
         closeCanvasContextMenu();
       });

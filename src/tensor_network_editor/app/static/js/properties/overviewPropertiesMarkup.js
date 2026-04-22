@@ -67,6 +67,7 @@ export function buildMultiSelectionPropertiesMarkup({
   groupCount,
   noteCount,
   hasMultipleTensors,
+  showAddIndexAction,
   hyperedgeCreationCandidate,
   linearPeriodicMode,
   batchColor,
@@ -118,14 +119,20 @@ export function buildMultiSelectionPropertiesMarkup({
         hasMultipleTensors
           ? `
             <div class="button-row selection-tensor-actions-row">
-              <button
-                id="add-index-to-selection-button"
-                type="button"
-                class="button-accent-insert"
-                data-tooltip-enabled="true"
-                data-shortcut-label="Add index"
-                data-shortcut-description="Add one new open index to each selected tensor."
-              >Add index</button>
+              ${
+                showAddIndexAction
+                  ? `
+                    <button
+                      id="add-index-to-selection-button"
+                      type="button"
+                      class="button-accent-insert"
+                      data-tooltip-enabled="true"
+                      data-shortcut-label="Add index"
+                      data-shortcut-description="Add one new open index to each selected tensor."
+                    >Add index</button>
+                  `
+                  : ""
+              }
               <button
                 id="extract-selection-button"
                 type="button"

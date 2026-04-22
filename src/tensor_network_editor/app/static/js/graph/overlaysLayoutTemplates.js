@@ -301,15 +301,14 @@ export function registerOverlaysLayoutTemplates(ctx) {
     return {
       label: "Manual contractions vs auto past",
       description: [
-        "Auto - Manual.",
         `FLOP ${formatSignedDelta(comparison.delta_total_estimated_flops)}`,
         `MAC ${formatSignedDelta(comparison.delta_total_estimated_macs)}`,
         `Peak ${formatSignedDelta(comparison.delta_peak_intermediate_size)}`,
-        `Memory ${formatSignedDelta(
+        `Peak Memory ${formatSignedDelta(
           comparison.delta_peak_intermediate_bytes,
           "bytes"
         )}`,
-      ].join(" "),
+      ].join("\n"),
     };
   }
 

@@ -9,13 +9,28 @@ export function createPlannerAutomaticRendererSupport({
     common;
   const { formatBytes, formatNumber, formatSignedDelta, getPeakMemoryBytes } =
     formatters;
+  const AUTO_PAST_UNLOCK_MESSAGE =
+    "Contract at least one tensor pair to unlock the auto past preview.";
 
-  function renderComparisonBody(comparison) {
+  function isAutoPastUnlockMessage(message) {
+    return (
+      typeof message === "string" &&
+      message.trim() === AUTO_PAST_UNLOCK_MESSAGE
+    );
+  }
+
+  function renderComparisonBody(comparison, options = {}) {
     if (!comparison) {
       return "";
     }
     const status = typeof comparison.status === "string" ? comparison.status : "unknown";
     if (status !== "complete") {
+      if (
+        options.hideUnavailableMessage &&
+        isAutoPastUnlockMessage(comparison.message)
+      ) {
+        return "";
+      }
       const unavailableMessage =
         typeof comparison.message === "string" && comparison.message
           ? comparison.message
@@ -52,7 +67,7 @@ export function createPlannerAutomaticRendererSupport({
     `;
   }
 
-  function renderComparisonDisclosure(title, disclosureKey, comparison) {
+  function renderComparisonDisclosure(title, disclosureKey, comparison, options = {}) {
     if (!title || !disclosureKey || !comparison) {
       return "";
     }
@@ -76,7 +91,7 @@ export function createPlannerAutomaticRendererSupport({
           isOpen
             ? `
               <div class="planner-disclosure-body planner-nested-disclosure-body">
-                ${renderComparisonBody(comparison)}
+                ${renderComparisonBody(comparison, options)}
               </div>
             `
             : ""
@@ -144,14 +159,23 @@ export function createPlannerAutomaticRendererSupport({
     const previewShortcut = mode === "automaticFuture" ? "Alt+A" : "Shift+A";
     const acceptShortcut =
       mode === "automaticFuture" ? "Ctrl/Cmd+Alt+A" : "Ctrl/Cmd+Shift+A";
+    const hideUnavailableMessage = Boolean(
+      options.hideUnavailableMessage &&
+      analysis &&
+      analysis.status === "unavailable" &&
+      isAutoPastUnlockMessage(analysis.message)
+    );
     const meta =
-      analysis && analysis.message
+      analysis && analysis.message && !hideUnavailableMessage
         ? `<p class="planner-inline-meta">${ctx.escapeHtml(analysis.message)}</p>`
         : "";
     const comparisonDisclosure = renderComparisonDisclosure(
       options.comparisonTitle,
       options.comparisonDisclosureKey,
-      options.comparison
+      options.comparison,
+      {
+        hideUnavailableMessage: Boolean(options.hideUnavailableComparisonMessage),
+      }
     );
     const sectionDescription =
       mode === "automaticFuture"

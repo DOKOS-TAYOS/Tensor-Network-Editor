@@ -19,6 +19,22 @@ export function createCanvasContextMenuTargetResolver({
   getTotalElementCountForTensorIds,
   getIndexCountForTensorIds,
 }) {
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
+  }
+
   function getSelectedTensorIdsForContext() {
     return typeof getSelectedIdsByKind === "function"
       ? getSelectedIdsByKind("tensor")
@@ -61,6 +77,11 @@ export function createCanvasContextMenuTargetResolver({
         ? getBatchColorValue(selectedEntries) || "#456cbf"
         : "#456cbf";
     return {
+      editableTensorIds: selectedTensorIds.filter((tensorId) => {
+        const tensor =
+          typeof findTensorById === "function" ? findTensorById(tensorId) : null;
+        return tensor && !isStructuralBoundaryTensor(tensor);
+      }),
       id: anchorTensorId,
       indexCount: getIndexCountForTensorIds(selectedTensorIds),
       kind: "selection",
@@ -86,6 +107,7 @@ export function createCanvasContextMenuTargetResolver({
         : GRAPH_THEME.tensorFallback;
     return {
       id: tensor.id,
+      isStructuralBoundaryTensor: isStructuralBoundaryTensor(tensor),
       kind: "tensor",
       target: tensor,
       tensorColor,
@@ -162,6 +184,7 @@ export function createCanvasContextMenuTargetResolver({
       indexColor,
       indexPosition,
       indices,
+      isStructuralBoundaryTensor: isStructuralBoundaryTensor(tensor),
       kind: "index",
       target: index,
       tensor,
@@ -224,6 +247,13 @@ export function createCanvasContextMenuTargetResolver({
         ? getMetadataColor(group.metadata, GRAPH_THEME.groupDefault)
         : GRAPH_THEME.groupDefault;
     return {
+      editableTensorIds: (Array.isArray(group.tensor_ids) ? group.tensor_ids : []).filter(
+        (tensorId) => {
+          const tensor =
+            typeof findTensorById === "function" ? findTensorById(tensorId) : null;
+          return tensor && !isStructuralBoundaryTensor(tensor);
+        }
+      ),
       groupColor,
       id: group.id,
       isCollapsed: Boolean(group.metadata && group.metadata.collapsed),

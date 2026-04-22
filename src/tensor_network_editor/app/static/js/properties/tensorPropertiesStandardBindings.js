@@ -7,7 +7,6 @@ export function createStandardTensorPropertiesBindingSupport({
   document,
   propertiesPanel,
   propertyInvalidation,
-  setTensorValueDisclosureOpen,
   toggleTensorIndexDisclosure,
   dataSupport,
 }) {
@@ -39,9 +38,6 @@ export function createStandardTensorPropertiesBindingSupport({
     const tensorDataValuesInput = document.getElementById("tensor-data-values-input");
     const tensorDataValidationMessage = document.getElementById(
       "tensor-data-validation-message"
-    );
-    const tensorValuesDisclosure = document.getElementById(
-      "tensor-values-disclosure"
     );
 
     function setTensorDataValidationMessage(message = "") {
@@ -113,17 +109,6 @@ export function createStandardTensorPropertiesBindingSupport({
       invalidate: propertyInvalidation(),
       annotationScope: "tensor",
     });
-    if (
-      tensorValuesDisclosure &&
-      typeof setTensorValueDisclosureOpen === "function"
-    ) {
-      tensorValuesDisclosure.addEventListener("toggle", () => {
-        setTensorValueDisclosureOpen(
-          tensor.id,
-          Boolean(tensorValuesDisclosure.open)
-        );
-      });
-    }
     bindImmediateAutosave(
       tensorDataModeSelect,
       `tensor:${tensor.id}:tensor-data-mode`,

@@ -21,6 +21,20 @@ export function createBoundaryTensorPropertiesRenderer({
     if (tensor.grid_periodic_role === "left") {
       return { roleKey: "left", roleLabel: "Left cell", fallbackColor: "#8e5bcc" };
     }
+    if (tensor.tree_periodic_role === "parent") {
+      return {
+        roleKey: "parent",
+        roleLabel: "Parent cell",
+        fallbackColor: "#456cbf",
+      };
+    }
+    if (tensor.tree_periodic_role === "child") {
+      return {
+        roleKey: "child",
+        roleLabel: "Child cell",
+        fallbackColor: "#2f9b8f",
+      };
+    }
     return {
       roleKey: tensor.linear_periodic_role === "previous" ? "previous" : "next",
       roleLabel:

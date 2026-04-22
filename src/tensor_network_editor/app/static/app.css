@@ -1954,6 +1954,7 @@ select {
 .shortcut-tooltip-description {
   color: var(--muted);
   line-height: 1.35;
+  white-space: pre-line;
 }
 
 #group-layer {
@@ -2184,8 +2185,7 @@ textarea[disabled] {
   min-width: 110px;
 }
 
-.metadata-editor-disclosure,
-.tensor-values-disclosure {
+.metadata-editor-disclosure {
   display: block;
   position: relative;
   padding: 0;
@@ -2196,8 +2196,7 @@ textarea[disabled] {
   z-index: 0;
 }
 
-.metadata-editor-disclosure[open],
-.tensor-values-disclosure[open] {
+.metadata-editor-disclosure[open] {
   z-index: 2;
 }
 

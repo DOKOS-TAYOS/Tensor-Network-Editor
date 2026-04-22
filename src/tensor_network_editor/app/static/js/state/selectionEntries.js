@@ -13,6 +13,15 @@ export function createSelectionEntrySupport({
   isPlannerOperandAvailable,
   renderSelectionUi,
 }) {
+  function resolveTensorById(tensorId) {
+    return (
+      findTensorById(tensorId) ||
+      (Array.isArray(state.spec?.tensors)
+        ? state.spec.tensors.find((candidate) => candidate.id === tensorId) || null
+        : null)
+    );
+  }
+
   function getSelectionEntry(selectionId) {
     const inContractionScene = isContractionSceneVisible();
     const inspectingPastStage = isInspectingPastStage();
@@ -29,7 +38,7 @@ export function createSelectionEntrySupport({
         isBaseTensor: !visibleTensor.isDerived,
       };
     }
-    const tensor = findTensorById(selectionId);
+    const tensor = resolveTensorById(selectionId);
     if (tensor && inContractionScene) {
       return null;
     }
