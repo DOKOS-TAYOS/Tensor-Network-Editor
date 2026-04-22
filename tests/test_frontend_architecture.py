@@ -59,7 +59,7 @@ def test_utilities_ui_modules_use_explicit_internal_contracts() -> None:
     assert all("ctx." not in helper_body for helper_body in helper_bodies.values())
 
 
-def test_session_and_benchmark_modules_delegate_large_flows_to_helper_modules() -> None:
+def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     session_dir = (
         REPO_ROOT
         / "src"
@@ -71,6 +71,15 @@ def test_session_and_benchmark_modules_delegate_large_flows_to_helper_modules() 
     )
     utils_dir = (
         REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils"
+    )
+    properties_dir = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "properties"
     )
     session_flow_body = (session_dir / "sessionTemplateFlows.js").read_text(
         encoding="utf-8"
@@ -84,11 +93,76 @@ def test_session_and_benchmark_modules_delegate_large_flows_to_helper_modules() 
     benchmark_helper_body = (utils_dir / "utilitiesBenchmarkSessionState.js").read_text(
         encoding="utf-8"
     )
+    tree_body = (utils_dir / "utilitiesTreePeriodic.js").read_text(encoding="utf-8")
+    tree_state_body = (utils_dir / "utilitiesTreePeriodicState.js").read_text(
+        encoding="utf-8"
+    )
+    tree_boundaries_body = (utils_dir / "utilitiesTreePeriodicBoundaries.js").read_text(
+        encoding="utf-8"
+    )
+    tree_flow_body = (utils_dir / "utilitiesTreePeriodicFlow.js").read_text(
+        encoding="utf-8"
+    )
+    grid_body = (utils_dir / "utilitiesGridPeriodic.js").read_text(encoding="utf-8")
+    grid_state_body = (utils_dir / "utilitiesGridPeriodicState.js").read_text(
+        encoding="utf-8"
+    )
+    grid_boundaries_body = (utils_dir / "utilitiesGridPeriodicBoundaries.js").read_text(
+        encoding="utf-8"
+    )
+    grid_flow_body = (utils_dir / "utilitiesGridPeriodicFlow.js").read_text(
+        encoding="utf-8"
+    )
+    layout_body = (utils_dir / "utilitiesLayoutAlgorithms.js").read_text(
+        encoding="utf-8"
+    )
+    layout_graph_body = (utils_dir / "utilitiesLayoutAlgorithmsGraph.js").read_text(
+        encoding="utf-8"
+    )
+    layout_positions_body = (
+        utils_dir / "utilitiesLayoutAlgorithmsPositions.js"
+    ).read_text(encoding="utf-8")
+    tensor_standard_body = (properties_dir / "tensorPropertiesStandard.js").read_text(
+        encoding="utf-8"
+    )
+    tensor_data_body = (properties_dir / "tensorPropertiesStandardData.js").read_text(
+        encoding="utf-8"
+    )
+    tensor_markup_body = (
+        properties_dir / "tensorPropertiesStandardMarkup.js"
+    ).read_text(encoding="utf-8")
+    tensor_bindings_body = (
+        properties_dir / "tensorPropertiesStandardBindings.js"
+    ).read_text(encoding="utf-8")
 
     assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_flow_body
     assert "function createSubnetworkLibrarySupport(" in session_helper_body
     assert 'from "./utilitiesBenchmarkSessionState.js"' in benchmark_body
     assert "function normalizeBenchmarkSessionInPlace(" in benchmark_helper_body
+    assert 'from "./utilitiesTreePeriodicState.js"' in tree_body
+    assert 'from "./utilitiesTreePeriodicBoundaries.js"' in tree_body
+    assert 'from "./utilitiesTreePeriodicFlow.js"' in tree_body
+    assert "function createTreePeriodicStateSupport(" in tree_state_body
+    assert "function createTreePeriodicBoundarySupport(" in tree_boundaries_body
+    assert "function createTreePeriodicFlowSupport(" in tree_flow_body
+    assert 'from "./utilitiesGridPeriodicState.js"' in grid_body
+    assert 'from "./utilitiesGridPeriodicBoundaries.js"' in grid_body
+    assert 'from "./utilitiesGridPeriodicFlow.js"' in grid_body
+    assert "function createGridPeriodicStateSupport(" in grid_state_body
+    assert "function createGridPeriodicBoundarySupport(" in grid_boundaries_body
+    assert "function createGridPeriodicFlowSupport(" in grid_flow_body
+    assert 'from "./utilitiesLayoutAlgorithmsGraph.js"' in layout_body
+    assert 'from "./utilitiesLayoutAlgorithmsPositions.js"' in layout_body
+    assert "function createLayoutAlgorithmGraphSupport(" in layout_graph_body
+    assert "function createLayoutAlgorithmPositionSupport(" in layout_positions_body
+    assert 'from "./tensorPropertiesStandardData.js"' in tensor_standard_body
+    assert 'from "./tensorPropertiesStandardMarkup.js"' in tensor_standard_body
+    assert 'from "./tensorPropertiesStandardBindings.js"' in tensor_standard_body
+    assert "function createStandardTensorDataSupport(" in tensor_data_body
+    assert "function createStandardTensorPropertiesMarkupSupport(" in tensor_markup_body
+    assert (
+        "function createStandardTensorPropertiesBindingSupport(" in tensor_bindings_body
+    )
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")

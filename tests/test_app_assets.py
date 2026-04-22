@@ -25,9 +25,19 @@ def request_utilities_runtime_bundle(editor_server: EditorServer) -> str:
         "js/utils/utilitiesBase.js",
         "js/utils/utilitiesGeometry.js",
         "js/utils/utilitiesGridPeriodic.js",
+        "js/utils/utilitiesGridPeriodicState.js",
+        "js/utils/utilitiesGridPeriodicBoundaries.js",
+        "js/utils/utilitiesGridPeriodicFlow.js",
         "js/utils/utilitiesLayout.js",
+        "js/utils/utilitiesLayoutAlgorithms.js",
+        "js/utils/utilitiesLayoutAlgorithmsGraph.js",
+        "js/utils/utilitiesLayoutAlgorithmsPositions.js",
         "js/utils/utilitiesLinearPeriodic.js",
         "js/utils/utilitiesSpec.js",
+        "js/utils/utilitiesTreePeriodic.js",
+        "js/utils/utilitiesTreePeriodicState.js",
+        "js/utils/utilitiesTreePeriodicBoundaries.js",
+        "js/utils/utilitiesTreePeriodicFlow.js",
         "js/utils/utilitiesUi.js",
         "js/utils/utilitiesUiDom.js",
         "js/utils/utilitiesUiPanels.js",
@@ -809,6 +819,9 @@ def test_properties_assets_remove_guided_annotation_inputs_and_center_controls(
     tensor_standard_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
     )
+    tensor_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardMarkup.js"
+    )
     tensor_boundary_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
     )
@@ -824,9 +837,10 @@ def test_properties_assets_remove_guided_annotation_inputs_and_center_controls(
     assert 'id="center-tensor-button"' not in combined_body
     assert 'id="align-selection-center-button"' not in combined_body
     assert ">Center<" not in combined_body
-    assert "createPaleIndexColor" in tensor_standard_body
-    assert "index-disclosure-state" in tensor_standard_body
-    assert "Remove this tensor from the network." in tensor_standard_body
+    assert "createStandardTensorPropertiesRenderer" in tensor_standard_body
+    assert "createPaleIndexColor" in tensor_markup_body
+    assert "index-disclosure-state" in tensor_markup_body
+    assert "Remove this tensor from the network." in tensor_markup_body
 
 
 def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
@@ -1133,6 +1147,15 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
     tensor_standard_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
     )
+    tensor_standard_data_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardData.js"
+    )
+    tensor_standard_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardMarkup.js"
+    )
+    tensor_standard_bindings_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardBindings.js"
+    )
     tensor_boundary_body = request_text(
         f"{editor_server.base_url}/js/properties/tensorPropertiesBoundary.js"
     )
@@ -1147,27 +1170,39 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
     assert "ctx.applyDesignChange(" not in tensor_body
     assert "typeof ctx.syncConnectedIndexDimension" not in tensor_body
     assert "function renderTensorProperties(" in tensor_standard_body
+    assert 'from "./tensorPropertiesStandardData.js"' in tensor_standard_body
+    assert 'from "./tensorPropertiesStandardMarkup.js"' in tensor_standard_body
+    assert 'from "./tensorPropertiesStandardBindings.js"' in tensor_standard_body
     assert (
         "function renderLinearPeriodicBoundaryTensorProperties(" in tensor_boundary_body
     )
     assert "function renderContractionTensorProperties(" in tensor_contraction_body
     assert "function renderContractionIndexProperties(" in tensor_contraction_body
-    assert 'id="tensor-data-mode-select"' in tensor_standard_body
-    assert 'id="tensor-data-validation-message"' in tensor_standard_body
-    assert "Explicit values (JSON)" in tensor_standard_body
-    assert "commands.updateTensorData" in tensor_standard_body
+    assert "function createStandardTensorDataSupport(" in tensor_standard_data_body
+    assert (
+        "function createStandardTensorPropertiesMarkupSupport("
+        in tensor_standard_markup_body
+    )
+    assert (
+        "function createStandardTensorPropertiesBindingSupport("
+        in tensor_standard_bindings_body
+    )
+    assert 'id="tensor-data-mode-select"' in tensor_standard_markup_body
+    assert 'id="tensor-data-validation-message"' in tensor_standard_markup_body
+    assert "Explicit values (JSON)" in tensor_standard_markup_body
+    assert "commands.updateTensorData" in tensor_standard_bindings_body
 
 
 def test_index_disclosure_border_uses_the_port_color(
     editor_server: EditorServer,
 ) -> None:
-    standard_body = request_text(
-        f"{editor_server.base_url}/js/properties/tensorPropertiesStandard.js"
+    standard_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardMarkup.js"
     )
     css_body = request_text(f"{editor_server.base_url}/app.css")
 
-    assert "--index-border-color:" in standard_body
-    assert "ctx.getIndexColor(index, isConnected)" in standard_body
+    assert "--index-border-color:" in standard_markup_body
+    assert "ctx.getIndexColor(index, isConnected)" in standard_markup_body
     assert (
         "border-color: var(--index-border-color, rgba(76, 92, 120, 0.95));" in css_body
     )
@@ -1905,6 +1940,12 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     layout_algorithms_body = request_text(
         f"{editor_server.base_url}/js/utils/utilitiesLayoutAlgorithms.js"
     )
+    layout_algorithms_graph_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLayoutAlgorithmsGraph.js"
+    )
+    layout_algorithms_positions_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesLayoutAlgorithmsPositions.js"
+    )
     layout_indices_body = request_text(
         f"{editor_server.base_url}/js/utils/utilitiesLayoutIndices.js"
     )
@@ -1930,6 +1971,8 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert 'from "./utilitiesLayoutAlgorithms.js"' in layout_body
     assert 'from "./utilitiesLayoutIndices.js"' in layout_body
     assert 'from "./utilitiesLayoutSelection.js"' in layout_body
+    assert 'from "./utilitiesLayoutAlgorithmsGraph.js"' in layout_algorithms_body
+    assert 'from "./utilitiesLayoutAlgorithmsPositions.js"' in layout_algorithms_body
     assert "function alignSelectedTensors(" in layout_body
     assert "function arrangeSelectedTensors(" in layout_body
     assert "function distributeSelectedTensors(" in layout_body
@@ -1938,9 +1981,15 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert "function applyReflowIndicesAction(" in layout_body
     assert "function applyAutoLayout(" in layout_body
     assert "function reflowLastImportedTensors(" in layout_body
-    assert "function buildArrangedSelectionPositions(" in layout_algorithms_body
-    assert "function buildAutoLayoutPositions(" in layout_algorithms_body
-    assert "function buildImportedReflowPositions(" in layout_algorithms_body
+    assert "function createUtilityLayoutAlgorithmSupport(" in layout_algorithms_body
+    assert "function buildArrangedSelectionPositions(" in layout_algorithms_graph_body
+    assert "function buildAutoLayoutPositions(" in layout_algorithms_graph_body
+    assert "function buildImportedReflowPositions(" in layout_algorithms_graph_body
+    assert "function createLayoutAlgorithmGraphSupport(" in layout_algorithms_graph_body
+    assert (
+        "function createLayoutAlgorithmPositionSupport("
+        in layout_algorithms_positions_body
+    )
     assert "function buildReflowIndexOffsets(" in layout_indices_body
     assert "function getSelectedLayoutTensorIds(" in layout_selection_body
     assert "GRID_SNAP_SIZE" in utilities_body
@@ -1976,6 +2025,48 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert ".reflow-action-row {" in css_body
     assert "grid-template-columns: repeat(5, var(--canvas-control-height));" in css_body
     assert "aspect-ratio: 1 / 1;" in css_body
+
+
+def test_periodic_mode_assets_delegate_to_internal_helpers(
+    editor_server: EditorServer,
+) -> None:
+    tree_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesTreePeriodic.js"
+    )
+    tree_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesTreePeriodicState.js"
+    )
+    tree_boundaries_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesTreePeriodicBoundaries.js"
+    )
+    tree_flow_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesTreePeriodicFlow.js"
+    )
+    grid_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesGridPeriodic.js"
+    )
+    grid_state_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesGridPeriodicState.js"
+    )
+    grid_boundaries_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesGridPeriodicBoundaries.js"
+    )
+    grid_flow_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesGridPeriodicFlow.js"
+    )
+
+    assert 'from "./utilitiesTreePeriodicState.js"' in tree_body
+    assert 'from "./utilitiesTreePeriodicBoundaries.js"' in tree_body
+    assert 'from "./utilitiesTreePeriodicFlow.js"' in tree_body
+    assert "function createTreePeriodicStateSupport(" in tree_state_body
+    assert "function createTreePeriodicBoundarySupport(" in tree_boundaries_body
+    assert "function createTreePeriodicFlowSupport(" in tree_flow_body
+    assert 'from "./utilitiesGridPeriodicState.js"' in grid_body
+    assert 'from "./utilitiesGridPeriodicBoundaries.js"' in grid_body
+    assert 'from "./utilitiesGridPeriodicFlow.js"' in grid_body
+    assert "function createGridPeriodicStateSupport(" in grid_state_body
+    assert "function createGridPeriodicBoundarySupport(" in grid_boundaries_body
+    assert "function createGridPeriodicFlowSupport(" in grid_flow_body
 
 
 def test_performance_sensitive_assets_use_lightweight_analysis_paths(
