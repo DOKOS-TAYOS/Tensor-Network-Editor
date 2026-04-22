@@ -95,6 +95,10 @@ export function createShellActions(ctx) {
       ctx.updateSubnetworkLibrarySearch(query),
     updateSubnetworkLibraryTagFilter: (tag) =>
       ctx.updateSubnetworkLibraryTagFilter(tag),
+    toggleSelectAllVisibleSubnetworks: (isSelected) =>
+      ctx.toggleSelectAllVisibleSubnetworks(isSelected),
+    addSelectedSubnetworksToSessionTemplates: () =>
+      ctx.addSelectedSubnetworksToSessionTemplates(),
     saveSelectionAsSessionTemplate: () => ctx.saveSelectionAsSessionTemplate(),
     openSessionTemplatePicker: () => ctx.openSessionTemplatePicker(),
     exportSelectedTemplateSpec: () => ctx.exportSelectedTemplateSpec(),

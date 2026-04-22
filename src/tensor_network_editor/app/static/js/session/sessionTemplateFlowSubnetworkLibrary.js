@@ -1,4 +1,4 @@
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -7,16 +7,104 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+export function buildSerializedNetworkPreviewMarkup(serializedSpec) {
+  const tensors =
+    serializedSpec &&
+    serializedSpec.network &&
+    Array.isArray(serializedSpec.network.tensors)
+      ? serializedSpec.network.tensors
+      : [];
+  const edges =
+    serializedSpec &&
+    serializedSpec.network &&
+    Array.isArray(serializedSpec.network.edges)
+      ? serializedSpec.network.edges
+      : [];
+  if (!tensors.length) {
+    return '<div class="subnetwork-library-preview-empty">Empty</div>';
+  }
+  const previewWidth = 136;
+  const previewHeight = 88;
+  const padding = 8;
+  const bounds = {
+    left: Math.min(
+      ...tensors.map((tensor) => (tensor.position?.x || 0) - (tensor.size?.width || 120) / 2)
+    ),
+    right: Math.max(
+      ...tensors.map((tensor) => (tensor.position?.x || 0) + (tensor.size?.width || 120) / 2)
+    ),
+    top: Math.min(
+      ...tensors.map((tensor) => (tensor.position?.y || 0) - (tensor.size?.height || 72) / 2)
+    ),
+    bottom: Math.max(
+      ...tensors.map((tensor) => (tensor.position?.y || 0) + (tensor.size?.height || 72) / 2)
+    ),
+  };
+  const spanX = Math.max(1, bounds.right - bounds.left);
+  const spanY = Math.max(1, bounds.bottom - bounds.top);
+  const scale = Math.min(
+    (previewWidth - padding * 2) / spanX,
+    (previewHeight - padding * 2) / spanY
+  );
+  const scalePositionX = (value) => (value - bounds.left) * scale + padding;
+  const scalePositionY = (value) => (value - bounds.top) * scale + padding;
+  const centerByTensorId = Object.fromEntries(
+    tensors.map((tensor) => [
+      tensor.id,
+      {
+        x: scalePositionX(tensor.position?.x || 0),
+        y: scalePositionY(tensor.position?.y || 0),
+      },
+    ])
+  );
+  const edgeMarkup = edges
+    .map((edge) => {
+      const leftCenter = centerByTensorId[edge?.left?.tensor_id];
+      const rightCenter = centerByTensorId[edge?.right?.tensor_id];
+      if (!leftCenter || !rightCenter) {
+        return "";
+      }
+      return `<line x1="${leftCenter.x}" y1="${leftCenter.y}" x2="${rightCenter.x}" y2="${rightCenter.y}" />`;
+    })
+    .join("");
+  const tensorMarkup = tensors
+    .map((tensor) => {
+      const width = Math.max(12, (tensor.size?.width || 120) * scale);
+      const height = Math.max(10, (tensor.size?.height || 72) * scale);
+      const center = centerByTensorId[tensor.id];
+      return `
+        <rect
+          x="${center.x - width / 2}"
+          y="${center.y - height / 2}"
+          width="${width}"
+          height="${height}"
+          rx="${Math.min(7, height / 3)}"
+        />
+      `;
+    })
+    .join("");
+  return `
+    <svg viewBox="0 0 ${previewWidth} ${previewHeight}" aria-hidden="true" focusable="false">
+      <g class="subnetwork-library-preview-edges">${edgeMarkup}</g>
+      <g class="subnetwork-library-preview-tensors">${tensorMarkup}</g>
+    </svg>
+  `;
+}
+
 export function createSubnetworkLibrarySupport({
   documentRef,
   state,
   subnetworkLibraryList,
   subnetworkLibrarySearchInput,
   subnetworkLibraryTagFilter,
+  subnetworkLibrarySelectAllInput,
+  subnetworkLibrarySelectionSummary,
+  subnetworkLibraryAddSelectedButton,
   subnetworkLibraryWarning,
   insertSubnetworkFromLibrary,
   renameLibrarySubnetwork,
   deleteLibrarySubnetwork,
+  toggleSubnetworkLibraryBatchSelection,
 }) {
   function normalizeSubnetworkCatalogName(rawName, fallbackName = "subnetwork") {
     const normalizedFallback = String(fallbackName || "subnetwork")
@@ -87,6 +175,14 @@ export function createSubnetworkLibrarySupport({
     );
   }
 
+  function getSelectedSubnetworkLibraryNames() {
+    return new Set(
+      Array.isArray(state.selectedSubnetworkLibraryNames)
+        ? state.selectedSubnetworkLibraryNames
+        : []
+    );
+  }
+
   function collectSubnetworkLibraryTags() {
     return [...new Set(
       getSubnetworkEntries().flatMap((entry) => entry.tags)
@@ -122,89 +218,17 @@ export function createSubnetworkLibrarySupport({
   }
 
   function buildSubnetworkPreviewMarkup(entry) {
-    const tensors =
-      entry &&
-      entry.serializedSpec &&
-      entry.serializedSpec.network &&
-      Array.isArray(entry.serializedSpec.network.tensors)
-        ? entry.serializedSpec.network.tensors
-        : [];
-    const edges =
-      entry &&
-      entry.serializedSpec &&
-      entry.serializedSpec.network &&
-      Array.isArray(entry.serializedSpec.network.edges)
-        ? entry.serializedSpec.network.edges
-        : [];
-    if (!tensors.length) {
-      return '<div class="subnetwork-library-preview-empty">Empty</div>';
+    return buildSerializedNetworkPreviewMarkup(entry?.serializedSpec);
+  }
+
+  function formatSubnetworkSourceLabel(source) {
+    if (source === "shared") {
+      return "Shared";
     }
-    const previewWidth = 136;
-    const previewHeight = 88;
-    const padding = 8;
-    const bounds = {
-      left: Math.min(
-        ...tensors.map((tensor) => (tensor.position?.x || 0) - (tensor.size?.width || 120) / 2)
-      ),
-      right: Math.max(
-        ...tensors.map((tensor) => (tensor.position?.x || 0) + (tensor.size?.width || 120) / 2)
-      ),
-      top: Math.min(
-        ...tensors.map((tensor) => (tensor.position?.y || 0) - (tensor.size?.height || 72) / 2)
-      ),
-      bottom: Math.max(
-        ...tensors.map((tensor) => (tensor.position?.y || 0) + (tensor.size?.height || 72) / 2)
-      ),
-    };
-    const spanX = Math.max(1, bounds.right - bounds.left);
-    const spanY = Math.max(1, bounds.bottom - bounds.top);
-    const scale = Math.min(
-      (previewWidth - padding * 2) / spanX,
-      (previewHeight - padding * 2) / spanY
-    );
-    const scalePositionX = (value) => (value - bounds.left) * scale + padding;
-    const scalePositionY = (value) => (value - bounds.top) * scale + padding;
-    const centerByTensorId = Object.fromEntries(
-      tensors.map((tensor) => [
-        tensor.id,
-        {
-          x: scalePositionX(tensor.position?.x || 0),
-          y: scalePositionY(tensor.position?.y || 0),
-        },
-      ])
-    );
-    const edgeMarkup = edges
-      .map((edge) => {
-        const leftCenter = centerByTensorId[edge?.left?.tensor_id];
-        const rightCenter = centerByTensorId[edge?.right?.tensor_id];
-        if (!leftCenter || !rightCenter) {
-          return "";
-        }
-        return `<line x1="${leftCenter.x}" y1="${leftCenter.y}" x2="${rightCenter.x}" y2="${rightCenter.y}" />`;
-      })
-      .join("");
-    const tensorMarkup = tensors
-      .map((tensor) => {
-        const width = Math.max(12, (tensor.size?.width || 120) * scale);
-        const height = Math.max(10, (tensor.size?.height || 72) * scale);
-        const center = centerByTensorId[tensor.id];
-        return `
-          <rect
-            x="${center.x - width / 2}"
-            y="${center.y - height / 2}"
-            width="${width}"
-            height="${height}"
-            rx="${Math.min(7, height / 3)}"
-          />
-        `;
-      })
-      .join("");
-    return `
-      <svg viewBox="0 0 ${previewWidth} ${previewHeight}" aria-hidden="true" focusable="false">
-        <g class="subnetwork-library-preview-edges">${edgeMarkup}</g>
-        <g class="subnetwork-library-preview-tensors">${tensorMarkup}</g>
-      </svg>
-    `;
+    if (source === "session") {
+      return "Session";
+    }
+    return "Project";
   }
 
   function setSubnetworkLibraryWarning(message = "") {
@@ -242,6 +266,40 @@ export function createSubnetworkLibrarySupport({
     }
   }
 
+  function syncSubnetworkLibraryBatchControls(filteredEntries = []) {
+    const selectedNames = getSelectedSubnetworkLibraryNames();
+    const totalSelectedCount = selectedNames.size;
+    const visibleNames = filteredEntries.map((entry) => entry.subnetworkName);
+    const visibleSelectedCount = visibleNames.filter((subnetworkName) =>
+      selectedNames.has(subnetworkName)
+    ).length;
+    if (subnetworkLibrarySelectAllInput) {
+      subnetworkLibrarySelectAllInput.checked =
+        visibleNames.length > 0 &&
+        visibleSelectedCount === visibleNames.length;
+      subnetworkLibrarySelectAllInput.indeterminate =
+        visibleSelectedCount > 0 &&
+        visibleSelectedCount < visibleNames.length;
+      subnetworkLibrarySelectAllInput.disabled = !visibleNames.length;
+    }
+    if (subnetworkLibrarySelectionSummary) {
+      if (!totalSelectedCount) {
+        subnetworkLibrarySelectionSummary.textContent = "No subnetworks selected.";
+      } else if (visibleSelectedCount === totalSelectedCount) {
+        subnetworkLibrarySelectionSummary.textContent = `${totalSelectedCount} selected`;
+      } else {
+        subnetworkLibrarySelectionSummary.textContent =
+          `${totalSelectedCount} selected (${visibleSelectedCount} visible)`;
+      }
+    }
+    if (subnetworkLibraryAddSelectedButton) {
+      subnetworkLibraryAddSelectedButton.disabled = !totalSelectedCount;
+      subnetworkLibraryAddSelectedButton.textContent = totalSelectedCount
+        ? `Add to session templates (${totalSelectedCount})`
+        : "Add to session templates";
+    }
+  }
+
   function renderSubnetworkLibrary() {
     if (!subnetworkLibraryList) {
       return;
@@ -261,6 +319,7 @@ export function createSubnetworkLibrarySupport({
     setSubnetworkLibraryWarning(warningMessages[0] || "");
     subnetworkLibraryList.innerHTML = "";
     const filteredEntries = getFilteredSubnetworkEntries();
+    syncSubnetworkLibraryBatchControls(filteredEntries);
     if (!filteredEntries.length) {
       const emptyState = documentRef.createElement("p");
       emptyState.className = "subnetwork-library-empty-state";
@@ -270,16 +329,38 @@ export function createSubnetworkLibrarySupport({
       subnetworkLibraryList.appendChild(emptyState);
       return;
     }
+    const selectedNames = getSelectedSubnetworkLibraryNames();
     filteredEntries.forEach((entry) => {
       const row = documentRef.createElement("article");
       row.className = "subnetwork-library-row";
       if (entry.subnetworkName === state.selectedSubnetworkName) {
         row.classList.add("is-selected");
       }
+      if (selectedNames.has(entry.subnetworkName)) {
+        row.classList.add("is-batch-selected");
+      }
       row.addEventListener("click", () => {
         state.selectedSubnetworkName = entry.subnetworkName;
         renderSubnetworkLibrary();
       });
+
+      const selectionCell = documentRef.createElement("label");
+      selectionCell.className = "subnetwork-library-select-cell";
+      selectionCell.addEventListener("click", (event) => event.stopPropagation());
+      const selectionInput = documentRef.createElement("input");
+      selectionInput.type = "checkbox";
+      selectionInput.checked = selectedNames.has(entry.subnetworkName);
+      selectionInput.setAttribute("aria-label", `Select ${entry.displayName}`);
+      selectionInput.addEventListener("click", (event) => event.stopPropagation());
+      selectionInput.addEventListener("change", (event) => {
+        event.stopPropagation();
+        toggleSubnetworkLibraryBatchSelection(
+          entry.subnetworkName,
+          Boolean(event.target.checked)
+        );
+      });
+      selectionCell.appendChild(selectionInput);
+      row.appendChild(selectionCell);
 
       const preview = documentRef.createElement("div");
       preview.className = "subnetwork-library-preview";
@@ -294,7 +375,7 @@ export function createSubnetworkLibrarySupport({
       title.textContent = entry.displayName;
       const sourceBadge = documentRef.createElement("span");
       sourceBadge.className = `subnetwork-library-source source-${entry.source}`;
-      sourceBadge.textContent = entry.source === "shared" ? "Shared" : "Project";
+      sourceBadge.textContent = formatSubnetworkSourceLabel(entry.source);
       titleRow.append(title, sourceBadge);
       content.appendChild(titleRow);
 
@@ -367,6 +448,7 @@ export function createSubnetworkLibrarySupport({
   return {
     normalizeSubnetworkCatalogName,
     getSubnetworkEntryByName,
+    getFilteredSubnetworkEntries,
     renderSubnetworkLibrary,
   };
 }

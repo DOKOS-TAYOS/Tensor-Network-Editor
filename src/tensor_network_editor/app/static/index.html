@@ -1027,6 +1027,8 @@
             <div><strong>Ctrl/Cmd+A</strong><span>Select all visible tensors</span></div>
             <div><strong>Ctrl/Cmd+Alt+A</strong><span>Open Planner and accept auto future</span></div>
             <div><strong>Ctrl/Cmd+Shift+A</strong><span>Open Planner and accept auto past</span></div>
+            <div><strong>Ctrl/Cmd+F</strong><span>Open Search</span></div>
+            <div><strong>Ctrl/Cmd+Shift+F</strong><span>Open Filters</span></div>
             <div><strong>Shift+G</strong><span>Open Code and generate code</span></div>
             <div><strong>Ctrl/Cmd+S</strong><span>Save the design</span></div>
             <div><strong>Ctrl/Cmd+L</strong><span>Load a design file</span></div>
@@ -1082,10 +1084,26 @@
     <div id="template-manager-modal" class="help-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="template-manager-title">
       <div id="template-manager-backdrop" class="help-backdrop"></div>
       <section class="help-dialog template-manager-dialog">
+        <button
+          id="template-manager-close-button"
+          class="help-dialog-close button-close-static"
+          type="button"
+          aria-label="Close template editor"
+          title="Close template editor"
+        >
+          <svg
+            class="help-close-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4.22 3.16 8 6.94l3.78-3.78a.75.75 0 1 1 1.06 1.06L9.06 8l3.78 3.78a.75.75 0 1 1-1.06 1.06L8 9.06l-3.78 3.78a.75.75 0 1 1-1.06-1.06L6.94 8 3.16 4.22a.75.75 0 1 1 1.06-1.06Z"/>
+          </svg>
+        </button>
         <div class="help-dialog-header">
           <div>
             <h2 id="template-manager-title">Edit templates</h2>
-            <p class="help-note">Session templates can be renamed or deleted here. Built-in and project templates are read-only.</p>
+            <p class="help-note">Review the session templates you created, preview them, rename them, or remove the ones you no longer need.</p>
           </div>
           <div class="template-manager-header-actions">
             <button
@@ -1139,7 +1157,7 @@
         <div class="help-dialog-header">
           <div>
             <h2 id="subnetwork-library-title">Subnetwork library</h2>
-            <p class="help-note">Browse project and shared subnetworks, filter by tags, and insert reusable blocks with fresh ids.</p>
+            <p class="help-note">Browse project and shared subnetworks, filter them, insert them with fresh ids, or copy several into this session as reusable templates.</p>
           </div>
         </div>
         <div class="subnetwork-library-toolbar">
@@ -1161,6 +1179,30 @@
               <option value="">All tags</option>
             </select>
           </label>
+        </div>
+        <div class="subnetwork-library-batch-toolbar">
+          <label class="subnetwork-library-select-all">
+            <input
+              id="subnetwork-library-select-all-input"
+              type="checkbox"
+              aria-label="Select all visible subnetworks"
+            />
+            <span>Select all visible</span>
+          </label>
+          <span
+            id="subnetwork-library-selection-summary"
+            class="subnetwork-library-selection-summary"
+          >
+            No subnetworks selected.
+          </span>
+          <button
+            id="subnetwork-library-add-selected-button"
+            type="button"
+            class="button-accent-positive"
+            disabled
+          >
+            Add to session templates
+          </button>
         </div>
         <p id="subnetwork-library-warning" class="template-manager-error" hidden></p>
         <div id="subnetwork-library-list" class="subnetwork-library-list"></div>
@@ -1240,7 +1282,6 @@
           class="help-dialog-close button-close-static"
           type="button"
           aria-label="Close generated code"
-          title="Close generated code"
         >
           <svg
             class="help-close-icon"

@@ -182,25 +182,20 @@ export function createLayoutAlgorithmGraphSupport({
     if (preferredRootId && componentIds.includes(preferredRootId)) {
       return preferredRootId;
     }
-    return [...componentIds].sort((leftId, rightId) => {
-      const leftDegree = (adjacency.get(leftId) || []).length;
-      const rightDegree = (adjacency.get(rightId) || []).length;
-      if (leftDegree !== rightDegree) {
-        return rightDegree - leftDegree;
-      }
-      return compareTensorIdsByPosition(leftId, rightId);
-    })[0];
+    return sortTensorIdsByPosition(componentIds)[0];
   }
 
   function resolveComponentRootId(componentIds, adjacency, preferredRootId = null) {
     if (preferredRootId && componentIds.includes(preferredRootId)) {
       return preferredRootId;
     }
-    const endpointIds = componentIds.filter(
-      (tensorId) => (adjacency.get(tensorId) || []).length <= 1
-    );
-    if (endpointIds.length) {
-      return sortTensorIdsByPosition(endpointIds)[0];
+    if (isPathComponent(componentIds, adjacency)) {
+      const endpointIds = componentIds.filter(
+        (tensorId) => (adjacency.get(tensorId) || []).length <= 1
+      );
+      if (endpointIds.length) {
+        return sortTensorIdsByPosition(endpointIds)[0];
+      }
     }
     return sortTensorIdsByPosition(componentIds)[0];
   }
@@ -295,6 +290,12 @@ export function createLayoutAlgorithmGraphSupport({
     if (mode === "tree") {
       return buildTreeComponentLayout(componentIds, adjacency, preferredRootId);
     }
+    if (mode === "grid") {
+      return buildComponentLayoutFromLocalPositions(
+        componentIds,
+        buildGridLocalPositions(sortTensorIdsByPosition(componentIds))
+      );
+    }
     const orderedIds = buildComponentTraversalOrder(
       componentIds,
       adjacency,
@@ -304,12 +305,6 @@ export function createLayoutAlgorithmGraphSupport({
       return buildComponentLayoutFromLocalPositions(
         componentIds,
         buildChainLocalPositions(orderedIds)
-      );
-    }
-    if (mode === "grid") {
-      return buildComponentLayoutFromLocalPositions(
-        componentIds,
-        buildGridLocalPositions(orderedIds)
       );
     }
     return null;

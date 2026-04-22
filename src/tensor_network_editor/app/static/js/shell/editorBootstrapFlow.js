@@ -52,6 +52,13 @@ export function createEditorBootstrapFlow({
         typeof payload.selected_subnetwork === "string"
           ? payload.selected_subnetwork
           : state.availableSubnetworks[0] || "";
+      state.selectedSubnetworkLibraryNames = Array.isArray(
+        state.selectedSubnetworkLibraryNames
+      )
+        ? state.selectedSubnetworkLibraryNames.filter((subnetworkName) =>
+            state.availableSubnetworks.includes(subnetworkName)
+          )
+        : [];
     }
     store.setAnnotationDefinitions(payload.annotation_definitions);
     store.setSelectedEngine(payload.default_engine);

@@ -88,12 +88,15 @@ export function createEditorShellBindings({
     helpBackdrop,
     helpCloseButton,
     templateManagerBackdrop,
+    templateManagerCloseButton,
     templateManagerSaveButton,
     templateManagerDiscardButton,
     subnetworkLibraryBackdrop,
     subnetworkLibraryCloseButton,
     subnetworkLibrarySearchInput,
     subnetworkLibraryTagFilter,
+    subnetworkLibrarySelectAllInput,
+    subnetworkLibraryAddSelectedButton,
     benchmarkCompareBackdrop,
     benchmarkCompareCloseButton,
     benchmarkCompareExportCsvButton,
@@ -345,7 +348,6 @@ export function createEditorShellBindings({
         "reflow-indices-bottom-button",
         "copy-code-button",
         "expand-generated-code-button",
-        "generated-code-modal-close-button",
         "template-manager-save-button",
         "template-manager-discard-button",
       ].forEach((controlId) => {
@@ -608,6 +610,9 @@ export function createEditorShellBindings({
     bindListener(templateManagerBackdrop, "click", () =>
       actions.toggleTemplateManager(false)
     );
+    bindListener(templateManagerCloseButton, "click", () =>
+      actions.toggleTemplateManager(false)
+    );
     bindListener(templateManagerSaveButton, "click", () => {
       if (typeof actions.saveTemplateManagerChanges === "function") {
         actions.saveTemplateManagerChanges();
@@ -629,6 +634,12 @@ export function createEditorShellBindings({
     });
     bindListener(subnetworkLibraryTagFilter, "change", (event) => {
       actions.updateSubnetworkLibraryTagFilter(event.target.value);
+    });
+    bindListener(subnetworkLibrarySelectAllInput, "change", (event) => {
+      actions.toggleSelectAllVisibleSubnetworks(Boolean(event.target.checked));
+    });
+    bindListener(subnetworkLibraryAddSelectedButton, "click", () => {
+      actions.addSelectedSubnetworksToSessionTemplates();
     });
     bindListener(benchmarkCompareBackdrop, "click", () =>
       actions.closeBenchmarkCompareModal()

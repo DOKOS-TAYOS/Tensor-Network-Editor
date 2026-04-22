@@ -146,6 +146,9 @@ export function getDomRefs(document) {
     aboutAuthor: document.getElementById("about-author"),
     templateManagerModal: document.getElementById("template-manager-modal"),
     templateManagerBackdrop: document.getElementById("template-manager-backdrop"),
+    templateManagerCloseButton: document.getElementById(
+      "template-manager-close-button"
+    ),
     templateManagerSaveButton: document.getElementById("template-manager-save-button"),
     templateManagerDiscardButton: document.getElementById(
       "template-manager-discard-button"
@@ -164,6 +167,15 @@ export function getDomRefs(document) {
     ),
     subnetworkLibraryTagFilter: document.getElementById(
       "subnetwork-library-tag-filter"
+    ),
+    subnetworkLibrarySelectAllInput: document.getElementById(
+      "subnetwork-library-select-all-input"
+    ),
+    subnetworkLibrarySelectionSummary: document.getElementById(
+      "subnetwork-library-selection-summary"
+    ),
+    subnetworkLibraryAddSelectedButton: document.getElementById(
+      "subnetwork-library-add-selected-button"
     ),
     subnetworkLibraryWarning: document.getElementById(
       "subnetwork-library-warning"

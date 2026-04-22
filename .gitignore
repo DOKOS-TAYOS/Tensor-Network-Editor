@@ -1,5 +1,6 @@
 .venv/
 .worktrees/
+.tensor-network-editor/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

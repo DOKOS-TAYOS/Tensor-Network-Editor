@@ -162,7 +162,7 @@ def _make_linear_chain_edges(tensors: list[TensorSpec]) -> list[EdgeSpec]:
 
 def _build_peps_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build the requested PEPS template variant."""
-    if parameters.graph_size == TEMPLATE_DEFINITIONS["peps_2x2"].defaults.graph_size:
+    if parameters.graph_size == 2:
         return _build_default_peps_template(parameters)
     return _build_generic_peps_template(parameters)
 

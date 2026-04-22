@@ -32,6 +32,7 @@ export function createUtilityUiPanelsSupport({
     aboutLicense,
     aboutAuthor,
     templateManagerModal,
+    templateManagerCloseButton,
     templateManagerSaveButton,
     templateManagerDiscardButton,
     templateManagerError,
@@ -288,6 +289,11 @@ export function createUtilityUiPanelsSupport({
     }
     if (state.isTemplateManagerOpen) {
       if (
+        templateManagerCloseButton
+        && typeof templateManagerCloseButton.focus === "function"
+      ) {
+        templateManagerCloseButton.focus();
+      } else if (
         templateManagerSaveButton
         && typeof templateManagerSaveButton.focus === "function"
       ) {

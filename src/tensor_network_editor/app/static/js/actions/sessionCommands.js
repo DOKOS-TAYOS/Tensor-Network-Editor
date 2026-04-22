@@ -85,6 +85,13 @@ export function createSessionCommands({
         typeof payload.selected_subnetwork === "string"
           ? payload.selected_subnetwork
           : state.availableSubnetworks[0] || "";
+      state.selectedSubnetworkLibraryNames = Array.isArray(
+        state.selectedSubnetworkLibraryNames
+      )
+        ? state.selectedSubnetworkLibraryNames.filter((subnetworkName) =>
+            state.availableSubnetworks.includes(subnetworkName)
+          )
+        : [];
     }
     if (
       Array.isArray(payload.subnetwork_catalog_warnings)

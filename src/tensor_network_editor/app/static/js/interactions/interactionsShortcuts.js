@@ -71,6 +71,12 @@ export function createInteractionShortcutBindings({
     toggleTemplateManager:
       shortcutActions.toggleTemplateManager
       || resolveContextAction(ctx, "toggleTemplateManager"),
+    openCanvasMetadataFilter:
+      shortcutActions.openCanvasMetadataFilter
+      || resolveContextAction(ctx, "openCanvasMetadataFilter"),
+    openCanvasNameSearch:
+      shortcutActions.openCanvasNameSearch
+      || resolveContextAction(ctx, "openCanvasNameSearch"),
     toggleLinearPeriodicMode:
       shortcutActions.toggleLinearPeriodicMode ||
       resolveContextAction(ctx, "toggleLinearPeriodicMode"),
@@ -131,6 +137,8 @@ export function createInteractionShortcutBindings({
     selectAllTensors,
     addNoteAtCenter,
     toggleTemplateManager,
+    openCanvasMetadataFilter,
+    openCanvasNameSearch,
     toggleLinearPeriodicMode,
     setLinearPeriodicMode,
     setGridPeriodicMode,
@@ -456,6 +464,20 @@ export function createInteractionShortcutBindings({
       ctx.saveDesign();
       return;
     }
+    if (hasSystemModifier && event.shiftKey && lowerKey === "f") {
+      event.preventDefault();
+      if (!hasBlockingModalOpen()) {
+        openCanvasMetadataFilter();
+      }
+      return;
+    }
+    if (hasSystemModifier && lowerKey === "f") {
+      event.preventDefault();
+      if (!hasBlockingModalOpen()) {
+        openCanvasNameSearch();
+      }
+      return;
+    }
     if (hasSystemModifier && lowerKey === "l") {
       event.preventDefault();
       loadInput.click();
@@ -507,6 +529,9 @@ export function createInteractionShortcutBindings({
     }
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
+      if (typeof ctx.closeCanvasContextMenu === "function") {
+        ctx.closeCanvasContextMenu();
+      }
       ctx.deleteSelection();
       return;
     }

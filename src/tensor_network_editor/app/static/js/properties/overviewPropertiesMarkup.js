@@ -1,3 +1,21 @@
+function buildTooltipAttributes(label, description = "") {
+  const safeLabel = String(label || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  const safeDescription = String(description || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+    safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
+  }`;
+}
+
 export function buildNetworkPropertiesMarkup({
   spec,
   connectionCount,
@@ -112,6 +130,10 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="extract-selection-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}
+                ${buildTooltipAttributes(
+                  "Extract",
+                  "Extract the selected tensors as a reusable subnetwork."
+                )}
               >
                 Extract
               </button>
@@ -119,6 +141,10 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="save-selection-subnetwork-library-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}
+                ${buildTooltipAttributes(
+                  "To Library",
+                  "Save the selected tensors to the subnetwork library."
+                )}
               >
                 To Library
               </button>
@@ -126,10 +152,23 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="promote-selection-template-button"
                 type="button"
                 ${linearPeriodicMode ? "disabled" : ""}
+                ${buildTooltipAttributes(
+                  "To Template",
+                  "Promote the selected tensors to a reusable template."
+                )}
               >
                 To Template
               </button>
-              <button id="group-selection-button" type="button">Group</button>
+              <button
+                id="group-selection-button"
+                type="button"
+                ${buildTooltipAttributes(
+                  "Group",
+                  "Create a visual group from the selected tensors."
+                )}
+              >
+                Group
+              </button>
             </div>
             ${
               linearPeriodicMode

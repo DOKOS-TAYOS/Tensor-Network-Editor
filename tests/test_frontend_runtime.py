@@ -3910,6 +3910,12 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                   exportSelectedTemplateSpec() {
                     shortcutCalls.push({ kind: "export-template" });
                   },
+                  openCanvasNameSearch() {
+                    shortcutCalls.push({ kind: "open-search" });
+                  },
+                  openCanvasMetadataFilter() {
+                    shortcutCalls.push({ kind: "open-filter" });
+                  },
                 },
               })
             );
@@ -3985,6 +3991,34 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
               JSON.stringify([{ kind: "export-template" }])
             ) {
               throw new Error("Shift+E should export the selected template.");
+            }
+
+            const ctrlFEvent = createEvent({ key: "f", ctrlKey: true });
+            ctx.handleKeydown(ctrlFEvent);
+            if (ctrlFEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+F should prevent the browser search.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "open-search" }])
+            ) {
+              throw new Error("Ctrl+F should open the canvas search.");
+            }
+
+            const ctrlShiftFEvent = createEvent({
+              key: "F",
+              ctrlKey: true,
+              shiftKey: true,
+            });
+            ctx.handleKeydown(ctrlShiftFEvent);
+            if (ctrlShiftFEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+Shift+F should prevent the browser search.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "open-filter" }])
+            ) {
+              throw new Error("Ctrl+Shift+F should open the canvas filters.");
             }
 
             const eEvent = createEvent({ key: "e" });
@@ -5500,6 +5534,35 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (!propertiesPanel.innerHTML.includes("Tensor values")) {
           throw new Error("Selecting a tensor should expose the tensor values editor.");
         }
+        if (!propertiesPanel.innerHTML.includes('id="tensor-values-disclosure"')) {
+          throw new Error("Tensor values should render inside its own disclosure.");
+        }
+        if (
+          /<details[\\s\\S]*id="tensor-values-disclosure"[\\s\\S]*\\sopen(?:\\s|>)/.test(
+            propertiesPanel.innerHTML
+          )
+        ) {
+          throw new Error("Tensor values should start collapsed by default.");
+        }
+        if (propertiesPanel.innerHTML.includes("Current initializer:")) {
+          throw new Error("Tensor values should no longer render the current initializer helper text.");
+        }
+        if (
+          propertiesPanel.innerHTML.includes(
+            "Use JSON numbers that match the tensor shape exactly."
+          )
+        ) {
+          throw new Error("Tensor values should no longer render the redundant JSON helper text.");
+        }
+        ctx.state.tensorValueDisclosureState["tensor_a"] = true;
+        ctx.renderProperties();
+        if (
+          !/<details[\\s\\S]*id="tensor-values-disclosure"[\\s\\S]*\\sopen(?:\\s|>)/.test(
+            propertiesPanel.innerHTML
+          )
+        ) {
+          throw new Error("Tensor values should reopen when its disclosure state is set.");
+        }
         renderCalls.length = 0;
         graphRenderCount = 0;
         minimapRenderCount = 0;
@@ -5574,6 +5637,9 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
           throw new Error(
             `Expected literal mode to seed explicit values from the current fill value, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
           );
+        }
+        if (!propertiesPanel.innerHTML.includes("Expected shape: [2, 3]")) {
+          throw new Error("Literal tensor values should expose the expected shape helper.");
         }
         assertLastRenderDidNotInvalidateGraph(
           renderCalls,
@@ -10829,6 +10895,7 @@ def _write_template_catalog_management_runtime_regression_script(
 
         const fakeDocument = createFakeDocument();
         const templateManagerList = createFakeList(fakeDocument);
+        const subnetworkLibraryList = createFakeList(fakeDocument);
 
         const ctx = {
           state: createInitialState(),
@@ -10898,6 +10965,16 @@ def _write_template_catalog_management_runtime_regression_script(
               textContent: "",
             },
             templateManagerList,
+            subnetworkLibraryModal: { classList: createClassList() },
+            subnetworkLibraryBackdrop: createButton(),
+            subnetworkLibraryCloseButton: createButton(),
+            subnetworkLibrarySearchInput: createFakeNode("input", fakeDocument),
+            subnetworkLibraryTagFilter: createSelect(""),
+            subnetworkLibrarySelectAllInput: createFakeNode("input", fakeDocument),
+            subnetworkLibrarySelectionSummary: createFakeNode("span", fakeDocument),
+            subnetworkLibraryAddSelectedButton: createFakeNode("button", fakeDocument),
+            subnetworkLibraryWarning: createFakeNode("p", fakeDocument),
+            subnetworkLibraryList,
             templateCatalogWarning: {
               hidden: true,
               textContent: "",
@@ -11273,11 +11350,15 @@ def _write_template_catalog_management_runtime_regression_script(
                 ctx.updateSessionTemplateDisplayNames(updates),
               removeSessionTemplate: (templateName) =>
                 ctx.removeSessionTemplate(templateName),
+              toggleSubnetworkLibrary: (forceOpen) =>
+                ctx.toggleSubnetworkLibrary(forceOpen),
               toggleTemplateManager: (forceOpen) =>
                 ctx.toggleTemplateManager(forceOpen),
               updateToolbarState: () => ctx.updateToolbarState(),
               syncTemplateManagerModalState: () =>
                 ctx.syncTemplateManagerModalState(),
+              syncSubnetworkLibraryModalState: () =>
+                ctx.syncSubnetworkLibraryModalState(),
               setTemplateManagerValidationMessage: (message) =>
                 ctx.setTemplateManagerValidationMessage(message),
               persistTemplateParametersFromControls: () =>
@@ -11407,19 +11488,39 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!firstManagerRow) {
           throw new Error("Expected the template manager to render at least one editable row.");
         }
-        const firstManagerLabel = firstManagerRow.children[0];
-        if (!firstManagerLabel || firstManagerLabel.children[0].textContent) {
-          throw new Error("Template manager rows should no longer show a visible Template name label.");
+        if (!String(firstManagerRow.className || "").includes("subnetwork-library-row")) {
+          throw new Error("Template manager rows should reuse the library card layout.");
         }
-        const firstManagerDeleteButton = firstManagerRow.children[1];
+        const firstManagerPreview = firstManagerRow.children[0];
+        if (
+          !firstManagerPreview
+          || !String(firstManagerPreview.className || "").includes("subnetwork-library-preview")
+        ) {
+          throw new Error("Template manager rows should include a thumbnail preview.");
+        }
+        const firstManagerContent = firstManagerRow.children[1];
+        if (
+          !firstManagerContent
+          || !String(firstManagerContent.className || "").includes("subnetwork-library-content")
+        ) {
+          throw new Error("Template manager rows should include the shared library content area.");
+        }
+        const firstManagerSourceBadge = firstManagerContent.children[0]?.children[1];
+        if (
+          !firstManagerSourceBadge
+          || firstManagerSourceBadge.textContent !== "Session"
+        ) {
+          throw new Error("Template manager rows should label session templates clearly.");
+        }
+        const firstManagerDeleteButton = firstManagerRow.children[2]?.children[0];
         if (!firstManagerDeleteButton) {
           throw new Error("Expected the template manager row to include a delete action.");
         }
-        if (firstManagerDeleteButton.textContent) {
-          throw new Error("Template manager delete actions should be icon-only.");
-        }
         if (!String(firstManagerDeleteButton.innerHTML || "").includes("<svg")) {
           throw new Error("Template manager delete actions should render a trash icon.");
+        }
+        if (String(firstManagerDeleteButton.innerHTML || "").includes("Delete")) {
+          throw new Error("Template manager delete actions should keep only the trash icon.");
         }
         if (
           !String(firstManagerDeleteButton.attributes["aria-label"] || "").includes("Delete")
@@ -11478,6 +11579,171 @@ def _write_template_catalog_management_runtime_regression_script(
           throw new Error(
             `Expected template manager rename to persist for session templates, received ${JSON.stringify(managerRenamedEntry)}.`
           );
+        }
+
+        ctx.store.setSubnetworkCatalogData({
+          subnetworkNames: ["project_fragment_copy", "shared_pair", "other_block"],
+          subnetworkDefinitions: {
+            project_fragment_copy: {
+              display_name: "Project Fragment",
+              source: "project",
+              tags: ["bundle"],
+              tensor_count: 1,
+              edge_count: 0,
+              spec: {
+                schema_version: 4,
+                network: {
+                  id: "project_fragment_copy",
+                  name: "Project Fragment",
+                  tensors: [
+                    {
+                      id: "project_fragment_tensor",
+                      name: "Project Fragment Tensor",
+                      position: { x: 120, y: 160 },
+                      size: { width: 180, height: 108 },
+                      indices: [],
+                      metadata: {},
+                    },
+                  ],
+                  groups: [],
+                  edges: [],
+                  notes: [],
+                  contraction_plan: null,
+                  metadata: {},
+                },
+              },
+            },
+            shared_pair: {
+              display_name: "Shared Pair",
+              source: "shared",
+              tags: ["bundle", "shared"],
+              tensor_count: 2,
+              edge_count: 1,
+              spec: {
+                schema_version: 4,
+                network: {
+                  id: "shared_pair",
+                  name: "Shared Pair",
+                  tensors: [
+                    {
+                      id: "shared_left",
+                      name: "Left",
+                      position: { x: 120, y: 160 },
+                      size: { width: 180, height: 108 },
+                      indices: [],
+                      metadata: {},
+                    },
+                    {
+                      id: "shared_right",
+                      name: "Right",
+                      position: { x: 320, y: 160 },
+                      size: { width: 180, height: 108 },
+                      indices: [],
+                      metadata: {},
+                    },
+                  ],
+                  groups: [],
+                  edges: [
+                    {
+                      id: "shared_edge",
+                      left: { tensor_id: "shared_left", index_id: "left_index" },
+                      right: { tensor_id: "shared_right", index_id: "right_index" },
+                    },
+                  ],
+                  notes: [],
+                  contraction_plan: null,
+                  metadata: {},
+                },
+              },
+            },
+            other_block: {
+              display_name: "Other Block",
+              source: "shared",
+              tags: ["other"],
+              tensor_count: 1,
+              edge_count: 0,
+              spec: {
+                schema_version: 4,
+                network: {
+                  id: "other_block",
+                  name: "Other Block",
+                  tensors: [
+                    {
+                      id: "other_tensor",
+                      name: "Other",
+                      position: { x: 200, y: 200 },
+                      size: { width: 180, height: 108 },
+                      indices: [],
+                      metadata: {},
+                    },
+                  ],
+                  groups: [],
+                  edges: [],
+                  notes: [],
+                  contraction_plan: null,
+                  metadata: {},
+                },
+              },
+            },
+          },
+          subnetworkCatalogWarnings: [],
+          selectedSubnetworkName: "shared_pair",
+        });
+        if (ctx.openSubnetworkLibrary() !== true) {
+          throw new Error("Expected the subnetwork library to open in normal graph mode.");
+        }
+        if (ctx.dom.subnetworkLibraryList.children.length !== 3) {
+          throw new Error(
+            `Expected the subnetwork library to render all saved entries, received ${ctx.dom.subnetworkLibraryList.children.length} rows.`
+          );
+        }
+        ctx.updateSubnetworkLibraryTagFilter("bundle");
+        if (ctx.dom.subnetworkLibraryList.children.length !== 2) {
+          throw new Error(
+            `Expected the tag filter to limit the visible subnetworks, received ${ctx.dom.subnetworkLibraryList.children.length} rows.`
+          );
+        }
+        ctx.toggleSelectAllVisibleSubnetworks(true);
+        if (
+          ctx.state.selectedSubnetworkLibraryNames.join(",")
+          !== "project_fragment_copy,shared_pair"
+        ) {
+          throw new Error(
+            `Expected Select all visible to track the filtered subnetworks, received ${ctx.state.selectedSubnetworkLibraryNames.join(",")}.`
+          );
+        }
+        if (ctx.dom.subnetworkLibrarySelectionSummary.textContent !== "2 selected") {
+          throw new Error(
+            `Expected the library selection summary to reflect the batch selection, received ${ctx.dom.subnetworkLibrarySelectionSummary.textContent}.`
+          );
+        }
+        if (ctx.dom.subnetworkLibraryAddSelectedButton.disabled) {
+          throw new Error("Expected batch add to enable once subnetworks are selected.");
+        }
+        if (!String(ctx.dom.subnetworkLibraryAddSelectedButton.textContent || "").includes("(2)")) {
+          throw new Error("Expected the batch add button to show how many subnetworks will be added.");
+        }
+        ctx.addSelectedSubnetworksToSessionTemplates();
+        const batchAddedEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.displayName === "Project Fragment 2"
+        );
+        if (!batchAddedEntry) {
+          throw new Error("Adding a duplicate library name should suffix the new session template automatically.");
+        }
+        const sharedPairEntry = ctx.listTemplateEntries().find(
+          (entry) => entry.displayName === "Shared Pair"
+        );
+        if (!sharedPairEntry) {
+          throw new Error("Batch add should create a session template for each selected subnetwork.");
+        }
+        if (ctx.state.selectedSubnetworkLibraryNames.length !== 0) {
+          throw new Error("Batch add should clear the current subnetwork-library selection.");
+        }
+        if (ctx.dom.subnetworkLibrarySelectionSummary.textContent !== "No subnetworks selected.") {
+          throw new Error("Clearing the selection should reset the library selection summary.");
+        }
+        if (!ctx.dom.subnetworkLibraryAddSelectedButton.disabled) {
+          throw new Error("Batch add button should be disabled again after the selection is cleared.");
         }
 
         ctx.dom.templateSelect.value = firstSessionTemplate;

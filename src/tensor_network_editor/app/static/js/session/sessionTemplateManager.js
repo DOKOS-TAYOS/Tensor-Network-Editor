@@ -1,3 +1,8 @@
+import {
+  buildSerializedNetworkPreviewMarkup,
+  escapeHtml,
+} from "./sessionTemplateFlowSubnetworkLibrary.js";
+
 function renderTrashIcon() {
   return `
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -14,21 +19,75 @@ export function createSessionTemplateManager({
 }) {
   let templateManagerDraft = null;
 
+  function getTemplateCounts(serializedSpec) {
+    const tensors =
+      serializedSpec &&
+      serializedSpec.network &&
+      Array.isArray(serializedSpec.network.tensors)
+        ? serializedSpec.network.tensors
+        : [];
+    const edges =
+      serializedSpec &&
+      serializedSpec.network &&
+      Array.isArray(serializedSpec.network.edges)
+        ? serializedSpec.network.edges
+        : [];
+    return {
+      tensorCount: tensors.length,
+      edgeCount: edges.length,
+    };
+  }
+
   function buildTemplateManagerRow(entry) {
-    const row = documentRef.createElement("div");
+    const { tensorCount, edgeCount } = getTemplateCounts(entry.spec);
+    const row = documentRef.createElement("article");
+    const preview = documentRef.createElement("div");
+    const content = documentRef.createElement("div");
+    const titleRow = documentRef.createElement("div");
+    const title = documentRef.createElement("strong");
+    const sourceBadge = documentRef.createElement("span");
+    const meta = documentRef.createElement("p");
+    const idLine = documentRef.createElement("p");
     const nameField = documentRef.createElement("label");
+    const nameCaption = documentRef.createElement("span");
     const nameInput = documentRef.createElement("input");
-    row.className = "template-manager-row";
+    const actionRow = documentRef.createElement("div");
+    row.className = "subnetwork-library-row template-manager-row";
+    preview.className = "subnetwork-library-preview template-manager-preview";
+    preview.innerHTML = buildSerializedNetworkPreviewMarkup(entry.spec);
+    row.appendChild(preview);
+
+    content.className = "subnetwork-library-content";
+    titleRow.className = "subnetwork-library-title-row";
+    title.textContent = entry.displayName;
+    sourceBadge.className = "subnetwork-library-source source-session";
+    sourceBadge.textContent = "Session";
+    titleRow.append(title, sourceBadge);
+    content.appendChild(titleRow);
+
+    meta.className = "subnetwork-library-meta";
+    meta.textContent = `${tensorCount} tensor(s) | ${edgeCount} connection(s)`;
+    content.appendChild(meta);
+
+    idLine.className = "subnetwork-library-id";
+    idLine.innerHTML = `<code>${escapeHtml(entry.templateName)}</code>`;
+    content.appendChild(idLine);
+
+    nameField.className = "field-group template-manager-name-field";
+    nameCaption.textContent = "Display name";
     nameInput.value =
       templateManagerDraft.nameByTemplateName.get(entry.templateName) || entry.displayName;
     nameInput.dataset.templateName = entry.templateName;
     nameInput.setAttribute("aria-label", `Template name for ${entry.displayName}`);
     nameInput.disabled = false;
-    nameField.append(nameInput);
-    row.append(nameField);
+    nameField.append(nameCaption, nameInput);
+    content.appendChild(nameField);
+    row.append(content);
+
+    actionRow.className = "subnetwork-library-actions template-manager-actions";
     const deleteButton = documentRef.createElement("button");
     deleteButton.type = "button";
-    deleteButton.className = "icon-button index-action-button danger";
+    deleteButton.className = "danger";
     deleteButton.setAttribute("aria-label", `Delete ${entry.displayName}`);
     deleteButton.title = `Delete ${entry.displayName}`;
     deleteButton.innerHTML = renderTrashIcon();
@@ -36,7 +95,8 @@ export function createSessionTemplateManager({
       templateManagerDraft.deletedTemplateNames.add(entry.templateName);
       renderTemplateManager();
     });
-    row.appendChild(deleteButton);
+    actionRow.appendChild(deleteButton);
+    row.appendChild(actionRow);
     return row;
   }
 
@@ -45,13 +105,23 @@ export function createSessionTemplateManager({
       return;
     }
     templateManagerList.innerHTML = "";
-    actions.listTemplateEntries().forEach((entry) => {
+    const sessionEntries = actions.listTemplateEntries().filter((entry) => {
       if (entry.source !== "session") {
-        return;
+        return false;
       }
       if (templateManagerDraft.deletedTemplateNames.has(entry.templateName)) {
-        return;
+        return false;
       }
+      return true;
+    });
+    if (!sessionEntries.length) {
+      const emptyState = documentRef.createElement("p");
+      emptyState.className = "subnetwork-library-empty-state";
+      emptyState.textContent = "No session templates have been saved yet.";
+      templateManagerList.appendChild(emptyState);
+      return;
+    }
+    sessionEntries.forEach((entry) => {
       templateManagerList.appendChild(buildTemplateManagerRow(entry));
     });
   }

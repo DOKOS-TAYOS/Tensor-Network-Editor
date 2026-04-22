@@ -1773,7 +1773,14 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           let html = "";
           return {{
             getBoundingClientRect() {{
-              return {{ left: 100, top: 200, width: 800, height: 600 }};
+              return {{
+                left: 100,
+                top: 200,
+                width: 800,
+                height: 600,
+                right: 900,
+                bottom: 800,
+              }};
             }},
             get innerHTML() {{
               return html;
@@ -1841,6 +1848,8 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
           }},
           window: {{
             addEventListener() {{}},
+            innerWidth: 1280,
+            innerHeight: 900,
           }},
           escapeHtml: (value) => String(value),
           asFiniteNumber: (value, fallback = 1) => {{
@@ -1948,9 +1957,13 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
             }},
             deleteGroup: (payload) => {{
               contextMenuEvents.push(`deleteGroup:${{payload.groupId}}`);
+              contextMenuEvents.push({{ deleteGroupPayload: payload }});
             }},
           }},
-          propertyInvalidation: () => ({{ graph: true }}),
+          propertyInvalidation: (overrides = {{}}) => ({{
+            graph: true,
+            ...overrides,
+          }}),
           findTensorById: (tensorId) => tensorsById[tensorId] || null,
           findEdgeById: (edgeId) => (edgeId === edge.id ? edge : null),
           findIndexOwner: (indexId) => {{
@@ -1984,9 +1997,22 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-add-index-button"')) {{
           throw new Error("Expected the tensor context menu to expose the add-index action.");
         }}
-        if (!contextMenuRoot.innerHTML.includes('style="left: 10px; top: 20px;"')) {{
+        if (!contextMenuRoot.innerHTML.includes('style="left: 10px; top: 20px;')) {{
           throw new Error(`Expected the context menu to anchor to the cursor inside the canvas overlay, received HTML:\\n${{contextMenuRoot.innerHTML}}`);
         }}
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 890, clientY: 220 }});
+        if (!contextMenuRoot.innerHTML.includes('style="right: 10px; top: 20px;')) {{
+          throw new Error(`Expected the context menu to open to the left when the cursor is near the right edge, received HTML:\\n${{contextMenuRoot.innerHTML}}`);
+        }}
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 790 }});
+        if (!contextMenuRoot.innerHTML.includes('style="left: 10px; bottom: 10px;')) {{
+          throw new Error(`Expected the context menu to open upward when the cursor is near the bottom edge, received HTML:\\n${{contextMenuRoot.innerHTML}}`);
+        }}
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 890, clientY: 790 }});
+        if (!contextMenuRoot.innerHTML.includes('style="right: 10px; bottom: 10px;')) {{
+          throw new Error(`Expected the context menu to switch both axes near the lower-right corner, received HTML:\\n${{contextMenuRoot.innerHTML}}`);
+        }}
+        ctx.openCanvasContextMenu({{ kind: "tensor", id: "tensor_a", clientX: 110, clientY: 220 }});
         if (!contextMenuRoot.innerHTML.includes('id="context-menu-tensor-color-input"')) {{
           throw new Error("Expected the tensor context menu to expose the color picker.");
         }}
@@ -2236,6 +2262,15 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
         ) {{
           throw new Error(`Expected the context menu to reuse injected actions, received ${{JSON.stringify(contextMenuEvents)}}.`);
         }}
+        const deleteGroupPayloadEvent = contextMenuEvents.find(
+          (entry) => entry && typeof entry === "object" && entry.deleteGroupPayload
+        );
+        if (!deleteGroupPayloadEvent) {{
+          throw new Error("Expected the group delete action to expose its payload for inspection.");
+        }}
+        if (deleteGroupPayloadEvent.deleteGroupPayload.invalidate.properties !== true) {{
+          throw new Error(`Expected group deletion from the mini menu to force a properties rerender, received ${{JSON.stringify(deleteGroupPayloadEvent.deleteGroupPayload.invalidate)}}.`);
+        }}
         """,
     )
 
@@ -2243,6 +2278,341 @@ def test_metadata_autocomplete_and_canvas_context_menu_modules_support_new_ui(
 
     assert completed_process.returncode == 0, (
         "The metadata autocomplete/context-menu runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_group_properties_delete_button_forces_properties_refresh(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "entity_properties_group_delete_refresh.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const entityBindingsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "properties" / "entityPropertiesBindings.js")!r}).href;
+        const {{ createEntityPropertiesBindings }} = await import(entityBindingsUrl);
+
+        function createElement(id) {{
+          return {{
+            id,
+            value: "",
+            listeners: {{}},
+            addEventListener(type, handler) {{
+              if (!this.listeners[type]) {{
+                this.listeners[type] = [];
+              }}
+              this.listeners[type].push(handler);
+            }},
+            click() {{
+              for (const handler of this.listeners.click || []) {{
+                handler({{ target: this, preventDefault() {{}}, stopPropagation() {{}} }});
+              }}
+            }},
+          }};
+        }}
+
+        const elements = new Map();
+        [
+          "group-name-input",
+          "group-color-input",
+          "group-tags-input",
+          "group-custom-metadata-input",
+          "add-index-to-group-button",
+          "toggle-group-button",
+          "extract-group-button",
+          "save-group-subnetwork-library-button",
+          "promote-group-template-button",
+          "delete-group-button",
+        ].forEach((id) => {{
+          elements.set(id, createElement(id));
+        }});
+
+        const recordedCalls = [];
+        const documentRef = {{
+          getElementById(id) {{
+            return elements.get(id) || null;
+          }},
+        }};
+        const support = {{
+          bindDebouncedAutosave() {{}},
+          bindImmediateAutosave() {{}},
+          bindMetadataEditors() {{}},
+          commands: {{
+            renameGroup() {{
+              return true;
+            }},
+            updateTargetColor() {{}},
+            addIndexToSelectedTensors() {{}},
+            deleteGroup(payload) {{
+              recordedCalls.push(payload);
+            }},
+          }},
+          propertyInvalidation(overrides = {{}}) {{
+            return {{
+              graph: false,
+              lookups: false,
+              analysis: false,
+              properties: false,
+              overlays: false,
+              planner: false,
+              minimap: false,
+              ...overrides,
+            }};
+          }},
+        }};
+        const actions = {{
+          toggleGroupCollapse() {{}},
+          exportGroupSubnetwork() {{}},
+          saveGroupToSubnetworkLibrary() {{}},
+          promoteGroupToTemplate() {{}},
+        }};
+
+        const bindings = createEntityPropertiesBindings({{
+          documentRef,
+          support,
+          actions,
+        }});
+
+        bindings.bindGroupProperties({{
+          group: {{
+            id: "group_a",
+            name: "Cluster A",
+            tensor_ids: ["tensor_a", "tensor_b"],
+            metadata: {{}},
+          }},
+          groupColor: "#456cbf",
+        }});
+
+        documentRef.getElementById("delete-group-button").click();
+
+        if (recordedCalls.length !== 1) {{
+          throw new Error(`Expected one deleteGroup call, received ${{recordedCalls.length}}.`);
+        }}
+        if (recordedCalls[0].invalidate.properties !== true) {{
+          throw new Error(`Expected the group delete button to force a properties rerender, received ${{JSON.stringify(recordedCalls[0].invalidate)}}.`);
+        }}
+        """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The group properties delete binding runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_canvas_context_menu_supports_late_bound_group_actions(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "canvas_context_menu_late_bound_group_action.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const canvasContextMenuUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph" / "canvasContextMenu.js")!r}).href;
+        const {{ registerCanvasContextMenu }} = await import(canvasContextMenuUrl);
+
+        function createEventTarget() {{
+          const listeners = new Map();
+          return {{
+            addEventListener(type, handler) {{
+              if (!listeners.has(type)) {{
+                listeners.set(type, []);
+              }}
+              listeners.get(type).push(handler);
+            }},
+            click() {{
+              const handlers = listeners.get("click") || [];
+              handlers.forEach((handler) => handler({{ preventDefault() {{}}, stopPropagation() {{}} }}));
+            }},
+          }};
+        }}
+
+        const groupButton = createEventTarget();
+        const documentElements = new Map([
+          ["context-menu-group-selection-button", groupButton],
+        ]);
+        const contextMenuRoot = {{
+          innerHTML: "",
+          getBoundingClientRect() {{
+            return {{ left: 0, top: 0 }};
+          }},
+        }};
+        const tensorA = {{
+          id: "tensor_a",
+          name: "A",
+          metadata: {{}},
+          indices: [
+            {{ id: "index_a", dimension: 2 }},
+          ],
+        }};
+        const tensorB = {{
+          id: "tensor_b",
+          name: "B",
+          metadata: {{}},
+          indices: [
+            {{ id: "index_b_left", dimension: 2 }},
+            {{ id: "index_b_right", dimension: 3 }},
+          ],
+        }};
+        const groupedCalls = [];
+        const ctx = {{
+          state: {{
+            canvasContextMenu: null,
+            selectionIds: ["tensor_a", "tensor_b"],
+            primarySelectionId: "tensor_b",
+          }},
+          dom: {{
+            canvasContextMenuRoot: contextMenuRoot,
+          }},
+          document: {{
+            addEventListener() {{}},
+            getElementById(id) {{
+              return documentElements.get(id) || null;
+            }},
+          }},
+          window: {{
+            addEventListener() {{}},
+          }},
+          escapeHtml(value) {{
+            return String(value);
+          }},
+          asFiniteNumber(value, fallback = 1) {{
+            return Number.isFinite(Number(value)) ? Number(value) : fallback;
+          }},
+          findTensorById(tensorId) {{
+            return {{
+              tensor_a: tensorA,
+              tensor_b: tensorB,
+            }}[tensorId] || null;
+          }},
+          getSelectedIdsByKind(kind) {{
+            return kind === "tensor" ? ["tensor_a", "tensor_b"] : [];
+          }},
+          getSelectedEntries() {{
+            return [
+              {{ kind: "tensor", id: "tensor_a", tensor: tensorA }},
+              {{ kind: "tensor", id: "tensor_b", tensor: tensorB }},
+            ];
+          }},
+          getBatchColorValue() {{
+            return "#345678";
+          }},
+          getMetadataColor(_metadata, fallbackColor) {{
+            return fallbackColor;
+          }},
+          propertyCommands: null,
+          propertyInvalidation() {{
+            return {{}};
+          }},
+        }};
+
+        registerCanvasContextMenu(ctx);
+        ctx.createGroupFromSelection = () => {{
+          groupedCalls.push("grouped");
+        }};
+
+        ctx.openCanvasContextMenu({{
+          kind: "selection",
+          id: "tensor_a",
+          clientX: 16,
+          clientY: 24,
+        }});
+        groupButton.click();
+
+        if (groupedCalls.join(",") !== "grouped") {{
+          throw new Error(`Expected the context menu to resolve createGroupFromSelection after registration, received ${{JSON.stringify(groupedCalls)}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The late-bound context-menu action regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tensor_drag_support_resyncs_selection_after_additive_grab(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "graph_drag_selection_resync.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const graphRenderDragUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph" / "graphRenderDrag.js")!r}).href;
+        const {{ createGraphRenderDragSupport }} = await import(graphRenderDragUrl);
+
+        const tensorsById = {{
+          tensor_b: {{
+            id: "tensor_b",
+            position: {{ x: 260, y: 100 }},
+          }},
+        }};
+        const syncCalls = [];
+        const ctx = {{
+          buildCanvasSelectionDragState(anchorId) {{
+            return {{
+              snapshot: {{ id: `snapshot_${{anchorId}}` }},
+              tensorIds: [anchorId],
+              noteIds: [],
+              tensorStartPositions: {{
+                [anchorId]: {{ x: 260, y: 100 }},
+              }},
+              noteStartPositions: {{}},
+            }};
+          }},
+          findTensorById(tensorId) {{
+            return tensorsById[tensorId] || null;
+          }},
+          commitHistorySnapshot() {{
+            throw new Error("Selection resync should not commit history when nothing moved.");
+          }},
+          updateToolbarState() {{}},
+          syncCySelection() {{
+            syncCalls.push("sync");
+          }},
+        }};
+        const state = {{
+          activeTensorDrag: {{
+            anchorId: "tensor_b",
+            addedSelectionOnGrab: true,
+            tensorIds: ["tensor_b"],
+            noteIds: [],
+            tensorStartPositions: {{
+              tensor_b: {{ x: 260, y: 100 }},
+            }},
+            noteStartPositions: {{}},
+            snapshot: {{ id: "snapshot_tensor_b" }},
+          }},
+        }};
+        const dragSupport = createGraphRenderDragSupport({{ ctx, state }});
+
+        dragSupport.finishTensorDrag("tensor_b");
+
+        if (syncCalls.join(",") !== "sync") {{
+          throw new Error(`Expected additive grab completion to resync the Cytoscape selection, received ${{JSON.stringify(syncCalls)}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The tensor-drag selection resync regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -3119,12 +3489,15 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           helpBackdrop: getButton("help-backdrop"),
           helpCloseButton: getButton("help-close-button"),
           templateManagerBackdrop: getButton("template-manager-backdrop"),
+          templateManagerCloseButton: getButton("template-manager-close-button"),
           templateManagerSaveButton: getButton("template-manager-save-button"),
           templateManagerDiscardButton: getButton("template-manager-discard-button"),
           subnetworkLibraryBackdrop: getButton("subnetwork-library-backdrop"),
           subnetworkLibraryCloseButton: getButton("subnetwork-library-close-button"),
           subnetworkLibrarySearchInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           subnetworkLibraryTagFilter: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          subnetworkLibrarySelectAllInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          subnetworkLibraryAddSelectedButton: getButton("subnetwork-library-add-selected-button"),
           benchmarkCompareBackdrop: getButton("benchmark-compare-backdrop"),
           benchmarkCompareCloseButton: getButton("benchmark-compare-close-button"),
           benchmarkCompareExportCsvButton: getButton("benchmark-compare-export-csv-button"),
@@ -3204,6 +3577,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             flowEvents.push(`updateSubnetworkLibrarySearch:${{value}}`),
           updateSubnetworkLibraryTagFilter: (value) =>
             flowEvents.push(`updateSubnetworkLibraryTagFilter:${{value}}`),
+          toggleSelectAllVisibleSubnetworks: (isSelected) =>
+            flowEvents.push(`toggleSelectAllVisibleSubnetworks:${{isSelected}}`),
+          addSelectedSubnetworksToSessionTemplates: () =>
+            flowEvents.push("addSelectedSubnetworksToSessionTemplates"),
           toggleTemplateManager: (isOpen) =>
             flowEvents.push(`toggleTemplateManager:${{isOpen}}`),
           saveTemplateManagerChanges: () =>
@@ -3280,12 +3657,15 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.reflowAutoLayoutButton.click();
         dom.reflowArrangeGridButton.click();
         dom.reflowIndicesResetButton.click();
+        dom.templateManagerCloseButton.click();
         dom.templateManagerSaveButton.click();
         dom.templateManagerDiscardButton.click();
         dom.subnetworkLibraryBackdrop.click();
         dom.subnetworkLibraryCloseButton.click();
         dom.subnetworkLibrarySearchInput.input({{ target: {{ value: "pair" }} }});
         dom.subnetworkLibraryTagFilter.change({{ target: {{ value: "project" }} }});
+        dom.subnetworkLibrarySelectAllInput.change({{ target: {{ checked: true }} }});
+        dom.subnetworkLibraryAddSelectedButton.click();
         dom.templateSelect.mousedown({{ target: dom.templateSelect }});
         if (dom.templateSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected template select mouse down to mark the disclosure as expanded.");
@@ -3373,6 +3753,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           !flowEvents.includes("toggleSubnetworkLibrary:false")
           || !flowEvents.includes("updateSubnetworkLibrarySearch:pair")
           || !flowEvents.includes("updateSubnetworkLibraryTagFilter:project")
+          || !flowEvents.includes("toggleSelectAllVisibleSubnetworks:true")
+          || !flowEvents.includes("addSelectedSubnetworksToSessionTemplates")
         ) {{
           throw new Error(`Expected the subnetwork library dialog controls to be wired, received ${{JSON.stringify(flowEvents)}}.`);
         }}
@@ -3416,6 +3798,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           getButton("help-close-button").dataset.tooltipEnabled === "true"
         ) {{
           throw new Error("Expected Close help to keep its hover disabled.");
+        }}
+        if (
+          getButton("generated-code-modal-close-button").dataset.tooltipEnabled === "true"
+        ) {{
+          throw new Error("Expected Close generated code to keep its hover disabled.");
         }}
         if (
           getButton("cancel-button").dataset.shortcutDescription
@@ -4093,6 +4480,600 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
 
     assert completed_process.returncode == 0, (
         "The benchmark helper runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_delete_shortcut_closes_canvas_context_menu_before_deleting(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "delete_shortcut_closes_context_menu.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const shortcutsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "interactions" / "interactionsShortcuts.js")!r}).href;
+        const {{ createInteractionShortcutBindings }} = await import(shortcutsUrl);
+
+        const events = [];
+        const ctx = {{
+          closeCanvasContextMenu() {{
+            events.push("close");
+          }},
+          deleteSelection() {{
+            events.push("delete");
+          }},
+          isTextInput() {{
+            return false;
+          }},
+          document: {{
+            activeElement: null,
+          }},
+        }};
+        const bindings = createInteractionShortcutBindings({{
+          ctx,
+          state: {{}},
+          dom: {{
+            engineSelect: {{ value: "", options: [] }},
+            generatedCode: {{}},
+            loadInput: {{ click() {{}} }},
+          }},
+          runtime: {{}},
+        }});
+
+        bindings.handleKeydown({{
+          key: "Delete",
+          altKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          shiftKey: false,
+          target: null,
+          preventDefault() {{
+            events.push("prevent");
+          }},
+        }});
+
+        if (events.join(",") !== "prevent,close,delete") {{
+          throw new Error(`Expected Delete to close the canvas context menu before deleting, received ${{JSON.stringify(events)}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The delete-shortcut context-menu regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_notes_support_offsets_new_notes_from_existing_notes(tmp_path: Path) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "notes_support_offsets_new_notes.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const notesSupportUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph" / "notesSupport.js")!r}).href;
+        const {{ createNotesSupport }} = await import(notesSupportUrl);
+
+        let nextId = 1;
+        const state = {{
+          spec: {{
+            notes: [],
+          }},
+          noteById: {{}},
+          selectionIds: [],
+          primarySelectionId: null,
+          cy: null,
+        }};
+        const ctx = {{
+          makeId(prefix) {{
+            return `${{prefix}}_${{nextId++}}`;
+          }},
+          viewportCenterPosition() {{
+            return {{ x: 520, y: 410 }};
+          }},
+          applyDesignChange(mutate, options) {{
+            mutate();
+            state.noteById = Object.fromEntries(
+              state.spec.notes.map((note) => [note.id, note])
+            );
+            state.selectionIds = Array.isArray(options.selectionIds)
+              ? [...options.selectionIds]
+              : [];
+            state.primarySelectionId = options.primaryId || null;
+          }},
+        }};
+        const support = createNotesSupport({{
+          ctx,
+          state,
+          constants: {{
+            NOTE_WIDTH: 320,
+            NOTE_HEIGHT: 200,
+            NOTE_MIN_WIDTH: 160,
+            NOTE_MIN_HEIGHT: 120,
+            NOTE_COLLAPSED_SIZE: 44,
+          }},
+        }});
+
+        support.addNoteAtCenter();
+        support.addNoteAtCenter();
+
+        if (state.spec.notes.length !== 2) {{
+          throw new Error(`Expected two notes to be created, received ${{state.spec.notes.length}}.`);
+        }}
+        const [firstNote, secondNote] = state.spec.notes;
+        if (
+          firstNote.position.x === secondNote.position.x
+          && firstNote.position.y === secondNote.position.y
+        ) {{
+          throw new Error(
+            `Expected successive notes to avoid stacking at the same position, received ${{JSON.stringify(state.spec.notes.map((note) => note.position))}}.`
+          );
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The note-placement staggering regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_grid_arrangement_preserves_visual_grid_order_for_connected_peps(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "grid_arrangement_preserves_visual_order.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const layoutUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesLayoutAlgorithms.js")!r}).href;
+        const {{ createUtilityLayoutAlgorithmSupport }} = await import(layoutUrl);
+
+        const tensors = [
+          {{ id: "tensor_a1", name: "A1", position: {{ x: 0, y: 0 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_a2", name: "A2", position: {{ x: 340, y: 0 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_a3", name: "A3", position: {{ x: 680, y: 0 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_b1", name: "B1", position: {{ x: 0, y: 260 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_b2", name: "B2", position: {{ x: 340, y: 260 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_b3", name: "B3", position: {{ x: 680, y: 260 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_c1", name: "C1", position: {{ x: 0, y: 520 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_c2", name: "C2", position: {{ x: 340, y: 520 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_c3", name: "C3", position: {{ x: 680, y: 520 }}, size: {{ width: 180, height: 108 }} }},
+        ].map((tensor) => ({{
+          ...tensor,
+          indices: [],
+          metadata: {{}},
+        }}));
+        const edges = [
+          ["tensor_a1", "tensor_a2"],
+          ["tensor_a2", "tensor_a3"],
+          ["tensor_b1", "tensor_b2"],
+          ["tensor_b2", "tensor_b3"],
+          ["tensor_c1", "tensor_c2"],
+          ["tensor_c2", "tensor_c3"],
+          ["tensor_a1", "tensor_b1"],
+          ["tensor_a2", "tensor_b2"],
+          ["tensor_a3", "tensor_b3"],
+          ["tensor_b1", "tensor_c1"],
+          ["tensor_b2", "tensor_c2"],
+          ["tensor_b3", "tensor_c3"],
+        ].map(([leftId, rightId], index) => ({{
+          id: `edge_${{index + 1}}`,
+          left: {{ tensor_id: leftId }},
+          right: {{ tensor_id: rightId }},
+        }}));
+        const tensorById = Object.fromEntries(tensors.map((tensor) => [tensor.id, tensor]));
+        const state = {{
+          spec: {{
+            tensors,
+            edges,
+          }},
+          primarySelectionId: null,
+        }};
+        const ctx = {{
+          findTensorById(tensorId) {{
+            return tensorById[tensorId] || null;
+          }},
+          tensorWidth(tensor) {{
+            return tensor.size.width;
+          }},
+          tensorHeight(tensor) {{
+            return tensor.size.height;
+          }},
+        }};
+        const selection = {{
+          getLayoutTensorsById(tensorIds) {{
+            return tensorIds.map((tensorId) => tensorById[tensorId]).filter(Boolean);
+          }},
+        }};
+        const layout = createUtilityLayoutAlgorithmSupport({{
+          ctx,
+          state,
+          constants: {{
+            LAYOUT_HORIZONTAL_GAP: 80,
+            LAYOUT_VERTICAL_GAP: 100,
+            LAYOUT_COMPONENT_GAP: 140,
+            LAYOUT_NON_OVERLAP_GAP: 36,
+          }},
+          selection,
+        }});
+
+        const tensorIds = tensors.map((tensor) => tensor.id);
+        const positions = layout.buildArrangedSelectionPositions(tensorIds, "grid");
+        const orderedIds = [...tensorIds].sort((leftId, rightId) => {{
+          const leftPosition = positions[leftId];
+          const rightPosition = positions[rightId];
+          if (leftPosition.y !== rightPosition.y) {{
+            return leftPosition.y - rightPosition.y;
+          }}
+          if (leftPosition.x !== rightPosition.x) {{
+            return leftPosition.x - rightPosition.x;
+          }}
+          return leftId.localeCompare(rightId);
+        }});
+
+        const expectedOrder = [
+          "tensor_a1",
+          "tensor_a2",
+          "tensor_a3",
+          "tensor_b1",
+          "tensor_b2",
+          "tensor_b3",
+          "tensor_c1",
+          "tensor_c2",
+          "tensor_c3",
+        ];
+        if (JSON.stringify(orderedIds) !== JSON.stringify(expectedOrder)) {{
+          throw new Error(
+            `Expected connected PEPS tensors to keep their visual row-major order in grid mode, received ${{JSON.stringify(orderedIds)}}.`
+          );
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The connected-grid ordering regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tree_arrangement_keeps_the_top_tensor_as_the_root(tmp_path: Path) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "tree_arrangement_uses_top_tensor_root.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const layoutUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesLayoutAlgorithms.js")!r}).href;
+        const {{ createUtilityLayoutAlgorithmSupport }} = await import(layoutUrl);
+
+        const tensors = [
+          {{ id: "tensor_root", name: "Root", position: {{ x: 320, y: 0 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_left", name: "Left", position: {{ x: 110, y: 210 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_right", name: "Right", position: {{ x: 530, y: 210 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_ll", name: "LL", position: {{ x: 0, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_lr", name: "LR", position: {{ x: 220, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_rl", name: "RL", position: {{ x: 420, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_rr", name: "RR", position: {{ x: 640, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+        ].map((tensor) => ({{
+          ...tensor,
+          indices: [],
+          metadata: {{}},
+        }}));
+        const edges = [
+          ["tensor_root", "tensor_left"],
+          ["tensor_root", "tensor_right"],
+          ["tensor_left", "tensor_ll"],
+          ["tensor_left", "tensor_lr"],
+          ["tensor_right", "tensor_rl"],
+          ["tensor_right", "tensor_rr"],
+        ].map(([leftId, rightId], index) => ({{
+          id: `edge_${{index + 1}}`,
+          left: {{ tensor_id: leftId }},
+          right: {{ tensor_id: rightId }},
+        }}));
+        const tensorById = Object.fromEntries(tensors.map((tensor) => [tensor.id, tensor]));
+        const state = {{
+          spec: {{
+            tensors,
+            edges,
+          }},
+          primarySelectionId: null,
+        }};
+        const ctx = {{
+          findTensorById(tensorId) {{
+            return tensorById[tensorId] || null;
+          }},
+          tensorWidth(tensor) {{
+            return tensor.size.width;
+          }},
+          tensorHeight(tensor) {{
+            return tensor.size.height;
+          }},
+        }};
+        const selection = {{
+          getLayoutTensorsById(tensorIds) {{
+            return tensorIds.map((tensorId) => tensorById[tensorId]).filter(Boolean);
+          }},
+        }};
+        const layout = createUtilityLayoutAlgorithmSupport({{
+          ctx,
+          state,
+          constants: {{
+            LAYOUT_HORIZONTAL_GAP: 80,
+            LAYOUT_VERTICAL_GAP: 100,
+            LAYOUT_COMPONENT_GAP: 140,
+            LAYOUT_NON_OVERLAP_GAP: 36,
+          }},
+          selection,
+        }});
+
+        const positions = layout.buildArrangedSelectionPositions(
+          tensors.map((tensor) => tensor.id),
+          "tree"
+        );
+
+        if (
+          !(
+            positions.tensor_root.y < positions.tensor_left.y
+            && positions.tensor_root.y < positions.tensor_right.y
+            && positions.tensor_left.y < positions.tensor_ll.y
+            && positions.tensor_left.y < positions.tensor_lr.y
+            && positions.tensor_right.y < positions.tensor_rl.y
+            && positions.tensor_right.y < positions.tensor_rr.y
+          )
+        ) {{
+          throw new Error(
+            `Expected tree mode to keep the original top tensor as the root, received ${{JSON.stringify(positions)}}.`
+          );
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The tree-root ordering regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_auto_layout_uses_the_top_tensor_as_layered_root_for_mera(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "auto_layout_mera_root_order.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const layoutUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesLayoutAlgorithms.js")!r}).href;
+        const {{ createUtilityLayoutAlgorithmSupport }} = await import(layoutUrl);
+
+        const tensors = [
+          {{ id: "tensor_top", name: "Top", position: {{ x: 320, y: 0 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_mid_left", name: "Mid L", position: {{ x: 120, y: 210 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_mid_right", name: "Mid R", position: {{ x: 520, y: 210 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_leaf_left", name: "Leaf L", position: {{ x: 0, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_leaf_mid", name: "Leaf M", position: {{ x: 320, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+          {{ id: "tensor_leaf_right", name: "Leaf R", position: {{ x: 640, y: 420 }}, size: {{ width: 180, height: 108 }} }},
+        ].map((tensor) => ({{
+          ...tensor,
+          indices: [],
+          metadata: {{}},
+        }}));
+        const edges = [
+          ["tensor_top", "tensor_mid_left"],
+          ["tensor_top", "tensor_mid_right"],
+          ["tensor_mid_left", "tensor_leaf_left"],
+          ["tensor_mid_left", "tensor_leaf_mid"],
+          ["tensor_mid_right", "tensor_leaf_mid"],
+          ["tensor_mid_right", "tensor_leaf_right"],
+        ].map(([leftId, rightId], index) => ({{
+          id: `edge_${{index + 1}}`,
+          left: {{ tensor_id: leftId }},
+          right: {{ tensor_id: rightId }},
+        }}));
+        const tensorById = Object.fromEntries(tensors.map((tensor) => [tensor.id, tensor]));
+        const state = {{
+          spec: {{
+            tensors,
+            edges,
+          }},
+          primarySelectionId: null,
+        }};
+        const ctx = {{
+          findTensorById(tensorId) {{
+            return tensorById[tensorId] || null;
+          }},
+          tensorWidth(tensor) {{
+            return tensor.size.width;
+          }},
+          tensorHeight(tensor) {{
+            return tensor.size.height;
+          }},
+        }};
+        const selection = {{
+          getLayoutTensorsById(tensorIds) {{
+            return tensorIds.map((tensorId) => tensorById[tensorId]).filter(Boolean);
+          }},
+        }};
+        const layout = createUtilityLayoutAlgorithmSupport({{
+          ctx,
+          state,
+          constants: {{
+            LAYOUT_HORIZONTAL_GAP: 80,
+            LAYOUT_VERTICAL_GAP: 100,
+            LAYOUT_COMPONENT_GAP: 140,
+            LAYOUT_NON_OVERLAP_GAP: 36,
+          }},
+          selection,
+        }});
+
+        const positions = layout.buildAutoLayoutPositions(
+          tensors.map((tensor) => tensor.id)
+        );
+
+        if (
+          !(
+            positions.tensor_top.y < positions.tensor_mid_left.y
+            && positions.tensor_top.y < positions.tensor_mid_right.y
+            && positions.tensor_mid_left.y < positions.tensor_leaf_left.y
+            && positions.tensor_mid_left.y < positions.tensor_leaf_mid.y
+            && positions.tensor_mid_right.y < positions.tensor_leaf_mid.y
+            && positions.tensor_mid_right.y < positions.tensor_leaf_right.y
+          )
+        ) {{
+          throw new Error(
+            `Expected auto layout to keep the visual top tensor above the MERA layers, received ${{JSON.stringify(positions)}}.`
+          );
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The MERA auto-layout ordering regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_template_helpers_keep_peps_default_graph_size_from_catalog(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "template_helpers_keep_peps_default_graph_size.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const templatesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesTemplates.js")!r}).href;
+        const {{ createTemplateOptionHelpers }} = await import(templatesUrl);
+
+        const state = {{
+          catalogTemplateNames: [],
+          catalogTemplateDefinitions: {{}},
+          sessionTemplates: [],
+          availableTemplates: [],
+          templateDefinitions: {{}},
+          templateParametersByTemplate: {{}},
+          selectedEngine: "tensornetwork",
+          selectedCollectionFormat: "list",
+          templateCatalogWarnings: [],
+        }};
+        const templateSelect = {{
+          value: "",
+          innerHTML: "",
+          appendChild() {{}},
+        }};
+        const templateGraphSizeField = {{ hidden: false }};
+        const templateGraphSizeLabel = {{ textContent: "" }};
+        const templateGraphSizeInput = {{ value: "", min: "" }};
+        const templateBondDimensionField = {{ hidden: false }};
+        const templateBondDimensionInput = {{ value: "", min: "" }};
+        const templatePhysicalDimensionField = {{ hidden: false }};
+        const templatePhysicalDimensionInput = {{ value: "", min: "" }};
+        const helpers = createTemplateOptionHelpers({{
+          state,
+          document: {{
+            createElement(tagName) {{
+              return {{
+                tagName,
+                value: "",
+                textContent: "",
+                label: "",
+                selected: false,
+                children: [],
+                appendChild(child) {{
+                  this.children.push(child);
+                }},
+              }};
+            }},
+          }},
+          engineSelect: {{
+            innerHTML: "",
+            appendChild() {{}},
+          }},
+          collectionFormatSelect: {{
+            innerHTML: "",
+            appendChild() {{}},
+          }},
+          templateSelect,
+          templateParameterPanel: {{ hidden: false }},
+          templateGraphSizeField,
+          templateGraphSizeLabel,
+          templateGraphSizeInput,
+          templateBondDimensionField,
+          templateBondDimensionInput,
+          templatePhysicalDimensionField,
+          templatePhysicalDimensionInput,
+          enforceLinearPeriodicEngineSupport() {{}},
+          updateToolbarState() {{}},
+        }});
+
+        helpers.applyTemplateCatalogPayload({{
+          templateNames: ["peps_2x2"],
+          templateDefinitions: {{
+            peps_2x2: {{
+              display_name: "PEPS",
+              graph_size_label: "Side length",
+              defaults: {{
+                graph_size: 3,
+                bond_dimension: 3,
+                physical_dimension: 2,
+              }},
+              minimums: {{
+                graph_size: 2,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              }},
+              supports_parameters: true,
+              source: "global",
+            }},
+          }},
+          selectedTemplate: "peps_2x2",
+          templateCatalogWarnings: [],
+        }});
+
+        if (state.templateParametersByTemplate.peps_2x2.graph_size !== 3) {{
+          throw new Error(
+            `Expected the PEPS parameter state to keep the catalog default of 3, received ${{state.templateParametersByTemplate.peps_2x2.graph_size}}.`
+          );
+        }}
+        if (templateGraphSizeInput.value !== "3") {{
+          throw new Error(
+            `Expected the PEPS graph-size control to show 3 by default, received ${{templateGraphSizeInput.value}}.`
+          );
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The template-helpers PEPS default regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

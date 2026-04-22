@@ -7,6 +7,15 @@ export function registerCanvasContextMenu(ctx) {
   const { document, window } = ctx;
   const { canvasContextMenuRoot } = ctx.dom;
 
+  function resolveOptionalAction(actionName) {
+    return (...args) => {
+      if (typeof ctx[actionName] === "function") {
+        return ctx[actionName](...args);
+      }
+      return undefined;
+    };
+  }
+
   const markupSupport = createCanvasContextMenuMarkup({
     asFiniteNumber: (value, fallback = 1) =>
       typeof ctx.asFiniteNumber === "function"
@@ -113,43 +122,25 @@ export function registerCanvasContextMenu(ctx) {
         ? (options) => ctx.bindMetadataEditors(options)
         : null,
     closeCanvasContextMenu,
-    createGroupFromSelection:
-      typeof ctx.createGroupFromSelection === "function"
-        ? () => ctx.createGroupFromSelection()
-        : null,
+    createGroupFromSelection: resolveOptionalAction("createGroupFromSelection"),
     document,
-    exportGroupSubnetwork:
-      typeof ctx.exportGroupSubnetwork === "function"
-        ? (groupId) => ctx.exportGroupSubnetwork(groupId)
-        : null,
-    exportSelectedSubnetwork:
-      typeof ctx.exportSelectedSubnetwork === "function"
-        ? () => ctx.exportSelectedSubnetwork()
-        : null,
-    saveGroupToSubnetworkLibrary:
-      typeof ctx.saveGroupToSubnetworkLibrary === "function"
-        ? (groupId) => ctx.saveGroupToSubnetworkLibrary(groupId)
-        : null,
-    saveSelectionToSubnetworkLibrary:
-      typeof ctx.saveSelectionToSubnetworkLibrary === "function"
-        ? () => ctx.saveSelectionToSubnetworkLibrary()
-        : null,
-    promoteGroupToTemplate:
-      typeof ctx.promoteGroupToTemplate === "function"
-        ? (groupId) => ctx.promoteGroupToTemplate(groupId)
-        : null,
-    promoteSelectedSubnetworkToTemplate:
-      typeof ctx.promoteSelectedSubnetworkToTemplate === "function"
-        ? () => ctx.promoteSelectedSubnetworkToTemplate()
-        : null,
+    exportGroupSubnetwork: resolveOptionalAction("exportGroupSubnetwork"),
+    exportSelectedSubnetwork: resolveOptionalAction("exportSelectedSubnetwork"),
+    saveGroupToSubnetworkLibrary: resolveOptionalAction(
+      "saveGroupToSubnetworkLibrary"
+    ),
+    saveSelectionToSubnetworkLibrary: resolveOptionalAction(
+      "saveSelectionToSubnetworkLibrary"
+    ),
+    promoteGroupToTemplate: resolveOptionalAction("promoteGroupToTemplate"),
+    promoteSelectedSubnetworkToTemplate: resolveOptionalAction(
+      "promoteSelectedSubnetworkToTemplate"
+    ),
     propertyCommands: ctx.propertyCommands,
     propertyInvalidation: (invalidate) => ctx.propertyInvalidation(invalidate),
     renderCanvasContextMenu,
     state,
-    toggleGroupCollapse:
-      typeof ctx.toggleGroupCollapse === "function"
-        ? (groupId) => ctx.toggleGroupCollapse(groupId)
-        : null,
+    toggleGroupCollapse: resolveOptionalAction("toggleGroupCollapse"),
     window,
   });
 

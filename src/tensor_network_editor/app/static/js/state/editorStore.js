@@ -124,6 +124,13 @@ export function createEditorStore(state) {
     ) {
       state.subnetworkLibraryTagFilter = "";
     }
+    state.selectedSubnetworkLibraryNames = Array.isArray(
+      state.selectedSubnetworkLibraryNames
+    )
+      ? state.selectedSubnetworkLibraryNames.filter((subnetworkName) =>
+          state.availableSubnetworks.includes(subnetworkName)
+        )
+      : [];
     return {
       availableSubnetworks: state.availableSubnetworks,
       subnetworkDefinitions: state.subnetworkDefinitions,

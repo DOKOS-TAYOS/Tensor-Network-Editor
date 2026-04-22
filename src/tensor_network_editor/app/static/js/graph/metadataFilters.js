@@ -156,9 +156,33 @@ export function registerMetadataFilters(ctx) {
     }
   }
 
+  function openCanvasMetadataFilter() {
+    shouldFocusSearchInput = false;
+    state.openCanvasToolPopover = "filter";
+    state.nameSearch = {
+      ...normalizeNameSearch(),
+      enabled: false,
+    };
+    renderMetadataFilters();
+    requestHighlightRender();
+  }
+
+  function openCanvasNameSearch() {
+    shouldFocusSearchInput = true;
+    state.openCanvasToolPopover = "search";
+    state.metadataFilters = {
+      ...normalizeMetadataFilters(),
+      enabled: false,
+    };
+    renderMetadataFilters();
+    requestHighlightRender();
+  }
+
   Object.assign(ctx, {
     getMetadataFilterEntityState,
     getMetadataFilterHighlight,
+    openCanvasMetadataFilter,
+    openCanvasNameSearch,
     renderMetadataFilters,
     updateMetadataFilters,
     updateNameSearch,

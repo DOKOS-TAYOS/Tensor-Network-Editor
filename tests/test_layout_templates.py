@@ -70,10 +70,15 @@ def test_templates_use_generous_spacing(
         (
             "peps_2x2",
             {
-                "A": {"right", "down", "phys"},
-                "B": {"left", "down", "phys"},
-                "C": {"right", "up", "phys"},
-                "D": {"left", "up", "phys"},
+                "A1": {"right", "down", "phys"},
+                "A2": {"left", "right", "down", "phys"},
+                "A3": {"left", "down", "phys"},
+                "B1": {"up", "right", "down", "phys"},
+                "B2": {"up", "left", "right", "down", "phys"},
+                "B3": {"up", "left", "down", "phys"},
+                "C1": {"up", "right", "phys"},
+                "C2": {"up", "left", "right", "phys"},
+                "C3": {"up", "left", "phys"},
             },
         ),
         (

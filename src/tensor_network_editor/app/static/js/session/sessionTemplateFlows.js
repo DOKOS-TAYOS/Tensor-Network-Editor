@@ -23,6 +23,9 @@ export function createSessionTemplateFlows({
     subnetworkLibraryList,
     subnetworkLibrarySearchInput,
     subnetworkLibraryTagFilter,
+    subnetworkLibrarySelectAllInput,
+    subnetworkLibrarySelectionSummary,
+    subnetworkLibraryAddSelectedButton,
     subnetworkLibraryWarning,
   } = dom;
   const sessionService = services.session;
@@ -120,16 +123,41 @@ export function createSessionTemplateFlows({
     subnetworkLibraryList,
     subnetworkLibrarySearchInput,
     subnetworkLibraryTagFilter,
+    subnetworkLibrarySelectAllInput,
+    subnetworkLibrarySelectionSummary,
+    subnetworkLibraryAddSelectedButton,
     subnetworkLibraryWarning,
     insertSubnetworkFromLibrary,
     renameLibrarySubnetwork,
     deleteLibrarySubnetwork,
+    toggleSubnetworkLibraryBatchSelection,
   });
   const {
     normalizeSubnetworkCatalogName,
     getSubnetworkEntryByName,
+    getFilteredSubnetworkEntries,
     renderSubnetworkLibrary,
   } = subnetworkLibrary;
+
+  function setSelectedSubnetworkLibraryNames(subnetworkNames = []) {
+    const availableSubnetworkNames = new Set(
+      Array.isArray(state.availableSubnetworks) ? state.availableSubnetworks : []
+    );
+    const nextSelectedNames = [];
+    (Array.isArray(subnetworkNames) ? subnetworkNames : []).forEach(
+      (subnetworkName) => {
+        if (
+          typeof subnetworkName === "string" &&
+          availableSubnetworkNames.has(subnetworkName) &&
+          !nextSelectedNames.includes(subnetworkName)
+        ) {
+          nextSelectedNames.push(subnetworkName);
+        }
+      }
+    );
+    state.selectedSubnetworkLibraryNames = nextSelectedNames;
+    return nextSelectedNames;
+  }
 
   async function extractTemplateSpecByTensorIds(tensorIds, emptySelectionMessage) {
     if (isForModeActive()) {
@@ -689,6 +717,84 @@ export function createSessionTemplateFlows({
     renderSubnetworkLibrary();
   }
 
+  function toggleSubnetworkLibraryBatchSelection(subnetworkName, isSelected) {
+    if (typeof subnetworkName !== "string" || !subnetworkName) {
+      return;
+    }
+    const selectedNames = new Set(
+      Array.isArray(state.selectedSubnetworkLibraryNames)
+        ? state.selectedSubnetworkLibraryNames
+        : []
+    );
+    if (isSelected) {
+      selectedNames.add(subnetworkName);
+    } else {
+      selectedNames.delete(subnetworkName);
+    }
+    setSelectedSubnetworkLibraryNames([...selectedNames]);
+    renderSubnetworkLibrary();
+  }
+
+  function toggleSelectAllVisibleSubnetworks(isSelected) {
+    const filteredEntries = getFilteredSubnetworkEntries();
+    const selectedNames = new Set(
+      Array.isArray(state.selectedSubnetworkLibraryNames)
+        ? state.selectedSubnetworkLibraryNames
+        : []
+    );
+    filteredEntries.forEach((entry) => {
+      if (isSelected) {
+        selectedNames.add(entry.subnetworkName);
+      } else {
+        selectedNames.delete(entry.subnetworkName);
+      }
+    });
+    setSelectedSubnetworkLibraryNames([...selectedNames]);
+    renderSubnetworkLibrary();
+  }
+
+  function addSelectedSubnetworksToSessionTemplates() {
+    const selectedEntries = (
+      Array.isArray(state.selectedSubnetworkLibraryNames)
+        ? state.selectedSubnetworkLibraryNames
+        : []
+    )
+      .map((subnetworkName) => getSubnetworkEntryByName(subnetworkName))
+      .filter((entry) => entry && entry.serializedSpec);
+    if (!selectedEntries.length) {
+      actions.setStatus("Select one or more subnetworks first.");
+      return;
+    }
+    let addedCount = 0;
+    let lastAddedDisplayName = "";
+    selectedEntries.forEach((entry) => {
+      const nextDisplayName = actions.getNextSessionTemplateDisplayName(
+        entry.displayName || entry.subnetworkName
+      );
+      const addResult = actions.addSessionTemplate({
+        displayName: nextDisplayName,
+        spec: entry.serializedSpec,
+        selected: false,
+      });
+      if (addResult.ok) {
+        addedCount += 1;
+        lastAddedDisplayName = addResult.displayName;
+      }
+    });
+    if (!addedCount) {
+      actions.setStatus("Could not create session templates from the selection.", "error");
+      return;
+    }
+    setSelectedSubnetworkLibraryNames([]);
+    renderSubnetworkLibrary();
+    actions.updateToolbarState();
+    if (addedCount === 1) {
+      actions.setStatus(`Added ${lastAddedDisplayName} to the session templates.`, "success");
+      return;
+    }
+    actions.setStatus(`Added ${addedCount} subnetworks to the session templates.`, "success");
+  }
+
   function openSubnetworkLibrary() {
     if (isForModeActive()) {
       actions.setStatus(
@@ -704,6 +810,7 @@ export function createSessionTemplateFlows({
       );
       return false;
     }
+    setSelectedSubnetworkLibraryNames(state.selectedSubnetworkLibraryNames);
     state.isSubnetworkLibraryOpen = true;
     actions.syncSubnetworkLibraryModalState();
     renderSubnetworkLibrary();
@@ -728,6 +835,9 @@ export function createSessionTemplateFlows({
       insertSubnetworkFromLibrary(state.selectedSubnetworkName),
     updateSubnetworkLibrarySearch,
     updateSubnetworkLibraryTagFilter,
+    toggleSubnetworkLibraryBatchSelection,
+    toggleSelectAllVisibleSubnetworks,
+    addSelectedSubnetworksToSessionTemplates,
     saveSelectionAsSessionTemplate,
     openSessionTemplatePicker,
     loadSessionTemplatesFromFile,

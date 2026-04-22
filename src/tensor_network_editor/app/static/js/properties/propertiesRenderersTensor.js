@@ -20,6 +20,8 @@ export function createTensorPropertiesRenderers({
     getContractionTensorTotalElementCount,
     formatTotalElementCount,
     isTensorIndexDisclosureOpen,
+    isTensorValueDisclosureOpen,
+    setTensorValueDisclosureOpen,
     toggleTensorIndexDisclosure,
   } = support;
 
@@ -35,9 +37,11 @@ export function createTensorPropertiesRenderers({
     getContractionTensorTotalElementCount,
     getTensorTotalElementCount,
     isTensorIndexDisclosureOpen,
+    isTensorValueDisclosureOpen,
     propertiesPanel,
     propertyInvalidation,
     renderTrashIcon,
+    setTensorValueDisclosureOpen,
     toggleTensorIndexDisclosure,
   };
 

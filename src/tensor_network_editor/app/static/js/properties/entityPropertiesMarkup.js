@@ -1,3 +1,21 @@
+function buildTooltipAttributes(label, description = "") {
+  const safeLabel = String(label || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  const safeDescription = String(description || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+  return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+    safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
+  }`;
+}
+
 export function buildGroupPropertiesMarkup({
   group,
   groupColor,
@@ -63,6 +81,10 @@ export function buildGroupPropertiesMarkup({
           id="extract-group-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}
+          ${buildTooltipAttributes(
+            "Extract",
+            "Extract the tensors inside this group as a reusable subnetwork."
+          )}
         >
           Extract
         </button>
@@ -70,6 +92,10 @@ export function buildGroupPropertiesMarkup({
           id="save-group-subnetwork-library-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}
+          ${buildTooltipAttributes(
+            "To Library",
+            "Save the tensors inside this group to the subnetwork library."
+          )}
         >
           To Library
         </button>
@@ -77,6 +103,10 @@ export function buildGroupPropertiesMarkup({
           id="promote-group-template-button"
           type="button"
           ${linearPeriodicMode ? "disabled" : ""}
+          ${buildTooltipAttributes(
+            "To Template",
+            "Promote the tensors inside this group to a reusable template."
+          )}
         >
           To Template
         </button>

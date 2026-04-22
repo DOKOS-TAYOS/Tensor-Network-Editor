@@ -72,6 +72,7 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     if (!state.activeTensorDrag || state.activeTensorDrag.anchorId !== anchorId) {
       return;
     }
+    const shouldResyncSelection = Boolean(state.activeTensorDrag.addedSelectionOnGrab);
     const changed =
       state.activeTensorDrag.tensorIds.some((tensorId) => {
         const tensor =
@@ -99,6 +100,12 @@ export function createGraphRenderDragSupport({ ctx, state }) {
     }
     state.activeTensorDrag = null;
     ctx.updateToolbarState();
+    if (
+      shouldResyncSelection &&
+      typeof ctx.syncCySelection === "function"
+    ) {
+      ctx.syncCySelection();
+    }
   }
 
   function finishIndexDrag(indexId) {

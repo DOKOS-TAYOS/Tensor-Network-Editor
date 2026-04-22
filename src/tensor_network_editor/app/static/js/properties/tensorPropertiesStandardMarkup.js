@@ -6,6 +6,7 @@ export function createStandardTensorPropertiesMarkupSupport({
   formatTotalElementCount,
   getTensorTotalElementCount,
   isTensorIndexDisclosureOpen,
+  isTensorValueDisclosureOpen,
   renderTrashIcon,
   dataSupport,
 }) {
@@ -14,7 +15,6 @@ export function createStandardTensorPropertiesMarkupSupport({
     formatTensorShape,
     getTensorDataMode,
     buildDefaultTensorLiteralValues,
-    describeTensorData,
   } = dataSupport;
 
   function buildTooltipAttributes(label, description = "") {
@@ -200,6 +200,10 @@ export function createStandardTensorPropertiesMarkupSupport({
       tensorDataMode === "literal"
         ? JSON.stringify(buildDefaultTensorLiteralValues(tensor, tensorShape), null, 2)
         : "";
+    const tensorValuesOpen =
+      typeof isTensorValueDisclosureOpen === "function"
+        ? Boolean(isTensorValueDisclosureOpen(tensor.id))
+        : false;
     const indexEditors = buildIndexEditorsMarkup(tensor, focusedIndexId);
 
     return `
@@ -263,64 +267,78 @@ export function createStandardTensorPropertiesMarkupSupport({
           ${renderTrashIcon()}
         </button>
       </div>
-      <section class="planner-section">
-        <h3>Tensor values</h3>
-        <div class="field-group">
-          <label for="tensor-data-mode-select">Initialization</label>
-          <select
-            id="tensor-data-mode-select"
-            data-focus-key="tensor:${tensor.id}:tensor-data-mode"
-          >
-            <option value="zeros"${tensorDataMode === "zeros" ? " selected" : ""}>
-              Generated zeros
-            </option>
-            <option value="ones"${tensorDataMode === "ones" ? " selected" : ""}>
-              Ones
-            </option>
-            <option value="fill"${tensorDataMode === "fill" ? " selected" : ""}>
-              Fill value
-            </option>
-            <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
-              Explicit values
-            </option>
-          </select>
+      <details
+        id="tensor-values-disclosure"
+        class="properties-disclosure tensor-values-disclosure"
+        ${tensorValuesOpen ? "open" : ""}
+      >
+        <summary
+          class="properties-disclosure-summary properties-disclosure-chevron"
+          ${buildTooltipAttributes(
+            "Tensor values",
+            "Choose how this tensor is initialized and edit explicit values when needed."
+          )}
+        >
+          Tensor values
+        </summary>
+        <div class="properties-disclosure-body">
+          <div class="field-group">
+            <label for="tensor-data-mode-select">Initialization</label>
+            <select
+              id="tensor-data-mode-select"
+              data-focus-key="tensor:${tensor.id}:tensor-data-mode"
+            >
+              <option value="zeros"${tensorDataMode === "zeros" ? " selected" : ""}>
+                Generated zeros
+              </option>
+              <option value="ones"${tensorDataMode === "ones" ? " selected" : ""}>
+                Ones
+              </option>
+              <option value="fill"${tensorDataMode === "fill" ? " selected" : ""}>
+                Fill value
+              </option>
+              <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
+                Explicit values
+              </option>
+            </select>
+          </div>
+          ${
+            tensorDataMode === "fill"
+              ? `
+                <div class="field-group compact-number-field">
+                  <label for="tensor-data-fill-input">Fill value</label>
+                  <input
+                    id="tensor-data-fill-input"
+                    data-focus-key="tensor:${tensor.id}:tensor-data-fill"
+                    type="number"
+                    step="any"
+                    value="${ctx.escapeHtml(String(tensorFillValue))}"
+                  />
+                </div>
+              `
+              : ""
+          }
+          ${
+            tensorDataMode === "literal"
+              ? `
+                <div class="field-group">
+                  <label for="tensor-data-values-input">Explicit values (JSON)</label>
+                  <textarea
+                    id="tensor-data-values-input"
+                    data-focus-key="tensor:${tensor.id}:tensor-data-values"
+                    rows="6"
+                    spellcheck="false"
+                  >${ctx.escapeHtml(tensorLiteralText)}</textarea>
+                </div>
+                <p class="property-meta">Expected shape: ${ctx.escapeHtml(
+                  formatTensorShape(tensorShape)
+                )}</p>
+              `
+              : ""
+          }
+          <p id="tensor-data-validation-message" class="property-meta" hidden></p>
         </div>
-        <p class="property-meta">Expected shape: ${ctx.escapeHtml(formatTensorShape(tensorShape))}</p>
-        ${
-          tensorDataMode === "fill"
-            ? `
-              <div class="field-group compact-number-field">
-                <label for="tensor-data-fill-input">Fill value</label>
-                <input
-                  id="tensor-data-fill-input"
-                  data-focus-key="tensor:${tensor.id}:tensor-data-fill"
-                  type="number"
-                  step="any"
-                  value="${ctx.escapeHtml(String(tensorFillValue))}"
-                />
-              </div>
-            `
-            : ""
-        }
-        ${
-          tensorDataMode === "literal"
-            ? `
-              <div class="field-group">
-                <label for="tensor-data-values-input">Explicit values (JSON)</label>
-                <textarea
-                  id="tensor-data-values-input"
-                  data-focus-key="tensor:${tensor.id}:tensor-data-values"
-                  rows="6"
-                  spellcheck="false"
-                >${ctx.escapeHtml(tensorLiteralText)}</textarea>
-              </div>
-              <p class="property-meta">Use JSON numbers that match the tensor shape exactly.</p>
-            `
-            : ""
-        }
-        <p id="tensor-data-validation-message" class="property-meta" hidden></p>
-        <p class="property-meta">${ctx.escapeHtml(describeTensorData(tensor, tensorShape))}</p>
-      </section>
+      </details>
       ${buildMetadataEditorMarkup({
         tagsInputId: "tensor-tags-input",
         tagsFocusKey: `tensor:${tensor.id}:tags`,

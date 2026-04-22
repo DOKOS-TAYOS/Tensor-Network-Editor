@@ -83,7 +83,7 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
         display_name="PEPS",
         graph_size_label="Side length",
         defaults=TemplateParameters(
-            graph_size=2,
+            graph_size=3,
             bond_dimension=3,
             physical_dimension=2,
         ),

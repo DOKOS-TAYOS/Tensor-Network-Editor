@@ -13,9 +13,11 @@ export function createStandardTensorPropertiesRenderer({
   formatTotalElementCount,
   getTensorTotalElementCount,
   isTensorIndexDisclosureOpen,
+  isTensorValueDisclosureOpen,
   propertiesPanel,
   propertyInvalidation,
   renderTrashIcon,
+  setTensorValueDisclosureOpen,
   toggleTensorIndexDisclosure,
 }) {
   const dataSupport = createStandardTensorDataSupport();
@@ -25,6 +27,7 @@ export function createStandardTensorPropertiesRenderer({
     formatTotalElementCount,
     getTensorTotalElementCount,
     isTensorIndexDisclosureOpen,
+    isTensorValueDisclosureOpen,
     renderTrashIcon,
     dataSupport,
   });
@@ -37,6 +40,7 @@ export function createStandardTensorPropertiesRenderer({
     document,
     propertiesPanel,
     propertyInvalidation,
+    setTensorValueDisclosureOpen,
     toggleTensorIndexDisclosure,
     dataSupport,
   });

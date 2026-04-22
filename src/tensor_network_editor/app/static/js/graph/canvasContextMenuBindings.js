@@ -502,6 +502,7 @@ export function createCanvasContextMenuBindings({
           invalidate: propertyInvalidation({
             lookups: true,
             overlays: true,
+            properties: true,
           }),
           selectionIds: [],
           statusMessage: `Deleted group ${group.name}.`,

@@ -53,15 +53,60 @@ export function createNotesSupport({ ctx, state, constants }) {
     state.spec.notes = state.spec.notes.filter((note) => note.id !== noteId);
   }
 
+  function isNotePositionOccupied(candidate, noteWidth, noteHeight) {
+    return (Array.isArray(state.spec && state.spec.notes) ? state.spec.notes : []).some(
+      (note) => {
+        const width = Number(note.size && note.size.width) || NOTE_WIDTH;
+        const height = Number(note.size && note.size.height) || NOTE_HEIGHT;
+        return (
+          Math.abs(note.position.x - candidate.x) < Math.max(noteWidth * 0.8, width * 0.8) &&
+          Math.abs(note.position.y - candidate.y) < Math.max(noteHeight * 0.8, height * 0.8)
+        );
+      }
+    );
+  }
+
+  function suggestNotePosition(center, noteWidth, noteHeight) {
+    const basePosition = {
+      x: center.x - noteWidth / 2,
+      y: center.y - noteHeight / 2,
+    };
+    const offsets = [
+      { x: 0, y: 0 },
+      { x: 220, y: 0 },
+      { x: -220, y: 0 },
+      { x: 0, y: 170 },
+      { x: 0, y: -170 },
+      { x: 220, y: 170 },
+      { x: 220, y: -170 },
+      { x: -220, y: 170 },
+      { x: -220, y: -170 },
+    ];
+    for (const offset of offsets) {
+      const candidate = {
+        x: basePosition.x + offset.x,
+        y: basePosition.y + offset.y,
+      };
+      if (!isNotePositionOccupied(candidate, noteWidth, noteHeight)) {
+        return candidate;
+      }
+    }
+    const noteCount = Array.isArray(state.spec && state.spec.notes)
+      ? state.spec.notes.length
+      : 0;
+    return {
+      x: basePosition.x + noteCount * 36,
+      y: basePosition.y + noteCount * 28,
+    };
+  }
+
   function addNoteAtCenter() {
     const center = ctx.viewportCenterPosition();
     const zoom = getCanvasZoom();
     const worldWidth = NOTE_WIDTH / zoom;
     const worldHeight = NOTE_HEIGHT / zoom;
-    const note = createNote(
-      center.x - worldWidth / 2,
-      center.y - worldHeight / 2
-    );
+    const position = suggestNotePosition(center, worldWidth, worldHeight);
+    const note = createNote(position.x, position.y);
     ctx.applyDesignChange(
       () => {
         state.spec.notes.push(note);

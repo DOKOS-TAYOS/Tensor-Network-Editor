@@ -82,6 +82,7 @@ export function createEntityPropertiesBindings({
         invalidate: propertyInvalidation({
           lookups: true,
           overlays: true,
+          properties: true,
         }),
         selectionIds: [],
         statusMessage: `Deleted group ${group.name}.`,

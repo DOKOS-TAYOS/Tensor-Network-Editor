@@ -4,18 +4,83 @@ export function createCanvasContextMenuMarkup({
   findTensorById,
   asFiniteNumber,
 }) {
-  function buildMenuPositionStyle(menuState, rootElement) {
-    const rootRect =
+  const CONTEXT_MENU_EDGE_MARGIN = 8;
+  const CONTEXT_MENU_MAX_WIDTH = 320;
+
+  function clampMenuAnchor(offset, extent) {
+    if (!Number.isFinite(offset)) {
+      return CONTEXT_MENU_EDGE_MARGIN;
+    }
+    return Math.min(
+      Math.max(offset, CONTEXT_MENU_EDGE_MARGIN),
+      Math.max(CONTEXT_MENU_EDGE_MARGIN, extent - CONTEXT_MENU_EDGE_MARGIN)
+    );
+  }
+
+  function resolveRootRect(rootElement) {
+    const rawRect =
       rootElement && typeof rootElement.getBoundingClientRect === "function"
         ? rootElement.getBoundingClientRect()
-        : { left: 0, top: 0 };
-    const left = Number.isFinite(menuState && menuState.clientX)
-      ? menuState.clientX - rootRect.left
-      : 0;
-    const top = Number.isFinite(menuState && menuState.clientY)
-      ? menuState.clientY - rootRect.top
-      : 0;
-    return `left: ${left}px; top: ${top}px;`;
+        : null;
+    const left = Number.isFinite(rawRect?.left) ? rawRect.left : 0;
+    const top = Number.isFinite(rawRect?.top) ? rawRect.top : 0;
+    const width =
+      Number.isFinite(rawRect?.width) && rawRect.width > 0
+        ? rawRect.width
+        : Number.isFinite(rawRect?.right) && Number.isFinite(rawRect?.left)
+          ? Math.max(rawRect.right - rawRect.left, 0)
+          : 0;
+    const height =
+      Number.isFinite(rawRect?.height) && rawRect.height > 0
+        ? rawRect.height
+        : Number.isFinite(rawRect?.bottom) && Number.isFinite(rawRect?.top)
+          ? Math.max(rawRect.bottom - rawRect.top, 0)
+          : 0;
+
+    return {
+      left,
+      top,
+      width,
+      height,
+      right: Number.isFinite(rawRect?.right) ? rawRect.right : left + width,
+      bottom: Number.isFinite(rawRect?.bottom) ? rawRect.bottom : top + height,
+    };
+  }
+
+  function buildMenuPositionStyle(menuState, rootElement) {
+    const rootRect = resolveRootRect(rootElement);
+    const anchorX = clampMenuAnchor(
+      Number.isFinite(menuState?.clientX) ? menuState.clientX - rootRect.left : 0,
+      rootRect.width
+    );
+    const anchorY = clampMenuAnchor(
+      Number.isFinite(menuState?.clientY) ? menuState.clientY - rootRect.top : 0,
+      rootRect.height
+    );
+    const spaceLeft = anchorX;
+    const spaceRight = Math.max(rootRect.width - anchorX, CONTEXT_MENU_EDGE_MARGIN);
+    const spaceTop = anchorY;
+    const spaceBottom = Math.max(rootRect.height - anchorY, CONTEXT_MENU_EDGE_MARGIN);
+    const openToRight =
+      spaceRight >= CONTEXT_MENU_MAX_WIDTH || spaceRight >= spaceLeft;
+    const openDownward = spaceBottom >= spaceTop;
+    const maxWidth = Math.max(
+      1,
+      Math.min(
+        CONTEXT_MENU_MAX_WIDTH,
+        Math.floor(
+          (openToRight ? spaceRight : spaceLeft) - CONTEXT_MENU_EDGE_MARGIN
+        )
+      )
+    );
+    const horizontalStyle = openToRight
+      ? `left: ${Math.round(anchorX)}px;`
+      : `right: ${Math.round(Math.max(rootRect.width - anchorX, 0))}px;`;
+    const verticalStyle = openDownward
+      ? `top: ${Math.round(anchorY)}px;`
+      : `bottom: ${Math.round(Math.max(rootRect.height - anchorY, 0))}px;`;
+
+    return `${horizontalStyle} ${verticalStyle} max-width: ${maxWidth}px;`;
   }
 
   function normalizeElementDimension(value) {
@@ -142,18 +207,30 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-extract-selection-button"
             type="button"
+            ${buildTooltipAttributes(
+              "Extract",
+              "Extract the selected tensors as a reusable subnetwork."
+            )}
           >
             Extract
           </button>
           <button
             id="context-menu-save-selection-subnetwork-library-button"
             type="button"
+            ${buildTooltipAttributes(
+              "To Library",
+              "Save the selected tensors to the subnetwork library."
+            )}
           >
             To Library
           </button>
           <button
             id="context-menu-promote-selection-template-button"
             type="button"
+            ${buildTooltipAttributes(
+              "To Template",
+              "Promote the selected tensors to a reusable template."
+            )}
           >
             To Template
           </button>
@@ -177,6 +254,10 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-group-selection-button"
             type="button"
+            ${buildTooltipAttributes(
+              "Group",
+              "Create a visual group from the selected tensors."
+            )}
           >
             Group
           </button>
@@ -448,18 +529,30 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-extract-group-button"
             type="button"
+            ${buildTooltipAttributes(
+              "Extract",
+              "Extract the tensors inside this group as a reusable subnetwork."
+            )}
           >
             Extract
           </button>
           <button
             id="context-menu-save-group-subnetwork-library-button"
             type="button"
+            ${buildTooltipAttributes(
+              "To Library",
+              "Save the tensors inside this group to the subnetwork library."
+            )}
           >
             To Library
           </button>
           <button
             id="context-menu-promote-group-template-button"
             type="button"
+            ${buildTooltipAttributes(
+              "To Template",
+              "Promote the tensors inside this group to a reusable template."
+            )}
           >
             To Template
           </button>

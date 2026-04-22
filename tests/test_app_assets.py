@@ -96,6 +96,8 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert "<strong>D</strong><span>Switch to For bidimensional mode</span>" in html
     assert "<strong>E</strong><span>Toggle For Tree mode</span>" in html
     assert "<strong>B</strong><span>Switch to Benchmark mode</span>" in html
+    assert "<strong>Ctrl/Cmd+F</strong><span>Open Search</span>" in html
+    assert "<strong>Ctrl/Cmd+Shift+F</strong><span>Open Filters</span>" in html
     assert "<strong>L</strong><span>Load templates from JSON</span>" in html
     assert "<strong>Shift+E</strong><span>Export the selected template</span>" in html
     assert "Ctrl/Cmd+N" not in html
@@ -251,12 +253,17 @@ def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> No
 
 def test_root_exposes_generated_code_modal(editor_server: EditorServer) -> None:
     html = request_text(f"{editor_server.base_url}/")
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
 
     assert 'id="generated-code-modal"' in html
     assert 'id="generated-code-modal-backdrop"' in html
     assert 'id="generated-code-modal-close-button"' in html
     assert 'id="generated-code-modal-view"' in html
     assert ">Generated code<" in html
+    assert 'title="Close generated code"' not in html
+    assert '"generated-code-modal-close-button"' not in shell_bindings_body
 
 
 def test_main_module_is_served_from_static_directory(
@@ -500,6 +507,10 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
         'if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "e") {'
         in body
     )
+    assert 'if (hasSystemModifier && event.shiftKey && lowerKey === "f") {' in body
+    assert 'if (hasSystemModifier && lowerKey === "f") {' in body
+    assert "openCanvasMetadataFilter();" in body
+    assert "openCanvasNameSearch();" in body
     assert 'if (!hasAnyModifier && lowerKey === "d") {' in body
     assert 'if (!hasAnyModifier && lowerKey === "b") {' in body
     assert 'if (!hasAnyModifier && lowerKey === "l") {' in body
@@ -511,6 +522,8 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "Alt+A" in html
     assert "Ctrl/Cmd+A" in html
     assert "Ctrl/Cmd+Alt+A" in html
+    assert "Ctrl/Cmd+F" in html
+    assert "Ctrl/Cmd+Shift+F" in html
     assert "Shift+S" in html
     assert "Shift+E" in html
     assert ">D<" in html
@@ -930,6 +943,8 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert 'from "./metadataFiltersBindings.js"' in filter_body
     assert 'from "./metadataFiltersRenderers.js"' in filter_body
     assert 'from "./metadataFiltersState.js"' in filter_body
+    assert "function openCanvasMetadataFilter(" in filter_body
+    assert "function openCanvasNameSearch(" in filter_body
     assert "canvas-metadata-filter-button" in filter_renderers_body
     assert "canvas-name-search-button" in filter_renderers_body
     assert "canvas-metadata-filter-clear-button" in filter_renderers_body
@@ -989,6 +1004,7 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     overlays_body = request_text(
         f"{editor_server.base_url}/js/graph/overlaysLayoutTemplates.js"
     )
+    css_body = request_text(f"{editor_server.base_url}/app.css")
 
     assert 'from "./graph/canvasContextMenu.js"' in main_body
     assert "registerCanvasContextMenu(context);" in main_body
@@ -1033,6 +1049,33 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert '"Index dimension"' in context_menu_markup_body
     assert "Remove this tensor from the network." in context_menu_markup_body
     assert "Add one new open index to each selected tensor." in context_menu_markup_body
+    assert (
+        "Extract the selected tensors as a reusable subnetwork."
+        in context_menu_markup_body
+    )
+    assert (
+        "Save the selected tensors to the subnetwork library."
+        in context_menu_markup_body
+    )
+    assert (
+        "Promote the selected tensors to a reusable template."
+        in context_menu_markup_body
+    )
+    assert (
+        "Create a visual group from the selected tensors." in context_menu_markup_body
+    )
+    assert (
+        "Extract the tensors inside this group as a reusable subnetwork."
+        in context_menu_markup_body
+    )
+    assert (
+        "Save the tensors inside this group to the subnetwork library."
+        in context_menu_markup_body
+    )
+    assert (
+        "Promote the tensors inside this group to a reusable template."
+        in context_menu_markup_body
+    )
     assert "Add index to tensors" not in context_menu_markup_body
     assert "Extract selection" not in context_menu_markup_body
     assert "Promote to template" not in context_menu_markup_body
@@ -1046,9 +1089,13 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert "bindMetadataEditors" in context_menu_bindings_body
     assert "function resolveContextTarget(" in context_menu_targets_body
     assert "canvas-context-menu-title" not in context_menu_markup_body
+    assert "max-height: ${maxHeight}px;" not in context_menu_markup_body
     assert 'state.cy.on("cxttap"' in graph_body
     assert 'kind !== "tensor" && kind !== "index" && kind !== "edge"' in graph_body
     assert 'addEventListener("contextmenu"' in overlays_body
+    assert ".canvas-context-menu {" in css_body
+    assert "max-height: calc(100% - 1rem);" not in css_body
+    assert "overscroll-behavior: contain;" not in css_body
 
 
 def test_properties_renderer_assets_are_split_by_selection_family(
@@ -1195,6 +1242,7 @@ def test_graph_assets_expose_for_boundary_tensor_hovers(
 def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_modules(
     editor_server: EditorServer,
 ) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
     tensor_body = request_text(
         f"{editor_server.base_url}/js/properties/propertiesRenderersTensor.js"
     )
@@ -1241,9 +1289,26 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
         "function createStandardTensorPropertiesBindingSupport("
         in tensor_standard_bindings_body
     )
+    assert 'id="tensor-values-disclosure"' in tensor_standard_markup_body
+    assert '<div class="properties-disclosure-body">' in tensor_standard_markup_body
+    assert "tensor-values-disclosure-body" not in tensor_standard_markup_body
     assert 'id="tensor-data-mode-select"' in tensor_standard_markup_body
     assert 'id="tensor-data-validation-message"' in tensor_standard_markup_body
     assert "Explicit values (JSON)" in tensor_standard_markup_body
+    assert (
+        "Choose how this tensor is initialized and edit explicit values when needed."
+        in tensor_standard_markup_body
+    )
+    assert "Expected shape:" in tensor_standard_markup_body
+    assert "Current initializer:" not in tensor_standard_markup_body
+    assert (
+        "Use JSON numbers that match the tensor shape exactly."
+        not in tensor_standard_markup_body
+    )
+    assert (
+        ".tensor-values-disclosure > .properties-disclosure-summary {" not in css_body
+    )
+    assert ".tensor-values-disclosure-body {" not in css_body
     assert "commands.updateTensorData" in tensor_standard_bindings_body
 
 
@@ -1611,6 +1676,9 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     assert 'id="subnetwork-library-modal"' in html
     assert 'id="subnetwork-library-search-input"' in html
     assert 'id="subnetwork-library-tag-filter"' in html
+    assert 'id="subnetwork-library-select-all-input"' in html
+    assert 'id="subnetwork-library-selection-summary"' in html
+    assert 'id="subnetwork-library-add-selected-button"' in html
     assert 'id="subnetwork-library-list"' in html
     assert 'id="subnetwork-catalog-warning"' in html
     assert (
@@ -1626,6 +1694,18 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     assert (
         'subnetworkLibraryModal: document.getElementById("subnetwork-library-modal")'
         in dom_body
+    )
+    assert (
+        "subnetworkLibrarySelectAllInput: document.getElementById(" in dom_body
+        and '"subnetwork-library-select-all-input"' in dom_body
+    )
+    assert (
+        "subnetworkLibrarySelectionSummary: document.getElementById(" in dom_body
+        and '"subnetwork-library-selection-summary"' in dom_body
+    )
+    assert (
+        "subnetworkLibraryAddSelectedButton: document.getElementById(" in dom_body
+        and '"subnetwork-library-add-selected-button"' in dom_body
     )
     assert (
         'subnetworkCatalogWarning: document.getElementById("subnetwork-catalog-warning")'
@@ -1690,6 +1770,28 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
     assert "To Template" in entity_markup_body
     assert "To Library" in overview_markup_body
     assert "To Library" in entity_markup_body
+    assert (
+        "Extract the selected tensors as a reusable subnetwork." in overview_markup_body
+    )
+    assert (
+        "Save the selected tensors to the subnetwork library." in overview_markup_body
+    )
+    assert (
+        "Promote the selected tensors to a reusable template." in overview_markup_body
+    )
+    assert "Create a visual group from the selected tensors." in overview_markup_body
+    assert (
+        "Extract the tensors inside this group as a reusable subnetwork."
+        in entity_markup_body
+    )
+    assert (
+        "Save the tensors inside this group to the subnetwork library."
+        in entity_markup_body
+    )
+    assert (
+        "Promote the tensors inside this group to a reusable template."
+        in entity_markup_body
+    )
 
 
 def test_template_management_assets_expose_toolbar_controls_and_routes(
@@ -1758,10 +1860,11 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="template-load-input"' in html
     assert 'id="template-manager-modal"' in html
     assert 'id="template-manager-list"' in html
+    assert 'id="template-manager-close-button"' in html
     assert 'id="template-manager-save-button"' in html
     assert 'id="template-manager-discard-button"' in html
     assert 'class="icon-button toolbar-icon-button danger button-close-static"' in html
-    assert 'id="template-manager-close-button"' not in html
+    assert "Review the session templates you created" in html
     assert 'id="template-settings-popover"' in html
     assert 'id="template-catalog-warning"' in html
     assert 'id="about-schema-version"' in html
@@ -1898,6 +2001,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert "templateManagerSaveButton: document.getElementById(" in dom_body
+    assert "templateManagerCloseButton: document.getElementById(" in dom_body
     assert "templateManagerDiscardButton: document.getElementById(" in dom_body
     assert (
         'templateCatalogWarning: document.getElementById("template-catalog-warning")'
@@ -1923,9 +2027,17 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert ".help-dialog-header[hidden] {" in body
     assert ".help-sections[hidden] {" in body
     assert ".help-shortcuts[hidden] {" in body
-    assert 'nameLabel.textContent = "Template name"' not in session_template_body
-    assert 'sourceBadge.textContent = "Session"' not in session_template_body
-    assert 'deleteButton.textContent = "Delete"' not in session_template_manager_body
+    assert 'sourceBadge.textContent = "Session"' in session_template_manager_body
+    assert "buildSerializedNetworkPreviewMarkup" in session_template_manager_body
+    assert "buildSerializedNetworkPreviewMarkup" in session_template_library_body
+    assert (
+        "deleteButton.innerHTML = renderTrashIcon();" in session_template_manager_body
+    )
+    assert "<span>Delete</span>" not in session_template_manager_body
+    assert "templateManagerCloseButton" in utilities_ui_panels_body
+    assert (
+        'bindListener(templateManagerCloseButton, "click", () =>' in shell_bindings_body
+    )
     assert 'from "./sessionTemplateDialogs.js"' in session_template_body
     assert 'from "./sessionTemplateManager.js"' in session_template_body
     assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_template_body
@@ -1939,6 +2051,10 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "function promptForSubnetworkTags(" in session_template_dialogs_body
     assert "function createSubnetworkLibrarySupport(" in session_template_library_body
     assert "function renderSubnetworkLibrary(" in session_template_library_body
+    assert (
+        "function syncSubnetworkLibraryBatchControls(" in session_template_library_body
+    )
+    assert "getFilteredSubnetworkEntries," in session_template_library_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1966,6 +2082,14 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert (
         'bindListener(openSubnetworkLibraryMenuItem, "click", () => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(subnetworkLibrarySelectAllInput, "change", (event) => {'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(subnetworkLibraryAddSelectedButton, "click", () => {'
         in shell_bindings_body
     )
     assert (
