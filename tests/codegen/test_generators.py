@@ -1112,6 +1112,44 @@ def test_grid_periodic_codegen_supports_remaining_backends_without_execution(
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
+@pytest.mark.parametrize(
+    ("collection_format", "container_name", "expected_snippets"),
+    [
+        (
+            TensorCollectionFormat.LIST,
+            "tensors",
+            ["tensors = []", "tensors.append("],
+        ),
+        (
+            TensorCollectionFormat.MATRIX,
+            "tensor_rows",
+            ["tensor_rows = []", "tensor_rows.append([])"],
+        ),
+        (
+            TensorCollectionFormat.DICT,
+            "tensors_dict",
+            ["tensors_dict = {}", "tensors_dict["],
+        ),
+    ],
+)
+def test_grid_periodic_codegen_supports_all_collection_formats(
+    engine: EngineName,
+    collection_format: TensorCollectionFormat,
+    container_name: str,
+    expected_snippets: list[str],
+) -> None:
+    result = generate_code(
+        build_grid_periodic_grid_spec(),
+        engine=engine,
+        collection_format=collection_format,
+    )
+
+    assert container_name in result.code
+    for snippet in expected_snippets:
+        assert snippet in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
 def test_tree_periodic_codegen_uses_tree_helpers_and_total_depth_loops(
     engine: EngineName,
 ) -> None:
@@ -1177,6 +1215,7 @@ def test_tree_periodic_codegen_supports_array_backends(
     if engine is EngineName.EINSUM_NUMPY:
         assert "import numpy as np" in result.code
         assert "result = np.einsum(" in result.code
+        assert "np.zeros(" in result.code
         assert (
             "child_label(level: int, node_index: int, child_index: int, slot_index: int) -> int"
             in result.code
@@ -1184,10 +1223,49 @@ def test_tree_periodic_codegen_supports_array_backends(
     if engine is EngineName.EINSUM_TORCH:
         assert "import torch" in result.code
         assert "result = torch.einsum(" in result.code
+        assert "torch.zeros(" in result.code
         assert (
             "child_label(level: int, node_index: int, child_index: int, slot_index: int) -> int"
             in result.code
         )
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+@pytest.mark.parametrize(
+    ("collection_format", "container_name", "expected_snippets"),
+    [
+        (
+            TensorCollectionFormat.LIST,
+            "tensors",
+            ["tensors = []", "tensors.append("],
+        ),
+        (
+            TensorCollectionFormat.MATRIX,
+            "tensor_rows",
+            ["tensor_rows = []", "tensor_rows.append([])"],
+        ),
+        (
+            TensorCollectionFormat.DICT,
+            "tensors_dict",
+            ["tensors_dict = {}", "tensors_dict["],
+        ),
+    ],
+)
+def test_tree_periodic_codegen_supports_all_collection_formats(
+    engine: EngineName,
+    collection_format: TensorCollectionFormat,
+    container_name: str,
+    expected_snippets: list[str],
+) -> None:
+    result = generate_code(
+        build_tree_periodic_tree_spec(),
+        engine=engine,
+        collection_format=collection_format,
+    )
+
+    assert container_name in result.code
+    for snippet in expected_snippets:
+        assert snippet in result.code
 
 
 @pytest.mark.parametrize(
