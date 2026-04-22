@@ -85,7 +85,7 @@ export function createPlannerManualRendererSupport({
               >
                 Step ${index + 1}
               </button>
-              <button type="button" class="planner-trim-button" data-trim-step="${index}">Trim Here</button>
+              <button type="button" class="planner-trim-button button-accent-contraction" data-trim-step="${index}">Trim Here</button>
             </div>
             <p>${ctx.escapeHtml(getPlannerOperandLabel(step.left_operand_id))} &times; ${ctx.escapeHtml(getPlannerOperandLabel(step.right_operand_id))}</p>
             <div class="planner-step-meta">

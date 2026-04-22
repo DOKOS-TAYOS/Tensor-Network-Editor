@@ -422,6 +422,7 @@ export function createSubnetworkLibrarySupport({
       if (entry.source === "project") {
         const renameButton = documentRef.createElement("button");
         renameButton.type = "button";
+        renameButton.className = "button-accent-template";
         renameButton.textContent = "Rename";
         renameButton.addEventListener("click", async (event) => {
           event.stopPropagation();

@@ -71,6 +71,7 @@ export function buildGroupPropertiesMarkup({
         <button
           id="add-index-to-group-button"
           type="button"
+          class="button-accent-insert"
           data-tooltip-enabled="true"
           data-shortcut-label="Add index"
           data-shortcut-description="Add one new open index to each tensor inside this group."
@@ -80,6 +81,7 @@ export function buildGroupPropertiesMarkup({
         <button
           id="extract-group-button"
           type="button"
+          class="button-accent-positive"
           ${linearPeriodicMode ? "disabled" : ""}
           ${buildTooltipAttributes(
             "Extract",
@@ -91,6 +93,7 @@ export function buildGroupPropertiesMarkup({
         <button
           id="save-group-subnetwork-library-button"
           type="button"
+          class="button-accent-template"
           ${linearPeriodicMode ? "disabled" : ""}
           ${buildTooltipAttributes(
             "To Library",
@@ -102,6 +105,7 @@ export function buildGroupPropertiesMarkup({
         <button
           id="promote-group-template-button"
           type="button"
+          class="button-accent-template"
           ${linearPeriodicMode ? "disabled" : ""}
           ${buildTooltipAttributes(
             "To Template",

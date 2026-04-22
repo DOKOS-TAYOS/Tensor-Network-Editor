@@ -129,6 +129,7 @@ export function buildMultiSelectionPropertiesMarkup({
               <button
                 id="extract-selection-button"
                 type="button"
+                class="button-accent-positive"
                 ${linearPeriodicMode ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "Extract",
@@ -140,6 +141,7 @@ export function buildMultiSelectionPropertiesMarkup({
               <button
                 id="save-selection-subnetwork-library-button"
                 type="button"
+                class="button-accent-template"
                 ${linearPeriodicMode ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "To Library",
@@ -151,6 +153,7 @@ export function buildMultiSelectionPropertiesMarkup({
               <button
                 id="promote-selection-template-button"
                 type="button"
+                class="button-accent-template"
                 ${linearPeriodicMode ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "To Template",
@@ -162,6 +165,7 @@ export function buildMultiSelectionPropertiesMarkup({
               <button
                 id="group-selection-button"
                 type="button"
+                class="button-accent-insert"
                 ${buildTooltipAttributes(
                   "Group",
                   "Create a visual group from the selected tensors."

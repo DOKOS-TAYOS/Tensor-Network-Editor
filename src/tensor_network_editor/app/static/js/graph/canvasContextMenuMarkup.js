@@ -202,6 +202,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-add-index-to-selection-button"
             type="button"
+            class="button-accent-insert"
             ${buildTooltipAttributes(
               "Add index",
               "Add one new open index to each selected tensor."
@@ -212,6 +213,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-extract-selection-button"
             type="button"
+            class="button-accent-positive"
             ${buildTooltipAttributes(
               "Extract",
               "Extract the selected tensors as a reusable subnetwork."
@@ -222,6 +224,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-save-selection-subnetwork-library-button"
             type="button"
+            class="button-accent-template"
             ${buildTooltipAttributes(
               "To Library",
               "Save the selected tensors to the subnetwork library."
@@ -232,6 +235,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-promote-selection-template-button"
             type="button"
+            class="button-accent-template"
             ${buildTooltipAttributes(
               "To Template",
               "Promote the selected tensors to a reusable template."
@@ -259,6 +263,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-group-selection-button"
             type="button"
+            class="button-accent-insert"
             ${buildTooltipAttributes(
               "Group",
               "Create a visual group from the selected tensors."
@@ -628,6 +633,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-add-index-to-group-button"
             type="button"
+            class="button-accent-insert"
             ${buildTooltipAttributes(
               "Add index",
               "Add one new open index to each tensor inside this group."
@@ -638,6 +644,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-extract-group-button"
             type="button"
+            class="button-accent-positive"
             ${buildTooltipAttributes(
               "Extract",
               "Extract the tensors inside this group as a reusable subnetwork."
@@ -648,6 +655,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-save-group-subnetwork-library-button"
             type="button"
+            class="button-accent-template"
             ${buildTooltipAttributes(
               "To Library",
               "Save the tensors inside this group to the subnetwork library."
@@ -658,6 +666,7 @@ export function createCanvasContextMenuMarkup({
           <button
             id="context-menu-promote-group-template-button"
             type="button"
+            class="button-accent-template"
             ${buildTooltipAttributes(
               "To Template",
               "Promote the tensors inside this group to a reusable template."

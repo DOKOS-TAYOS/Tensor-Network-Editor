@@ -49,7 +49,12 @@
                       <span class="toolbar-menu-item-description">Start from an empty design.</span>
                     </span>
                   </button>
-                  <button id="save-button" class="toolbar-menu-item" type="button" role="menuitem">
+                  <button
+                    id="save-button"
+                    class="toolbar-menu-item button-accent-positive"
+                    type="button"
+                    role="menuitem"
+                  >
                     <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                     <span class="toolbar-menu-item-content">
                       <span class="toolbar-menu-item-header">
@@ -72,7 +77,7 @@
                   <div class="toolbar-menu-separator" role="separator"></div>
                   <button
                     id="export-python-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-positive"
                     type="button"
                     role="menuitem"
                     title="Export the current design as a Python script."
@@ -88,7 +93,7 @@
                   </button>
                   <button
                     id="export-png-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-positive"
                     type="button"
                     role="menuitem"
                     title="Export the current design as a PNG image."
@@ -104,7 +109,7 @@
                   </button>
                   <button
                     id="export-svg-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-positive"
                     type="button"
                     role="menuitem"
                     title="Export the current design as an SVG image."
@@ -222,7 +227,7 @@
                 <div id="templates-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
                   <button
                     id="save-session-template-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Save the selected tensors as a session template."
@@ -238,7 +243,7 @@
                   </button>
                   <button
                     id="save-subnetwork-library-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Save the selected tensors into the reusable subnetwork library."
@@ -254,7 +259,7 @@
                   </button>
                   <button
                     id="load-session-template-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Load session templates from a JSON file."
@@ -270,7 +275,7 @@
                   </button>
                   <button
                     id="export-session-template-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Export the selected session template as JSON."
@@ -287,7 +292,7 @@
                   <div class="toolbar-menu-separator" role="separator"></div>
                   <button
                     id="edit-session-template-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Rename or delete session templates."
@@ -304,7 +309,7 @@
                   <div class="toolbar-menu-separator" role="separator"></div>
                   <button
                     id="open-subnetwork-library-menu-item"
-                    class="toolbar-menu-item"
+                    class="toolbar-menu-item button-accent-template"
                     type="button"
                     role="menuitem"
                     title="Browse the reusable subnetwork library."
@@ -458,11 +463,13 @@
                   <button id="undo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Undo" title="Undo">&#8630;</button>
                   <button id="redo-button" type="button" class="icon-button toolbar-icon-button" aria-label="Redo" title="Redo">&#8631;</button>
                   <button id="connect-button" type="button" class="button-accent-cool">Connect</button>
-                  <button id="create-group-button" type="button">Group</button>
+                  <button id="create-group-button" type="button" class="button-accent-insert">
+                    Group
+                  </button>
                   <button
                     id="add-note-button"
                     type="button"
-                    class="icon-button"
+                    class="icon-button button-accent-insert"
                     aria-label="Add note"
                     title="Add note"
                   >
@@ -492,7 +499,7 @@
                     <button
                       id="benchmark-compare-button"
                       type="button"
-                      class="button-accent-cool toolbar-mode-compare-button"
+                      class="button-accent-contraction toolbar-mode-compare-button"
                       hidden
                     >
                       Compare
@@ -547,7 +554,7 @@
                   <div class="template-settings-shell">
                     <button
                       id="template-settings-button"
-                      class="icon-button template-settings-button"
+                      class="icon-button template-settings-button button-accent-template"
                       type="button"
                       aria-label="Template settings"
                       title="Template settings"
@@ -1199,7 +1206,7 @@
           <button
             id="subnetwork-library-add-selected-button"
             type="button"
-            class="button-accent-positive"
+            class="button-accent-template"
             disabled
           >
             Add to session templates
@@ -1238,21 +1245,21 @@
             <button
               id="benchmark-compare-export-csv-button"
               type="button"
-              class="button-accent-cool"
+              class="button-accent-contraction"
             >
               CSV
             </button>
             <button
               id="benchmark-compare-export-text-button"
               type="button"
-              class="button-accent-cool"
+              class="button-accent-contraction"
             >
               TXT
             </button>
             <button
               id="benchmark-compare-copy-latex-button"
               type="button"
-              class="button-accent-cool"
+              class="button-accent-contraction"
             >
               Copy LaTeX
             </button>

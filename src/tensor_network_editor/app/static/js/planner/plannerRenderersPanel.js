@@ -123,7 +123,7 @@ export function createPlannerPanelRendererSupport({
         <button
           id="toggle-planner-mode-button"
           type="button"
-          class="button-accent-cool"
+          class="button-accent-contraction"
           data-shortcut="M"
           data-shortcut-label="Contract"
           data-tooltip-enabled="true"
@@ -171,7 +171,7 @@ export function createPlannerPanelRendererSupport({
         <button
           id="toggle-planner-mode-button"
           type="button"
-          class="button-accent-cool${state.plannerMode ? " is-active" : ""}"
+          class="button-accent-contraction${state.plannerMode ? " is-active" : ""}"
           data-shortcut="M"
           data-shortcut-label="Contract"
           data-tooltip-enabled="true"

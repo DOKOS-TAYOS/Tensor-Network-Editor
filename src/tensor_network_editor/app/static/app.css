@@ -20,8 +20,20 @@
   --selection-accent: #a78bfa;
   --selection-fill: rgba(167, 139, 250, 0.16);
   --positive: #8fd2a8;
+  --positive-soft: rgba(143, 210, 168, 0.16);
+  --positive-ice: #ebfff2;
   --insert: #7fd0dc;
+  --insert-soft: rgba(127, 208, 220, 0.16);
+  --insert-ice: #e8fbff;
+  --template: #f0d98a;
+  --template-soft: rgba(240, 217, 138, 0.16);
+  --template-ice: #fff6d2;
+  --contraction: #f0a15f;
+  --contraction-soft: rgba(240, 161, 95, 0.16);
+  --contraction-ice: #fff0df;
   --danger: #f08a86;
+  --danger-soft: rgba(240, 138, 134, 0.16);
+  --danger-ice: #ffedea;
   --shadow: 0 16px 38px rgba(0, 0, 0, 0.34);
   --canvas-control-height: 2.5rem;
   --toolbar-height: 3rem;
@@ -101,9 +113,9 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="
 input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([disabled]):focus-visible,
 textarea:not([disabled]):hover,
 textarea:not([disabled]):focus-visible {
-  border-color: var(--control-hover-border);
-  background: var(--control-hover-bg);
-  box-shadow: var(--control-hover-shadow);
+  border-color: var(--button-hover-border, var(--control-hover-border));
+  background: var(--button-hover-bg, var(--control-hover-bg));
+  box-shadow: var(--button-hover-shadow, var(--control-hover-shadow));
 }
 
 .button-close-static {
@@ -161,16 +173,99 @@ button.button-accent-cool[aria-pressed="true"] {
 .apply-button {
   color: var(--positive);
   border-color: rgba(143, 210, 168, 0.34);
+  --button-hover-border: rgba(143, 210, 168, 0.58);
+  --button-hover-bg: rgba(24, 46, 34, 0.96);
+  --button-hover-shadow: 0 0 0 1px rgba(143, 210, 168, 0.14);
+  --toolbar-menu-item-color: var(--positive);
+  --toolbar-menu-item-border: rgba(143, 210, 168, 0.26);
+  --toolbar-menu-item-bg: rgba(24, 46, 34, 0.22);
+  --template-settings-button-color: var(--positive);
+  --template-settings-button-border: rgba(143, 210, 168, 0.34);
+  --template-settings-button-bg: rgba(24, 46, 34, 0.86);
+  --template-settings-button-hover-color: var(--positive-ice);
 }
 
 .button-accent-insert {
   color: var(--insert);
   border-color: rgba(127, 208, 220, 0.34);
+  --button-hover-border: rgba(127, 208, 220, 0.58);
+  --button-hover-bg: rgba(18, 46, 54, 0.96);
+  --button-hover-shadow: 0 0 0 1px rgba(127, 208, 220, 0.14);
+  --toolbar-menu-item-color: var(--insert);
+  --toolbar-menu-item-border: rgba(127, 208, 220, 0.26);
+  --toolbar-menu-item-bg: rgba(18, 46, 54, 0.22);
+  --template-settings-button-color: var(--insert);
+  --template-settings-button-border: rgba(127, 208, 220, 0.34);
+  --template-settings-button-bg: rgba(18, 46, 54, 0.86);
+  --template-settings-button-hover-color: var(--insert-ice);
 }
 
-button.danger {
+button.button-accent-insert.is-active,
+button.button-accent-insert[aria-pressed="true"] {
+  background: var(--insert-soft);
+  border-color: rgba(127, 208, 220, 0.58);
+  color: var(--insert-ice);
+}
+
+.button-accent-template {
+  color: var(--template);
+  border-color: rgba(240, 217, 138, 0.34);
+  --button-hover-border: rgba(240, 217, 138, 0.58);
+  --button-hover-bg: rgba(55, 46, 18, 0.96);
+  --button-hover-shadow: 0 0 0 1px rgba(240, 217, 138, 0.14);
+  --toolbar-menu-item-color: var(--template);
+  --toolbar-menu-item-border: rgba(240, 217, 138, 0.26);
+  --toolbar-menu-item-bg: rgba(55, 46, 18, 0.22);
+  --template-settings-button-color: var(--template);
+  --template-settings-button-border: rgba(240, 217, 138, 0.34);
+  --template-settings-button-bg: rgba(55, 46, 18, 0.86);
+  --template-settings-button-hover-color: var(--template-ice);
+}
+
+button.button-accent-template.is-active,
+button.button-accent-template[aria-pressed="true"] {
+  background: var(--template-soft);
+  border-color: rgba(240, 217, 138, 0.58);
+  color: var(--template-ice);
+}
+
+.button-accent-contraction {
+  color: var(--contraction);
+  border-color: rgba(240, 161, 95, 0.34);
+  --button-hover-border: rgba(240, 161, 95, 0.58);
+  --button-hover-bg: rgba(58, 34, 18, 0.96);
+  --button-hover-shadow: 0 0 0 1px rgba(240, 161, 95, 0.14);
+  --toolbar-menu-item-color: var(--contraction);
+  --toolbar-menu-item-border: rgba(240, 161, 95, 0.26);
+  --toolbar-menu-item-bg: rgba(58, 34, 18, 0.22);
+  --template-settings-button-color: var(--contraction);
+  --template-settings-button-border: rgba(240, 161, 95, 0.34);
+  --template-settings-button-bg: rgba(58, 34, 18, 0.86);
+  --template-settings-button-hover-color: var(--contraction-ice);
+}
+
+button.button-accent-contraction.is-active,
+button.button-accent-contraction[aria-pressed="true"],
+button.apply-button.is-active,
+button.apply-button[aria-pressed="true"] {
+  background: var(--contraction-soft);
+  border-color: rgba(240, 161, 95, 0.58);
+  color: var(--contraction-ice);
+}
+
+.danger {
   color: var(--danger);
   border-color: rgba(240, 138, 134, 0.34);
+  --button-hover-border: rgba(240, 138, 134, 0.58);
+  --button-hover-bg: rgba(58, 24, 26, 0.96);
+  --button-hover-shadow: 0 0 0 1px rgba(240, 138, 134, 0.14);
+  --toolbar-menu-item-color: var(--danger);
+  --toolbar-menu-item-border: rgba(240, 138, 134, 0.26);
+  --toolbar-menu-item-bg: rgba(58, 24, 26, 0.22);
+  --template-settings-button-color: var(--danger);
+  --template-settings-button-border: rgba(240, 138, 134, 0.34);
+  --template-settings-button-bg: rgba(58, 24, 26, 0.86);
+  --template-settings-button-hover-color: var(--danger-ice);
 }
 
 textarea,
@@ -313,18 +408,18 @@ select {
   align-items: center;
   column-gap: 0.65rem;
   padding: 0.46rem 0.55rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--toolbar-menu-item-border, transparent);
   border-radius: 4px;
-  background: transparent;
+  background: var(--toolbar-menu-item-bg, transparent);
   text-align: left;
-  color: var(--ink);
+  color: var(--toolbar-menu-item-color, var(--ink));
   font-size: 0.92rem;
 }
 
 .toolbar-menu-item:hover {
-  border-color: var(--control-hover-border);
-  background: var(--control-hover-bg);
-  box-shadow: var(--control-hover-shadow);
+  border-color: var(--button-hover-border, var(--control-hover-border));
+  background: var(--button-hover-bg, var(--control-hover-bg));
+  box-shadow: var(--button-hover-shadow, var(--control-hover-shadow));
 }
 
 .toolbar-menu-item-check {
@@ -460,14 +555,17 @@ select {
 }
 
 .template-settings-button {
-  color: rgba(194, 201, 214, 0.82);
-  border-color: rgba(112, 124, 147, 0.44);
-  background: rgba(14, 20, 30, 0.84);
+  color: var(--template-settings-button-color, rgba(194, 201, 214, 0.82));
+  border-color: var(--template-settings-button-border, rgba(112, 124, 147, 0.44));
+  background: var(--template-settings-button-bg, rgba(14, 20, 30, 0.84));
 }
 
 .template-settings-button:hover,
 .template-settings-button:focus-visible {
-  color: rgba(236, 242, 251, 0.94);
+  color: var(
+    --template-settings-button-hover-color,
+    rgba(236, 242, 251, 0.94)
+  );
 }
 
 .template-settings-icon {
@@ -1586,7 +1684,7 @@ select {
 }
 
 .planner-disclosure-toggle.is-open {
-  border-color: var(--accent);
+  border-color: var(--button-hover-border, var(--accent));
 }
 
 .planner-disclosure-state {

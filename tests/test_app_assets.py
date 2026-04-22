@@ -1440,6 +1440,159 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     assert "templateCatalogWarning.title =" not in utilities_body
 
 
+def test_button_assets_apply_semantic_action_color_families(
+    editor_server: EditorServer,
+) -> None:
+    html = request_text(f"{editor_server.base_url}/")
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+    overview_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/overviewPropertiesMarkup.js"
+    )
+    entity_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
+    )
+    tensor_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardMarkup.js"
+    )
+    context_menu_markup_body = request_text(
+        f"{editor_server.base_url}/js/graph/canvasContextMenuMarkup.js"
+    )
+    planner_panel_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersPanel.js"
+    )
+    planner_automatic_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersAutomatic.js"
+    )
+    planner_manual_body = request_text(
+        f"{editor_server.base_url}/js/planner/plannerRenderersManual.js"
+    )
+    library_body = request_text(
+        f"{editor_server.base_url}/js/session/sessionTemplateFlowSubnetworkLibrary.js"
+    )
+
+    def assert_button_class(body: str, button_id: str, class_name: str) -> None:
+        pattern = (
+            rf'id="{re.escape(button_id)}"[^>]*class="[^"]*{re.escape(class_name)}'
+        )
+        assert re.search(pattern, body, re.DOTALL), (
+            f"Expected button {button_id!r} to include class {class_name!r}."
+        )
+
+    assert ".button-accent-template {" in css_body
+    assert ".button-accent-contraction {" in css_body
+
+    for button_id in (
+        "add-note-button",
+        "create-group-button",
+        "insert-template-button",
+    ):
+        assert_button_class(html, button_id, "button-accent-insert")
+
+    for button_id in (
+        "save-button",
+        "export-python-menu-item",
+        "export-png-menu-item",
+        "export-svg-menu-item",
+        "generate-button",
+        "template-manager-save-button",
+    ):
+        assert_button_class(html, button_id, "button-accent-positive")
+
+    for button_id in (
+        "save-session-template-menu-item",
+        "save-subnetwork-library-menu-item",
+        "load-session-template-menu-item",
+        "export-session-template-menu-item",
+        "edit-session-template-menu-item",
+        "open-subnetwork-library-menu-item",
+        "subnetwork-library-add-selected-button",
+        "template-settings-button",
+    ):
+        assert_button_class(html, button_id, "button-accent-template")
+
+    for button_id in (
+        "benchmark-compare-button",
+        "benchmark-compare-export-csv-button",
+        "benchmark-compare-export-text-button",
+        "benchmark-compare-copy-latex-button",
+    ):
+        assert_button_class(html, button_id, "button-accent-contraction")
+
+    for button_id in (
+        "add-index-to-selection-button",
+        "group-selection-button",
+    ):
+        assert_button_class(overview_markup_body, button_id, "button-accent-insert")
+    assert_button_class(
+        overview_markup_body, "extract-selection-button", "button-accent-positive"
+    )
+    for button_id in (
+        "save-selection-subnetwork-library-button",
+        "promote-selection-template-button",
+    ):
+        assert_button_class(overview_markup_body, button_id, "button-accent-template")
+
+    for button_id in (
+        "add-index-to-group-button",
+        "context-menu-add-index-to-group-button",
+    ):
+        assert_button_class(
+            entity_markup_body + context_menu_markup_body,
+            button_id,
+            "button-accent-insert",
+        )
+    for button_id in ("extract-group-button", "context-menu-extract-group-button"):
+        assert_button_class(
+            entity_markup_body + context_menu_markup_body,
+            button_id,
+            "button-accent-positive",
+        )
+    for button_id in (
+        "save-group-subnetwork-library-button",
+        "promote-group-template-button",
+        "context-menu-save-group-subnetwork-library-button",
+        "context-menu-promote-group-template-button",
+    ):
+        assert_button_class(
+            entity_markup_body + context_menu_markup_body,
+            button_id,
+            "button-accent-template",
+        )
+
+    assert_button_class(tensor_markup_body, "add-index-button", "button-accent-insert")
+
+    for button_id in (
+        "context-menu-add-index-to-selection-button",
+        "context-menu-add-index-button",
+        "context-menu-group-selection-button",
+    ):
+        assert_button_class(context_menu_markup_body, button_id, "button-accent-insert")
+    for button_id in ("context-menu-extract-selection-button",):
+        assert_button_class(
+            context_menu_markup_body, button_id, "button-accent-positive"
+        )
+    for button_id in (
+        "context-menu-save-selection-subnetwork-library-button",
+        "context-menu-promote-selection-template-button",
+    ):
+        assert_button_class(
+            context_menu_markup_body, button_id, "button-accent-template"
+        )
+
+    assert_button_class(
+        planner_panel_body, "toggle-planner-mode-button", "button-accent-contraction"
+    )
+    assert 'class="button-accent-contraction${isPreviewing ? " is-active" : ""}"' in (
+        planner_automatic_body
+    )
+    assert 'class="button-accent-contraction"' in planner_automatic_body
+    assert (
+        'class="planner-trim-button button-accent-contraction"' in planner_manual_body
+    )
+
+    assert 'renameButton.className = "button-accent-template";' in library_body
+
+
 def test_ui_utility_assets_route_panels_generated_code_toolbar_and_status_through_helpers(
     editor_server: EditorServer,
 ) -> None:

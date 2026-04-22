@@ -163,7 +163,7 @@ export function createPlannerAutomaticRendererSupport({
       <section class="planner-section planner-disclosure">
         <button
           type="button"
-          class="planner-disclosure-toggle button-accent-cool${isOpen ? " is-open" : ""}"
+          class="planner-disclosure-toggle button-accent-contraction${isOpen ? " is-open" : ""}"
           data-disclosure="${ctx.escapeHtml(disclosureKey)}"
           ${buildTooltipAttributes(title, sectionDescription)}
         >
@@ -210,7 +210,7 @@ export function createPlannerAutomaticRendererSupport({
                   <div class="button-row">
                     <button
                       type="button"
-                      class="button-accent-cool${isPreviewing ? " is-active" : ""}"
+                      class="button-accent-contraction${isPreviewing ? " is-active" : ""}"
                       data-preview-mode="${ctx.escapeHtml(mode)}"
                       data-shortcut="${ctx.escapeHtml(previewShortcut)}"
                       data-shortcut-label="${ctx.escapeHtml(isPreviewing ? "Deactivate preview" : "Preview")}"
@@ -223,7 +223,7 @@ export function createPlannerAutomaticRendererSupport({
                     </button>
                     <button
                       type="button"
-                      class="apply-button"
+                      class="button-accent-contraction"
                       data-accept-mode="${ctx.escapeHtml(mode)}"
                       data-shortcut="${ctx.escapeHtml(acceptShortcut)}"
                       data-shortcut-label="Accept"
