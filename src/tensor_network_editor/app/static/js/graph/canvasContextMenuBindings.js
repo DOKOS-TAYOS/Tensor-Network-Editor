@@ -366,12 +366,31 @@ export function createCanvasContextMenuBindings({
     });
   }
 
-  function bindIndexSelectionContextTarget() {
+  function bindIndexSelectionContextTarget(resolvedTarget) {
+    const dimensionInput = document.getElementById(
+      "context-menu-selection-dimension-input"
+    );
     const colorInput = document.getElementById("context-menu-selection-color-input");
     const createHyperedgeButton = document.getElementById(
       "context-menu-create-hyperedge-button"
     );
     const deleteButton = document.getElementById("context-menu-delete-selection-button");
+
+    bindCommitOnBlurAndEnter(dimensionInput, () => {
+      const rawValue = dimensionInput.value.trim();
+      if (!rawValue) {
+        return;
+      }
+      propertyCommands.updateIndexDimensions({
+        indexIds: resolvedTarget.indexIds,
+        invalidate: propertyInvalidation({
+          analysis: true,
+          graph: true,
+        }),
+        rawValue,
+        statusMessage: `Updated ${resolvedTarget.indexIds.length} indices.`,
+      });
+    });
 
     bindSelectionColorInput(colorInput, {
       statusMessage: "Updated the selection color.",

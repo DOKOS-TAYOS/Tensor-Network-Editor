@@ -102,6 +102,10 @@ tries to rebuild:
 - `--python-reconstruction-level best_available`: currently only supported for
   the package's own `generated` Python exports
 
+If `--python-import-mode live` is used on generated source and the live import
+fails because the backend package is missing, the loader falls back to the
+static generated-source parser and reports the fallback as a warning.
+
 ## Headless Commands
 
 Headless commands work without opening the visual editor:
@@ -121,6 +125,14 @@ tensor-network-editor subnetwork save my_network.json --tensor-ids tensor_a tens
 ```
 
 These are useful for scripts, quick checks, and CI.
+
+<p align="center">
+  <img
+    src="images/cli-validation-workflow.png"
+    alt="CLI validation linting analysis and JSON output workflow"
+    width="900"
+  />
+</p>
 
 ## Validate
 
@@ -247,6 +259,10 @@ still works and the automatic rows are marked unavailable. Text, CSV, and LaTeX
 show `-` for those metrics, while JSON preserves each row `status` and
 `message`.
 
+Rows whose analysis is incomplete can still show the partial metrics available
+in their summary. Treat the row `status` as the source of truth when a script
+needs to distinguish complete and incomplete comparisons.
+
 For periodic specs, benchmark uses the same active-cell normalization as
 `analyze`, so it operates on the active linear/grid/tree representative cell.
 
@@ -354,6 +370,10 @@ Print the built template JSON instead of writing a file:
 tensor-network-editor template build peps_2x2 --graph-size 3
 ```
 
+`template build` accepts the same `--format` option shape as other template
+commands, but the built spec itself is serialized as JSON when `--output` is
+omitted.
+
 Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, and Binary Tree.
 When `--output` is omitted, `template build` prints the serialized spec JSON to
 standard output.
@@ -416,7 +436,7 @@ These commands support `--format json`:
 - `subnetwork list`
 - `template list`
 
-`template build` already emits JSON when you omit `--output`.
+`template build` emits the built spec JSON when you omit `--output`.
 `canonicalize` already emits canonical JSON when you omit `--output`.
 Use JSON output when another script should consume the result.
 

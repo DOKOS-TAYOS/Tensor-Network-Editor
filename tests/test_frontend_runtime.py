@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import textwrap
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -1050,6 +1051,16 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Original path") {{
           throw new Error(`Expected moving right to project scheme 1 into the live plan, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
         }}
+        runtime.renameActiveBenchmarkScheme("Alpha ");
+        runtime.updateToolbarState();
+        if (ctx.dom.benchmarkSchemeNameInput.value !== "Alpha ") {{
+          throw new Error(`Expected benchmark scheme names to preserve a typed trailing space while editing, received '${{ctx.dom.benchmarkSchemeNameInput.value}}'.`);
+        }}
+        runtime.renameActiveBenchmarkScheme(`${{ctx.dom.benchmarkSchemeNameInput.value}}Beta`);
+        runtime.updateToolbarState();
+        if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Alpha Beta") {{
+          throw new Error(`Expected benchmark scheme names to allow internal spaces, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
+        }}
         await new Promise((resolve) => setTimeout(resolve, 0));
         ctx.renderPlanner();
         if (analysisRequestCount !== 1) {{
@@ -1608,6 +1619,20 @@ def _write_benchmark_compare_export_runtime_regression_script(
                 }},
               }};
             }}
+            if (planName === "Gamma") {{
+              return {{
+                ok: true,
+                manual: {{
+                  status: "incomplete",
+                  summary: {{
+                    total_estimated_flops: 7,
+                    total_estimated_macs: 9,
+                    peak_intermediate_size: 11,
+                    peak_intermediate_bytes: 44,
+                  }},
+                }},
+              }};
+            }}
             throw new Error(`Unexpected scheme name: ${{planName}}.`);
           }},
         }};
@@ -1685,6 +1710,8 @@ def _write_benchmark_compare_export_runtime_regression_script(
         runtime.switchBenchmarkPosition(1);
         runtime.switchBenchmarkPosition(1);
         runtime.renameActiveBenchmarkScheme("Beta & Co");
+        runtime.switchBenchmarkPosition(1);
+        runtime.renameActiveBenchmarkScheme("Gamma");
         await runtime.openBenchmarkCompareModal();
 
         runtime.exportBenchmarkCompareAsCsv();
@@ -1701,6 +1728,9 @@ def _write_benchmark_compare_export_runtime_regression_script(
         if (!csvExport.text.includes("Alpha,10,20,30,40 bytes")) {{
           throw new Error(`Expected the CSV export to include the Alpha metrics, received ${{csvExport.text}}.`);
         }}
+        if (!csvExport.text.includes("Gamma,7,9,11,44 bytes")) {{
+          throw new Error(`Expected the CSV export to include the partial Gamma metrics, received ${{csvExport.text}}.`);
+        }}
 
         const textExport = exportEvents.find((entry) => entry.kind === "download" && entry.filename.endsWith(".txt"));
         if (!textExport) {{
@@ -1708,6 +1738,9 @@ def _write_benchmark_compare_export_runtime_regression_script(
         }}
         if (!textExport.text.includes("Beta & Co") || !textExport.text.includes("Peak Memory")) {{
           throw new Error(`Expected the TXT export to include the table headers and scheme names, received ${{textExport.text}}.`);
+        }}
+        if (!textExport.text.includes("Gamma") || !textExport.text.includes("44 bytes")) {{
+          throw new Error(`Expected the TXT export to include the partial Gamma metrics, received ${{textExport.text}}.`);
         }}
 
         const latexExport = exportEvents.find((entry) => entry.kind === "copy");
@@ -1719,6 +1752,9 @@ def _write_benchmark_compare_export_runtime_regression_script(
         }}
         if (!latexExport.text.includes("Beta \\\\& Co & 12 & 18 & 24 & 36 bytes \\\\\\\\")) {{
           throw new Error(`Expected the copied LaTeX to include the escaped Beta row, received ${{latexExport.text}}.`);
+        }}
+        if (!latexExport.text.includes("Gamma & 7 & 9 & 11 & 44 bytes \\\\\\\\")) {{
+          throw new Error(`Expected the copied LaTeX to include the partial Gamma row, received ${{latexExport.text}}.`);
         }}
         """
     )
@@ -3637,6 +3673,179 @@ def _write_minimap_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_svg_export_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "svg_export_runtime_regression.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const exportMinimapUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "graph" / "exportMinimap.js")!r}).href;
+            const {{ registerExportMinimap }} = await import(exportMinimapUrl);
+
+            function escapeSvgText(value) {{
+              return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&apos;");
+            }}
+
+            function escapeSvgAttribute(value) {{
+              return escapeSvgText(value);
+            }}
+
+            function buildQuadraticCurve(source, target) {{
+              const midpoint = {{
+                x: (source.x + target.x) / 2,
+                y: (source.y + target.y) / 2,
+              }};
+              const deltaX = target.x - source.x;
+              const deltaY = target.y - source.y;
+              const distance = Math.max(1, Math.sqrt(deltaX * deltaX + deltaY * deltaY));
+              const normal = {{ x: -deltaY / distance, y: deltaX / distance }};
+              const bend = Math.min(60, Math.max(18, distance * 0.18));
+              return {{
+                control: {{
+                  x: midpoint.x + normal.x * bend,
+                  y: midpoint.y + normal.y * bend,
+                }},
+              }};
+            }}
+
+            function quadraticPointAt(source, control, target, t) {{
+              const inverse = 1 - t;
+              return {{
+                x: inverse * inverse * source.x + 2 * inverse * t * control.x + t * t * target.x,
+                y: inverse * inverse * source.y + 2 * inverse * t * control.y + t * t * target.y,
+              }};
+            }}
+
+            const spec = {{
+              name: "svg-regression",
+              tensors: [
+                {{
+                  id: "tensor_a1",
+                  name: "A1",
+                  position: {{ x: 120, y: 100 }},
+                  metadata: {{}},
+                  indices: [
+                    {{
+                      id: "index_a1_right",
+                      name: "right",
+                      dimension: 3,
+                      offset: {{ x: 58, y: 0 }},
+                      metadata: {{}},
+                    }},
+                  ],
+                }},
+                {{
+                  id: "tensor_a2",
+                  name: "A2",
+                  position: {{ x: 320, y: 100 }},
+                  metadata: {{}},
+                  indices: [
+                    {{
+                      id: "index_a2_left",
+                      name: "left",
+                      dimension: 3,
+                      offset: {{ x: -58, y: 0 }},
+                      metadata: {{}},
+                    }},
+                  ],
+                }},
+              ],
+              edges: [
+                {{
+                  id: "edge_a1_a2",
+                  name: "edge-r1-c1-right",
+                  leftIndexId: "index_a1_right",
+                  rightIndexId: "index_a2_left",
+                  metadata: {{}},
+                }},
+              ],
+            }};
+
+            const ctx = {{
+              state: {{
+                spec,
+                selectionIds: [],
+              }},
+              constants: {{
+                INDEX_RADIUS: 15,
+              }},
+              dom: {{}},
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: globalThis,
+              document: {{}},
+              cytoscape: null,
+              computeDesignBounds() {{
+                return {{ x1: 0, y1: 0, x2: 440, y2: 220 }};
+              }},
+              getVisibleTensors() {{
+                return spec.tensors;
+              }},
+              getVisibleEdges() {{
+                return spec.edges;
+              }},
+              findIndexOwner(indexId) {{
+                for (const tensor of spec.tensors) {{
+                  const index = tensor.indices.find((candidate) => candidate.id === indexId);
+                  if (index) {{
+                    return {{ tensor, index }};
+                  }}
+                }}
+                return null;
+              }},
+              findEdgeByIndexId(indexId) {{
+                return (
+                  spec.edges.find(
+                    (edge) =>
+                      edge.leftIndexId === indexId || edge.rightIndexId === indexId
+                  ) || null
+                );
+              }},
+              indexAbsolutePosition(tensor, index) {{
+                return {{
+                  x: tensor.position.x + index.offset.x,
+                  y: tensor.position.y + index.offset.y,
+                }};
+              }},
+              buildQuadraticCurve,
+              quadraticPointAt,
+              getMetadataColor(metadata, fallback) {{
+                return metadata && typeof metadata.color === "string" ? metadata.color : fallback;
+              }},
+              shiftColor(color) {{
+                return color;
+              }},
+              tensorWidth() {{
+                return 180;
+              }},
+              tensorHeight() {{
+                return 108;
+              }},
+              readableTextColor() {{
+                return "#f5f9ff";
+              }},
+              getIndexColor(index, isConnected) {{
+                return isConnected ? "#7ed3cf" : "#d7ae68";
+              }},
+              escapeSvgText,
+              escapeSvgAttribute,
+            }};
+
+            registerExportMinimap(ctx);
+            process.stdout.write(ctx.buildSvgExport());
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
     tmp_path: Path,
 ) -> Path:
@@ -3875,6 +4084,13 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
                         name: "left",
                         dimension: 3,
                         offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                      {
+                        id: "tensor_b_right",
+                        name: "right",
+                        dimension: 3,
+                        offset: { x: 38, y: 0 },
                         metadata: {},
                       },
                     ],
@@ -4126,6 +4342,21 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
             ctx.state.spec = ctx.normalizeSpec(buildSpec());
             ctx.bumpSpecRevision();
             ctx.setSelection(
+              ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left", "tensor_b_right"],
+              { primaryId: "tensor_b_right" }
+            );
+            ctx.renderProperties();
+
+            const ownerSelectionButton = document.getElementById("create-hyperedge-button");
+            if (!ownerSelectionButton) {
+              throw new Error("Expected the Selection panel to expose the hyperedge button when owner tensors are selected together with their indices.");
+            }
+            ownerSelectionButton.click();
+            assertSingleHyperedge(ctx, "The Selection panel button with owner tensors");
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
               ["tensor_a_left", "tensor_b_left", "tensor_c_left"],
               { primaryId: "tensor_b_left" }
             );
@@ -4135,6 +4366,19 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
               throw new Error("H should prevent the browser default for a valid hyperedge selection.");
             }
             assertSingleHyperedge(ctx, "The H shortcut");
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left", "tensor_b_right"],
+              { primaryId: "tensor_b_right" }
+            );
+            const ownerShortcutEvent = createEvent({ key: "h" });
+            ctx.handleKeydown(ownerShortcutEvent);
+            if (ownerShortcutEvent.preventDefaultCalls !== 1) {
+              throw new Error("H should prevent the browser default when owner tensors are selected together with valid hyperedge indices.");
+            }
+            assertSingleHyperedge(ctx, "The H shortcut with owner tensors");
 
             statusCalls.length = 0;
             ctx.state.spec = ctx.normalizeSpec(buildSpec());
@@ -4163,6 +4407,34 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
             ctx.state.spec = ctx.normalizeSpec(buildSpec());
             ctx.bumpSpecRevision();
             ctx.setSelection(
+              ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left", "tensor_b_right"],
+              { primaryId: "tensor_b_right" }
+            );
+            ctx.openCanvasContextMenu({
+              kind: "index",
+              id: "tensor_b_left",
+              clientX: 120,
+              clientY: 160,
+            });
+            if (
+              !ctx.dom.canvasContextMenuRoot.innerHTML.includes(
+                "context-menu-create-hyperedge-button"
+              )
+            ) {
+              throw new Error(`Expected the mixed owner/index context menu to expose a hyperedge action, received ${ctx.dom.canvasContextMenuRoot.innerHTML}.`);
+            }
+            const ownerContextButton = document.getElementById(
+              "context-menu-create-hyperedge-button"
+            );
+            if (!ownerContextButton) {
+              throw new Error("Expected the mixed owner/index context-menu hyperedge button to be registered in the fake document.");
+            }
+            ownerContextButton.click();
+            assertSingleHyperedge(ctx, "The multi-index context menu with owner tensors");
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
               ["tensor_a_left", "tensor_b_left", "tensor_c_left"],
               { primaryId: "tensor_b_left" }
             );
@@ -4187,6 +4459,522 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
             }
             contextButton.click();
             assertSingleHyperedge(ctx, "The multi-index context menu");
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+def _write_multi_index_dimension_batch_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "multi_index_dimension_batch_runtime.mjs"
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "properties.runtime.mjs": "properties/properties.js",
+            "propertiesSupport.js": "properties/propertiesSupport.js",
+            "propertiesRenderers.js": "properties/propertiesRenderers.js",
+            "canvasContextMenu.runtime.mjs": "graph/canvasContextMenu.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const [
+              stateModule,
+              utilitiesModule,
+              historyModule,
+              propertiesModule,
+              canvasContextMenuModule,
+            ] = await Promise.all([
+              import(new URL("./state.runtime.mjs", baseUrl).href),
+              import(new URL("./utilities.runtime.mjs", baseUrl).href),
+              import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+              import(new URL("./properties.runtime.mjs", baseUrl).href),
+              import(new URL("./canvasContextMenu.runtime.mjs", baseUrl).href),
+            ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { registerHistorySelection } = historyModule;
+            const { registerProperties } = propertiesModule;
+            const { registerCanvasContextMenu } = canvasContextMenuModule;
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createFakeElement(id = null, tagName = "div") {
+              return {
+                id,
+                tagName: String(tagName || "div").toUpperCase(),
+                value: "",
+                textContent: "",
+                selected: false,
+                checked: false,
+                disabled: false,
+                hidden: false,
+                dataset: {},
+                attributes: {},
+                style: {},
+                className: "",
+                classList: createClassList(),
+                listeners: {},
+                ownerDocument: null,
+                addEventListener(eventName, listener) {
+                  if (!this.listeners[eventName]) {
+                    this.listeners[eventName] = [];
+                  }
+                  this.listeners[eventName].push(listener);
+                },
+                dispatchEvent(eventName, event = {}) {
+                  (this.listeners[eventName] || []).forEach((listener) => {
+                    listener({
+                      preventDefault() {},
+                      stopPropagation() {},
+                      target: this,
+                      ...event,
+                    });
+                  });
+                },
+                click() {
+                  this.dispatchEvent("click");
+                },
+                focus() {
+                  if (this.ownerDocument) {
+                    this.ownerDocument.activeElement = this;
+                  }
+                },
+                setAttribute(name, value) {
+                  this.attributes[name] = value;
+                },
+                removeAttribute(name) {
+                  delete this.attributes[name];
+                },
+                appendChild() {},
+                closest() {
+                  return null;
+                },
+              };
+            }
+
+            function createFakeDocument() {
+              const elements = new Map();
+              return {
+                activeElement: null,
+                registerHtml(html) {
+                  elements.clear();
+                  const tagPattern = /<(input|textarea|button|select)[^>]*id="([^"]+)"[^>]*>/g;
+                  let tagMatch = tagPattern.exec(html);
+                  while (tagMatch) {
+                    const element = createFakeElement(tagMatch[2], tagMatch[1]);
+                    element.ownerDocument = this;
+                    elements.set(tagMatch[2], element);
+                    tagMatch = tagPattern.exec(html);
+                  }
+                },
+                getElementById(id) {
+                  return elements.get(id) || null;
+                },
+                createElement(tagName) {
+                  const element = createFakeElement(null, tagName);
+                  element.ownerDocument = this;
+                  return element;
+                },
+                querySelectorAll() {
+                  return [];
+                },
+                addEventListener() {},
+                removeEventListener() {},
+                body: {
+                  appendChild() {},
+                },
+              };
+            }
+
+            function createPanel(document) {
+              let html = "";
+              return {
+                get innerHTML() {
+                  return html;
+                },
+                set innerHTML(value) {
+                  html = value;
+                  document.registerHtml(value);
+                },
+                querySelectorAll() {
+                  return [];
+                },
+                getBoundingClientRect() {
+                  return {
+                    left: 0,
+                    top: 0,
+                    width: 1000,
+                    height: 800,
+                    right: 1000,
+                    bottom: 800,
+                  };
+                },
+              };
+            }
+
+            function createButton() {
+              return createFakeElement(null, "button");
+            }
+
+            function createSelectElement(value = "") {
+              const element = createFakeElement(null, "select");
+              element.value = value;
+              element.options = [];
+              element.appendChild = function appendOption(option) {
+                this.options.push(option);
+                if (option.selected) {
+                  this.value = option.value;
+                }
+              };
+              return element;
+            }
+
+            function buildSpec() {
+              return {
+                id: "network_multi_index_dimension_batch",
+                name: "multi-index-dimension-batch",
+                tensors: [
+                  {
+                    id: "tensor_a",
+                    name: "A",
+                    position: { x: 120, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_a_left",
+                        name: "left",
+                        dimension: 2,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "tensor_b",
+                    name: "B",
+                    position: { x: 320, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_b_left",
+                        name: "left",
+                        dimension: 3,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                      {
+                        id: "tensor_b_right",
+                        name: "right",
+                        dimension: 7,
+                        offset: { x: 38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                  {
+                    id: "tensor_c",
+                    name: "C",
+                    position: { x: 520, y: 120 },
+                    size: { width: 140, height: 84 },
+                    indices: [
+                      {
+                        id: "tensor_c_left",
+                        name: "left",
+                        dimension: 5,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                    metadata: {},
+                  },
+                ],
+                edges: [],
+                hyperedges: [],
+                groups: [],
+                notes: [],
+                contraction_plan: null,
+                metadata: {},
+              };
+            }
+
+            function assertDimensions(ctx, indexIds, expectedDimension, sourceLabel) {
+              const dimensions = indexIds.map((indexId) => {
+                const located = ctx.findIndexOwner(indexId);
+                return located && located.index ? located.index.dimension : null;
+              });
+              if (!dimensions.every((dimension) => dimension === expectedDimension)) {
+                throw new Error(`${sourceLabel} should set every selected index to ${expectedDimension}, received ${JSON.stringify(dimensions)}.`);
+              }
+            }
+
+            const selectedIndexIds = ["tensor_a_left", "tensor_b_left", "tensor_c_left"];
+            const document = createFakeDocument();
+            const propertiesPanel = createPanel(document);
+            const canvasContextMenuRoot = createPanel(document);
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel,
+                canvasContextMenuRoot,
+                generatedCode: { value: "" },
+                engineSelect: createSelectElement("tensornetwork"),
+                collectionFormatSelect: createSelectElement("list"),
+                exportFormatSelect: { value: "py" },
+                addNoteButton: createButton(),
+                connectButton: createButton(),
+                loadInput: { click() {} },
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: createButton(),
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: { textContent: "" },
+                linearPeriodicNextCellButton: createButton(),
+                templateSelect: createSelectElement(""),
+                templateParameterPanel: { hidden: true },
+                templateGraphSizeLabel: { textContent: "" },
+                templateGraphSizeInput: { value: "2", min: "1", addEventListener() {} },
+                templateBondDimensionInput: { value: "3", min: "1", addEventListener() {} },
+                templatePhysicalDimensionInput: { value: "2", min: "1", addEventListener() {} },
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                  addEventListener() {},
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                notesLayer: {},
+                selectionBox: {},
+                minimapCanvas: {},
+                sidebar: {},
+                plannerPanel: {},
+                generateButton: createButton(),
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+                addEventListener() {},
+                removeEventListener() {},
+              },
+              document,
+              cytoscape: null,
+              tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+              tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+              renderGraph() {},
+              renderOverlayDecorations() {},
+              renderMinimap() {},
+              renderPlanner() {},
+              renderSidebarTabs() {},
+              refreshContractionAnalysis() {},
+              repairContractionPlan() {},
+              updateToolbarState() {},
+              captureEditableFocus() {
+                return null;
+              },
+              restoreEditableFocus() {},
+              findNoteById() {
+                return null;
+              },
+              isTextInput() {
+                return false;
+              },
+              setStatus(message) {
+                this.dom.statusMessage.textContent = message;
+              },
+              toggleSidebarCollapsed() {},
+              setActiveSidebarTab() {},
+              createGroupFromSelection() {},
+              addNoteAtCenter() {},
+              toggleTemplateManager() {},
+              openCanvasMetadataFilter() {},
+              openCanvasNameSearch() {},
+              toggleLinearPeriodicMode() {},
+              setLinearPeriodicMode() {},
+              setGridPeriodicMode() {},
+              setTreePeriodicMode() {},
+              setBenchmarkMode() {},
+              switchLinearPeriodicCell() {},
+              switchGridPeriodicCell() {},
+              switchTreePeriodicCell() {},
+              switchBenchmarkPosition() {},
+              nudgeSelectedElements() {
+                return false;
+              },
+              openSessionTemplatePicker() {},
+              exportSelectedTemplateSpec() {},
+              closeBenchmarkCompareModal() {},
+              addTensorAtCenter() {},
+              toggleConnectMode() {},
+              insertTemplate() {},
+              saveDesign() {},
+              performUndo() {},
+              performRedo() {},
+              toggleGeneratedCodeModal() {},
+              finishBoxSelection() {},
+              generateCode() {},
+              deleteSelection() {},
+            };
+
+            registerUtilities(ctx);
+            registerHistorySelection(ctx);
+            registerProperties(ctx);
+            registerCanvasContextMenu(ctx);
+
+            ctx.render = (options = {}) => {
+              const resolvedOptions = {
+                graph: true,
+                properties: true,
+                code: true,
+                toolbar: true,
+                overlays: true,
+                planner: true,
+                sidebarTabs: true,
+                minimap: true,
+                syncSelection: false,
+                ...options,
+              };
+              if (resolvedOptions.properties) {
+                ctx.renderProperties();
+              }
+            };
+
+            ctx.state.selectedEngine = "tensornetwork";
+            ctx.state.selectedCollectionFormat = "list";
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(selectedIndexIds, { primaryId: "tensor_b_left" });
+            ctx.renderProperties();
+
+            const selectionDimensionInput = document.getElementById(
+              "multi-index-dimension-input"
+            );
+            if (!selectionDimensionInput) {
+              throw new Error(
+                "Expected the Selection panel to expose a shared dimension input for multiple selected indices."
+              );
+            }
+            selectionDimensionInput.value = "11";
+            selectionDimensionInput.dispatchEvent("blur");
+            assertDimensions(ctx, selectedIndexIds, 11, "The Selection panel");
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left", "tensor_c", "tensor_c_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            ctx.renderProperties();
+
+            const ownerSelectionDimensionInput = document.getElementById(
+              "multi-index-dimension-input"
+            );
+            if (!ownerSelectionDimensionInput) {
+              throw new Error(
+                "Expected the Selection panel to keep the shared dimension input when owner tensors are selected together with their indices."
+              );
+            }
+            ownerSelectionDimensionInput.value = "12";
+            ownerSelectionDimensionInput.dispatchEvent("blur");
+            assertDimensions(
+              ctx,
+              selectedIndexIds,
+              12,
+              "The Selection panel with owner tensors"
+            );
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            ctx.setSelection(
+              ["tensor_a", "tensor_a_left", "tensor_b", "tensor_b_left", "tensor_c", "tensor_c_left"],
+              { primaryId: "tensor_b_left" }
+            );
+            ctx.openCanvasContextMenu({
+              kind: "index",
+              id: "tensor_b_left",
+              clientX: 120,
+              clientY: 160,
+            });
+
+            if (
+              !ctx.dom.canvasContextMenuRoot.innerHTML.includes(
+                "context-menu-selection-dimension-input"
+              )
+            ) {
+              throw new Error(
+                `Expected the multi-index context menu to expose a shared dimension input, received ${ctx.dom.canvasContextMenuRoot.innerHTML}.`
+              );
+            }
+            const contextDimensionInput = document.getElementById(
+              "context-menu-selection-dimension-input"
+            );
+            if (!contextDimensionInput) {
+              throw new Error(
+                "Expected the context menu shared dimension input to be registered in the fake document."
+              );
+            }
+            contextDimensionInput.value = "13";
+            contextDimensionInput.dispatchEvent("blur");
+            assertDimensions(
+              ctx,
+              selectedIndexIds,
+              13,
+              "The multi-index context menu"
+            );
             """
         ),
         encoding="utf-8",
@@ -4405,6 +5193,7 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
 
             const shortcutCalls = [];
             const statusCalls = [];
+            let textInputActive = false;
             const ctx = {
               state: createInitialState(),
               constants: {
@@ -4434,10 +5223,16 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                 activeElement: null,
               },
               isTextInput() {
-                return false;
+                return textInputActive;
+              },
+              getSelectedIdsByKind(kind) {
+                return kind === "tensor" ? ["tensor_a", "tensor_b"] : [];
               },
               setStatus(message, level) {
                 statusCalls.push({ message, level });
+              },
+              completeEditor() {
+                shortcutCalls.push({ kind: "complete-editor" });
               },
             };
 
@@ -4464,8 +5259,8 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                   openSessionTemplatePicker() {
                     shortcutCalls.push({ kind: "load-template" });
                   },
-                  exportSelectedTemplateSpec() {
-                    shortcutCalls.push({ kind: "export-template" });
+                  exportSelectedSubnetwork() {
+                    shortcutCalls.push({ kind: "export-subnetwork" });
                   },
                   openCanvasNameSearch() {
                     shortcutCalls.push({ kind: "open-search" });
@@ -4473,9 +5268,23 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
                   openCanvasMetadataFilter() {
                     shortcutCalls.push({ kind: "open-filter" });
                   },
+                  addIndexToSelectedTensors(payload) {
+                    shortcutCalls.push({
+                      kind: "add-index",
+                      tensorIds: payload.tensorIds,
+                      selectionIds: payload.selectionIds,
+                      primaryId: payload.primaryId,
+                    });
+                    return true;
+                  },
+                  toggleReflowLayoutPopover() {
+                    shortcutCalls.push({ kind: "open-reflow" });
+                  },
                 },
               })
             );
+            ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+            ctx.state.primarySelectionId = "tensor_b";
 
             const dEvent = createEvent({ key: "d" });
             ctx.handleKeydown(dEvent);
@@ -4545,9 +5354,66 @@ def _write_mode_and_template_shortcut_runtime_regression_script(
             }
             if (
               JSON.stringify(shortcutCalls.splice(0)) !==
-              JSON.stringify([{ kind: "export-template" }])
+              JSON.stringify([{ kind: "export-subnetwork" }])
             ) {
-              throw new Error("Shift+E should export the selected template.");
+              throw new Error("Shift+E should save the selected subnetwork.");
+            }
+
+            const iEvent = createEvent({ key: "i" });
+            ctx.handleKeydown(iEvent);
+            if (iEvent.preventDefaultCalls !== 1) {
+              throw new Error("I should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([
+                {
+                  kind: "add-index",
+                  tensorIds: ["tensor_a", "tensor_b"],
+                  selectionIds: ["tensor_a", "tensor_b"],
+                  primaryId: "tensor_b",
+                },
+              ])
+            ) {
+              throw new Error("I should add one index to each selected tensor.");
+            }
+
+            const rEvent = createEvent({ key: "r" });
+            ctx.handleKeydown(rEvent);
+            if (rEvent.preventDefaultCalls !== 1) {
+              throw new Error("R should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "open-reflow" }])
+            ) {
+              throw new Error("R should open the Reflow controls.");
+            }
+
+            const ctrlEnterEvent = createEvent({ key: "Enter", ctrlKey: true });
+            ctx.handleKeydown(ctrlEnterEvent);
+            if (ctrlEnterEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+Enter should prevent the browser default.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "complete-editor" }])
+            ) {
+              throw new Error("Ctrl+Enter should finish the editor session.");
+            }
+
+            textInputActive = true;
+            const ctrlEnterInputEvent = createEvent({ key: "Enter", ctrlKey: true });
+            ctx.handleKeydown(ctrlEnterInputEvent);
+            textInputActive = false;
+            if (ctrlEnterInputEvent.preventDefaultCalls !== 1) {
+              throw new Error("Ctrl+Enter should prevent the browser default from text inputs.");
+            }
+            if (
+              JSON.stringify(shortcutCalls.splice(0)) !==
+              JSON.stringify([{ kind: "complete-editor" }])
+            ) {
+              throw new Error("Ctrl+Enter should finish the editor session from text inputs.");
             }
 
             const ctrlFEvent = createEvent({ key: "f", ctrlKey: true });
@@ -5173,7 +6039,7 @@ def _write_shift_only_shortcut_runtime_regression_script(tmp_path: Path) -> Path
             const altShiftEEvent = createEvent({ key: "E", altKey: true, shiftKey: true });
             ctx.handleKeydown(altShiftEEvent);
             if (altShiftEEvent.preventDefaultCalls !== 0) {
-              throw new Error("Alt+Shift+E should not hijack the exact Shift+E template-export shortcut.");
+              throw new Error("Alt+Shift+E should not hijack the exact Shift+E subnetwork shortcut.");
             }
 
             if (shortcutCalls.length !== 0) {
@@ -8499,6 +9365,31 @@ def test_shift_m_hides_the_minimap_without_recursive_shortcut_calls(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_svg_export_escapes_xml_attributes_and_keeps_index_labels_clean(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_svg_export_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=False,
+    )
+    stdout = completed_process.stdout.decode("utf-8")
+    stderr = completed_process.stderr.decode("utf-8")
+
+    assert completed_process.returncode == 0, (
+        "The SVG export runtime regression script failed.\n"
+        f"STDOUT:\n{stdout}\n"
+        f"STDERR:\n{stderr}"
+    )
+    assert 'font-family=""' not in stdout
+    assert "&quot;Segoe UI Variable Text&quot;" in stdout
+    assert "right \u00b7 3" in stdout
+    ET.fromstring(stdout)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_planner_auto_shortcuts_keep_ctrl_a_for_canvas_tensor_selection(
     tmp_path: Path,
 ) -> None:
@@ -8555,6 +9446,159 @@ def test_hyperedge_shortcut_and_index_selection_context_menu_share_creation_logi
 
     assert completed_process.returncode == 0, (
         "The hyperedge shortcut/context-menu runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_multi_index_dimension_edits_apply_from_selection_and_context_menu(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_multi_index_dimension_batch_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The multi-index dimension batch-edit runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_copy_shortcut_prefers_native_text_selection_over_graph_copy(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "copy_shortcut_native_selection_runtime.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const shortcutsUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "interactions" / "interactionsShortcuts.js")!r}).href;
+            const {{ createInteractionShortcutBindings }} = await import(shortcutsUrl);
+
+            let copiedSubgraphCount = 0;
+            let selectedText = "Copy this label";
+            let selectedTensorIds = [];
+            let selectionNode = null;
+
+            function createElement(name, parent = null) {{
+              return {{
+                name,
+                parentNode: parent,
+                contains(node) {{
+                  let current = node;
+                  while (current) {{
+                    if (current === this) {{
+                      return true;
+                    }}
+                    current = current.parentNode || null;
+                  }}
+                  return false;
+                }},
+              }};
+            }}
+
+            const workspace = createElement("workspace");
+            const canvasShell = createElement("canvas-shell", workspace);
+            const sidebar = createElement("sidebar", workspace);
+            const canvasTextNode = createElement("canvas-text", canvasShell);
+            const sidebarTextNode = createElement("sidebar-text", sidebar);
+
+            function createEvent() {{
+              return {{
+                key: "c",
+                altKey: false,
+                ctrlKey: true,
+                metaKey: false,
+                shiftKey: false,
+                target: {{ tagName: "DIV" }},
+                preventDefaultCalls: 0,
+                preventDefault() {{
+                  this.preventDefaultCalls += 1;
+                }},
+              }};
+            }}
+
+            const bindings = createInteractionShortcutBindings({{
+              ctx: {{
+                getSelectedIdsByKind(kind) {{
+                  return kind === "tensor" ? [...selectedTensorIds] : [];
+                }},
+                isTextInput() {{
+                  return false;
+                }},
+                document: {{
+                  activeElement: null,
+                }},
+                window: {{
+                  getSelection() {{
+                    return {{
+                      anchorNode: selectionNode,
+                      focusNode: selectionNode,
+                      toString() {{
+                        return selectedText;
+                      }},
+                    }};
+                  }},
+                }},
+              }},
+              state: {{}},
+              dom: {{
+                canvasShell,
+                engineSelect: {{ value: "", options: [] }},
+                generatedCode: {{}},
+                loadInput: {{ click() {{}} }},
+              }},
+              runtime: {{}},
+              shortcutActions: {{
+                copySelectedSubgraphToClipboard() {{
+                  copiedSubgraphCount += 1;
+                }},
+              }},
+            }});
+
+            selectedTensorIds = ["tensor_a"];
+            selectionNode = canvasTextNode;
+            const nativeCopyEvent = createEvent();
+            bindings.handleKeydown(nativeCopyEvent);
+            if (nativeCopyEvent.preventDefaultCalls !== 1) {{
+              throw new Error("Ctrl+C should keep copying the selected tensor subgraph when the selection lives inside the drawing area.");
+            }}
+            if (copiedSubgraphCount !== 1) {{
+              throw new Error("Ctrl+C should copy the selected tensor subgraph when the selected text is inside the drawing area.");
+            }}
+
+            selectionNode = sidebarTextNode;
+            const tensorCopyEvent = createEvent();
+            bindings.handleKeydown(tensorCopyEvent);
+            if (tensorCopyEvent.preventDefaultCalls !== 0) {{
+              throw new Error("Ctrl+C should preserve the native copy shortcut when the selected text is outside the drawing area.");
+            }}
+            if (copiedSubgraphCount !== 1) {{
+              throw new Error(`Expected outside-canvas text selection to avoid extra tensor copies, received ${{copiedSubgraphCount}}.`);
+            }}
+            """
+        ),
+        encoding="utf-8",
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The copy-shortcut native text selection regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

@@ -71,24 +71,30 @@ export function formatBenchmarkBytes(value) {
     : "-";
 }
 
-function isComparableBenchmarkAnalysis(analysis) {
+function hasDisplayableBenchmarkSummary(analysis) {
   return Boolean(
     analysis &&
       typeof analysis === "object" &&
-      analysis.status === "complete" &&
       analysis.summary &&
       typeof analysis.summary === "object"
   );
 }
 
+function isComparableBenchmarkAnalysis(analysis) {
+  return Boolean(
+    hasDisplayableBenchmarkSummary(analysis) && analysis.status === "complete"
+  );
+}
+
 function buildBenchmarkMetricCell(metric, analysis) {
-  const comparable = isComparableBenchmarkAnalysis(analysis);
-  const summary = comparable ? analysis.summary : null;
-  const value = comparable ? Number(summary[metric.summaryKey]) : NaN;
-  const isComparable = comparable && Number.isFinite(value);
+  const displayable = hasDisplayableBenchmarkSummary(analysis);
+  const summary = displayable ? analysis.summary : null;
+  const value = displayable ? Number(summary[metric.summaryKey]) : NaN;
+  const hasDisplayValue = displayable && Number.isFinite(value);
+  const isComparable = hasDisplayValue && isComparableBenchmarkAnalysis(analysis);
   return {
-    value: isComparable ? value : null,
-    display: isComparable ? metric.formatDisplay(value) : "-",
+    value: hasDisplayValue ? value : null,
+    display: hasDisplayValue ? metric.formatDisplay(value) : "-",
     isComparable,
     isBest: false,
     isWorst: false,

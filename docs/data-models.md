@@ -36,6 +36,12 @@ The wrapper lets the package reject unsupported file versions clearly instead
 of guessing how to load them. New saves use schema version `1`, which is the
 current canonical payload shape for this release.
 
+The in-memory object is a `NetworkSpec`. Use
+`tensor_network_editor.io.serialize_spec(...)` and
+`tensor_network_editor.io.deserialize_spec(...)` when you need to move between
+the object and the schema-wrapped JSON payload. Use `load_spec(...)` and
+`save_spec(...)` for files.
+
 ## NetworkSpec
 
 `NetworkSpec` is the root object for one abstract tensor-network design.
@@ -143,6 +149,18 @@ Supported tensor-data modes are:
 - `TensorDataMode.FILL`: repeat one scalar value across the tensor shape
 - `TensorDataMode.LITERAL`: store nested Python lists of finite numbers that
   exactly match `tensor.shape`
+
+Serialized tensor-data payloads are small JSON objects:
+
+```json
+{"mode": "ones"}
+{"mode": "fill", "fill_value": 0.5}
+{"mode": "literal", "values": [[1.0, 0.0], [0.0, 1.0]]}
+```
+
+Generated hyperedge copy tensors are an implementation detail of exports, but
+when they are reloaded from supported generated Python their literal copy data
+is recovered as `TensorDataMode.LITERAL`.
 
 In the editor sidebar, tensor and index properties expose:
 
@@ -356,7 +374,9 @@ boundary roles (`up`, `right`, `down`, `left`) describe how open bonds continue
 between neighboring cells.
 
 Grid periodic payloads are mainly for repeated two-dimensional structures.
-Manual contraction plans are intentionally not stored inside these cells.
+The typed cell object has a `contraction_plan` field because it reuses
+`LinearPeriodicCellSpec`, but validation rejects manual plans inside grid cells
+for this mode.
 Hyperedges are also intentionally not stored inside these cells in v1.
 
 ## Tree Periodic Models
@@ -382,7 +402,10 @@ downward in the repeated tree.
 
 Tree periodic payloads are for hierarchical repeated structures. Like the grid
 mode, they are focused on modeling, validation, serialization, and code
-generation rather than stored manual contraction plans inside each cell.
+generation rather than manual contraction plans inside each cell. The typed
+cell object has a `contraction_plan` field because it reuses
+`LinearPeriodicCellSpec`, but validation rejects manual plans inside tree
+cells.
 Hyperedges are also intentionally not stored inside these cells in v1.
 
 ## Result Models and Enums
@@ -414,6 +437,8 @@ headless output.
 - Let `save_spec(...)` validate before writing JSON.
 - Use `open_indices()` when you want to inspect dangling legs.
 - Use `metadata` for your own small annotations, not for core connectivity.
+- Use `tensor_data` for deterministic tensor values that should affect
+  generated backend code.
 - Prefer `metadata.tags` for quick labels that you want to reuse in filters.
 - Prefer guided tensor keys like `role`, `state`, `provenance`, and `symmetry`
   when they fit what you want to describe.

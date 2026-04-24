@@ -22,6 +22,9 @@ development setup.
 The distribution name is `tensor-network-editor`. The import package name is
 `tensor_network_editor`.
 
+Normal editor use does not require Node.js. The browser UI is bundled in the
+Python package and served by a local Python process.
+
 ## Install From PyPI
 
 PowerShell:

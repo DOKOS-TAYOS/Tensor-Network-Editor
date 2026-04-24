@@ -17,6 +17,7 @@ from ._python_roundtrip_build import (
     _PendingManualStep,
 )
 from ._python_roundtrip_collect import (
+    _collect_copy_tensor_data_update,
     _collect_data_shape,
     _collect_einsum_labels,
     _collect_manual_step,
@@ -67,6 +68,7 @@ def _collect_roundtrip_statement(
 ) -> None:
     """Collect all supported roundtrip signals from one module statement."""
     _collect_data_shape(statement, state)
+    _collect_copy_tensor_data_update(statement, state)
     _collect_tensor(statement=statement, state=state)
     _collect_pending_edge(statement, state)
     _collect_einsum_labels(statement, state)

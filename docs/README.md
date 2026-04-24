@@ -26,21 +26,96 @@ avoid reading one huge document from top to bottom.
 - create first-class hyperedges with a saved draggable hub position in normal
   mode
 - keep reusable subnetworks in project or shared catalogs
+- annotate tensors and indices with tags, guided metadata, and custom JSON
+- use metadata filters to inspect larger networks without changing the saved
+  design
+- edit dimensions for individual indices or multi-index selections
 - auto-layout the current selection or the whole graph when needed
 - benchmark contraction variants from the editor or the CLI
 - use linear, grid, and tree periodic editor modes
-- inspect validation, linting, diff, and analysis results from Python or the CLI
+- use keyboard shortcuts for common editor actions such as adding indices,
+  opening Reflow, saving subnetworks, and moving between periodic cells
+- inspect validation, linting, diff, benchmark, and analysis results from
+  Python or the CLI
 
 The browser interface is local to your machine. The package starts a local
 server, opens a browser tab by default, and waits until you confirm or cancel
 the session.
 
+## Screenshots
+
+<p align="center">
+  <img
+    src="images/editor-overview.png"
+    alt="Tensor Network Editor overview with canvas, selection tools, and generated code preview"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/hyperedges-metadata.png"
+    alt="Hyperedge editing and metadata filter screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/benchmark-periodic.png"
+    alt="Benchmark comparison and periodic mode screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/templates-subnetworks.png"
+    alt="Templates and reusable subnetwork library screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/tensor-initializers.png"
+    alt="Tensor initializer editing screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/manual-planner.png"
+    alt="Manual contraction plan and planner comparison screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/python-import-fallback.png"
+    alt="Python import options and fallback workflow screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="images/cli-validation-workflow.png"
+    alt="CLI validation linting analysis and JSON output screenshot"
+    width="900"
+  />
+</p>
+
 For Python imports, prefer the documented public package surface such as
 `tensor_network_editor`, `tensor_network_editor.editor`,
 `tensor_network_editor.io`, `tensor_network_editor.models`,
-`tensor_network_editor.validation`, and `tensor_network_editor.linting`.
-Modules under `tensor_network_editor.internal` are implementation details and
-are not part of the stable user-facing API.
+`tensor_network_editor.validation`, `tensor_network_editor.linting`,
+`tensor_network_editor.templates`, `tensor_network_editor.subnetworks`, and
+`tensor_network_editor.canonicalization`. Modules under
+`tensor_network_editor.internal` are implementation details and are not part of
+the stable user-facing API.
 
 ## Pages By Need
 
@@ -51,6 +126,7 @@ are not part of the stable user-facing API.
 | Choose a backend or collection format | [user-guide.md](user-guide.md) |
 | Use templates, reusable subnetworks, auto layout, benchmark mode, or periodic modes | [user-guide.md](user-guide.md) |
 | Generate code from Python | [api.md](api.md) |
+| Reuse tensor-network fragments | [user-guide.md](user-guide.md#subnetwork-library), [api.md](api.md#subnetwork-helpers), [cli.md](cli.md#subnetwork-commands) |
 | Understand `NetworkSpec` and related models | [data-models.md](data-models.md) |
 | Validate, lint, analyze, benchmark, export, or diff from the terminal | [cli.md](cli.md) |
 | Fix install, backend, schema, or validation problems | [troubleshooting.md](troubleshooting.md) |

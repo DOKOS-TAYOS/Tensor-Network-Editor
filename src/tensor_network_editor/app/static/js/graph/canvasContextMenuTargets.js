@@ -47,6 +47,30 @@ export function createCanvasContextMenuTargetResolver({
       : [];
   }
 
+  function selectionContainsOnlyIndicesOrOwningTensors(
+    selectedEntries = [],
+    selectedIndexIds = []
+  ) {
+    if (!selectedEntries.length || !selectedIndexIds.length) {
+      return false;
+    }
+    const selectedTensorIds = new Set(
+      selectedEntries
+        .filter((entry) => entry?.kind === "index")
+        .map((entry) => entry?.located?.tensor?.id)
+        .filter(Boolean)
+    );
+    return selectedEntries.every((entry) => {
+      if (entry?.kind === "index") {
+        return true;
+      }
+      if (entry?.kind !== "tensor") {
+        return false;
+      }
+      return selectedTensorIds.has(entry?.tensor?.id || entry?.id);
+    });
+  }
+
   function isMultiTensorSelectionContext(tensorId) {
     const selectedTensorIds = getSelectedTensorIdsForContext();
     return (
@@ -119,10 +143,13 @@ export function createCanvasContextMenuTargetResolver({
     const selectedEntries =
       typeof getSelectedEntries === "function" ? getSelectedEntries() : [];
     const selectedIndexIds = getSelectedIndexIdsForContext();
+    const selectedIndexEntries = selectedEntries.filter(
+      (entry) => entry?.kind === "index"
+    );
     if (
       selectedIndexIds.length < 2 ||
       !selectedIndexIds.includes(anchorIndexId) ||
-      selectedEntries.length !== selectedIndexIds.length
+      !selectionContainsOnlyIndicesOrOwningTensors(selectedEntries, selectedIndexIds)
     ) {
       return null;
     }
@@ -137,10 +164,22 @@ export function createCanvasContextMenuTargetResolver({
           canCreate: false,
           message: "Hyperedge creation is unavailable in this session.",
         };
+    const selectedIndexDimensions = [
+      ...new Set(
+        selectedIndexEntries
+          .map((entry) => entry?.located?.index?.dimension)
+          .filter((dimension) => Number.isFinite(dimension))
+      ),
+    ];
     return {
       hyperedgeCreationCandidate,
       id: anchorIndexId,
       indexCount: selectedIndexIds.length,
+      indexDimensionValue:
+        selectedIndexDimensions.length === 1
+          ? String(selectedIndexDimensions[0])
+          : "",
+      hasMixedIndexDimensions: selectedIndexDimensions.length > 1,
       indexIds: [...selectedIndexIds],
       kind: "index-selection",
       primarySelectionId: state.primarySelectionId,

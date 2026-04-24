@@ -77,6 +77,16 @@ export function createOverviewPropertiesRenderers({
     const noteCount = selectedEntries.filter(
       (entry) => entry.kind === "note"
     ).length;
+    const selectedIndexEntries = selectedEntries.filter(
+      (entry) => entry.kind === "index"
+    );
+    const selectedIndexDimensions = [
+      ...new Set(
+        selectedIndexEntries
+          .map((entry) => entry?.located?.index?.dimension)
+          .filter((dimension) => Number.isFinite(dimension))
+      ),
+    ];
     const tensorsOnly =
       baseTensorCount > 0 && baseTensorCount === selectedEntries.length;
     const hasMultipleTensors = baseTensorCount > 1;
@@ -95,6 +105,19 @@ export function createOverviewPropertiesRenderers({
       typeof actions.describeSelectedHyperedgeCandidate === "function"
         ? actions.describeSelectedHyperedgeCandidate(selectedEntries)
         : null;
+    const multiIndexDimensionCandidate =
+      hyperedgeCreationCandidate?.selectionContainsOnlyIndicesOrOwners &&
+      selectedIndexEntries.length >= 2
+        ? {
+            canEdit: true,
+            hasMixedDimensions: selectedIndexDimensions.length > 1,
+            selectedIndexIds: selectedIndexEntries.map((entry) => entry.id),
+            value:
+              selectedIndexDimensions.length === 1
+                ? String(selectedIndexDimensions[0])
+                : "",
+          }
+        : null;
 
     propertiesPanel.innerHTML = buildMultiSelectionPropertiesMarkup({
       selectedEntries,
@@ -105,6 +128,7 @@ export function createOverviewPropertiesRenderers({
       groupCount,
       noteCount,
       hasMultipleTensors,
+      multiIndexDimensionCandidate,
       showAddIndexAction: editableTensorIds.length > 0,
       hyperedgeCreationCandidate,
       linearPeriodicMode,
@@ -119,6 +143,7 @@ export function createOverviewPropertiesRenderers({
       selectedEntries,
       batchColor,
       editableTensorIds,
+      selectedIndexIds: multiIndexDimensionCandidate?.selectedIndexIds || [],
       hyperedgeCreationCandidate,
       hasMultipleTensors,
     });

@@ -17,12 +17,16 @@ export function createMetadataFilterRendererSupport({
       .replaceAll('"', "&quot;");
   }
 
-  function buildTooltipAttributes(label, description) {
-    return [
+  function buildTooltipAttributes(label, description, shortcut = "") {
+    const attributes = [
       'data-tooltip-enabled="true"',
       `data-shortcut-label="${escapeTooltipText(label)}"`,
       `data-shortcut-description="${escapeTooltipText(description)}"`,
-    ].join(" ");
+    ];
+    if (shortcut) {
+      attributes.push(`data-shortcut="${escapeTooltipText(shortcut)}"`);
+    }
+    return attributes.join(" ");
   }
 
   function filterButtonIcon() {
@@ -195,7 +199,8 @@ export function createMetadataFilterRendererSupport({
             aria-pressed="${openCanvasToolPopover === "filter"}"
             ${buildTooltipAttributes(
               "Filter",
-              "Highlight tensors, indices, or bonds by metadata tags without hiding anything."
+              "Highlight tensors, indices, or bonds by metadata tags without hiding anything.",
+              "Ctrl/Cmd+Shift+F"
             )}
           >
             ${filterButtonIcon()}
@@ -217,7 +222,8 @@ export function createMetadataFilterRendererSupport({
             aria-pressed="${openCanvasToolPopover === "search"}"
             ${buildTooltipAttributes(
               "Search",
-              "Highlight tensors, indices, or bonds by exact name without changing the selection."
+              "Highlight tensors, indices, or bonds by exact name without changing the selection.",
+              "Ctrl/Cmd+F"
             )}
           >
             ${searchButtonIcon()}

@@ -19,6 +19,10 @@ export function createEmptyBenchmarkSession() {
   };
 }
 
+function readNonEmptyBenchmarkName(value) {
+  return typeof value === "string" && value.trim() ? value : "";
+}
+
 function buildNormalizedPlanLike(
   runtime,
   plan,
@@ -31,10 +35,7 @@ function buildNormalizedPlanLike(
   const nextPlan = runtime.isObject(plan) ? runtime.deepClone(plan) : {};
   const providedId =
     typeof nextPlan.id === "string" && nextPlan.id ? nextPlan.id : "";
-  const providedName =
-    typeof nextPlan.name === "string" && nextPlan.name.trim()
-      ? nextPlan.name.trim()
-      : "";
+  const providedName = readNonEmptyBenchmarkName(nextPlan.name);
   if (typeof runtime.normalizeContractionPlanInPlace === "function") {
     runtime.normalizeContractionPlanInPlace(nextPlan);
   } else {
@@ -58,10 +59,10 @@ export function buildDefaultBenchmarkSchemeName(index) {
 
 function buildNormalizedBenchmarkScheme(runtime, plan, index, seed = null) {
   const fallbackName =
-    typeof seed?.name === "string" && seed.name.trim()
-      ? seed.name.trim()
-      : typeof plan?.name === "string" && plan.name.trim()
-        ? plan.name.trim()
+    readNonEmptyBenchmarkName(seed?.name)
+      ? readNonEmptyBenchmarkName(seed?.name)
+      : readNonEmptyBenchmarkName(plan?.name)
+        ? readNonEmptyBenchmarkName(plan?.name)
         : buildDefaultBenchmarkSchemeName(index);
   const fallbackId =
     typeof seed?.id === "string" && seed.id
@@ -83,7 +84,7 @@ function buildNormalizedBenchmarkScheme(runtime, plan, index, seed = null) {
 
 function buildNormalizedOriginalPlan(runtime, plan) {
   const fallbackName =
-    typeof plan?.name === "string" && plan.name.trim() ? plan.name.trim() : "Manual path";
+    readNonEmptyBenchmarkName(plan?.name) || "Manual path";
   const fallbackId =
     typeof plan?.id === "string" && plan.id ? plan.id : runtime.makeId("plan");
   const fallbackMetadata = runtime.isObject(plan?.metadata) ? plan.metadata : {};

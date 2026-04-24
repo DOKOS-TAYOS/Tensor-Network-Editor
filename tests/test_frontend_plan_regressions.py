@@ -1312,6 +1312,99 @@ def test_for_mode_template_insertion_recomputes_open_interface_from_current_spec
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_grid_for_mode_center_cell_recomputes_interface_after_each_tensor_add(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "grid_for_mode_center_cell_interface_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildEmptySpec() {
+          return {
+            id: "network_empty_grid_center",
+            name: "empty-grid-center",
+            tensors: [],
+            edges: [],
+            groups: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        function buildOpenTensor(tensorId, indexId, dimension, x) {
+          return {
+            id: tensorId,
+            name: tensorId,
+            position: { x, y: 140 },
+            indices: [
+              { id: indexId, name: indexId, dimension, metadata: {} },
+            ],
+            metadata: {},
+          };
+        }
+
+        function addTensorThroughDesignChange(ctx, tensor) {
+          ctx.ensureSpecLookups();
+          ctx.applyDesignChange(
+            () => {
+              ctx.state.spec.tensors.push(tensor);
+            },
+            {
+              invalidate: { lookups: true },
+            }
+          );
+        }
+
+        function getBoundarySlotCounts(ctx) {
+          return ["up", "right", "down", "left"].map((role) => {
+            const boundary = ctx.state.spec.tensors.find(
+              (tensor) => tensor.grid_periodic_role === role
+            );
+            return boundary ? boundary.indices.length : null;
+          });
+        }
+
+        function expectBoundarySlotCounts(ctx, expectedCount, label) {
+          const counts = getBoundarySlotCounts(ctx);
+          if (!counts.every((count) => count === expectedCount)) {
+            throw new Error(
+              `Expected ${label} to expose ${expectedCount} slots on every grid boundary, received ${JSON.stringify(counts)}.`
+            );
+          }
+        }
+
+        const ctx = await buildContext();
+        await registerHistory(ctx);
+        ctx.state.selectedEngine = "tensornetwork";
+        ctx.state.selectedCollectionFormat = "list";
+        ctx.state.spec = ctx.normalizeSpec(buildEmptySpec());
+
+        ctx.toggleGridPeriodicMode();
+        addTensorThroughDesignChange(
+          ctx,
+          buildOpenTensor("center_tensor_a", "center_tensor_a_open", 3, 120)
+        );
+        expectBoundarySlotCounts(ctx, 1, "the first center tensor");
+
+        addTensorThroughDesignChange(
+          ctx,
+          buildOpenTensor("center_tensor_b", "center_tensor_b_open", 5, 320)
+        );
+        expectBoundarySlotCounts(ctx, 2, "the second center tensor");
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The grid for-mode center-cell interface regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_for_mode_switching_back_to_initial_preserves_interface_slot_count(
     tmp_path: Path,
 ) -> None:

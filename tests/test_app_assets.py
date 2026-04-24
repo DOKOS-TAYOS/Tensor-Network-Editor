@@ -99,7 +99,7 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert "<strong>Ctrl/Cmd+F</strong><span>Open Search</span>" in html
     assert "<strong>Ctrl/Cmd+Shift+F</strong><span>Open Filters</span>" in html
     assert "<strong>L</strong><span>Load templates from JSON</span>" in html
-    assert "<strong>Shift+E</strong><span>Export the selected template</span>" in html
+    assert "<strong>Shift+E</strong><span>Save the selected subnetwork</span>" in html
     assert "Ctrl/Cmd+N" not in html
     assert headers["Content-Type"].startswith("text/html")
 
@@ -175,10 +175,11 @@ def test_root_places_editor_title_in_toolbar_and_keeps_canvas_controls_in_reques
     note_index = html.index('id="add-note-button"')
     template_index = html.index('id="template-select"')
     insert_template_index = html.index('id="insert-template-button"')
+    previous_cell_index = html.index('id="linear-periodic-previous-cell-button"')
 
     assert add_index < delete_index < undo_index < redo_index
     assert redo_index < connect_index < group_index < note_index
-    assert note_index < template_index < insert_template_index
+    assert note_index < template_index < insert_template_index < previous_cell_index
     assert ">+<" in html
 
 
@@ -238,6 +239,9 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     editor_server: EditorServer,
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
+    shell_bindings_body = request_text(
+        f"{editor_server.base_url}/js/shell/editorShellBindings.js"
+    )
 
     assert 'id="modes-menu-panel"' in html
     assert 'id="single-mode-menu-item"' in html
@@ -259,6 +263,34 @@ def test_root_exposes_linear_periodic_toolbar_controls(
     assert 'title="Benchmark mode is not available yet."' not in html
     assert 'id="benchmark-compare-button"' in html
     assert 'id="benchmark-scheme-name-input"' in html
+    assert re.search(
+        r'id="linear-periodic-previous-cell-button"[\s\S]*?data-tooltip-enabled="true"[\s\S]*?data-shortcut-label="Previous item"[\s\S]*?data-shortcut="Alt\+ArrowLeft"',
+        html,
+    )
+    assert re.search(
+        r'id="grid-periodic-up-cell-button"[\s\S]*?data-tooltip-enabled="true"[\s\S]*?data-shortcut-label="Upper item"[\s\S]*?data-shortcut="Alt\+ArrowUp"',
+        html,
+    )
+    assert re.search(
+        r'id="grid-periodic-down-cell-button"[\s\S]*?data-tooltip-enabled="true"[\s\S]*?data-shortcut-label="Lower item"[\s\S]*?data-shortcut="Alt\+ArrowDown"',
+        html,
+    )
+    assert re.search(
+        r'id="linear-periodic-next-cell-button"[\s\S]*?data-tooltip-enabled="true"[\s\S]*?data-shortcut-label="Next item"[\s\S]*?data-shortcut="Alt\+ArrowRight"',
+        html,
+    )
+    assert 'title="Previous item"' not in html
+    assert 'title="Upper item"' not in html
+    assert 'title="Lower item"' not in html
+    assert 'title="Next item"' not in html
+    assert re.search(
+        r'applyShortcutHint\(\s*"linear-periodic-previous-cell-button",\s*"Previous cell",\s*"Alt\+ArrowLeft"',
+        shell_bindings_body,
+    )
+    assert re.search(
+        r'applyShortcutHint\(\s*"linear-periodic-next-cell-button",\s*"Next cell",\s*"Alt\+ArrowRight"',
+        shell_bindings_body,
+    )
     assert html.index('class="title-button-row"') < html.index(
         'class="toolbar-mode-controls"'
     )
@@ -277,8 +309,8 @@ def test_root_exposes_benchmark_compare_modal(editor_server: EditorServer) -> No
     assert 'id="benchmark-compare-table-body"' in html
     assert ">Peak Memory<" in html
     assert 'title="Close"' not in html
-    assert html.index('class="toolbar-mode-controls"') < html.index(
-        'id="template-select-field"'
+    assert html.index('id="template-select-field"') < html.index(
+        'class="toolbar-mode-controls"'
     )
 
 
@@ -505,6 +537,9 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     html = request_text(f"{editor_server.base_url}/")
 
     assert "ctx.isTextInput(event.target) || ctx.isTextInput(activeElement)" in body
+    assert "selection.toString().trim().length > 0" in body
+    assert 'ctx.getSelectedIdsByKind("tensor").length > 0' in body
+    assert "canvasShell.contains(node)" in body
     assert 'if (hasSystemModifier && lowerKey === "y") {' in body
     assert 'setSelectedEngine("einsum_numpy");' in body
     assert 'if (hasSystemModifier && lowerKey === "n") {' not in body
@@ -551,12 +586,24 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "setGridPeriodicMode(true);" in body
     assert "setBenchmarkMode(true);" in body
     assert "openSessionTemplatePicker();" in body
-    assert "exportSelectedTemplateSpec();" in body
+    assert "exportSelectedSubnetwork();" in body
+    assert 'if (!hasAnyModifier && lowerKey === "i") {' in body
+    assert "addIndexToSelectedTensors({" in body
+    assert 'if (!hasAnyModifier && lowerKey === "r") {' in body
+    assert "toggleReflowLayoutPopover();" in body
+    assert "hasSystemModifier" in body
+    assert "!event.altKey" in body
+    assert "!event.shiftKey" in body
+    assert 'event.key === "Enter"' in body
+    assert "completeEditor();" in body
     assert "Alt+A" in html
     assert "Ctrl/Cmd+A" in html
     assert "Ctrl/Cmd+Alt+A" in html
     assert "Ctrl/Cmd+F" in html
     assert "Ctrl/Cmd+Shift+F" in html
+    assert "<strong>I</strong><span>Add index to selected tensors</span>" in html
+    assert "<strong>R</strong><span>Open Reflow</span>" in html
+    assert "<strong>Ctrl/Cmd+Enter</strong><span>Finish editor session</span>" in html
     assert "Shift+S" in html
     assert "Shift+E" in html
     assert ">D<" in html
@@ -609,8 +656,25 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert ".title-control-divider[hidden] {" in body
     assert ".title-control-group-mode {" in body
     assert ".title-control-group-template {" in body
-    assert "margin-left: auto;" in body
-    assert "margin-right: auto;" in body
+    assert re.search(
+        r"\.title-control-group-mode \{[\s\S]*?margin-left: auto;[\s\S]*?padding-left: 0.95rem;",
+        body,
+    )
+    assert re.search(
+        r"\.title-control-group-template \{[\s\S]*?gap: 0.55rem;[\s\S]*?padding-bottom: 0.05rem;",
+        body,
+    )
+    assert not re.search(
+        r"\.title-control-group-template \{[^}]*margin-left: auto;",
+        body,
+    )
+    assert not re.search(
+        r"\.title-control-group-template \{[^}]*margin-right: auto;",
+        body,
+    )
+    assert ".title-control-group-mode::before {" in body
+    assert "left: 0;" in body
+    assert "width: 1px;" in body
     assert ".title-button-row {" in body
     assert "align-items: flex-end;" in body
     assert ".title-button-row button {" in body
@@ -722,6 +786,21 @@ def test_graph_assets_import_shared_editor_theme_palette(
     assert "GRAPH_THEME.pendingIndex" in graph_body
     assert "GRAPH_THEME.canvasBackground" in export_body
     assert "GRAPH_THEME.selectionFill" in export_body
+
+
+def test_svg_export_assets_escape_font_family_attributes(
+    editor_server: EditorServer,
+) -> None:
+    export_body = request_text(f"{editor_server.base_url}/js/graph/exportMinimap.js")
+    utilities_base_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesBase.js"
+    )
+
+    assert "function escapeSvgAttribute(" in utilities_base_body
+    assert "escapeSvgAttribute," in utilities_base_body
+    assert "ctx.escapeSvgAttribute(UI_THEME.fontFamily)" in export_body
+    assert "\\u00b7" in export_body
+    assert "Â·" not in export_body
 
 
 def test_css_asset_uses_two_row_shortcut_tooltips(
@@ -991,6 +1070,14 @@ def test_canvas_tool_assets_expose_floating_filter_search_and_highlight_hooks(
     assert "Not specified" in filter_renderers_body + filter_state_body
     assert "canvas-name-search-input" in filter_renderers_body
     assert 'data-tooltip-enabled="true"' in filter_renderers_body
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Filter",[\s\S]*?"Ctrl/Cmd\+Shift\+F"\s*\)',
+        filter_renderers_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Search",[\s\S]*?"Ctrl/Cmd\+F"\s*\)',
+        filter_renderers_body,
+    )
     assert (
         "Highlight tensors, indices, or bonds by metadata tags without hiding anything."
         in filter_renderers_body
@@ -1074,6 +1161,28 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
         in context_menu_markup_body
     )
     assert 'id="context-menu-create-hyperedge-button"' in context_menu_markup_body
+    assert 'id="context-menu-selection-dimension-input"' in context_menu_markup_body
+    assert "canvas-context-menu-index-selection-fields" in context_menu_markup_body
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Group",\s*"Create a visual group from the selected tensors\."\s*,\s*"G"\s*\)',
+        context_menu_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Create hyperedge",[\s\S]*?\s*"H"\s*\)',
+        context_menu_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Extract",\s*"Extract the selected tensors as a reusable subnetwork\."\s*,\s*"Shift\+E"\s*\)',
+        context_menu_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Extract",\s*"Extract the tensors inside this group as a reusable subnetwork\."\s*,\s*"Shift\+E"\s*\)',
+        context_menu_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Delete (?:selection|tensor|index|connection|hyperedge|group)",[\s\S]*?\s*"Delete"\s*\)',
+        context_menu_markup_body,
+    )
     assert 'id="context-menu-selection-color-input"' in context_menu_markup_body
     assert 'id="context-menu-group-selection-button"' in context_menu_markup_body
     assert 'id="context-menu-delete-selection-button"' in context_menu_markup_body
@@ -1109,6 +1218,11 @@ def test_canvas_context_menu_assets_expose_minimal_selection_actions(
     assert (
         "Create a hyperedge from the selected open indices." in context_menu_markup_body
     )
+    assert (
+        "Update the dimension of every selected index at once."
+        in context_menu_markup_body
+    )
+    assert "updateIndexDimensions({" in context_menu_bindings_body
     assert (
         "Extract the tensors inside this group as a reusable subnetwork."
         in context_menu_markup_body
@@ -1370,10 +1484,23 @@ def test_tensor_property_assets_delegate_rendering_and_mutations_to_internal_mod
     )
     assert ".tensor-data-mode-field::after {" in css_body
     assert ".tensor-data-mode-field select {" in css_body
+    assert ".field-group > .select-chevron-field {" in css_body
+    assert ".field-group > .select-chevron-field select {" in css_body
+    assert "width: 100%;" in css_body
     assert ".tensor-values-disclosure {" not in css_body
     assert "setTensorDataModeChevronExpanded" in tensor_standard_bindings_body
     assert "bindTensorDataModeChevronDisclosure" in tensor_standard_bindings_body
     assert "commands.updateTensorData" in tensor_standard_bindings_body
+
+
+def test_properties_panel_assets_keep_compact_selection_rows(
+    editor_server: EditorServer,
+) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert ".properties-panel {" in css_body
+    assert "align-content: start;" in css_body
+    assert "align-items: start;" in css_body
 
 
 def test_index_disclosure_border_uses_the_port_color(
@@ -1453,6 +1580,12 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     entity_markup_body = request_text(
         f"{editor_server.base_url}/js/properties/entityPropertiesMarkup.js"
     )
+    tensor_markup_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesStandardMarkup.js"
+    )
+    contraction_properties_body = request_text(
+        f"{editor_server.base_url}/js/properties/tensorPropertiesContraction.js"
+    )
     planner_body = request_runtime_bundle(
         editor_server,
         "js/planner/plannerRenderers.js",
@@ -1466,6 +1599,12 @@ def test_dynamic_frontend_actions_use_shared_tooltips_and_consistent_labels(
     assert 'data-shortcut-label="Delete group"' in entity_markup_body
     assert 'data-shortcut-label="Delete connection"' in entity_markup_body
     assert 'data-shortcut-label="Delete note"' in entity_markup_body
+    assert 'data-shortcut="Delete"' in entity_markup_body
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Delete (?:index|tensor)",[\s\S]*?\s*"Delete"\s*\)',
+        tensor_markup_body,
+    )
+    assert 'data-shortcut="Delete"' in contraction_properties_body
     assert 'title="Delete group"' not in entity_markup_body
     assert 'title="Delete connection"' not in entity_markup_body
     assert 'title="Delete note"' not in entity_markup_body
@@ -2050,6 +2189,14 @@ def test_subnetwork_assets_expose_import_export_controls_and_routes(
         "Promote the tensors inside this group to a reusable template."
         in entity_markup_body
     )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Extract",\s*"Extract the selected tensors as a reusable subnetwork\."\s*,\s*"Shift\+E"\s*\)',
+        overview_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Extract",\s*"Extract the tensors inside this group as a reusable subnetwork\."\s*,\s*"Shift\+E"\s*\)',
+        entity_markup_body,
+    )
 
 
 def test_template_management_assets_expose_toolbar_controls_and_routes(
@@ -2129,6 +2276,13 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'id="insert-subnetwork-button"' not in html
     assert 'id="save-subnetwork-library-menu-item"' in html
     assert 'id="open-subnetwork-library-menu-item"' in html
+    assert '<span class="toolbar-menu-item-label">Save subnetwork</span>' in html
+    assert "Save the selected subnetwork as JSON." in html
+    assert (
+        html.index('id="save-subnetwork-library-menu-item"')
+        < html.index('id="export-session-template-menu-item"')
+        < html.index('id="load-session-template-menu-item"')
+    )
     assert 'id="subnetwork-library-modal"' in html
     assert 'id="help-shared-header"' in html
     assert 'class="help-close-icon"' in html
@@ -2451,12 +2605,25 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
         'id="promote-selection-template-button"' in overview_body + overview_markup_body
     )
     assert 'id="create-hyperedge-button"' in overview_body + overview_markup_body
+    assert 'id="multi-index-dimension-input"' in overview_body + overview_markup_body
+    assert 'data-shortcut="Delete"' in overview_markup_body
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Group",\s*"Create a visual group from the selected tensors\."\s*,\s*"G"\s*\)',
+        overview_markup_body,
+    )
+    assert re.search(
+        r'buildTooltipAttributes\(\s*"Create hyperedge",[\s\S]*?\s*"H"\s*\)',
+        overview_markup_body,
+    )
     assert "Add Index to Tensors" not in overview_markup_body
     assert "Extract Selection" not in overview_markup_body
     assert "Promote to Template" not in overview_markup_body
     assert "Add index" in overview_markup_body
     assert "Extract" in overview_markup_body
     assert "To Template" in overview_markup_body
+    assert (
+        "Update the dimension of every selected index at once." in overview_markup_body
+    )
     assert "<h3>Hyperedge</h3>" not in overview_markup_body
     assert 'id="group-selection-button"' in overview_body + overview_markup_body
     assert (
@@ -2476,6 +2643,7 @@ def test_layout_assets_expose_reflow_helpers_and_selection_tensor_actions(
     assert 'class="button-row layout-align-row"' not in overview_markup_body
     assert "createGroupFromSelection" in properties_body
     assert 'bindClick("group-selection-button"' in overview_bindings_body
+    assert "updateIndexDimensions({" in overview_bindings_body
     assert ".reflow-action-row {" in css_body
     assert "grid-template-columns: repeat(5, var(--canvas-control-height));" in css_body
     assert "aspect-ratio: 1 / 1;" in css_body

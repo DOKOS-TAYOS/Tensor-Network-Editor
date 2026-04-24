@@ -31,6 +31,15 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
       .replaceAll("'", "&apos;");
   }
 
+  function escapeSvgAttribute(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&apos;");
+  }
+
   function isIndexNode(element) {
     return element.isNode() && element.data("kind") === "index";
   }
@@ -238,6 +247,7 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     sanitizeFilename,
     escapeHtml,
     escapeSvgText,
+    escapeSvgAttribute,
     isIndexNode,
     isTextInput,
     isAdditiveSelectionModifier,

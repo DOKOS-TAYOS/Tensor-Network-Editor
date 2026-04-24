@@ -8,6 +8,7 @@ import re
 
 from ...internal.models._model_tensor_data import TensorNumericLiteral
 from ...models import TensorDataMode, TensorDataSpec
+from ..analysis._hyperedge_lowering import _build_copy_tensor_values
 
 
 def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
@@ -77,6 +78,111 @@ def _parse_tensor_data_initializer(
         return shape, TensorDataSpec(mode=TensorDataMode.LITERAL, values=values)
 
     return None
+
+
+def _parse_copy_tensor_data_update(
+    statement: ast.stmt,
+) -> tuple[str, tuple[int, ...], TensorDataSpec] | None:
+    """Parse compact copy-tensor diagonal fills emitted by generated code."""
+    parsed_numpy_assignment = _parse_numpy_copy_tensor_assignment(statement)
+    if parsed_numpy_assignment is not None:
+        return parsed_numpy_assignment
+    return _parse_torch_copy_tensor_assignment(statement)
+
+
+def _parse_numpy_copy_tensor_assignment(
+    statement: ast.stmt,
+) -> tuple[str, tuple[int, ...], TensorDataSpec] | None:
+    """Parse ``array[(arange(d),) * n] = 1`` copy-tensor fills."""
+    if (
+        not isinstance(statement, ast.Assign)
+        or len(statement.targets) != 1
+        or not isinstance(statement.targets[0], ast.Subscript)
+        or not isinstance(statement.targets[0].value, ast.Name)
+    ):
+        return None
+    fill_value = _literal_number(statement.value)
+    if fill_value is None or fill_value != 1:
+        return None
+    repeated_indices = _parse_repeated_arange_indices(statement.targets[0].slice)
+    if repeated_indices is None:
+        return None
+    data_variable_name = statement.targets[0].value.id
+    dimension, rank = repeated_indices
+    shape = (dimension,) * rank
+    return (
+        data_variable_name,
+        shape,
+        TensorDataSpec(
+            mode=TensorDataMode.LITERAL,
+            values=_build_copy_tensor_values(dimension, rank),
+        ),
+    )
+
+
+def _parse_torch_copy_tensor_assignment(
+    statement: ast.stmt,
+) -> tuple[str, tuple[int, ...], TensorDataSpec] | None:
+    """Parse ``tensor.index_put_((torch.arange(d),) * n, torch.ones(d))``."""
+    if (
+        not isinstance(statement, ast.Expr)
+        or not isinstance(statement.value, ast.Call)
+        or not isinstance(statement.value.func, ast.Attribute)
+        or statement.value.func.attr != "index_put_"
+        or not isinstance(statement.value.func.value, ast.Name)
+        or len(statement.value.args) != 2
+    ):
+        return None
+    repeated_indices = _parse_repeated_arange_indices(statement.value.args[0])
+    ones_shape = _parse_ones_shape(statement.value.args[1])
+    if repeated_indices is None or ones_shape is None or len(ones_shape) != 1:
+        return None
+    dimension, rank = repeated_indices
+    if ones_shape[0] != dimension:
+        return None
+    data_variable_name = statement.value.func.value.id
+    shape = (dimension,) * rank
+    return (
+        data_variable_name,
+        shape,
+        TensorDataSpec(
+            mode=TensorDataMode.LITERAL,
+            values=_build_copy_tensor_values(dimension, rank),
+        ),
+    )
+
+
+def _parse_repeated_arange_indices(expression: ast.expr) -> tuple[int, int] | None:
+    """Parse ``(module.arange(dimension),) * rank`` index tuples."""
+    if (
+        not isinstance(expression, ast.BinOp)
+        or not isinstance(expression.op, ast.Mult)
+        or not isinstance(expression.left, ast.Tuple)
+        or len(expression.left.elts) != 1
+        or not isinstance(expression.left.elts[0], ast.Call)
+    ):
+        return None
+    call = expression.left.elts[0]
+    call_name = _call_name(call.func)
+    if not (call_name.endswith(".arange") or call_name == "arange"):
+        return None
+    if len(call.args) != 1:
+        return None
+    dimension = _literal_int(call.args[0])
+    rank = _literal_int(expression.right)
+    if dimension is None or rank is None:
+        return None
+    return dimension, rank
+
+
+def _parse_ones_shape(expression: ast.expr) -> tuple[int, ...] | None:
+    """Parse the shape passed to a supported ``ones(...)`` call."""
+    if not isinstance(expression, ast.Call):
+        return None
+    call_name = _call_name(expression.func)
+    if not (call_name.endswith(".ones") or call_name == "ones"):
+        return None
+    return _parse_shape_argument(expression)
 
 
 def _call_name(expression: ast.expr) -> str:
@@ -176,6 +282,17 @@ def _literal_signed_int(expression: ast.expr | None) -> int | None:
 
 def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None:
     """Return a tuple of literal integers or ``None`` if unsupported."""
+    if (
+        isinstance(expression, ast.BinOp)
+        and isinstance(expression.op, ast.Mult)
+        and isinstance(expression.left, (ast.List, ast.Tuple))
+        and len(expression.left.elts) == 1
+    ):
+        repeated_value = _literal_int(expression.left.elts[0])
+        repeat_count = _literal_int(expression.right)
+        if repeated_value is None or repeat_count is None:
+            return None
+        return (repeated_value,) * repeat_count
     if not isinstance(expression, (ast.List, ast.Tuple)):
         return None
     values: list[int] = []

@@ -159,7 +159,7 @@ export function createCanvasContextMenuMarkup({
     `;
   }
 
-  function buildTooltipAttributes(label, description = "") {
+  function buildTooltipAttributes(label, description = "", shortcut = "") {
     const safeLabel = String(label || "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
@@ -172,7 +172,15 @@ export function createCanvasContextMenuMarkup({
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+    const safeShortcut = String(shortcut || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
     return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+      safeShortcut ? ` data-shortcut="${safeShortcut}"` : ""
+    }${
       safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
     }`;
   }
@@ -235,7 +243,8 @@ export function createCanvasContextMenuMarkup({
                   class="button-accent-insert"
                   ${buildTooltipAttributes(
                     "Add index",
-                    "Add one new open index to each selected tensor."
+                    "Add one new open index to each selected tensor.",
+                    "I"
                   )}
                 >
                   Add index
@@ -249,7 +258,8 @@ export function createCanvasContextMenuMarkup({
             class="button-accent-positive"
             ${buildTooltipAttributes(
               "Extract",
-              "Extract the selected tensors as a reusable subnetwork."
+              "Extract the selected tensors as a reusable subnetwork.",
+              "Shift+E"
             )}
           >
             Extract
@@ -299,7 +309,8 @@ export function createCanvasContextMenuMarkup({
             class="button-accent-insert"
             ${buildTooltipAttributes(
               "Group",
-              "Create a visual group from the selected tensors."
+              "Create a visual group from the selected tensors.",
+              "G"
             )}
           >
             Group
@@ -311,7 +322,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete selection"
             ${buildTooltipAttributes(
               "Delete selection",
-              "Remove the current selection from the network."
+              "Remove the current selection from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}
@@ -388,7 +400,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Add index"
             ${buildTooltipAttributes(
               "Add index",
-              "Create a new open index on this tensor."
+              "Create a new open index on this tensor.",
+              "I"
             )}
           >
             +
@@ -415,7 +428,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete tensor"
             ${buildTooltipAttributes(
               "Delete tensor",
-              "Remove this tensor from the network."
+              "Remove this tensor from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}
@@ -437,10 +451,27 @@ export function createCanvasContextMenuMarkup({
     };
     return `
       <div class="canvas-context-menu-section canvas-context-menu-input-stack">
-        <div class="properties-chip-wrap canvas-context-menu-stats">
-          <div class="properties-chip">
-            <span>Indices</span>
-            <strong>${resolvedTarget.indexCount}</strong>
+        <div class="field-row canvas-context-menu-index-fields canvas-context-menu-index-selection-fields">
+          <div class="properties-chip-wrap canvas-context-menu-stats">
+            <div class="properties-chip">
+              <span>Indices</span>
+              <strong>${resolvedTarget.indexCount}</strong>
+            </div>
+          </div>
+          <div class="field-group compact-number-field">
+            <input
+              id="context-menu-selection-dimension-input"
+              type="number"
+              min="1"
+              step="1"
+              value="${escapeHtml(resolvedTarget.indexDimensionValue || "")}"
+              ${resolvedTarget.hasMixedIndexDimensions ? 'placeholder="Mixed"' : ""}
+              aria-label="Selected index dimension"
+              ${buildTooltipAttributes(
+                "Selected index dimension",
+                "Update the dimension of every selected index at once."
+              )}
+            />
           </div>
         </div>
         <div class="button-row canvas-context-menu-actions">
@@ -467,7 +498,8 @@ export function createCanvasContextMenuMarkup({
               "Create hyperedge",
               candidate.canCreate
                 ? "Create a hyperedge from the selected open indices."
-                : candidate.message || "This selection cannot form a hyperedge."
+                : candidate.message || "This selection cannot form a hyperedge.",
+              "H"
             )}
           >
             Create hyperedge
@@ -479,7 +511,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete selection"
             ${buildTooltipAttributes(
               "Delete selection",
-              "Remove the current selection from the network."
+              "Remove the current selection from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}
@@ -600,12 +633,13 @@ export function createCanvasContextMenuMarkup({
             type="button"
             class="icon-button index-action-button danger"
             aria-label="Delete index"
-            ${buildTooltipAttributes(
-              "Delete index",
-              "Remove this index from the tensor."
-            )}
-          >
-            ${renderTrashIcon()}
+              ${buildTooltipAttributes(
+                "Delete index",
+                "Remove this index from the tensor.",
+                "Delete"
+              )}
+            >
+              ${renderTrashIcon()}
           </button>
         </div>
       </div>
@@ -646,7 +680,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete connection"
             ${buildTooltipAttributes(
               "Delete connection",
-              "Remove this connection from the network."
+              "Remove this connection from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}
@@ -690,7 +725,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete hyperedge"
             ${buildTooltipAttributes(
               "Delete hyperedge",
-              "Remove this hyperedge from the network."
+              "Remove this hyperedge from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}
@@ -754,7 +790,8 @@ export function createCanvasContextMenuMarkup({
                   class="button-accent-insert"
                   ${buildTooltipAttributes(
                     "Add index",
-                    "Add one new open index to each tensor inside this group."
+                    "Add one new open index to each tensor inside this group.",
+                    "I"
                   )}
                 >
                   Add index
@@ -768,7 +805,8 @@ export function createCanvasContextMenuMarkup({
             class="button-accent-positive"
             ${buildTooltipAttributes(
               "Extract",
-              "Extract the tensors inside this group as a reusable subnetwork."
+              "Extract the tensors inside this group as a reusable subnetwork.",
+              "Shift+E"
             )}
           >
             Extract
@@ -805,7 +843,8 @@ export function createCanvasContextMenuMarkup({
             aria-label="Delete group"
             ${buildTooltipAttributes(
               "Delete group",
-              "Remove this group from the network."
+              "Remove this group from the network.",
+              "Delete"
             )}
           >
             ${renderTrashIcon()}

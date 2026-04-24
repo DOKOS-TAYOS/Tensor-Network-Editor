@@ -11,6 +11,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Save and Load Designs](#save-and-load-designs)
 - [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
 - [Templates](#templates)
+- [Subnetwork Helpers](#subnetwork-helpers)
 - [Extension Hooks](#extension-hooks)
 - [Errors](#errors)
 - [Small Complete Example](#small-complete-example)
@@ -23,6 +24,9 @@ The package exposes the main functions and models at the top level:
 from tensor_network_editor import (
     EngineName,
     NetworkSpec,
+    PythonLoadOptions,
+    TensorDataMode,
+    TensorDataSpec,
     TensorCollectionFormat,
     ValidationIssue,
     analyze_contraction,
@@ -48,8 +52,26 @@ The documented imports above are the stable guided public surface. Explicit
 public modules such as `tensor_network_editor.editor`,
 `tensor_network_editor.io`, `tensor_network_editor.models`, and
 `tensor_network_editor.templates` stay available when you want more structure
-or advanced hooks. The `internal` tree is not a stable API and may be
-reorganized between releases.
+or advanced hooks.
+
+Useful public modules:
+
+| Module | Use it for |
+| --- | --- |
+| `tensor_network_editor.editor` | `EditorLaunchOptions` and `open_editor(...)` |
+| `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
+| `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
+| `tensor_network_editor.validation` | hard validation helpers |
+| `tensor_network_editor.linting` | soft modeling diagnostics |
+| `tensor_network_editor.analysis` | structural and contraction analysis |
+| `tensor_network_editor.canonicalization` | stable ordering and optional deterministic ids |
+| `tensor_network_editor.templates` | built-in templates and template registration |
+| `tensor_network_editor.subnetworks` | extraction and insertion preparation for reusable fragments |
+| `tensor_network_editor.codegen.registry` | advanced backend-generator registration |
+
+Modules under `tensor_network_editor.internal` are implementation details. They
+are used by the package itself and by tests, but they are not a stable
+user-facing API.
 
 ## Launch the Editor
 
@@ -167,8 +189,9 @@ Important details:
 - `load_python_spec(...)` works when source is already in memory
 - both functions accept `python=PythonLoadOptions(...)` when you want to lock
   the parser or import behavior explicitly
-- `PythonLoadOptions.source_profile` accepts `generated`, `quimb`,
-  `tensornetwork`, or `einsum` when you want to pin the parser explicitly
+- `PythonLoadOptions.source_profile` defaults to `auto`, or accepts
+  `generated`, `quimb`, `tensornetwork`, or `einsum` when you want to pin the
+  parser explicitly
 - `PythonLoadOptions.import_mode="live"` executes the source in a subprocess using the
   active Python interpreter, supports live `quimb` and `tensornetwork`
   objects, and accepts `object_name="..."` when several compatible
@@ -182,6 +205,17 @@ Important details:
   imports
 - live import preserves tensor data when it can be lowered to `ones`, `fill`,
   or small numeric literals, and otherwise drops that data with a warning
+- when live import is requested for generated source and backend imports fail,
+  the loader tries the static generated-source parser and returns a warning
+  that names the fallback
+
+<p align="center">
+  <img
+    src="images/python-import-fallback.png"
+    alt="PythonLoadOptions and live import fallback workflow"
+    width="900"
+  />
+</p>
 
 When you build `HyperedgeSpec` values from Python,
 `hub_offset=CanvasPosition(...)` stores the editor's draggable hub displacement
@@ -300,6 +334,14 @@ Use:
 Supported memory dtypes for analysis are `float16`, `float32`, `float64`,
 `complex64`, and `complex128`.
 
+<p align="center">
+  <img
+    src="images/cli-validation-workflow.png"
+    alt="Validation linting analysis and diff diagnostic workflow"
+    width="900"
+  />
+</p>
+
 ## Templates
 
 List built-in templates:
@@ -337,6 +379,43 @@ The package root only re-exports `build_template_spec(...)` and
 
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
+
+## Subnetwork Helpers
+
+Reusable subnetworks are normal `NetworkSpec` fragments that contain selected
+tensors and the connections fully inside that selection.
+
+```python
+from tensor_network_editor import CanvasPosition, load_spec
+from tensor_network_editor.subnetworks import (
+    extract_subnetwork_spec,
+    prepare_subnetwork_for_insertion,
+)
+
+
+source = load_spec("my_network.json")
+fragment = extract_subnetwork_spec(
+    source,
+    tensor_ids=["tensor_a", "tensor_b"],
+    name="local_pair",
+)
+prepared = prepare_subnetwork_for_insertion(
+    fragment,
+    target_center=CanvasPosition(x=400.0, y=260.0),
+)
+```
+
+Important behavior:
+
+- extraction works only in normal graph mode
+- extracted fragments keep tensors, groups, pairwise edges, and hyperedges
+  that are fully contained inside the selected tensor set
+- notes and contraction plans are intentionally not copied into fragments
+- insertion preparation regenerates network, tensor, index, edge, hyperedge,
+  and group ids, then recenters the tensors around `target_center`
+
+For persistent project/shared catalogs, use the editor library dialog or the
+`tensor-network-editor subnetwork ...` CLI commands.
 
 ## Extension Hooks
 
@@ -422,10 +501,11 @@ class MyGenerator(CodeGenerator):
     def generate(
         self,
         spec: NetworkSpec,
-        *,
         collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+        *,
+        validate: bool = True,
     ) -> CodegenResult:
-        del spec, collection_format
+        del spec, collection_format, validate
         return CodegenResult(engine="my_backend", code="# custom backend")
 
 

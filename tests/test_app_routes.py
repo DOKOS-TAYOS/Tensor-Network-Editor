@@ -16,7 +16,7 @@ from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
-from tensor_network_editor.errors import PackageIOError
+from tensor_network_editor.errors import PackageIOError, SerializationError
 from tensor_network_editor.io import SCHEMA_VERSION
 from tensor_network_editor.io import deserialize_spec as deserialize_spec_impl
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
@@ -178,6 +178,38 @@ def test_validate_route_returns_live_import_warnings(
     assert payload["warnings"]
     assert "tensor data" in payload["warnings"][0].lower()
     assert payload["spec"]["network"]["tensors"][0]["tensor_data"] is None
+
+
+def test_validate_route_falls_back_to_static_parser_for_generated_python_when_live_import_fails(
+    editor_server: EditorServer,
+) -> None:
+    generated = generate_code(
+        build_sample_spec(),
+        engine=EngineName.TENSORKROWCH,
+    )
+
+    with patch(
+        "tensor_network_editor.internal.io._serialization.import_live_python_source",
+        side_effect=SerializationError("No module named 'torch'"),
+    ):
+        payload = request_json(
+            f"{editor_server.base_url}/api/validate",
+            method="POST",
+            payload={
+                "python_code": generated.code,
+                "python_import_mode": "live",
+            },
+        )
+
+    assert payload["ok"] is True
+    assert payload["issues"] == []
+    assert payload["warnings"]
+    assert "static parser" in payload["warnings"][0].lower()
+    assert "no module named 'torch'" in payload["warnings"][0].lower()
+    assert [tensor["name"] for tensor in payload["spec"]["network"]["tensors"]] == [
+        "A",
+        "B",
+    ]
 
 
 def test_validate_route_rejects_linear_periodic_generated_python_with_clear_message(

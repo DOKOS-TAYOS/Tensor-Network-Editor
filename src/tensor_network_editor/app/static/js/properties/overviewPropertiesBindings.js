@@ -51,9 +51,13 @@ export function createOverviewPropertiesBindings({
     selectedEntries,
     batchColor,
     editableTensorIds,
+    selectedIndexIds,
     hasMultipleTensors,
   }) {
     const multiColorInput = documentRef.getElementById("multi-color-input");
+    const multiIndexDimensionInput = documentRef.getElementById(
+      "multi-index-dimension-input"
+    );
     bindImmediateAutosave(
       multiColorInput,
       "selection:color",
@@ -68,6 +72,26 @@ export function createOverviewPropertiesBindings({
         });
       },
       "input"
+    );
+    bindDebouncedAutosave(
+      multiIndexDimensionInput,
+      "selection:index-dimension",
+      () => {
+        const rawValue = multiIndexDimensionInput.value.trim();
+        if (!rawValue) {
+          return;
+        }
+        commands.updateIndexDimensions({
+          indexIds: selectedIndexIds,
+          rawValue,
+          invalidate: propertyInvalidation({
+            analysis: true,
+            graph: true,
+            properties: true,
+          }),
+          statusMessage: `Updated ${selectedIndexIds.length} indices.`,
+        });
+      }
     );
 
     const addIndexButton = documentRef.getElementById(

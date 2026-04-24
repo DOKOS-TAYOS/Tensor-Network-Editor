@@ -87,6 +87,7 @@ export function createShellActions(ctx) {
     handleTemplateParameterInput: (event) => ctx.handleTemplateParameterInput(event),
     insertTemplate: () => ctx.insertTemplate(),
     openSubnetworkPicker: () => ctx.openSubnetworkPicker(),
+    exportSelectedSubnetwork: () => ctx.exportSelectedSubnetwork(),
     saveSelectionToSubnetworkLibrary: () => ctx.saveSelectionToSubnetworkLibrary(),
     openSubnetworkLibrary: () => ctx.openSubnetworkLibrary(),
     insertSelectedSubnetworkFromLibrary: () =>

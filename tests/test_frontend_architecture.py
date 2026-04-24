@@ -4647,8 +4647,11 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         if (!tableModel.rows[1].cells.flop.isWorst || tableModel.rows[1].cells.flop.isBest) {{
           throw new Error("The highest FLOP row should be worst only.");
         }}
-        if (tableModel.rows[2].cells.flop.display !== "-") {{
-          throw new Error(`Expected incomplete rows to render '-', received ${{tableModel.rows[2].cells.flop.display}}.`);
+        if (tableModel.rows[2].cells.flop.display !== "5") {{
+          throw new Error(`Expected incomplete rows to render their partial FLOP value, received ${{tableModel.rows[2].cells.flop.display}}.`);
+        }}
+        if (tableModel.rows[2].cells.memory.display !== "20 bytes") {{
+          throw new Error(`Expected incomplete rows to render their partial memory value, received ${{tableModel.rows[2].cells.memory.display}}.`);
         }}
         if (tableModel.rows[2].cells.flop.isBest || tableModel.rows[2].cells.flop.isWorst) {{
           throw new Error("Incomplete rows should not participate in best/worst ranking.");
@@ -4660,6 +4663,9 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         if (!csvExport.includes("Alpha,10,30,20,80 bytes")) {{
           throw new Error(`Expected CSV export to include the Alpha metrics, received ${{csvExport}}.`);
         }}
+        if (!csvExport.includes("Gamma,5,5,5,20 bytes")) {{
+          throw new Error(`Expected CSV export to include the partial Gamma metrics, received ${{csvExport}}.`);
+        }}
 
         const textExport = benchmarkModule.serializeBenchmarkCompareTableText(tableModel);
         if (!textExport.includes("Peak Memory") || !textExport.includes("Beta & Co")) {{
@@ -4668,6 +4674,9 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         if (!textExport.includes("80 bytes") || !textExport.includes("40 bytes")) {{
           throw new Error(`Expected text export to keep the rendered memory values, received ${{textExport}}.`);
         }}
+        if (!textExport.includes("Gamma") || !textExport.includes("20 bytes")) {{
+          throw new Error(`Expected text export to include the partial Gamma metrics, received ${{textExport}}.`);
+        }}
 
         const latexExport = benchmarkModule.serializeBenchmarkCompareTableLatex(tableModel);
         if (!latexExport.includes("\\\\begin{{tabular}}{{lrrrr}}")) {{
@@ -4675,6 +4684,9 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         }}
         if (!latexExport.includes("Alpha & 10 & 30 & 20 & 80 bytes \\\\\\\\")) {{
           throw new Error(`Expected LaTeX export to include the Alpha row, received ${{latexExport}}.`);
+        }}
+        if (!latexExport.includes("Gamma & 5 & 5 & 5 & 20 bytes \\\\\\\\")) {{
+          throw new Error(`Expected LaTeX export to include the partial Gamma row, received ${{latexExport}}.`);
         }}
         if (!latexExport.includes("Beta \\\\& Co & 25 & 15 & 40 & 40 bytes \\\\\\\\")) {{
           throw new Error(`Expected LaTeX export to escape special characters in scheme names, received ${{latexExport}}.`);
@@ -4833,6 +4845,81 @@ def test_delete_shortcut_closes_canvas_context_menu_before_deleting(
 
     assert completed_process.returncode == 0, (
         "The delete-shortcut context-menu regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_ctrl_enter_shortcut_uses_complete_editor_registered_after_action_groups(
+    tmp_path: Path,
+) -> None:
+    interactions_dir = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "interactions"
+    )
+    script_path = _write_runtime_script(
+        tmp_path,
+        "ctrl_enter_uses_late_complete_editor.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const actionGroupsUrl = pathToFileURL({str(interactions_dir / "editorActionGroups.js")!r}).href;
+        const shortcutsUrl = pathToFileURL({str(interactions_dir / "interactionsShortcuts.js")!r}).href;
+        const {{ createEditorActionGroups }} = await import(actionGroupsUrl);
+        const {{ createInteractionShortcutBindings }} = await import(shortcutsUrl);
+
+        const events = [];
+        const ctx = {{
+          document: {{
+            activeElement: null,
+          }},
+          isTextInput() {{
+            return false;
+          }},
+        }};
+        const actionGroups = createEditorActionGroups(ctx);
+        const bindings = createInteractionShortcutBindings({{
+          ctx,
+          state: {{}},
+          dom: {{
+            engineSelect: {{ value: "", options: [] }},
+            loadInput: {{ click() {{}} }},
+          }},
+          runtime: {{}},
+          shortcutActions: actionGroups.shortcuts,
+        }});
+        ctx.completeEditor = () => {{
+          events.push("complete");
+        }};
+
+        bindings.handleKeydown({{
+          key: "Enter",
+          altKey: false,
+          ctrlKey: true,
+          metaKey: false,
+          shiftKey: false,
+          target: null,
+          preventDefault() {{
+            events.push("prevent");
+          }},
+        }});
+
+        if (events.join(",") !== "prevent,complete") {{
+          throw new Error(`Expected Ctrl+Enter to call the late registered completeEditor, received ${{JSON.stringify(events)}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The Ctrl+Enter late-binding regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

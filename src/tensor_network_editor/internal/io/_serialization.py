@@ -297,15 +297,50 @@ def deserialize_spec_from_python_code_result(
             resolved_source_profile="generated",
             python_import_mode=normalized_import_mode,
         )
-        result = import_live_python_source(
-            code,
-            source_profile=source_profile,
-            python_object_name=python_object_name,
-            source_path=source_path,
-        )
+        try:
+            result = import_live_python_source(
+                code,
+                source_profile=source_profile,
+                python_object_name=python_object_name,
+                source_path=source_path,
+            )
+        except SerializationError as exc:
+            try:
+                fallback_result = _deserialize_static_python_code_result(
+                    code,
+                    validate=validate,
+                    source_profile=source_profile,
+                    python_reconstruction_level=normalized_reconstruction_level,
+                )
+            except SerializationError as fallback_exc:
+                raise exc from fallback_exc
+            return PythonSpecLoadResult(
+                spec=fallback_result.spec,
+                warnings=[
+                    "Live Python import failed "
+                    f"({exc}). Loaded the file with the static parser instead.",
+                    *fallback_result.warnings,
+                ],
+            )
         spec = ensure_valid_spec(result.spec) if validate else result.spec
         return PythonSpecLoadResult(spec=spec, warnings=result.warnings)
 
+    return _deserialize_static_python_code_result(
+        code,
+        validate=validate,
+        source_profile=source_profile,
+        python_reconstruction_level=normalized_reconstruction_level,
+    )
+
+
+def _deserialize_static_python_code_result(
+    code: str,
+    *,
+    validate: bool,
+    source_profile: PythonSourceProfile,
+    python_reconstruction_level: PythonReconstructionLevel,
+) -> PythonSpecLoadResult:
+    """Parse Python source into a ``NetworkSpec`` together with warnings."""
     if "# Tensor Network Editor linear periodic mode" in code:
         raise SerializationError(
             "Loading generated Python from linear periodic mode is not supported."
@@ -321,9 +356,9 @@ def deserialize_spec_from_python_code_result(
         else normalized_profile
     )
     resolved_reconstruction_level = resolve_python_reconstruction_level(
-        normalized_reconstruction_level,
+        python_reconstruction_level,
         resolved_source_profile=resolved_profile,
-        python_import_mode=normalized_import_mode,
+        python_import_mode="static",
     )
     spec = (
         parse_generated_python_network(

@@ -146,7 +146,20 @@ export function createEditorActionGroups(ctx) {
         "createHyperedgeFromSelection"
       ),
       addNoteAtCenter: resolveOptionalAction(ctx, "addNoteAtCenter"),
+      addIndexToSelectedTensors: (...args) => {
+        if (
+          ctx.propertyCommands &&
+          typeof ctx.propertyCommands.addIndexToSelectedTensors === "function"
+        ) {
+          return ctx.propertyCommands.addIndexToSelectedTensors(...args);
+        }
+        return false;
+      },
       toggleTemplateManager: resolveOptionalAction(ctx, "toggleTemplateManager"),
+      toggleReflowLayoutPopover: resolveOptionalAction(
+        ctx,
+        "toggleReflowLayoutPopover"
+      ),
       toggleLinearPeriodicMode: resolveOptionalAction(
         ctx,
         "toggleLinearPeriodicMode"

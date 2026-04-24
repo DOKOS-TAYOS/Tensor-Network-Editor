@@ -258,6 +258,22 @@
                     </span>
                   </button>
                   <button
+                    id="export-session-template-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Save the selected subnetwork as JSON."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Save subnetwork</span>
+                        <span class="toolbar-menu-item-shortcut">Shift+E</span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the selected subnetwork as JSON.</span>
+                    </span>
+                  </button>
+                  <button
                     id="load-session-template-menu-item"
                     class="toolbar-menu-item"
                     type="button"
@@ -271,22 +287,6 @@
                         <span class="toolbar-menu-item-shortcut">L</span>
                       </span>
                       <span class="toolbar-menu-item-description">Import templates from a JSON file.</span>
-                    </span>
-                  </button>
-                  <button
-                    id="export-session-template-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the selected session template as JSON."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export template</span>
-                        <span class="toolbar-menu-item-shortcut">Shift+E</span>
-                      </span>
-                      <span class="toolbar-menu-item-description">Save the selected session template to JSON.</span>
                     </span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
@@ -479,65 +479,6 @@
                   </button>
                 </div>
                 <div class="title-control-divider" aria-hidden="true"></div>
-                <div class="title-control-group title-control-group-mode">
-                  <div class="toolbar-mode-controls" hidden>
-                    <span
-                      id="linear-periodic-cell-label"
-                      class="toolbar-mode-label"
-                      aria-live="polite"
-                    >
-                      Single
-                    </span>
-                    <input
-                      id="benchmark-scheme-name-input"
-                      class="toolbar-mode-name-input"
-                      type="text"
-                      value=""
-                      aria-label="Benchmark scheme name"
-                      hidden
-                    />
-                    <button
-                      id="benchmark-compare-button"
-                      type="button"
-                      class="button-accent-contraction toolbar-mode-compare-button"
-                      hidden
-                    >
-                      Compare
-                    </button>
-                    <button
-                      id="linear-periodic-previous-cell-button"
-                      type="button"
-                      aria-label="Previous item"
-                      title="Previous item"
-                    >
-                      &lt;
-                    </button>
-                    <button
-                      id="grid-periodic-up-cell-button"
-                      type="button"
-                      aria-label="Upper item"
-                      title="Upper item"
-                    >
-                      &uarr;
-                    </button>
-                    <button
-                      id="grid-periodic-down-cell-button"
-                      type="button"
-                      aria-label="Lower item"
-                      title="Lower item"
-                    >
-                      &darr;
-                    </button>
-                    <button
-                      id="linear-periodic-next-cell-button"
-                      type="button"
-                      aria-label="Next item"
-                      title="Next item"
-                    >
-                      &gt;
-                    </button>
-                  </div>
-                </div>
                 <div class="title-control-group title-control-group-template">
                   <label
                     id="template-select-field"
@@ -712,6 +653,77 @@
                     aria-label="Subnetwork warnings"
                     hidden
                   ></p>
+                </div>
+                <div class="title-control-group title-control-group-mode">
+                  <div class="toolbar-mode-controls" hidden>
+                    <span
+                      id="linear-periodic-cell-label"
+                      class="toolbar-mode-label"
+                      aria-live="polite"
+                    >
+                      Single
+                    </span>
+                    <input
+                      id="benchmark-scheme-name-input"
+                      class="toolbar-mode-name-input"
+                      type="text"
+                      value=""
+                      aria-label="Benchmark scheme name"
+                      hidden
+                    />
+                    <button
+                      id="benchmark-compare-button"
+                      type="button"
+                      class="button-accent-contraction toolbar-mode-compare-button"
+                      hidden
+                    >
+                      Compare
+                    </button>
+                    <button
+                      id="linear-periodic-previous-cell-button"
+                      type="button"
+                      aria-label="Previous item"
+                      data-tooltip-enabled="true"
+                      data-shortcut-label="Previous item"
+                      data-shortcut="Alt+ArrowLeft"
+                      data-shortcut-description="Move to the previous item in the current mode."
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      id="grid-periodic-up-cell-button"
+                      type="button"
+                      aria-label="Upper item"
+                      data-tooltip-enabled="true"
+                      data-shortcut-label="Upper item"
+                      data-shortcut="Alt+ArrowUp"
+                      data-shortcut-description="Move to the upper item in the current mode."
+                    >
+                      &uarr;
+                    </button>
+                    <button
+                      id="grid-periodic-down-cell-button"
+                      type="button"
+                      aria-label="Lower item"
+                      data-tooltip-enabled="true"
+                      data-shortcut-label="Lower item"
+                      data-shortcut="Alt+ArrowDown"
+                      data-shortcut-description="Move to the lower item in the current mode."
+                    >
+                      &darr;
+                    </button>
+                    <button
+                      id="linear-periodic-next-cell-button"
+                      type="button"
+                      aria-label="Next item"
+                      data-tooltip-enabled="true"
+                      data-shortcut-label="Next item"
+                      data-shortcut="Alt+ArrowRight"
+                      data-shortcut-description="Move to the next item in the current mode."
+                    >
+                      &gt;
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -998,6 +1010,7 @@
             <div><strong>Delete / Backspace</strong><span>Delete selection</span></div>
             <div><strong>Shift+R</strong><span>Reset contraction path</span></div>
             <div><strong>N</strong><span>Add tensor</span></div>
+            <div><strong>I</strong><span>Add index to selected tensors</span></div>
             <div><strong>T</strong><span>Insert template</span></div>
             <div><strong>G</strong><span>Create group</span></div>
             <div><strong>H</strong><span>Create hyperedge from selected indices</span></div>
@@ -1010,7 +1023,8 @@
             <div><strong>E</strong><span>Toggle For Tree mode</span></div>
             <div><strong>B</strong><span>Switch to Benchmark mode</span></div>
             <div><strong>L</strong><span>Load templates from JSON</span></div>
-            <div><strong>Shift+E</strong><span>Export the selected template</span></div>
+            <div><strong>Shift+E</strong><span>Save the selected subnetwork</span></div>
+            <div><strong>R</strong><span>Open Reflow</span></div>
             <div><strong>M</strong><span>Open Planner and toggle manual scheme</span></div>
             <div><strong>Shift+M</strong><span>Toggle minimap</span></div>
             <div><strong>Alt+A</strong><span>Open Planner and toggle auto future preview</span></div>
@@ -1023,6 +1037,7 @@
             <div><strong>Shift+G</strong><span>Open Code and generate code</span></div>
             <div><strong>Ctrl/Cmd+S</strong><span>Save the design</span></div>
             <div><strong>Ctrl/Cmd+L</strong><span>Load a design file</span></div>
+            <div><strong>Ctrl/Cmd+Enter</strong><span>Finish editor session</span></div>
             <div><strong>Ctrl+Y</strong><span>Select NumPy einsum</span></div>
             <div><strong>Ctrl/Cmd+P</strong><span>Select PyTorch einsum</span></div>
             <div><strong>Ctrl/Cmd+K</strong><span>Select TensorKrowch</span></div>

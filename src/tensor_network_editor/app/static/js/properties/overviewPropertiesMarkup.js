@@ -1,4 +1,4 @@
-function buildTooltipAttributes(label, description = "") {
+function buildTooltipAttributes(label, description = "", shortcut = "") {
   const safeLabel = String(label || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -11,7 +11,15 @@ function buildTooltipAttributes(label, description = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const safeShortcut = String(shortcut || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
   return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+    safeShortcut ? ` data-shortcut="${safeShortcut}"` : ""
+  }${
     safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
   }`;
 }
@@ -67,6 +75,7 @@ export function buildMultiSelectionPropertiesMarkup({
   groupCount,
   noteCount,
   hasMultipleTensors,
+  multiIndexDimensionCandidate,
   showAddIndexAction,
   hyperedgeCreationCandidate,
   linearPeriodicMode,
@@ -128,6 +137,7 @@ export function buildMultiSelectionPropertiesMarkup({
                       class="button-accent-insert"
                       data-tooltip-enabled="true"
                       data-shortcut-label="Add index"
+                      data-shortcut="I"
                       data-shortcut-description="Add one new open index to each selected tensor."
                     >Add index</button>
                   `
@@ -140,7 +150,8 @@ export function buildMultiSelectionPropertiesMarkup({
                 ${linearPeriodicMode ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "Extract",
-                  "Extract the selected tensors as a reusable subnetwork."
+                  "Extract the selected tensors as a reusable subnetwork.",
+                  "Shift+E"
                 )}
               >
                 Extract
@@ -175,7 +186,8 @@ export function buildMultiSelectionPropertiesMarkup({
                 class="button-accent-insert"
                 ${buildTooltipAttributes(
                   "Group",
-                  "Create a visual group from the selected tensors."
+                  "Create a visual group from the selected tensors.",
+                  "G"
                 )}
               >
                 Group
@@ -189,9 +201,31 @@ export function buildMultiSelectionPropertiesMarkup({
           `
           : ""
       }
+      ${
+        multiIndexDimensionCandidate?.canEdit
+          ? `
+            <div class="field-group compact-number-field">
+              <label for="multi-index-dimension-input">Dimension</label>
+              <input
+                id="multi-index-dimension-input"
+                type="number"
+                min="1"
+                step="1"
+                value="${escapeHtml(multiIndexDimensionCandidate.value || "")}"
+                ${multiIndexDimensionCandidate.hasMixedDimensions ? 'placeholder="Mixed"' : ""}
+                aria-label="Selected index dimension"
+                ${buildTooltipAttributes(
+                  "Selected index dimension",
+                  "Update the dimension of every selected index at once."
+                )}
+              />
+            </div>
+          `
+          : ""
+      }
       <div class="button-row">
         ${
-          hyperedgeCreationCandidate?.selectionContainsOnlyIndices &&
+          hyperedgeCreationCandidate?.selectionContainsOnlyIndicesOrOwners &&
           Array.isArray(hyperedgeCreationCandidate.selectedIndexIds) &&
           hyperedgeCreationCandidate.selectedIndexIds.length
             ? `
@@ -203,7 +237,8 @@ export function buildMultiSelectionPropertiesMarkup({
                   "Create hyperedge",
                   hyperedgeCreationCandidate.canCreate
                     ? "Create a hyperedge from the selected open indices."
-                    : hyperedgeCreationCandidate.message || "This selection cannot form a hyperedge."
+                    : hyperedgeCreationCandidate.message || "This selection cannot form a hyperedge.",
+                  "H"
                 )}
               >
                 Create hyperedge
@@ -231,6 +266,7 @@ export function buildMultiSelectionPropertiesMarkup({
           class="icon-button index-action-button danger"
           aria-label="Delete selection"
           data-tooltip-enabled="true"
+          data-shortcut="Delete"
           data-shortcut-label="Delete selection"
           data-shortcut-description="Remove the current selection from the network."
         >

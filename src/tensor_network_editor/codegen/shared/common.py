@@ -305,6 +305,53 @@ def render_tensor_data_expression(
     )
 
 
+def _hyperedge_copy_tensor_signature(tensor: PreparedTensor) -> tuple[int, int] | None:
+    """Return ``(dimension, rank)`` for generated hyperedge copy tensors."""
+    tensor_data = tensor.spec.tensor_data
+    if tensor_data is None or tensor_data.mode is not TensorDataMode.LITERAL:
+        return None
+    metadata = tensor.spec.metadata
+    if (
+        metadata.get("generated_by") != "hyperedge_lowering"
+        or "generated_for_hyperedge" not in metadata
+    ):
+        return None
+    shape = tensor.spec.shape
+    if not shape:
+        return None
+    dimension = shape[0]
+    if any(axis_dimension != dimension for axis_dimension in shape[1:]):
+        return None
+    return dimension, len(shape)
+
+
+def _render_hyperedge_copy_tensor_data_assignments(
+    tensor: PreparedTensor,
+    *,
+    module_alias: str,
+    zeros_initializer_suffix: str = "",
+) -> list[str] | None:
+    """Render compact generated code for one lowered hyperedge copy tensor."""
+    signature = _hyperedge_copy_tensor_signature(tensor)
+    if signature is None or module_alias not in {"np", "torch"}:
+        return None
+    dimension, rank = signature
+    repeated_shape = f"({dimension},) * {rank}"
+    repeated_indices = f"({module_alias}.arange({dimension}),) * {rank}"
+    lines = [
+        f"{tensor.data_variable_name} = {module_alias}.zeros({repeated_shape}{zeros_initializer_suffix})"
+    ]
+    if module_alias == "torch":
+        lines.append(
+            f"{tensor.data_variable_name}.index_put_("
+            f"{repeated_indices}, "
+            f"{module_alias}.ones({dimension}{zeros_initializer_suffix}))"
+        )
+    else:
+        lines.append(f"{tensor.data_variable_name}[{repeated_indices}] = 1")
+    return lines
+
+
 def render_tensor_data_assignments(
     prepared: PreparedNetwork,
     *,
@@ -316,6 +363,14 @@ def render_tensor_data_assignments(
     lines: list[str] = []
     for tensor in prepared.tensors:
         lines.append(f"# Tensor {_tensor_display_name(tensor)} data")
+        hyperedge_copy_tensor_lines = _render_hyperedge_copy_tensor_data_assignments(
+            tensor,
+            module_alias=module_alias,
+            zeros_initializer_suffix=zeros_initializer_suffix,
+        )
+        if hyperedge_copy_tensor_lines is not None:
+            lines.extend(hyperedge_copy_tensor_lines)
+            continue
         tensor_data_expression = render_tensor_data_expression(
             tensor,
             module_alias=module_alias,

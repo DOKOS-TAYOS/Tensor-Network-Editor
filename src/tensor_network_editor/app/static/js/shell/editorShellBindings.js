@@ -362,17 +362,27 @@ export function createEditorShellBindings({
       "Choose how generated code returns the tensors: list keeps an ordered sequence, matrix arranges row and column structures when the template supports them, and dict returns named entries."
     );
     shortcutTooltip.applyShortcutHint(
+      "reflow-imported-button",
+      "Reflow",
+      "R",
+      "Open layout and index reflow tools."
+    );
+    shortcutTooltip.applyShortcutHint(
       "linear-periodic-previous-cell-button",
-      "Previous cell"
+      "Previous cell",
+      "Alt+ArrowLeft",
+      "Move to the previous item in the current mode."
     );
     shortcutTooltip.applyShortcutHint(
       "linear-periodic-next-cell-button",
-      "Next cell"
+      "Next cell",
+      "Alt+ArrowRight",
+      "Move to the next item in the current mode."
     );
     shortcutTooltip.applyShortcutHint(
       "done-button",
       "Done",
-      "",
+      "Ctrl/Cmd+Enter",
       "Finish the editor session and return the current design to Python."
     );
     shortcutTooltip.applyShortcutHint(
@@ -565,7 +575,7 @@ export function createEditorShellBindings({
     });
     bindListener(exportSessionTemplateMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
-      actions.exportSelectedTemplateSpec();
+      actions.exportSelectedSubnetwork();
     });
     bindListener(editSessionTemplateMenuItem, "click", () => {
       actions.closeTransientToolbarUi();

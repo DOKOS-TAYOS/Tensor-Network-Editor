@@ -7,26 +7,50 @@ function resolveContextAction(ctx, actionName, fallback = () => {}) {
   return typeof candidate === "function" ? candidate.bind(ctx) : fallback;
 }
 
+function selectionContainsOnlyIndicesOrOwningTensors(entries = [], indexEntries = []) {
+  if (!entries.length || !indexEntries.length) {
+    return false;
+  }
+  const selectedTensorIds = new Set(
+    indexEntries
+      .map((entry) => entry?.located?.tensor?.id)
+      .filter(Boolean)
+  );
+  return entries.every((entry) => {
+    if (entry?.kind === "index") {
+      return true;
+    }
+    if (entry?.kind !== "tensor") {
+      return false;
+    }
+    return selectedTensorIds.has(entry?.tensor?.id || entry?.id);
+  });
+}
+
 function describeSelectedHyperedgeCandidate(ctx, selectedEntries = []) {
   const entries = Array.isArray(selectedEntries) ? selectedEntries : [];
   const indexEntries = entries.filter((entry) => entry.kind === "index");
   const selectedIndexIds = indexEntries.map((entry) => entry.id);
   const selectionContainsOnlyIndices =
     entries.length > 0 && indexEntries.length === entries.length;
+  const selectionContainsOnlyIndicesOrOwners =
+    selectionContainsOnlyIndicesOrOwningTensors(entries, indexEntries);
   if (!selectedIndexIds.length) {
     return {
       canCreate: false,
       message: "Select indices to create a hyperedge.",
       selectedIndexIds,
       selectionContainsOnlyIndices: false,
+      selectionContainsOnlyIndicesOrOwners: false,
     };
   }
-  if (!selectionContainsOnlyIndices) {
+  if (!selectionContainsOnlyIndicesOrOwners) {
     return {
       canCreate: false,
       message: "Select only normal-mode indices to create a hyperedge.",
       selectedIndexIds,
-      selectionContainsOnlyIndices: false,
+      selectionContainsOnlyIndices,
+      selectionContainsOnlyIndicesOrOwners: false,
     };
   }
   if (typeof ctx.describeHyperedgeCandidate !== "function") {
@@ -35,12 +59,14 @@ function describeSelectedHyperedgeCandidate(ctx, selectedEntries = []) {
       message: "Hyperedge creation is unavailable in this session.",
       selectedIndexIds,
       selectionContainsOnlyIndices,
+      selectionContainsOnlyIndicesOrOwners,
     };
   }
   return {
     ...ctx.describeHyperedgeCandidate(selectedIndexIds),
     selectedIndexIds,
     selectionContainsOnlyIndices,
+    selectionContainsOnlyIndicesOrOwners,
   };
 }
 
@@ -133,7 +159,7 @@ export function registerProperties(ctx) {
     const selectedEntries =
       typeof ctx.getSelectedEntries === "function" ? ctx.getSelectedEntries() : [];
     const candidate = describeSelectedHyperedgeCandidate(ctx, selectedEntries);
-    if (!candidate.selectionContainsOnlyIndices) {
+    if (!candidate.selectionContainsOnlyIndicesOrOwners) {
       ctx.setStatus(candidate.message || "This selection cannot form a hyperedge.", "error");
       return false;
     }

@@ -30,6 +30,7 @@ from tests.factories import (
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_without_plan,
+    build_three_tensor_hyperedge_spec,
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
     build_tree_periodic_tree_spec,
@@ -379,6 +380,63 @@ def test_generate_code_uses_tensor_data_initializers(
 
     for snippet in expected_snippets:
         assert snippet in result.code
+
+
+@pytest.mark.parametrize(
+    ("engine", "expected_snippets", "unexpected_snippet"),
+    [
+        (
+            EngineName.TENSORNETWORK,
+            [
+                "copy_shared_h_data = np.zeros((3,) * 3, dtype=float)",
+                "copy_shared_h_data[(np.arange(3),) * 3] = 1",
+            ],
+            "copy_shared_h_data = np.array([[[",
+        ),
+        (
+            EngineName.QUIMB,
+            [
+                "copy_shared_h_data = np.zeros((3,) * 3, dtype=float)",
+                "copy_shared_h_data[(np.arange(3),) * 3] = 1",
+            ],
+            "copy_shared_h_data = np.array([[[",
+        ),
+        (
+            EngineName.TENSORKROWCH,
+            [
+                "copy_shared_h_data = torch.zeros((3,) * 3, dtype=torch.float32)",
+                "copy_shared_h_data.index_put_((torch.arange(3),) * 3, torch.ones(3, dtype=torch.float32))",
+            ],
+            "copy_shared_h_data = torch.tensor([[[",
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            [
+                "copy_shared_h_data = np.zeros((3,) * 3, dtype=float)",
+                "copy_shared_h_data[(np.arange(3),) * 3] = 1",
+            ],
+            "copy_shared_h_data = np.array([[[",
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "copy_shared_h_data = torch.zeros((3,) * 3, dtype=torch.float32)",
+                "copy_shared_h_data.index_put_((torch.arange(3),) * 3, torch.ones(3, dtype=torch.float32))",
+            ],
+            "copy_shared_h_data = torch.tensor([[[",
+        ),
+    ],
+)
+def test_generate_code_uses_compact_hyperedge_copy_tensor_initializers(
+    engine: EngineName,
+    expected_snippets: list[str],
+    unexpected_snippet: str,
+) -> None:
+    result = generate_code(build_three_tensor_hyperedge_spec(), engine=engine)
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+    assert unexpected_snippet not in result.code
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

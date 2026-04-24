@@ -363,6 +363,7 @@ export function registerExportMinimap(ctx) {
     const width = Math.max(240, Math.ceil(bounds.x2 - bounds.x1));
     const height = Math.max(180, Math.ceil(bounds.y2 - bounds.y1));
     const lines = [];
+    const svgFontFamily = ctx.escapeSvgAttribute(UI_THEME.fontFamily);
     const visibleTensors =
       typeof ctx.getVisibleTensors === "function" ? ctx.getVisibleTensors() : state.spec.tensors;
     const visibleEdges =
@@ -389,7 +390,7 @@ export function registerExportMinimap(ctx) {
         `<path d="M ${source.x} ${source.y} Q ${curve.control.x} ${curve.control.y} ${target.x} ${target.y}" fill="none" stroke="${edgeColor}" stroke-width="3" />`
       );
       lines.push(
-        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 60)}" font-size="11" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
+        `<text x="${labelPosition.x}" y="${labelPosition.y - 10}" fill="${ctx.shiftColor(edgeColor, 60)}" font-size="11" font-family="${svgFontFamily}" text-anchor="middle">${ctx.escapeSvgText(edge.name || edge.label || "")}</text>`
       );
     });
 
@@ -400,7 +401,7 @@ export function registerExportMinimap(ctx) {
         `<rect x="${tensor.position.x - ctx.tensorWidth(tensor) / 2}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2}" width="${ctx.tensorWidth(tensor)}" height="${ctx.tensorHeight(tensor)}" rx="8" ry="8" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
       );
       lines.push(
-        `<text x="${tensor.position.x}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2 + 26}" fill="${ctx.readableTextColor(tensorColor)}" font-size="18" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(tensor.name)}</text>`
+        `<text x="${tensor.position.x}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2 + 26}" fill="${ctx.readableTextColor(tensorColor)}" font-size="18" font-family="${svgFontFamily}" text-anchor="middle">${ctx.escapeSvgText(tensor.name)}</text>`
       );
 
       tensor.indices.forEach((index, indexPosition) => {
@@ -417,10 +418,10 @@ export function registerExportMinimap(ctx) {
           `<circle cx="${absolutePosition.x}" cy="${absolutePosition.y}" r="${INDEX_RADIUS}" fill="${indexColor}" stroke="${ctx.shiftColor(indexColor, 26)}" stroke-width="2" />`
         );
         lines.push(
-          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 4}" fill="${ctx.readableTextColor(indexColor)}" font-size="12" font-family="${UI_THEME.fontFamily}" font-weight="700" text-anchor="middle">${indexPosition + 1}</text>`
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 4}" fill="${ctx.readableTextColor(indexColor)}" font-size="12" font-family="${svgFontFamily}" font-weight="700" text-anchor="middle">${indexPosition + 1}</text>`
         );
         lines.push(
-          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 28}" fill="${ctx.shiftColor(indexColor, 52)}" font-size="10" font-family="${UI_THEME.fontFamily}" text-anchor="middle">${ctx.escapeSvgText(`${index.name} Â· ${index.dimension}`)}</text>`
+          `<text x="${absolutePosition.x}" y="${absolutePosition.y + 28}" fill="${ctx.shiftColor(indexColor, 52)}" font-size="10" font-family="${svgFontFamily}" text-anchor="middle">${ctx.escapeSvgText(`${index.name} \u00b7 ${index.dimension}`)}</text>`
         );
       });
     });

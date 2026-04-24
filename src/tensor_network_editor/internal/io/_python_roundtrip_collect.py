@@ -13,6 +13,7 @@ from ._python_roundtrip_ast import (
     _literal_int_sequence,
     _literal_string,
     _literal_string_sequence,
+    _parse_copy_tensor_data_update,
     _parse_index_operand,
     _parse_list_append_value,
     _parse_matrix_row_index,
@@ -54,6 +55,22 @@ def _collect_data_shape(statement: ast.stmt, state: _RoundtripParseState) -> Non
     shape, tensor_data = parsed_initializer
     state.data_shapes[statement.targets[0].id] = shape
     state.tensor_data_by_name[statement.targets[0].id] = tensor_data
+
+
+def _collect_copy_tensor_data_update(
+    statement: ast.stmt,
+    state: _RoundtripParseState,
+) -> None:
+    """Collect compact copy-tensor fills emitted after a zeros initializer."""
+    parsed_update = _parse_copy_tensor_data_update(statement)
+    if parsed_update is None:
+        return
+    data_variable_name, shape, tensor_data = parsed_update
+    known_shape = state.data_shapes.get(data_variable_name)
+    if known_shape is not None and known_shape != shape:
+        return
+    state.data_shapes[data_variable_name] = shape
+    state.tensor_data_by_name[data_variable_name] = tensor_data
 
 
 def _collect_supported_tensor_collection_initialization(

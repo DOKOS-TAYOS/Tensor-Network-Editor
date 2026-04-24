@@ -16,10 +16,13 @@ export function createStandardTensorPropertiesMarkupSupport({
     buildDefaultTensorLiteralValues,
   } = dataSupport;
 
-  function buildTooltipAttributes(label, description = "") {
+  function buildTooltipAttributes(label, description = "", shortcut = "") {
     const safeLabel = ctx.escapeHtml(label);
     const safeDescription = ctx.escapeHtml(description);
+    const safeShortcut = ctx.escapeHtml(shortcut);
     return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+      safeShortcut ? ` data-shortcut="${safeShortcut}"` : ""
+    }${
       safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
     }`;
   }
@@ -158,7 +161,8 @@ export function createStandardTensorPropertiesMarkupSupport({
                         aria-label="Delete index"
                         ${buildTooltipAttributes(
                           "Delete index",
-                          "Remove this index from the tensor."
+                          "Remove this index from the tensor.",
+                          "Delete"
                         )}
                       >
                         ${renderTrashIcon()}
@@ -228,7 +232,8 @@ export function createStandardTensorPropertiesMarkupSupport({
           aria-label="Add index"
           ${buildTooltipAttributes(
             "Add index",
-            "Create a new open index on this tensor."
+            "Create a new open index on this tensor.",
+            "I"
           )}
         >
           +
@@ -256,7 +261,8 @@ export function createStandardTensorPropertiesMarkupSupport({
           aria-label="Delete tensor"
           ${buildTooltipAttributes(
             "Delete tensor",
-            "Remove this tensor from the network."
+            "Remove this tensor from the network.",
+            "Delete"
           )}
         >
           ${renderTrashIcon()}

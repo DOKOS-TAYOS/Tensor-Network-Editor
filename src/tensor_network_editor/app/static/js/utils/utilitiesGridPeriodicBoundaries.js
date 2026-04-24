@@ -240,9 +240,32 @@ export function createGridPeriodicBoundarySupport({
     });
   }
 
+  function assignGridPeriodicFamilyDimensionsFromOwners(
+    familyDimensions,
+    cellName,
+    ownerDimensions
+  ) {
+    getExpectedGridPeriodicRoles(cellName).forEach((role) => {
+      const familyKey = getGridPeriodicRoleFamily(cellName, role);
+      if (familyKey && !familyDimensions[familyKey].length) {
+        familyDimensions[familyKey] = [...ownerDimensions];
+      }
+    });
+  }
+
   function getCanonicalGridPeriodicFamilyDimensions(spec = state.spec) {
     const familyDimensions = buildEmptyGridPeriodicFamilyDimensions();
     const activeCellName = getActiveGridPeriodicCellName(spec);
+    const activeOwnerDimensions = activeCellName
+      ? getGridPeriodicCandidateOwners(spec).map((owner) => owner.index.dimension)
+      : [];
+    if (activeCellName === "center" && activeOwnerDimensions.length) {
+      assignGridPeriodicFamilyDimensionsFromOwners(
+        familyDimensions,
+        activeCellName,
+        activeOwnerDimensions
+      );
+    }
     if (activeCellName) {
       assignGridPeriodicFamilyDimensionsFromCell(familyDimensions, activeCellName, spec);
     }
@@ -260,16 +283,11 @@ export function createGridPeriodicBoundarySupport({
       !Object.values(familyDimensions).some((dimensions) => dimensions.length) &&
       activeCellName
     ) {
-      const ownerDimensions = getGridPeriodicCandidateOwners(spec).map(
-        (owner) => owner.index.dimension
+      assignGridPeriodicFamilyDimensionsFromOwners(
+        familyDimensions,
+        activeCellName,
+        activeOwnerDimensions
       );
-      const activeRoles = getExpectedGridPeriodicRoles(activeCellName);
-      activeRoles.forEach((role) => {
-        const familyKey = getGridPeriodicRoleFamily(activeCellName, role);
-        if (familyKey && !familyDimensions[familyKey].length) {
-          familyDimensions[familyKey] = [...ownerDimensions];
-        }
-      });
     }
     return familyDimensions;
   }

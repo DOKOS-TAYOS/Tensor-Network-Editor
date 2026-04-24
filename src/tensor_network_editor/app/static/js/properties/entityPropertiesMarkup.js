@@ -1,4 +1,4 @@
-function buildTooltipAttributes(label, description = "") {
+function buildTooltipAttributes(label, description = "", shortcut = "") {
   const safeLabel = String(label || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -11,7 +11,15 @@ function buildTooltipAttributes(label, description = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+  const safeShortcut = String(shortcut || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
   return `data-tooltip-enabled="true" data-shortcut-label="${safeLabel}"${
+    safeShortcut ? ` data-shortcut="${safeShortcut}"` : ""
+  }${
     safeDescription ? ` data-shortcut-description="${safeDescription}"` : ""
   }`;
 }
@@ -74,6 +82,7 @@ export function buildGroupPropertiesMarkup({
           class="button-accent-insert"
           data-tooltip-enabled="true"
           data-shortcut-label="Add index"
+          data-shortcut="I"
           data-shortcut-description="Add one new open index to each tensor inside this group."
         >
           Add index
@@ -85,7 +94,8 @@ export function buildGroupPropertiesMarkup({
           ${linearPeriodicMode ? "disabled" : ""}
           ${buildTooltipAttributes(
             "Extract",
-            "Extract the tensors inside this group as a reusable subnetwork."
+            "Extract the tensors inside this group as a reusable subnetwork.",
+            "Shift+E"
           )}
         >
           Extract
@@ -121,6 +131,7 @@ export function buildGroupPropertiesMarkup({
           class="icon-button index-action-button danger"
           aria-label="Delete group"
           data-tooltip-enabled="true"
+          data-shortcut="Delete"
           data-shortcut-label="Delete group"
           data-shortcut-description="Remove this group from the network."
         >
@@ -253,6 +264,7 @@ function buildConnectionPropertiesMarkup({
           class="icon-button index-action-button danger"
           aria-label="Delete connection"
           data-tooltip-enabled="true"
+          data-shortcut="Delete"
           data-shortcut-label="Delete connection"
           data-shortcut-description="${escapeHtml(deleteDescription)}"
         >
@@ -309,6 +321,7 @@ export function buildNotePropertiesMarkup({
           class="icon-button index-action-button danger"
           aria-label="Delete note"
           data-tooltip-enabled="true"
+          data-shortcut="Delete"
           data-shortcut-label="Delete note"
           data-shortcut-description="Remove this note from the canvas."
         >

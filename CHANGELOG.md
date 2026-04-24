@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Public documentation has been refreshed against the current package surface,
+  including the local editor workflows, current CLI commands, schema wrapper,
+  public facade modules, reusable subnetworks, hyperedges, tensor
+  initializers, metadata filters, benchmark mode, and periodic modes.
+- Public documentation now includes GitHub- and PyPI-friendly screenshots
+  stored under `docs/images`, with absolute raw image URLs in the package
+  README and relative image links inside the documentation folder, covering
+  editor overview, templates, subnetworks, tensor initializers, hyperedges,
+  planner/benchmark flows, Python imports, periodic modes, and CLI diagnostics.
+- Benchmark mode now preserves user-typed spaces in scheme names while you are editing them in the toolbar instead of trimming the field on every keystroke.
+- The editor now adds shortcuts for frequent building flow actions: `I` adds indices to selected tensors, `R` opens Reflow, and `Ctrl/Cmd+Enter` finishes the editor session.
+- Benchmark comparison tables now show the partial FLOP, MAC, peak-size, and memory results of incomplete schemes when that analysis summary is available, while still reserving best/worst highlighting for fully complete schemes.
+- All four cell-navigation arrow buttons in the top toolbar now use the shared shortcut hover system, so their tooltips show the matching `Alt+Arrow` shortcut instead of only a plain browser title.
+- Multi-index selections now expose one shared `Dimension` input in both the `Selection` sidebar and the index mini menu, with the mini menu keeping that field on the same compact row as the `Indices` summary, so you can resize several selected indices at once even when their owner tensors are selected alongside them.
+- Hover tooltips now include the real keyboard shortcut whenever that action has one, including the shared `Create hyperedge` buttons plus matching `Group`, `Delete`, `Search`, and `Filter` actions across the dynamic frontend panels.
+- Hyperedge copy tensors in generated Python now use a compact zeros-plus-diagonal-fill pattern instead of giant nested literals, generated-source round-trips still recover those tensors correctly, and `Ctrl/Cmd+C` now gives priority to tensor-subgraph copy only for text selections inside the drawing area while preserving native text copy in the side panels and other UI text outside the canvas.
+- Hyperedge creation now accepts selections that include the owning tensors alongside the selected open indices, so `Selection`, the `H` shortcut, and the index context menu still work when several chosen indices belong to the same tensor.
+- `Shift+E` and the `Templates` dropdown now save the selected subnetwork JSON instead of exporting a session template, `Extract` tooltips surface that shortcut in the sidebar and mini menus, and `.py` loads now fall back from live import to the static parser when a generated file cannot import its backend modules.
+- The canvas title toolbar now places the template controls before the cell-navigation controls, keeps the vertical separator between those two zones, and anchors the template block so it does not slide around when switching modes.
+- The `Selection` sidebar now keeps compact row heights when there is spare vertical space, the tensor `Initialization` dropdown fills the usual field width, and the top toolbar adds a dedicated separator before the template controls so the base actions, cell controls, and templates read as three clearer zones.
 - The `Info` help panel now works as a short practical guide to the current editor workflows and limits, and tensor `Initialization` now uses the same chevron disclosure behavior as the template selector.
 - The planner reset button now opts into the shared shortcut hover, planner comparisons color automatic improvements in green and regressions in red both in the panel and in auto-past hover summaries, `Accept` actions use the positive green styling, the sidebar collapse toggle uses a solid black background for stronger contrast, and the top toolbar dropdown entries are back to the neutral menu styling instead of semantic accent colors.
 - The planner now keeps `Auto past` visible without the redundant unlock helper text before the first manual contraction, auto-past comparison tooltips render as a compact four-line `FLOP` / `MAC` / `Peak` / `Peak Memory` summary, tensor value controls are now shown inline under `Initialization`, and `For`-mode boundary tensors expose only informational, color, and metadata controls instead of structural index editing actions.
@@ -23,8 +43,8 @@ All notable changes to this project will be documented in this file.
 - Public docs now surface benchmark workflows and the advanced periodic modes more clearly, including dedicated guidance for `For bidimensional` and `For Tree` instead of focusing almost entirely on the linear workflow.
 - Editor sessions now support a reusable subnetwork library with dedicated project/shared catalogs, CRUD routes, bootstrap payloads, preview/tag metadata, and matching `subnetwork list/save/export` CLI commands built on top of the existing extract/prepare-insert primitives.
 - The `Reflow` popover now exposes an explicit `Auto layout` action that can arrange the active tensor selection or the whole graph when nothing is selected, while keeping benchmark-scheme and `For`-mode restrictions aligned with the rest of the toolbar.
-- Tensors can now store editor-managed value initializers (`ones`, `fill`, and explicit numeric literals), saved designs now write schema version `5` while still loading schema `4`, generated code emits backend-native data initializers, and supported generated Python round-trips recover those tensor values.
-- Networks can now store first-class `hyperedges` in normal mode, saved designs now write schema version `6` while still loading schema version `5` and `4`, editor rendering shows hub-and-spoke hyperedge geometry, and code generation lowers hyperedges to autogenerated copy tensors for backend exports.
+- Tensors can now store editor-managed value initializers (`ones`, `fill`, and explicit numeric literals), generated code emits backend-native data initializers, and supported generated Python round-trips recover those tensor values.
+- Networks can now store first-class `hyperedges` in normal mode, editor rendering shows hub-and-spoke hyperedge geometry, and code generation lowers hyperedges to autogenerated copy tensors for backend exports.
 - Python loading now accepts explicit or autodetected source profiles (`generated`, `quimb`, `tensornetwork`, and `einsum`), conservative external AST imports can recover simple static ecosystem sources without executing user code, and linting now uses guided metadata keys like `role`, `symmetry`, `leg_kind`, and `observable` for higher-signal modeling warnings.
 - Hyperedge hubs now store a persistent relative `hub_offset`, can be dragged directly on the canvas, and share one creation workflow across the Selection panel, a dedicated multi-index context menu, and the global `H` shortcut.
 - Public docs now explain `HyperedgeSpec.hub_offset`, the draggable hyperedge hub, and the shared `H` / Selection / context-menu creation workflow.
@@ -32,6 +52,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- `For bidimensional` mode now recomputes center-cell boundary ports after every tensor addition, so the virtual neighbor-cell tensors no longer keep the previous slot count after the second edit.
+- `Ctrl/Cmd+Enter` now finishes the editor session even when focus is inside an editable text or number field, including after the session completion handler is registered by the interaction runtime.
+- Benchmark scheme name editing now preserves typed spaces in the toolbar input instead of trimming them away on each keystroke.
+- SVG exports now escape quoted font-family attributes correctly so the generated XML opens reliably, and minimap index captions no longer leak the mojibake `Â·` separator.
 - Unexpected editor-server failures now return safer but more actionable browser-visible messages, including retry guidance and the local session reference instead of a flat generic `500`.
 - When automatic browser opening fails, the editor now explains that the local server is still running before printing the manual URL to open.
 - Checkout-based test runs now skip installed-distribution metadata assertions when `importlib.metadata` resolves a different package installation than the active `src/` checkout.

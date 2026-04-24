@@ -15,6 +15,9 @@ from tensor_network_editor.errors import (
     PackageIOError,
     SerializationError,
 )
+from tensor_network_editor.internal.io._serialization import (
+    deserialize_spec_from_python_code_result,
+)
 from tensor_network_editor.io import (
     PythonLoadOptions,
     load_python_spec,
@@ -483,6 +486,30 @@ def test_load_spec_from_python_code_round_trips_generated_source(
     assert loaded_spec.contraction_plan is None
 
 
+def test_load_spec_from_python_code_live_generated_source_falls_back_to_static_parser() -> (
+    None
+):
+    sample_spec = build_three_tensor_spec_without_plan()
+    result = generate_code(sample_spec, engine=EngineName.TENSORKROWCH)
+
+    with patch(
+        "tensor_network_editor.internal.io._serialization.import_live_python_source",
+        side_effect=SerializationError("No module named 'torch'"),
+    ):
+        parsed_result = deserialize_spec_from_python_code_result(
+            result.code,
+            source_profile="auto",
+            python_import_mode="live",
+        )
+
+    assert [tensor.name for tensor in parsed_result.spec.tensors] == ["A", "B", "C"]
+    assert [edge.name for edge in parsed_result.spec.edges] == ["bond_x", "bond_y"]
+    assert parsed_result.warnings
+    assert "live python import failed" in parsed_result.warnings[0].lower()
+    assert "static parser" in parsed_result.warnings[0].lower()
+    assert "no module named 'torch'" in parsed_result.warnings[0].lower()
+
+
 @pytest.mark.parametrize("engine", list(EngineName))
 def test_load_spec_from_python_code_round_trips_tensor_data(
     engine: EngineName,
@@ -517,11 +544,16 @@ def test_load_spec_from_python_code_lowers_hyperedges_to_binary_network(
     result = generate_code(build_three_tensor_hyperedge_spec(), engine=engine)
 
     loaded_spec = load_spec_from_python_code(result.code)
+    copy_tensors = [
+        tensor for tensor in loaded_spec.tensors if tensor.shape == (3, 3, 3)
+    ]
 
     assert loaded_spec.hyperedges == []
     assert len(loaded_spec.tensors) == 4
     assert len(loaded_spec.edges) == 3
-    assert any(tensor.shape == (3, 3, 3) for tensor in loaded_spec.tensors)
+    assert len(copy_tensors) == 1
+    assert copy_tensors[0].tensor_data is not None
+    assert copy_tensors[0].tensor_data.mode is TensorDataMode.LITERAL
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

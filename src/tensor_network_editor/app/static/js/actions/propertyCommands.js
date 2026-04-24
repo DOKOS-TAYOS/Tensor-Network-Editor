@@ -301,6 +301,63 @@ export function createPropertyCommands({
     return true;
   }
 
+  function updateIndexDimensions({
+    indexIds,
+    rawValue,
+    invalidate,
+    statusMessage,
+  }) {
+    const normalizedIndexIds = [...new Set(Array.isArray(indexIds) ? indexIds : [])];
+    if (!normalizedIndexIds.length) {
+      return false;
+    }
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setStatus("Index dimension must be a positive integer.", "error");
+      return false;
+    }
+    const editableOwners = normalizedIndexIds.map((indexId) => ({
+      indexId,
+      owner: findIndexOwner(indexId),
+    }));
+    if (
+      editableOwners.some(
+        ({ owner }) =>
+          !owner ||
+          !owner.index ||
+          !owner.tensor ||
+          isStructuralBoundaryTensor(owner.tensor)
+      )
+    ) {
+      return false;
+    }
+    if (editableOwners.every(({ owner }) => owner.index.dimension === parsed)) {
+      return false;
+    }
+    applyDesignChange(
+      () => {
+        normalizedIndexIds.forEach((indexId) => {
+          const nextOwner = findIndexOwner(indexId);
+          if (
+            !nextOwner ||
+            !nextOwner.index ||
+            !nextOwner.tensor ||
+            isStructuralBoundaryTensor(nextOwner.tensor)
+          ) {
+            return;
+          }
+          nextOwner.index.dimension = parsed;
+          syncConnectedIndexDimension(indexId, parsed);
+        });
+      },
+      {
+        invalidate,
+        statusMessage,
+      }
+    );
+    return true;
+  }
+
   function deleteTensorIndex({
     tensorId,
     indexId,
@@ -565,6 +622,7 @@ export function createPropertyCommands({
     updateTensorData,
     updateNoteText,
     updateIndexDimension,
+    updateIndexDimensions,
     updateTargetColor,
   };
 }

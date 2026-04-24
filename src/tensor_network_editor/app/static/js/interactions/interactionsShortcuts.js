@@ -71,9 +71,17 @@ export function createInteractionShortcutBindings({
       resolveContextAction(ctx, "selectAllTensors"),
     addNoteAtCenter:
       shortcutActions.addNoteAtCenter || resolveContextAction(ctx, "addNoteAtCenter"),
+    addIndexToSelectedTensors:
+      shortcutActions.addIndexToSelectedTensors
+      || resolveContextAction(ctx, "addIndexToSelectedTensors"),
     toggleTemplateManager:
       shortcutActions.toggleTemplateManager
       || resolveContextAction(ctx, "toggleTemplateManager"),
+    toggleReflowLayoutPopover:
+      shortcutActions.toggleReflowLayoutPopover
+      || resolveContextAction(ctx, "toggleReflowLayoutPopover"),
+    completeEditor:
+      shortcutActions.completeEditor || resolveContextAction(ctx, "completeEditor"),
     openCanvasMetadataFilter:
       shortcutActions.openCanvasMetadataFilter
       || resolveContextAction(ctx, "openCanvasMetadataFilter"),
@@ -113,9 +121,9 @@ export function createInteractionShortcutBindings({
     openSessionTemplatePicker:
       shortcutActions.openSessionTemplatePicker
       || resolveContextAction(ctx, "openSessionTemplatePicker"),
-    exportSelectedTemplateSpec:
-      shortcutActions.exportSelectedTemplateSpec
-      || resolveContextAction(ctx, "exportSelectedTemplateSpec"),
+    exportSelectedSubnetwork:
+      shortcutActions.exportSelectedSubnetwork
+      || resolveContextAction(ctx, "exportSelectedSubnetwork"),
     closeBenchmarkCompareModal:
       shortcutActions.closeBenchmarkCompareModal
       || resolveContextAction(ctx, "closeBenchmarkCompareModal"),
@@ -140,7 +148,10 @@ export function createInteractionShortcutBindings({
     createHyperedgeFromSelection,
     selectAllTensors,
     addNoteAtCenter,
+    addIndexToSelectedTensors,
     toggleTemplateManager,
+    toggleReflowLayoutPopover,
+    completeEditor,
     openCanvasMetadataFilter,
     openCanvasNameSearch,
     toggleLinearPeriodicMode,
@@ -154,7 +165,7 @@ export function createInteractionShortcutBindings({
     switchBenchmarkPosition,
     nudgeSelectedElements,
     openSessionTemplatePicker,
-    exportSelectedTemplateSpec,
+    exportSelectedSubnetwork,
     closeBenchmarkCompareModal,
   } = resolvedShortcutActions;
 
@@ -357,6 +368,69 @@ export function createInteractionShortcutBindings({
     return false;
   }
 
+  function getTextSelection() {
+    const windowRef = ctx.window || globalThis;
+    return windowRef?.getSelection?.() || null;
+  }
+
+  function hasSelectedText() {
+    const selection = getTextSelection();
+    return Boolean(
+      selection &&
+      typeof selection.toString === "function" &&
+      selection.toString().trim().length > 0
+    );
+  }
+
+  function hasSelectedTensorSubgraph() {
+    if (typeof ctx.getSelectedIdsByKind !== "function") {
+      return false;
+    }
+    return ctx.getSelectedIdsByKind("tensor").length > 0;
+  }
+
+  function textSelectionIsInsideCanvas() {
+    const canvasShell = dom.canvasShell;
+    if (!canvasShell || typeof canvasShell.contains !== "function") {
+      return false;
+    }
+    const selection = getTextSelection();
+    if (!selection) {
+      return false;
+    }
+    const boundaryNodes = [selection.anchorNode, selection.focusNode].filter(Boolean);
+    if (!boundaryNodes.length) {
+      return false;
+    }
+    return boundaryNodes.every((node) => canvasShell.contains(node));
+  }
+
+  function addIndexToSelectedTensorShortcut() {
+    const tensorIds =
+      typeof ctx.getSelectedIdsByKind === "function"
+        ? ctx.getSelectedIdsByKind("tensor")
+        : [];
+    if (!tensorIds.length) {
+      ctx.setStatus("Select at least one tensor to add an index.", "error");
+      return false;
+    }
+    const added = addIndexToSelectedTensors({
+      tensorIds,
+      selectionIds: Array.isArray(state.selectionIds)
+        ? [...state.selectionIds]
+        : [...tensorIds],
+      primaryId: state.primarySelectionId || tensorIds[0],
+      statusMessage:
+        tensorIds.length === 1
+          ? "Added one index to the selected tensor."
+          : "Added one index to each selected tensor.",
+    });
+    if (!added) {
+      ctx.setStatus("Select at least one editable tensor to add an index.", "error");
+    }
+    return Boolean(added);
+  }
+
   function handleKeydown(event) {
     const activeElement = ctx.document.activeElement;
     const inTextInput = ctx.isTextInput(event.target) || ctx.isTextInput(activeElement);
@@ -425,6 +499,17 @@ export function createInteractionShortcutBindings({
         return;
       }
       ctx.clearSelection();
+      return;
+    }
+
+    if (
+      hasSystemModifier &&
+      !event.altKey &&
+      !event.shiftKey &&
+      event.key === "Enter"
+    ) {
+      event.preventDefault();
+      completeEditor();
       return;
     }
 
@@ -513,6 +598,12 @@ export function createInteractionShortcutBindings({
       return;
     }
     if (hasSystemModifier && lowerKey === "c") {
+      if (
+        hasSelectedText() &&
+        (!textSelectionIsInsideCanvas() || !hasSelectedTensorSubgraph())
+      ) {
+        return;
+      }
       event.preventDefault();
       copySelectedSubgraphToClipboard();
       return;
@@ -528,6 +619,13 @@ export function createInteractionShortcutBindings({
         trimContractionPlan(0);
       } else {
         ctx.setStatus("There is no contraction path to reset.");
+      }
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "r") {
+      event.preventDefault();
+      if (!hasBlockingModalOpen()) {
+        toggleReflowLayoutPopover();
       }
       return;
     }
@@ -572,7 +670,14 @@ export function createInteractionShortcutBindings({
     }
     if (!hasSystemModifier && !event.altKey && event.shiftKey && lowerKey === "e") {
       event.preventDefault();
-      exportSelectedTemplateSpec();
+      exportSelectedSubnetwork();
+      return;
+    }
+    if (!hasAnyModifier && lowerKey === "i") {
+      event.preventDefault();
+      if (!hasBlockingModalOpen()) {
+        addIndexToSelectedTensorShortcut();
+      }
       return;
     }
     if (!hasAnyModifier && lowerKey === "s") {

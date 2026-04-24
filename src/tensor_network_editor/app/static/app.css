@@ -753,6 +753,15 @@ select {
   -moz-appearance: none;
 }
 
+.field-group > .select-chevron-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.field-group > .select-chevron-field select {
+  width: 100%;
+}
+
 
 .template-number-field input {
   width: 6rem;
@@ -865,13 +874,28 @@ select {
 }
 
 .title-control-group-mode {
+  position: relative;
   margin-left: auto;
-  margin-right: auto;
+  gap: 0.55rem;
+  padding-left: 0.95rem;
   padding-bottom: 0.05rem;
+}
+
+.title-control-group-mode::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  width: 1px;
+  background: rgba(76, 92, 120, 0.88);
+  box-shadow: 0 0 0 1px rgba(18, 23, 34, 0.24);
+  pointer-events: none;
 }
 
 .title-control-group-template {
   gap: 0.55rem;
+  padding-bottom: 0.05rem;
 }
 
 .title-control-divider {
@@ -1536,6 +1560,8 @@ select {
   overflow: auto;
   padding-right: 0.2rem;
   flex: 1;
+  align-content: start;
+  align-items: start;
 }
 
 .planner-panel {
@@ -3085,11 +3111,17 @@ textarea[disabled] {
 
   .title-control-group-template {
     margin-left: 0;
+    margin-right: 0;
   }
 
   .title-control-group-mode {
     margin-left: 0;
     margin-right: 0;
+    padding-left: 0;
+  }
+
+  .title-control-group-mode::before {
+    display: none;
   }
 
   .title-control-divider {

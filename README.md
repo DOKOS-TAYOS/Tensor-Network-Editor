@@ -21,6 +21,72 @@ It is useful when you want a visual editor without losing the things that make
 scientific Python workflows practical: plain data objects, files you can version,
 offline use, and generated code you can inspect.
 
+## Screenshots
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/editor-overview.png"
+    alt="Tensor Network Editor overview with canvas, selection tools, and generated code preview"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/hyperedges-metadata.png"
+    alt="Hyperedge editing and metadata filter screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/benchmark-periodic.png"
+    alt="Benchmark comparison and periodic mode screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/templates-subnetworks.png"
+    alt="Templates and reusable subnetwork library screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/tensor-initializers.png"
+    alt="Tensor initializer editing screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/manual-planner.png"
+    alt="Manual contraction plan and planner comparison screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/python-import-fallback.png"
+    alt="Python import options and fallback workflow screenshot"
+    width="900"
+  />
+</p>
+
+<p align="center">
+  <img
+    src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/cli-validation-workflow.png"
+    alt="CLI validation linting analysis and JSON output screenshot"
+    width="900"
+  />
+</p>
+
 ## Why This Project
 
 - Draw tensor-network diagrams in a local browser session.
@@ -40,6 +106,10 @@ offline use, and generated code you can inspect.
 - Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.
+- Annotate tensors and indices with tags, guided metadata, and free-form JSON,
+  then use metadata filters to inspect larger designs.
+- Edit dimensions for one index or a multi-index selection from the sidebar or
+  compact context menus.
 - Work with linear, grid, and tree periodic modes and export them with any
   bundled backend.
 - Reflow the current selection or the whole graph with `Auto layout` when
@@ -47,6 +117,9 @@ offline use, and generated code you can inspect.
 - Inspect manual contraction paths and optional planner suggestions.
 - Benchmark manual and automatic contraction variants from the editor or the
   CLI, with reproducible CSV/TXT/LaTeX-style tables.
+- Use shortcut-driven editing for common actions such as adding tensors,
+  adding indices, opening Reflow, moving between periodic cells, saving
+  subnetworks, and confirming the session.
 - Get structural analysis with FLOP and MAC cost summaries.
 - Use the package from the CLI or directly from Python.
 
@@ -164,6 +237,11 @@ Python imports also expose an explicit reconstruction contract through
 - external static profiles and live imports resolve `auto` to `simple`, which
   rebuilds only the portable network structure
 
+When `import_mode="live"` is requested for generated source but the generated
+backend package is missing from the active `.venv`, the loader falls back to the
+static parser and reports that fallback as a warning instead of failing the
+whole load immediately.
+
 ## Documentation
 
 - [Documentation index](docs/README.md): where to go for each topic.
@@ -188,9 +266,11 @@ Python imports also expose an explicit reconstruction contract through
 - Python import is intentionally conservative. It supports the package's own
   generated exports plus static AST patterns for simple `quimb`,
   `tensornetwork`, and `einsum` / `opt_einsum` sources. It also offers an
-  explicit live-import mode for `quimb` and `tensornetwork`, but that mode
-  still does not recover editor layout/groups/notes, rebuild manual
-  contraction plans, or load periodic-mode Python back into editable specs.
+  explicit live-import mode for `quimb` and `tensornetwork` runtime objects,
+  with static-parser fallback for generated sources when live imports fail
+  because backend modules are unavailable. External and live imports still do
+  not recover editor layout/groups/notes, rebuild manual contraction plans, or
+  load periodic-mode Python back into editable specs.
 - `PythonLoadOptions(reconstruction_level="best_available")` is currently only supported
   for the package's own `generated` Python profile. External static profiles
   and live imports use the portable `simple` reconstruction contract instead.
