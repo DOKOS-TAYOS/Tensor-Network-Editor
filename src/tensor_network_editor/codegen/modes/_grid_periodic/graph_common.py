@@ -8,6 +8,7 @@ from ....models import (
     GridPeriodicGridSpec,
     TensorCollectionFormat,
 )
+from .common import _manual_plan_step_ids_for_grid, _render_partial_network_output_lines
 from .graph_cells import _render_cell_helper
 from .shared import (
     GRID_PERIODIC_CELL_ORDER,
@@ -40,7 +41,9 @@ def generate_graph_grid_periodic_code(
         ).lines
         for cell_name in GRID_PERIODIC_CELL_ORDER
     }
-    main_loop_lines, output_lines = _render_main_flow_lines()
+    main_loop_lines, output_lines = _render_main_flow_lines(
+        manual_step_ids=_manual_plan_step_ids_for_grid(grid)
+    )
     return CodegenResult(
         engine=engine,
         code=render_grid_periodic_script(
@@ -85,8 +88,21 @@ def _render_connect_helper(engine: EngineName) -> list[str]:
     ]
 
 
-def _render_main_flow_lines() -> tuple[list[str], list[str]]:
+def _render_main_flow_lines(
+    *,
+    manual_step_ids: list[str] | None = None,
+) -> tuple[list[str], list[str]]:
     """Render the outer free-``n``/``m`` orchestration block."""
+    output_lines = (
+        _render_partial_network_output_lines(
+            operand_expression="network_nodes",
+            step_ids=manual_step_ids,
+            key_prefix="grid_node",
+            mode_message="Manual grid cell plans may leave a partial network.",
+        )
+        if manual_step_ids
+        else ["result = network_nodes[0] if len(network_nodes) == 1 else None"]
+    )
     return (
         [
             "validate_grid_shape(n, m)",
@@ -155,5 +171,5 @@ def _render_main_flow_lines() -> tuple[list[str], list[str]]:
             "network_nodes.extend(bottom_right_cell['nodes'])",
             "open_edges.extend(bottom_right_cell['open_edges'])",
         ],
-        ["result = network_nodes[0] if len(network_nodes) == 1 else None"],
+        output_lines,
     )

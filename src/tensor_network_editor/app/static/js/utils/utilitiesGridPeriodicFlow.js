@@ -45,7 +45,6 @@ export function createGridPeriodicFlowSupport({
           getGridPeriodicCell(spec, cellName) || runtime.buildEmptyGraphSection()
         )
       );
-      cellSpec.contraction_plan = null;
       grid[cellKey] = seedGridPeriodicCell(cellName, cellSpec, familyDimensions);
     });
 
@@ -53,7 +52,6 @@ export function createGridPeriodicFlowSupport({
       spec,
       getGridPeriodicCell(spec, activeCellName) || runtime.buildEmptyGraphSection()
     );
-    spec.contraction_plan = null;
     return spec;
   }
 
@@ -62,7 +60,6 @@ export function createGridPeriodicFlowSupport({
     if (!grid) {
       return spec;
     }
-    spec.contraction_plan = null;
     syncGridPeriodicBoundaryTensors(spec);
     syncGridPeriodicGridInterfaceDimensions(spec);
     return spec;
@@ -91,7 +88,6 @@ export function createGridPeriodicFlowSupport({
       spec,
       activeCell || runtime.buildEmptyGraphSection()
     );
-    spec.contraction_plan = null;
     invalidateActiveGridPeriodicLookups(spec);
     syncGridPeriodicBoundaryTensors(spec);
     return spec;

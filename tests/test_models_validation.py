@@ -907,7 +907,7 @@ def test_validate_spec_rejects_grid_periodic_interface_mismatch() -> None:
     assert issue.path == "grid_periodic_grid.horizontal_interfaces.middle_row"
 
 
-def test_validate_spec_rejects_grid_periodic_contraction_plan() -> None:
+def test_validate_spec_accepts_grid_periodic_reserved_border_contraction_plan() -> None:
     spec = build_grid_periodic_grid_spec()
     assert spec.grid_periodic_grid is not None
     spec.grid_periodic_grid.center_cell.contraction_plan = ContractionPlanSpec(
@@ -916,15 +916,64 @@ def test_validate_spec_rejects_grid_periodic_contraction_plan() -> None:
         steps=[
             ContractionStepSpec(
                 id="grid_step",
-                left_operand_id="center_tensor",
+                left_operand_id="__grid_left__",
                 right_operand_id="center_tensor",
             )
         ],
     )
 
-    issue = find_issue(validate_spec(spec), "grid-periodic-contraction-plan")
+    issues = validate_spec(spec)
 
-    assert issue.path == "grid_periodic_grid.center_cell.contraction_plan"
+    assert not [issue for issue in issues if issue.code.endswith("contraction-plan")]
+    assert not [
+        issue for issue in issues if issue.code == "invalid-contraction-operand"
+    ]
+
+
+def test_validate_spec_rejects_grid_periodic_unknown_border_operand() -> None:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    spec.grid_periodic_grid.center_cell.contraction_plan = ContractionPlanSpec(
+        id="grid_plan",
+        name="Grid plan",
+        steps=[
+            ContractionStepSpec(
+                id="grid_step",
+                left_operand_id="__grid_diagonal__",
+                right_operand_id="center_tensor",
+            )
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-contraction-operand")
+
+    assert (
+        issue.path
+        == "grid_periodic_grid.center_cell.contraction_plan.steps.grid_step.left_operand_id"
+    )
+
+
+def test_validate_spec_accepts_tree_periodic_reserved_border_contraction_plan() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.branch_cell.contraction_plan = ContractionPlanSpec(
+        id="tree_plan",
+        name="Tree plan",
+        steps=[
+            ContractionStepSpec(
+                id="tree_step",
+                left_operand_id="__tree_parent__",
+                right_operand_id="branch_tensor",
+            )
+        ],
+    )
+
+    issues = validate_spec(spec)
+
+    assert not [issue for issue in issues if issue.code.endswith("contraction-plan")]
+    assert not [
+        issue for issue in issues if issue.code == "invalid-contraction-operand"
+    ]
 
 
 def test_validate_spec_rejects_malformed_contraction_view_snapshot() -> None:

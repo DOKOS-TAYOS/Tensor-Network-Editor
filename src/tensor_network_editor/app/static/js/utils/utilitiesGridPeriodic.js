@@ -36,7 +36,13 @@ export function createUtilityGridPeriodicBindings({
     canSwitchGridPeriodicCell: gridState.canSwitchGridPeriodicCell,
     getGridPeriodicBoundaryTensorByRole:
       gridState.getGridPeriodicBoundaryTensorByRole,
+    getGridPeriodicReservedOperandId: gridState.getGridPeriodicReservedOperandId,
+    isGridPeriodicReservedOperandId: gridState.isGridPeriodicReservedOperandId,
     isGridPeriodicBoundaryTensor: gridState.isGridPeriodicBoundaryTensor,
+    getGridPeriodicReservedOperandIdForTensor:
+      gridState.getGridPeriodicReservedOperandIdForTensor,
+    getGridPeriodicReservedOperandLabel:
+      gridState.getGridPeriodicReservedOperandLabel,
     isForBoundaryTensor: gridState.isForBoundaryTensor,
     getExpectedGridPeriodicRoles: gridState.getExpectedGridPeriodicRoles,
     syncGridPeriodicBoundaryTensors: gridBoundaries.syncGridPeriodicBoundaryTensors,

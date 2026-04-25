@@ -386,6 +386,12 @@ Backend notes:
 Manual plans may also store contraction-scene snapshots. Those snapshots keep
 UI layout state for operands and survive JSON round trips.
 
+In periodic modes, virtual boundary cells are also planner operands. Linear
+mode uses `Previous cell` and `Next cell`; grid mode uses the four neighboring
+cell borders; tree mode uses the parent border and one child border per branch.
+Leaving one of those operands alive is how you intentionally export a partial
+network such as an MPS-like frontier.
+
 ## Planner Extra
 
 The optional `planner` extra installs `opt_einsum` and enables automatic greedy
@@ -497,8 +503,13 @@ Useful ideas:
   neighborhood
 - export works with the bundled backends, so you can keep a reusable 2D design
   instead of flattening it into one large hand-drawn graph
-- planner/manual contraction editing is intentionally limited here; the mode is
-  focused on modeling, validation, serialization, and code generation
+- manual planner mode can use clickable virtual boundary operands: `Upper
+  cell`, `Right cell`, `Lower cell`, and `Left cell`
+- generated code visits cells in row-major order, from the upper-left corner to
+  the lower-right corner
+- if a manual plan leaves a boundary or intermediate alive, generated code keeps
+  the partial network in `remaining_operands` instead of forcing one final
+  tensor
 - hyperedges are not available inside the periodic-cell editor payloads in this
   first release
 
@@ -517,8 +528,11 @@ Useful ideas:
   branches, and one for leaves
 - export works with the bundled backends, so the mode is officially supported
   for modeling, serialization, and code generation
-- planner/manual contraction editing is still disabled in `For Tree`; this
-  iteration only productizes the mode as a modeling and export workflow
+- manual planner mode can use clickable virtual boundary operands: `Parent
+  cell` and one `Child N` operand per child branch
+- generated tree exports expose the manual-plan partial network with a
+  bottom-up leaf-to-root pass, which is the memory-friendly direction for tree
+  contractions
 - hyperedges are not available inside the periodic-cell editor payloads in this
   first release
 
@@ -558,7 +572,8 @@ linear or grid neighborhood would hide that intent.
 - Linear, grid, and tree periodic code generation work with every bundled
   backend.
 - Manual outer-product steps cannot be exported to `tensorkrowch`.
-- `For bidimensional` and `For Tree` do not expose the same planner/manual
-  contraction workflow as normal or linear-periodic editing.
+- In `For bidimensional` and `For Tree`, virtual boundary operands represent
+  payload/frontier interfaces. They are useful for partial contractions, but
+  they are not physical tensors you edit directly.
 
 For common fixes, see [troubleshooting.md](troubleshooting.md).

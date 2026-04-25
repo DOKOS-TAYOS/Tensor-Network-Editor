@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `For bidimensional` and `For Tree` now accept manual contraction plans with
+  clickable virtual boundary operands; grid cells expose upper/right/lower/left
+  neighbors, tree cells expose parent/child boundaries, and generated periodic
+  exports keep partial networks in `remaining_operands` instead of forcing a
+  single final tensor.
 - Frontend benchmark state and comparison export helpers now use shared modules
   instead of keeping duplicate definitions in multiple runtime files.
 - Contraction analysis now reuses equivalent automatic greedy path lookups within
@@ -21,6 +26,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Grid/tree periodic cell normalization, hydration, serialization, and cell
+  switching now preserve each cell's saved `contraction_plan` instead of
+  silently clearing it.
 - Subnetwork catalog tests now isolate their working directory while preserving
   the default project-local catalog lookup used by normal editor sessions.
 

@@ -452,7 +452,6 @@ export function createTreePeriodicBoundarySupport({
     const runtimeSpec = runtime.normalizeGraphSectionInPlace(
       runtime.deepClone(graphSection || runtime.buildEmptyGraphSection())
     );
-    runtimeSpec.contraction_plan = null;
     runtimeSpec.tree_periodic_tree = {
       active_cell: cellName,
       branching_factor: branchingFactor,

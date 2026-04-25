@@ -17,19 +17,51 @@ export function buildPlannerSeedOperands({
   isLinearPeriodicMode,
   isLinearPeriodicBoundaryTensor,
   getLinearPeriodicReservedOperandIdForTensor,
+  isGridPeriodicMode,
+  isGridPeriodicBoundaryTensor,
+  getGridPeriodicReservedOperandIdForTensor,
+  isTreePeriodicMode,
+  isTreePeriodicBoundaryTensor,
+  getTreePeriodicReservedOperandIdForTensor,
 }) {
   const baseOperands = (Array.isArray(tensors) ? tensors : []).map((tensor) => ({
     id: tensor.id,
     sourceTensorIds: [tensor.id],
     selectionIds: [tensor.id],
   }));
-  if (!isLinearPeriodicMode) {
+
+  const boundaryOperandConfigs = [
+    {
+      enabled: isLinearPeriodicMode,
+      isBoundaryTensor: isLinearPeriodicBoundaryTensor,
+      getReservedOperandIdForTensor: getLinearPeriodicReservedOperandIdForTensor,
+    },
+    {
+      enabled: isGridPeriodicMode,
+      isBoundaryTensor: isGridPeriodicBoundaryTensor,
+      getReservedOperandIdForTensor: getGridPeriodicReservedOperandIdForTensor,
+    },
+    {
+      enabled: isTreePeriodicMode,
+      isBoundaryTensor: isTreePeriodicBoundaryTensor,
+      getReservedOperandIdForTensor: getTreePeriodicReservedOperandIdForTensor,
+    },
+  ];
+  const activeBoundaryConfig = boundaryOperandConfigs.find(
+    (config) =>
+      config.enabled &&
+      typeof config.isBoundaryTensor === "function" &&
+      typeof config.getReservedOperandIdForTensor === "function"
+  );
+  if (!activeBoundaryConfig) {
     return baseOperands;
   }
+
   const boundaryOperands = (Array.isArray(specTensors) ? specTensors : [])
-    .filter((tensor) => isLinearPeriodicBoundaryTensor(tensor))
+    .filter((tensor) => activeBoundaryConfig.isBoundaryTensor(tensor))
     .map((tensor) => {
-      const reservedOperandId = getLinearPeriodicReservedOperandIdForTensor(tensor);
+      const reservedOperandId =
+        activeBoundaryConfig.getReservedOperandIdForTensor(tensor);
       return reservedOperandId
         ? {
             id: reservedOperandId,

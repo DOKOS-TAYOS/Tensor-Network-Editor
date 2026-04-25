@@ -32,6 +32,40 @@ def _cell_from_tree(
     return tree.leaf_cell
 
 
+def _manual_plan_step_ids_for_tree(tree: TreePeriodicTreeSpec) -> list[str]:
+    """Return saved manual step ids from leaf, branch, then root cells."""
+    step_ids: list[str] = []
+    for cell_name in (
+        TreePeriodicCellName.LEAF,
+        TreePeriodicCellName.BRANCH,
+        TreePeriodicCellName.ROOT,
+    ):
+        plan = _cell_from_tree(tree, cell_name).contraction_plan
+        if plan is None:
+            continue
+        step_ids.extend(step.id for step in plan.steps)
+    return step_ids
+
+
+def _render_partial_network_output_lines(
+    *,
+    operand_expression: str,
+    step_ids: list[str],
+    key_prefix: str,
+    mode_message: str,
+) -> list[str]:
+    """Render a stable ``remaining_operands`` export for partial For outputs."""
+    return [
+        f"# {mode_message}",
+        *[f"# Manual plan step: {step_id}" for step_id in step_ids],
+        "remaining_operands = {",
+        f'    f"{key_prefix}:{{operand_index}}": operand',
+        f"    for operand_index, operand in enumerate({operand_expression})",
+        "}",
+        "result = next(iter(remaining_operands.values())) if len(remaining_operands) == 1 else None",
+    ]
+
+
 def _build_child_ports_by_index(
     *,
     tree: TreePeriodicTreeSpec,

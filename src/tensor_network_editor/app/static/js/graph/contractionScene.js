@@ -26,6 +26,30 @@ export function registerContractionScene(ctx) {
       typeof ctx.isLinearPeriodicMode === "function"
         ? () => ctx.isLinearPeriodicMode()
         : null,
+    getGridPeriodicReservedOperandIdForTensor:
+      typeof ctx.getGridPeriodicReservedOperandIdForTensor === "function"
+        ? (tensor) => ctx.getGridPeriodicReservedOperandIdForTensor(tensor)
+        : null,
+    isGridPeriodicBoundaryTensor:
+      typeof ctx.isGridPeriodicBoundaryTensor === "function"
+        ? (tensor) => ctx.isGridPeriodicBoundaryTensor(tensor)
+        : null,
+    isGridPeriodicMode:
+      typeof ctx.isGridPeriodicMode === "function"
+        ? () => ctx.isGridPeriodicMode()
+        : null,
+    getTreePeriodicReservedOperandIdForTensor:
+      typeof ctx.getTreePeriodicReservedOperandIdForTensor === "function"
+        ? (tensor) => ctx.getTreePeriodicReservedOperandIdForTensor(tensor)
+        : null,
+    isTreePeriodicBoundaryTensor:
+      typeof ctx.isTreePeriodicBoundaryTensor === "function"
+        ? (tensor) => ctx.isTreePeriodicBoundaryTensor(tensor)
+        : null,
+    isTreePeriodicMode:
+      typeof ctx.isTreePeriodicMode === "function"
+        ? () => ctx.isTreePeriodicMode()
+        : null,
   });
   const {
     buildContractionOperandProgression,

@@ -24,6 +24,7 @@ export function createUtilityTreePeriodicBindings({
   });
 
   return {
+    getTreePeriodicChildOperandId: treeState.getTreePeriodicChildOperandId,
     normalizeTreePeriodicTreeInPlace: treeState.normalizeTreePeriodicTreeInPlace,
     getTreePeriodicTree: treeState.getTreePeriodicTree,
     isTreePeriodicMode: treeState.isTreePeriodicMode,
@@ -35,6 +36,11 @@ export function createUtilityTreePeriodicBindings({
     getTreePeriodicNeighborCellName: treeState.getTreePeriodicNeighborCellName,
     canSwitchTreePeriodicCell: treeState.canSwitchTreePeriodicCell,
     isTreePeriodicBoundaryTensor: treeState.isTreePeriodicBoundaryTensor,
+    getTreePeriodicReservedOperandIdForTensor:
+      treeState.getTreePeriodicReservedOperandIdForTensor,
+    isTreePeriodicReservedOperandId: treeState.isTreePeriodicReservedOperandId,
+    getTreePeriodicReservedOperandLabel:
+      treeState.getTreePeriodicReservedOperandLabel,
     syncTreePeriodicBoundaryTensors: treeBoundaries.syncTreePeriodicBoundaryTensors,
     syncCurrentGraphIntoTreePeriodicTree:
       treeFlow.syncCurrentGraphIntoTreePeriodicTree,

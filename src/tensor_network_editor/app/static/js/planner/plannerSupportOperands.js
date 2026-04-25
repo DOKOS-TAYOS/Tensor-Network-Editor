@@ -62,6 +62,24 @@ export function createPlannerOperandSupport({
       isLinearPeriodicBoundaryTensor: (tensor) => ctx.isLinearPeriodicBoundaryTensor(tensor),
       getLinearPeriodicReservedOperandIdForTensor: (tensor) =>
         ctx.getLinearPeriodicReservedOperandIdForTensor(tensor),
+      isGridPeriodicMode:
+        typeof ctx.isGridPeriodicMode === "function" && ctx.isGridPeriodicMode(),
+      isGridPeriodicBoundaryTensor: (tensor) =>
+        typeof ctx.isGridPeriodicBoundaryTensor === "function" &&
+        ctx.isGridPeriodicBoundaryTensor(tensor),
+      getGridPeriodicReservedOperandIdForTensor: (tensor) =>
+        typeof ctx.getGridPeriodicReservedOperandIdForTensor === "function"
+          ? ctx.getGridPeriodicReservedOperandIdForTensor(tensor)
+          : null,
+      isTreePeriodicMode:
+        typeof ctx.isTreePeriodicMode === "function" && ctx.isTreePeriodicMode(),
+      isTreePeriodicBoundaryTensor: (tensor) =>
+        typeof ctx.isTreePeriodicBoundaryTensor === "function" &&
+        ctx.isTreePeriodicBoundaryTensor(tensor),
+      getTreePeriodicReservedOperandIdForTensor: (tensor) =>
+        typeof ctx.getTreePeriodicReservedOperandIdForTensor === "function"
+          ? ctx.getTreePeriodicReservedOperandIdForTensor(tensor)
+          : null,
     });
   }
 
@@ -126,7 +144,11 @@ export function createPlannerOperandSupport({
         typeof ctx.getVisibleTensors === "function"
           ? ctx
               .getVisibleTensors()
-              .filter((tensor) => !ctx.isLinearPeriodicBoundaryTensor(tensor))
+              .filter((tensor) =>
+                typeof ctx.isForBoundaryTensor === "function"
+                  ? !ctx.isForBoundaryTensor(tensor)
+                  : !ctx.isLinearPeriodicBoundaryTensor(tensor)
+              )
           : ctx.getContractibleTensors();
       state.plannerPreviewOrderByTensorId = previewAnalysis
         ? buildPreviewOrderByVisibleTensorIdFromSelectors(
@@ -158,14 +180,10 @@ export function createPlannerOperandSupport({
       return;
     }
     if (isTreePeriodicMode()) {
-      state.spec.contraction_plan = null;
       clearPlannerTransientState({ clearInspectionStepCount: true });
-      return;
     }
     if (isGridPeriodicMode()) {
-      state.spec.contraction_plan = null;
       clearPlannerTransientState({ clearInspectionStepCount: true });
-      return;
     }
     if (isBenchmarkBasePosition()) {
       state.spec.contraction_plan = null;
@@ -229,6 +247,18 @@ export function createPlannerOperandSupport({
     }
     if (operandId === nextOperandId) {
       return "Next cell";
+    }
+    if (typeof ctx.getGridPeriodicReservedOperandLabel === "function") {
+      const gridLabel = ctx.getGridPeriodicReservedOperandLabel(operandId);
+      if (gridLabel) {
+        return gridLabel;
+      }
+    }
+    if (typeof ctx.getTreePeriodicReservedOperandLabel === "function") {
+      const treeLabel = ctx.getTreePeriodicReservedOperandLabel(operandId);
+      if (treeLabel) {
+        return treeLabel;
+      }
     }
     const planSteps =
       state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)

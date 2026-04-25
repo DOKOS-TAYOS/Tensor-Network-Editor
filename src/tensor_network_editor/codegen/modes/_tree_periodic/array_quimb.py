@@ -44,7 +44,11 @@ def _render_quimb_cell_helper(
     """Render one tree cell helper for the ``quimb`` backend."""
     cell = _cell_from_tree(tree, cell_name)
     prepared = prepare_network(
-        build_internal_tree_periodic_cell_network(cell, cell_name=cell_name)
+        build_internal_tree_periodic_cell_network(
+            cell,
+            cell_name=cell_name,
+            include_contraction_plan=False,
+        )
     )
     collection_name = container_name_for_format(collection_format)
     parent_ports = build_tree_periodic_interface_ports(

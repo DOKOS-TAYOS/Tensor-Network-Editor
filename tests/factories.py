@@ -1197,6 +1197,23 @@ def build_grid_periodic_grid_spec() -> NetworkSpec:
     )
 
 
+def build_grid_periodic_grid_spec_with_partial_plan() -> NetworkSpec:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    spec.grid_periodic_grid.center_cell.contraction_plan = ContractionPlanSpec(
+        id="grid_partial_plan",
+        name="Grid partial plan",
+        steps=[
+            ContractionStepSpec(
+                id="center_left_step",
+                left_operand_id="__grid_left__",
+                right_operand_id="center_tensor",
+            )
+        ],
+    )
+    return spec
+
+
 def build_tree_periodic_tree_spec() -> NetworkSpec:
     def build_tree_child_boundary_tensor(
         *,
@@ -1411,6 +1428,23 @@ def build_tree_periodic_tree_spec() -> NetworkSpec:
             leaf_cell=leaf_cell,
         ),
     )
+
+
+def build_tree_periodic_tree_spec_with_partial_plan() -> NetworkSpec:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.branch_cell.contraction_plan = ContractionPlanSpec(
+        id="tree_partial_plan",
+        name="Tree partial plan",
+        steps=[
+            ContractionStepSpec(
+                id="branch_parent_step",
+                left_operand_id="__tree_parent__",
+                right_operand_id="branch_tensor",
+            )
+        ],
+    )
+    return spec
 
 
 def serialize_spec_payload(spec: NetworkSpec) -> JsonDict:

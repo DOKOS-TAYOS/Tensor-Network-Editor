@@ -61,33 +61,11 @@ export function createPlannerGuardSupport({
   }
 
   function guardGridPeriodicPlannerAction(message = gridPeriodicStatusMessage) {
-    if (!isGridPeriodicMode()) {
-      return false;
-    }
-    state.plannerMode = false;
-    clearPlannerTransientState({ clearInspectionStepCount: true });
-    if (state.spec) {
-      state.spec.contraction_plan = null;
-    }
-    renderPlanner();
-    ctx.renderOverlayDecorations();
-    ctx.setStatus(message);
-    return true;
+    return false;
   }
 
   function guardTreePeriodicPlannerAction(message = treePeriodicStatusMessage) {
-    if (!isTreePeriodicMode()) {
-      return false;
-    }
-    state.plannerMode = false;
-    clearPlannerTransientState({ clearInspectionStepCount: true });
-    if (state.spec) {
-      state.spec.contraction_plan = null;
-    }
-    renderPlanner();
-    ctx.renderOverlayDecorations();
-    ctx.setStatus(message);
-    return true;
+    return false;
   }
 
   function guardHyperedgePlannerAction(message = hyperedgeStatusMessage) {

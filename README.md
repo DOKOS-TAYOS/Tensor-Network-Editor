@@ -110,7 +110,8 @@ offline use, and generated code you can inspect.
   then use metadata filters to inspect larger designs.
 - Edit dimensions for one index or a multi-index selection from the sidebar or
   compact context menus.
-- Work with linear, grid, and tree periodic modes and export them with any
+- Work with linear, grid, and tree periodic modes, including clickable virtual
+  boundary operands for partial manual contractions, and export them with any
   bundled backend.
 - Reflow the current selection or the whole graph with `Auto layout` when
   imported or irregular networks need a cleaner arrangement.
@@ -286,8 +287,9 @@ whole load immediately.
 - Linear, grid, and tree periodic code generation work with all bundled
   backends.
 - Manual outer-product steps still cannot be exported safely to `tensorkrowch`.
-- Planner/manual contraction editing is more limited in `For bidimensional`
-  and `For Tree` than in normal or linear-periodic workflows.
+- In `For bidimensional` and `For Tree`, virtual boundary operands represent
+  payload/frontier interfaces for partial contractions rather than physical
+  tensors you edit directly.
 
 ## Project Links
 
