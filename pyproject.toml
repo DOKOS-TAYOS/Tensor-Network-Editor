@@ -13,9 +13,33 @@ license-files = ["LICENSE", "THIRD_PARTY_LICENSES"]
 authors = [
   { name = "Alejandro Mata Ali" }
 ]
-keywords = ["tensor-network", "editor", "code-generation", "scientific-computing"]
+keywords = [
+  "benchmark",
+  "code-generation",
+  "contraction",
+  "diagram",
+  "einsum",
+  "editor",
+  "json",
+  "local",
+  "mera",
+  "mps",
+  "mpo",
+  "opt-einsum",
+  "peps",
+  "physics",
+  "quimb",
+  "scientific-computing",
+  "tensor-contraction",
+  "tensor-network",
+  "tensor-networks",
+  "tensorkrowch",
+  "tensornetwork",
+  "visualization",
+]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Environment :: Web Environment",
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",
   "Programming Language :: JavaScript",
@@ -23,7 +47,11 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Scientific/Engineering :: Physics",
   "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: User Interfaces",
+  "Typing :: Typed",
 ]
 dependencies = []
 
