@@ -13,6 +13,12 @@ export function createContractionSceneOperandsSupport({
   isLinearPeriodicMode,
   getLinearPeriodicReservedOperandIdForTensor,
   isLinearPeriodicBoundaryTensor,
+  isGridPeriodicMode,
+  getGridPeriodicReservedOperandIdForTensor,
+  isGridPeriodicBoundaryTensor,
+  isTreePeriodicMode,
+  getTreePeriodicReservedOperandIdForTensor,
+  isTreePeriodicBoundaryTensor,
   ensureSpecLookups,
   getContractibleEdges,
   getContractibleTensors,
@@ -57,22 +63,52 @@ export function createContractionSceneOperandsSupport({
     return operandId === nextOperandId;
   }
 
+  function getBoundaryOperandConfig() {
+    const configs = [
+      {
+        enabled:
+          typeof isLinearPeriodicMode === "function" && isLinearPeriodicMode(),
+        isBoundaryTensor: isLinearPeriodicBoundaryTensor,
+        getReservedOperandIdForTensor: getLinearPeriodicReservedOperandIdForTensor,
+      },
+      {
+        enabled: typeof isGridPeriodicMode === "function" && isGridPeriodicMode(),
+        isBoundaryTensor: isGridPeriodicBoundaryTensor,
+        getReservedOperandIdForTensor: getGridPeriodicReservedOperandIdForTensor,
+      },
+      {
+        enabled: typeof isTreePeriodicMode === "function" && isTreePeriodicMode(),
+        isBoundaryTensor: isTreePeriodicBoundaryTensor,
+        getReservedOperandIdForTensor: getTreePeriodicReservedOperandIdForTensor,
+      },
+    ];
+    return (
+      configs.find(
+        (config) =>
+          config.enabled &&
+          typeof config.isBoundaryTensor === "function" &&
+          typeof config.getReservedOperandIdForTensor === "function"
+      ) || null
+    );
+  }
+
+  function isActiveBoundaryTensor(tensor, boundaryConfig = getBoundaryOperandConfig()) {
+    return Boolean(boundaryConfig && boundaryConfig.isBoundaryTensor(tensor));
+  }
+
   function buildBoundaryOperands() {
-    if (
-      typeof isLinearPeriodicMode !== "function" ||
-      typeof getLinearPeriodicReservedOperandIdForTensor !== "function" ||
-      typeof isLinearPeriodicBoundaryTensor !== "function" ||
-      !isLinearPeriodicMode()
-    ) {
+    const boundaryConfig = getBoundaryOperandConfig();
+    if (!boundaryConfig) {
       return [];
     }
     if (typeof ensureSpecLookups === "function") {
       ensureSpecLookups();
     }
     return (Array.isArray(state.spec && state.spec.tensors) ? state.spec.tensors : [])
-      .filter((tensor) => isLinearPeriodicBoundaryTensor(tensor))
+      .filter((tensor) => boundaryConfig.isBoundaryTensor(tensor))
       .map((boundaryTensor) => {
-        const operandId = getLinearPeriodicReservedOperandIdForTensor(boundaryTensor);
+        const operandId =
+          boundaryConfig.getReservedOperandIdForTensor(boundaryTensor);
         if (!operandId) {
           return null;
         }
@@ -87,7 +123,7 @@ export function createContractionSceneOperandsSupport({
             const connectedToRealTensor =
               otherOwner &&
               otherOwner.tensor &&
-              !isLinearPeriodicBoundaryTensor(otherOwner.tensor);
+              !isActiveBoundaryTensor(otherOwner.tensor, boundaryConfig);
             return {
               key: connectedToRealTensor
                 ? `open:${otherOwner.index.id}`
@@ -104,6 +140,13 @@ export function createContractionSceneOperandsSupport({
           id: operandId,
           isDerived: false,
           linearPeriodicRole: boundaryTensor.linear_periodic_role,
+          gridPeriodicRole: boundaryTensor.grid_periodic_role || null,
+          treePeriodicRole: boundaryTensor.tree_periodic_role || null,
+          treePeriodicChildIndex: Number.isInteger(
+            boundaryTensor.tree_periodic_child_index
+          )
+            ? boundaryTensor.tree_periodic_child_index
+            : null,
           name: boundaryTensor.name,
           sourceTensorIds: [boundaryTensor.id],
           tokens,

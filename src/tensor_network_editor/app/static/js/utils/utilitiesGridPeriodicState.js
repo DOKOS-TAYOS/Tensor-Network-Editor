@@ -53,6 +53,18 @@ export const GRID_PERIODIC_BOUNDARY_SETTINGS = {
   },
 };
 
+export const GRID_PERIODIC_UP_OPERAND_ID = "__grid_up__";
+export const GRID_PERIODIC_RIGHT_OPERAND_ID = "__grid_right__";
+export const GRID_PERIODIC_DOWN_OPERAND_ID = "__grid_down__";
+export const GRID_PERIODIC_LEFT_OPERAND_ID = "__grid_left__";
+
+const GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE = {
+  up: GRID_PERIODIC_UP_OPERAND_ID,
+  right: GRID_PERIODIC_RIGHT_OPERAND_ID,
+  down: GRID_PERIODIC_DOWN_OPERAND_ID,
+  left: GRID_PERIODIC_LEFT_OPERAND_ID,
+};
+
 const GRID_PERIODIC_CELL_KEYS = Object.fromEntries(
   GRID_PERIODIC_CELL_ORDER.map((cellName) => [cellName, `${cellName}_cell`])
 );
@@ -135,7 +147,6 @@ export function createGridPeriodicStateSupport({ state, runtime }) {
             : runtime.buildEmptyGraphSection()
         )
       );
-      grid[cellKey].contraction_plan = null;
     });
     return grid;
   }
@@ -202,6 +213,21 @@ export function createGridPeriodicStateSupport({ state, runtime }) {
     ).find((tensor) => tensor.grid_periodic_role === role) || null;
   }
 
+  function getGridPeriodicReservedOperandId(role) {
+    return Object.prototype.hasOwnProperty.call(
+      GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE,
+      role
+    )
+      ? GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE[role]
+      : null;
+  }
+
+  function isGridPeriodicReservedOperandId(operandId) {
+    return Object.values(GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE).includes(
+      operandId
+    );
+  }
+
   function isGridPeriodicBoundaryTensor(tensor) {
     return Boolean(
       tensor &&
@@ -210,6 +236,33 @@ export function createGridPeriodicStateSupport({ state, runtime }) {
           tensor.grid_periodic_role === "down" ||
           tensor.grid_periodic_role === "left")
     );
+  }
+
+  function getGridPeriodicReservedOperandIdForTensor(
+    tensorOrId,
+    spec = state.spec
+  ) {
+    const tensor =
+      typeof tensorOrId === "string"
+        ? (
+            Array.isArray(spec && spec.tensors) ? spec.tensors : []
+          ).find((candidate) => candidate.id === tensorOrId) || null
+        : tensorOrId;
+    if (!isGridPeriodicBoundaryTensor(tensor)) {
+      return null;
+    }
+    return getGridPeriodicReservedOperandId(tensor.grid_periodic_role);
+  }
+
+  function getGridPeriodicReservedOperandLabel(operandId) {
+    const roleEntry = Object.entries(
+      GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE
+    ).find(([, reservedOperandId]) => reservedOperandId === operandId);
+    if (!roleEntry) {
+      return null;
+    }
+    const [role] = roleEntry;
+    return GRID_PERIODIC_BOUNDARY_SETTINGS[role]?.name || null;
   }
 
   function isForBoundaryTensor(tensor) {
@@ -243,7 +296,11 @@ export function createGridPeriodicStateSupport({ state, runtime }) {
     getGridPeriodicNeighborCellName,
     canSwitchGridPeriodicCell,
     getGridPeriodicBoundaryTensorByRole,
+    getGridPeriodicReservedOperandId,
+    isGridPeriodicReservedOperandId,
     isGridPeriodicBoundaryTensor,
+    getGridPeriodicReservedOperandIdForTensor,
+    getGridPeriodicReservedOperandLabel,
     isForBoundaryTensor,
     getExpectedGridPeriodicRoles,
   };

@@ -37,7 +37,6 @@ export function createTreePeriodicFlowSupport({
     const interfaceDimensions = getCanonicalTreePeriodicInterfaceDimensions(spec);
 
     tree[cellKey] = runtime.buildGraphSectionFromSpec(spec, activeCell);
-    tree[cellKey].contraction_plan = null;
 
     TREE_PERIODIC_CELL_ORDER.forEach((cellName) => {
       const cellSpec = runtime.normalizeGraphSectionInPlace(
@@ -45,7 +44,6 @@ export function createTreePeriodicFlowSupport({
           getTreePeriodicCell(spec, cellName) || runtime.buildEmptyGraphSection()
         )
       );
-      cellSpec.contraction_plan = null;
       tree[getTreePeriodicCellKey(cellName)] = seedTreePeriodicCell(
         cellName,
         cellSpec,
@@ -67,7 +65,6 @@ export function createTreePeriodicFlowSupport({
     if (!tree) {
       return spec;
     }
-    spec.contraction_plan = null;
     syncTreePeriodicBoundaryTensors(spec);
     syncTreePeriodicTreeInterfaceDimensions(spec);
     return spec;
@@ -96,7 +93,6 @@ export function createTreePeriodicFlowSupport({
       spec,
       activeCell || runtime.buildEmptyGraphSection()
     );
-    spec.contraction_plan = null;
     invalidateActiveTreePeriodicLookups(spec);
     syncTreePeriodicBoundaryTensors(spec);
     return spec;

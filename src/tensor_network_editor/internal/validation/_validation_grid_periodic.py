@@ -14,9 +14,11 @@ from ..modes._grid_periodic import (
     build_grid_periodic_interface_ports,
     grid_periodic_boundary_tensors,
     grid_periodic_cell_as_network,
+    grid_periodic_reserved_operand_id_for_role,
     iter_grid_periodic_cells,
 )
 from ._validation_common import append_issue, validate_metadata
+from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
     validate_group,
@@ -182,7 +184,22 @@ def _validate_grid_periodic_cell(
 
     issues.extend(_prefix_validation_issues(prefix, local_issues))
     _validate_grid_periodic_boundary_roles(cell_name, cell, issues=issues)
-    _validate_grid_periodic_contraction_plan(cell_name, cell, issues=issues)
+    if cell.contraction_plan is None:
+        return
+    plan_issues: list[ValidationIssue] = []
+    validate_contraction_plan(
+        cell.contraction_plan,
+        tensor_ids={
+            tensor.id for tensor in cell.tensors if tensor.grid_periodic_role is None
+        }
+        | {
+            grid_periodic_reserved_operand_id_for_role(tensor.grid_periodic_role)
+            for tensor in cell.tensors
+            if tensor.grid_periodic_role is not None
+        },
+        issues=plan_issues,
+    )
+    issues.extend(_prefix_validation_issues(prefix, plan_issues))
 
 
 def _validate_grid_periodic_boundary_roles(
@@ -222,26 +239,6 @@ def _validate_grid_periodic_boundary_roles(
                 ),
                 path=f"{cell_prefix}.{role.value}_boundary",
             )
-
-
-def _validate_grid_periodic_contraction_plan(
-    cell_name: GridPeriodicCellName,
-    cell: LinearPeriodicCellSpec,
-    *,
-    issues: list[ValidationIssue],
-) -> None:
-    """Reject manual contraction plans inside the 2D editor mode."""
-    if cell.contraction_plan is None:
-        return
-    append_issue(
-        issues,
-        code="grid-periodic-contraction-plan",
-        message=(
-            f"Cell '{cell_name.value}' cannot define a contraction plan in "
-            "bidimensional For mode."
-        ),
-        path=f"{_grid_periodic_cell_prefix(cell_name)}.contraction_plan",
-    )
 
 
 def _validate_grid_periodic_interfaces(

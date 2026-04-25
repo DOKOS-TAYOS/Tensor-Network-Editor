@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from ...models import (
     CanvasNoteSpec,
+    EdgeEndpointRef,
+    EdgeSpec,
     GroupSpec,
     IndexSpec,
     LinearPeriodicCellSpec,
@@ -16,6 +18,9 @@ from ...models import (
     TreePeriodicTreeSpec,
 )
 from ..analysis._analysis import analyze_network
+
+TREE_PERIODIC_PARENT_OPERAND_ID = "__tree_parent__"
+TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX = "__tree_child_"
 
 
 @dataclass(slots=True, frozen=True)
@@ -67,7 +72,94 @@ def tree_periodic_active_cell_as_analysis_network(
     """Wrap the active tree cell as a regular network for shared analysis."""
     cell_by_name = dict(iter_tree_periodic_cells(tree))
     cell_name = tree.active_cell
-    return tree_periodic_cell_as_network(cell_by_name[cell_name], cell_name=cell_name)
+    return tree_periodic_cell_as_analysis_network(
+        cell_by_name[cell_name],
+        cell_name=cell_name,
+    )
+
+
+def tree_periodic_cell_as_analysis_network(
+    cell: LinearPeriodicCellSpec,
+    *,
+    cell_name: TreePeriodicCellName,
+) -> NetworkSpec:
+    """Return a cell network where virtual tree boundaries are plain operands."""
+    tensor_id_by_original_id = {
+        tensor.id: _analysis_tensor_id(tensor) for tensor in cell.tensors
+    }
+    tensor_ids = set(tensor_id_by_original_id.values())
+    groups = [
+        GroupSpec(
+            id=group.id,
+            name=group.name,
+            tensor_ids=[
+                tensor_id
+                for tensor_id in dict.fromkeys(
+                    tensor_id_by_original_id[tensor_id]
+                    for tensor_id in group.tensor_ids
+                    if tensor_id in tensor_id_by_original_id
+                )
+                if tensor_id in tensor_ids
+            ],
+            metadata=dict(group.metadata),
+        )
+        for group in cell.groups
+    ]
+
+    return NetworkSpec(
+        id=f"tree_periodic_analysis_{cell_name.value}",
+        name=f"tree_periodic_analysis_{cell_name.value}",
+        tensors=[
+            TensorSpec(
+                id=tensor_id_by_original_id[tensor.id],
+                name=tensor.name,
+                position=tensor.position,
+                size=tensor.size,
+                indices=[
+                    IndexSpec(
+                        id=index.id,
+                        name=index.name,
+                        dimension=index.dimension,
+                        offset=index.offset,
+                        metadata=dict(index.metadata),
+                    )
+                    for index in tensor.indices
+                ],
+                tree_periodic_role=None,
+                tree_periodic_child_index=None,
+                metadata=dict(tensor.metadata),
+            )
+            for tensor in cell.tensors
+        ],
+        groups=[group for group in groups if group.tensor_ids],
+        edges=[
+            EdgeSpec(
+                id=edge.id,
+                name=edge.name,
+                left=_analysis_edge_endpoint(
+                    edge.left,
+                    tensor_id_by_original_id=tensor_id_by_original_id,
+                ),
+                right=_analysis_edge_endpoint(
+                    edge.right,
+                    tensor_id_by_original_id=tensor_id_by_original_id,
+                ),
+                metadata=dict(edge.metadata),
+            )
+            for edge in cell.edges
+        ],
+        notes=[
+            CanvasNoteSpec(
+                id=note.id,
+                text=note.text,
+                position=note.position,
+                metadata=dict(note.metadata),
+            )
+            for note in cell.notes
+        ],
+        contraction_plan=cell.contraction_plan,
+        metadata=dict(cell.metadata),
+    )
 
 
 def build_internal_tree_periodic_cell_network(
@@ -218,3 +310,45 @@ def build_tree_periodic_interface_ports(
             )
         )
     return tuple(ports)
+
+
+def tree_periodic_child_operand_id(child_index: int) -> str:
+    """Return the planner operand id for one tree child boundary."""
+    return f"{TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX}{child_index}__"
+
+
+def tree_periodic_reserved_operand_id_for_tensor(tensor: TensorSpec) -> str | None:
+    """Return the reserved planner operand id for a tree boundary tensor."""
+    if tensor.tree_periodic_role is TreePeriodicTensorRole.PARENT:
+        return TREE_PERIODIC_PARENT_OPERAND_ID
+    if (
+        tensor.tree_periodic_role is TreePeriodicTensorRole.CHILD
+        and tensor.tree_periodic_child_index is not None
+    ):
+        return tree_periodic_child_operand_id(tensor.tree_periodic_child_index)
+    return None
+
+
+def is_tree_periodic_reserved_operand_id(operand_id: str) -> bool:
+    """Return ``True`` when ``operand_id`` is a reserved tree boundary operand."""
+    return operand_id == TREE_PERIODIC_PARENT_OPERAND_ID or (
+        operand_id.startswith(TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX)
+        and operand_id.endswith("__")
+    )
+
+
+def _analysis_tensor_id(tensor: TensorSpec) -> str:
+    """Return the analysis operand id for a tree-periodic cell tensor."""
+    return tree_periodic_reserved_operand_id_for_tensor(tensor) or tensor.id
+
+
+def _analysis_edge_endpoint(
+    endpoint: EdgeEndpointRef,
+    *,
+    tensor_id_by_original_id: dict[str, str],
+) -> EdgeEndpointRef:
+    """Return an edge endpoint with boundary tensor ids remapped."""
+    return EdgeEndpointRef(
+        tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
+        index_id=endpoint.index_id,
+    )

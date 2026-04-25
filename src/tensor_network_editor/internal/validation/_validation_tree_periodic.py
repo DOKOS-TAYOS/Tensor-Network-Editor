@@ -16,8 +16,10 @@ from ..modes._tree_periodic import (
     iter_tree_periodic_cells,
     tree_periodic_boundary_tensors,
     tree_periodic_cell_as_network,
+    tree_periodic_reserved_operand_id_for_tensor,
 )
 from ._validation_common import append_issue, validate_metadata
+from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
     validate_group,
@@ -105,7 +107,28 @@ def _validate_tree_periodic_cell(
         branching_factor=branching_factor,
         issues=issues,
     )
-    _validate_tree_periodic_contraction_plan(cell_name, cell, issues=issues)
+    if cell.contraction_plan is not None:
+        plan_issues: list[ValidationIssue] = []
+        validate_contraction_plan(
+            cell.contraction_plan,
+            tensor_ids={
+                tensor.id
+                for tensor in cell.tensors
+                if tensor.tree_periodic_role is None
+            }
+            | {
+                reserved_operand_id
+                for tensor in cell.tensors
+                if (
+                    reserved_operand_id := tree_periodic_reserved_operand_id_for_tensor(
+                        tensor
+                    )
+                )
+                is not None
+            },
+            issues=plan_issues,
+        )
+        issues.extend(_prefix_validation_issues(prefix, plan_issues))
 
 
 def _validate_tree_periodic_boundary_roles(
@@ -187,25 +210,6 @@ def _validate_tree_periodic_boundary_roles(
                 ),
                 path=f"{cell_prefix}.child_boundaries",
             )
-
-
-def _validate_tree_periodic_contraction_plan(
-    cell_name: TreePeriodicCellName,
-    cell: LinearPeriodicCellSpec,
-    *,
-    issues: list[ValidationIssue],
-) -> None:
-    """Reject manual contraction plans inside tree mode cells."""
-    if cell.contraction_plan is None:
-        return
-    append_issue(
-        issues,
-        code="tree-periodic-contraction-plan",
-        message=(
-            f"Cell '{cell_name.value}' cannot define a contraction plan in For Tree mode."
-        ),
-        path=f"{_tree_periodic_cell_prefix(cell_name)}.contraction_plan",
-    )
 
 
 def _tree_periodic_cell_prefix(cell_name: TreePeriodicCellName) -> str:

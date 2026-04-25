@@ -1832,6 +1832,17 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
           }};
         }}
 
+        function emptyGraphSection() {{
+          return {{
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+          }};
+        }}
+
         function createLinearPeriodicSpec() {{
           return {{
             id: "network_linear_periodic_reserved",
@@ -2071,6 +2082,302 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
                 contraction_plan: null,
                 metadata: {{}},
               }},
+            }},
+          }};
+        }}
+
+        function createGridPeriodicSpec() {{
+          return {{
+            id: "network_grid_periodic_reserved",
+            name: "grid-periodic-reserved",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+            grid_periodic_grid: {{
+              active_cell: "center",
+              metadata: {{}},
+              top_left_cell: emptyGraphSection(),
+              top_cell: emptyGraphSection(),
+              top_right_cell: emptyGraphSection(),
+              left_cell: emptyGraphSection(),
+              center_cell: {{
+                tensors: [
+                  {{
+                    id: "grid_tensor",
+                    name: "Grid tensor",
+                    position: {{ x: 180, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "grid_from_left",
+                        name: "left",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "grid_to_right",
+                        name: "right",
+                        dimension: 5,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "grid_phys",
+                        name: "phys",
+                        dimension: 2,
+                        offset: {{ x: 0, y: -24 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "grid_left_boundary",
+                    name: "Left cell",
+                    position: {{ x: -40, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    grid_periodic_role: "left",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "grid_left_slot",
+                        name: "left_slot",
+                        dimension: 3,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "grid_right_boundary",
+                    name: "Right cell",
+                    position: {{ x: 400, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    grid_periodic_role: "right",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "grid_right_slot",
+                        name: "right_slot",
+                        dimension: 5,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                ],
+                groups: [],
+                edges: [
+                  {{
+                    id: "grid_left_edge",
+                    name: "grid_left",
+                    left: {{
+                      tensor_id: "grid_left_boundary",
+                      index_id: "grid_left_slot",
+                    }},
+                    right: {{
+                      tensor_id: "grid_tensor",
+                      index_id: "grid_from_left",
+                    }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "grid_right_edge",
+                    name: "grid_right",
+                    left: {{
+                      tensor_id: "grid_tensor",
+                      index_id: "grid_to_right",
+                    }},
+                    right: {{
+                      tensor_id: "grid_right_boundary",
+                      index_id: "grid_right_slot",
+                    }},
+                    metadata: {{}},
+                  }},
+                ],
+                notes: [],
+                contraction_plan: {{
+                  id: "grid_plan",
+                  name: "Manual path",
+                  steps: [
+                    {{
+                      id: "grid_left_step",
+                      left_operand_id: "__grid_left__",
+                      right_operand_id: "grid_tensor",
+                      metadata: {{}},
+                    }},
+                  ],
+                  view_snapshots: [],
+                  metadata: {{}},
+                }},
+                metadata: {{}},
+              }},
+              right_cell: emptyGraphSection(),
+              bottom_left_cell: emptyGraphSection(),
+              bottom_cell: emptyGraphSection(),
+              bottom_right_cell: emptyGraphSection(),
+            }},
+          }};
+        }}
+
+        function createTreePeriodicSpec() {{
+          return {{
+            id: "network_tree_periodic_reserved",
+            name: "tree-periodic-reserved",
+            tensors: [],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {{}},
+            tree_periodic_tree: {{
+              active_cell: "branch",
+              branching_factor: 2,
+              metadata: {{}},
+              root_cell: emptyGraphSection(),
+              branch_cell: {{
+                tensors: [
+                  {{
+                    id: "tree_branch_tensor",
+                    name: "Branch tensor",
+                    position: {{ x: 180, y: 140 }},
+                    size: {{ width: 140, height: 84 }},
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "tree_from_parent",
+                        name: "parent",
+                        dimension: 3,
+                        offset: {{ x: 0, y: -24 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "tree_to_child_0",
+                        name: "child_0",
+                        dimension: 5,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "tree_phys",
+                        name: "phys",
+                        dimension: 2,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "tree_parent_boundary",
+                    name: "Parent cell",
+                    position: {{ x: 180, y: -60 }},
+                    size: {{ width: 140, height: 84 }},
+                    tree_periodic_role: "parent",
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "tree_parent_slot",
+                        name: "parent_slot",
+                        dimension: 3,
+                        offset: {{ x: 0, y: -24 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "tree_child_0_boundary",
+                    name: "Child 0",
+                    position: {{ x: -40, y: 260 }},
+                    size: {{ width: 140, height: 84 }},
+                    tree_periodic_role: "child",
+                    tree_periodic_child_index: 0,
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "tree_child_0_slot",
+                        name: "child_0_slot",
+                        dimension: 5,
+                        offset: {{ x: -38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                  {{
+                    id: "tree_child_1_boundary",
+                    name: "Child 1",
+                    position: {{ x: 400, y: 260 }},
+                    size: {{ width: 140, height: 84 }},
+                    tree_periodic_role: "child",
+                    tree_periodic_child_index: 1,
+                    metadata: {{}},
+                    indices: [
+                      {{
+                        id: "tree_child_1_slot",
+                        name: "child_1_slot",
+                        dimension: 7,
+                        offset: {{ x: 38, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                  }},
+                ],
+                groups: [],
+                edges: [
+                  {{
+                    id: "tree_parent_edge",
+                    name: "tree_parent",
+                    left: {{
+                      tensor_id: "tree_parent_boundary",
+                      index_id: "tree_parent_slot",
+                    }},
+                    right: {{
+                      tensor_id: "tree_branch_tensor",
+                      index_id: "tree_from_parent",
+                    }},
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "tree_child_0_edge",
+                    name: "tree_child_0",
+                    left: {{
+                      tensor_id: "tree_branch_tensor",
+                      index_id: "tree_to_child_0",
+                    }},
+                    right: {{
+                      tensor_id: "tree_child_0_boundary",
+                      index_id: "tree_child_0_slot",
+                    }},
+                    metadata: {{}},
+                  }},
+                ],
+                notes: [],
+                contraction_plan: {{
+                  id: "tree_plan",
+                  name: "Manual path",
+                  steps: [
+                    {{
+                      id: "tree_parent_step",
+                      left_operand_id: "__tree_parent__",
+                      right_operand_id: "tree_branch_tensor",
+                      metadata: {{}},
+                    }},
+                    {{
+                      id: "tree_child_step",
+                      left_operand_id: "tree_parent_step",
+                      right_operand_id: "__tree_child_0__",
+                      metadata: {{}},
+                    }},
+                  ],
+                  view_snapshots: [],
+                  metadata: {{}},
+                }},
+                metadata: {{}},
+              }},
+              leaf_cell: emptyGraphSection(),
             }},
           }};
         }}
@@ -2324,6 +2631,89 @@ def _write_for_mode_reserved_operand_runtime_regression_script(
           finalSteps[0].left_operand_id !== "__linear_previous__"
         ) {{
           throw new Error("The final cell did not preserve the reserved previous operand when syncing back into the chain.");
+        }}
+
+        ctx.state.spec = ctx.normalizeSpec(createGridPeriodicSpec());
+        let gridSteps =
+          ctx.state.spec.grid_periodic_grid.center_cell.contraction_plan &&
+          ctx.state.spec.grid_periodic_grid.center_cell.contraction_plan.steps;
+        if (!Array.isArray(gridSteps) || gridSteps[0].left_operand_id !== "__grid_left__") {{
+          throw new Error("Normalizing the grid should preserve the center cell's reserved-border plan.");
+        }}
+        ctx.hydrateActiveGridPeriodicCell();
+        gridSteps =
+          ctx.state.spec.contraction_plan && ctx.state.spec.contraction_plan.steps;
+        if (!Array.isArray(gridSteps) || gridSteps[0].left_operand_id !== "__grid_left__") {{
+          throw new Error("Hydrating the grid center cell should expose its reserved-border plan.");
+        }}
+        const gridLeftResolution = ctx.resolvePlannerOperandId("grid_left_boundary");
+        if (gridLeftResolution !== "grid_left_step") {{
+          throw new Error(`The grid left boundary should resolve to the contraction result after the plan consumes it. Received ${{gridLeftResolution}}.`);
+        }}
+        if (ctx.resolvePlannerOperandId("grid_right_boundary") !== "__grid_right__") {{
+          throw new Error("The grid right boundary did not resolve to the reserved right operand id.");
+        }}
+        ctx.repairContractionPlan();
+        const gridOperandState = ctx.buildContractionOperandState();
+        const gridOperandIds = gridOperandState.activeOperands.map((operand) => operand.id);
+        if (gridOperandState.validSteps.length !== 1) {{
+          throw new Error(`Expected 1 valid grid step, received ${{gridOperandState.validSteps.length}}.`);
+        }}
+        if (!gridOperandIds.includes("grid_left_step") || !gridOperandIds.includes("__grid_right__")) {{
+          throw new Error(`Expected the grid result and live right border to remain active, received ${{JSON.stringify(gridOperandIds)}}.`);
+        }}
+        ctx.syncCurrentGraphIntoGridPeriodicGrid();
+        gridSteps =
+          ctx.state.spec.grid_periodic_grid.center_cell.contraction_plan &&
+          ctx.state.spec.grid_periodic_grid.center_cell.contraction_plan.steps;
+        if (!Array.isArray(gridSteps) || gridSteps[0].left_operand_id !== "__grid_left__") {{
+          throw new Error("The grid cell did not preserve the reserved border plan when syncing back into the grid.");
+        }}
+        ctx.switchGridPeriodicCell("right");
+        ctx.switchGridPeriodicCell("left");
+        gridSteps =
+          ctx.state.spec.contraction_plan && ctx.state.spec.contraction_plan.steps;
+        if (!Array.isArray(gridSteps) || gridSteps[0].left_operand_id !== "__grid_left__") {{
+          throw new Error("Switching away from and back to the grid center should restore its plan.");
+        }}
+
+        ctx.state.spec = ctx.normalizeSpec(createTreePeriodicSpec());
+        let treeSteps =
+          ctx.state.spec.tree_periodic_tree.branch_cell.contraction_plan &&
+          ctx.state.spec.tree_periodic_tree.branch_cell.contraction_plan.steps;
+        if (!Array.isArray(treeSteps) || treeSteps[0].left_operand_id !== "__tree_parent__") {{
+          throw new Error("Normalizing the tree should preserve the branch cell's reserved-border plan.");
+        }}
+        ctx.hydrateActiveTreePeriodicCell();
+        treeSteps =
+          ctx.state.spec.contraction_plan && ctx.state.spec.contraction_plan.steps;
+        if (!Array.isArray(treeSteps) || treeSteps[1].right_operand_id !== "__tree_child_0__") {{
+          throw new Error("Hydrating the tree branch cell should expose its reserved-border plan.");
+        }}
+        if (ctx.resolvePlannerOperandId("tree_parent_boundary") !== "tree_child_step") {{
+          throw new Error("The tree parent boundary should resolve to the final result after the plan consumes it.");
+        }}
+        if (ctx.resolvePlannerOperandId("tree_child_0_boundary") !== "tree_child_step") {{
+          throw new Error("The consumed tree child boundary should resolve to the final result.");
+        }}
+        if (ctx.resolvePlannerOperandId("tree_child_1_boundary") !== "__tree_child_1__") {{
+          throw new Error("The live tree child boundary did not resolve to the reserved child operand id.");
+        }}
+        ctx.repairContractionPlan();
+        const treeOperandState = ctx.buildContractionOperandState();
+        const treeOperandIds = treeOperandState.activeOperands.map((operand) => operand.id);
+        if (treeOperandState.validSteps.length !== 2) {{
+          throw new Error(`Expected 2 valid tree steps, received ${{treeOperandState.validSteps.length}}.`);
+        }}
+        if (!treeOperandIds.includes("tree_child_step") || !treeOperandIds.includes("__tree_child_1__")) {{
+          throw new Error(`Expected the tree result and live child-1 border to remain active, received ${{JSON.stringify(treeOperandIds)}}.`);
+        }}
+        ctx.syncCurrentGraphIntoTreePeriodicTree();
+        treeSteps =
+          ctx.state.spec.tree_periodic_tree.branch_cell.contraction_plan &&
+          ctx.state.spec.tree_periodic_tree.branch_cell.contraction_plan.steps;
+        if (!Array.isArray(treeSteps) || treeSteps[1].right_operand_id !== "__tree_child_0__") {{
+          throw new Error("The tree cell did not preserve the reserved border plan when syncing back into the tree.");
         }}
         """
     )

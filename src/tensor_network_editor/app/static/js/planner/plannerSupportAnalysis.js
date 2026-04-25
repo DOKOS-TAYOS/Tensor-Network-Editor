@@ -11,13 +11,9 @@ export function createPlannerAnalysisSupport({
 }) {
   const {
     benchmarkBaseStatusMessage,
-    gridPeriodicStatusMessage,
-    treePeriodicStatusMessage,
     hyperedgeStatusMessage,
     hasHyperedges,
     isBenchmarkBasePosition,
-    isGridPeriodicMode,
-    isTreePeriodicMode,
   } = guards;
   let pendingContractionAnalysisOptions = null;
 
@@ -96,34 +92,6 @@ export function createPlannerAnalysisSupport({
       state.contractionAnalysis = {
         status: "hyperedgesDisabled",
         message: hyperedgeStatusMessage,
-      };
-      renderPlanner();
-      ctx.renderOverlayDecorations();
-      return;
-    }
-    if (isTreePeriodicMode()) {
-      pendingContractionAnalysisOptions = null;
-      state.contractionAnalysisDirty = false;
-      if (state.spec) {
-        state.spec.contraction_plan = null;
-      }
-      state.contractionAnalysis = {
-        status: "treePeriodicDisabled",
-        message: treePeriodicStatusMessage,
-      };
-      renderPlanner();
-      ctx.renderOverlayDecorations();
-      return;
-    }
-    if (isGridPeriodicMode()) {
-      pendingContractionAnalysisOptions = null;
-      state.contractionAnalysisDirty = false;
-      if (state.spec) {
-        state.spec.contraction_plan = null;
-      }
-      state.contractionAnalysis = {
-        status: "gridPeriodicDisabled",
-        message: gridPeriodicStatusMessage,
       };
       renderPlanner();
       ctx.renderOverlayDecorations();

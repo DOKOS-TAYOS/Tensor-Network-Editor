@@ -20,11 +20,14 @@ from tensor_network_editor.models import (
     LinearPeriodicCellName,
     NetworkSpec,
     TensorSpec,
+    TreePeriodicCellName,
 )
 from tests.factories import (
+    build_grid_periodic_grid_spec,
     build_linear_periodic_partial_carry_chain_spec,
     build_three_tensor_hyperedge_spec,
     build_three_tensor_spec,
+    build_tree_periodic_tree_spec,
 )
 from tests.optional_backends import require_light_optional_module
 
@@ -209,6 +212,61 @@ def test_analyze_contraction_respects_linear_periodic_active_cell() -> None:
         "final_from_previous_partial"
     ]
     assert result.manual.steps[0].left_operand_id == "__linear_previous__"
+
+
+def test_analyze_contraction_uses_grid_periodic_reserved_border_operands() -> None:
+    spec = build_grid_periodic_grid_spec()
+    assert spec.grid_periodic_grid is not None
+    spec.grid_periodic_grid.center_cell.contraction_plan = ContractionPlanSpec(
+        id="grid_plan",
+        name="Grid plan",
+        steps=[
+            ContractionStepSpec(
+                id="grid_step",
+                left_operand_id="__grid_left__",
+                right_operand_id="center_tensor",
+            )
+        ],
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.manual.status == "incomplete"
+    assert [step.left_operand_id for step in result.manual.steps] == ["__grid_left__"]
+    assert result.manual.summary.remaining_operand_ids[0] == "grid_step"
+    assert set(result.manual.summary.remaining_operand_ids[1:]) == {
+        "__grid_up__",
+        "__grid_right__",
+        "__grid_down__",
+    }
+
+
+def test_analyze_contraction_uses_tree_periodic_reserved_border_operands() -> None:
+    spec = build_tree_periodic_tree_spec()
+    assert spec.tree_periodic_tree is not None
+    spec.tree_periodic_tree.active_cell = TreePeriodicCellName.BRANCH
+    spec.tree_periodic_tree.branch_cell.contraction_plan = ContractionPlanSpec(
+        id="tree_plan",
+        name="Tree plan",
+        steps=[
+            ContractionStepSpec(
+                id="tree_step",
+                left_operand_id="__tree_parent__",
+                right_operand_id="branch_tensor",
+            )
+        ],
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.manual.status == "incomplete"
+    assert [step.left_operand_id for step in result.manual.steps] == ["__tree_parent__"]
+    assert result.manual.summary.remaining_operand_ids[0] == "tree_step"
+    assert set(result.manual.summary.remaining_operand_ids[1:]) == {
+        "__tree_child_0__",
+        "__tree_child_1__",
+        "__tree_child_2__",
+    }
 
 
 def test_analyze_contraction_marks_incomplete_manual_plan() -> None:

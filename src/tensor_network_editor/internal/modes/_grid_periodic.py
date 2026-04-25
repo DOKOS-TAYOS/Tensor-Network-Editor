@@ -19,6 +19,20 @@ from ...models import (
 )
 from ..analysis._analysis import analyze_network
 
+GRID_PERIODIC_UP_OPERAND_ID = "__grid_up__"
+GRID_PERIODIC_RIGHT_OPERAND_ID = "__grid_right__"
+GRID_PERIODIC_DOWN_OPERAND_ID = "__grid_down__"
+GRID_PERIODIC_LEFT_OPERAND_ID = "__grid_left__"
+GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE: dict[GridPeriodicTensorRole, str] = {
+    GridPeriodicTensorRole.UP: GRID_PERIODIC_UP_OPERAND_ID,
+    GridPeriodicTensorRole.RIGHT: GRID_PERIODIC_RIGHT_OPERAND_ID,
+    GridPeriodicTensorRole.DOWN: GRID_PERIODIC_DOWN_OPERAND_ID,
+    GridPeriodicTensorRole.LEFT: GRID_PERIODIC_LEFT_OPERAND_ID,
+}
+GRID_PERIODIC_RESERVED_OPERAND_IDS = frozenset(
+    GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE.values()
+)
+
 
 @dataclass(slots=True, frozen=True)
 class GridPeriodicInterfacePort:
@@ -86,7 +100,9 @@ def grid_periodic_cell_as_analysis_network(
     cell_name: GridPeriodicCellName,
 ) -> NetworkSpec:
     """Return a cell network where virtual boundaries are plain operands."""
-    tensor_id_by_original_id = {tensor.id: tensor.id for tensor in cell.tensors}
+    tensor_id_by_original_id = {
+        tensor.id: _analysis_tensor_id(tensor) for tensor in cell.tensors
+    }
     tensor_ids = set(tensor_id_by_original_id.values())
     groups = [
         GroupSpec(
@@ -306,3 +322,22 @@ def _analysis_edge_endpoint(
         tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
         index_id=endpoint.index_id,
     )
+
+
+def grid_periodic_reserved_operand_id_for_role(
+    role: GridPeriodicTensorRole,
+) -> str:
+    """Return the planner operand id used for one 2D boundary role."""
+    return GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE[role]
+
+
+def is_grid_periodic_reserved_operand_id(operand_id: str) -> bool:
+    """Return ``True`` when ``operand_id`` is a reserved 2D boundary operand."""
+    return operand_id in GRID_PERIODIC_RESERVED_OPERAND_IDS
+
+
+def _analysis_tensor_id(tensor: TensorSpec) -> str:
+    """Return the analysis operand id for a grid-periodic cell tensor."""
+    if tensor.grid_periodic_role is None:
+        return tensor.id
+    return grid_periodic_reserved_operand_id_for_role(tensor.grid_periodic_role)

@@ -49,6 +49,7 @@ def _render_einsum_cell_helper(
     internal_spec = build_internal_grid_periodic_cell_network(
         cell,
         cell_name=cell_name,
+        include_contraction_plan=False,
     )
     prepared = prepare_network(internal_spec)
     collection_name = container_name_for_format(collection_format)

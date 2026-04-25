@@ -373,7 +373,6 @@ export function createGridPeriodicBoundarySupport({
     const runtimeSpec = runtime.normalizeGraphSectionInPlace(
       runtime.deepClone(graphSection || runtime.buildEmptyGraphSection())
     );
-    runtimeSpec.contraction_plan = null;
     runtimeSpec.grid_periodic_grid = { active_cell: cellName };
     ensureActiveGridPeriodicBoundaryTensors(runtimeSpec);
     syncGridPeriodicBoundaryTensors(runtimeSpec, familyDimensions);
@@ -381,9 +380,7 @@ export function createGridPeriodicBoundarySupport({
   }
 
   function buildActiveGridPeriodicCellSnapshot(spec = state.spec) {
-    const graphSection = runtime.buildGraphSectionFromSpec(spec);
-    graphSection.contraction_plan = null;
-    return graphSection;
+    return runtime.buildGraphSectionFromSpec(spec);
   }
 
   return {

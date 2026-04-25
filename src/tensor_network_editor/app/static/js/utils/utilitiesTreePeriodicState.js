@@ -21,7 +21,16 @@ export const TREE_PERIODIC_CHILD_SETTINGS = {
   color: "#2f9b8f",
 };
 
+export const TREE_PERIODIC_PARENT_OPERAND_ID = "__tree_parent__";
+export const TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX = "__tree_child_";
+
 export function createTreePeriodicStateSupport({ state, runtime }) {
+  function getTreePeriodicChildOperandId(childIndex) {
+    return Number.isInteger(childIndex) && childIndex >= 0
+      ? `${TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX}${childIndex}__`
+      : null;
+  }
+
   function getTreePeriodicCellKey(cellName) {
     return TREE_PERIODIC_CELL_ORDER.includes(cellName) ? `${cellName}_cell` : null;
   }
@@ -44,7 +53,6 @@ export function createTreePeriodicStateSupport({ state, runtime }) {
             : runtime.buildEmptyGraphSection()
         )
       );
-      tree[cellKey].contraction_plan = null;
     });
     return tree;
   }
@@ -110,7 +118,46 @@ export function createTreePeriodicStateSupport({ state, runtime }) {
     );
   }
 
+  function getTreePeriodicReservedOperandIdForTensor(
+    tensorOrId,
+    spec = state.spec
+  ) {
+    const tensor =
+      typeof tensorOrId === "string"
+        ? (
+            Array.isArray(spec && spec.tensors) ? spec.tensors : []
+          ).find((candidate) => candidate.id === tensorOrId) || null
+        : tensorOrId;
+    if (!isTreePeriodicBoundaryTensor(tensor)) {
+      return null;
+    }
+    if (tensor.tree_periodic_role === "parent") {
+      return TREE_PERIODIC_PARENT_OPERAND_ID;
+    }
+    return getTreePeriodicChildOperandId(tensor.tree_periodic_child_index);
+  }
+
+  function isTreePeriodicReservedOperandId(operandId) {
+    return (
+      operandId === TREE_PERIODIC_PARENT_OPERAND_ID ||
+      new RegExp(`^${TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX}\\d+__$`).test(
+        operandId
+      )
+    );
+  }
+
+  function getTreePeriodicReservedOperandLabel(operandId) {
+    if (operandId === TREE_PERIODIC_PARENT_OPERAND_ID) {
+      return TREE_PERIODIC_PARENT_SETTINGS.name;
+    }
+    const match = new RegExp(
+      `^${TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX}(\\d+)__$`
+    ).exec(operandId);
+    return match ? `Child ${match[1]}` : null;
+  }
+
   return {
+    getTreePeriodicChildOperandId,
     getTreePeriodicCellKey,
     normalizeTreePeriodicTreeInPlace,
     getTreePeriodicTree,
@@ -122,5 +169,8 @@ export function createTreePeriodicStateSupport({ state, runtime }) {
     getTreePeriodicNeighborCellName,
     canSwitchTreePeriodicCell,
     isTreePeriodicBoundaryTensor,
+    getTreePeriodicReservedOperandIdForTensor,
+    isTreePeriodicReservedOperandId,
+    getTreePeriodicReservedOperandLabel,
   };
 }

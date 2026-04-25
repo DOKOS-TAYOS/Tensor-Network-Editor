@@ -10,6 +10,7 @@ from ....models import (
 )
 from .array_einsum import _render_einsum_cell_helper
 from .array_quimb import _render_quimb_cell_helper
+from .common import _manual_plan_step_ids_for_grid, _render_partial_network_output_lines
 from .shared import (
     GRID_PERIODIC_CELL_ORDER,
     grid_periodic_helper_name,
@@ -54,6 +55,23 @@ def _generate_quimb_grid_periodic_code(
         ).lines
         for cell_name in GRID_PERIODIC_CELL_ORDER
     }
+    manual_step_ids = _manual_plan_step_ids_for_grid(grid)
+    output_lines = (
+        [
+            "network = qtn.TensorNetwork(network_tensors)",
+            *_render_partial_network_output_lines(
+                operand_expression="network_tensors",
+                step_ids=manual_step_ids,
+                key_prefix="grid_tensor",
+                mode_message="Manual grid cell plans may leave a partial network.",
+            ),
+        ]
+        if manual_step_ids
+        else [
+            "network = qtn.TensorNetwork(network_tensors)",
+            "result = network_tensors[0] if len(network_tensors) == 1 else None",
+        ]
+    )
     return CodegenResult(
         engine=EngineName.QUIMB,
         code=render_grid_periodic_script(
@@ -65,10 +83,7 @@ def _generate_quimb_grid_periodic_code(
             shared_helper_lines=_render_quimb_shared_helper_lines(),
             cell_lines_by_name=cell_lines_by_name,
             main_loop_lines=_render_quimb_main_loop_lines(),
-            output_lines=[
-                "network = qtn.TensorNetwork(network_tensors)",
-                "result = network_tensors[0] if len(network_tensors) == 1 else None",
-            ],
+            output_lines=output_lines,
         ),
     )
 
@@ -95,6 +110,39 @@ def _generate_einsum_grid_periodic_code(
         ).lines
         for cell_name in GRID_PERIODIC_CELL_ORDER
     }
+    manual_step_ids = _manual_plan_step_ids_for_grid(grid)
+    output_lines = (
+        _render_partial_network_output_lines(
+            operand_expression="einsum_operands[0::2]",
+            step_ids=manual_step_ids,
+            key_prefix="grid_operand",
+            mode_message="Manual grid cell plans may leave a partial network.",
+        )
+        if manual_step_ids
+        else [
+            "dense_label_values: list[int] = []",
+            "for operand_labels in einsum_operands[1::2]:",
+            "    for label in operand_labels:",
+            "        if label not in dense_label_values:",
+            "            dense_label_values.append(label)",
+            "for label in output_labels:",
+            "    if label not in dense_label_values:",
+            "        dense_label_values.append(label)",
+            "dense_label_by_value = {",
+            "    label: offset for offset, label in enumerate(dense_label_values)",
+            "}",
+            "dense_einsum_operands: list[object] = []",
+            "for operand_index, operand in enumerate(einsum_operands):",
+            "    if operand_index % 2 == 0:",
+            "        dense_einsum_operands.append(operand)",
+            "        continue",
+            "    dense_einsum_operands.append(",
+            "        [dense_label_by_value[label] for label in operand]",
+            "    )",
+            "dense_output_labels = [dense_label_by_value[label] for label in output_labels]",
+            f"result = {module_alias}.einsum(*dense_einsum_operands, dense_output_labels)",
+        ]
+    )
     return CodegenResult(
         engine=engine,
         code=render_grid_periodic_script(
@@ -105,29 +153,7 @@ def _generate_einsum_grid_periodic_code(
             shared_helper_lines=_render_einsum_shared_helper_lines(),
             cell_lines_by_name=cell_lines_by_name,
             main_loop_lines=_render_einsum_main_loop_lines(),
-            output_lines=[
-                "dense_label_values: list[int] = []",
-                "for operand_labels in einsum_operands[1::2]:",
-                "    for label in operand_labels:",
-                "        if label not in dense_label_values:",
-                "            dense_label_values.append(label)",
-                "for label in output_labels:",
-                "    if label not in dense_label_values:",
-                "        dense_label_values.append(label)",
-                "dense_label_by_value = {",
-                "    label: offset for offset, label in enumerate(dense_label_values)",
-                "}",
-                "dense_einsum_operands: list[object] = []",
-                "for operand_index, operand in enumerate(einsum_operands):",
-                "    if operand_index % 2 == 0:",
-                "        dense_einsum_operands.append(operand)",
-                "        continue",
-                "    dense_einsum_operands.append(",
-                "        [dense_label_by_value[label] for label in operand]",
-                "    )",
-                "dense_output_labels = [dense_label_by_value[label] for label in output_labels]",
-                f"result = {module_alias}.einsum(*dense_einsum_operands, dense_output_labels)",
-            ],
+            output_lines=output_lines,
         ),
     )
 

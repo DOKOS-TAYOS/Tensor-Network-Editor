@@ -25,6 +25,7 @@ from tensor_network_editor.models import (
 )
 from tests.factories import (
     build_grid_periodic_grid_spec,
+    build_grid_periodic_grid_spec_with_partial_plan,
     build_linear_periodic_carry_chain_spec,
     build_linear_periodic_chain_spec,
     build_linear_periodic_partial_carry_chain_spec,
@@ -35,6 +36,7 @@ from tests.factories import (
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
     build_tree_periodic_tree_spec,
+    build_tree_periodic_tree_spec_with_partial_plan,
 )
 from tests.optional_backends import require_engine_backend
 
@@ -1250,6 +1252,26 @@ def test_grid_periodic_codegen_supports_all_collection_formats(
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
+def test_grid_periodic_codegen_with_manual_border_plan_exports_partial_network(
+    engine: EngineName,
+) -> None:
+    result = generate_code(
+        build_grid_periodic_grid_spec_with_partial_plan(),
+        engine=engine,
+    )
+
+    assert "remaining_operands = {" in result.code
+    assert "result = next(iter(remaining_operands.values()))" in result.code
+    assert "Manual grid cell plans may leave a partial network" in result.code
+    assert "top_left_cell = build_top_left_cell()" in result.code
+    assert "center_left_step" in result.code
+    if engine is EngineName.EINSUM_NUMPY:
+        assert "result = np.einsum(" not in result.code
+    if engine is EngineName.EINSUM_TORCH:
+        assert "result = torch.einsum(" not in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
 def test_tree_periodic_codegen_uses_tree_helpers_and_total_depth_loops(
     engine: EngineName,
 ) -> None:
@@ -1366,6 +1388,29 @@ def test_tree_periodic_codegen_supports_all_collection_formats(
     assert container_name in result.code
     for snippet in expected_snippets:
         assert snippet in result.code
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_tree_periodic_codegen_with_manual_border_plan_exports_partial_network_bottom_up(
+    engine: EngineName,
+) -> None:
+    result = generate_code(
+        build_tree_periodic_tree_spec_with_partial_plan(),
+        engine=engine,
+    )
+
+    assert "remaining_operands = {" in result.code
+    assert "result = next(iter(remaining_operands.values()))" in result.code
+    assert (
+        "Manual tree cell plans are assembled from leaves toward the root"
+        in result.code
+    )
+    assert "for level in range(n - 1, 0, -1):" in result.code
+    assert "branch_parent_step" in result.code
+    if engine is EngineName.EINSUM_NUMPY:
+        assert "result = np.einsum(" not in result.code
+    if engine is EngineName.EINSUM_TORCH:
+        assert "result = torch.einsum(" not in result.code
 
 
 @pytest.mark.parametrize(

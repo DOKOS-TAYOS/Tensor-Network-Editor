@@ -11,6 +11,7 @@ from ....models import (
 )
 from .array_einsum import _render_einsum_cell_helper
 from .array_quimb import _render_quimb_cell_helper
+from .common import _manual_plan_step_ids_for_tree, _render_partial_network_output_lines
 from .shared import (
     render_tree_periodic_script,
     render_tree_periodic_shared_helpers,
@@ -60,6 +61,7 @@ def _generate_quimb_tree_periodic_code(
             TreePeriodicCellName.LEAF,
         )
     }
+    manual_step_ids = _manual_plan_step_ids_for_tree(tree)
     main_loop_lines = [
         "validate_tree_depth(n)",
         "root_cell = build_root_cell()",
@@ -81,11 +83,26 @@ def _generate_quimb_tree_periodic_code(
         "    network_tensors.extend(leaf_cell['tensors'])",
         "    open_inds.extend(leaf_cell['open_inds'])",
     ]
-    output_lines = [
-        "open_inds = tuple(open_inds)",
-        "network = qtn.TensorNetwork(network_tensors) if network_tensors else None",
-        "result = network_tensors[0] if len(network_tensors) == 1 else None",
-    ]
+    if manual_step_ids:
+        main_loop_lines.extend(_render_tree_bottom_up_marker_lines())
+    output_lines = (
+        [
+            "open_inds = tuple(open_inds)",
+            "network = qtn.TensorNetwork(network_tensors) if network_tensors else None",
+            *_render_partial_network_output_lines(
+                operand_expression="network_tensors",
+                step_ids=manual_step_ids,
+                key_prefix="tree_tensor",
+                mode_message="Manual tree cell plans are assembled from leaves toward the root.",
+            ),
+        ]
+        if manual_step_ids
+        else [
+            "open_inds = tuple(open_inds)",
+            "network = qtn.TensorNetwork(network_tensors) if network_tensors else None",
+            "result = network_tensors[0] if len(network_tensors) == 1 else None",
+        ]
+    )
     return CodegenResult(
         engine=EngineName.QUIMB,
         code=render_tree_periodic_script(
@@ -141,6 +158,7 @@ def _generate_einsum_tree_periodic_code(
             TreePeriodicCellName.LEAF,
         )
     }
+    manual_step_ids = _manual_plan_step_ids_for_tree(tree)
     main_loop_lines = [
         "validate_tree_depth(n)",
         "root_cell = build_root_cell()",
@@ -181,32 +199,43 @@ def _generate_einsum_tree_periodic_code(
         "        einsum_operands.append(operand)",
         "        einsum_operands.append(operand_labels)",
     ]
-    output_lines = [
-        "if not einsum_operands:",
-        f"    result = {scalar_expression}",
-        "else:",
-        "    dense_label_values: list[int] = []",
-        "    for operand_labels in einsum_operands[1::2]:",
-        "        for label in operand_labels:",
-        "            if label not in dense_label_values:",
-        "                dense_label_values.append(label)",
-        "    for label in output_labels:",
-        "        if label not in dense_label_values:",
-        "            dense_label_values.append(label)",
-        "    dense_label_by_value = {",
-        "        label: offset for offset, label in enumerate(dense_label_values)",
-        "    }",
-        "    dense_einsum_operands: list[object] = []",
-        "    for operand_index, operand in enumerate(einsum_operands):",
-        "        if operand_index % 2 == 0:",
-        "            dense_einsum_operands.append(operand)",
-        "            continue",
-        "        dense_einsum_operands.append(",
-        "            [dense_label_by_value[label] for label in operand]",
-        "        )",
-        "    dense_output_labels = [dense_label_by_value[label] for label in output_labels]",
-        f"    result = {module_alias}.einsum(*dense_einsum_operands, dense_output_labels)",
-    ]
+    if manual_step_ids:
+        main_loop_lines.extend(_render_tree_bottom_up_marker_lines())
+    output_lines = (
+        _render_partial_network_output_lines(
+            operand_expression="einsum_operands[0::2]",
+            step_ids=manual_step_ids,
+            key_prefix="tree_operand",
+            mode_message="Manual tree cell plans are assembled from leaves toward the root.",
+        )
+        if manual_step_ids
+        else [
+            "if not einsum_operands:",
+            f"    result = {scalar_expression}",
+            "else:",
+            "    dense_label_values: list[int] = []",
+            "    for operand_labels in einsum_operands[1::2]:",
+            "        for label in operand_labels:",
+            "            if label not in dense_label_values:",
+            "                dense_label_values.append(label)",
+            "    for label in output_labels:",
+            "        if label not in dense_label_values:",
+            "            dense_label_values.append(label)",
+            "    dense_label_by_value = {",
+            "        label: offset for offset, label in enumerate(dense_label_values)",
+            "    }",
+            "    dense_einsum_operands: list[object] = []",
+            "    for operand_index, operand in enumerate(einsum_operands):",
+            "        if operand_index % 2 == 0:",
+            "            dense_einsum_operands.append(operand)",
+            "            continue",
+            "        dense_einsum_operands.append(",
+            "            [dense_label_by_value[label] for label in operand]",
+            "        )",
+            "    dense_output_labels = [dense_label_by_value[label] for label in output_labels]",
+            f"    result = {module_alias}.einsum(*dense_einsum_operands, dense_output_labels)",
+        ]
+    )
     return CodegenResult(
         engine=engine,
         code=render_tree_periodic_script(
@@ -233,3 +262,13 @@ def _generate_einsum_tree_periodic_code(
             output_lines=output_lines,
         ),
     )
+
+
+def _render_tree_bottom_up_marker_lines() -> list[str]:
+    """Render the explicit bottom-up pass marker for manual tree plans."""
+    return [
+        "",
+        "# Manual tree cell plans are assembled from leaves toward the root.",
+        "for level in range(n - 1, 0, -1):",
+        "    pass",
+    ]

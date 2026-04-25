@@ -9,6 +9,7 @@ from ....models import (
     TreePeriodicCellName,
     TreePeriodicTreeSpec,
 )
+from .common import _manual_plan_step_ids_for_tree, _render_partial_network_output_lines
 from .graph_cells import _render_tree_graph_cell_helper
 from .shared import (
     render_tree_periodic_script,
@@ -49,6 +50,7 @@ def generate_graph_tree_periodic_code(
             TreePeriodicCellName.LEAF,
         )
     }
+    manual_step_ids = _manual_plan_step_ids_for_tree(tree)
     main_loop_lines = [
         "validate_tree_depth(n)",
         "root_cell = build_root_cell()",
@@ -72,7 +74,18 @@ def generate_graph_tree_periodic_code(
         "    network_nodes.extend(leaf_cell['nodes'])",
         "    open_edges.extend(leaf_cell['open_edges'])",
     ]
-    output_lines = ["result = network_nodes[0] if len(network_nodes) == 1 else None"]
+    if manual_step_ids:
+        main_loop_lines.extend(_render_tree_bottom_up_marker_lines())
+    output_lines = (
+        _render_partial_network_output_lines(
+            operand_expression="network_nodes",
+            step_ids=manual_step_ids,
+            key_prefix="tree_node",
+            mode_message="Manual tree cell plans are assembled from leaves toward the root.",
+        )
+        if manual_step_ids
+        else ["result = network_nodes[0] if len(network_nodes) == 1 else None"]
+    )
     return CodegenResult(
         engine=engine,
         code=render_tree_periodic_script(
@@ -99,3 +112,13 @@ def generate_graph_tree_periodic_code(
             output_lines=output_lines,
         ),
     )
+
+
+def _render_tree_bottom_up_marker_lines() -> list[str]:
+    """Render the explicit bottom-up pass marker for manual tree plans."""
+    return [
+        "",
+        "# Manual tree cell plans are assembled from leaves toward the root.",
+        "for level in range(n - 1, 0, -1):",
+        "    pass",
+    ]
