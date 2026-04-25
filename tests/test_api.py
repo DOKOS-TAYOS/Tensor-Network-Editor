@@ -510,6 +510,34 @@ def test_load_spec_from_python_code_live_generated_source_falls_back_to_static_p
     assert "no module named 'torch'" in parsed_result.warnings[0].lower()
 
 
+def test_load_spec_from_python_code_live_import_does_not_fallback_for_ambiguous_globals() -> (
+    None
+):
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "import quimb.tensor as qtn",
+            "",
+            "tensor_a = qtn.Tensor(np.ones((2, 3)), inds=('i', 'j'), tags=('A',))",
+            "tensor_b = qtn.Tensor(np.ones((2, 3)), inds=('k', 'l'), tags=('B',))",
+        ]
+    )
+
+    with patch(
+        "tensor_network_editor.internal.io._serialization.import_live_python_source",
+        side_effect=SerializationError(
+            "Live import found multiple compatible globals "
+            "(tensor_a, tensor_b). Pass python_object_name to choose one."
+        ),
+    ):
+        with pytest.raises(SerializationError, match="python_object_name"):
+            load_spec_from_python_code(
+                code,
+                source_profile="quimb",
+                python_import_mode="live",
+            )
+
+
 @pytest.mark.parametrize("engine", list(EngineName))
 def test_load_spec_from_python_code_round_trips_tensor_data(
     engine: EngineName,

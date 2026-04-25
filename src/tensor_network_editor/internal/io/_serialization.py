@@ -34,6 +34,12 @@ LOGGER = logging.getLogger(__name__)
 
 PythonReconstructionLevel = Literal["auto", "simple", "best_available"]
 ResolvedPythonReconstructionLevel = Literal["simple", "best_available"]
+_LIVE_IMPORT_BACKEND_IMPORT_ERROR_MARKERS = (
+    "no module named",
+    "modulenotfounderror",
+    "importerror",
+    "cannot import name",
+)
 
 _SUPPORTED_PYTHON_RECONSTRUCTION_LEVELS = frozenset(
     {"auto", "simple", "best_available"}
@@ -305,6 +311,12 @@ def deserialize_spec_from_python_code_result(
                 source_path=source_path,
             )
         except SerializationError as exc:
+            if not _should_fallback_live_import_to_static_parser(
+                code,
+                source_profile=source_profile,
+                error=exc,
+            ):
+                raise
             try:
                 fallback_result = _deserialize_static_python_code_result(
                     code,
@@ -330,6 +342,30 @@ def deserialize_spec_from_python_code_result(
         validate=validate,
         source_profile=source_profile,
         python_reconstruction_level=normalized_reconstruction_level,
+    )
+
+
+def _should_fallback_live_import_to_static_parser(
+    code: str,
+    *,
+    source_profile: PythonSourceProfile,
+    error: SerializationError,
+) -> bool:
+    """Return whether a failed live import may safely use the static parser."""
+    try:
+        normalized_profile = normalize_python_source_profile(source_profile)
+        resolved_profile = (
+            detect_python_source_profile(code)
+            if normalized_profile == "auto"
+            else normalized_profile
+        )
+    except SerializationError:
+        return False
+    if resolved_profile != "generated":
+        return False
+    error_message = str(error).lower()
+    return any(
+        marker in error_message for marker in _LIVE_IMPORT_BACKEND_IMPORT_ERROR_MARKERS
     )
 
 

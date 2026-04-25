@@ -67,6 +67,10 @@ All notable changes to this project will be documented in this file.
 
 - Irregular imported graphs no longer fall back to a coarse grid-only reflow path; auto layout now uses layered component placement with overlap-safe spacing, and the toolbar keeps whole-graph layout available without requiring a temporary tensor selection.
 - Hyperedges now participate correctly in canonicalization, subnetworks, clipboard flows, metadata filters, graph rendering, and connection lookups, while planner/manual contraction editing and benchmark mode fail fast with clear messages whenever a design contains hyperedges.
+- Live Python imports now only fall back to the static parser for generated
+  sources that fail because a backend import is missing, so ambiguous runtime
+  globals still raise a `python_object_name` error instead of being silently
+  parsed statically.
 
 ## [0.3.0] - 2026-04-20
 
