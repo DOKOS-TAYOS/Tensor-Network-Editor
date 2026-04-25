@@ -307,9 +307,6 @@ def render_tensor_data_expression(
 
 def _hyperedge_copy_tensor_signature(tensor: PreparedTensor) -> tuple[int, int] | None:
     """Return ``(dimension, rank)`` for generated hyperedge copy tensors."""
-    tensor_data = tensor.spec.tensor_data
-    if tensor_data is None or tensor_data.mode is not TensorDataMode.LITERAL:
-        return None
     metadata = tensor.spec.metadata
     if (
         metadata.get("generated_by") != "hyperedge_lowering"

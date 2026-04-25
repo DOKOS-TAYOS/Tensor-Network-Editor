@@ -20,6 +20,8 @@ def validate_metadata(
     issues: list[ValidationIssue],
 ) -> None:
     """Append a validation issue when metadata is not JSON serializable."""
+    if _is_fast_json_metadata(metadata):
+        return
     try:
         json.dumps(metadata)
     except (TypeError, ValueError) as exc:
@@ -30,6 +32,43 @@ def validate_metadata(
                 path=path,
             )
         )
+
+
+def _is_fast_json_metadata(
+    value: object,
+    *,
+    seen_container_ids: set[int] | None = None,
+) -> bool:
+    """Return ``True`` when metadata is plainly JSON serializable."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return True
+    if isinstance(value, list):
+        container_id = id(value)
+        seen = seen_container_ids or set()
+        if container_id in seen:
+            return False
+        seen.add(container_id)
+        try:
+            return all(
+                _is_fast_json_metadata(item, seen_container_ids=seen) for item in value
+            )
+        finally:
+            seen.remove(container_id)
+    if isinstance(value, dict):
+        container_id = id(value)
+        seen = seen_container_ids or set()
+        if container_id in seen:
+            return False
+        seen.add(container_id)
+        try:
+            return all(
+                isinstance(item_key, str)
+                and _is_fast_json_metadata(item_value, seen_container_ids=seen)
+                for item_key, item_value in value.items()
+            )
+        finally:
+            seen.remove(container_id)
+    return False
 
 
 def append_issue(

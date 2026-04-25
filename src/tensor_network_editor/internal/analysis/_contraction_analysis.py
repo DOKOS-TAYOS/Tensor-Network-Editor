@@ -12,6 +12,7 @@ from ._contraction_analysis_automatic import (
     _analyze_automatic_operands,
     _analyze_future_automatic_plan,
     _analyze_past_automatic_plan,
+    _AutomaticPathCache,
 )
 from ._contraction_analysis_compare import _build_contraction_comparisons
 from ._contraction_analysis_manual import (
@@ -87,6 +88,7 @@ def _analyze_prepared_contraction(
     spec = prepared.spec
     bytes_per_element = dtype_size_in_bytes(memory_dtype)
     contraction_inputs = prepare_contraction_inputs(prepared)
+    automatic_path_cache: _AutomaticPathCache = {}
     network_output_shape = tuple(
         index.spec.dimension for index in prepared.open_indices
     )
@@ -101,12 +103,14 @@ def _analyze_prepared_contraction(
         dimension_by_label=contraction_inputs.dimension_by_label,
         step_id_prefix="auto_full_step_",
         bytes_per_element=bytes_per_element,
+        path_cache=automatic_path_cache,
     )
     automatic_future = _analyze_future_automatic_plan(
         initial_operands=contraction_inputs.initial_operands,
         manual_operand_state=manual_operand_state,
         dimension_by_label=contraction_inputs.dimension_by_label,
         bytes_per_element=bytes_per_element,
+        path_cache=automatic_path_cache,
     )
     automatic_past = _analyze_past_automatic_plan(
         spec=spec,
@@ -114,6 +118,7 @@ def _analyze_prepared_contraction(
         manual_operand_state=manual_operand_state,
         dimension_by_label=contraction_inputs.dimension_by_label,
         bytes_per_element=bytes_per_element,
+        path_cache=automatic_path_cache,
     )
     message = (
         automatic_future.message

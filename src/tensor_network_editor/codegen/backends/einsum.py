@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
 from string import ascii_letters
-from typing import Any, cast
+from typing import Any, TypeAlias, cast
 
 from ...internal.analysis._contraction_plan import (
     PreparedContractionInputs,
@@ -40,6 +40,21 @@ from ..shared.common import (
     tensor_collection_reference,
     tensor_display_name_by_id,
 )
+
+_RandomPairwisePath: TypeAlias = tuple[tuple[int, ...], ...]
+_RandomPairwiseSignature: TypeAlias = tuple[
+    tuple[str, tuple[str, ...], tuple[int, ...]],
+    ...,
+]
+_RandomPairwisePlanCacheKey: TypeAlias = tuple[
+    int,
+    int,
+    _RandomPairwiseSignature,
+]
+_RandomPairwisePlanCache: TypeAlias = dict[
+    _RandomPairwisePlanCacheKey,
+    _RandomPairwisePath | None,
+]
 
 
 @dataclass(slots=True, frozen=True)
@@ -146,6 +161,8 @@ def _load_random_optimizer_tools(
 
 def _build_random_pairwise_plan(
     contraction_inputs: PreparedContractionInputs,
+    *,
+    path_cache: _RandomPairwisePlanCache | None = None,
 ) -> ContractionPlanSpec | None:
     """Build an opt_einsum-assisted random pairwise plan when available."""
     if len(contraction_inputs.initial_operand_ids) <= 1:
@@ -165,6 +182,17 @@ def _build_random_pairwise_plan(
     if random_tools is None:
         return None
     contract_path, random_optimizer_type = random_tools
+    signature = _build_random_pairwise_signature(contraction_inputs)
+    cache_key = (id(contract_path), id(random_optimizer_type), signature)
+    if path_cache is not None and cache_key in path_cache:
+        cached_path = path_cache[cache_key]
+        if cached_path is None:
+            return None
+        return _build_pairwise_plan_from_path(
+            contraction_inputs=contraction_inputs,
+            path=cached_path,
+        )
+
     symbol_map = {
         label: ascii_letters[offset]
         for offset, label in enumerate(label_order[: len(ascii_letters)])
@@ -201,18 +229,43 @@ def _build_random_pairwise_plan(
             optimize=random_optimizer_type(max_time=0.05, minimize="flops"),
         )
     except (NotImplementedError, TypeError, ValueError):
+        if path_cache is not None:
+            path_cache[cache_key] = None
         return None
+
+    normalized_path = tuple(
+        tuple(int(value) for value in raw_indices) for raw_indices in path
+    )
+    if path_cache is not None:
+        path_cache[cache_key] = normalized_path
 
     return _build_pairwise_plan_from_path(
         contraction_inputs=contraction_inputs,
-        path=path,
+        path=normalized_path,
+    )
+
+
+def _build_random_pairwise_signature(
+    contraction_inputs: PreparedContractionInputs,
+) -> _RandomPairwiseSignature:
+    """Build a stable cache signature for random pairwise path generation."""
+    return tuple(
+        (
+            operand_id,
+            contraction_inputs.initial_operands[operand_id],
+            tuple(
+                contraction_inputs.dimension_by_label[label]
+                for label in contraction_inputs.initial_operands[operand_id]
+            ),
+        )
+        for operand_id in contraction_inputs.initial_operand_ids
     )
 
 
 def _build_pairwise_plan_from_path(
     *,
     contraction_inputs: PreparedContractionInputs,
-    path: list[tuple[int, int]],
+    path: _RandomPairwisePath,
 ) -> ContractionPlanSpec | None:
     """Translate an opt_einsum path into a stored pairwise plan."""
     remaining_order = list(contraction_inputs.initial_operand_ids)
@@ -261,13 +314,18 @@ def _build_pairwise_plan_from_path(
 
 def _select_pairwise_candidate(
     contraction_inputs: PreparedContractionInputs,
+    *,
+    path_cache: _RandomPairwisePlanCache | None = None,
 ) -> PairwiseContractionCandidate:
     """Choose the best available automatic pairwise route."""
     heuristic_candidate = _build_pairwise_candidate(
         contraction_inputs,
         _build_heuristic_pairwise_plan(contraction_inputs),
     )
-    random_plan = _build_random_pairwise_plan(contraction_inputs)
+    random_plan = _build_random_pairwise_plan(
+        contraction_inputs,
+        path_cache=path_cache,
+    )
     if random_plan is None:
         return heuristic_candidate
     random_candidate = _build_pairwise_candidate(contraction_inputs, random_plan)
@@ -296,6 +354,10 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
     module_alias: str
     zero_initializer_suffix: str = ""
     empty_network_expression: str
+
+    def __init__(self) -> None:
+        """Initialize per-generator caches used by repeated code generation."""
+        self._random_pairwise_plan_cache: _RandomPairwisePlanCache = {}
 
     def generate(
         self,
@@ -398,7 +460,10 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         }
         label_to_int = {label: offset for offset, label in enumerate(label_order)}
         contraction_inputs = prepare_contraction_inputs(prepared)
-        candidate = _select_pairwise_candidate(contraction_inputs)
+        candidate = _select_pairwise_candidate(
+            contraction_inputs,
+            path_cache=self._random_pairwise_plan_cache,
+        )
         simulation = cast(Any, candidate.simulation)
         base_operand_expressions = {
             tensor.spec.id: tensor_collection_reference(

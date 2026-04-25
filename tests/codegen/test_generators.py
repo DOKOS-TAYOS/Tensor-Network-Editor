@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from tensor_network_editor import generate_code
+from tensor_network_editor.codegen.backends.einsum_numpy import EinsumNumpyCodeGenerator
 from tensor_network_editor.codegen.shared.common import (
     render_remaining_operands_mapping,
 )
@@ -669,6 +670,45 @@ def test_einsum_codegen_without_plan_prefers_better_random_route_when_available(
     assert first_step in result.code
     assert second_step in result.code
     assert result.code.index(first_step) < result.code.index(second_step)
+
+
+def test_einsum_codegen_reuses_random_route_for_repeated_signature() -> None:
+    class FakeRandomGreedy:
+        def __init__(
+            self,
+            *,
+            max_time: float | None = None,
+            minimize: str = "flops",
+        ) -> None:
+            self.max_time = max_time
+            self.minimize = minimize
+
+    call_count = 0
+
+    def fake_contract_path(
+        equation: str,
+        *operand_shapes: tuple[int, ...],
+        shapes: bool = True,
+        optimize: object | None = None,
+    ) -> tuple[list[tuple[int, int]], object]:
+        nonlocal call_count
+        assert equation == "ab,bc,cd->ad"
+        assert shapes is True
+        assert operand_shapes == ((100, 2), (2, 100), (100, 2))
+        assert isinstance(optimize, FakeRandomGreedy)
+        call_count += 1
+        return [(1, 2), (0, 1)], object()
+
+    generator = EinsumNumpyCodeGenerator()
+    with patch(
+        "tensor_network_editor.codegen.backends.einsum._load_random_optimizer_tools",
+        return_value=(fake_contract_path, FakeRandomGreedy),
+    ):
+        first = generator.generate(build_random_better_chain_spec())
+        second = generator.generate(build_random_better_chain_spec())
+
+    assert first.code == second.code
+    assert call_count == 1
 
 
 def test_tensorkrowch_codegen_rejects_manual_outer_product_plan() -> None:

@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - Frontend benchmark state and comparison export helpers now use shared modules
   instead of keeping duplicate definitions in multiple runtime files.
+- Contraction analysis now reuses equivalent automatic greedy path lookups within
+  one analysis run, and generated hyperedge copy tensors no longer materialize
+  large nested literal payloads during backend preparation.
+- Einsum code generation now caches repeated automatic random-route lookups per
+  generator instance, and validation skips full JSON serialization for plainly
+  serializable metadata payloads.
 - Frontend runtime tests now share the state module dependency preset used by
   scripts that copy `state.js`, avoiding repeated benchmark-state wiring.
 - Removed obsolete private compatibility shims for split model and periodic

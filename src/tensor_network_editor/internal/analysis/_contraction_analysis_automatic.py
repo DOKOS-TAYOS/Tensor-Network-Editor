@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from functools import cache
 from importlib import import_module
 from string import ascii_letters
-from typing import Any, cast
+from typing import Any, TypeAlias, cast
 
 from ...models import ContractionStepSpec, NetworkSpec
 from ._contraction_analysis_manual import ManualOperandState
@@ -18,6 +19,24 @@ from ._contraction_analysis_types import (
 from ._contraction_plan import simulate_contraction_step
 
 MISSING_OPT_EINSUM_MESSAGE = "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+
+_AutomaticPath: TypeAlias = tuple[tuple[int, ...], ...]
+_AutomaticPathCacheKey: TypeAlias = tuple[
+    tuple[str, tuple[str, ...], tuple[int, ...]],
+    ...,
+]
+_AutomaticPathCache: TypeAlias = dict[
+    _AutomaticPathCacheKey,
+    "_AutomaticPathCacheEntry",
+]
+
+
+@dataclass(slots=True, frozen=True)
+class _AutomaticPathCacheEntry:
+    """Cached opt_einsum path lookup for one operand signature."""
+
+    path: _AutomaticPath | None = None
+    message: str | None = None
 
 
 def _contract_operands(
@@ -79,6 +98,7 @@ def _analyze_future_automatic_plan(
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
     bytes_per_element: int,
+    path_cache: _AutomaticPathCache | None = None,
 ) -> AutomaticContractionPlanAnalysis:
     """Analyze the greedy path that continues from the current manual state."""
     del initial_operands
@@ -88,6 +108,7 @@ def _analyze_future_automatic_plan(
         dimension_by_label=dimension_by_label,
         step_id_prefix="auto_future_step_",
         bytes_per_element=bytes_per_element,
+        path_cache=path_cache,
     )
 
 
@@ -98,6 +119,7 @@ def _analyze_past_automatic_plan(
     manual_operand_state: ManualOperandState,
     dimension_by_label: dict[str, int],
     bytes_per_element: int,
+    path_cache: _AutomaticPathCache | None = None,
 ) -> AutomaticContractionPlanAnalysis:
     """Analyze greedy paths for already contracted manual subtrees."""
     del spec
@@ -135,6 +157,7 @@ def _analyze_past_automatic_plan(
             step_id_prefix=f"{root_operand_id}__auto_past_",
             final_step_id=root_operand_id,
             bytes_per_element=bytes_per_element,
+            path_cache=path_cache,
         )
         if analysis.status == "unavailable":
             return analysis
@@ -165,6 +188,7 @@ def _analyze_automatic_operands(
     step_id_prefix: str,
     bytes_per_element: int,
     final_step_id: str | None = None,
+    path_cache: _AutomaticPathCache | None = None,
 ) -> AutomaticContractionPlanAnalysis:
     """Run automatic greedy analysis for the provided operand set."""
     if len(operand_order) <= 1:
@@ -179,59 +203,24 @@ def _analyze_automatic_operands(
             ),
         )
 
-    contract_path = _load_contract_path(import_module)
-    if contract_path is None:
-        return _unavailable_automatic_analysis(
-            MISSING_OPT_EINSUM_MESSAGE,
-            bytes_per_element=bytes_per_element,
-        )
-
     operand_ids = tuple(operand_order)
-    label_order = list(
-        dict.fromkeys(
-            label for operand_id in operand_ids for label in operands[operand_id]
-        )
+    path_entry = _resolve_automatic_path(
+        operand_ids=operand_ids,
+        operands=operands,
+        dimension_by_label=dimension_by_label,
+        path_cache=path_cache,
     )
-    if len(label_order) > len(ascii_letters):
+    if path_entry.message is not None:
         return _unavailable_automatic_analysis(
-            "Automatic greedy path analysis currently supports up to 52 distinct labels.",
+            path_entry.message,
             bytes_per_element=bytes_per_element,
         )
-
-    symbol_map = {
-        label: ascii_letters[offset]
-        for offset, label in enumerate(label_order[: len(ascii_letters)])
-    }
-    label_counts = {label: 0 for label in label_order}
-    for operand_id in operand_ids:
-        for label in operands[operand_id]:
-            label_counts[label] += 1
-    output_labels = [label for label in label_order if label_counts[label] == 1]
-    equation = (
-        ",".join(
-            "".join(symbol_map[label] for label in operands[operand_id])
-            for operand_id in operand_ids
-        )
-        + "->"
-        + "".join(symbol_map[label] for label in output_labels)
-    )
-    shapes = [
-        tuple(dimension_by_label[label] for label in operands[operand_id])
-        for operand_id in operand_ids
-    ]
-
-    try:
-        path, _ = contract_path(
-            equation,
-            *shapes,
-            shapes=True,
-            optimize="greedy",
-        )
-    except ValueError as exc:
+    if path_entry.path is None:
         return _unavailable_automatic_analysis(
-            f"Automatic greedy path analysis failed: {exc}",
+            "Automatic greedy path analysis did not return a contraction path.",
             bytes_per_element=bytes_per_element,
         )
+    path = path_entry.path
 
     remaining_order = list(operand_ids)
     remaining_operands = dict(operands)
@@ -306,6 +295,111 @@ def _unavailable_automatic_analysis(
             bytes_per_element=bytes_per_element,
         ),
         message=message,
+    )
+
+
+def _resolve_automatic_path(
+    *,
+    operand_ids: tuple[str, ...],
+    operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+    path_cache: _AutomaticPathCache | None,
+) -> _AutomaticPathCacheEntry:
+    """Return a cached or freshly resolved greedy path for one operand set."""
+    cache_key = _build_automatic_path_cache_key(
+        operand_ids=operand_ids,
+        operands=operands,
+        dimension_by_label=dimension_by_label,
+    )
+    if path_cache is not None and cache_key in path_cache:
+        return path_cache[cache_key]
+
+    entry = _build_automatic_path_cache_entry(
+        operand_ids=operand_ids,
+        operands=operands,
+        dimension_by_label=dimension_by_label,
+    )
+    if path_cache is not None:
+        path_cache[cache_key] = entry
+    return entry
+
+
+def _build_automatic_path_cache_key(
+    *,
+    operand_ids: tuple[str, ...],
+    operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+) -> _AutomaticPathCacheKey:
+    """Build the stable in-call cache key for an automatic path request."""
+    return tuple(
+        (
+            operand_id,
+            operands[operand_id],
+            tuple(dimension_by_label[label] for label in operands[operand_id]),
+        )
+        for operand_id in operand_ids
+    )
+
+
+def _build_automatic_path_cache_entry(
+    *,
+    operand_ids: tuple[str, ...],
+    operands: dict[str, tuple[str, ...]],
+    dimension_by_label: dict[str, int],
+) -> _AutomaticPathCacheEntry:
+    """Resolve one opt_einsum path and normalize expected unavailability."""
+    contract_path = _load_contract_path(import_module)
+    if contract_path is None:
+        return _AutomaticPathCacheEntry(message=MISSING_OPT_EINSUM_MESSAGE)
+
+    label_order = list(
+        dict.fromkeys(
+            label for operand_id in operand_ids for label in operands[operand_id]
+        )
+    )
+    if len(label_order) > len(ascii_letters):
+        return _AutomaticPathCacheEntry(
+            message="Automatic greedy path analysis currently supports up to 52 distinct labels."
+        )
+
+    symbol_map = {
+        label: ascii_letters[offset]
+        for offset, label in enumerate(label_order[: len(ascii_letters)])
+    }
+    label_counts = {label: 0 for label in label_order}
+    for operand_id in operand_ids:
+        for label in operands[operand_id]:
+            label_counts[label] += 1
+    output_labels = [label for label in label_order if label_counts[label] == 1]
+    equation = (
+        ",".join(
+            "".join(symbol_map[label] for label in operands[operand_id])
+            for operand_id in operand_ids
+        )
+        + "->"
+        + "".join(symbol_map[label] for label in output_labels)
+    )
+    shapes = [
+        tuple(dimension_by_label[label] for label in operands[operand_id])
+        for operand_id in operand_ids
+    ]
+
+    try:
+        raw_path, _ = contract_path(
+            equation,
+            *shapes,
+            shapes=True,
+            optimize="greedy",
+        )
+    except ValueError as exc:
+        return _AutomaticPathCacheEntry(
+            message=f"Automatic greedy path analysis failed: {exc}"
+        )
+
+    return _AutomaticPathCacheEntry(
+        path=tuple(
+            tuple(int(value) for value in raw_indices) for raw_indices in raw_path
+        )
     )
 
 

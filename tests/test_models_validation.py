@@ -1050,6 +1050,29 @@ def test_validate_spec_reports_targeted_issue_codes_and_paths(
     assert issue.path == expected_path
 
 
+def test_validate_spec_skips_json_dump_for_simple_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = build_valid_spec()
+    spec.metadata = {"tags": ["mps", {"boundary": "open"}], "verified": True}
+    spec.tensors[0].metadata = {"role": "site", "weight": 1}
+    dump_call_count = 0
+
+    def counting_json_dumps(value: object) -> str:
+        nonlocal dump_call_count
+        del value
+        dump_call_count += 1
+        return "{}"
+
+    monkeypatch.setattr(
+        "tensor_network_editor.internal.validation._validation_common.json.dumps",
+        counting_json_dumps,
+    )
+
+    assert validate_spec(spec) == []
+    assert dump_call_count == 0
+
+
 def test_validate_spec_accepts_multi_step_contraction_plan() -> None:
     spec = build_valid_spec()
     spec.tensors.append(

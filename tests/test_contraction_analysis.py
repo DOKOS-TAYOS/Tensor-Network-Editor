@@ -529,6 +529,57 @@ def test_analyze_contraction_reuses_one_manual_plan_simulation(
     assert call_count == 1
 
 
+def test_analyze_contraction_reuses_equivalent_automatic_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    spec = build_three_tensor_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_chain_complete",
+        name="Chain complete",
+        steps=[
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="tensor_a",
+                right_operand_id="tensor_b",
+            ),
+            ContractionStepSpec(
+                id="step_abc",
+                left_operand_id="step_ab",
+                right_operand_id="tensor_c",
+            ),
+        ],
+    )
+    call_count = 0
+
+    class FakePlannerModule:
+        @staticmethod
+        def contract_path(
+            equation: str,
+            *operand_shapes: tuple[int, ...],
+            shapes: bool,
+            optimize: str,
+        ) -> tuple[tuple[tuple[int, int], ...], object]:
+            nonlocal call_count
+            del equation, operand_shapes, shapes, optimize
+            call_count += 1
+            return ((0, 1), (0, 1)), object()
+
+    def fake_import_module(name: str) -> object:
+        assert name == "opt_einsum"
+        return FakePlannerModule
+
+    monkeypatch.setattr(
+        "tensor_network_editor.internal.analysis._contraction_analysis_automatic.import_module",
+        fake_import_module,
+    )
+
+    result = analyze_contraction(spec)
+
+    assert result.automatic_full.status == "complete"
+    assert result.automatic_past.status == "complete"
+    assert call_count == 1
+
+
 def test_long_manual_chain_preserves_remaining_ids_shapes_and_source_tensors() -> None:
     spec = build_long_tensor_chain_spec(40)
     prepared = prepare_network(spec)

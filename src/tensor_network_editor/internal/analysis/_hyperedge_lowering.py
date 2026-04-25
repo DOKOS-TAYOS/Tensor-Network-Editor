@@ -11,8 +11,6 @@ from ...models import (
     HyperedgeSpec,
     IndexSpec,
     NetworkSpec,
-    TensorDataMode,
-    TensorDataSpec,
     TensorSpec,
 )
 from ..models._model_tensor_data import TensorNumericLiteral
@@ -84,13 +82,6 @@ def _build_hyperedge_copy_tensor(
             index_lookup[endpoint.index_id][0] for endpoint in hyperedge.endpoints
         ),
         indices=copy_index_specs,
-        tensor_data=TensorDataSpec(
-            mode=TensorDataMode.LITERAL,
-            values=_build_copy_tensor_values(
-                resolved_indices[0].dimension,
-                len(resolved_indices),
-            ),
-        ),
         metadata={
             "generated_for_hyperedge": hyperedge.id,
             "generated_by": "hyperedge_lowering",

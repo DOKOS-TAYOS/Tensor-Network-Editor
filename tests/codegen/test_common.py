@@ -138,7 +138,11 @@ def test_prepare_network_lowers_hyperedges_to_copy_tensors_for_codegen() -> None
     assert prepared.spec.hyperedges == []
     assert len(prepared.tensors) == 4
     assert len(prepared.edges) == 3
-    assert any(
-        tensor.spec.metadata.get("generated_for_hyperedge") == "hyperedge_h"
+    copy_tensors = [
+        tensor
         for tensor in prepared.tensors
-    )
+        if tensor.spec.metadata.get("generated_for_hyperedge") == "hyperedge_h"
+    ]
+    assert len(copy_tensors) == 1
+    assert copy_tensors[0].spec.tensor_data is None
+    assert copy_tensors[0].spec.shape == (3, 3, 3)

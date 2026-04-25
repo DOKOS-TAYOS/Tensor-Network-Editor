@@ -172,12 +172,11 @@ def prepare_analyzed_network(analysis: NetworkAnalysis) -> PreparedNetwork:
             )
         )
 
-    open_index_ids = {index.id for _, index in analysis.open_indices}
     open_indices = [
         prepared_index
         for tensor in prepared_tensors
         for prepared_index in tensor.indices
-        if prepared_index.spec.id in open_index_ids
+        if prepared_index.is_open
     ]
 
     return PreparedNetwork(
