@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 JS_RELOCATION_MAP: dict[str, str] = {
     "api.js": "services/api.js",
+    "benchmarkState.js": "state/benchmarkState.js",
     "codeHighlighting.js": "core/codeHighlighting.js",
     "constants.js": "core/constants.js",
     "dom.js": "core/dom.js",
@@ -123,9 +124,13 @@ _RELATIVE_JS_IMPORT_PATTERN = re.compile(
     r'(?P<prefix>\bfrom\s+["\']|\bimport\s+["\'])(?P<spec>\.{1,2}/[^"\']+)(?P<suffix>["\'])'
 )
 
+_STATE_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
+    "benchmarkState.js": _js_source_name("benchmarkState.js"),
+    "state.runtime.mjs": _js_source_name("state.js"),
+}
 
 _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": _js_source_name("state.js"),
+    **_STATE_RUNTIME_DEPENDENCY_MODULES,
     "utilities.runtime.mjs": _js_source_name("utilities.js"),
     "codeHighlighting.js": _js_source_name("codeHighlighting.js"),
     "utilitiesTemplates.js": _js_source_name("utilitiesTemplates.js"),
@@ -200,6 +205,7 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
         "actions/plannerCommands.js",
         "actions/propertyCommands.js",
         "actions/sessionCommands.js",
+        "benchmarkState.js",
         "codeHighlighting.js",
         "planner/plannerAnalysisFormatting.js",
         "planner/plannerRenderersAutomatic.js",
@@ -310,7 +316,7 @@ _RUNTIME_EDITOR_SUPPORT_MODULES: dict[str, str] = _mapped_js_modules(
 )
 
 _SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": _js_source_name("state.js"),
+    **_STATE_RUNTIME_DEPENDENCY_MODULES,
     "interactionsShortcuts.js": _js_source_name("interactionsShortcuts.js"),
 }
 
@@ -343,7 +349,7 @@ _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_modules(
 )
 
 _INTERACTION_RUNTIME_CONTRACT_DEPENDENCY_MODULES: dict[str, str] = {
-    "state.runtime.mjs": _js_source_name("state.js"),
+    **_STATE_RUNTIME_DEPENDENCY_MODULES,
     "interactions.runtime.mjs": _js_source_name("interactions.js"),
     **_INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES,
     **_mapped_js_modules(
@@ -449,6 +455,21 @@ def test_copy_runtime_editor_support_modules_includes_planner_automatic_support(
     assert (tmp_path / "planner" / "plannerRenderersAutomatic.js").exists()
     assert (tmp_path / "planner" / "plannerSupportActions.js").exists()
     assert (tmp_path / "utilitiesBenchmark.js").exists()
+
+
+def test_state_runtime_dependency_modules_include_benchmark_state(
+    tmp_path: Path,
+) -> None:
+    assert "_STATE_RUNTIME_DEPENDENCY_MODULES" in globals()
+
+    _copy_js_modules(tmp_path, _STATE_RUNTIME_DEPENDENCY_MODULES)
+
+    state_runtime_path = tmp_path / "state.runtime.mjs"
+    assert state_runtime_path.exists()
+    assert (tmp_path / "benchmarkState.js").exists()
+    assert 'from "./benchmarkState.js"' in state_runtime_path.read_text(
+        encoding="utf-8"
+    )
 
 
 def _write_for_mode_runtime_regression_script(tmp_path: Path) -> Path:
@@ -3299,33 +3320,12 @@ def _write_tensor_index_move_properties_runtime_regression_script(
 
 def _write_sidebar_resize_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "sidebar_resize_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state/state.js"
-    )
-    sidebar_tabs_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "core/sidebarTabs.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     sidebar_tabs_runtime_path = tmp_path / "sidebarTabs.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    sidebar_tabs_runtime_path.write_text(
-        sidebar_tabs_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {"sidebarTabs.runtime.mjs": _js_source_name("sidebarTabs.js")},
+        _STATE_RUNTIME_DEPENDENCY_MODULES,
     )
     script_body = textwrap.dedent(
         """
@@ -7493,48 +7493,17 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
 
 def _write_metadata_filter_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "metadata_filter_runtime_regression.mjs"
-    state_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "state/state.js"
-    )
-    utilities_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "utils/utilities.js"
-    )
-    metadata_filters_module_path = (
-        REPO_ROOT
-        / "src"
-        / "tensor_network_editor"
-        / "app"
-        / "static"
-        / "js"
-        / "graph/metadataFilters.js"
-    )
     state_runtime_path = tmp_path / "state.runtime.mjs"
     utilities_runtime_path = tmp_path / "utilities.runtime.mjs"
     metadata_filters_runtime_path = tmp_path / "metadataFilters.runtime.mjs"
-    state_runtime_path.write_text(
-        state_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    utilities_runtime_path.write_text(
-        utilities_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
-    )
-    _copy_runtime_editor_support_modules(tmp_path)
-    metadata_filters_runtime_path.write_text(
-        metadata_filters_module_path.read_text(encoding="utf-8"),
-        encoding="utf-8",
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "metadataFilters.runtime.mjs": _js_source_name("metadataFilters.js"),
+            "state.runtime.mjs": _js_source_name("state.js"),
+            "utilities.runtime.mjs": _js_source_name("utilities.js"),
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
     )
     script_body = textwrap.dedent(
         """

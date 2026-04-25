@@ -4,6 +4,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app._services import build_bootstrap_payload
 from tensor_network_editor.app.session import EditorSession
@@ -26,7 +28,12 @@ def _payload_subnetwork_warnings(payload: JsonDict) -> list[str]:
     return cast(list[str], payload["subnetwork_catalog_warnings"])
 
 
-def test_build_bootstrap_payload_includes_empty_subnetwork_catalog() -> None:
+def test_build_bootstrap_payload_includes_empty_subnetwork_catalog(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
     payload = build_bootstrap_payload(EditorSession())
 
     assert payload["subnetworks"] == []
@@ -63,6 +70,27 @@ def test_project_subnetwork_catalog_entries_are_loaded_per_session(
     assert definition["source"] == "project"
     assert definition["tags"] == ["alpha", "block"]
     assert _payload_subnetwork_warnings(payload) == []
+
+
+def test_default_subnetwork_catalog_loads_from_current_working_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    catalog_module = import_module(
+        "tensor_network_editor.internal.subnetworks._catalog"
+    )
+    append_project_subnetwork = catalog_module.append_project_subnetwork
+
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    spec = build_sample_spec()
+    spec.notes = []
+    spec.contraction_plan = None
+    append_project_subnetwork(catalog_path, "project_pair", spec)
+    monkeypatch.chdir(tmp_path)
+
+    payload = build_bootstrap_payload(EditorSession())
+
+    assert _payload_subnetworks(payload) == ["project_pair"]
 
 
 def test_project_subnetwork_catalog_shadows_shared_entry_with_warning(

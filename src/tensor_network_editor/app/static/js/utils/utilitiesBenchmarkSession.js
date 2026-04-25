@@ -1,229 +1,24 @@
 import {
   buildDefaultBenchmarkSchemeName,
   createBenchmarkSessionStateSupport,
-  createEmptyBenchmarkCompareState,
-  createEmptyBenchmarkSession,
 } from "./utilitiesBenchmarkSessionState.js";
+import { createEmptyBenchmarkSession } from "../state/benchmarkState.js";
+import { buildBenchmarkCompareTableModel } from "./utilitiesBenchmarkTable.js";
+import {
+  serializeBenchmarkCompareTableCsv,
+  serializeBenchmarkCompareTableLatex,
+  serializeBenchmarkCompareTableText,
+} from "./utilitiesBenchmarkExports.js";
+
+export { buildBenchmarkCompareTableModel } from "./utilitiesBenchmarkTable.js";
+export {
+  serializeBenchmarkCompareTableCsv,
+  serializeBenchmarkCompareTableLatex,
+  serializeBenchmarkCompareTableText,
+} from "./utilitiesBenchmarkExports.js";
 
 const BENCHMARK_BASE_LABEL = "Tensor network";
 const BENCHMARK_STATUS_HINT = "Move right to edit or create a contraction scheme.";
-const BENCHMARK_METRICS = [
-  {
-    key: "flop",
-    label: "FLOP",
-    summaryKey: "total_estimated_flops",
-    formatDisplay: (value) => formatBenchmarkNumber(value),
-  },
-  {
-    key: "mac",
-    label: "MAC",
-    summaryKey: "total_estimated_macs",
-    formatDisplay: (value) => formatBenchmarkNumber(value),
-  },
-  {
-    key: "peak",
-    label: "Peak",
-    summaryKey: "peak_intermediate_size",
-    formatDisplay: (value) => formatBenchmarkNumber(value),
-  },
-  {
-    key: "memory",
-    label: "Peak Memory",
-    summaryKey: "peak_intermediate_bytes",
-    formatDisplay: (value) => formatBenchmarkBytes(value),
-  },
-];
-
-const BENCHMARK_COMPARE_COLUMNS = [
-  {
-    key: "name",
-    label: "Name",
-    getDisplay: (row) => row?.cells?.name?.display || row?.schemeName || "-",
-  },
-  ...BENCHMARK_METRICS.map((metric) => ({
-    key: metric.key,
-    label: metric.label,
-    getDisplay: (row) => row?.cells?.[metric.key]?.display || "-",
-  })),
-];
-
-function formatBenchmarkNumber(value) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue.toLocaleString() : "-";
-}
-
-function formatBenchmarkBytes(value) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue)
-    ? `${numericValue.toLocaleString()} bytes`
-    : "-";
-}
-
-function hasDisplayableBenchmarkSummary(analysis) {
-  return Boolean(
-    analysis &&
-      typeof analysis === "object" &&
-      analysis.summary &&
-      typeof analysis.summary === "object"
-  );
-}
-
-function isComparableBenchmarkAnalysis(analysis) {
-  return Boolean(
-    hasDisplayableBenchmarkSummary(analysis) && analysis.status === "complete"
-  );
-}
-
-function buildBenchmarkMetricCell(metric, analysis) {
-  const displayable = hasDisplayableBenchmarkSummary(analysis);
-  const summary = displayable ? analysis.summary : null;
-  const value = displayable ? Number(summary[metric.summaryKey]) : NaN;
-  const hasDisplayValue = displayable && Number.isFinite(value);
-  const isComparable = hasDisplayValue && isComparableBenchmarkAnalysis(analysis);
-  return {
-    value: hasDisplayValue ? value : null,
-    display: hasDisplayValue ? metric.formatDisplay(value) : "-",
-    isComparable,
-    isBest: false,
-    isWorst: false,
-  };
-}
-
-export function buildBenchmarkCompareTableModel(entries = []) {
-  const rows = (Array.isArray(entries) ? entries : []).map((entry, index) => {
-    const schemeId =
-      typeof entry?.scheme_id === "string" && entry.scheme_id
-        ? entry.scheme_id
-        : `scheme_${index + 1}`;
-    const schemeName =
-      typeof entry?.scheme_name === "string" && entry.scheme_name.trim()
-        ? entry.scheme_name.trim()
-        : `Scheme ${index + 1}`;
-    const analysis =
-      entry?.analysis && typeof entry.analysis === "object" ? entry.analysis : null;
-    const cells = {
-      name: {
-        value: schemeName,
-        display: schemeName,
-        isComparable: false,
-        isBest: false,
-        isWorst: false,
-      },
-    };
-
-    BENCHMARK_METRICS.forEach((metric) => {
-      cells[metric.key] = buildBenchmarkMetricCell(metric, analysis);
-    });
-
-    return {
-      schemeId,
-      schemeName,
-      analysisStatus:
-        typeof analysis?.status === "string" && analysis.status
-          ? analysis.status
-          : "unknown",
-      analysisMessage:
-        typeof analysis?.message === "string" ? analysis.message : "",
-      cells,
-    };
-  });
-
-  BENCHMARK_METRICS.forEach((metric) => {
-    const comparableCells = rows
-      .map((row) => row.cells[metric.key])
-      .filter((cell) => cell && cell.isComparable);
-    if (!comparableCells.length) {
-      return;
-    }
-    const values = comparableCells.map((cell) => cell.value);
-    const bestValue = Math.min(...values);
-    const worstValue = Math.max(...values);
-    comparableCells.forEach((cell) => {
-      cell.isBest = cell.value === bestValue;
-      cell.isWorst = bestValue === worstValue ? false : cell.value === worstValue;
-    });
-  });
-
-  return {
-    rows,
-  };
-}
-
-function getBenchmarkCompareExportRows(tableModel) {
-  return Array.isArray(tableModel?.rows) ? tableModel.rows : [];
-}
-
-function buildBenchmarkCompareExportMatrix(tableModel) {
-  const headers = BENCHMARK_COMPARE_COLUMNS.map((column) => column.label);
-  const rows = getBenchmarkCompareExportRows(tableModel).map((row) =>
-    BENCHMARK_COMPARE_COLUMNS.map((column) => column.getDisplay(row))
-  );
-  return [headers, ...rows];
-}
-
-function escapeBenchmarkCompareCsvCell(value) {
-  const text = String(value ?? "");
-  return /[",\r\n]/.test(text)
-    ? `"${text.replaceAll('"', '""')}"`
-    : text;
-}
-
-function escapeBenchmarkCompareLatex(value) {
-  return String(value ?? "")
-    .replaceAll("\\", "\\textbackslash{}")
-    .replaceAll("&", "\\&")
-    .replaceAll("%", "\\%")
-    .replaceAll("$", "\\$")
-    .replaceAll("#", "\\#")
-    .replaceAll("_", "\\_")
-    .replaceAll("{", "\\{")
-    .replaceAll("}", "\\}")
-    .replaceAll("~", "\\textasciitilde{}")
-    .replaceAll("^", "\\textasciicircum{}");
-}
-
-export function serializeBenchmarkCompareTableCsv(tableModel) {
-  return buildBenchmarkCompareExportMatrix(tableModel)
-    .map((row) => row.map((value) => escapeBenchmarkCompareCsvCell(value)).join(","))
-    .join("\n");
-}
-
-export function serializeBenchmarkCompareTableText(tableModel) {
-  const matrix = buildBenchmarkCompareExportMatrix(tableModel);
-  if (!matrix.length) {
-    return "";
-  }
-  const columnWidths = matrix[0].map((_, columnIndex) =>
-    Math.max(
-      ...matrix.map((row) => String(row[columnIndex] ?? "").length)
-    )
-  );
-  const formatRow = (row) =>
-    row
-      .map((value, columnIndex) =>
-        String(value ?? "").padEnd(columnWidths[columnIndex], " ")
-      )
-      .join("  ");
-  const separator = columnWidths.map((width) => "-".repeat(width)).join("  ");
-  return [formatRow(matrix[0]), separator, ...matrix.slice(1).map(formatRow)].join(
-    "\n"
-  );
-}
-
-export function serializeBenchmarkCompareTableLatex(tableModel) {
-  const [headerRow, ...rows] = buildBenchmarkCompareExportMatrix(tableModel);
-  const formatRow = (row) =>
-    `${row.map((value) => escapeBenchmarkCompareLatex(value)).join(" & ")} \\\\`;
-  return [
-    "\\begin{tabular}{lrrrr}",
-    "\\hline",
-    formatRow(headerRow),
-    "\\hline",
-    ...rows.map(formatRow),
-    "\\hline",
-    "\\end{tabular}",
-  ].join("\n");
-}
 
 export function createBenchmarkSessionSupport({
   actions,
@@ -297,11 +92,13 @@ export function createBenchmarkSessionSupport({
   }
 
   function canExportBenchmarkCompare(compareModal = getBenchmarkSession().compareModal) {
+    const tableModel = getBenchmarkCompareTableModel(compareModal);
     return Boolean(
       compareModal?.open &&
         !compareModal.loading &&
         !compareModal.errorMessage &&
-        getBenchmarkCompareExportRows(getBenchmarkCompareTableModel(compareModal)).length
+        Array.isArray(tableModel.rows) &&
+        tableModel.rows.length
     );
   }
 

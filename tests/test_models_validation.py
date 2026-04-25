@@ -269,34 +269,9 @@ def test_canvas_note_round_trip_is_serializable() -> None:
     assert restored.position.y == -4.0
 
 
-def test_internal_model_graph_module_reexports_split_model_modules() -> None:
-    entity_module = import_module(
-        "tensor_network_editor.internal.models._model_entities"
-    )
-    periodic_types_module = import_module(
-        "tensor_network_editor.internal.models._model_periodic_types"
-    )
-    periodic_module = import_module(
-        "tensor_network_editor.internal.models._model_periodic"
-    )
-    network_module = import_module(
-        "tensor_network_editor.internal.models._model_network"
-    )
-    compatibility_module = import_module(
-        "tensor_network_editor.internal.models._model_graph"
-    )
-
-    assert compatibility_module.TensorSpec is entity_module.TensorSpec
-    assert compatibility_module.CanvasNoteSpec is entity_module.CanvasNoteSpec
-    assert (
-        compatibility_module.LinearPeriodicTensorRole
-        is periodic_types_module.LinearPeriodicTensorRole
-    )
-    assert (
-        compatibility_module.LinearPeriodicChainSpec
-        is periodic_module.LinearPeriodicChainSpec
-    )
-    assert compatibility_module.NetworkSpec is network_module.NetworkSpec
+def test_internal_model_graph_compatibility_module_is_removed() -> None:
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.internal.models._model_graph")
 
 
 def test_validation_module_reuses_internal_spec_validation_helpers() -> None:
@@ -305,10 +280,10 @@ def test_validation_module_reuses_internal_spec_validation_helpers() -> None:
         "tensor_network_editor.internal.validation._validation_spec"
     )
 
-    assert (
-        validation_module._validate_spec_with_analysis
-        is internal_module.validate_spec_with_analysis
+    assert validation_module.validate_spec_with_analysis is (
+        internal_module.validate_spec_with_analysis
     )
+    assert not hasattr(validation_module, "_validate_spec_with_analysis")
 
 
 def test_contraction_plan_round_trip_is_serializable() -> None:

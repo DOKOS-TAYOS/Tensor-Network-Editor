@@ -1,3 +1,8 @@
+import {
+  createEmptyBenchmarkCompareState,
+  createEmptyBenchmarkSession,
+} from "./benchmarkState.js";
+
 export function createHistorySnapshotSupport({
   state,
   historyLimit,
@@ -14,27 +19,6 @@ export function createHistorySnapshotSupport({
   refreshContractionAnalysis,
   setStatus,
 }) {
-  function createEmptyBenchmarkCompareState() {
-    return {
-      open: false,
-      loading: false,
-      errorMessage: "",
-      tableModel: null,
-      rows: [],
-      activeRequestId: 0,
-    };
-  }
-
-  function createEmptyBenchmarkSession() {
-    return {
-      enabled: false,
-      activePosition: 0,
-      originalPlan: null,
-      schemes: [],
-      compareModal: createEmptyBenchmarkCompareState(),
-    };
-  }
-
   function restoreBenchmarkSession(snapshotBenchmarkSession) {
     const nextBenchmarkSession =
       snapshotBenchmarkSession && typeof snapshotBenchmarkSession === "object"

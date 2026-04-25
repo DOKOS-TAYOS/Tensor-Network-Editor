@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Frontend benchmark state and comparison export helpers now use shared modules
+  instead of keeping duplicate definitions in multiple runtime files.
+- Frontend runtime tests now share the state module dependency preset used by
+  scripts that copy `state.js`, avoiding repeated benchmark-state wiring.
+- Removed obsolete private compatibility shims for split model and periodic
+  code-generation internals.
+
+### Fixed
+
+- Subnetwork catalog tests now isolate their working directory while preserving
+  the default project-local catalog lookup used by normal editor sessions.
+
 ## [0.4.0] - 2026-04-25
 
 ### Changed

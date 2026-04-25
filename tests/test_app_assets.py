@@ -2834,6 +2834,9 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     history_snapshots_body = request_text(
         f"{editor_server.base_url}/js/state/historySnapshots.js"
     )
+    benchmark_state_body = request_text(
+        f"{editor_server.base_url}/js/state/benchmarkState.js"
+    )
     history_selection_body = request_text(
         f"{editor_server.base_url}/js/state/selectionEntries.js"
     )
@@ -2881,6 +2884,8 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert 'from "../state/historySnapshots.js"' in history_body
     assert 'from "../state/selectionEntries.js"' in history_body
     assert 'from "../actions/designMutationPipeline.js"' in history_body
+    assert 'from "./benchmarkState.js"' in history_snapshots_body
+    assert "function createEmptyBenchmarkSession(" in benchmark_state_body
     assert "function normalizeInvalidations(" not in history_body
     assert "function createHistorySnapshot(" not in history_body
     assert "function getSelectedEntries(" not in history_body

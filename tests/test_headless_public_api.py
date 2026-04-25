@@ -277,3 +277,9 @@ def test_removed_compatibility_modules_are_not_importable() -> None:
 
     with pytest.raises(ModuleNotFoundError):
         import_module("tensor_network_editor.codegen.einsum")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.codegen.modes._grid_periodic_shared")
+
+    with pytest.raises(ModuleNotFoundError):
+        import_module("tensor_network_editor.codegen.modes._tree_periodic_shared")

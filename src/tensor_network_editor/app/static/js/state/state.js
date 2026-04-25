@@ -1,23 +1,4 @@
-function createInitialBenchmarkCompareState() {
-  return {
-    open: false,
-    loading: false,
-    errorMessage: "",
-    tableModel: null,
-    rows: [],
-    activeRequestId: 0,
-  };
-}
-
-function createInitialBenchmarkSession() {
-  return {
-    enabled: false,
-    activePosition: 0,
-    originalPlan: null,
-    schemes: [],
-    compareModal: createInitialBenchmarkCompareState(),
-  };
-}
+import { createEmptyBenchmarkSession } from "./benchmarkState.js";
 
 export function createInitialState() {
   return {
@@ -173,6 +154,6 @@ export function createInitialState() {
     contractionAnalysisCacheRevision: -1,
     contractionAnalysisCachePayload: null,
     contractionAnalysisRequestId: 0,
-    benchmarkSession: createInitialBenchmarkSession(),
+    benchmarkSession: createEmptyBenchmarkSession(),
   };
 }

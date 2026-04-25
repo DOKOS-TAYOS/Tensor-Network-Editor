@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, TypeAlias
 from ...types import MetadataDict
 
 if TYPE_CHECKING:
-    from ._model_graph import NetworkSpec
+    from ._model_network import NetworkSpec
 
 
 @dataclass(slots=True)

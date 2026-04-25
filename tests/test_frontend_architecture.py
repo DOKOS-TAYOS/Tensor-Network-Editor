@@ -90,6 +90,9 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
         / "js"
         / "planner"
     )
+    state_dir = (
+        REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "state"
+    )
     session_flow_body = (session_dir / "sessionTemplateFlows.js").read_text(
         encoding="utf-8"
     )
@@ -102,6 +105,14 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     benchmark_helper_body = (utils_dir / "utilitiesBenchmarkSessionState.js").read_text(
         encoding="utf-8"
     )
+    benchmark_table_body = (utils_dir / "utilitiesBenchmarkTable.js").read_text(
+        encoding="utf-8"
+    )
+    state_body = (state_dir / "state.js").read_text(encoding="utf-8")
+    history_snapshots_body = (state_dir / "historySnapshots.js").read_text(
+        encoding="utf-8"
+    )
+    benchmark_state_body = (state_dir / "benchmarkState.js").read_text(encoding="utf-8")
     tree_body = (utils_dir / "utilitiesTreePeriodic.js").read_text(encoding="utf-8")
     tree_state_body = (utils_dir / "utilitiesTreePeriodicState.js").read_text(
         encoding="utf-8"
@@ -200,7 +211,16 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     assert 'from "./sessionTemplateFlowSubnetworkLibrary.js"' in session_flow_body
     assert "function createSubnetworkLibrarySupport(" in session_helper_body
     assert 'from "./utilitiesBenchmarkSessionState.js"' in benchmark_body
+    assert 'from "./utilitiesBenchmarkTable.js"' in benchmark_body
+    assert 'from "./utilitiesBenchmarkExports.js"' in benchmark_body
     assert "function normalizeBenchmarkSessionInPlace(" in benchmark_helper_body
+    assert 'from "../state/benchmarkState.js"' in benchmark_helper_body
+    assert 'from "./benchmarkState.js"' in state_body
+    assert 'from "./benchmarkState.js"' in history_snapshots_body
+    assert "function createEmptyBenchmarkSession(" in benchmark_state_body
+    assert "function createEmptyBenchmarkSession(" not in benchmark_table_body
+    assert "export function buildBenchmarkCompareTableModel(" not in benchmark_body
+    assert "export function serializeBenchmarkCompareTableCsv(" not in benchmark_body
     assert 'from "./utilitiesTreePeriodicState.js"' in tree_body
     assert 'from "./utilitiesTreePeriodicBoundaries.js"' in tree_body
     assert 'from "./utilitiesTreePeriodicFlow.js"' in tree_body
