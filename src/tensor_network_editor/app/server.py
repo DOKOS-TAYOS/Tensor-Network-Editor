@@ -357,6 +357,8 @@ class EditorServer:
                     )
                 if path == "/api/generate":
                     return routes.handle_generate(session, payload)
+                if path == "/api/render":
+                    return routes.handle_render(session, payload)
                 if path == "/api/analyze-contraction":
                     return routes.handle_analyze_contraction(session, payload)
                 if path == "/api/complete":

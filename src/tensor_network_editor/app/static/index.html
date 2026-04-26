@@ -123,6 +123,38 @@
                       <span class="toolbar-menu-item-description">Save the canvas as an SVG image.</span>
                     </span>
                   </button>
+                  <button
+                    id="export-tikz-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the current design as a TikZ/LaTeX figure."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export to .tex</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the current design as a TikZ/LaTeX figure.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="export-dot-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitem"
+                    title="Export the current design as a Graphviz/DOT graph."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Export to .dot</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Save the current design as a Graphviz/DOT graph.</span>
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -386,6 +418,8 @@
               <option value="py">Python (.py)</option>
               <option value="png">PNG</option>
               <option value="svg">SVG</option>
+              <option value="tikz">TikZ/LaTeX</option>
+              <option value="dot">Graphviz/DOT</option>
             </select>
             <input
               id="load-input"

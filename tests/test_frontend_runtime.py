@@ -11622,6 +11622,21 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                     calls.push({ type: "cancelSession" });
                     return { ok: true };
                   },
+                  async renderSpec(payload) {
+                    calls.push({ type: "renderSpec", payload });
+                    return {
+                      ok: true,
+                      format: payload.format,
+                      text:
+                        payload.format === "tikz"
+                          ? "\\\\begin{tikzpicture}"
+                          : "graph demo {}",
+                      content_type:
+                        payload.format === "tikz"
+                          ? "text/x-tex;charset=utf-8"
+                          : "text/vnd.graphviz;charset=utf-8",
+                    };
+                  },
                 },
               },
               commands: {
@@ -11632,8 +11647,8 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                   scheduledCallback = callback;
                   return 7;
                 },
-                downloadText(filename) {
-                  calls.push({ type: "downloadText", filename });
+                downloadText(filename, text, contentType) {
+                  calls.push({ type: "downloadText", filename, text, contentType });
                 },
                 closeWindow() {},
               },
@@ -11681,6 +11696,36 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             }
             if (!state.draftAutosaveReady) {
               throw new Error("Explicit JSON save should resume future autosaves.");
+            }
+
+            await flows.downloadExportAs("tikz");
+            await flows.downloadExportAs("dot");
+            const tikzRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "tikz"
+            );
+            const dotRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "dot"
+            );
+            const tikzDownloadCall = calls.find(
+              (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.tex"
+            );
+            const dotDownloadCall = calls.find(
+              (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.dot"
+            );
+            if (!tikzRenderCall || !dotRenderCall) {
+              throw new Error(`Expected academic exports to call renderSpec, received ${JSON.stringify(calls)}.`);
+            }
+            if (
+              !tikzRenderCall.payload.spec.persistViewSnapshots ||
+              !dotRenderCall.payload.spec.persistViewSnapshots
+            ) {
+              throw new Error(`Academic exports should persist view snapshots, received ${JSON.stringify(calls)}.`);
+            }
+            if (!tikzDownloadCall || tikzDownloadCall.contentType !== "text/x-tex;charset=utf-8") {
+              throw new Error(`Expected TikZ export to download a .tex file, received ${JSON.stringify(calls)}.`);
+            }
+            if (!dotDownloadCall || dotDownloadCall.contentType !== "text/vnd.graphviz;charset=utf-8") {
+              throw new Error(`Expected DOT export to download a .dot file, received ${JSON.stringify(calls)}.`);
             }
 
             const callCountBeforeComplete = calls.length;
@@ -12070,9 +12115,13 @@ def _write_editor_session_service_validate_python_runtime_script(
               engine: "einsum_numpy",
               collectionFormat: "dict",
             });
+            await service.renderSpec({
+              format: "dot",
+              spec: { schema_version: 2, network: { id: "network_draft" } },
+            });
             await service.clearDraft();
 
-            if (apiCalls.length !== 5) {
+            if (apiCalls.length !== 6) {
               throw new Error(`Expected validate and draft calls, received ${JSON.stringify(apiCalls)}.`);
             }
             if (apiCalls[0].path !== "/api/validate") {
@@ -12111,8 +12160,14 @@ def _write_editor_session_service_validate_python_runtime_script(
             if (apiCalls[3].payload.collection_format !== "dict") {
               throw new Error(`Expected saveDraft to normalize collection_format, received ${JSON.stringify(apiCalls[3])}.`);
             }
-            if (apiCalls[4].path !== "/api/draft/clear" || apiCalls[4].method !== "POST") {
-              throw new Error(`Expected clearDraft to POST /api/draft/clear, received ${JSON.stringify(apiCalls[4])}.`);
+            if (apiCalls[4].path !== "/api/render" || apiCalls[4].method !== "POST") {
+              throw new Error(`Expected renderSpec to POST /api/render before clearing, received ${JSON.stringify(apiCalls[4])}.`);
+            }
+            if (apiCalls[4].payload.format !== "dot" || apiCalls[4].payload.spec.network.id !== "network_draft") {
+              throw new Error(`Expected renderSpec to keep format and spec payloads, received ${JSON.stringify(apiCalls[4])}.`);
+            }
+            if (apiCalls[5].path !== "/api/draft/clear" || apiCalls[5].method !== "POST") {
+              throw new Error(`Expected clearDraft to POST /api/draft/clear, received ${JSON.stringify(apiCalls[5])}.`);
             }
           """
         ),

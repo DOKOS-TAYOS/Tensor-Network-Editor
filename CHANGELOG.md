@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
   `tebd_gate_layer` for common 1D physics starting points.
 - Saved designs can now be rendered to academic text formats with TikZ/LaTeX
   and Graphviz/DOT through the public rendering API and `render` CLI command.
+- The browser editor's File menu can now export the current canvas directly as
+  TikZ/LaTeX (`.tex`) or Graphviz/DOT (`.dot`) using the same academic
+  renderers.
 - `tensor-network-editor doctor` now adds more actionable suggestions for
   suspicious model structure, available backend choices, incomplete manual
   plans, and manual paths that are clearly more expensive than `auto_full`.

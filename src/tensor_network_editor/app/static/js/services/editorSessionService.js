@@ -23,6 +23,12 @@ export function createEditorSessionService({ apiGet, apiPost }) {
     generateCode(request) {
       return apiPost("/api/generate", buildCodegenPayload(request));
     },
+    renderSpec({ format, spec }) {
+      return apiPost("/api/render", {
+        format,
+        spec,
+      });
+    },
     completeSession(request) {
       return apiPost("/api/complete", buildCodegenPayload(request));
     },

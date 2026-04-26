@@ -308,6 +308,49 @@ export function createSessionEditorFlows({
     }
   }
 
+  async function downloadAcademicExport(format) {
+    const exportDetails = {
+      tikz: {
+        extension: "tex",
+        label: "TikZ/LaTeX",
+        contentType: "text/x-tex;charset=utf-8",
+      },
+      dot: {
+        extension: "dot",
+        label: "Graphviz/DOT",
+        contentType: "text/vnd.graphviz;charset=utf-8",
+      },
+    }[format];
+    if (!exportDetails) {
+      actions.setStatus(`Unsupported export format: ${format}`, "error");
+      return;
+    }
+    try {
+      const payload = await sessionService.renderSpec({
+        format,
+        spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
+      });
+      if (!payload.ok) {
+        actions.setStatus(
+          payload.message || actions.formatIssues(payload.issues),
+          "error"
+        );
+        return;
+      }
+      sessionUi.downloadText(
+        `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.${exportDetails.extension}`,
+        payload.text || "",
+        payload.content_type || exportDetails.contentType
+      );
+      actions.setStatus(`Exported a ${exportDetails.label} file.`, "success");
+    } catch (error) {
+      actions.setStatus(
+        `Could not export ${exportDetails.label}: ${error.message}`,
+        "error"
+      );
+    }
+  }
+
   async function downloadSelectedExport() {
     switch (exportFormatSelect.value) {
       case "png":
@@ -315,6 +358,12 @@ export function createSessionEditorFlows({
         break;
       case "svg":
         actions.downloadSvgExport();
+        break;
+      case "tikz":
+        await downloadAcademicExport("tikz");
+        break;
+      case "dot":
+        await downloadAcademicExport("dot");
         break;
       case "py":
         await downloadPythonExport();
@@ -356,5 +405,6 @@ export function createSessionEditorFlows({
     downloadSelectedExport,
     downloadExportAs,
     downloadPythonExport,
+    downloadAcademicExport,
   };
 }

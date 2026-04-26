@@ -1129,6 +1129,10 @@ def test_editor_services_route_session_requests_through_explicit_dependencies(
           collectionFormat: "dict",
           spec: {{ schema_version: 4, network: {{ id: "network_demo" }} }},
         }});
+        await sessionService.renderSpec({{
+          format: "tikz",
+          spec: {{ schema_version: 4, network: {{ id: "network_demo" }} }},
+        }});
         await templateService.renameTemplate({{
           templateName: "project_pair",
           newTemplateName: "renamed_pair",
@@ -1144,11 +1148,17 @@ def test_editor_services_route_session_requests_through_explicit_dependencies(
         if (calls[1].payload.collection_format !== "dict") {{
           throw new Error(`Expected collection_format=dict, received ${{calls[1].payload.collection_format}}.`);
         }}
-        if (calls[2].path !== "/api/template/rename") {{
-          throw new Error(`Unexpected template rename path: ${{calls[2].path}}`);
+        if (calls[2].path !== "/api/render") {{
+          throw new Error(`Unexpected render path: ${{calls[2].path}}`);
         }}
-        if (calls[2].payload.new_template_name !== "renamed_pair" || calls[2].payload.overwrite !== true) {{
-          throw new Error(`Unexpected rename payload: ${{JSON.stringify(calls[2].payload)}}`);
+        if (calls[2].payload.format !== "tikz" || calls[2].payload.spec.network.id !== "network_demo") {{
+          throw new Error(`Unexpected render payload: ${{JSON.stringify(calls[2].payload)}}`);
+        }}
+        if (calls[3].path !== "/api/template/rename") {{
+          throw new Error(`Unexpected template rename path: ${{calls[3].path}}`);
+        }}
+        if (calls[3].payload.new_template_name !== "renamed_pair" || calls[3].payload.overwrite !== true) {{
+          throw new Error(`Unexpected rename payload: ${{JSON.stringify(calls[3].payload)}}`);
         }}
         """,
     )
@@ -3891,6 +3901,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           exportPythonMenuItem: getButton("export-python-menu-item"),
           exportPngMenuItem: getButton("export-png-menu-item"),
           exportSvgMenuItem: getButton("export-svg-menu-item"),
+          exportTikzMenuItem: getButton("export-tikz-menu-item"),
+          exportDotMenuItem: getButton("export-dot-menu-item"),
           exportFormatSelect: {{ value: "py", addEventListener(type, handler) {{ this[type] = handler; }} }},
           singleModeMenuItem: getButton("single-mode-menu-item"),
           linearPeriodicModeMenuItem: getButton("linear-periodic-mode-menu-item"),
@@ -4112,6 +4124,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
         dom.fileMenuButton.click();
         dom.exportPngMenuItem.click();
+        dom.exportTikzMenuItem.click();
+        dom.exportDotMenuItem.click();
         dom.saveSessionTemplateMenuItem.click();
         dom.saveSubnetworkLibraryMenuItem.click();
         dom.loadSessionTemplateMenuItem.click();
@@ -4175,6 +4189,12 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("downloadExportAs:png")) {{
           throw new Error(`Expected the File menu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (
+          !flowEvents.includes("downloadExportAs:tikz") ||
+          !flowEvents.includes("downloadExportAs:dot")
+        ) {{
+          throw new Error(`Expected the File menu to dispatch academic exports, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("saveSelectionAsSessionTemplate")) {{
           throw new Error(`Expected the Templates menu to save selection templates, received ${{JSON.stringify(flowEvents)}}.`);

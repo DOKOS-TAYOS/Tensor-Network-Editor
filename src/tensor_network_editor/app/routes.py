@@ -13,8 +13,9 @@ from ..errors import (
     SpecValidationError,
 )
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
-from ..io import serialize_spec
+from ..io import deserialize_spec, serialize_spec
 from ..models import CodegenResult, EditorResult
+from ..rendering import render_spec_dot, render_spec_tikz
 from ..types import JSONValue
 from ..validation import validate_spec
 from ._drafts import clear_project_draft, load_project_draft, save_project_draft
@@ -173,6 +174,34 @@ def handle_cancel(session: EditorSession) -> JsonResponse:
     """Cancel the current editor session."""
     session.cancel()
     return ok_response()
+
+
+def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Render the current editor payload to an academic text format."""
+    del session
+    try:
+        render_format = _resolve_academic_render_format(payload)
+        serialized_spec = require_serialized_spec(payload)
+        spec = deserialize_spec(serialized_spec, validate=False)
+        if render_format == "tikz":
+            text = render_spec_tikz(spec)
+            content_type = "text/x-tex;charset=utf-8"
+        else:
+            text = render_spec_dot(spec)
+            content_type = "text/vnd.graphviz;charset=utf-8"
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+    except SerializationError as exc:
+        return bad_request_response(str(exc))
+    except SpecValidationError as exc:
+        return issues_response(exc.issues)
+    return ok_response(
+        {
+            "format": render_format,
+            "text": text,
+            "content_type": content_type,
+        }
+    )
 
 
 def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -370,6 +399,18 @@ def handle_subnetwork_library_prepare_insert(
 def _serialize_generate_result(result: CodegenResult) -> JsonDict:
     """Serialize a generate-route code generation result."""
     return serialize_codegen_result(result)
+
+
+def _resolve_academic_render_format(payload: JsonDict) -> Literal["tikz", "dot"]:
+    raw_format = payload.get("format")
+    if not isinstance(raw_format, str) or not raw_format.strip():
+        raise ValueError("Missing 'format' payload.")
+    normalized_format = raw_format.strip().lower()
+    if normalized_format == "tikz" or normalized_format == "dot":
+        return cast(Literal["tikz", "dot"], normalized_format)
+    raise ValueError(
+        f"Unsupported render format '{raw_format}'. Expected 'tikz' or 'dot'."
+    )
 
 
 def _serialize_complete_result(result: EditorResult) -> JsonDict:

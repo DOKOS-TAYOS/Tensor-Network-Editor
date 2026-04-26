@@ -30,6 +30,8 @@ export function createEditorShellBindings({
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
+    exportTikzMenuItem,
+    exportDotMenuItem,
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
@@ -310,6 +312,8 @@ export function createEditorShellBindings({
         "export-python-menu-item",
         "export-png-menu-item",
         "export-svg-menu-item",
+        "export-tikz-menu-item",
+        "export-dot-menu-item",
         "single-mode-menu-item",
         "grid-periodic-mode-menu-item",
         "tree-mode-menu-item",
@@ -459,6 +463,14 @@ export function createEditorShellBindings({
     bindListener(exportSvgMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("svg");
+    });
+    bindListener(exportTikzMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("tikz");
+    });
+    bindListener(exportDotMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("dot");
     });
     bindListener(exportFormatSelect, "change", () => {
       actions.updateToolbarState();

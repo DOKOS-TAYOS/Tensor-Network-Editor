@@ -95,8 +95,8 @@ offline use, and generated code you can inspect.
   closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
-- Render saved designs to static SVG, TikZ/LaTeX, or Graphviz/DOT from Python
-  or the CLI without needing a browser or Node runtime.
+- Render designs to static SVG, TikZ/LaTeX, or Graphviz/DOT from Python, the
+  CLI, or the editor File menu without needing LaTeX or Graphviz installed.
 - Import supported Python network layouts from generated exports plus simple
   `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
   explicit live imports for `quimb` and `tensornetwork` objects in a
@@ -203,6 +203,9 @@ tensor-network-editor render my_network.json --format tikz --output figure.tex
 tensor-network-editor render my_network.json --format dot --output graph.dot
 tensor-network-editor render my_network.json --format png --output figure.png
 ```
+
+The editor File menu also offers direct `.tex` and `.dot` exports for the
+current canvas.
 
 Use the editor from Python:
 

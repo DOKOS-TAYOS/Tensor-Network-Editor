@@ -13,6 +13,8 @@ export function createUiToolbarActionStateSupport({
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
+    exportTikzMenuItem,
+    exportDotMenuItem,
     templateSelect,
     templateSettingsButton,
     insertTemplateButton,
@@ -77,6 +79,12 @@ export function createUiToolbarActionStateSupport({
     }
     if (exportSvgMenuItem) {
       exportSvgMenuItem.disabled = !state.spec;
+    }
+    if (exportTikzMenuItem) {
+      exportTikzMenuItem.disabled = !state.spec;
+    }
+    if (exportDotMenuItem) {
+      exportDotMenuItem.disabled = !state.spec;
     }
     if (saveSessionTemplateMenuItem) {
       saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;

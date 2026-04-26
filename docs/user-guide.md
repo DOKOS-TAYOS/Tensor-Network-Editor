@@ -593,7 +593,8 @@ linear or grid neighborhood would hide that intent.
   to combine validation, lint, analysis, benchmark, and dependency checks.
 - Run `tensor-network-editor render my_network.json --format tikz --output figure.tex`
   or `--format dot --output graph.dot` when you want paper-friendly or
-  Graphviz-friendly diagrams from the saved canvas layout.
+  Graphviz-friendly diagrams from the saved canvas layout. The editor File
+  menu can export the current canvas to the same `.tex` and `.dot` formats.
 
 ## Current Limits
 

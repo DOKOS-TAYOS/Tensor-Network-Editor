@@ -34,6 +34,8 @@ export function getDomRefs(document) {
     exportPythonMenuItem: document.getElementById("export-python-menu-item"),
     exportPngMenuItem: document.getElementById("export-png-menu-item"),
     exportSvgMenuItem: document.getElementById("export-svg-menu-item"),
+    exportTikzMenuItem: document.getElementById("export-tikz-menu-item"),
+    exportDotMenuItem: document.getElementById("export-dot-menu-item"),
     singleModeMenuItem: document.getElementById("single-mode-menu-item"),
     linearPeriodicModeMenuItem: document.getElementById(
       "linear-periodic-mode-menu-item"

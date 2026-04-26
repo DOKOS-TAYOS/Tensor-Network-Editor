@@ -163,6 +163,61 @@ def test_validate_route_preserves_contraction_view_snapshots(
     assert snapshots[1]["operand_layouts"][0]["operand_id"] == "step_contract_ab"
 
 
+def test_render_route_returns_academic_text_exports(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    tikz_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "tikz", "spec": serialized_spec},
+    )
+    dot_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "dot", "spec": serialized_spec},
+    )
+
+    assert tikz_payload["format"] == "tikz"
+    assert tikz_payload["content_type"] == "text/x-tex;charset=utf-8"
+    assert tikz_payload["text"].startswith(r"\begin{tikzpicture}")
+    assert (
+        r"\draw[tne edge] (index_tensor_a_x) -- (index_tensor_b_x)"
+        in (tikz_payload["text"])
+    )
+    assert dot_payload["format"] == "dot"
+    assert dot_payload["content_type"] == "text/vnd.graphviz;charset=utf-8"
+    assert dot_payload["text"].startswith('graph "demo" {')
+    assert '"tensor_a" -- "tensor_b" [label="bond_x / x=3"]' in dot_payload["text"]
+
+
+def test_render_route_rejects_unsupported_academic_format(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={
+            "format": "png",
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": spec.to_dict(),
+            },
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "Unsupported render format" in payload["message"]
+
+
 def test_validate_route_accepts_generated_python_code_payload(
     editor_server: EditorServer,
 ) -> None:

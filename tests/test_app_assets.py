@@ -193,6 +193,10 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert 'id="export-python-menu-item"' in html
     assert 'id="export-png-menu-item"' in html
     assert 'id="export-svg-menu-item"' in html
+    assert 'id="export-tikz-menu-item"' in html
+    assert 'id="export-dot-menu-item"' in html
+    assert '<option value="tikz">TikZ/LaTeX</option>' in html
+    assert '<option value="dot">Graphviz/DOT</option>' in html
     assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
 
     code_pane_index = html.index('id="sidebar-pane-code"')
@@ -1781,6 +1785,8 @@ def test_top_toolbar_menu_items_keep_neutral_surface_style(
         "export-python-menu-item",
         "export-png-menu-item",
         "export-svg-menu-item",
+        "export-tikz-menu-item",
+        "export-dot-menu-item",
         "save-session-template-menu-item",
         "save-subnetwork-library-menu-item",
         "load-session-template-menu-item",
@@ -1967,11 +1973,20 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert (
         'exportSvgMenuItem: document.getElementById("export-svg-menu-item")' in dom_body
     )
+    assert (
+        'exportTikzMenuItem: document.getElementById("export-tikz-menu-item")'
+        in dom_body
+    )
+    assert (
+        'exportDotMenuItem: document.getElementById("export-dot-menu-item")' in dom_body
+    )
     assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
     assert "bindMenubarMenu(menu.name, menu.button, menu.panel);" in shell_bindings_body
     assert 'bindListener(exportPythonMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportPngMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportSvgMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportTikzMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportDotMenuItem, "click", () => {' in shell_bindings_body
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -1986,11 +2001,17 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     )
     assert "async function downloadSelectedExport()" in interactions_body
     assert "async function downloadExportAs(format)" in interactions_body
+    assert "async function downloadAcademicExport(format)" in interactions_body
+    assert 'case "tikz":' in interactions_body
+    assert 'case "dot":' in interactions_body
+    assert "await downloadAcademicExport(" in interactions_body
     assert "const previousFormat = exportFormatSelect.value;" in interactions_body
     assert "await downloadSelectedExport();" in interactions_body
     assert "exportPythonMenuItem.disabled =" in utilities_body
     assert "exportPngMenuItem.disabled =" in utilities_body
     assert "exportSvgMenuItem.disabled =" in utilities_body
+    assert "exportTikzMenuItem.disabled =" in utilities_body
+    assert "exportDotMenuItem.disabled =" in utilities_body
 
 
 def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_operands(
