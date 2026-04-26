@@ -152,6 +152,9 @@ Built-in templates:
 - `TTN`
 - `PEPO`
 - `Heisenberg MPS`
+- `Ising MPS`
+- `Transverse Ising MPO`
+- `TEBD Gate Layer`
 
 Template controls include:
 
@@ -161,7 +164,8 @@ Template controls include:
 
 The graph-size label depends on the selected template:
 
-- `MPS`, `MPO`, and `Heisenberg MPS` use `Sites`
+- `MPS`, `MPO`, `Heisenberg MPS`, `Ising MPS`, `Transverse Ising MPO`, and
+  `TEBD Gate Layer` use `Sites`
 - `PEPS` and `PEPO` use `Side length`
 - `MERA`, `Binary Tree`, and `TTN` use `Depth`
 

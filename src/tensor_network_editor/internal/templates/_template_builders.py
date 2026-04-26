@@ -34,6 +34,10 @@ LOWER_LEFT_OFFSET = (-24.0, 34.0)
 LOWER_RIGHT_OFFSET = (24.0, 34.0)
 UPPER_PHYSICAL_OFFSET = (-26.0, -54.0)
 LOWER_PHYSICAL_OFFSET = (26.0, 42.0)
+GATE_UPPER_LEFT_OFFSET = (-36.0, -38.0)
+GATE_UPPER_RIGHT_OFFSET = (36.0, -38.0)
+GATE_LOWER_LEFT_OFFSET = (-36.0, 38.0)
+GATE_LOWER_RIGHT_OFFSET = (36.0, 38.0)
 TemplateIndexConfig = tuple[str, int, tuple[float, float]]
 LinearChainSiteIndexBuilder = Callable[
     [int, int, TemplateParameters], list[TemplateIndexConfig]
@@ -734,6 +738,144 @@ def _build_heisenberg_mps_template(parameters: TemplateParameters) -> NetworkSpe
     return spec
 
 
+def _build_ising_mps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build an Ising-oriented MPS state template."""
+    spec = _build_linear_chain_template(
+        "ising_mps",
+        parameters,
+        tensor_name_prefix="A",
+        spacing=HORIZONTAL_SPACING,
+        site_index_builder=_build_mps_site_indices,
+    )
+    for tensor in spec.tensors:
+        tensor.metadata = {
+            "role": "state",
+            "state": "ising",
+            "symmetry": "z2",
+            "tags": "ising mps",
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="z2")
+    return spec
+
+
+def _build_transverse_ising_mpo_template(
+    parameters: TemplateParameters,
+) -> NetworkSpec:
+    """Build a transverse-Ising MPO operator template."""
+    spec = _build_linear_chain_template(
+        "transverse_ising_mpo",
+        parameters,
+        tensor_name_prefix="W",
+        spacing=330.0,
+        site_index_builder=_build_mpo_site_indices,
+    )
+    for tensor in spec.tensors:
+        tensor.metadata = {
+            "role": "operator",
+            "observable": "transverse_ising_hamiltonian",
+            "symmetry": "z2",
+            "tags": "transverse ising mpo",
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="z2")
+    return spec
+
+
+def _build_tebd_gate_layer_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build an MPS chain with an even TEBD two-site gate layer."""
+    site_count = parameters.graph_size
+    site_tensors = [
+        _make_tensor(
+            f"tensor_site_{site_index + 1}",
+            f"A{site_index + 1}",
+            HORIZONTAL_SPACING * site_index,
+            0.0,
+            _build_mps_site_indices(site_index, site_count, parameters),
+        )
+        for site_index in range(site_count)
+    ]
+    gate_tensors = [
+        _make_tensor(
+            f"tensor_gate_{site_index + 1}_{site_index + 2}",
+            f"G{site_index + 1}-{site_index + 2}",
+            HORIZONTAL_SPACING * (site_index + 0.5),
+            220.0,
+            [
+                (
+                    "out_left",
+                    parameters.physical_dimension,
+                    GATE_UPPER_LEFT_OFFSET,
+                ),
+                (
+                    "out_right",
+                    parameters.physical_dimension,
+                    GATE_UPPER_RIGHT_OFFSET,
+                ),
+                ("in_left", parameters.physical_dimension, GATE_LOWER_LEFT_OFFSET),
+                ("in_right", parameters.physical_dimension, GATE_LOWER_RIGHT_OFFSET),
+            ],
+        )
+        for site_index in range(0, site_count - 1, 2)
+    ]
+    edges = _make_linear_chain_edges(site_tensors)
+    for gate_index, gate_tensor in enumerate(gate_tensors):
+        left_site_index = gate_index * 2
+        right_site_index = left_site_index + 1
+        edges.extend(
+            [
+                _make_edge(
+                    f"edge_gate_{left_site_index + 1}_{right_site_index + 1}_left",
+                    site_tensors[left_site_index],
+                    "phys",
+                    gate_tensor,
+                    "in_left",
+                ),
+                _make_edge(
+                    f"edge_gate_{left_site_index + 1}_{right_site_index + 1}_right",
+                    site_tensors[right_site_index],
+                    "phys",
+                    gate_tensor,
+                    "in_right",
+                ),
+            ]
+        )
+    for tensor in site_tensors:
+        tensor.metadata = {
+            "role": "state",
+            "state": "tebd_input",
+            "symmetry": "z2",
+            "tags": "tebd mps site",
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="z2")
+    for tensor in gate_tensors:
+        tensor.metadata = {
+            "role": "gate",
+            "symmetry": "z2",
+            "tags": "tebd even layer",
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="z2")
+    definition = TEMPLATE_DEFINITIONS["tebd_gate_layer"]
+    spec_name = (
+        definition.display_name
+        if site_count == definition.defaults.graph_size
+        else f"{definition.display_name} ({site_count} {definition.graph_size_label.lower()})"
+    )
+    return NetworkSpec(
+        id=f"template_tebd_gate_layer_{site_count}",
+        name=spec_name,
+        tensors=[*site_tensors, *gate_tensors],
+        edges=edges,
+    )
+
+
+def _annotate_physics_1d_indices(tensor: TensorSpec, *, symmetry: str) -> None:
+    """Add guided metadata to standard 1D physics template indices."""
+    for index in tensor.indices:
+        if index.name in {"left", "right"}:
+            index.metadata = {"leg_kind": "bond", "symmetry": symmetry}
+        else:
+            index.metadata = {"leg_kind": "physical", "symmetry": symmetry}
+
+
 def _make_tensor(
     tensor_id: str,
     name: str,
@@ -838,5 +980,23 @@ def register_builtin_templates() -> None:
         "heisenberg_mps",
         TEMPLATE_DEFINITIONS["heisenberg_mps"],
         _build_heisenberg_mps_template,
+        overwrite=True,
+    )
+    register_template(
+        "ising_mps",
+        TEMPLATE_DEFINITIONS["ising_mps"],
+        _build_ising_mps_template,
+        overwrite=True,
+    )
+    register_template(
+        "transverse_ising_mpo",
+        TEMPLATE_DEFINITIONS["transverse_ising_mpo"],
+        _build_transverse_ising_mpo_template,
+        overwrite=True,
+    )
+    register_template(
+        "tebd_gate_layer",
+        TEMPLATE_DEFINITIONS["tebd_gate_layer"],
+        _build_tebd_gate_layer_template,
         overwrite=True,
     )

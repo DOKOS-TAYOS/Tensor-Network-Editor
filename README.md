@@ -108,8 +108,10 @@ offline use, and generated code you can inspect.
 - Create first-class hyperedges in normal mode, reposition their virtual hubs
   in the editor, and let exports lower them automatically into copy tensors
   plus binary edges for backend code, analysis, and benchmarks.
-- Use built-in templates for MPS, MPO, PEPS, MERA, binary-tree, TTN, PEPO, and
-  Heisenberg MPS layouts.
+- Use built-in templates for MPS, MPO, PEPS, MERA, binary-tree, TTN, PEPO,
+  Heisenberg MPS, Ising MPS, transverse-Ising MPO, and TEBD gate-layer layouts.
+- Build normal-mode designs from Python with a small fluent builder API when
+  direct scripting is faster than manual canvas editing.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.
 - Annotate tensors and indices with tags, guided metadata, and free-form JSON,
@@ -218,6 +220,23 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+```
+
+Build a small network directly from Python:
+
+```python
+from tensor_network_editor import NetworkBuilder
+
+
+builder = NetworkBuilder("demo")
+a = builder.tensor("A")
+a.index("i", 2)
+a.index("x", 3)
+b = builder.tensor("B")
+b.index("x", 3)
+b.index("j", 4)
+builder.connect(a["x"], b["x"], name="bond_x")
+spec = builder.build()
 ```
 
 Generate code without opening the editor:

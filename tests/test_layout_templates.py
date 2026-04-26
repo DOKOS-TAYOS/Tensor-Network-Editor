@@ -21,6 +21,9 @@ def test_template_catalog_exposes_expected_names() -> None:
         "ttn",
         "pepo",
         "heisenberg_mps",
+        "ising_mps",
+        "transverse_ising_mpo",
+        "tebd_gate_layer",
     ]
 
 
@@ -44,6 +47,9 @@ def test_all_templates_build_valid_specs(template_name: str) -> None:
         ("ttn", 560.0, 420.0),
         ("pepo", 680.0, 560.0),
         ("heisenberg_mps", 900.0, 0.0),
+        ("ising_mps", 900.0, 0.0),
+        ("transverse_ising_mpo", 930.0, 0.0),
+        ("tebd_gate_layer", 900.0, 220.0),
     ],
 )
 def test_templates_use_generous_spacing(
@@ -327,3 +333,67 @@ def test_heisenberg_mps_template_uses_guided_metadata_without_lint_warnings() ->
         "physical",
     }
     assert lint_spec(spec).issues == []
+
+
+def test_ising_mps_template_uses_state_metadata_without_lint_warnings() -> None:
+    spec = build_template_spec("ising_mps")
+
+    assert spec.name == "Ising MPS"
+    assert len(spec.tensors) == 4
+    assert len(spec.edges) == 3
+    assert all(tensor.metadata.get("role") == "state" for tensor in spec.tensors)
+    assert all(
+        "ising" in str(tensor.metadata.get("tags", "")) for tensor in spec.tensors
+    )
+    assert {
+        str(index.metadata.get("leg_kind"))
+        for tensor in spec.tensors
+        for index in tensor.indices
+    } <= {"bond", "physical"}
+    assert lint_spec(spec).issues == []
+
+
+def test_transverse_ising_mpo_template_uses_operator_metadata() -> None:
+    spec = build_template_spec(
+        "transverse_ising_mpo",
+        TemplateParameters(graph_size=5, bond_dimension=4, physical_dimension=2),
+    )
+
+    assert spec.name == "Transverse Ising MPO (5 sites)"
+    assert len(spec.tensors) == 5
+    assert len(spec.edges) == 4
+    assert all(tensor.name.startswith("W") for tensor in spec.tensors)
+    assert all(tensor.metadata.get("role") == "operator" for tensor in spec.tensors)
+    assert {
+        index.dimension
+        for tensor in spec.tensors
+        for index in tensor.indices
+        if index.name in {"left", "right"}
+    } == {4}
+    assert {
+        str(index.metadata.get("leg_kind"))
+        for tensor in spec.tensors
+        for index in tensor.indices
+    } <= {"bond", "physical"}
+
+
+def test_tebd_gate_layer_template_adds_even_two_site_gates() -> None:
+    spec = build_template_spec(
+        "tebd_gate_layer",
+        TemplateParameters(graph_size=5, bond_dimension=7, physical_dimension=3),
+    )
+    gate_tensors = [
+        tensor for tensor in spec.tensors if tensor.metadata.get("role") == "gate"
+    ]
+
+    assert spec.name == "TEBD Gate Layer (5 sites)"
+    assert len(spec.tensors) == 7
+    assert len(spec.edges) == 8
+    assert [tensor.name for tensor in gate_tensors] == ["G1-2", "G3-4"]
+    assert all(tensor.shape == (3, 3, 3, 3) for tensor in gate_tensors)
+    assert {
+        index.dimension
+        for tensor in spec.tensors
+        for index in tensor.indices
+        if index.name in {"left", "right"}
+    } == {7}

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Public `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers now make
+  it easier to build normal-mode `NetworkSpec` objects from Python without
+  hand-writing ids and endpoint references.
+- Built-in templates now include `ising_mps`, `transverse_ising_mpo`, and
+  `tebd_gate_layer` for common 1D physics starting points.
 - Browser editor sessions now keep a project-local recoverable draft under
   `.tensor-network-editor/drafts/`, prompt to restore it on startup, and clear
   it only after explicit save, Done, Cancel, or Start fresh actions.

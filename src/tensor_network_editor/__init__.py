@@ -15,6 +15,7 @@ from ._version import __version__
 if TYPE_CHECKING:
     from ._public_codegen import generate_code
     from .analysis import analyze_contraction, analyze_spec
+    from .builder import IndexHandle, NetworkBuilder, TensorHandle
     from .canonicalization import canonicalize_spec
     from .editor import EditorLaunchOptions, open_editor
     from .internal.diffing._diffing import diff_specs, semantic_diff_specs
@@ -68,13 +69,16 @@ __all__ = [
     "EngineName",
     "GroupSpec",
     "HyperedgeSpec",
+    "IndexHandle",
     "IndexSpec",
     "NetworkSpec",
+    "NetworkBuilder",
     "PythonLoadOptions",
     "SvgRenderOptions",
     "TensorCollectionFormat",
     "TensorDataMode",
     "TensorDataSpec",
+    "TensorHandle",
     "TensorSize",
     "TensorSpec",
     "ValidationIssue",
@@ -112,13 +116,16 @@ _LAZY_EXPORTS: dict[str, str] = {
     "EngineName": ".models",
     "GroupSpec": ".models",
     "HyperedgeSpec": ".models",
+    "IndexHandle": ".builder",
     "IndexSpec": ".models",
     "NetworkSpec": ".models",
+    "NetworkBuilder": ".builder",
     "PythonLoadOptions": ".io",
     "SvgRenderOptions": ".rendering",
     "TensorCollectionFormat": ".models",
     "TensorDataMode": ".models",
     "TensorDataSpec": ".models",
+    "TensorHandle": ".builder",
     "TensorSize": ".models",
     "TensorSpec": ".models",
     "ValidationIssue": ".models",

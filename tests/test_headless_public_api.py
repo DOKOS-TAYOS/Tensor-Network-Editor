@@ -8,6 +8,7 @@ import pytest
 
 import tensor_network_editor as tne
 from tensor_network_editor.analysis import analyze_contraction, analyze_spec
+from tensor_network_editor.builder import NetworkBuilder
 from tensor_network_editor.canonicalization import canonicalize_spec
 from tensor_network_editor.linting import lint_spec
 from tensor_network_editor.models import (
@@ -36,6 +37,7 @@ def test_package_root_exports_headless_entry_points() -> None:
     assert tne.analyze_spec is analyze_spec
     assert tne.analyze_contraction is analyze_contraction
     assert tne.canonicalize_spec is canonicalize_spec
+    assert tne.NetworkBuilder is NetworkBuilder
     assert tne.lint_spec is lint_spec
     assert callable(tne.diff_specs)
     assert callable(tne.semantic_diff_specs)
@@ -265,6 +267,9 @@ def test_list_template_names_is_available_from_public_templates_module() -> None
         "ttn",
         "pepo",
         "heisenberg_mps",
+        "ising_mps",
+        "transverse_ising_mpo",
+        "tebd_gate_layer",
     ]
 
 

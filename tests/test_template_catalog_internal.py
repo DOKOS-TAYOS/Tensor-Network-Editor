@@ -26,6 +26,9 @@ def test_template_catalog_internal_exposes_same_public_metadata() -> None:
         "ttn",
         "pepo",
         "heisenberg_mps",
+        "ising_mps",
+        "transverse_ising_mpo",
+        "tebd_gate_layer",
     ]
     assert list(definitions) == names
     assert mera_definition.display_name == "MERA"

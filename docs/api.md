@@ -10,6 +10,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Generate Code](#generate-code)
 - [Render SVG](#render-svg)
 - [Save and Load Designs](#save-and-load-designs)
+- [Build Specs in Python](#build-specs-in-python)
 - [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
 - [Templates](#templates)
 - [Subnetwork Helpers](#subnetwork-helpers)
@@ -24,6 +25,7 @@ The package exposes the main functions and models at the top level:
 ```python
 from tensor_network_editor import (
     EngineName,
+    NetworkBuilder,
     NetworkSpec,
     PythonLoadOptions,
     TensorDataMode,
@@ -63,6 +65,7 @@ Useful public modules:
 | Module | Use it for |
 | --- | --- |
 | `tensor_network_editor.editor` | `EditorLaunchOptions` and `open_editor(...)` |
+| `tensor_network_editor.builder` | fluent `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers |
 | `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
 | `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
 | `tensor_network_editor.rendering` | pure-Python SVG rendering helpers |
@@ -320,6 +323,30 @@ Linear, grid, and tree periodic generated Python emitted by current versions
 embeds compact metadata so supported imports recover the editable periodic
 payload. This is still not a general Python-to-network importer.
 
+## Build Specs in Python
+
+Use `NetworkBuilder` when you want to create normal-mode designs directly from
+Python without writing tensor, index, and endpoint ids by hand.
+
+```python
+from tensor_network_editor import NetworkBuilder
+
+
+builder = NetworkBuilder("chain")
+left = builder.tensor("A", position=(120.0, 160.0))
+left.index("i", 2)
+left.index("x", 3)
+right = builder.tensor("B", position=(360.0, 160.0))
+right.index("x", 3)
+right.index("j", 4)
+
+builder.connect(left["x"], right["x"], name="bond_x")
+spec = builder.build()
+```
+
+`builder.build()` validates the spec by default. Pass `validate=False` only
+when you intentionally want to inspect or repair an in-progress invalid design.
+
 ## Validate, Lint, Analyze, Canonicalize, and Diff
 
 These helpers are useful in scripts and automated checks.
@@ -421,7 +448,8 @@ The package root only re-exports `build_template_spec(...)` and
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
 Built-ins include `mps`, `mpo`, `peps_2x2`, `mera`, `binary_tree`, `ttn`,
-`pepo`, and `heisenberg_mps`.
+`pepo`, `heisenberg_mps`, `ising_mps`, `transverse_ising_mpo`, and
+`tebd_gate_layer`.
 
 ## Subnetwork Helpers
 

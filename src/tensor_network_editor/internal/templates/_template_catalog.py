@@ -138,6 +138,36 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
     ),
+    "ising_mps": TemplateDefinition(
+        name="ising_mps",
+        display_name="Ising MPS",
+        graph_size_label="Sites",
+        defaults=TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
+    "transverse_ising_mpo": TemplateDefinition(
+        name="transverse_ising_mpo",
+        display_name="Transverse Ising MPO",
+        graph_size_label="Sites",
+        defaults=TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
+    "tebd_gate_layer": TemplateDefinition(
+        name="tebd_gate_layer",
+        display_name="TEBD Gate Layer",
+        graph_size_label="Sites",
+        defaults=TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
 }
 
 _TEMPLATE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
