@@ -19,7 +19,9 @@ from tensor_network_editor.models import (
     IndexSpec,
     NetworkSpec,
     TensorCollectionFormat,
+    TensorDataDType,
     TensorDataMode,
+    TensorDataRandomDistribution,
     TensorDataSpec,
     TensorSpec,
 )
@@ -377,6 +379,122 @@ def test_generate_code_uses_tensor_data_initializers(
     )
     spec.tensors[1].tensor_data = TensorDataSpec(
         mode=TensorDataMode.ONES,
+    )
+
+    result = generate_code(spec, engine=engine)
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+
+
+@pytest.mark.parametrize(
+    ("engine", "expected_snippets"),
+    [
+        (
+            EngineName.EINSUM_NUMPY,
+            [
+                "i_data = np.eye(3, dtype=np.float64)",
+                "copy_data = np.zeros((3,) * 3, dtype=np.complex64)",
+                "copy_data[(np.arange(3),) * 3] = 1",
+                "r_rng = np.random.default_rng(123)",
+                "r_data = r_rng.uniform(size=(2, 2)).astype(np.float32)",
+                "z_data = np.zeros((2, 2), dtype=np.float32)",
+                "f_data = np.full((2, 2), (1.25-0.5j), dtype=np.complex128)",
+            ],
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "i_data = torch.eye(3, dtype=torch.float64)",
+                "copy_data = torch.zeros((3,) * 3, dtype=torch.complex64)",
+                "copy_data.index_put_((torch.arange(3),) * 3, torch.ones(3, dtype=torch.complex64))",
+                "r_generator = torch.Generator()",
+                "r_generator.manual_seed(123)",
+                "r_data = torch.rand((2, 2), generator=r_generator, dtype=torch.float32)",
+                "z_data = torch.zeros((2, 2), dtype=torch.float32)",
+                "f_data = torch.full((2, 2), (1.25-0.5j), dtype=torch.complex128)",
+            ],
+        ),
+    ],
+)
+def test_generate_code_uses_extended_tensor_data_initializers(
+    engine: EngineName,
+    expected_snippets: list[str],
+) -> None:
+    spec = NetworkSpec(
+        id="extended_initializers",
+        name="extended initializers",
+        tensors=[
+            TensorSpec(
+                id="tensor_i",
+                name="I",
+                position=CanvasPosition(x=80.0, y=120.0),
+                indices=[
+                    IndexSpec(id="i_left", name="left", dimension=3),
+                    IndexSpec(id="i_right", name="right", dimension=3),
+                ],
+                tensor_data=TensorDataSpec(
+                    mode=TensorDataMode.IDENTITY,
+                    dtype=TensorDataDType.FLOAT64,
+                ),
+            ),
+            TensorSpec(
+                id="tensor_copy",
+                name="Copy",
+                position=CanvasPosition(x=260.0, y=120.0),
+                indices=[
+                    IndexSpec(id="copy_a", name="a", dimension=3),
+                    IndexSpec(id="copy_b", name="b", dimension=3),
+                    IndexSpec(id="copy_c", name="c", dimension=3),
+                ],
+                tensor_data=TensorDataSpec(
+                    mode=TensorDataMode.COPY,
+                    dtype=TensorDataDType.COMPLEX64,
+                ),
+            ),
+            TensorSpec(
+                id="tensor_r",
+                name="R",
+                position=CanvasPosition(x=440.0, y=120.0),
+                indices=[
+                    IndexSpec(id="r_a", name="a", dimension=2),
+                    IndexSpec(id="r_b", name="b", dimension=2),
+                ],
+                tensor_data=TensorDataSpec(
+                    mode=TensorDataMode.RANDOM,
+                    dtype=TensorDataDType.FLOAT32,
+                    seed=123,
+                    distribution=TensorDataRandomDistribution.UNIFORM,
+                ),
+            ),
+            TensorSpec(
+                id="tensor_z",
+                name="Z",
+                position=CanvasPosition(x=620.0, y=120.0),
+                indices=[
+                    IndexSpec(id="z_a", name="a", dimension=2),
+                    IndexSpec(id="z_b", name="b", dimension=2),
+                ],
+                tensor_data=TensorDataSpec(
+                    mode=TensorDataMode.ZEROS,
+                    dtype=TensorDataDType.FLOAT32,
+                ),
+            ),
+            TensorSpec(
+                id="tensor_f",
+                name="F",
+                position=CanvasPosition(x=800.0, y=120.0),
+                indices=[
+                    IndexSpec(id="f_a", name="a", dimension=2),
+                    IndexSpec(id="f_b", name="b", dimension=2),
+                ],
+                tensor_data=TensorDataSpec(
+                    mode=TensorDataMode.FILL,
+                    fill_value={"real": 1.25, "imag": -0.5},
+                    dtype=TensorDataDType.COMPLEX128,
+                ),
+            ),
+        ],
     )
 
     result = generate_code(spec, engine=engine)

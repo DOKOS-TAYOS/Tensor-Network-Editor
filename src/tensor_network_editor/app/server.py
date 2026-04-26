@@ -318,6 +318,8 @@ class EditorServer:
                 """Route one GET request to bootstrap, index, or static assets."""
                 if path == "/api/bootstrap":
                     return routes.handle_bootstrap(session)
+                if path == "/api/draft":
+                    return routes.handle_draft_load(session)
                 if path == "/":
                     return self._index_response()
                 return self._static_response(path)
@@ -326,6 +328,10 @@ class EditorServer:
                 """Route one POST request to the matching JSON API handler."""
                 if path == "/api/validate":
                     return routes.handle_validate(session, payload)
+                if path == "/api/draft":
+                    return routes.handle_draft_save(session, payload)
+                if path == "/api/draft/clear":
+                    return routes.handle_draft_clear(session)
                 if path == "/api/template":
                     return routes.handle_template(session, payload)
                 if path == "/api/template/promote":

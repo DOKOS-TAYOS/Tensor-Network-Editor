@@ -61,7 +61,12 @@ from .internal.models._model_results import (
     TensorCollectionFormat,
     ValidationIssue,
 )
-from .internal.models._model_tensor_data import TensorDataMode, TensorDataSpec
+from .internal.models._model_tensor_data import (
+    TensorDataDType,
+    TensorDataMode,
+    TensorDataRandomDistribution,
+    TensorDataSpec,
+)
 
 __all__ = [
     "CanvasPosition",
@@ -69,6 +74,8 @@ __all__ = [
     "IndexSpec",
     "TensorSpec",
     "TensorDataMode",
+    "TensorDataDType",
+    "TensorDataRandomDistribution",
     "TensorDataSpec",
     "GridPeriodicCellName",
     "GridPeriodicTensorRole",

@@ -22,6 +22,7 @@ export function createDesignMutationPipeline({
   markContractionAnalysisDirty,
   shouldRefreshContractionAnalysisImmediately,
   refreshContractionAnalysis,
+  scheduleDraftAutosave,
   setStatus,
 }) {
   function normalizeInvalidations(overrides = {}) {
@@ -129,6 +130,9 @@ export function createDesignMutationPipeline({
       );
     }
     state.lastMutationClearedCode = false;
+    if (typeof scheduleDraftAutosave === "function") {
+      scheduleDraftAutosave();
+    }
     return true;
   }
 

@@ -28,6 +28,7 @@ export function createShellActions(ctx) {
     ),
     refreshContractionAnalysis: resolveContextAction(ctx, "refreshContractionAnalysis"),
     setStatus: (message, level) => ctx.setStatus(message, level),
+    scheduleDraftAutosave: resolveContextAction(ctx, "scheduleDraftAutosave"),
     isLinearPeriodicMode: () =>
       typeof ctx.isLinearPeriodicMode === "function" && ctx.isLinearPeriodicMode(),
     isGridPeriodicMode: () =>

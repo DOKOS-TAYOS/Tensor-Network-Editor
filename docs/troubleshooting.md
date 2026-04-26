@@ -194,14 +194,15 @@ Saved designs use this wrapper:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "network": {
     "...": "..."
   }
 }
 ```
 
-Saved designs now use schema version `1`. Older schema numbers such as `4`,
+Saved designs now use schema version `2`. Schema version `1` is still accepted
+for older saved designs. Older compatibility-only schema numbers such as `4`,
 `5`, and `6` are rejected on purpose so the loader does not silently guess how
 to interpret an outdated file shape.
 
@@ -319,8 +320,8 @@ These are current limits, not installation problems:
 - hyperedges work only in normal mode, disable planner/manual contraction
   editing plus benchmark mode while present, and round-trip from generated
   Python in their lowered binary form
-- tensor values in the visual editor are limited to generated zeros, ones,
-  fill values, and explicit numeric JSON literals
+- tensor values support portable built-in initializers and complex scalars, but
+  not symbolic expressions or direct `.npy` / `.pt` imports
 - TenPy code generation is not included
 - linear, grid, and tree periodic code generation work with every bundled
   backend; grid/tree manual plans can leave partial outputs in

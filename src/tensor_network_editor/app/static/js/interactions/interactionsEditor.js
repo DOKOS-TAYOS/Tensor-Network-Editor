@@ -117,6 +117,9 @@ export function createInteractionEditorBindings({
       },
       "Started a new empty design. History cleared."
     );
+    if (typeof ctx.clearSavedDraft === "function") {
+      void ctx.clearSavedDraft({ silent: true, resumeAutosave: true });
+    }
   }
 
   function resetDesignState(spec, message, schemaVersion = state.schemaVersion) {

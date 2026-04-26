@@ -61,6 +61,8 @@ Repository = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 Issues = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues"
 
 [project.optional-dependencies]
+numpy = ["numpy>=1.24"]
+torch = ["torch>=2.0"]
 dev = [
   "build>=1.2",
   "mypy>=1.10",

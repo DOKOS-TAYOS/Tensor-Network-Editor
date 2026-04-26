@@ -277,11 +277,17 @@ Practical rule:
 - save generated Python if you want to run or adapt a concrete backend script
 - keep both when you want reproducibility and immediately runnable code
 
+The browser editor also keeps one recoverable local draft per project checkout
+under `.tensor-network-editor/drafts/`. If a previous session is found when the
+editor starts, it asks whether you want to restore it. The draft is cleared
+after an explicit JSON save, `Done`, `Cancel`, or starting a fresh design, but
+it is kept if the tab is simply closed.
+
 Saved files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "network": {
     "...": "..."
   }
@@ -289,7 +295,8 @@ Saved files use a schema wrapper:
 ```
 
 The package validates saved designs when loading or saving. New saves use
-schema version `1`, which matches the current canonical payload shape.
+schema version `2`, while schema version `1` files are still accepted for
+older saved designs.
 Historical compatibility-only schema numbers are no longer accepted on load.
 
 For Python source imports, the static parser is the safest default. If you ask
@@ -299,32 +306,39 @@ that fallback as a warning.
 
 ## Tensor Values
 
-The tensor sidebar can now store simple real tensor values directly in the
+The tensor sidebar can store portable tensor initializers directly in the
 design instead of treating every tensor as an implicit backend-side zero array.
 
 Available modes:
 
-- `Generated zeros`: no explicit payload is stored; generated backend code
-  initializes the tensor with zeros
+- `Generated zeros`: generated backend code initializes the tensor with zeros
 - `Ones`: generated backend code uses a backend-native `ones(...)`
   initializer
 - `Fill value`: one scalar is repeated across the whole tensor shape
-- `Explicit values`: you provide JSON numbers that exactly match the tensor
+- `Identity / delta`: a square rank-2 tensor initialized with a diagonal
+- `Copy tensor`: a generalized diagonal tensor with equal index dimensions
+- `Random`: seeded normal or uniform values, with seed `0` as the default
+- `Explicit values`: you provide JSON values that exactly match the tensor
   shape
 
 Useful rules:
 
+- each initializer can use a portable dtype: `float32`, `float64`,
+  `complex64`, or `complex128`
+- complex scalars are stored as `{"real": x, "imag": y}` in JSON, while the
+  sidebar accepts friendlier values such as `1+2j`
 - explicit values must be valid JSON and must match the tensor shape exactly
 - invalid JSON or ragged lists are rejected before they overwrite the saved
   design
-- supported generated Python round-trips can recover these initializer modes
-- symbolic expressions, random initializers, and direct `.npy` / `.pt` imports
-  are still out of scope for the editor
+- saved JSON round-trips these initializer modes, and generated Python emits
+  backend-native constructors for them
+- symbolic expressions and direct `.npy` / `.pt` imports are still out of scope
+  for the editor
 
 <p align="center">
   <img
     src="images/tensor-initializers.png"
-    alt="Tensor initializer controls with explicit numeric JSON values"
+    alt="Tensor initializer controls with dtype and explicit values"
     width="900"
   />
 </p>
@@ -567,8 +581,8 @@ linear or grid neighborhood would hide that intent.
   contraction editing and benchmark mode are disabled, and generated Python
   re-imports the lowered binary network instead of reconstructing the original
   hyperedge.
-- Tensor values are limited to generated zeros, ones, fill values, and
-  explicit numeric JSON literals.
+- Tensor values support portable built-in initializers and complex scalars, but
+  not symbolic expressions or direct `.npy` / `.pt` imports.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with every bundled
   backend.

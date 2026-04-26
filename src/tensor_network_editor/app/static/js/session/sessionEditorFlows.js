@@ -10,6 +10,7 @@ export function createSessionEditorFlows({
 }) {
   const { exportFormatSelect, generatedCode, loadInput } = dom;
   const sessionService = services.session;
+  const DRAFT_AUTOSAVE_DELAY_MS = 800;
 
   function syncGeneratedCodePreview(code) {
     if (typeof actions.syncGeneratedCodePreview === "function") {
@@ -32,6 +33,86 @@ export function createSessionEditorFlows({
       collectionFormat: selectors.getSelectedCollectionFormat(),
       spec: actions.serializeCurrentSpec({ persistViewSnapshots: false }),
     });
+  }
+
+  function canAutosaveDraft() {
+    return (
+      Boolean(state.spec)
+      && !state.editorFinished
+      && state.draftAutosaveReady
+      && typeof sessionService.saveDraft === "function"
+    );
+  }
+
+  function scheduleDraftAutosave() {
+    if (!canAutosaveDraft()) {
+      return;
+    }
+    state.draftAutosaveDirty = true;
+    if (state.draftAutosaveTimer !== null) {
+      return;
+    }
+    state.draftAutosaveTimer = sessionUi.schedule(async () => {
+      state.draftAutosaveTimer = null;
+      if (!state.draftAutosaveDirty || !canAutosaveDraft()) {
+        return;
+      }
+      state.draftAutosaveDirty = false;
+      await saveCurrentDraft({ silent: true });
+      if (state.draftAutosaveDirty) {
+        scheduleDraftAutosave();
+      }
+    }, DRAFT_AUTOSAVE_DELAY_MS);
+  }
+
+  async function saveCurrentDraft({ silent = false } = {}) {
+    if (!canAutosaveDraft() || state.draftAutosaveSaving) {
+      return false;
+    }
+    state.draftAutosaveSaving = true;
+    try {
+      const payload = await sessionService.saveDraft({
+        engine: selectors.getSelectedEngine(),
+        collectionFormat: selectors.getSelectedCollectionFormat(),
+        spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
+      });
+      if (!payload.ok && !silent) {
+        actions.setStatus(payload.message || "Could not save the local draft.", "error");
+      }
+      return Boolean(payload.ok);
+    } catch (error) {
+      if (!silent) {
+        actions.setStatus(`Could not save the local draft: ${error.message}`, "error");
+      }
+      return false;
+    } finally {
+      state.draftAutosaveSaving = false;
+    }
+  }
+
+  async function clearSavedDraft({ silent = false, resumeAutosave = true } = {}) {
+    const wasReady = state.draftAutosaveReady;
+    state.draftAutosaveReady = false;
+    state.draftAutosaveDirty = false;
+    state.draftAutosaveTimer = null;
+    if (typeof sessionService.clearDraft !== "function") {
+      state.draftAutosaveReady = resumeAutosave && wasReady && !state.editorFinished;
+      return true;
+    }
+    try {
+      const payload = await sessionService.clearDraft();
+      if (!payload.ok && !silent) {
+        actions.setStatus(payload.message || "Could not clear the local draft.", "error");
+      }
+      return Boolean(payload.ok);
+    } catch (error) {
+      if (!silent) {
+        actions.setStatus(`Could not clear the local draft: ${error.message}`, "error");
+      }
+      return false;
+    } finally {
+      state.draftAutosaveReady = resumeAutosave && wasReady && !state.editorFinished;
+    }
   }
 
   async function generateCode() {
@@ -72,6 +153,7 @@ export function createSessionEditorFlows({
         );
         return;
       }
+      await clearSavedDraft({ silent: true, resumeAutosave: false });
       store.setEditorFinished(true);
       actions.setStatus(
         "Returning the design to Python. You can close this tab.",
@@ -90,6 +172,7 @@ export function createSessionEditorFlows({
 
   async function cancelEditor() {
     try {
+      await clearSavedDraft({ silent: true, resumeAutosave: false });
       store.setEditorFinished(true);
       await sessionService.cancelSession();
       actions.setStatus("Editor cancelled. You can close this tab.", "success");
@@ -114,6 +197,7 @@ export function createSessionEditorFlows({
       ),
       "application/json;charset=utf-8"
     );
+    void clearSavedDraft({ silent: true, resumeAutosave: true });
     actions.setStatus("Design downloaded as JSON.");
   }
 
@@ -165,6 +249,7 @@ export function createSessionEditorFlows({
         `Loaded design from ${file.name}. History cleared.`,
         response.spec.schema_version
       );
+      scheduleDraftAutosave();
     } catch (error) {
       actions.setStatus(`Could not load ${file.name}: ${error.message}`, "error");
     } finally {
@@ -263,6 +348,9 @@ export function createSessionEditorFlows({
     completeEditor,
     cancelEditor,
     saveDesign,
+    scheduleDraftAutosave,
+    saveCurrentDraft,
+    clearSavedDraft,
     loadDesignFromFile,
     copyGeneratedCode,
     downloadSelectedExport,

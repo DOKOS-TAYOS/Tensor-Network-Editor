@@ -5,10 +5,13 @@ from __future__ import annotations
 import ast
 import math
 import re
+from typing import TypeAlias, cast
 
 from ...internal.models._model_tensor_data import TensorNumericLiteral
 from ...models import TensorDataMode, TensorDataSpec
 from ..analysis._hyperedge_lowering import _build_copy_tensor_values
+
+RealTensorNumericLiteral: TypeAlias = int | float | list["RealTensorNumericLiteral"]
 
 
 def _parse_zeros_shape(call: ast.Call) -> tuple[int, ...] | None:
@@ -75,7 +78,13 @@ def _parse_tensor_data_initializer(
         shape = _numeric_tree_shape(values)
         if shape is None:
             return None
-        return shape, TensorDataSpec(mode=TensorDataMode.LITERAL, values=values)
+        return (
+            shape,
+            TensorDataSpec(
+                mode=TensorDataMode.LITERAL,
+                values=cast(TensorNumericLiteral, values),
+            ),
+        )
 
     return None
 
@@ -304,14 +313,16 @@ def _literal_int_sequence(expression: ast.expr | None) -> tuple[int, ...] | None
     return tuple(values)
 
 
-def _literal_numeric_tree(expression: ast.expr | None) -> TensorNumericLiteral | None:
+def _literal_numeric_tree(
+    expression: ast.expr | None,
+) -> RealTensorNumericLiteral | None:
     """Return a nested numeric literal tree using Python lists."""
     literal_number = _literal_number(expression)
     if literal_number is not None:
         return literal_number
     if not isinstance(expression, (ast.List, ast.Tuple)):
         return None
-    values: list[TensorNumericLiteral] = []
+    values: list[RealTensorNumericLiteral] = []
     for item in expression.elts:
         child_value = _literal_numeric_tree(item)
         if child_value is None:
@@ -320,7 +331,7 @@ def _literal_numeric_tree(expression: ast.expr | None) -> TensorNumericLiteral |
     return values
 
 
-def _numeric_tree_shape(values: TensorNumericLiteral) -> tuple[int, ...] | None:
+def _numeric_tree_shape(values: RealTensorNumericLiteral) -> tuple[int, ...] | None:
     """Return the shape of one nested numeric tree or ``None`` if ragged."""
     if isinstance(values, (int, float)):
         return ()

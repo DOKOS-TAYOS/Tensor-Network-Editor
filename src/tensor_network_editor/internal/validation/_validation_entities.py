@@ -197,25 +197,43 @@ def validate_tensor_data(
             path=path,
         )
         return
-    if tensor_data.mode is TensorDataMode.ONES:
-        if tensor_data.fill_value is not None or tensor_data.values is not None:
+    if tensor_data.mode in {
+        TensorDataMode.ZEROS,
+        TensorDataMode.ONES,
+        TensorDataMode.IDENTITY,
+        TensorDataMode.COPY,
+    }:
+        if (
+            tensor_data.fill_value is not None
+            or tensor_data.values is not None
+            or tensor_data.seed is not None
+            or tensor_data.distribution is not None
+        ):
             append_issue(
                 issues,
                 code="invalid-tensor-data",
                 message=(
-                    f"Tensor '{tensor.id}' uses TensorDataMode.ONES with unexpected "
+                    f"Tensor '{tensor.id}' uses {tensor_data.mode!r} with unexpected "
                     "extra fields."
                 ),
                 path=path,
             )
+            return
+        if tensor_data.mode is TensorDataMode.IDENTITY:
+            _validate_identity_tensor_data_shape(
+                tensor=tensor, path=path, issues=issues
+            )
+            return
+        if tensor_data.mode is TensorDataMode.COPY:
+            _validate_copy_tensor_data_shape(tensor=tensor, path=path, issues=issues)
         return
     if tensor_data.mode is TensorDataMode.FILL:
         if (
             tensor_data.fill_value is None
-            or not isinstance(tensor_data.fill_value, (int, float))
-            or isinstance(tensor_data.fill_value, bool)
-            or not math.isfinite(float(tensor_data.fill_value))
+            or not _is_valid_tensor_scalar_literal(tensor_data.fill_value)
             or tensor_data.values is not None
+            or tensor_data.seed is not None
+            or tensor_data.distribution is not None
         ):
             append_issue(
                 issues,
@@ -227,7 +245,32 @@ def validate_tensor_data(
                 path=path,
             )
         return
-    if tensor_data.values is None or tensor_data.fill_value is not None:
+    if tensor_data.mode is TensorDataMode.RANDOM:
+        if (
+            tensor_data.fill_value is not None
+            or tensor_data.values is not None
+            or tensor_data.seed is None
+            or isinstance(tensor_data.seed, bool)
+            or not isinstance(tensor_data.seed, int)
+            or tensor_data.seed < 0
+            or tensor_data.distribution is None
+        ):
+            append_issue(
+                issues,
+                code="invalid-tensor-data",
+                message=(
+                    f"Tensor '{tensor.id}' uses TensorDataMode.RANDOM without one "
+                    "non-negative integer seed and supported distribution."
+                ),
+                path=path,
+            )
+        return
+    if (
+        tensor_data.values is None
+        or tensor_data.fill_value is not None
+        or tensor_data.seed is not None
+        or tensor_data.distribution is not None
+    ):
         append_issue(
             issues,
             code="invalid-tensor-data",
@@ -258,6 +301,64 @@ def validate_tensor_data(
         )
 
 
+def _validate_identity_tensor_data_shape(
+    *,
+    tensor: TensorSpec,
+    path: str,
+    issues: list[ValidationIssue],
+) -> None:
+    """Require a matrix square shape for an identity initializer."""
+    if len(tensor.shape) == 2 and tensor.shape[0] == tensor.shape[1]:
+        return
+    append_issue(
+        issues,
+        code="tensor-data-shape-mismatch",
+        message=(
+            f"Tensor '{tensor.id}' identity initializer requires a square matrix "
+            f"shape, received {tensor.shape!r}."
+        ),
+        path=path,
+    )
+
+
+def _validate_copy_tensor_data_shape(
+    *,
+    tensor: TensorSpec,
+    path: str,
+    issues: list[ValidationIssue],
+) -> None:
+    """Require equal axis dimensions for a generalized copy tensor."""
+    if len(tensor.shape) >= 2 and all(
+        axis_dimension == tensor.shape[0] for axis_dimension in tensor.shape[1:]
+    ):
+        return
+    append_issue(
+        issues,
+        code="tensor-data-shape-mismatch",
+        message=(
+            f"Tensor '{tensor.id}' copy initializer requires at least two axes with "
+            f"the same dimension, received {tensor.shape!r}."
+        ),
+        path=path,
+    )
+
+
+def _is_valid_tensor_scalar_literal(value: object) -> bool:
+    """Return whether ``value`` is a finite real or portable complex scalar."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return math.isfinite(float(value))
+    if isinstance(value, dict):
+        return set(value) == {"real", "imag"} and all(
+            isinstance(value[component], (int, float))
+            and not isinstance(value[component], bool)
+            and math.isfinite(float(value[component]))
+            for component in ("real", "imag")
+        )
+    return False
+
+
 def _tensor_literal_shape(
     value: object,
     *,
@@ -266,13 +367,26 @@ def _tensor_literal_shape(
     issues: list[ValidationIssue],
 ) -> tuple[int, ...] | None:
     """Return the nested literal shape or append one validation issue."""
+    if isinstance(value, dict):
+        if not _is_valid_tensor_scalar_literal(value):
+            append_issue(
+                issues,
+                code="invalid-tensor-data",
+                message=(
+                    f"Tensor '{tensor_id}' literal data must contain only finite "
+                    "numeric or portable complex scalars and lists."
+                ),
+                path=path,
+            )
+            return None
+        return ()
     if isinstance(value, bool) or not isinstance(value, (int, float, list)):
         append_issue(
             issues,
             code="invalid-tensor-data",
             message=(
                 f"Tensor '{tensor_id}' literal data must contain only finite "
-                "numeric scalars and lists."
+                "numeric or portable complex scalars and lists."
             ),
             path=path,
         )

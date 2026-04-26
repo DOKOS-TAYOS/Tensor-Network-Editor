@@ -676,10 +676,16 @@ export function createEditorShellBindings({
         `Engine set to ${actions.formatEngineLabel(state.selectedEngine)}.`,
         "success"
       );
+      if (typeof actions.scheduleDraftAutosave === "function") {
+        actions.scheduleDraftAutosave();
+      }
     });
     bindListener(collectionFormatSelect, "change", (event) => {
       setSelectChevronExpanded(collectionFormatSelectField, false);
       store.setSelectedCollectionFormat(event.target.value);
+      if (typeof actions.scheduleDraftAutosave === "function") {
+        actions.scheduleDraftAutosave();
+      }
     });
     bindListener(documentRef, "mousedown", (event) => {
       if (!isWithinTransientToolbarUi(event.target)) {

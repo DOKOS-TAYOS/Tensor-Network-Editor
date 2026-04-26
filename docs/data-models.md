@@ -25,7 +25,7 @@ Saved JSON files use a schema wrapper:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "network": {
     "...": "..."
   }
@@ -33,8 +33,8 @@ Saved JSON files use a schema wrapper:
 ```
 
 The wrapper lets the package reject unsupported file versions clearly instead
-of guessing how to load them. New saves use schema version `1`, which is the
-current canonical payload shape for this release.
+of guessing how to load them. New saves use schema version `2`, and schema
+version `1` remains loadable for older saved designs.
 
 The in-memory object is a `NetworkSpec`. Use
 `tensor_network_editor.io.serialize_spec(...)` and
@@ -127,7 +127,7 @@ Each tensor also stores canvas `position`, visual `size`, optional metadata,
 optional `tensor_data`, and optional periodic-mode roles used by the
 specialized editors.
 
-`tensor_data` is the portable place for simple real tensor initializers. It is
+`tensor_data` is the portable place for tensor initializers. It is
 not stored in `metadata`, because it directly affects generated backend code.
 
 Example:
@@ -145,16 +145,28 @@ tensor.tensor_data = TensorDataSpec(
 Supported tensor-data modes are:
 
 - `None`: no explicit payload, so generated backend code initializes zeros
+- `TensorDataMode.ZEROS`: explicit zero initializer, useful when a dtype is set
 - `TensorDataMode.ONES`: initialize the whole tensor with ones
 - `TensorDataMode.FILL`: repeat one scalar value across the tensor shape
-- `TensorDataMode.LITERAL`: store nested Python lists of finite numbers that
-  exactly match `tensor.shape`
+- `TensorDataMode.IDENTITY`: create a square rank-2 identity/delta tensor
+- `TensorDataMode.COPY`: create a generalized diagonal copy tensor where every
+  axis has the same dimension
+- `TensorDataMode.RANDOM`: create deterministic seeded normal or uniform data
+- `TensorDataMode.LITERAL`: store nested Python lists of finite real or complex
+  values that exactly match `tensor.shape`
+
+`TensorDataSpec.dtype` can be `float32`, `float64`, `complex64`, or
+`complex128`. Complex scalars are JSON objects such as
+`{"real": 1.0, "imag": -0.5}`.
 
 Serialized tensor-data payloads are small JSON objects:
 
 ```json
 {"mode": "ones"}
-{"mode": "fill", "fill_value": 0.5}
+{"mode": "fill", "fill_value": {"real": 1.0, "imag": -0.5}, "dtype": "complex128"}
+{"mode": "identity", "dtype": "float64"}
+{"mode": "copy"}
+{"mode": "random", "seed": 123, "distribution": "uniform", "dtype": "float32"}
 {"mode": "literal", "values": [[1.0, 0.0], [0.0, 1.0]]}
 ```
 

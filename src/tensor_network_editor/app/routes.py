@@ -17,6 +17,7 @@ from ..io import serialize_spec
 from ..models import CodegenResult, EditorResult
 from ..types import JSONValue
 from ..validation import validate_spec
+from ._drafts import clear_project_draft, load_project_draft, save_project_draft
 from ._protocol import (
     JsonDict,
     JsonResponse,
@@ -61,6 +62,40 @@ LOGGER = logging.getLogger(__name__)
 def handle_bootstrap(session: EditorSession) -> JsonResponse:
     """Return the bootstrap payload used by the browser client."""
     return HTTPStatus.OK, build_bootstrap_payload(session)
+
+
+def handle_draft_load(session: EditorSession) -> JsonResponse:
+    """Return the active project draft when one has been saved."""
+    try:
+        draft = load_project_draft(session.draft_path)
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+    return ok_response({"draft": cast(JSONValue, draft)})
+
+
+def handle_draft_save(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Persist the active browser editor draft for later recovery."""
+    try:
+        request = parse_codegen_request(
+            payload,
+            default_engine=session.default_engine,
+            default_collection_format=session.default_collection_format,
+        )
+        draft = save_project_draft(
+            session.draft_path,
+            serialized_spec=request.serialized_spec,
+            engine=request.engine,
+            collection_format=request.collection_format,
+        )
+    except ValueError as exc:
+        return bad_request_response(str(exc))
+    return ok_response({"draft": cast(JSONValue, draft)})
+
+
+def handle_draft_clear(session: EditorSession) -> JsonResponse:
+    """Clear the active project draft after an explicit user action."""
+    clear_project_draft(session.draft_path)
+    return ok_response()
 
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:

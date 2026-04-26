@@ -89,6 +89,15 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
     assert third_party_notices.read_text(encoding="utf-8").strip()
 
 
+def test_project_metadata_declares_numpy_and_torch_extras() -> None:
+    pyproject_path = Path.cwd() / "pyproject.toml"
+    payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    optional_dependencies = payload["project"]["optional-dependencies"]
+
+    assert optional_dependencies["numpy"] == ["numpy>=1.24"]
+    assert optional_dependencies["torch"] == ["torch>=2.0"]
+
+
 def test_third_party_notices_describe_bundled_asset_scope() -> None:
     third_party_text = (Path.cwd() / "THIRD_PARTY_LICENSES").read_text(encoding="utf-8")
     readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from ...internal.analysis._prepared_network import (
     PreparedEdge,
@@ -15,7 +16,13 @@ from ...internal.analysis._prepared_network import (
     prepare_network,
     sanitize_identifier,
 )
-from ...models import TensorCollectionFormat, TensorDataMode
+from ...models import (
+    TensorCollectionFormat,
+    TensorDataDType,
+    TensorDataMode,
+    TensorDataRandomDistribution,
+    TensorDataSpec,
+)
 
 __all__ = [
     "CodeSection",
@@ -290,18 +297,26 @@ def render_tensor_data_expression(
 ) -> str:
     """Render one backend-specific tensor-data initializer expression."""
     tensor_data = tensor.spec.tensor_data
-    if tensor_data is None:
-        return f"{module_alias}.zeros({tensor.spec.shape!r}{zeros_initializer_suffix})"
+    dtype_suffix = _render_tensor_data_dtype_suffix(
+        tensor_data,
+        module_alias=module_alias,
+        default_suffix=zeros_initializer_suffix,
+    )
+    if tensor_data is None or tensor_data.mode is TensorDataMode.ZEROS:
+        return f"{module_alias}.zeros({tensor.spec.shape!r}{dtype_suffix})"
     if tensor_data.mode is TensorDataMode.ONES:
-        return f"{module_alias}.ones({tensor.spec.shape!r}{zeros_initializer_suffix})"
+        return f"{module_alias}.ones({tensor.spec.shape!r}{dtype_suffix})"
     if tensor_data.mode is TensorDataMode.FILL:
         return (
-            f"{module_alias}.full({tensor.spec.shape!r}, {tensor_data.fill_value!r}"
-            f"{zeros_initializer_suffix})"
+            f"{module_alias}.full({tensor.spec.shape!r}, "
+            f"{_render_python_literal(tensor_data.fill_value)}{dtype_suffix})"
         )
+    if tensor_data.mode is TensorDataMode.IDENTITY:
+        dimension = tensor.spec.shape[0] if tensor.spec.shape else 1
+        return f"{module_alias}.eye({dimension}{dtype_suffix})"
     return (
-        f"{module_alias}.{literal_constructor_name}({tensor_data.values!r}"
-        f"{zeros_initializer_suffix})"
+        f"{module_alias}.{literal_constructor_name}("
+        f"{_render_python_literal(tensor_data.values)}{dtype_suffix})"
     )
 
 
@@ -349,6 +364,114 @@ def _render_hyperedge_copy_tensor_data_assignments(
     return lines
 
 
+def _render_copy_tensor_data_assignments(
+    tensor: PreparedTensor,
+    *,
+    module_alias: str,
+    zeros_initializer_suffix: str = "",
+) -> list[str] | None:
+    """Render compact generated code for one explicit copy tensor initializer."""
+    tensor_data = tensor.spec.tensor_data
+    if tensor_data is None or tensor_data.mode is not TensorDataMode.COPY:
+        return None
+    if not tensor.spec.shape or module_alias not in {"np", "torch"}:
+        return None
+    dimension = tensor.spec.shape[0]
+    rank = len(tensor.spec.shape)
+    dtype_suffix = _render_tensor_data_dtype_suffix(
+        tensor_data,
+        module_alias=module_alias,
+        default_suffix=zeros_initializer_suffix,
+    )
+    repeated_shape = f"({dimension},) * {rank}"
+    repeated_indices = f"({module_alias}.arange({dimension}),) * {rank}"
+    lines = [
+        f"{tensor.data_variable_name} = {module_alias}.zeros({repeated_shape}{dtype_suffix})"
+    ]
+    if module_alias == "torch":
+        lines.append(
+            f"{tensor.data_variable_name}.index_put_("
+            f"{repeated_indices}, "
+            f"{module_alias}.ones({dimension}{dtype_suffix}))"
+        )
+    else:
+        lines.append(f"{tensor.data_variable_name}[{repeated_indices}] = 1")
+    return lines
+
+
+def _render_random_tensor_data_assignments(
+    tensor: PreparedTensor,
+    *,
+    module_alias: str,
+    zeros_initializer_suffix: str = "",
+) -> list[str] | None:
+    """Render deterministic seeded random initializer lines."""
+    tensor_data = tensor.spec.tensor_data
+    if tensor_data is None or tensor_data.mode is not TensorDataMode.RANDOM:
+        return None
+    seed = cast(int, tensor_data.seed)
+    distribution = cast(TensorDataRandomDistribution, tensor_data.distribution)
+    dtype_expression = _render_tensor_data_dtype_expression(
+        tensor_data,
+        module_alias=module_alias,
+        default_suffix=zeros_initializer_suffix,
+    )
+    variable_prefix = tensor.data_variable_name.removesuffix("_data")
+    if module_alias == "np":
+        rng_name = f"{variable_prefix}_rng"
+        random_method = (
+            "uniform"
+            if distribution is TensorDataRandomDistribution.UNIFORM
+            else "normal"
+        )
+        sample_expression = f"{rng_name}.{random_method}(size={tensor.spec.shape!r})"
+        if _is_complex_dtype(tensor_data.dtype):
+            sample_expression = (
+                f"({sample_expression} + 1j * "
+                f"{rng_name}.{random_method}(size={tensor.spec.shape!r}))"
+            )
+        return [
+            f"{rng_name} = np.random.default_rng({seed})",
+            f"{tensor.data_variable_name} = {sample_expression}.astype({dtype_expression})",
+        ]
+    if module_alias == "torch":
+        generator_name = f"{variable_prefix}_generator"
+        random_function = (
+            "rand" if distribution is TensorDataRandomDistribution.UNIFORM else "randn"
+        )
+        if _is_complex_dtype(tensor_data.dtype):
+            real_dtype = (
+                "torch.float32"
+                if tensor_data.dtype is TensorDataDType.COMPLEX64
+                else "torch.float64"
+            )
+            return [
+                f"{generator_name} = torch.Generator()",
+                f"{generator_name}.manual_seed({seed})",
+                (
+                    f"{variable_prefix}_real = torch.{random_function}("
+                    f"{tensor.spec.shape!r}, generator={generator_name}, dtype={real_dtype})"
+                ),
+                (
+                    f"{variable_prefix}_imag = torch.{random_function}("
+                    f"{tensor.spec.shape!r}, generator={generator_name}, dtype={real_dtype})"
+                ),
+                (
+                    f"{tensor.data_variable_name} = torch.complex("
+                    f"{variable_prefix}_real, {variable_prefix}_imag).to(dtype={dtype_expression})"
+                ),
+            ]
+        return [
+            f"{generator_name} = torch.Generator()",
+            f"{generator_name}.manual_seed({seed})",
+            (
+                f"{tensor.data_variable_name} = torch.{random_function}("
+                f"{tensor.spec.shape!r}, generator={generator_name}, dtype={dtype_expression})"
+            ),
+        ]
+    return None
+
+
 def render_tensor_data_assignments(
     prepared: PreparedNetwork,
     *,
@@ -368,6 +491,22 @@ def render_tensor_data_assignments(
         if hyperedge_copy_tensor_lines is not None:
             lines.extend(hyperedge_copy_tensor_lines)
             continue
+        copy_tensor_lines = _render_copy_tensor_data_assignments(
+            tensor,
+            module_alias=module_alias,
+            zeros_initializer_suffix=zeros_initializer_suffix,
+        )
+        if copy_tensor_lines is not None:
+            lines.extend(copy_tensor_lines)
+            continue
+        random_tensor_lines = _render_random_tensor_data_assignments(
+            tensor,
+            module_alias=module_alias,
+            zeros_initializer_suffix=zeros_initializer_suffix,
+        )
+        if random_tensor_lines is not None:
+            lines.extend(random_tensor_lines)
+            continue
         tensor_data_expression = render_tensor_data_expression(
             tensor,
             module_alias=module_alias,
@@ -381,6 +520,105 @@ def render_tensor_data_assignments(
 def _tensor_display_name(tensor: PreparedTensor) -> str:
     """Return the readable tensor label used in generated comments."""
     return tensor.spec.name or tensor.variable_name
+
+
+def _render_tensor_data_dtype_suffix(
+    tensor_data: TensorDataSpec | None,
+    *,
+    module_alias: str,
+    default_suffix: str,
+) -> str:
+    """Render the ``, dtype=...`` suffix for one backend initializer."""
+    dtype_expression = _render_tensor_data_dtype_expression(
+        tensor_data,
+        module_alias=module_alias,
+        default_suffix=default_suffix,
+    )
+    return f", dtype={dtype_expression}" if dtype_expression else default_suffix
+
+
+def _render_tensor_data_dtype_expression(
+    tensor_data: TensorDataSpec | None,
+    *,
+    module_alias: str,
+    default_suffix: str,
+) -> str:
+    """Render the backend dtype expression for one tensor-data payload."""
+    dtype = tensor_data.dtype if tensor_data is not None else None
+    if (
+        dtype is None
+        and tensor_data is not None
+        and _tensor_data_contains_complex(tensor_data)
+    ):
+        dtype = (
+            TensorDataDType.COMPLEX64
+            if module_alias == "torch"
+            else TensorDataDType.COMPLEX128
+        )
+    if dtype is None:
+        return _dtype_expression_from_suffix(default_suffix)
+    if module_alias == "torch":
+        return {
+            TensorDataDType.FLOAT32: "torch.float32",
+            TensorDataDType.FLOAT64: "torch.float64",
+            TensorDataDType.COMPLEX64: "torch.complex64",
+            TensorDataDType.COMPLEX128: "torch.complex128",
+        }[dtype]
+    return {
+        TensorDataDType.FLOAT32: "np.float32",
+        TensorDataDType.FLOAT64: "np.float64",
+        TensorDataDType.COMPLEX64: "np.complex64",
+        TensorDataDType.COMPLEX128: "np.complex128",
+    }[dtype]
+
+
+def _dtype_expression_from_suffix(default_suffix: str) -> str:
+    """Extract a default dtype expression from an existing initializer suffix."""
+    marker = "dtype="
+    if marker not in default_suffix:
+        return ""
+    return default_suffix.split(marker, maxsplit=1)[1].strip()
+
+
+def _is_complex_dtype(dtype: TensorDataDType | None) -> bool:
+    """Return whether one portable dtype is complex-valued."""
+    return dtype in {TensorDataDType.COMPLEX64, TensorDataDType.COMPLEX128}
+
+
+def _tensor_data_contains_complex(tensor_data: TensorDataSpec) -> bool:
+    """Return whether one tensor-data payload contains portable complex values."""
+    if tensor_data.fill_value is not None:
+        return _literal_contains_complex(tensor_data.fill_value)
+    if tensor_data.values is not None:
+        return _literal_contains_complex(tensor_data.values)
+    return False
+
+
+def _literal_contains_complex(value: object) -> bool:
+    """Return whether a recursive literal tree contains complex scalar mappings."""
+    if isinstance(value, dict):
+        return set(value) == {"real", "imag"}
+    if isinstance(value, list):
+        return any(_literal_contains_complex(item) for item in value)
+    return False
+
+
+def _render_python_literal(value: object) -> str:
+    """Render a scalar or nested literal tree as Python source."""
+    if isinstance(value, dict) and set(value) == {"real", "imag"}:
+        return _render_complex_literal(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_render_python_literal(item) for item in value) + "]"
+    return repr(value)
+
+
+def _render_complex_literal(value: dict[object, object]) -> str:
+    """Render one portable complex scalar mapping as a Python complex literal."""
+    real_text = repr(value["real"])
+    imag_value = value["imag"]
+    imag_text = repr(imag_value)
+    sign = "" if str(imag_text).startswith("-") else "+"
+    return f"({real_text}{sign}{imag_text}j)"
 
 
 def _trim_blank_lines(lines: list[str]) -> list[str]:

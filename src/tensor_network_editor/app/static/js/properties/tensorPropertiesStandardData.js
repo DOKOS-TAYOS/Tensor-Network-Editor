@@ -19,16 +19,43 @@ export function createStandardTensorDataSupport() {
     return leftShape.every((dimension, position) => dimension === rightShape[position]);
   }
 
-  function normalizeTensorLiteralNode(value) {
+  function isPortableComplexLiteral(value) {
+    return (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      typeof value.real === "number" &&
+      typeof value.imag === "number" &&
+      Number.isFinite(value.real) &&
+      Number.isFinite(value.imag)
+    );
+  }
+
+  function normalizeTensorScalarNode(value) {
     if (typeof value === "boolean") {
       return null;
     }
     if (typeof value === "number") {
-      if (!Number.isFinite(value)) {
-        return null;
-      }
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === "string") {
+      const parsedValue = parseTensorScalarInput(value);
+      return parsedValue.ok ? parsedValue.value : null;
+    }
+    if (isPortableComplexLiteral(value)) {
       return {
-        normalized: value,
+        real: value.real,
+        imag: value.imag,
+      };
+    }
+    return null;
+  }
+
+  function normalizeTensorLiteralNode(value) {
+    const scalarValue = normalizeTensorScalarNode(value);
+    if (scalarValue !== null) {
+      return {
+        normalized: scalarValue,
         shape: [],
       };
     }
@@ -59,10 +86,37 @@ export function createStandardTensorDataSupport() {
 
   function getTensorDataMode(tensor) {
     const mode = String(tensor?.tensor_data?.mode || "").trim();
-    if (mode === "ones" || mode === "fill" || mode === "literal") {
+    if (
+      [
+        "zeros",
+        "ones",
+        "fill",
+        "literal",
+        "identity",
+        "copy",
+        "random",
+      ].includes(mode)
+    ) {
       return mode;
     }
     return "zeros";
+  }
+
+  function getTensorDataDType(tensor) {
+    const dtype = String(tensor?.tensor_data?.dtype || "").trim();
+    return ["float32", "float64", "complex64", "complex128"].includes(dtype)
+      ? dtype
+      : "";
+  }
+
+  function getTensorRandomDistribution(tensor) {
+    const distribution = String(tensor?.tensor_data?.distribution || "normal").trim();
+    return distribution === "uniform" ? "uniform" : "normal";
+  }
+
+  function getTensorRandomSeed(tensor) {
+    const seed = tensor?.tensor_data?.seed;
+    return Number.isInteger(seed) && seed >= 0 ? seed : 0;
   }
 
   function cloneTensorLiteral(value) {
@@ -87,34 +141,116 @@ export function createStandardTensorDataSupport() {
     }
     if (
       tensor?.tensor_data?.mode === "fill" &&
-      typeof tensor.tensor_data.fill_value === "number" &&
-      Number.isFinite(tensor.tensor_data.fill_value)
+      normalizeTensorScalarNode(tensor.tensor_data.fill_value) !== null
     ) {
       return buildFilledTensorLiteral(tensorShape, tensor.tensor_data.fill_value);
     }
     return buildFilledTensorLiteral(tensorShape, 0);
   }
 
-  function analyzeTensorDataFillInput(rawValue) {
-    const trimmedValue = String(rawValue || "").trim();
+  function formatTensorScalarLiteral(value) {
+    if (isPortableComplexLiteral(value)) {
+      const sign = value.imag < 0 ? "" : "+";
+      return `${value.real}${sign}${value.imag}j`;
+    }
+    return String(value);
+  }
+
+  function parseTensorScalarInput(rawValue) {
+    const trimmedValue = String(rawValue ?? "").trim();
     if (!trimmedValue) {
       return {
         ok: false,
-        message: "Fill value must be a finite number.",
+        message: "Value must be a finite real or complex number.",
       };
     }
-    const parsedValue = Number(trimmedValue);
-    if (!Number.isFinite(parsedValue)) {
+    const realValue = Number(trimmedValue);
+    if (Number.isFinite(realValue)) {
       return {
-        ok: false,
-        message: "Fill value must be a finite number.",
+        ok: true,
+        value: realValue,
       };
+    }
+    try {
+      const parsedJson = JSON.parse(trimmedValue);
+      const normalizedJson = normalizeTensorScalarNode(parsedJson);
+      if (normalizedJson !== null) {
+        return {
+          ok: true,
+          value: normalizedJson,
+        };
+      }
+    } catch {
+      // Friendly complex forms such as 1+2j are handled below.
+    }
+    const complexValue = parseFriendlyComplexInput(trimmedValue);
+    if (complexValue) {
+      return {
+        ok: true,
+        value: complexValue,
+      };
+    }
+    return {
+      ok: false,
+      message: "Value must be a finite real number or a complex value like 1+2j.",
+    };
+  }
+
+  function parseFriendlyComplexInput(rawValue) {
+    const normalizedValue = String(rawValue ?? "")
+      .replace(/\s+/gu, "")
+      .replace(/i$/u, "j");
+    if (!normalizedValue.endsWith("j")) {
+      return null;
+    }
+    const body = normalizedValue.slice(0, -1);
+    if (body === "" || body === "+") {
+      return { real: 0, imag: 1 };
+    }
+    if (body === "-") {
+      return { real: 0, imag: -1 };
+    }
+    const splitIndex = findComplexSplitIndex(body);
+    const realText = splitIndex > 0 ? body.slice(0, splitIndex) : "0";
+    let imagText = splitIndex > 0 ? body.slice(splitIndex) : body;
+    if (imagText === "+") {
+      imagText = "1";
+    } else if (imagText === "-") {
+      imagText = "-1";
+    }
+    const real = Number(realText);
+    const imag = Number(imagText);
+    if (!Number.isFinite(real) || !Number.isFinite(imag)) {
+      return null;
+    }
+    return { real, imag };
+  }
+
+  function findComplexSplitIndex(value) {
+    for (let index = value.length - 1; index > 0; index -= 1) {
+      const character = value[index];
+      const previousCharacter = value[index - 1];
+      if (
+        (character === "+" || character === "-") &&
+        previousCharacter !== "e" &&
+        previousCharacter !== "E"
+      ) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  function analyzeTensorDataFillInput(rawValue) {
+    const parsedValue = parseTensorScalarInput(rawValue);
+    if (!parsedValue.ok) {
+      return parsedValue;
     }
     return {
       ok: true,
       tensorData: {
         mode: "fill",
-        fill_value: parsedValue,
+        fill_value: parsedValue.value,
       },
     };
   }
@@ -122,19 +258,24 @@ export function createStandardTensorDataSupport() {
   function analyzeTensorLiteralInput(rawValue, expectedShape) {
     let parsedValue = null;
     try {
-      parsedValue = JSON.parse(String(rawValue || ""));
+      parsedValue = JSON.parse(String(rawValue ?? ""));
     } catch (error) {
       return {
         ok: false,
         message: `Explicit values must be valid JSON: ${error.message}`,
       };
     }
+    const normalizedScalar = normalizeTensorScalarNode(parsedValue);
+    if (normalizedScalar !== null) {
+      parsedValue = normalizedScalar;
+    }
 
     const normalizedLiteral = normalizeTensorLiteralNode(parsedValue);
     if (!normalizedLiteral) {
       return {
         ok: false,
-        message: "Explicit values must be finite numbers arranged as a non-ragged tensor.",
+        message:
+          "Explicit values must be finite numbers or complex values arranged as a non-ragged tensor.",
       };
     }
     if (!tensorShapesMatch(normalizedLiteral.shape, expectedShape)) {
@@ -159,8 +300,19 @@ export function createStandardTensorDataSupport() {
     if (tensorDataMode === "ones") {
       return `Current initializer: ones for ${formatTensorShape(tensorShape)}.`;
     }
+    if (tensorDataMode === "identity") {
+      return `Current initializer: identity matrix for ${formatTensorShape(tensorShape)}.`;
+    }
+    if (tensorDataMode === "copy") {
+      return `Current initializer: copy/delta tensor for ${formatTensorShape(tensorShape)}.`;
+    }
+    if (tensorDataMode === "random") {
+      return `Current initializer: seeded random values for ${formatTensorShape(tensorShape)}.`;
+    }
     if (tensorDataMode === "fill") {
-      return `Current initializer: fill with ${tensor.tensor_data.fill_value}.`;
+      return `Current initializer: fill with ${formatTensorScalarLiteral(
+        tensor.tensor_data.fill_value
+      )}.`;
     }
     if (tensorDataMode === "literal") {
       return `Current initializer: explicit JSON values for ${formatTensorShape(
@@ -176,9 +328,14 @@ export function createStandardTensorDataSupport() {
     tensorShapesMatch,
     normalizeTensorLiteralNode,
     getTensorDataMode,
+    getTensorDataDType,
+    getTensorRandomDistribution,
+    getTensorRandomSeed,
     cloneTensorLiteral,
     buildFilledTensorLiteral,
     buildDefaultTensorLiteralValues,
+    formatTensorScalarLiteral,
+    parseTensorScalarInput,
     analyzeTensorDataFillInput,
     analyzeTensorLiteralInput,
     describeTensorData,

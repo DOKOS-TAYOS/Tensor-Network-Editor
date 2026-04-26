@@ -74,6 +74,49 @@ def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:
     assert network_payload["name"] == "   "
 
 
+def test_draft_routes_round_trip_project_local_draft(tmp_path: Path) -> None:
+    session = EditorSession(
+        initial_spec=build_sample_spec(),
+        default_engine=EngineName.EINSUM_NUMPY,
+        draft_path=tmp_path / "drafts" / "active.json",
+    )
+    server = EditorServer(session)
+    server.start()
+    try:
+        spec = build_sample_spec()
+        saved_payload = request_json(
+            f"{server.base_url}/api/draft",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": spec.to_dict(),
+                },
+                "engine": EngineName.EINSUM_TORCH.value,
+                "collection_format": TensorCollectionFormat.DICT.value,
+            },
+        )
+        loaded_payload = request_json(f"{server.base_url}/api/draft")
+        cleared_payload = request_json(
+            f"{server.base_url}/api/draft/clear",
+            method="POST",
+            payload={},
+        )
+        empty_payload = request_json(f"{server.base_url}/api/draft")
+    finally:
+        server.stop()
+
+    assert saved_payload["ok"] is True
+    assert isinstance(saved_payload["draft"]["saved_at"], str)
+    assert loaded_payload["draft"]["spec"]["network"]["id"] == spec.id
+    assert loaded_payload["draft"]["engine"] == EngineName.EINSUM_TORCH.value
+    assert loaded_payload["draft"]["collection_format"] == (
+        TensorCollectionFormat.DICT.value
+    )
+    assert cleared_payload["ok"] is True
+    assert empty_payload["draft"] is None
+
+
 def test_validate_route_reports_issues_and_echoes_serialized_spec(
     editor_server: EditorServer,
 ) -> None:

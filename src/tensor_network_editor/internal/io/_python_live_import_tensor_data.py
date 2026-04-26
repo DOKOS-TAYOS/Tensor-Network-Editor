@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import math
-from typing import Protocol, TypeGuard
+from typing import Protocol, TypeAlias, TypeGuard, cast
 
 from ...models import TensorDataMode, TensorDataSpec
 from ..models._model_tensor_data import TensorNumericLiteral
 
 _LITERAL_DATA_ELEMENT_LIMIT = 4096
+RealTensorNumericLiteral: TypeAlias = int | float | list["RealTensorNumericLiteral"]
 
 
 class _ItemLike(Protocol):
@@ -59,7 +60,10 @@ def lower_runtime_tensor_data(
         )
     if element_count <= _LITERAL_DATA_ELEMENT_LIMIT:
         return (
-            TensorDataSpec(mode=TensorDataMode.LITERAL, values=literal_values),
+            TensorDataSpec(
+                mode=TensorDataMode.LITERAL,
+                values=cast(TensorNumericLiteral, literal_values),
+            ),
             None,
         )
     return (
@@ -82,7 +86,7 @@ def all_values_identical(values: list[int | float]) -> bool:
     return all(value == first_value for value in values[1:])
 
 
-def coerce_tensor_literal(data: object) -> TensorNumericLiteral:
+def coerce_tensor_literal(data: object) -> RealTensorNumericLiteral:
     """Convert runtime tensor data into finite real Python literals."""
     if isinstance(data, bool):
         raise TypeError("Tensor literals must be numeric.")
@@ -110,7 +114,7 @@ def coerce_tensor_literal(data: object) -> TensorNumericLiteral:
     raise TypeError("Unsupported tensor literal.")
 
 
-def flatten_tensor_literal(values: TensorNumericLiteral) -> list[int | float]:
+def flatten_tensor_literal(values: RealTensorNumericLiteral) -> list[int | float]:
     """Flatten one nested tensor literal tree into a simple numeric list."""
     if isinstance(values, (int, float)):
         return [values]

@@ -488,6 +488,73 @@ def test_validate_spec_accepts_tensor_literal_data_matching_shape() -> None:
     assert validate_spec(spec) == []
 
 
+def test_validate_spec_accepts_identity_and_copy_tensor_initializers() -> None:
+    spec = NetworkSpec(
+        id="network_initializers",
+        name="initializer-demo",
+        tensors=[
+            TensorSpec(
+                id="tensor_identity",
+                name="Identity",
+                position=CanvasPosition(x=40.0, y=80.0),
+                indices=[
+                    IndexSpec(id="identity_left", name="left", dimension=3),
+                    IndexSpec(id="identity_right", name="right", dimension=3),
+                ],
+                tensor_data=TensorDataSpec(mode=TensorDataMode.IDENTITY),
+            ),
+            TensorSpec(
+                id="tensor_copy",
+                name="Copy",
+                position=CanvasPosition(x=220.0, y=80.0),
+                indices=[
+                    IndexSpec(id="copy_a", name="a", dimension=3),
+                    IndexSpec(id="copy_b", name="b", dimension=3),
+                    IndexSpec(id="copy_c", name="c", dimension=3),
+                ],
+                tensor_data=TensorDataSpec(mode=TensorDataMode.COPY),
+            ),
+        ],
+    )
+
+    assert validate_spec(spec) == []
+
+
+def test_validate_spec_rejects_identity_tensor_initializer_for_non_square_shape() -> (
+    None
+):
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(mode=TensorDataMode.IDENTITY)
+
+    issue = find_issue(validate_spec(spec), "tensor-data-shape-mismatch")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
+def test_validate_spec_rejects_copy_tensor_initializer_for_mismatched_axes() -> None:
+    spec = NetworkSpec(
+        id="network_bad_copy",
+        name="bad-copy",
+        tensors=[
+            TensorSpec(
+                id="tensor_bad_copy",
+                name="BadCopy",
+                position=CanvasPosition(x=40.0, y=80.0),
+                indices=[
+                    IndexSpec(id="copy_a", name="a", dimension=3),
+                    IndexSpec(id="copy_b", name="b", dimension=3),
+                    IndexSpec(id="copy_c", name="c", dimension=4),
+                ],
+                tensor_data=TensorDataSpec(mode=TensorDataMode.COPY),
+            )
+        ],
+    )
+
+    issue = find_issue(validate_spec(spec), "tensor-data-shape-mismatch")
+
+    assert issue.path == "tensors.tensor_bad_copy.tensor_data"
+
+
 def test_validate_spec_rejects_tensor_literal_data_shape_mismatch() -> None:
     spec = build_valid_spec()
     spec.tensors[0].tensor_data = TensorDataSpec(

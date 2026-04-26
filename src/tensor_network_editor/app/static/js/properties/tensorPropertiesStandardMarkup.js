@@ -13,7 +13,11 @@ export function createStandardTensorPropertiesMarkupSupport({
     getTensorShape,
     formatTensorShape,
     getTensorDataMode,
+    getTensorDataDType,
+    getTensorRandomDistribution,
+    getTensorRandomSeed,
     buildDefaultTensorLiteralValues,
+    formatTensorScalarLiteral,
   } = dataSupport;
 
   function buildTooltipAttributes(label, description = "", shortcut = "") {
@@ -193,12 +197,13 @@ export function createStandardTensorPropertiesMarkupSupport({
     const totalElementCount = getTensorTotalElementCount(tensor);
     const tensorShape = getTensorShape(tensor);
     const tensorDataMode = getTensorDataMode(tensor);
+    const tensorDataDType = getTensorDataDType(tensor);
     const tensorFillValue =
-      tensorDataMode === "fill" &&
-      typeof tensor.tensor_data?.fill_value === "number" &&
-      Number.isFinite(tensor.tensor_data.fill_value)
-        ? tensor.tensor_data.fill_value
+      tensorDataMode === "fill" && tensor.tensor_data?.fill_value !== undefined
+        ? formatTensorScalarLiteral(tensor.tensor_data.fill_value)
         : 0;
+    const tensorRandomSeed = getTensorRandomSeed(tensor);
+    const tensorRandomDistribution = getTensorRandomDistribution(tensor);
     const tensorLiteralText =
       tensorDataMode === "literal"
         ? JSON.stringify(buildDefaultTensorLiteralValues(tensor, tensorShape), null, 2)
@@ -291,6 +296,44 @@ export function createStandardTensorPropertiesMarkupSupport({
             <option value="literal"${tensorDataMode === "literal" ? " selected" : ""}>
               Explicit values
             </option>
+            <option value="identity"${tensorDataMode === "identity" ? " selected" : ""}>
+              Identity / delta
+            </option>
+            <option value="copy"${tensorDataMode === "copy" ? " selected" : ""}>
+              Copy tensor
+            </option>
+            <option value="random"${tensorDataMode === "random" ? " selected" : ""}>
+              Random
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="tensor-data-dtype-select">Dtype</label>
+        <div
+          id="tensor-data-dtype-field"
+          class="select-chevron-field tensor-data-mode-field"
+          data-expanded="false"
+        >
+          <select
+            id="tensor-data-dtype-select"
+            data-focus-key="tensor:${tensor.id}:tensor-data-dtype"
+          >
+            <option value=""${tensorDataDType === "" ? " selected" : ""}>
+              Backend default
+            </option>
+            <option value="float32"${tensorDataDType === "float32" ? " selected" : ""}>
+              float32
+            </option>
+            <option value="float64"${tensorDataDType === "float64" ? " selected" : ""}>
+              float64
+            </option>
+            <option value="complex64"${tensorDataDType === "complex64" ? " selected" : ""}>
+              complex64
+            </option>
+            <option value="complex128"${tensorDataDType === "complex128" ? " selected" : ""}>
+              complex128
+            </option>
           </select>
         </div>
       </div>
@@ -302,8 +345,6 @@ export function createStandardTensorPropertiesMarkupSupport({
               <input
                 id="tensor-data-fill-input"
                 data-focus-key="tensor:${tensor.id}:tensor-data-fill"
-                type="number"
-                step="any"
                 value="${ctx.escapeHtml(String(tensorFillValue))}"
               />
             </div>
@@ -325,6 +366,45 @@ export function createStandardTensorPropertiesMarkupSupport({
             <p class="property-meta">Expected shape: ${ctx.escapeHtml(
               formatTensorShape(tensorShape)
             )}</p>
+          `
+          : ""
+      }
+      ${
+        tensorDataMode === "random"
+          ? `
+            <div class="field-row">
+              <div class="field-group compact-number-field">
+                <label for="tensor-data-random-seed-input">Seed</label>
+                <input
+                  id="tensor-data-random-seed-input"
+                  data-focus-key="tensor:${tensor.id}:tensor-data-random-seed"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="${tensorRandomSeed}"
+                />
+              </div>
+              <div class="field-group">
+                <label for="tensor-data-random-distribution-select">Distribution</label>
+                <div
+                  id="tensor-data-random-distribution-field"
+                  class="select-chevron-field tensor-data-mode-field"
+                  data-expanded="false"
+                >
+                  <select
+                    id="tensor-data-random-distribution-select"
+                    data-focus-key="tensor:${tensor.id}:tensor-data-random-distribution"
+                  >
+                    <option value="normal"${tensorRandomDistribution === "normal" ? " selected" : ""}>
+                      Normal
+                    </option>
+                    <option value="uniform"${tensorRandomDistribution === "uniform" ? " selected" : ""}>
+                      Uniform
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
           `
           : ""
       }

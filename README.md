@@ -91,15 +91,18 @@ offline use, and generated code you can inspect.
 
 - Draw tensor-network diagrams in a local browser session.
 - Save and reload backend-independent JSON designs.
+- Recover the previous local browser session from a project draft if the tab is
+  closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Import supported Python network layouts from generated exports plus simple
   `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
   explicit live imports for `quimb` and `tensornetwork` objects in a
   subprocess.
-- Edit tensor initializers in the sidebar with generated zeros, ones, fill
-  values, or explicit numeric JSON literals that round-trip through saved
-  designs and supported generated Python.
+- Edit tensor initializers in the sidebar with zeros, ones, fill values,
+  identity/delta, copy tensors, seeded random values, dtype choices, and
+  explicit real or complex literals that round-trip through saved designs and
+  emit as backend-native generated Python.
 - Create first-class hyperedges in normal mode, reposition their virtual hubs
   in the editor, and let exports lower them automatically into copy tensors
   plus binary edges for backend code.
@@ -150,8 +153,9 @@ python -m pip install -U pip
 python -m pip install tensor-network-editor
 ```
 
-For backend extras, planner support, source installs, and development setup,
-read [docs/installation.md](docs/installation.md).
+For backend extras such as `tensor-network-editor[numpy]` and
+`tensor-network-editor[torch]`, planner support, source installs, and
+development setup, read [docs/installation.md](docs/installation.md).
 
 ## Basic Use
 
@@ -279,10 +283,9 @@ whole load immediately.
   scripts or imports already resolvable from the active `.venv`. If a Python
   file depends on sibling modules or path-sensitive imports, prefer the Python
   API or CLI with the real file path.
-- Tensor values in the visual editor are currently limited to generated zeros,
-  ones, fill values, and explicit numeric JSON literals. Symbolic
-  initializers, random initializers, and direct `.npy` / `.pt` imports are not
-  supported yet.
+- Tensor values in the visual editor support portable built-in initializers,
+  dtype choices, and JSON-friendly complex scalars. Symbolic expressions and
+  direct `.npy` / `.pt` imports are not supported yet.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with all bundled
   backends.

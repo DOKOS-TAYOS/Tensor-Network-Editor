@@ -30,6 +30,7 @@ class EditorLaunchOptions:
     template_catalog_path: StrPath | None = None
     subnetwork_catalog_path: StrPath | None = None
     shared_subnetwork_catalog_path: StrPath | None = None
+    draft_path: StrPath | None = None
     _on_server_ready: Callable[[str], None] | None = None
 
 
@@ -52,6 +53,7 @@ def open_editor(
         template_catalog_path=resolved_options.template_catalog_path,
         subnetwork_catalog_path=resolved_options.subnetwork_catalog_path,
         shared_subnetwork_catalog_path=resolved_options.shared_subnetwork_catalog_path,
+        draft_path=resolved_options.draft_path,
         _on_server_ready=resolved_options._on_server_ready,
     )
 

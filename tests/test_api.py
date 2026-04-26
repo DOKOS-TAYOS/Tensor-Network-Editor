@@ -236,6 +236,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         template_catalog_path="templates.json",
         subnetwork_catalog_path="subnetworks.json",
         shared_subnetwork_catalog_path="shared.json",
+        draft_path=None,
         _on_server_ready=None,
     )
 

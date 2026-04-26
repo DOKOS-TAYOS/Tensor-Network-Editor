@@ -17,7 +17,9 @@ from tensor_network_editor.models import (
     HyperedgeSpec,
     IndexSpec,
     NetworkSpec,
+    TensorDataDType,
     TensorDataMode,
+    TensorDataRandomDistribution,
     TensorDataSpec,
 )
 from tensor_network_editor.types import JSONValue
@@ -60,6 +62,54 @@ def test_serialize_spec_preserves_tensor_data_payload() -> None:
         "mode": "fill",
         "fill_value": 2.5,
     }
+
+
+def test_schema_version_two_loads_legacy_schema_one_payload(
+    sample_spec: NetworkSpec,
+) -> None:
+    legacy_payload = {
+        "schema_version": 1,
+        "network": sample_spec.to_dict(),
+    }
+
+    restored = deserialize_spec(legacy_payload)
+
+    assert SCHEMA_VERSION == 2
+    assert restored.id == sample_spec.id
+
+
+def test_tensor_data_round_trips_dtype_complex_and_random_payloads() -> None:
+    spec = build_sample_spec_with_view_snapshots()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.FILL,
+        fill_value={"real": 1.25, "imag": -0.5},
+        dtype=TensorDataDType.COMPLEX128,
+    )
+    spec.tensors[1].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.RANDOM,
+        dtype=TensorDataDType.FLOAT32,
+        seed=123,
+        distribution=TensorDataRandomDistribution.UNIFORM,
+    )
+
+    payload = serialize_spec(spec)
+    restored = deserialize_spec(payload)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    tensors_payload = cast(list[JSONValue], network_payload["tensors"])
+
+    assert cast(dict[str, JSONValue], tensors_payload[0])["tensor_data"] == {
+        "mode": "fill",
+        "fill_value": {"real": 1.25, "imag": -0.5},
+        "dtype": "complex128",
+    }
+    assert cast(dict[str, JSONValue], tensors_payload[1])["tensor_data"] == {
+        "mode": "random",
+        "dtype": "float32",
+        "seed": 123,
+        "distribution": "uniform",
+    }
+    assert restored.tensors[0].tensor_data == spec.tensors[0].tensor_data
+    assert restored.tensors[1].tensor_data == spec.tensors[1].tensor_data
 
 
 def test_serialize_spec_preserves_hyperedges_payload() -> None:

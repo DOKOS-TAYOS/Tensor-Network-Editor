@@ -203,8 +203,9 @@ Important details:
 - `PythonLoadOptions.reconstruction_level="auto"` resolves to `best_available` for the
   `generated` profile and to `simple` for external static profiles plus live
   imports
-- live import preserves tensor data when it can be lowered to `ones`, `fill`,
-  or small numeric literals, and otherwise drops that data with a warning
+- live import preserves tensor data when it can be lowered to a portable
+  initializer or small real/complex literal payload, and otherwise drops that
+  data with a warning
 - when live import is requested for generated source and backend imports fail,
   the loader tries the static generated-source parser and returns a warning
   that names the fallback

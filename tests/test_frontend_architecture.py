@@ -481,6 +481,137 @@ def test_bootstrap_flow_marks_contraction_analysis_dirty_without_eager_refresh(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_bootstrap_flow_restores_project_draft_when_confirmed(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "bootstrap_flow_restore_draft.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const bootstrapFlowUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorBootstrapFlow.js")!r}).href;
+        const bootstrapFlowModule = await import(bootstrapFlowUrl);
+
+        const state = {{
+          templateCatalogWarnings: [],
+          subnetworkCatalogWarnings: [],
+          availableCollectionFormats: [],
+        }};
+        const store = {{
+          setSpec(spec) {{
+            state.spec = spec;
+          }},
+          setSchemaVersion(schemaVersion) {{
+            state.schemaVersion = schemaVersion;
+          }},
+          setAppMetadata(appMetadata) {{
+            state.appMetadata = appMetadata;
+          }},
+          setAvailableCollectionFormats(collectionFormats) {{
+            state.availableCollectionFormats = collectionFormats;
+          }},
+          setAnnotationDefinitions(annotationDefinitions) {{
+            state.annotationDefinitions = annotationDefinitions;
+          }},
+          setSelectedEngine(engine) {{
+            state.selectedEngine = engine;
+          }},
+          setSelectedCollectionFormat(collectionFormat) {{
+            state.selectedCollectionFormat = collectionFormat;
+          }},
+          setSubnetworkCatalogData() {{}},
+        }};
+        const calls = [];
+        const bootstrapFlow = bootstrapFlowModule.createEditorBootstrapFlow({{
+          state,
+          store,
+          sessionService: {{
+            async loadBootstrap() {{
+              calls.push("loadBootstrap");
+              return {{
+                spec: {{ schema_version: 2, network: {{ id: "network_fresh" }} }},
+                schema_version: 2,
+                collection_formats: ["list", "dict"],
+                templates: [],
+                template_definitions: {{}},
+                template_catalog_warnings: [],
+                subnetworks: [],
+                subnetwork_definitions: {{}},
+                subnetwork_catalog_warnings: [],
+                selected_subnetwork: "",
+                annotation_definitions: {{ tensor: [] }},
+                app_metadata: {{ version: "test" }},
+                default_engine: "einsum_numpy",
+                default_collection_format: "list",
+                engines: ["einsum_numpy", "einsum_torch"],
+              }};
+            }},
+            async loadDraft() {{
+              calls.push("loadDraft");
+              return {{
+                ok: true,
+                draft: {{
+                  spec: {{ schema_version: 2, network: {{ id: "network_draft" }} }},
+                  engine: "einsum_torch",
+                  collection_format: "dict",
+                  saved_at: "2026-04-26T10:00:00+00:00",
+                }},
+              }};
+            }},
+            async clearDraft() {{
+              calls.push("clearDraft");
+              return {{ ok: true }};
+            }},
+          }},
+          confirmAction(message) {{
+            calls.push(`confirm:${{message}}`);
+            return true;
+          }},
+          actions: {{
+            normalizeSpec: (spec) => spec,
+            applyTemplateCatalogPayload: () => {{}},
+            reconcileTensorOrder: () => calls.push("reconcileTensorOrder"),
+            populateEngineOptions: () => calls.push("populateEngineOptions"),
+            enforceLinearPeriodicEngineSupport: () =>
+              calls.push("enforceLinearPeriodicEngineSupport"),
+            populateCollectionFormatOptions: () =>
+              calls.push("populateCollectionFormatOptions"),
+            initGraph: () => calls.push("initGraph"),
+            clearHistory: () => calls.push("clearHistory"),
+            render: () => calls.push("render"),
+            markContractionAnalysisDirty: () => calls.push("markContractionAnalysisDirty"),
+            setStatus: (message, level = "info") =>
+              calls.push(`status:${{level}}:${{message}}`),
+          }},
+        }});
+
+        await bootstrapFlow.bootstrap();
+
+        if (state.spec.id !== "network_draft") {{
+          throw new Error(`Expected restored draft spec, received ${{JSON.stringify(state.spec)}}.`);
+        }}
+        if (state.selectedEngine !== "einsum_torch" || state.selectedCollectionFormat !== "dict") {{
+          throw new Error(`Expected draft engine/format, received ${{state.selectedEngine}}/${{state.selectedCollectionFormat}}.`);
+        }}
+        if (!calls.some((call) => String(call).startsWith("confirm:"))) {{
+          throw new Error(`Expected restore confirmation, received ${{JSON.stringify(calls)}}.`);
+        }}
+        if (calls.includes("clearDraft")) {{
+          throw new Error(`Confirmed draft restore should keep the draft until the next explicit save/done/cancel, received ${{JSON.stringify(calls)}}.`);
+        }}
+        """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The bootstrap draft restore script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_serialize_current_spec_reuses_cached_payload_by_revision_and_snapshot_mode(
     tmp_path: Path,
 ) -> None:

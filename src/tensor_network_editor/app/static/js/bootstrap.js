@@ -19,6 +19,9 @@ export function startEditor(ctx) {
     store,
     sessionService,
     actions,
+    confirmAction(message) {
+      return window.confirm(message);
+    },
   });
   const shellBindings = createEditorShellBindings({
     state,

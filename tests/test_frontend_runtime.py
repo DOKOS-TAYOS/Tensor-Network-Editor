@@ -11494,6 +11494,254 @@ def test_interaction_session_bindings_use_injected_services_and_ui_adapters(
     )
 
 
+def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "session_editor_draft_autosave.mjs"
+    _copy_js_modules(tmp_path, _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES)
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createSessionEditorFlows } = await import(
+              new URL("./session/sessionEditorFlows.js", baseUrl).href
+            );
+
+            const calls = [];
+            let scheduledCallback = null;
+            const state = {
+              spec: { name: "draft demo" },
+              generatedCode: "",
+              editorFinished: false,
+              draftAutosaveReady: true,
+              draftAutosaveTimer: null,
+              draftAutosaveDirty: false,
+              draftAutosaveSaving: false,
+            };
+            const flows = createSessionEditorFlows({
+              dom: {
+                exportFormatSelect: { value: "py" },
+                generatedCode: { value: "" },
+                loadInput: null,
+              },
+              state,
+              store: {
+                setGeneratedCode(code) {
+                  state.generatedCode = code;
+                },
+                setEditorFinished(value) {
+                  state.editorFinished = value;
+                },
+              },
+              selectors: {
+                getSelectedEngine: () => "einsum_numpy",
+                getSelectedCollectionFormat: () => "dict",
+              },
+              services: {
+                session: {
+                  async saveDraft(payload) {
+                    calls.push({ type: "saveDraft", payload });
+                    return { ok: true };
+                  },
+                  async clearDraft() {
+                    calls.push({ type: "clearDraft" });
+                    return { ok: true };
+                  },
+                  async completeSession(payload) {
+                    calls.push({ type: "completeSession", payload });
+                    return { ok: true };
+                  },
+                  async cancelSession() {
+                    calls.push({ type: "cancelSession" });
+                    return { ok: true };
+                  },
+                },
+              },
+              commands: {
+                syncGeneratedCodePreview() {},
+              },
+              sessionUi: {
+                schedule(callback) {
+                  scheduledCallback = callback;
+                  return 7;
+                },
+                downloadText(filename) {
+                  calls.push({ type: "downloadText", filename });
+                },
+                closeWindow() {},
+              },
+              actions: {
+                serializeCurrentSpec({ persistViewSnapshots }) {
+                  return {
+                    schema_version: 2,
+                    persistViewSnapshots,
+                    network: { id: "network_draft" },
+                  };
+                },
+                sanitizeFilename: (value) => value.replace(/\\s+/g, "_"),
+                setStatus(message, level = "info") {
+                  calls.push({ type: "status", message, level });
+                },
+                ensureCodePanelVisible() {},
+                syncCodeGenerationWarning() {},
+                getTensorKrowchManualPlanIssueMessage: () => "",
+                stripImportLines: (code) => code,
+                formatIssues: () => "issues",
+              },
+            });
+
+            flows.scheduleDraftAutosave();
+            if (typeof scheduledCallback !== "function") {
+              throw new Error("Expected draft autosave to schedule a debounced save.");
+            }
+            await scheduledCallback();
+            const saveCall = calls.find((entry) => entry.type === "saveDraft");
+            if (!saveCall) {
+              throw new Error(`Expected autosave to call saveDraft, received ${JSON.stringify(calls)}.`);
+            }
+            if (
+              saveCall.payload.engine !== "einsum_numpy" ||
+              saveCall.payload.collectionFormat !== "dict" ||
+              saveCall.payload.spec.network.id !== "network_draft"
+            ) {
+              throw new Error(`Unexpected autosave payload: ${JSON.stringify(saveCall.payload)}.`);
+            }
+
+            flows.saveDesign();
+            await Promise.resolve();
+            if (!calls.some((entry) => entry.type === "clearDraft")) {
+              throw new Error(`Expected explicit JSON save to clear the draft, received ${JSON.stringify(calls)}.`);
+            }
+            if (!state.draftAutosaveReady) {
+              throw new Error("Explicit JSON save should resume future autosaves.");
+            }
+
+            const callCountBeforeComplete = calls.length;
+            await flows.completeEditor();
+            const completeCalls = calls.slice(callCountBeforeComplete);
+            const clearIndex = completeCalls.findIndex((entry) => entry.type === "clearDraft");
+            const completeIndex = completeCalls.findIndex((entry) => entry.type === "completeSession");
+            if (clearIndex < 0 || completeIndex < 0) {
+              throw new Error(`Expected Done to finish and clear, received ${JSON.stringify(completeCalls)}.`);
+            }
+            if (state.draftAutosaveReady) {
+              throw new Error("Done should stop further draft autosaves.");
+            }
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_editor_flows_autosave_and_clear_project_drafts(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_session_editor_draft_autosave_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The session-editor draft autosave runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_tensor_initializer_parsing_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "tensor_initializer_parsing.mjs"
+    _copy_js_modules(
+        tmp_path,
+        {
+            "properties/tensorPropertiesStandardData.js": (
+                "properties/tensorPropertiesStandardData.js"
+            )
+        },
+    )
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createStandardTensorDataSupport } = await import(
+              new URL("./properties/tensorPropertiesStandardData.js", baseUrl).href
+            );
+
+            const dataSupport = createStandardTensorDataSupport();
+            const fill = dataSupport.analyzeTensorDataFillInput("1+2j");
+            if (
+              !fill.ok ||
+              JSON.stringify(fill.tensorData.fill_value) !==
+                JSON.stringify({ real: 1, imag: 2 })
+            ) {
+              throw new Error(`Expected friendly complex fill parsing, received ${JSON.stringify(fill)}.`);
+            }
+
+            const literal = dataSupport.analyzeTensorLiteralInput(
+              '[["1+2j", {"real": 3, "imag": -4}]]',
+              [1, 2]
+            );
+            if (
+              !literal.ok ||
+              JSON.stringify(literal.tensorData.values) !==
+                JSON.stringify([[{ real: 1, imag: 2 }, { real: 3, imag: -4 }]])
+            ) {
+              throw new Error(`Expected literal complex values to normalize, received ${JSON.stringify(literal)}.`);
+            }
+
+            const tensor = {
+              indices: [{ dimension: 2 }, { dimension: 2 }],
+              tensor_data: {
+                mode: "random",
+                dtype: "complex64",
+                seed: 123,
+                distribution: "uniform",
+              },
+            };
+            if (dataSupport.getTensorDataMode(tensor) !== "random") {
+              throw new Error("Expected random tensor-data mode.");
+            }
+            if (dataSupport.getTensorDataDType(tensor) !== "complex64") {
+              throw new Error("Expected complex64 dtype.");
+            }
+            if (dataSupport.getTensorRandomSeed(tensor) !== 123) {
+              throw new Error("Expected seeded random initializer.");
+            }
+            if (dataSupport.getTensorRandomDistribution(tensor) !== "uniform") {
+              throw new Error("Expected uniform random distribution.");
+            }
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tensor_initializer_ui_parses_complex_dtype_and_random_fields(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_tensor_initializer_parsing_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The tensor-initializer parsing runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 def _write_session_editor_live_python_import_runtime_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "session_editor_live_python_import.mjs"
     _copy_js_modules(tmp_path, _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES)
@@ -11712,11 +11960,12 @@ def _write_editor_session_service_validate_python_runtime_script(
 
             const apiCalls = [];
             const service = createEditorSessionService({
-              apiGet() {
-                throw new Error("validatePythonCode should not call apiGet.");
+              async apiGet(path) {
+                apiCalls.push({ path, method: "GET" });
+                return { ok: true, draft: null };
               },
               async apiPost(path, payload) {
-                apiCalls.push({ path, payload });
+                apiCalls.push({ path, method: "POST", payload });
                 return { ok: true };
               },
             });
@@ -11729,9 +11978,16 @@ def _write_editor_session_service_validate_python_runtime_script(
               pythonReconstructionLevel: "simple",
               pythonObjectName: "network",
             });
+            await service.loadDraft();
+            await service.saveDraft({
+              spec: { schema_version: 2, network: { id: "network_draft" } },
+              engine: "einsum_numpy",
+              collectionFormat: "dict",
+            });
+            await service.clearDraft();
 
-            if (apiCalls.length !== 2) {
-              throw new Error(`Expected two validate calls, received ${JSON.stringify(apiCalls)}.`);
+            if (apiCalls.length !== 5) {
+              throw new Error(`Expected validate and draft calls, received ${JSON.stringify(apiCalls)}.`);
             }
             if (apiCalls[0].path !== "/api/validate") {
               throw new Error(`Expected validatePythonCode to target /api/validate, received ${JSON.stringify(apiCalls[0])}.`);
@@ -11760,7 +12016,19 @@ def _write_editor_session_service_validate_python_runtime_script(
             if (apiCalls[1].payload.python_object_name !== "network") {
               throw new Error(`Expected object requests to preserve python_object_name, received ${JSON.stringify(apiCalls[1])}.`);
             }
-            """
+            if (apiCalls[2].path !== "/api/draft" || apiCalls[2].method !== "GET") {
+              throw new Error(`Expected loadDraft to GET /api/draft, received ${JSON.stringify(apiCalls[2])}.`);
+            }
+            if (apiCalls[3].path !== "/api/draft" || apiCalls[3].method !== "POST") {
+              throw new Error(`Expected saveDraft to POST /api/draft, received ${JSON.stringify(apiCalls[3])}.`);
+            }
+            if (apiCalls[3].payload.collection_format !== "dict") {
+              throw new Error(`Expected saveDraft to normalize collection_format, received ${JSON.stringify(apiCalls[3])}.`);
+            }
+            if (apiCalls[4].path !== "/api/draft/clear" || apiCalls[4].method !== "POST") {
+              throw new Error(`Expected clearDraft to POST /api/draft/clear, received ${JSON.stringify(apiCalls[4])}.`);
+            }
+          """
         ),
         encoding="utf-8",
     )

@@ -60,10 +60,17 @@ Install extras only when you need them.
 Backend extras:
 
 ```bash
+python -m pip install "tensor-network-editor[numpy]"
+python -m pip install "tensor-network-editor[torch]"
 python -m pip install "tensor-network-editor[quimb]"
 python -m pip install "tensor-network-editor[tensornetwork]"
 python -m pip install "tensor-network-editor[tensorkrowch]"
 ```
+
+The `numpy` extra installs NumPy for generated `einsum_numpy` code. The
+`torch` extra installs PyTorch for generated `einsum_torch` code and is also
+useful before running PyTorch-backed examples. The base package still has no
+mandatory runtime dependencies.
 
 Planner extra:
 
@@ -87,7 +94,7 @@ local browser editor.
 You can combine extras:
 
 ```bash
-python -m pip install "tensor-network-editor[quimb,planner]"
+python -m pip install "tensor-network-editor[numpy,quimb,planner]"
 ```
 
 Use backend extras when you want generated code to run in the same environment.

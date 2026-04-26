@@ -11,6 +11,15 @@ export function createEditorSessionService({ apiGet, apiPost }) {
     loadBootstrap() {
       return apiGet("/api/bootstrap");
     },
+    loadDraft() {
+      return apiGet("/api/draft");
+    },
+    saveDraft(request) {
+      return apiPost("/api/draft", buildCodegenPayload(request));
+    },
+    clearDraft() {
+      return apiPost("/api/draft/clear", {});
+    },
     generateCode(request) {
       return apiPost("/api/generate", buildCodegenPayload(request));
     },

@@ -68,16 +68,48 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
     return leftShape.every((dimension, position) => dimension === rightShape[position]);
   }
 
-  function normalizeTensorLiteralNode(value) {
+  function normalizeTensorDataDType(tensorData) {
+    const dtype = String(tensorData?.dtype || "").trim();
+    return ["float32", "float64", "complex64", "complex128"].includes(dtype)
+      ? dtype
+      : null;
+  }
+
+  function withOptionalTensorDataDType(payload, tensorData) {
+    const dtype = normalizeTensorDataDType(tensorData);
+    if (dtype) {
+      payload.dtype = dtype;
+    }
+    return payload;
+  }
+
+  function normalizeTensorScalarNode(value) {
     if (typeof value === "boolean") {
       return null;
     }
     if (typeof value === "number") {
-      if (!Number.isFinite(value)) {
-        return null;
-      }
+      return Number.isFinite(value) ? value : null;
+    }
+    if (
+      runtime.isObject(value) &&
+      typeof value.real === "number" &&
+      typeof value.imag === "number" &&
+      Number.isFinite(value.real) &&
+      Number.isFinite(value.imag)
+    ) {
       return {
-        normalized: value,
+        real: value.real,
+        imag: value.imag,
+      };
+    }
+    return null;
+  }
+
+  function normalizeTensorLiteralNode(value) {
+    const scalarValue = normalizeTensorScalarNode(value);
+    if (scalarValue !== null) {
+      return {
+        normalized: scalarValue,
         shape: [],
       };
     }
@@ -114,27 +146,62 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
       return null;
     }
     const mode = String(tensorData.mode || "").trim();
+    if (mode === "zeros") {
+      return withOptionalTensorDataDType({ mode: "zeros" }, tensorData);
+    }
     if (mode === "ones") {
-      return { mode: "ones" };
+      return withOptionalTensorDataDType({ mode: "ones" }, tensorData);
     }
     if (mode === "fill") {
-      if (typeof tensorData.fill_value !== "number" || !Number.isFinite(tensorData.fill_value)) {
+      const fillValue = normalizeTensorScalarNode(tensorData.fill_value);
+      if (fillValue === null) {
         return null;
       }
-      return {
+      return withOptionalTensorDataDType({
         mode: "fill",
-        fill_value: tensorData.fill_value,
-      };
+        fill_value: fillValue,
+      }, tensorData);
     }
     if (mode === "literal") {
       const normalizedLiteral = normalizeTensorLiteralNode(tensorData.values);
       if (!normalizedLiteral || !tensorShapesMatch(normalizedLiteral.shape, expectedShape)) {
         return null;
       }
-      return {
+      return withOptionalTensorDataDType({
         mode: "literal",
         values: runtime.deepClone(normalizedLiteral.normalized),
-      };
+      }, tensorData);
+    }
+    if (mode === "identity") {
+      if (
+        !Array.isArray(expectedShape) ||
+        expectedShape.length !== 2 ||
+        expectedShape[0] !== expectedShape[1]
+      ) {
+        return null;
+      }
+      return withOptionalTensorDataDType({ mode: "identity" }, tensorData);
+    }
+    if (mode === "copy") {
+      if (
+        !Array.isArray(expectedShape) ||
+        !expectedShape.length ||
+        expectedShape.some((dimension) => dimension !== expectedShape[0])
+      ) {
+        return null;
+      }
+      return withOptionalTensorDataDType({ mode: "copy" }, tensorData);
+    }
+    if (mode === "random") {
+      const seed = Number.isInteger(tensorData.seed) && tensorData.seed >= 0
+        ? tensorData.seed
+        : 0;
+      const distribution = String(tensorData.distribution || "normal").trim();
+      return withOptionalTensorDataDType({
+        mode: "random",
+        seed,
+        distribution: distribution === "uniform" ? "uniform" : "normal",
+      }, tensorData);
     }
     return null;
   }

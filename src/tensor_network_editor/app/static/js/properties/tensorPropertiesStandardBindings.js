@@ -13,6 +13,9 @@ export function createStandardTensorPropertiesBindingSupport({
   const {
     getTensorShape,
     getTensorDataMode,
+    getTensorDataDType,
+    getTensorRandomDistribution,
+    getTensorRandomSeed,
     buildDefaultTensorLiteralValues,
     analyzeTensorDataFillInput,
     analyzeTensorLiteralInput,
@@ -72,12 +75,13 @@ export function createStandardTensorPropertiesBindingSupport({
   function bindStandardTensorProperties(tensor) {
     const tensorShape = getTensorShape(tensor);
     const tensorDataMode = getTensorDataMode(tensor);
+    const tensorDataDType = getTensorDataDType(tensor);
     const tensorFillValue =
-      tensorDataMode === "fill" &&
-      typeof tensor.tensor_data?.fill_value === "number" &&
-      Number.isFinite(tensor.tensor_data.fill_value)
+      tensorDataMode === "fill" && tensor.tensor_data?.fill_value !== undefined
         ? tensor.tensor_data.fill_value
         : 0;
+    const tensorRandomSeed = getTensorRandomSeed(tensor);
+    const tensorRandomDistribution = getTensorRandomDistribution(tensor);
     const tensorNameInput = document.getElementById("tensor-name-input");
     const tensorColorInput = document.getElementById("tensor-color-input");
     const tensorTagsInput = document.getElementById("tensor-tags-input");
@@ -86,8 +90,19 @@ export function createStandardTensorPropertiesBindingSupport({
     );
     const tensorDataModeField = document.getElementById("tensor-data-mode-field");
     const tensorDataModeSelect = document.getElementById("tensor-data-mode-select");
+    const tensorDataDTypeField = document.getElementById("tensor-data-dtype-field");
+    const tensorDataDTypeSelect = document.getElementById("tensor-data-dtype-select");
     const tensorDataFillInput = document.getElementById("tensor-data-fill-input");
     const tensorDataValuesInput = document.getElementById("tensor-data-values-input");
+    const tensorDataRandomSeedInput = document.getElementById(
+      "tensor-data-random-seed-input"
+    );
+    const tensorDataRandomDistributionField = document.getElementById(
+      "tensor-data-random-distribution-field"
+    );
+    const tensorDataRandomDistributionSelect = document.getElementById(
+      "tensor-data-random-distribution-select"
+    );
     const tensorDataValidationMessage = document.getElementById(
       "tensor-data-validation-message"
     );
@@ -107,23 +122,161 @@ export function createStandardTensorPropertiesBindingSupport({
       }
     }
 
+    function readTensorDataDType() {
+      const dtype = String(
+        tensorDataDTypeSelect?.value || tensorDataDType || ""
+      ).trim();
+      return ["float32", "float64", "complex64", "complex128"].includes(dtype)
+        ? dtype
+        : "";
+    }
+
+    function withSelectedDType(tensorData) {
+      const dtype = readTensorDataDType();
+      if (dtype) {
+        return {
+          ...tensorData,
+          dtype,
+        };
+      }
+      return tensorData;
+    }
+
+    function validateTensorDataModeForShape(nextMode) {
+      if (
+        nextMode === "identity" &&
+        (tensorShape.length !== 2 || tensorShape[0] !== tensorShape[1])
+      ) {
+        return `Identity requires a square rank-2 tensor; current shape is [${tensorShape.join(", ")}].`;
+      }
+      if (
+        nextMode === "copy" &&
+        (!tensorShape.length ||
+          tensorShape.some((dimension) => dimension !== tensorShape[0]))
+      ) {
+        return `Copy tensor requires all index dimensions to match; current shape is [${tensorShape.join(", ")}].`;
+      }
+      return "";
+    }
+
+    function readRandomSeed() {
+      const rawSeed =
+        tensorDataRandomSeedInput?.value !== undefined
+          ? tensorDataRandomSeedInput.value
+          : String(tensorRandomSeed);
+      const parsedSeed = Number(rawSeed);
+      if (!Number.isInteger(parsedSeed) || parsedSeed < 0) {
+        return null;
+      }
+      return parsedSeed;
+    }
+
+    function readRandomDistribution() {
+      const distribution = String(
+        tensorDataRandomDistributionSelect?.value || tensorRandomDistribution
+      ).trim();
+      return distribution === "uniform" ? "uniform" : "normal";
+    }
+
     function buildTensorDataForMode(nextMode) {
+      const shapeError = validateTensorDataModeForShape(nextMode);
+      if (shapeError) {
+        return {
+          ok: false,
+          message: shapeError,
+        };
+      }
+      if (nextMode === "zeros") {
+        return {
+          ok: true,
+          tensorData: withSelectedDType({ mode: "zeros" }),
+        };
+      }
       if (nextMode === "ones") {
-        return { mode: "ones" };
+        return {
+          ok: true,
+          tensorData: withSelectedDType({ mode: "ones" }),
+        };
       }
       if (nextMode === "fill") {
+        const validation = analyzeTensorDataFillInput(
+          tensorDataFillInput ? tensorDataFillInput.value : tensorFillValue
+        );
+        if (!validation.ok) {
+          return validation;
+        }
         return {
-          mode: "fill",
-          fill_value: tensorFillValue,
+          ok: true,
+          tensorData: withSelectedDType(validation.tensorData),
         };
       }
       if (nextMode === "literal") {
+        const values =
+          tensorDataValuesInput && tensorDataValuesInput.value.trim()
+            ? analyzeTensorLiteralInput(tensorDataValuesInput.value, tensorShape)
+            : {
+                ok: true,
+                tensorData: {
+                  mode: "literal",
+                  values: buildDefaultTensorLiteralValues(tensor, tensorShape),
+                },
+              };
+        if (!values.ok) {
+          return values;
+        }
         return {
-          mode: "literal",
-          values: buildDefaultTensorLiteralValues(tensor, tensorShape),
+          ok: true,
+          tensorData: withSelectedDType(values.tensorData),
         };
       }
-      return null;
+      if (nextMode === "identity") {
+        return {
+          ok: true,
+          tensorData: withSelectedDType({ mode: "identity" }),
+        };
+      }
+      if (nextMode === "copy") {
+        return {
+          ok: true,
+          tensorData: withSelectedDType({ mode: "copy" }),
+        };
+      }
+      if (nextMode === "random") {
+        const seed = readRandomSeed();
+        if (seed === null) {
+          return {
+            ok: false,
+            message: "Random seed must be a non-negative integer.",
+          };
+        }
+        return {
+          ok: true,
+          tensorData: withSelectedDType({
+            mode: "random",
+            seed,
+            distribution: readRandomDistribution(),
+          }),
+        };
+      }
+      return {
+        ok: true,
+        tensorData: null,
+      };
+    }
+
+    function updateTensorDataFromControls(nextMode, invalidate = {}) {
+      const validation = buildTensorDataForMode(nextMode);
+      if (!validation.ok) {
+        reportTensorDataValidationError(validation.message);
+        return;
+      }
+      setTensorDataValidationMessage("");
+      commands.updateTensorData({
+        tensorId: tensor.id,
+        nextTensorData: validation.tensorData,
+        invalidate: propertyInvalidation(invalidate),
+        statusMessage: `Updated tensor ${tensor.name}.`,
+      });
     }
 
     bindDebouncedAutosave(
@@ -162,19 +315,27 @@ export function createStandardTensorPropertiesBindingSupport({
       annotationScope: "tensor",
     });
     bindTensorDataModeChevronDisclosure(tensorDataModeField, tensorDataModeSelect);
+    bindTensorDataModeChevronDisclosure(tensorDataDTypeField, tensorDataDTypeSelect);
+    bindTensorDataModeChevronDisclosure(
+      tensorDataRandomDistributionField,
+      tensorDataRandomDistributionSelect
+    );
     bindImmediateAutosave(
       tensorDataModeSelect,
       `tensor:${tensor.id}:tensor-data-mode`,
       () => {
         const nextMode = String(tensorDataModeSelect.value || "zeros");
         setTensorDataModeChevronExpanded(tensorDataModeField, false);
-        setTensorDataValidationMessage("");
-        commands.updateTensorData({
-          tensorId: tensor.id,
-          nextTensorData: buildTensorDataForMode(nextMode),
-          invalidate: propertyInvalidation({ properties: true }),
-          statusMessage: `Updated tensor ${tensor.name}.`,
-        });
+        updateTensorDataFromControls(nextMode, { properties: true });
+      }
+    );
+    bindImmediateAutosave(
+      tensorDataDTypeSelect,
+      `tensor:${tensor.id}:tensor-data-dtype`,
+      () => {
+        const nextMode = String(tensorDataModeSelect?.value || tensorDataMode);
+        setTensorDataModeChevronExpanded(tensorDataDTypeField, false);
+        updateTensorDataFromControls(nextMode, { properties: true });
       }
     );
 
@@ -195,7 +356,7 @@ export function createStandardTensorPropertiesBindingSupport({
           setTensorDataValidationMessage("");
           commands.updateTensorData({
             tensorId: tensor.id,
-            nextTensorData: validation.tensorData,
+            nextTensorData: withSelectedDType(validation.tensorData),
             invalidate: propertyInvalidation({ properties: true }),
             statusMessage: `Updated tensor ${tensor.name}.`,
           });
@@ -229,7 +390,7 @@ export function createStandardTensorPropertiesBindingSupport({
           setTensorDataValidationMessage("");
           commands.updateTensorData({
             tensorId: tensor.id,
-            nextTensorData: validation.tensorData,
+            nextTensorData: withSelectedDType(validation.tensorData),
             invalidate: propertyInvalidation({ properties: true }),
             statusMessage: `Updated tensor ${tensor.name}.`,
           });
@@ -240,6 +401,34 @@ export function createStandardTensorPropertiesBindingSupport({
         }
       );
     }
+
+    if (tensorDataRandomSeedInput) {
+      tensorDataRandomSeedInput.addEventListener("input", () => {
+        const seed = readRandomSeed();
+        setTensorDataValidationMessage(
+          seed === null ? "Random seed must be a non-negative integer." : ""
+        );
+      });
+      bindDebouncedAutosave(
+        tensorDataRandomSeedInput,
+        `tensor:${tensor.id}:tensor-data-random-seed`,
+        () => {
+          updateTensorDataFromControls("random", { properties: true });
+        },
+        {
+          scheduleOnInput: false,
+        }
+      );
+    }
+
+    bindImmediateAutosave(
+      tensorDataRandomDistributionSelect,
+      `tensor:${tensor.id}:tensor-data-random-distribution`,
+      () => {
+        setTensorDataModeChevronExpanded(tensorDataRandomDistributionField, false);
+        updateTensorDataFromControls("random", { properties: true });
+      }
+    );
 
     document.getElementById("add-index-button").addEventListener("click", () => {
       commands.addTensorIndex({

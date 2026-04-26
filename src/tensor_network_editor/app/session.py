@@ -22,6 +22,7 @@ from ..models import (
     TensorCollectionFormat,
 )
 from ..types import JSONValue, StrPath
+from ._drafts import resolve_project_draft_path
 from ._protocol import JsonDict
 from ._services import (
     build_bootstrap_payload,
@@ -65,6 +66,7 @@ class EditorSession:
         template_catalog_path: StrPath | None = None,
         subnetwork_catalog_path: StrPath | None = None,
         shared_subnetwork_catalog_path: StrPath | None = None,
+        draft_path: StrPath | None = None,
     ) -> None:
         """Initialize one mutable editor session.
 
@@ -82,6 +84,7 @@ class EditorSession:
                 catalog path.
             shared_subnetwork_catalog_path: Optional shared reusable subnetwork
                 catalog path.
+            draft_path: Optional path for the recoverable project draft.
         """
         self.initial_spec = initial_spec or build_blank_network_spec()
         self.session_id = uuid4().hex[:8]
@@ -89,6 +92,7 @@ class EditorSession:
         self.default_collection_format = default_collection_format
         self.print_code = print_code
         self.code_path = code_path
+        self.draft_path = resolve_project_draft_path(draft_path)
         self._catalog_state = SessionCatalogState.load(
             template_catalog_path=template_catalog_path,
             subnetwork_catalog_path=subnetwork_catalog_path,
@@ -359,6 +363,7 @@ def launch_editor_session(
     template_catalog_path: StrPath | None = None,
     subnetwork_catalog_path: StrPath | None = None,
     shared_subnetwork_catalog_path: StrPath | None = None,
+    draft_path: StrPath | None = None,
     _on_server_ready: Callable[[str], None] | None = None,
 ) -> EditorResult | None:
     """Create the local server, optionally open the browser, and wait.
@@ -379,6 +384,7 @@ def launch_editor_session(
             catalog path.
         shared_subnetwork_catalog_path: Optional shared reusable subnetwork
             catalog path.
+        draft_path: Optional path for the recoverable project draft.
         _on_server_ready: Internal callback used by tests once the local URL is
             available.
 
@@ -400,6 +406,7 @@ def launch_editor_session(
         template_catalog_path=template_catalog_path,
         subnetwork_catalog_path=subnetwork_catalog_path,
         shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
+        draft_path=draft_path,
     )
     LOGGER.info("[session=%s] Starting editor session", session.session_id)
     server = EditorServer(session=session, host=host, port=port)

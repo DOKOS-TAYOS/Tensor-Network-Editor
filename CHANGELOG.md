@@ -4,8 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Browser editor sessions now keep a project-local recoverable draft under
+  `.tensor-network-editor/drafts/`, prompt to restore it on startup, and clear
+  it only after explicit save, Done, Cancel, or Start fresh actions.
+- Tensor initializers now support explicit zeros, identity/delta, generalized
+  copy tensors, seeded normal/uniform random values, portable dtype choices,
+  and JSON-friendly complex scalars across saved specs and generated code.
+- Packaging now declares `numpy` and `torch` optional extras for generated
+  `einsum_numpy` and `einsum_torch` workflows while keeping base dependencies
+  empty.
+
 ### Changed
 
+- Saved design payloads now use schema version `2`, while schema version `1`
+  remains loadable for existing files.
 - `For bidimensional` and `For Tree` now accept manual contraction plans with
   clickable virtual boundary operands; grid cells expose upper/right/lower/left
   neighbors, tree cells expose parent/child boundaries, and generated periodic
