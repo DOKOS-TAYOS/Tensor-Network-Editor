@@ -8,7 +8,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Main Imports](#main-imports)
 - [Launch the Editor](#launch-the-editor)
 - [Generate Code](#generate-code)
-- [Render SVG](#render-svg)
+- [Render Static Figures](#render-static-figures)
 - [Save and Load Designs](#save-and-load-designs)
 - [Build Specs in Python](#build-specs-in-python)
 - [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
@@ -28,9 +28,11 @@ from tensor_network_editor import (
     NetworkBuilder,
     NetworkSpec,
     PythonLoadOptions,
+    DotRenderOptions,
     TensorDataMode,
     TensorDataSpec,
     SvgRenderOptions,
+    TikzRenderOptions,
     TensorCollectionFormat,
     ValidationIssue,
     analyze_contraction,
@@ -44,8 +46,10 @@ from tensor_network_editor import (
     load_python_spec,
     load_spec,
     open_editor,
+    render_spec_dot,
     render_spec_png,
     render_spec_svg,
+    render_spec_tikz,
     save_spec,
     semantic_diff_specs,
     validate_spec,
@@ -68,7 +72,7 @@ Useful public modules:
 | `tensor_network_editor.builder` | fluent `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers |
 | `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
 | `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
-| `tensor_network_editor.rendering` | pure-Python SVG rendering helpers |
+| `tensor_network_editor.rendering` | pure-Python SVG, TikZ, DOT, and optional PNG rendering helpers |
 | `tensor_network_editor.validation` | hard validation helpers |
 | `tensor_network_editor.linting` | soft modeling diagnostics |
 | `tensor_network_editor.analysis` | structural and contraction analysis |
@@ -180,15 +184,20 @@ and a `remaining_operands` mapping.
 
 ## Render Static Figures
 
-Use `render_spec_svg(...)` or `render_spec_png(...)` when you want a static
-figure without opening the browser editor.
+Use `render_spec_svg(...)`, `render_spec_tikz(...)`, `render_spec_dot(...)`, or
+`render_spec_png(...)` when you want a static figure without opening the browser
+editor.
 
 ```python
 from tensor_network_editor import (
+    DotRenderOptions,
     SvgRenderOptions,
+    TikzRenderOptions,
     load_spec,
+    render_spec_dot,
     render_spec_png,
     render_spec_svg,
+    render_spec_tikz,
 )
 
 
@@ -198,14 +207,25 @@ svg = render_spec_svg(
     options=SvgRenderOptions(padding=48.0),
     output_path="figure.svg",
 )
+tikz = render_spec_tikz(
+    spec,
+    options=TikzRenderOptions(scale=0.02),
+    output_path="figure.tex",
+)
+dot = render_spec_dot(
+    spec,
+    options=DotRenderOptions(include_open_indices=True),
+    output_path="graph.dot",
+)
 png = render_spec_png(spec, output_path="figure.png")
 print(svg[:80])
 ```
 
-The SVG renderer is pure Python and has no browser/Node dependency. PNG export
-uses the same saved canvas positions and requires the optional `png` extra
-(`Pillow`). Both renderers validate the spec and draw tensors, indices,
-pairwise edges, hyperedges, groups, and notes.
+SVG, TikZ, and DOT rendering are pure Python and have no browser, Node, LaTeX,
+or Graphviz runtime dependency. PNG export uses the same saved canvas positions
+and requires the optional `png` extra (`Pillow`). The renderers validate the
+spec and draw tensors, indices, pairwise edges, hyperedges, groups, and notes
+where the target format supports them.
 
 ## Save and Load Designs
 

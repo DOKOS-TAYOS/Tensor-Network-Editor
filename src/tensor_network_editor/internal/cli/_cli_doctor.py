@@ -84,7 +84,8 @@ def build_doctor_report(
 
     lint_report = lint_spec(spec)
     lint = _lint_payload(lint_report)
-    suggestions.extend(_lint_suggestions(lint_report))
+    _extend_unique(suggestions, _lint_suggestions(lint_report))
+    _extend_unique(suggestions, _model_suggestions_from_lint(lint_report))
 
     analysis_report = analyze_spec(spec, memory_dtype=memory_dtype)
     analysis = {
@@ -97,9 +98,13 @@ def build_doctor_report(
         benchmark_report = build_benchmark_report(analysis_report.contraction)
         benchmark = benchmark_report.to_dict()
         warnings.extend(benchmark_report.warnings)
+        _extend_unique(
+            suggestions,
+            _contraction_suggestions(analysis_report.contraction),
+        )
 
     warnings.extend(_backend_warnings(backends))
-    suggestions.extend(_backend_suggestions(backends))
+    _extend_unique(suggestions, _backend_suggestions(backends, spec=spec))
     if not suggestions:
         suggestions.append("No immediate fixes needed.")
 
@@ -206,15 +211,72 @@ def _backend_warnings(backends: dict[str, JSONValue]) -> list[str]:
     return warnings
 
 
-def _backend_suggestions(backends: dict[str, JSONValue]) -> list[str]:
+def _backend_suggestions(
+    backends: dict[str, JSONValue],
+    *,
+    spec: NetworkSpec,
+) -> list[str]:
     """Return friendly suggestions based on optional dependency availability."""
     suggestions: list[str] = []
+    recommended_backend = _recommended_backend_suggestion(backends, spec=spec)
+    if recommended_backend is not None:
+        suggestions.append(recommended_backend)
     pillow = backends.get("PIL")
     if isinstance(pillow, dict) and not pillow.get("available"):
         suggestions.append(
             "Install tensor-network-editor[png] to enable headless PNG rendering."
         )
     return suggestions
+
+
+def _recommended_backend_suggestion(
+    backends: dict[str, JSONValue],
+    *,
+    spec: NetworkSpec,
+) -> str | None:
+    """Return a conservative backend recommendation for the current environment."""
+    is_periodic = (
+        spec.linear_periodic_chain is not None
+        or spec.grid_periodic_grid is not None
+        or spec.tree_periodic_tree is not None
+    )
+    if is_periodic and _backend_available(backends, "quimb"):
+        return (
+            "Recommended backend: quimb is available and is a good fit for "
+            "periodic array-style exports."
+        )
+    if _backend_available(backends, "quimb"):
+        return (
+            "Recommended backend: quimb is available for tensor-network-oriented "
+            "exports and inspection."
+        )
+    if _backend_available(backends, "numpy"):
+        return (
+            "Recommended backend: einsum_numpy is available and is the lightest "
+            "portable array-code export."
+        )
+    if _backend_available(backends, "torch"):
+        return (
+            "Recommended backend: einsum_torch is available when you want a "
+            "PyTorch-based array export."
+        )
+    if _backend_available(backends, "tensornetwork"):
+        return (
+            "Recommended backend: tensornetwork is available for graph-style "
+            "tensor-network exports."
+        )
+    if _backend_available(backends, "tensorkrowch"):
+        return (
+            "Recommended backend: tensorkrowch is available for graph-style "
+            "tensor-network exports."
+        )
+    return None
+
+
+def _backend_available(backends: dict[str, JSONValue], backend_name: str) -> bool:
+    """Return whether one backend payload reports an available import."""
+    backend = backends.get(backend_name)
+    return isinstance(backend, dict) and bool(backend.get("available"))
 
 
 def _lint_suggestions(report: LintReport) -> list[str]:
@@ -224,6 +286,111 @@ def _lint_suggestions(report: LintReport) -> list[str]:
         if issue.suggestion and issue.suggestion not in suggestions:
             suggestions.append(issue.suggestion)
     return suggestions
+
+
+def _model_suggestions_from_lint(report: LintReport) -> list[str]:
+    """Return higher-level model suggestions derived from lint signals."""
+    codes = {issue.code for issue in report.issues}
+    suggestions: list[str] = []
+    if "suspicious-open-index" in codes or "bond-leg-open-index" in codes:
+        suggestions.append(
+            "Review suspicious open indices; connect accidental dangling bonds, "
+            "or rename/document intentional output legs in metadata."
+        )
+    if "disconnected-components" in codes:
+        suggestions.append(
+            "Review disconnected components; connect them before comparing contraction "
+            "plans, or split independent components into separate specs."
+        )
+    if "large-tensor-rank" in codes or "large-tensor-cardinality" in codes:
+        suggestions.append(
+            "Inspect large tensor dimensions; a smaller bond dimension or a tensor "
+            "decomposition may make exports and contractions easier."
+        )
+    return suggestions
+
+
+def _contraction_suggestions(analysis: object) -> list[str]:
+    """Return suggestions from manual-vs-automatic contraction analysis."""
+    from ..analysis._contraction_analysis_types import ContractionAnalysisResult
+
+    if not isinstance(analysis, ContractionAnalysisResult):
+        return []
+    suggestions: list[str] = []
+    manual = analysis.manual
+    automatic_full = analysis.automatic_full
+    if manual.status != "unavailable" and automatic_full.status == "complete":
+        comparison = _manual_auto_full_comparison_suggestion(analysis)
+        if comparison is not None:
+            suggestions.append(comparison)
+    if (
+        manual.status != "unavailable"
+        and manual.summary.completion_status != "complete"
+        and len(manual.summary.remaining_operand_ids) > 1
+        and analysis.automatic_future.status == "complete"
+    ):
+        suggestions.append(
+            "Auto future can complete the remaining manual frontier "
+            f"({len(manual.summary.remaining_operand_ids)} active operands). "
+            "Consider using it to finish the contraction suffix."
+        )
+    return suggestions
+
+
+def _manual_auto_full_comparison_suggestion(
+    analysis: object,
+) -> str | None:
+    """Return one suggestion when auto-full is clearly cheaper than manual."""
+    from ..analysis._contraction_analysis_types import ContractionAnalysisResult
+
+    if not isinstance(analysis, ContractionAnalysisResult):
+        return None
+    manual_summary = analysis.manual.summary
+    automatic_summary = analysis.automatic_full.summary
+    cheaper_metrics: list[str] = []
+    if _manual_metric_is_worse(
+        manual_summary.total_estimated_flops,
+        automatic_summary.total_estimated_flops,
+    ):
+        cheaper_metrics.append(
+            "FLOP "
+            f"{manual_summary.total_estimated_flops} vs {automatic_summary.total_estimated_flops}"
+        )
+    if _manual_metric_is_worse(
+        manual_summary.total_estimated_macs,
+        automatic_summary.total_estimated_macs,
+    ):
+        cheaper_metrics.append(
+            "MAC "
+            f"{manual_summary.total_estimated_macs} vs {automatic_summary.total_estimated_macs}"
+        )
+    if _manual_metric_is_worse(
+        manual_summary.peak_intermediate_bytes,
+        automatic_summary.peak_intermediate_bytes,
+    ):
+        cheaper_metrics.append(
+            "peak memory "
+            f"{manual_summary.peak_intermediate_bytes} vs {automatic_summary.peak_intermediate_bytes} bytes"
+        )
+    if not cheaper_metrics:
+        return None
+    return (
+        "Auto full is cheaper than the saved manual plan ("
+        + ", ".join(cheaper_metrics)
+        + "). Consider replacing the manual plan or using auto-full as a baseline."
+    )
+
+
+def _manual_metric_is_worse(manual_value: int, automatic_value: int) -> bool:
+    """Return whether manual is at least 25 percent worse than automatic."""
+    return automatic_value > 0 and manual_value >= automatic_value * 1.25
+
+
+def _extend_unique(target: list[str], values: list[str]) -> None:
+    """Append each value once, preserving order."""
+    for value in values:
+        if value not in target:
+            target.append(value)
 
 
 def _format_section(title: str, body: list[str]) -> list[str]:

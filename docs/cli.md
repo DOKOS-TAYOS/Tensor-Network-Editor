@@ -120,6 +120,8 @@ tensor-network-editor benchmark my_network.json
 tensor-network-editor doctor my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format tikz --output figure.tex
+tensor-network-editor render my_network.json --format dot --output graph.dot
 tensor-network-editor render my_network.json --format png --output figure.png
 tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
@@ -291,7 +293,9 @@ tensor-network-editor doctor my_network.json --format json
 - lint status
 - analysis and benchmark summaries when validation passes
 - available backends/extras such as `numpy`, `torch`, `opt_einsum`, and `PIL`
-- warnings and suggestions
+- warnings and suggestions, including suspicious model structure, backend
+  recommendations, incomplete manual plans, and clearly cheaper automatic
+  alternatives
 
 Exit code is `0` when the file loads and validation passes, `1` when validation
 finds errors, and `2` for load/parse errors.
@@ -331,23 +335,30 @@ the input spec path before they are emitted into generated code.
 
 ## Render
 
-Render a saved design to a static image without opening the browser editor:
+Render a saved design to a static image or academic text format without opening
+the browser editor:
 
 ```bash
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format tikz --output figure.tex
+tensor-network-editor render my_network.json --format dot --output graph.dot
 tensor-network-editor render my_network.json --format png --output figure.png
 ```
 
-If `--output` is omitted, the SVG is printed to standard output:
+If `--output` is omitted, SVG, TikZ, and DOT are printed to standard output:
 
 ```bash
 tensor-network-editor render my_network.json --format svg
+tensor-network-editor render my_network.json --format tikz
+tensor-network-editor render my_network.json --format dot
 ```
 
-SVG rendering is pure Python and uses the saved canvas positions. PNG rendering
-uses the same geometry and requires the optional `png` extra; PNG output must
-be written to a file. Both formats draw tensors, indices, pairwise edges,
-hyperedges, groups, and notes.
+SVG, TikZ, and DOT rendering are pure Python and use the saved canvas
+positions. TikZ output is a `tikzpicture`, not a complete LaTeX document; DOT
+output is a Graphviz `graph`. PNG rendering uses the same geometry and requires
+the optional `png` extra; PNG output must be written to a file. All formats draw
+tensors and connections, with groups, notes, open indices, and hyperedges
+included where the target format supports them.
 
 ## Canonicalize
 

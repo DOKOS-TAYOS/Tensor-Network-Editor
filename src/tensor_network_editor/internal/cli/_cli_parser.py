@@ -166,7 +166,7 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     render_parser.add_argument("path", type=str)
     render_parser.add_argument(
         "--format",
-        choices=["svg", "png"],
+        choices=["svg", "png", "tikz", "dot"],
         default="svg",
     )
     render_parser.add_argument("--output", type=str)

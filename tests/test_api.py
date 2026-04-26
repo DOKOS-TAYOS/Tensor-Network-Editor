@@ -36,7 +36,14 @@ from tensor_network_editor.models import (
     TensorDataMode,
     TensorDataSpec,
 )
-from tensor_network_editor.rendering import SvgRenderOptions, render_spec_svg
+from tensor_network_editor.rendering import (
+    DotRenderOptions,
+    SvgRenderOptions,
+    TikzRenderOptions,
+    render_spec_dot,
+    render_spec_svg,
+    render_spec_tikz,
+)
 from tests.conftest import distribution_for_checkout_import_or_skip
 from tests.factories import (
     build_grid_periodic_grid_spec,
@@ -144,6 +151,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "EditorLaunchOptions",
         "EditorResult",
         "EngineName",
+        "DotRenderOptions",
         "GroupSpec",
         "HyperedgeSpec",
         "IndexHandle",
@@ -152,6 +160,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "NetworkSpec",
         "PythonLoadOptions",
         "SvgRenderOptions",
+        "TikzRenderOptions",
         "TensorCollectionFormat",
         "TensorDataMode",
         "TensorDataSpec",
@@ -171,8 +180,10 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_python_spec",
         "load_spec",
         "open_editor",
+        "render_spec_dot",
         "render_spec_svg",
         "render_spec_png",
+        "render_spec_tikz",
         "save_spec",
         "semantic_diff_specs",
         "validate_spec",
@@ -185,7 +196,11 @@ def test_package_root_exports_supported_public_api() -> None:
     from tensor_network_editor.rendering import render_spec_png
 
     assert tensor_network_editor.render_spec_png is render_spec_png
+    assert tensor_network_editor.render_spec_tikz is render_spec_tikz
+    assert tensor_network_editor.render_spec_dot is render_spec_dot
     assert tensor_network_editor.SvgRenderOptions is SvgRenderOptions
+    assert tensor_network_editor.TikzRenderOptions is TikzRenderOptions
+    assert tensor_network_editor.DotRenderOptions is DotRenderOptions
     assert tensor_network_editor.save_spec is _save_spec
     assert not hasattr(tensor_network_editor, "tensor_network_creation")
     assert not hasattr(tensor_network_editor, "launch_tensor_network_editor")

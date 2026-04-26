@@ -591,6 +591,9 @@ linear or grid neighborhood would hide that intent.
   when you want a stable comparison table for experiments or papers.
 - Run `tensor-network-editor doctor my_network.json` when you want one command
   to combine validation, lint, analysis, benchmark, and dependency checks.
+- Run `tensor-network-editor render my_network.json --format tikz --output figure.tex`
+  or `--format dot --output graph.dot` when you want paper-friendly or
+  Graphviz-friendly diagrams from the saved canvas layout.
 
 ## Current Limits
 

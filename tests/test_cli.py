@@ -19,6 +19,7 @@ from tensor_network_editor.internal.analysis._contraction_analysis_types import 
     ManualContractionPlanAnalysis,
     ManualContractionSummary,
 )
+from tensor_network_editor.internal.cli._cli_doctor import build_doctor_report
 from tensor_network_editor.internal.cli._cli_formatters import (
     _coerce_int,
     _format_label_list,
@@ -132,6 +133,14 @@ def build_analysis_report(memory_dtype: str = "float64") -> SpecAnalysisReport:
             automatic_strategy="greedy",
         ),
     )
+
+
+def no_validation_issues(_spec: NetworkSpec) -> list[ValidationIssue]:
+    return []
+
+
+def empty_lint_report(_spec: NetworkSpec) -> LintReport:
+    return LintReport()
 
 
 def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
@@ -689,6 +698,98 @@ def test_doctor_subcommand_reports_hyperedges_as_warning(
     assert "Validation" in output
 
 
+def test_doctor_report_recommends_available_backend_and_auto_full(
+    sample_spec: NetworkSpec,
+) -> None:
+    report = build_doctor_report(
+        sample_spec,
+        validate_spec=no_validation_issues,
+        lint_spec=empty_lint_report,
+        analyze_spec=lambda _spec, memory_dtype: build_analysis_report(memory_dtype),
+        find_spec=lambda import_name: (
+            object() if import_name in {"numpy", "opt_einsum"} else None
+        ),
+    )
+
+    suggestions_text = "\n".join(report.suggestions)
+
+    assert "Recommended backend: einsum_numpy" in suggestions_text
+    assert "Auto full is cheaper than the saved manual plan" in suggestions_text
+    assert "FLOP 1600 vs 1224" in suggestions_text
+    assert "No immediate fixes needed." not in report.suggestions
+
+
+def test_doctor_report_suggests_auto_future_for_incomplete_manual_plan(
+    sample_spec: NetworkSpec,
+) -> None:
+    analysis_report = build_analysis_report()
+    assert analysis_report.contraction is not None
+    analysis_report.contraction.manual.status = "partial"
+    analysis_report.contraction.manual.summary.completion_status = "partial"
+    analysis_report.contraction.manual.summary.remaining_operand_ids = (
+        "step_ab",
+        "tensor_c",
+    )
+
+    def analyze_incomplete_manual_plan(
+        _spec: NetworkSpec,
+        *,
+        memory_dtype: str = "float64",
+    ) -> SpecAnalysisReport:
+        assert memory_dtype
+        return analysis_report
+
+    report = build_doctor_report(
+        sample_spec,
+        validate_spec=no_validation_issues,
+        lint_spec=empty_lint_report,
+        analyze_spec=analyze_incomplete_manual_plan,
+        find_spec=lambda import_name: object() if import_name == "opt_einsum" else None,
+    )
+
+    assert any(
+        "Auto future can complete the remaining manual frontier" in suggestion
+        for suggestion in report.suggestions
+    )
+
+
+def test_doctor_report_adds_model_level_suggestions_from_lint(
+    sample_spec: NetworkSpec,
+) -> None:
+    lint_report = LintReport(
+        issues=[
+            LintIssue(
+                severity="warning",
+                code="suspicious-open-index",
+                message="Index 'x' is open and looks like a missing connection.",
+                path="tensors.tensor_a.indices.tensor_a_x",
+                suggestion="Connect it, rename it to reflect an output leg, or document it in metadata.",
+            ),
+            LintIssue(
+                severity="warning",
+                code="large-tensor-cardinality",
+                message="Tensor 'A' spans many elements.",
+                path="tensors.tensor_a",
+                suggestion="Check dimensions, decomposition choices, or raise the threshold for this workflow.",
+            ),
+        ]
+    )
+
+    report = build_doctor_report(
+        sample_spec,
+        validate_spec=no_validation_issues,
+        lint_spec=lambda _spec: lint_report,
+        analyze_spec=lambda _spec, memory_dtype: build_analysis_report(memory_dtype),
+        find_spec=lambda import_name: object() if import_name == "opt_einsum" else None,
+    )
+
+    suggestions_text = "\n".join(report.suggestions)
+
+    assert "Review suspicious open indices" in suggestions_text
+    assert "Inspect large tensor dimensions" in suggestions_text
+    assert "No immediate fixes needed." not in report.suggestions
+
+
 def test_export_subcommand_calls_generate_code_with_requested_output(
     sample_spec: NetworkSpec,
 ) -> None:
@@ -766,6 +867,62 @@ def test_render_subcommand_writes_png_output(sample_spec: NetworkSpec) -> None:
     assert render_mock.call_args.kwargs["output_path"] == "figure.png"
 
 
+def test_render_subcommand_writes_tikz_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_tikz",
+            return_value=r"\begin{tikzpicture}\end{tikzpicture}",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "tikz",
+                "--output",
+                "figure.tex",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "figure.tex"
+
+
+def test_render_subcommand_writes_dot_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_dot",
+            return_value='graph "network_demo" {}',
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "dot",
+                "--output",
+                "graph.dot",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "graph.dot"
+
+
 def test_render_subcommand_rejects_png_without_output(
     sample_spec: NetworkSpec,
     capsys: pytest.CaptureFixture[str],
@@ -775,6 +932,40 @@ def test_render_subcommand_rejects_png_without_output(
 
     assert exit_code == 2
     assert "PNG render requires --output" in capsys.readouterr().out
+
+
+def test_render_subcommand_prints_tikz_when_no_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
+        patch(
+            "tensor_network_editor.cli.render_spec_tikz",
+            return_value=r"\begin{tikzpicture}network\end{tikzpicture}",
+        ),
+    ):
+        exit_code = main(["render", "saved-network.json", "--format", "tikz"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "\\begin{tikzpicture}network\\end{tikzpicture}\n"
+
+
+def test_render_subcommand_prints_dot_when_no_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
+        patch(
+            "tensor_network_editor.cli.render_spec_dot",
+            return_value='graph "network_demo" {}',
+        ),
+    ):
+        exit_code = main(["render", "saved-network.json", "--format", "dot"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == 'graph "network_demo" {}\n'
 
 
 def test_render_subcommand_prints_svg_when_no_output(

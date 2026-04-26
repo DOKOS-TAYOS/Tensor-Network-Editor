@@ -20,6 +20,7 @@ from tensor_network_editor.models import (
     SemanticSpecDiffResult,
     SpecDiffResult,
 )
+from tensor_network_editor.rendering import render_spec_dot, render_spec_tikz
 from tensor_network_editor.templates import (
     build_template_spec,
     list_template_names,
@@ -43,6 +44,8 @@ def test_package_root_exports_headless_entry_points() -> None:
     assert callable(tne.semantic_diff_specs)
     assert tne.build_template_spec is build_template_spec
     assert tne.list_template_names is list_template_names
+    assert tne.render_spec_tikz is render_spec_tikz
+    assert tne.render_spec_dot is render_spec_dot
     assert not hasattr(tne, "register_static_template")
 
 

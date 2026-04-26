@@ -213,7 +213,9 @@ def handle_render_command(
     args: argparse.Namespace,
     *,
     load_spec: Callable[..., NetworkSpec],
+    render_spec_dot: Callable[..., str],
     render_spec_svg: Callable[..., str],
+    render_spec_tikz: Callable[..., str],
     render_spec_png: Callable[..., bytes],
 ) -> int:
     """Render a saved spec as a static image."""
@@ -224,11 +226,19 @@ def handle_render_command(
         render_spec_png(spec, output_path=args.output)
         print(f"Wrote PNG rendering to {args.output}")
         return 0
-    svg = render_spec_svg(spec, output_path=args.output)
-    if args.output is None:
-        print(svg)
+    if args.format == "tikz":
+        text = render_spec_tikz(spec, output_path=args.output)
+        output_label = "TikZ"
+    elif args.format == "dot":
+        text = render_spec_dot(spec, output_path=args.output)
+        output_label = "Graphviz/DOT"
     else:
-        print(f"Wrote SVG rendering to {args.output}")
+        text = render_spec_svg(spec, output_path=args.output)
+        output_label = "SVG"
+    if args.output is None:
+        print(text)
+    else:
+        print(f"Wrote {output_label} rendering to {args.output}")
     return 0
 
 

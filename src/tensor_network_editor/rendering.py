@@ -50,6 +50,27 @@ class SvgRenderOptions:
 
 
 @dataclass(slots=True, frozen=True)
+class TikzRenderOptions:
+    """Options for the static TikZ renderer."""
+
+    scale: float = 0.02
+    show_index_labels: bool = True
+    show_edge_labels: bool = True
+    include_groups: bool = True
+    include_notes: bool = True
+
+
+@dataclass(slots=True, frozen=True)
+class DotRenderOptions:
+    """Options for the static Graphviz/DOT renderer."""
+
+    include_open_indices: bool = True
+    include_groups: bool = True
+    include_notes: bool = True
+    include_hyperedges: bool = True
+
+
+@dataclass(slots=True, frozen=True)
 class _Bounds:
     """Axis-aligned world-space bounds for an SVG export."""
 
@@ -102,6 +123,43 @@ def render_spec_png(
     if output_path is not None:
         write_binary(output_path, png, description="PNG network rendering")
     return png
+
+
+def render_spec_tikz(
+    spec: NetworkSpec,
+    *,
+    options: TikzRenderOptions | None = None,
+    output_path: StrPath | None = None,
+) -> str:
+    """Render one tensor-network specification as a standalone TikZ picture."""
+    resolved_options = options or TikzRenderOptions()
+    if (
+        isinstance(resolved_options.scale, bool)
+        or not isinstance(resolved_options.scale, (int, float))
+        or not isfinite(float(resolved_options.scale))
+        or resolved_options.scale <= 0
+    ):
+        raise ValueError("TikZ render scale must be a positive finite number.")
+    validated_spec = ensure_valid_spec(spec)
+    tikz = _TikzRenderer(validated_spec, resolved_options).render()
+    if output_path is not None:
+        write_utf8_text(output_path, tikz, description="TikZ network rendering")
+    return tikz
+
+
+def render_spec_dot(
+    spec: NetworkSpec,
+    *,
+    options: DotRenderOptions | None = None,
+    output_path: StrPath | None = None,
+) -> str:
+    """Render one tensor-network specification as a Graphviz/DOT graph."""
+    resolved_options = options or DotRenderOptions()
+    validated_spec = ensure_valid_spec(spec)
+    dot = _DotRenderer(validated_spec, resolved_options).render()
+    if output_path is not None:
+        write_utf8_text(output_path, dot, description="Graphviz/DOT network rendering")
+    return dot
 
 
 class _SvgRenderer:
@@ -354,6 +412,253 @@ class _SvgRenderer:
             x=tensor.position.x + index.offset.x,
             y=tensor.position.y + index.offset.y,
         )
+
+
+class _TikzRenderer:
+    """Small deterministic TikZ renderer for one validated network spec."""
+
+    def __init__(self, spec: NetworkSpec, options: TikzRenderOptions) -> None:
+        self._spec = spec
+        self._options = options
+        self._geometry = _SvgRenderer(spec, SvgRenderOptions())
+        self._index_by_id = self._geometry._index_by_id
+
+    def render(self) -> str:
+        """Return the complete TikZ picture."""
+        lines = [
+            r"\begin{tikzpicture}",
+            r"\tikzset{",
+            r"  tne tensor/.style={draw, rounded corners=2pt, fill=blue!12, align=center, inner sep=3pt},",
+            r"  tne index/.style={draw, circle, fill=yellow!35, inner sep=1.5pt, minimum size=0.22cm, font=\scriptsize},",
+            r"  tne index label/.style={font=\scriptsize, align=center},",
+            r"  tne edge/.style={draw, line width=0.6pt},",
+            r"  tne edge label/.style={font=\scriptsize, fill=white, inner sep=1pt},",
+            r"  tne hyperedge/.style={draw, circle, fill=orange!70, inner sep=1.5pt, minimum size=0.18cm},",
+            r"  tne hyperedge spoke/.style={draw, dashed, orange!80, line width=0.5pt},",
+            r"  tne group/.style={draw, dashed, rounded corners=2pt, gray},",
+            r"  tne group label/.style={font=\scriptsize, gray, anchor=west},",
+            r"  tne note/.style={draw, rounded corners=2pt, fill=gray!10, align=left, anchor=north west, font=\scriptsize},",
+            r"}",
+        ]
+        if self._options.include_groups:
+            lines.extend(self._render_groups())
+        lines.extend(self._render_edges())
+        lines.extend(self._render_hyperedges())
+        lines.extend(self._render_tensors())
+        if self._options.include_notes:
+            lines.extend(self._render_notes())
+        lines.append(r"\end{tikzpicture}")
+        return "\n".join(lines)
+
+    def _render_groups(self) -> list[str]:
+        lines: list[str] = []
+        tensor_by_id = self._geometry._tensor_by_id
+        for group in self._spec.groups:
+            group_tensors = [
+                tensor_by_id[tensor_id]
+                for tensor_id in group.tensor_ids
+                if tensor_id in tensor_by_id
+            ]
+            if not group_tensors:
+                continue
+            bounds = _tensor_collection_bounds(group_tensors, padding=_GROUP_PADDING)
+            lines.append(
+                rf"\draw[tne group] {self._point(CanvasPosition(bounds.x1, bounds.y1))} "
+                rf"rectangle {self._point(CanvasPosition(bounds.x2, bounds.y2))};"
+            )
+            lines.append(
+                rf"\node[tne group label] at {self._point(CanvasPosition(bounds.x1 + 8.0, bounds.y1 + 14.0))} "
+                rf"{{{_latex_text(group.name)}}};"
+            )
+        return lines
+
+    def _render_edges(self) -> list[str]:
+        lines: list[str] = []
+        for edge in self._spec.edges:
+            if edge.left.index_id not in self._index_by_id:
+                continue
+            if edge.right.index_id not in self._index_by_id:
+                continue
+            line = (
+                rf"\draw[tne edge] ({_tikz_node_id('index', edge.left.index_id)}) -- "
+                rf"({_tikz_node_id('index', edge.right.index_id)})"
+            )
+            if self._options.show_edge_labels and edge.name:
+                line += rf" node[midway, above, tne edge label] {{{_latex_text(edge.name)}}}"
+            lines.append(line + ";")
+        return lines
+
+    def _render_hyperedges(self) -> list[str]:
+        lines: list[str] = []
+        for hyperedge in self._spec.hyperedges:
+            hub_node_id = _tikz_node_id("hyperedge", hyperedge.id)
+            hub = self._geometry._hyperedge_hub_position(hyperedge)
+            lines.append(
+                rf"\node[tne hyperedge] ({hub_node_id}) at {self._point(hub)} {{}};"
+            )
+            for endpoint in hyperedge.endpoints:
+                if endpoint.index_id not in self._index_by_id:
+                    continue
+                lines.append(
+                    rf"\draw[tne hyperedge spoke] ({_tikz_node_id('index', endpoint.index_id)}) -- ({hub_node_id});"
+                )
+            if self._options.show_edge_labels and hyperedge.name:
+                label_position = CanvasPosition(hub.x, hub.y - 17.0)
+                lines.append(
+                    rf"\node[tne edge label] at {self._point(label_position)} {{{_latex_text(hyperedge.name)}}};"
+                )
+        return lines
+
+    def _render_tensors(self) -> list[str]:
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            lines.append(
+                rf"\node[tne tensor, minimum width={self._length(tensor.size.width)}, "
+                rf"minimum height={self._length(tensor.size.height)}] "
+                rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position)} "
+                rf"{{{_latex_text(tensor.name)}}};"
+            )
+            lines.extend(self._render_indices(tensor))
+        return lines
+
+    def _render_indices(self, tensor: TensorSpec) -> list[str]:
+        lines: list[str] = []
+        for index_position, index in enumerate(tensor.indices, start=1):
+            point = self._geometry._index_position(tensor, index)
+            lines.append(
+                rf"\node[tne index] ({_tikz_node_id('index', index.id)}) at {self._point(point)} "
+                rf"{{{index_position}}};"
+            )
+            if self._options.show_index_labels:
+                label_point = CanvasPosition(point.x, point.y + 26.0)
+                lines.append(
+                    rf"\node[tne index label] at {self._point(label_point)} "
+                    rf"{{{_latex_text(index.name)} {_latex_text(str(index.dimension))}}};"
+                )
+        return lines
+
+    def _render_notes(self) -> list[str]:
+        lines: list[str] = []
+        for note in self._spec.notes:
+            lines.append(
+                rf"\node[tne note, text width={self._length(_NOTE_WIDTH)}] "
+                rf"({_tikz_node_id('note', note.id)}) at {self._point(note.position)} "
+                rf"{{{_latex_text(note.text)}}};"
+            )
+        return lines
+
+    def _point(self, point: CanvasPosition) -> str:
+        return (
+            f"({_number(point.x * self._options.scale)}, "
+            f"{_number(-point.y * self._options.scale)})"
+        )
+
+    def _length(self, value: float) -> str:
+        return f"{_number(value * self._options.scale)}cm"
+
+
+class _DotRenderer:
+    """Small deterministic Graphviz/DOT renderer for one validated network spec."""
+
+    def __init__(self, spec: NetworkSpec, options: DotRenderOptions) -> None:
+        self._spec = spec
+        self._options = options
+        self._geometry = _SvgRenderer(spec, SvgRenderOptions())
+        self._tensor_by_id = self._geometry._tensor_by_id
+        self._index_by_id = self._geometry._index_by_id
+        self._connected_index_ids = _connected_index_ids(spec)
+
+    def render(self) -> str:
+        """Return the complete DOT graph."""
+        lines = [
+            f"graph {_dot_string(self._spec.name or self._spec.id)} {{",
+            '  graph [rankdir="LR"];',
+            '  node [fontname="Arial"];',
+            '  edge [fontname="Arial"];',
+        ]
+        lines.extend(self._render_tensors())
+        if self._options.include_open_indices:
+            lines.extend(self._render_open_indices())
+        lines.extend(self._render_edges())
+        if self._options.include_hyperedges:
+            lines.extend(self._render_hyperedges())
+        if self._options.include_groups:
+            lines.extend(self._render_groups())
+        if self._options.include_notes:
+            lines.extend(self._render_notes())
+        lines.append("}")
+        return "\n".join(lines)
+
+    def _render_tensors(self) -> list[str]:
+        return [
+            f'  {_dot_string(tensor.id)} [label={_dot_string(tensor.name)}, shape="box"];'
+            for tensor in self._spec.tensors
+        ]
+
+    def _render_open_indices(self) -> list[str]:
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                if index.id in self._connected_index_ids:
+                    continue
+                open_node_id = _dot_open_index_id(index.id)
+                lines.append(
+                    f'  {_dot_string(open_node_id)} [label={_dot_string(f"{index.name} ({index.dimension})")}, shape="circle"];'
+                )
+                lines.append(
+                    f'  {_dot_string(tensor.id)} -- {_dot_string(open_node_id)} [style="dotted"];'
+                )
+        return lines
+
+    def _render_edges(self) -> list[str]:
+        lines: list[str] = []
+        for edge in self._spec.edges:
+            left_entry = self._index_by_id.get(edge.left.index_id)
+            right_entry = self._index_by_id.get(edge.right.index_id)
+            if left_entry is None or right_entry is None:
+                continue
+            left_tensor, left_index = left_entry
+            right_tensor, _ = right_entry
+            lines.append(
+                f"  {_dot_string(left_tensor.id)} -- {_dot_string(right_tensor.id)} "
+                f"[label={_dot_string(_dot_edge_label(edge, left_index))}];"
+            )
+        return lines
+
+    def _render_hyperedges(self) -> list[str]:
+        lines: list[str] = []
+        for hyperedge in self._spec.hyperedges:
+            lines.append(
+                f'  {_dot_string(hyperedge.id)} [label={_dot_string(hyperedge.name)}, shape="point"];'
+            )
+            for endpoint in hyperedge.endpoints:
+                endpoint_entry = self._index_by_id.get(endpoint.index_id)
+                if endpoint_entry is None:
+                    continue
+                tensor, index = endpoint_entry
+                lines.append(
+                    f"  {_dot_string(tensor.id)} -- {_dot_string(hyperedge.id)} "
+                    f"[label={_dot_string(f'{index.name}={index.dimension}')}];"
+                )
+        return lines
+
+    def _render_groups(self) -> list[str]:
+        lines: list[str] = []
+        for group in self._spec.groups:
+            cluster_id = _dot_cluster_id(group.id)
+            lines.append(f"  subgraph {cluster_id} {{")
+            lines.append(f"    label={_dot_string(group.name)};")
+            for tensor_id in group.tensor_ids:
+                if tensor_id in self._tensor_by_id:
+                    lines.append(f"    {_dot_string(tensor_id)};")
+            lines.append("  }")
+        return lines
+
+    def _render_notes(self) -> list[str]:
+        return [
+            f'  {_dot_string(note.id)} [label={_dot_string(note.text)}, shape="note"];'
+            for note in self._spec.notes
+        ]
 
 
 class _PngRenderer:
@@ -666,6 +971,87 @@ def _text(value: str) -> str:
     return escape(value, quote=False)
 
 
+def _latex_text(value: str) -> str:
+    normalized = " ".join(value.splitlines())
+    escaped_characters: list[str] = []
+    opening_quote = True
+    for character in normalized:
+        if character == "\\":
+            escaped_characters.append(r"\textbackslash{}")
+        elif character == "{":
+            escaped_characters.append(r"\{")
+        elif character == "}":
+            escaped_characters.append(r"\}")
+        elif character == "$":
+            escaped_characters.append(r"\$")
+        elif character == "&":
+            escaped_characters.append(r"\&")
+        elif character == "%":
+            escaped_characters.append(r"\%")
+        elif character == "#":
+            escaped_characters.append(r"\#")
+        elif character == "_":
+            escaped_characters.append(r"\_")
+        elif character == "~":
+            escaped_characters.append(r"\textasciitilde{}")
+        elif character == "^":
+            escaped_characters.append(r"\textasciicircum{}")
+        elif character == '"':
+            escaped_characters.append("``" if opening_quote else "''")
+            opening_quote = not opening_quote
+        else:
+            escaped_characters.append(character)
+    return "".join(escaped_characters)
+
+
+def _tikz_node_id(prefix: str, raw_id: str) -> str:
+    return f"{prefix}_{_safe_identifier(raw_id)}"
+
+
+def _safe_identifier(raw_id: str) -> str:
+    characters = [
+        character if character.isalnum() else "_" for character in raw_id.strip()
+    ]
+    identifier = "".join(characters).strip("_")
+    return identifier or "item"
+
+
+def _dot_string(value: str) -> str:
+    return (
+        '"'
+        + value.replace("\\", r"\\")
+        .replace('"', r"\"")
+        .replace("\r\n", r"\n")
+        .replace("\n", r"\n")
+        .replace("\r", r"\n")
+        + '"'
+    )
+
+
+def _dot_open_index_id(index_id: str) -> str:
+    return f"open_{index_id}"
+
+
+def _dot_cluster_id(group_id: str) -> str:
+    return f"cluster_{_safe_identifier(group_id)}"
+
+
+def _dot_edge_label(edge: EdgeSpec, left_index: IndexSpec) -> str:
+    index_label = f"{left_index.name}={left_index.dimension}"
+    return f"{edge.name} / {index_label}" if edge.name else index_label
+
+
+def _connected_index_ids(spec: NetworkSpec) -> set[str]:
+    connected_index_ids: set[str] = set()
+    for edge in spec.edges:
+        connected_index_ids.add(edge.left.index_id)
+        connected_index_ids.add(edge.right.index_id)
+    for hyperedge in spec.hyperedges:
+        for endpoint in hyperedge.endpoints:
+            connected_index_ids.add(endpoint.index_id)
+    return connected_index_ids
+
+
 def _attr(value: object) -> str:
     return quoteattr(_number(value) if isinstance(value, (int, float)) else str(value))
 
@@ -703,4 +1089,12 @@ def _load_pillow_modules() -> tuple[Any, Any, Any]:
         ) from exc
 
 
-__all__ = ["SvgRenderOptions", "render_spec_png", "render_spec_svg"]
+__all__ = [
+    "DotRenderOptions",
+    "SvgRenderOptions",
+    "TikzRenderOptions",
+    "render_spec_dot",
+    "render_spec_png",
+    "render_spec_svg",
+    "render_spec_tikz",
+]

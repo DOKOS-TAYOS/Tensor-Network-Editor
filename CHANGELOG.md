@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
   hand-writing ids and endpoint references.
 - Built-in templates now include `ising_mps`, `transverse_ising_mpo`, and
   `tebd_gate_layer` for common 1D physics starting points.
+- Saved designs can now be rendered to academic text formats with TikZ/LaTeX
+  and Graphviz/DOT through the public rendering API and `render` CLI command.
+- `tensor-network-editor doctor` now adds more actionable suggestions for
+  suspicious model structure, available backend choices, incomplete manual
+  plans, and manual paths that are clearly more expensive than `auto_full`.
 - Browser editor sessions now keep a project-local recoverable draft under
   `.tensor-network-editor/drafts/`, prompt to restore it on startup, and clear
   it only after explicit save, Done, Cancel, or Start fresh actions.

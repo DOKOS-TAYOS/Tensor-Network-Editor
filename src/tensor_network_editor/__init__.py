@@ -44,7 +44,15 @@ if TYPE_CHECKING:
         TensorSpec,
         ValidationIssue,
     )
-    from .rendering import SvgRenderOptions, render_spec_png, render_spec_svg
+    from .rendering import (
+        DotRenderOptions,
+        SvgRenderOptions,
+        TikzRenderOptions,
+        render_spec_dot,
+        render_spec_png,
+        render_spec_svg,
+        render_spec_tikz,
+    )
     from .templates import build_template_spec, list_template_names
     from .validation import validate_spec
 
@@ -67,6 +75,7 @@ __all__ = [
     "EditorLaunchOptions",
     "EditorResult",
     "EngineName",
+    "DotRenderOptions",
     "GroupSpec",
     "HyperedgeSpec",
     "IndexHandle",
@@ -75,6 +84,7 @@ __all__ = [
     "NetworkBuilder",
     "PythonLoadOptions",
     "SvgRenderOptions",
+    "TikzRenderOptions",
     "TensorCollectionFormat",
     "TensorDataMode",
     "TensorDataSpec",
@@ -94,8 +104,10 @@ __all__ = [
     "load_python_spec",
     "load_spec",
     "open_editor",
+    "render_spec_dot",
     "render_spec_png",
     "render_spec_svg",
+    "render_spec_tikz",
     "save_spec",
     "semantic_diff_specs",
     "validate_spec",
@@ -114,6 +126,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "EditorLaunchOptions": ".editor",
     "EditorResult": ".models",
     "EngineName": ".models",
+    "DotRenderOptions": ".rendering",
     "GroupSpec": ".models",
     "HyperedgeSpec": ".models",
     "IndexHandle": ".builder",
@@ -122,6 +135,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "NetworkBuilder": ".builder",
     "PythonLoadOptions": ".io",
     "SvgRenderOptions": ".rendering",
+    "TikzRenderOptions": ".rendering",
     "TensorCollectionFormat": ".models",
     "TensorDataMode": ".models",
     "TensorDataSpec": ".models",
@@ -140,8 +154,10 @@ _LAZY_EXPORTS: dict[str, str] = {
     "load_python_spec": ".io",
     "load_spec": ".io",
     "open_editor": ".editor",
+    "render_spec_dot": ".rendering",
     "render_spec_png": ".rendering",
     "render_spec_svg": ".rendering",
+    "render_spec_tikz": ".rendering",
     "save_spec": ".io",
     "semantic_diff_specs": ".internal.diffing._diffing",
     "validate_spec": ".validation",
