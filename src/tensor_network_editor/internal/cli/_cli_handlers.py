@@ -188,9 +188,16 @@ def handle_render_command(
     *,
     load_spec: Callable[..., NetworkSpec],
     render_spec_svg: Callable[..., str],
+    render_spec_png: Callable[..., bytes],
 ) -> int:
-    """Render a saved spec as a static SVG image."""
+    """Render a saved spec as a static image."""
     spec = load_spec(args.path, **_python_load_kwargs(args))
+    if args.format == "png":
+        if args.output is None:
+            raise ValueError("PNG render requires --output.")
+        render_spec_png(spec, output_path=args.output)
+        print(f"Wrote PNG rendering to {args.output}")
+        return 0
     svg = render_spec_svg(spec, output_path=args.output)
     if args.output is None:
         print(svg)

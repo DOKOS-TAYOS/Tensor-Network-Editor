@@ -319,7 +319,7 @@ def _validate_external_tensor_data(
     path: str,
     issues: list[ValidationIssue],
 ) -> None:
-    """Require a supported external NumPy data reference."""
+    """Require a supported external tensor-data reference."""
     tensor_data = tensor.tensor_data
     if tensor_data is None:
         return
@@ -329,20 +329,20 @@ def _validate_external_tensor_data(
             issues,
             code="invalid-tensor-data",
             message=(
-                f"Tensor '{tensor.id}' external initializer requires a .npy or "
-                ".npz file_path."
+                f"Tensor '{tensor.id}' external initializer requires a .npy, "
+                ".npz, or .pt file_path."
             ),
             path=path,
         )
         return
     suffix = PurePath(file_path).suffix.lower()
-    if suffix not in {".npy", ".npz"}:
+    if suffix not in {".npy", ".npz", ".pt"}:
         append_issue(
             issues,
             code="invalid-tensor-data",
             message=(
-                f"Tensor '{tensor.id}' external initializer only supports .npy "
-                "and .npz files."
+                f"Tensor '{tensor.id}' external initializer only supports .npy, "
+                ".npz, and .pt files."
             ),
             path=path,
         )

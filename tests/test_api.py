@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal, cast
 from unittest.mock import patch
@@ -38,12 +39,16 @@ from tensor_network_editor.models import (
 from tensor_network_editor.rendering import SvgRenderOptions, render_spec_svg
 from tests.conftest import distribution_for_checkout_import_or_skip
 from tests.factories import (
+    build_grid_periodic_grid_spec,
+    build_linear_periodic_carry_chain_spec,
+    build_linear_periodic_chain_spec,
     build_outer_product_plan_spec,
     build_sample_spec_with_view_snapshots,
     build_three_tensor_complete_plan_spec,
     build_three_tensor_hyperedge_spec,
     build_three_tensor_spec,
     build_three_tensor_spec_without_plan,
+    build_tree_periodic_tree_spec,
 )
 from tests.optional_backends import require_light_optional_modules
 
@@ -164,6 +169,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_spec",
         "open_editor",
         "render_spec_svg",
+        "render_spec_png",
         "save_spec",
         "semantic_diff_specs",
         "validate_spec",
@@ -173,6 +179,9 @@ def test_package_root_exports_supported_public_api() -> None:
     assert tensor_network_editor.load_spec is _load_spec
     assert tensor_network_editor.load_python_spec is load_python_spec
     assert tensor_network_editor.render_spec_svg is render_spec_svg
+    from tensor_network_editor.rendering import render_spec_png
+
+    assert tensor_network_editor.render_spec_png is render_spec_png
     assert tensor_network_editor.SvgRenderOptions is SvgRenderOptions
     assert tensor_network_editor.save_spec is _save_spec
     assert not hasattr(tensor_network_editor, "tensor_network_creation")
@@ -590,6 +599,68 @@ def test_load_spec_from_python_code_round_trips_external_tensor_data(
         file_path="data/a.npz",
         array_key="a",
     )
+
+
+def test_load_spec_from_python_code_round_trips_external_pt_tensor_data() -> None:
+    sample_spec = build_three_tensor_spec_without_plan()
+    sample_spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/a.pt",
+        array_key="weights",
+    )
+    result = generate_code(sample_spec, engine=EngineName.EINSUM_NUMPY)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.tensors[0].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/a.pt",
+        array_key="weights",
+    )
+
+
+@pytest.mark.parametrize(
+    ("spec_factory", "engine", "payload_attr"),
+    [
+        (
+            build_linear_periodic_chain_spec,
+            EngineName.EINSUM_NUMPY,
+            "linear_periodic_chain",
+        ),
+        (
+            build_linear_periodic_carry_chain_spec,
+            EngineName.TENSORNETWORK,
+            "linear_periodic_chain",
+        ),
+        (build_grid_periodic_grid_spec, EngineName.QUIMB, "grid_periodic_grid"),
+        (build_tree_periodic_tree_spec, EngineName.EINSUM_NUMPY, "tree_periodic_tree"),
+    ],
+)
+def test_load_spec_from_python_code_round_trips_periodic_generated_source(
+    spec_factory: Callable[[], NetworkSpec],
+    engine: EngineName,
+    payload_attr: str,
+) -> None:
+    sample_spec = spec_factory()
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert "# TNE_SPEC_B64:" in result.code
+    assert getattr(loaded_spec, payload_attr) is not None
+    assert loaded_spec.to_dict() == sample_spec.to_dict()
+
+
+def test_load_spec_from_python_code_keeps_legacy_periodic_export_error() -> None:
+    result = generate_code(build_linear_periodic_chain_spec(), engine=EngineName.QUIMB)
+    legacy_code = "\n".join(
+        line
+        for line in result.code.splitlines()
+        if not line.startswith("# TNE_SPEC_B64:")
+    )
+
+    with pytest.raises(SerializationError, match="linear periodic mode"):
+        load_spec_from_python_code(legacy_code)
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

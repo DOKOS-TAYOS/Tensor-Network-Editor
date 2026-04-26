@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 from collections.abc import Mapping
@@ -44,6 +46,7 @@ _LIVE_IMPORT_BACKEND_IMPORT_ERROR_MARKERS = (
 _SUPPORTED_PYTHON_RECONSTRUCTION_LEVELS = frozenset(
     {"auto", "simple", "best_available"}
 )
+_ROUNDTRIP_SPEC_MARKER_PREFIX = "# TNE_SPEC_B64: "
 
 
 @dataclass(slots=True, frozen=True)
@@ -377,6 +380,12 @@ def _deserialize_static_python_code_result(
     python_reconstruction_level: PythonReconstructionLevel,
 ) -> PythonSpecLoadResult:
     """Parse Python source into a ``NetworkSpec`` together with warnings."""
+    marker_spec = _deserialize_roundtrip_marker_spec(code)
+    if marker_spec is not None:
+        return PythonSpecLoadResult(
+            spec=ensure_valid_spec(marker_spec) if validate else marker_spec,
+            warnings=[],
+        )
     if "# Tensor Network Editor linear periodic mode" in code:
         raise SerializationError(
             "Loading generated Python from linear periodic mode is not supported."
@@ -406,6 +415,34 @@ def _deserialize_static_python_code_result(
     )
     validated_spec = ensure_valid_spec(spec) if validate else spec
     return PythonSpecLoadResult(spec=validated_spec, warnings=[])
+
+
+def _deserialize_roundtrip_marker_spec(code: str) -> NetworkSpec | None:
+    """Return a spec embedded in generated-code marker comments, if present."""
+    encoded_parts = [
+        line.removeprefix(_ROUNDTRIP_SPEC_MARKER_PREFIX).strip()
+        for line in code.splitlines()
+        if line.startswith(_ROUNDTRIP_SPEC_MARKER_PREFIX)
+    ]
+    if not encoded_parts:
+        return None
+    try:
+        payload_text = base64.b64decode("".join(encoded_parts), validate=True).decode(
+            "utf-8"
+        )
+        payload = json.loads(payload_text)
+    except (
+        binascii.Error,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        ValueError,
+    ) as exc:
+        raise SerializationError(
+            "Generated Python round-trip metadata is malformed."
+        ) from exc
+    if not isinstance(payload, dict):
+        raise SerializationError("Generated Python round-trip metadata is malformed.")
+    return deserialize_spec(payload, validate=False)
 
 
 def load_spec_from_python_code(

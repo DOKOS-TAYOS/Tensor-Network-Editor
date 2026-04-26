@@ -154,15 +154,16 @@ Supported tensor-data modes are:
 - `TensorDataMode.RANDOM`: create deterministic seeded normal or uniform data
 - `TensorDataMode.LITERAL`: store nested Python lists of finite real or complex
   values that exactly match `tensor.shape`
-- `TensorDataMode.EXTERNAL`: load tensor values from a `.npy` or `.npz` file in
-  generated code, with a runtime shape check
+- `TensorDataMode.EXTERNAL`: load tensor values from a `.npy`, `.npz`, or `.pt`
+  file in generated code, with a runtime shape check
 
 `TensorDataSpec.dtype` can be `float32`, `float64`, `complex64`, or
 `complex128`. Complex scalars are JSON objects such as
 `{"real": 1.0, "imag": -0.5}`.
 For external data, `file_path` is required. `.npz` files also require
-`array_key`. The optional `dtype` field asks generated code to convert the
-loaded array.
+`array_key`; `.pt` files may either store a tensor directly or use `array_key`
+to select a tensor from a saved mapping. The optional `dtype` field asks
+generated code to convert the loaded array/tensor.
 
 Serialized tensor-data payloads are small JSON objects:
 
@@ -349,9 +350,9 @@ View snapshots preserve contraction-scene layout state:
 Snapshots are mainly for the editor UI. They are still part of the saved design
 and round-trip through JSON.
 
-When you re-import supported generated Python, manual contraction steps can be
-recovered, but `view_snapshots` are reset because generated code does not carry
-editor layout state.
+When you re-import supported generated Python, manual contraction steps and
+current periodic-mode payloads can be recovered, but `view_snapshots` are reset
+because generated code does not carry editor layout state.
 
 ## Linear Periodic Models
 

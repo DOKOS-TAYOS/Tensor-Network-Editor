@@ -255,7 +255,7 @@ def test_validate_route_falls_back_to_static_parser_for_generated_python_when_li
     ]
 
 
-def test_validate_route_rejects_linear_periodic_generated_python_with_clear_message(
+def test_validate_route_accepts_linear_periodic_generated_python_with_marker(
     editor_server: EditorServer,
 ) -> None:
     generated = generate_code(
@@ -267,6 +267,32 @@ def test_validate_route_rejects_linear_periodic_generated_python_with_clear_mess
         f"{editor_server.base_url}/api/validate",
         method="POST",
         payload={"python_code": generated.code},
+    )
+
+    assert status == 200
+    assert payload["ok"] is True
+    assert (
+        payload["spec"]["network"]["linear_periodic_chain"]["active_cell"] == "periodic"
+    )
+
+
+def test_validate_route_rejects_legacy_linear_periodic_generated_python_with_clear_message(
+    editor_server: EditorServer,
+) -> None:
+    generated = generate_code(
+        build_linear_periodic_chain_spec(),
+        engine=EngineName.TENSORNETWORK,
+    )
+    markerless_code = "\n".join(
+        line
+        for line in generated.code.splitlines()
+        if not line.startswith("# TNE_SPEC_B64:")
+    )
+
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={"python_code": markerless_code},
     )
 
     assert status == 400

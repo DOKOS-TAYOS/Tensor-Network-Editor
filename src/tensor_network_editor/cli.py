@@ -52,7 +52,7 @@ from .internal.cli._logging import (
 from .internal.diffing._diffing import diff_specs, semantic_diff_specs
 from .io import load_spec, save_spec
 from .linting import lint_spec
-from .rendering import render_spec_svg
+from .rendering import render_spec_png, render_spec_svg
 from .templates import (
     build_template_spec,
     list_template_names,
@@ -115,7 +115,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except SpecValidationError as exc:
         print_validation_result(exc.issues, output_format="text")
         return 1
-    except (CodeGenerationError, PackageIOError, SerializationError, ValueError) as exc:
+    except (
+        CodeGenerationError,
+        PackageIOError,
+        RuntimeError,
+        SerializationError,
+        ValueError,
+    ) as exc:
         print(str(exc))
         return 2
 
@@ -197,6 +203,7 @@ def _handle_render(args: argparse.Namespace) -> int:
     return handle_render_command(
         args,
         load_spec=load_spec,
+        render_spec_png=render_spec_png,
         render_spec_svg=render_spec_svg,
     )
 

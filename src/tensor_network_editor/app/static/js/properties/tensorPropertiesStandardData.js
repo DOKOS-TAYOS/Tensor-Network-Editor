@@ -129,7 +129,8 @@ export function createStandardTensorDataSupport() {
   }
 
   function shouldShowTensorExternalArrayKey(filePath) {
-    return String(filePath || "").trim().toLowerCase().endsWith(".npz");
+    const normalizedPath = String(filePath || "").trim().toLowerCase();
+    return normalizedPath.endsWith(".npz") || normalizedPath.endsWith(".pt");
   }
 
   function cloneTensorLiteral(value) {
@@ -323,7 +324,7 @@ export function createStandardTensorDataSupport() {
       return `Current initializer: seeded random values for ${formatTensorShape(tensorShape)}.`;
     }
     if (tensorDataMode === "external") {
-      return `Current initializer: external .npy/.npz data for ${formatTensorShape(tensorShape)}.`;
+      return `Current initializer: external .npy/.npz/.pt data for ${formatTensorShape(tensorShape)}.`;
     }
     if (tensorDataMode === "fill") {
       return `Current initializer: fill with ${formatTensorScalarLiteral(

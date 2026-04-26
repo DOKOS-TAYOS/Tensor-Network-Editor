@@ -15,9 +15,17 @@ All notable changes to this project will be documented in this file.
 - Tensor initializers now support external `.npy` and `.npz` data references,
   including editor fields, validation, generated NumPy loading helpers, CLI
   path anchoring, and generated-source round-trips.
+- External tensor initializers now also support safe `.pt` tensor references,
+  including optional mapping keys, backend-specific generated loaders, and
+  generated-source round-trips.
 - Saved designs can now be rendered headlessly to SVG from the public
   `tensor_network_editor.rendering` API or the `tensor-network-editor render`
   CLI command, without requiring a browser or Node runtime.
+- Saved designs can now be rendered headlessly to PNG through the public
+  rendering API and CLI when the optional `png` extra is installed.
+- Generated Python for linear, grid, and tree periodic modes now embeds
+  compact round-trip metadata so supported imports recover the editable
+  periodic-mode payload instead of treating those exports as one-way artifacts.
 - Packaging now declares `numpy` and `torch` optional extras for generated
   `einsum_numpy` and `einsum_torch` workflows while keeping base dependencies
   empty.

@@ -33,3 +33,15 @@ def write_utf8_text(path: StrPath, content: str, *, description: str) -> None:
         message = f"Could not write {description} to '{target_path}': {exc}"
         LOGGER.warning(message)
         raise PackageIOError(message) from exc
+
+
+def write_binary(path: StrPath, content: bytes, *, description: str) -> None:
+    """Write binary content to disk and wrap filesystem errors."""
+    target_path = Path(path)
+    LOGGER.info("Writing %s to %s", description, target_path)
+    try:
+        target_path.write_bytes(content)
+    except OSError as exc:
+        message = f"Could not write {description} to '{target_path}': {exc}"
+        LOGGER.warning(message)
+        raise PackageIOError(message) from exc

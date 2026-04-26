@@ -39,7 +39,8 @@ from ..shared.common import (
     render_tensor_data_assignments,
     tensor_collection_reference,
     tensor_display_name_by_id,
-    uses_external_tensor_data,
+    uses_external_numpy_tensor_data,
+    uses_external_pt_tensor_data,
 )
 
 _RandomPairwisePath: TypeAlias = tuple[tuple[int, ...], ...]
@@ -424,9 +425,16 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
 
     def _render_import_lines(self, prepared: PreparedNetwork) -> list[str]:
         """Render imports needed by this einsum backend."""
-        if self.module_alias == "torch" and uses_external_tensor_data(prepared):
-            return ["import numpy as np", self.import_line]
-        return [self.import_line]
+        lines: list[str] = []
+        if self.module_alias == "torch":
+            if uses_external_numpy_tensor_data(prepared):
+                lines.append("import numpy as np")
+            lines.append(self.import_line)
+            return lines
+        lines.append(self.import_line)
+        if uses_external_pt_tensor_data(prepared):
+            lines.append("import torch")
+        return lines
 
     def _render_full_network_einsum(
         self,

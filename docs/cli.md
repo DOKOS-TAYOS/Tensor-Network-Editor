@@ -118,6 +118,7 @@ tensor-network-editor analyze my_network.json
 tensor-network-editor benchmark my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format png --output figure.png
 tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
 tensor-network-editor template list
@@ -303,10 +304,11 @@ the input spec path before they are emitted into generated code.
 
 ## Render
 
-Render a saved design to static SVG without opening the browser editor:
+Render a saved design to a static image without opening the browser editor:
 
 ```bash
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format png --output figure.png
 ```
 
 If `--output` is omitted, the SVG is printed to standard output:
@@ -315,8 +317,10 @@ If `--output` is omitted, the SVG is printed to standard output:
 tensor-network-editor render my_network.json --format svg
 ```
 
-The headless renderer is pure Python and uses the saved canvas positions. It
-draws tensors, indices, pairwise edges, hyperedges, groups, and notes.
+SVG rendering is pure Python and uses the saved canvas positions. PNG rendering
+uses the same geometry and requires the optional `png` extra; PNG output must
+be written to a file. Both formats draw tensors, indices, pairwise edges,
+hyperedges, groups, and notes.
 
 ## Canonicalize
 

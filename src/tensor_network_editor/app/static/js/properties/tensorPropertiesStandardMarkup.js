@@ -311,7 +311,7 @@ export function createStandardTensorPropertiesMarkupSupport({
               Random
             </option>
             <option value="external"${tensorDataMode === "external" ? " selected" : ""}>
-              External .npy/.npz
+              External .npy/.npz/.pt
             </option>
           </select>
         </div>
@@ -420,7 +420,7 @@ export function createStandardTensorPropertiesMarkupSupport({
         tensorDataMode === "external"
           ? `
             <div class="field-group">
-              <label for="tensor-data-external-path-input">External .npy/.npz</label>
+              <label for="tensor-data-external-path-input">External .npy/.npz/.pt</label>
               <input
                 id="tensor-data-external-path-input"
                 data-focus-key="tensor:${tensor.id}:tensor-data-external-path"
@@ -431,7 +431,7 @@ export function createStandardTensorPropertiesMarkupSupport({
               shouldShowTensorExternalArrayKey(tensorExternalFilePath)
                 ? `
                   <div class="field-group">
-                    <label for="tensor-data-external-array-key-input">Array key</label>
+                    <label for="tensor-data-external-array-key-input">Array/key</label>
                     <input
                       id="tensor-data-external-array-key-input"
                       data-focus-key="tensor:${tensor.id}:tensor-data-external-array-key"

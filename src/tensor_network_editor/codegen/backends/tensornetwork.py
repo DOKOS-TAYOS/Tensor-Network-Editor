@@ -23,6 +23,7 @@ from ..shared.common import (
     render_tensor_data_assignments,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
+    uses_external_pt_tensor_data,
 )
 
 
@@ -116,7 +117,7 @@ class TensorNetworkCodeGenerator(CodeGenerator):
             code=render_code_sections(
                 CodeSection(
                     title=None,
-                    lines=["import numpy as np", "import tensornetwork as tn"],
+                    lines=self._render_import_lines(prepared),
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
                 CodeSection(title="Tensor data", lines=tensor_data_lines),
@@ -129,6 +130,15 @@ class TensorNetworkCodeGenerator(CodeGenerator):
                 CodeSection(title="Outputs", lines=output_lines),
             ),
         )
+
+    @staticmethod
+    def _render_import_lines(prepared: PreparedNetwork) -> list[str]:
+        """Render imports needed by the TensorNetwork backend."""
+        lines = ["import numpy as np"]
+        if uses_external_pt_tensor_data(prepared):
+            lines.append("import torch")
+        lines.append("import tensornetwork as tn")
+        return lines
 
     def _render_manual_plan(
         self,

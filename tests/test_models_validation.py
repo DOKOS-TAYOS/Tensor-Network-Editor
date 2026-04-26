@@ -530,6 +530,18 @@ def test_validate_spec_accepts_external_tensor_initializer() -> None:
     assert validate_spec(spec) == []
 
 
+def test_validate_spec_accepts_pt_external_tensor_initializer_without_array_key() -> (
+    None
+):
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/left.pt",
+    )
+
+    assert validate_spec(spec) == []
+
+
 def test_validate_spec_rejects_external_tensor_initializer_without_path() -> None:
     spec = build_valid_spec()
     spec.tensors[0].tensor_data = TensorDataSpec(

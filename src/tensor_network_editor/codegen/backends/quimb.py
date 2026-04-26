@@ -23,6 +23,7 @@ from ..shared.common import (
     render_tensor_data_assignments,
     tensor_collection_reference,
     tensor_display_name_by_id,
+    uses_external_pt_tensor_data,
 )
 
 
@@ -95,7 +96,7 @@ class QuimbCodeGenerator(CodeGenerator):
             code=render_code_sections(
                 CodeSection(
                     title=None,
-                    lines=["import numpy as np", "import quimb.tensor as qtn"],
+                    lines=self._render_import_lines(prepared),
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
                 CodeSection(title="Tensor data", lines=tensor_data_lines),
@@ -108,6 +109,15 @@ class QuimbCodeGenerator(CodeGenerator):
                 CodeSection(title="Outputs", lines=output_lines),
             ),
         )
+
+    @staticmethod
+    def _render_import_lines(prepared: PreparedNetwork) -> list[str]:
+        """Render imports needed by the Quimb backend."""
+        lines = ["import numpy as np"]
+        if uses_external_pt_tensor_data(prepared):
+            lines.append("import torch")
+        lines.append("import quimb.tensor as qtn")
+        return lines
 
     def _render_manual_plan(
         self,

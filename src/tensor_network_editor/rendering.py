@@ -5,10 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from html import escape
-from math import ceil
+from importlib import import_module
+from io import BytesIO
+from math import ceil, isfinite
+from typing import Any
 from xml.sax.saxutils import quoteattr
 
-from .internal.io._io import write_utf8_text
+from .internal.io._io import write_binary, write_utf8_text
 from .models import (
     CanvasPosition,
     EdgeSpec,
@@ -79,6 +82,26 @@ def render_spec_svg(
     if output_path is not None:
         write_utf8_text(output_path, svg, description="SVG network rendering")
     return svg
+
+
+def render_spec_png(
+    spec: NetworkSpec,
+    *,
+    options: SvgRenderOptions | None = None,
+    scale: float = 2.0,
+    output_path: StrPath | None = None,
+) -> bytes:
+    """Render one tensor-network specification as PNG bytes using Pillow."""
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+        raise ValueError("PNG render scale must be a positive finite number.")
+    if not isfinite(float(scale)) or scale <= 0:
+        raise ValueError("PNG render scale must be a positive finite number.")
+    resolved_options = options or SvgRenderOptions()
+    validated_spec = ensure_valid_spec(spec)
+    png = _PngRenderer(validated_spec, resolved_options, scale=float(scale)).render()
+    if output_path is not None:
+        write_binary(output_path, png, description="PNG network rendering")
+    return png
 
 
 class _SvgRenderer:
@@ -333,6 +356,266 @@ class _SvgRenderer:
         )
 
 
+class _PngRenderer:
+    """Small deterministic Pillow renderer for one validated network spec."""
+
+    def __init__(
+        self,
+        spec: NetworkSpec,
+        options: SvgRenderOptions,
+        *,
+        scale: float,
+    ) -> None:
+        self._spec = spec
+        self._options = options
+        self._scale = scale
+        self._geometry = _SvgRenderer(spec, options)
+        self._tensor_by_id = self._geometry._tensor_by_id
+        self._index_by_id = self._geometry._index_by_id
+
+    def render(self) -> bytes:
+        """Return the complete PNG document as bytes."""
+        image_module, draw_module, font_module = _load_pillow_modules()
+        bounds = self._geometry._compute_bounds()
+        width = max(240, ceil(bounds.width))
+        height = max(180, ceil(bounds.height))
+        pixel_size = (ceil(width * self._scale), ceil(height * self._scale))
+        image = image_module.new("RGB", pixel_size, self._options.background)
+        draw = draw_module.Draw(image)
+        font = font_module.load_default()
+        self._render_groups(draw, bounds, font)
+        self._render_edges(draw, bounds, font)
+        self._render_hyperedges(draw, bounds, font)
+        self._render_tensors(draw, bounds, font)
+        self._render_notes(draw, bounds, font)
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def _render_groups(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        for group in self._spec.groups:
+            group_tensors = [
+                self._tensor_by_id[tensor_id]
+                for tensor_id in group.tensor_ids
+                if tensor_id in self._tensor_by_id
+            ]
+            if not group_tensors:
+                continue
+            group_bounds = _tensor_collection_bounds(
+                group_tensors,
+                padding=_GROUP_PADDING,
+            )
+            draw.rounded_rectangle(
+                self._box_to_pixels(group_bounds, bounds),
+                radius=self._pixels(10.0),
+                outline=self._options.group_stroke,
+                width=self._pixels(2.0),
+            )
+            self._draw_text(
+                draw,
+                self._point_to_pixels(
+                    CanvasPosition(group_bounds.x1 + 12, group_bounds.y1 + 14),
+                    bounds,
+                ),
+                group.name,
+                fill=self._options.muted_text_fill,
+                font=font,
+                anchor="lm",
+            )
+
+    def _render_edges(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        for edge in self._spec.edges:
+            endpoints = self._geometry._edge_positions(edge)
+            if endpoints is None:
+                continue
+            source, target = endpoints
+            draw.line(
+                [
+                    self._point_to_pixels(source, bounds),
+                    self._point_to_pixels(target, bounds),
+                ],
+                fill=self._options.edge_stroke,
+                width=self._pixels(3.0),
+            )
+            if self._options.show_edge_labels and edge.name:
+                midpoint = _midpoint(source, target)
+                self._draw_text(
+                    draw,
+                    self._point_to_pixels(
+                        CanvasPosition(midpoint.x, midpoint.y - 10),
+                        bounds,
+                    ),
+                    edge.name,
+                    fill=self._options.muted_text_fill,
+                    font=font,
+                )
+
+    def _render_hyperedges(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        for hyperedge in self._spec.hyperedges:
+            hub = self._geometry._hyperedge_hub_position(hyperedge)
+            hub_point = self._point_to_pixels(hub, bounds)
+            for endpoint in hyperedge.endpoints:
+                tensor_index = self._index_by_id.get(endpoint.index_id)
+                if tensor_index is None:
+                    continue
+                endpoint_position = self._geometry._index_position(*tensor_index)
+                draw.line(
+                    [
+                        self._point_to_pixels(endpoint_position, bounds),
+                        hub_point,
+                    ],
+                    fill=self._options.hyperedge_stroke,
+                    width=self._pixels(2.5),
+                )
+            hub_radius = self._pixels(11.0)
+            draw.ellipse(
+                _pixel_circle_box(hub_point, hub_radius),
+                fill=self._options.hyperedge_stroke,
+            )
+            if self._options.show_edge_labels and hyperedge.name:
+                self._draw_text(
+                    draw,
+                    self._point_to_pixels(CanvasPosition(hub.x, hub.y - 17), bounds),
+                    hyperedge.name,
+                    fill=self._options.text_fill,
+                    font=font,
+                )
+
+    def _render_tensors(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        for tensor in self._spec.tensors:
+            tensor_bounds = _Bounds(
+                x1=tensor.position.x - tensor.size.width / 2,
+                y1=tensor.position.y - tensor.size.height / 2,
+                x2=tensor.position.x + tensor.size.width / 2,
+                y2=tensor.position.y + tensor.size.height / 2,
+            )
+            draw.rounded_rectangle(
+                self._box_to_pixels(tensor_bounds, bounds),
+                radius=self._pixels(8.0),
+                fill=self._options.tensor_fill,
+                outline=self._options.tensor_stroke,
+                width=self._pixels(2.0),
+            )
+            self._draw_text(
+                draw,
+                self._point_to_pixels(
+                    CanvasPosition(tensor.position.x, tensor_bounds.y1 + 22),
+                    bounds,
+                ),
+                tensor.name,
+                fill=self._options.text_fill,
+                font=font,
+            )
+            self._render_indices(draw, bounds, font, tensor)
+
+    def _render_indices(
+        self,
+        draw: Any,
+        bounds: _Bounds,
+        font: Any,
+        tensor: TensorSpec,
+    ) -> None:
+        for index_position, index in enumerate(tensor.indices, start=1):
+            point = self._geometry._index_position(tensor, index)
+            pixel_point = self._point_to_pixels(point, bounds)
+            index_radius = self._pixels(_INDEX_RADIUS)
+            draw.ellipse(
+                _pixel_circle_box(pixel_point, index_radius),
+                fill=self._options.index_fill,
+                outline="#47380d",
+                width=self._pixels(1.5),
+            )
+            self._draw_text(
+                draw,
+                pixel_point,
+                str(index_position),
+                fill="#1b1b1b",
+                font=font,
+            )
+            if self._options.show_index_labels:
+                self._draw_text(
+                    draw,
+                    self._point_to_pixels(
+                        CanvasPosition(point.x, point.y + 26),
+                        bounds,
+                    ),
+                    f"{index.name} {index.dimension}",
+                    fill=self._options.muted_text_fill,
+                    font=font,
+                )
+
+    def _render_notes(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        for note in self._spec.notes:
+            note_bounds = _Bounds(
+                x1=note.position.x,
+                y1=note.position.y,
+                x2=note.position.x + _NOTE_WIDTH,
+                y2=note.position.y + _NOTE_HEIGHT,
+            )
+            draw.rounded_rectangle(
+                self._box_to_pixels(note_bounds, bounds),
+                radius=self._pixels(8.0),
+                fill=self._options.note_fill,
+                outline=self._options.group_stroke,
+                width=self._pixels(1.0),
+            )
+            for line_index, note_line in enumerate(_wrap_text(note.text, max_chars=32)):
+                self._draw_text(
+                    draw,
+                    self._point_to_pixels(
+                        CanvasPosition(
+                            note.position.x + 12,
+                            note.position.y + 20 + line_index * 16,
+                        ),
+                        bounds,
+                    ),
+                    note_line,
+                    fill=self._options.text_fill,
+                    font=font,
+                    anchor="lm",
+                )
+
+    def _point_to_pixels(
+        self,
+        point: CanvasPosition,
+        bounds: _Bounds,
+    ) -> tuple[int, int]:
+        return (
+            self._pixels(point.x - bounds.x1),
+            self._pixels(point.y - bounds.y1),
+        )
+
+    def _box_to_pixels(
+        self,
+        box: _Bounds,
+        bounds: _Bounds,
+    ) -> tuple[int, int, int, int]:
+        return (
+            self._pixels(box.x1 - bounds.x1),
+            self._pixels(box.y1 - bounds.y1),
+            self._pixels(box.x2 - bounds.x1),
+            self._pixels(box.y2 - bounds.y1),
+        )
+
+    def _pixels(self, value: float) -> int:
+        return max(1, int(round(value * self._scale)))
+
+    @staticmethod
+    def _draw_text(
+        draw: Any,
+        xy: tuple[int, int],
+        text: str,
+        *,
+        fill: str,
+        font: Any,
+        anchor: str = "mm",
+    ) -> None:
+        try:
+            draw.text(xy, text, fill=fill, font=font, anchor=anchor)
+        except TypeError:
+            draw.text(xy, text, fill=fill, font=font)
+
+
 def _tensor_collection_bounds(
     tensors: Iterable[TensorSpec], *, padding: float
 ) -> _Bounds:
@@ -393,4 +676,31 @@ def _number(value: object) -> str:
     return str(value)
 
 
-__all__ = ["SvgRenderOptions", "render_spec_svg"]
+def _pixel_circle_box(
+    center: tuple[int, int],
+    radius: int,
+) -> tuple[int, int, int, int]:
+    return (
+        center[0] - radius,
+        center[1] - radius,
+        center[0] + radius,
+        center[1] + radius,
+    )
+
+
+def _load_pillow_modules() -> tuple[Any, Any, Any]:
+    """Import Pillow lazily so SVG rendering keeps zero dependencies."""
+    try:
+        return (
+            import_module("PIL.Image"),
+            import_module("PIL.ImageDraw"),
+            import_module("PIL.ImageFont"),
+        )
+    except ImportError as exc:
+        raise RuntimeError(
+            "PNG rendering requires the optional Pillow dependency. "
+            "Install it with tensor-network-editor[png]."
+        ) from exc
+
+
+__all__ = ["SvgRenderOptions", "render_spec_png", "render_spec_svg"]

@@ -599,6 +599,45 @@ def test_render_subcommand_writes_svg_output(sample_spec: NetworkSpec) -> None:
     assert render_mock.call_args.kwargs["output_path"] == "figure.svg"
 
 
+def test_render_subcommand_writes_png_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_png",
+            return_value=b"\x89PNG\r\n\x1a\n",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "png",
+                "--output",
+                "figure.png",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "figure.png"
+
+
+def test_render_subcommand_rejects_png_without_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch("tensor_network_editor.cli.load_spec", return_value=sample_spec):
+        exit_code = main(["render", "saved-network.json", "--format", "png"])
+
+    assert exit_code == 2
+    assert "PNG render requires --output" in capsys.readouterr().out
+
+
 def test_render_subcommand_prints_svg_when_no_output(
     sample_spec: NetworkSpec,
     capsys: pytest.CaptureFixture[str],

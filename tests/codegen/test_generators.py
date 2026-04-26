@@ -573,6 +573,85 @@ def test_generate_code_uses_external_tensor_data_initializers(
     assert "def _load_external_tensor_data(" in result.code
 
 
+@pytest.mark.parametrize(
+    ("engine", "expected_snippets"),
+    [
+        (
+            EngineName.TENSORNETWORK,
+            [
+                "import torch",
+                "torch.load(path, map_location='cpu', weights_only=True)",
+                "return data.detach().cpu().numpy()",
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.pt'",
+                "array_key='weights'",
+            ],
+        ),
+        (
+            EngineName.QUIMB,
+            [
+                "import torch",
+                "torch.load(path, map_location='cpu', weights_only=True)",
+                "return data.detach().cpu().numpy()",
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.pt'",
+                "array_key='weights'",
+            ],
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            [
+                "import torch",
+                "torch.load(path, map_location='cpu', weights_only=True)",
+                "return data.detach().cpu().numpy()",
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.pt'",
+                "array_key='weights'",
+            ],
+        ),
+        (
+            EngineName.TENSORKROWCH,
+            [
+                "torch.load(path, map_location='cpu', weights_only=True)",
+                "return data",
+                "a_data = torch.as_tensor(_load_external_tensor_data(",
+                "'project_data/a.pt'",
+                "array_key='weights'",
+                "dtype=torch.float64",
+            ],
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "torch.load(path, map_location='cpu', weights_only=True)",
+                "return data",
+                "a_data = torch.as_tensor(_load_external_tensor_data(",
+                "'project_data/a.pt'",
+                "array_key='weights'",
+                "dtype=torch.float64",
+            ],
+        ),
+    ],
+)
+def test_generate_code_uses_external_pt_tensor_data_initializers(
+    engine: EngineName,
+    expected_snippets: list[str],
+) -> None:
+    spec = build_sample_spec_without_plan()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="project_data/a.pt",
+        array_key="weights",
+        dtype=TensorDataDType.FLOAT64,
+    )
+
+    result = generate_code(spec, engine=engine)
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+    assert "suffix = Path(path).suffix.lower()" in result.code
+
+
 def test_generate_code_anchors_relative_external_tensor_paths_to_base_path() -> None:
     spec = build_sample_spec_without_plan()
     spec.tensors[0].tensor_data = TensorDataSpec(
@@ -724,6 +803,16 @@ def test_generate_code_does_not_emit_roundtrip_metadata() -> None:
 
     assert "_TNE_SPEC" not in result.code
     assert "# Tensor A data" in result.code
+
+
+def test_periodic_generate_code_emits_roundtrip_metadata_marker() -> None:
+    result = generate_code(
+        build_linear_periodic_chain_spec(),
+        engine=EngineName.EINSUM_NUMPY,
+    )
+
+    assert "# TNE_SPEC_B64:" in result.code
+    assert "# Tensor Network Editor linear periodic mode" in result.code
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

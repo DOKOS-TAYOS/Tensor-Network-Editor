@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ...errors import CodeGenerationError
 from ...models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
+from ..shared.roundtrip import with_roundtrip_spec_marker
 from ._tree_periodic_array_renderers import generate_array_tree_periodic_code
 from ._tree_periodic_graph_renderers import generate_graph_tree_periodic_code
 
@@ -28,20 +29,19 @@ def generate_tree_periodic_code(
         EngineName.EINSUM_NUMPY,
         EngineName.EINSUM_TORCH,
     }:
-        return generate_array_tree_periodic_code(
+        result = generate_array_tree_periodic_code(
             tree=tree,
             engine=engine,
             collection_format=collection_format,
         )
-    if engine not in {
-        EngineName.TENSORNETWORK,
-        EngineName.TENSORKROWCH,
-    }:
+        return with_roundtrip_spec_marker(result, spec=spec)
+    if engine not in {EngineName.TENSORNETWORK, EngineName.TENSORKROWCH}:
         raise CodeGenerationError(
             f"The {engine.value} backend does not support tree periodic code generation."
         )
-    return generate_graph_tree_periodic_code(
+    result = generate_graph_tree_periodic_code(
         tree=tree,
         engine=engine,
         collection_format=collection_format,
     )
+    return with_roundtrip_spec_marker(result, spec=spec)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePath
 from typing import cast
 
 from ...internal.analysis._prepared_network import (
@@ -53,6 +54,8 @@ __all__ = [
     "tensor_display_name_by_id",
     "tensor_variable_name",
     "uses_external_tensor_data",
+    "uses_external_numpy_tensor_data",
+    "uses_external_pt_tensor_data",
 ]
 
 
@@ -335,6 +338,31 @@ def uses_external_tensor_data(prepared: PreparedNetwork) -> bool:
     )
 
 
+def uses_external_numpy_tensor_data(prepared: PreparedNetwork) -> bool:
+    """Return whether any prepared tensor loads ``.npy`` or ``.npz`` data."""
+    return any(
+        tensor.spec.tensor_data is not None
+        and tensor.spec.tensor_data.mode is TensorDataMode.EXTERNAL
+        and _external_tensor_data_suffix(tensor.spec.tensor_data) in {".npy", ".npz"}
+        for tensor in prepared.tensors
+    )
+
+
+def uses_external_pt_tensor_data(prepared: PreparedNetwork) -> bool:
+    """Return whether any prepared tensor loads ``.pt`` data."""
+    return any(
+        tensor.spec.tensor_data is not None
+        and tensor.spec.tensor_data.mode is TensorDataMode.EXTERNAL
+        and _external_tensor_data_suffix(tensor.spec.tensor_data) == ".pt"
+        for tensor in prepared.tensors
+    )
+
+
+def _external_tensor_data_suffix(tensor_data: TensorDataSpec) -> str:
+    """Return a normalized external-data suffix for codegen decisions."""
+    return PurePath(tensor_data.file_path or "").suffix.lower()
+
+
 def _render_external_tensor_data_expression(
     tensor: PreparedTensor,
     *,
@@ -362,19 +390,63 @@ def _render_external_tensor_data_expression(
     return call_expression
 
 
-def _render_external_tensor_data_helper_lines() -> list[str]:
-    """Render the shared helper used by generated code to load .npy/.npz data."""
+def _render_external_tensor_data_helper_lines(
+    *,
+    return_torch_tensors: bool,
+) -> list[str]:
+    """Render the shared helper used by generated code to load external data."""
+    pt_return_lines = (
+        ["        return data"]
+        if return_torch_tensors
+        else [
+            "        if hasattr(data, 'detach'):",
+            "            return data.detach().cpu().numpy()",
+            "        return np.asarray(data)",
+        ]
+    )
     return [
         "def _load_external_tensor_data(path, *, expected_shape, array_key=None):",
-        "    loaded = np.load(path)",
-        "    if hasattr(loaded, 'files'):",
+        "    from pathlib import Path",
+        "",
+        "    suffix = Path(path).suffix.lower()",
+        "    if suffix == '.pt':",
+        "        loaded = torch.load(path, map_location='cpu', weights_only=True)",
+        "        if isinstance(loaded, dict):",
+        "            if array_key is None:",
+        "                raise ValueError(",
+        "                    'External .pt mapping tensor data requires array_key.'",
+        "                )",
+        "            if array_key not in loaded:",
+        "                raise ValueError(",
+        "                    f'External .pt tensor data is missing key {array_key!r}.'",
+        "                )",
+        "            data = loaded[array_key]",
+        "        else:",
+        "            if array_key is not None:",
+        "                raise ValueError(",
+        "                    'External .pt tensor data only uses array_key for mappings.'",
+        "                )",
+        "            data = loaded",
+        "        if not hasattr(data, 'shape'):",
+        "            raise ValueError(",
+        "                'External .pt tensor data must resolve to a tensor-like object with shape.'",
+        "            )",
+        "        if tuple(data.shape) != tuple(expected_shape):",
+        "            raise ValueError(",
+        "                f'External tensor data shape {tuple(data.shape)!r} does not match '",
+        "                f'expected shape {tuple(expected_shape)!r}.'",
+        "            )",
+        *pt_return_lines,
+        "    if suffix == '.npz':",
         "        if array_key is None:",
         "            raise ValueError('External .npz tensor data requires array_key.')",
-        "        data = loaded[array_key]",
-        "    else:",
+        "        data = np.load(path)[array_key]",
+        "    elif suffix == '.npy':",
         "        if array_key is not None:",
         "            raise ValueError('External .npy tensor data does not use array_key.')",
-        "        data = loaded",
+        "        data = np.load(path)",
+        "    else:",
+        "        raise ValueError('External tensor data must use a .npy, .npz, or .pt file.')",
         "    if tuple(data.shape) != tuple(expected_shape):",
         "        raise ValueError(",
         "            f'External tensor data shape {tuple(data.shape)!r} does not match '",
@@ -560,7 +632,11 @@ def render_tensor_data_assignments(
     """Render one data-variable assignment per tensor in display order."""
     lines: list[str] = []
     if uses_external_tensor_data(prepared):
-        lines.extend(_render_external_tensor_data_helper_lines())
+        lines.extend(
+            _render_external_tensor_data_helper_lines(
+                return_torch_tensors=module_alias == "torch",
+            )
+        )
     for tensor in prepared.tensors:
         lines.append(f"# Tensor {_tensor_display_name(tensor)} data")
         hyperedge_copy_tensor_lines = _render_hyperedge_copy_tensor_data_assignments(

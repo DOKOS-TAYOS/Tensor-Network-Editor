@@ -7689,6 +7689,29 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
             `Expected external path and key edits to update tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
           );
         }
+        commitField(
+          document.getElementById("tensor-data-external-path-input"),
+          "data/a.pt"
+        );
+        if (!document.getElementById("tensor-data-external-array-key-input")) {
+          throw new Error("External .pt tensor data should expose an optional key input.");
+        }
+        commitField(
+          document.getElementById("tensor-data-external-array-key-input"),
+          "weights"
+        );
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({
+            mode: "external",
+            file_path: "data/a.pt",
+            array_key: "weights",
+          })
+        ) {
+          throw new Error(
+            `Expected external .pt path and key edits to update tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
         assertLastRenderDidNotInvalidateGraph(
           renderCalls,
           () => graphRenderCount,

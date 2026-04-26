@@ -320,8 +320,8 @@ Available modes:
 - `Random`: seeded normal or uniform values, with seed `0` as the default
 - `Explicit values`: you provide JSON values that exactly match the tensor
   shape
-- `External .npy/.npz`: generated code loads values from a NumPy file and
-  checks the loaded shape
+- `External .npy/.npz/.pt`: generated code loads values from a file and checks
+  the loaded shape
 
 Useful rules:
 
@@ -334,12 +334,13 @@ Useful rules:
   design
 - `.npy` files use the whole stored array
 - `.npz` files need an `Array key`
+- `.pt` files may store a tensor directly, or use `Array/key` to select a
+  tensor from a saved mapping
 - when you export from the CLI, relative external file paths are interpreted
   relative to the JSON design file
 - saved JSON round-trips these initializer modes, and generated Python emits
   backend-native constructors for them
-- symbolic expressions and direct `.pt` imports are still out of scope for the
-  editor
+- symbolic expressions are still out of scope for the editor
 
 <p align="center">
   <img
@@ -586,8 +587,8 @@ linear or grid neighborhood would hide that intent.
 - Hyperedges are available only in normal mode. While present, planner/manual
   contraction editing and benchmark mode are disabled.
 - Tensor values support portable built-in initializers, complex scalars, and
-  external `.npy` / `.npz` arrays, but not symbolic expressions or direct `.pt`
-  imports.
+  external `.npy` / `.npz` / `.pt` arrays or tensors, but not symbolic
+  expressions.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with every bundled
   backend.

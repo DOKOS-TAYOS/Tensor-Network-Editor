@@ -183,10 +183,11 @@ tensor-network-editor benchmark my_network.json
 tensor-network-editor benchmark my_network.json --dtype float32 --format csv --output benchmark.csv
 ```
 
-Render one saved design as SVG:
+Render one saved design as SVG or, with the optional `png` extra, PNG:
 
 ```bash
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format png --output figure.png
 ```
 
 Use the editor from Python:
@@ -221,14 +222,15 @@ result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
 print(result.code)
 ```
 
-Render SVG from Python:
+Render static figures from Python:
 
 ```python
-from tensor_network_editor import load_spec, render_spec_svg
+from tensor_network_editor import load_spec, render_spec_png, render_spec_svg
 
 
 spec = load_spec("my_network.json")
 svg = render_spec_svg(spec, output_path="figure.svg")
+png = render_spec_png(spec, output_path="figure.png")
 ```
 
 Load a live `quimb` or `tensornetwork` object from Python source:
@@ -283,17 +285,16 @@ whole load immediately.
 ## Current Limits
 
 - Hyperedges are supported only in normal mode. They are lowered to generated
-  copy tensors for export, re-imported generated Python stays in that lowered
-  binary form, and planner/manual contraction editing plus benchmark mode are
-  disabled while hyperedges exist in the design.
+  copy tensors for export, supported generated Python can reconstruct them as
+  `HyperedgeSpec`, and planner/manual contraction editing plus benchmark mode
+  are disabled while hyperedges exist in the design.
 - Python import is intentionally conservative. It supports the package's own
   generated exports plus static AST patterns for simple `quimb`,
   `tensornetwork`, and `einsum` / `opt_einsum` sources. It also offers an
   explicit live-import mode for `quimb` and `tensornetwork` runtime objects,
   with static-parser fallback for generated sources when live imports fail
   because backend modules are unavailable. External and live imports still do
-  not recover editor layout/groups/notes, rebuild manual contraction plans, or
-  load periodic-mode Python back into editable specs.
+  not recover editor layout/groups/notes or rebuild manual contraction plans.
 - `PythonLoadOptions(reconstruction_level="best_available")` is currently only supported
   for the package's own `generated` Python profile. External static profiles
   and live imports use the portable `simple` reconstruction contract instead.
@@ -302,8 +303,8 @@ whole load immediately.
   file depends on sibling modules or path-sensitive imports, prefer the Python
   API or CLI with the real file path.
 - Tensor values in the visual editor support portable built-in initializers,
-  dtype choices, and JSON-friendly complex scalars. Symbolic expressions and
-  direct `.npy` / `.pt` imports are not supported yet.
+  dtype choices, JSON-friendly complex scalars, and external `.npy`, `.npz`,
+  and `.pt` data references. Symbolic expressions are not supported yet.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with all bundled
   backends.
