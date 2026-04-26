@@ -505,8 +505,9 @@ Useful ideas:
   instead of flattening it into one large hand-drawn graph
 - manual planner mode can use clickable virtual boundary operands: `Upper
   cell`, `Right cell`, `Lower cell`, and `Left cell`
-- generated code visits cells in row-major order, from the upper-left corner to
-  the lower-right corner
+- generated code visits cells in row-major order: it starts at the upper-left
+  cell, contracts left-to-right across the row, then carries the partial result
+  into the leftmost cell of the next row
 - if a manual plan leaves a boundary or intermediate alive, generated code keeps
   the partial network in `remaining_operands` instead of forcing one final
   tensor
@@ -531,8 +532,8 @@ Useful ideas:
 - manual planner mode can use clickable virtual boundary operands: `Parent
   cell` and one `Child N` operand per child branch
 - generated tree exports expose the manual-plan partial network with a
-  bottom-up leaf-to-root pass, which is the memory-friendly direction for tree
-  contractions
+  bottom-up pass: leaves contract into their direct parents first, then the
+  next level contracts upward until the root is reached
 - hyperedges are not available inside the periodic-cell editor payloads in this
   first release
 

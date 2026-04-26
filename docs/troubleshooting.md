@@ -323,5 +323,6 @@ These are current limits, not installation problems:
   fill values, and explicit numeric JSON literals
 - TenPy code generation is not included
 - linear, grid, and tree periodic code generation work with every bundled
-  backend, but grid/tree planner and manual-contraction editing remain limited
+  backend; grid/tree manual plans can leave partial outputs in
+  `remaining_operands` when a virtual boundary is intentionally kept alive
 - manual outer-product plans cannot be exported to `tensorkrowch`

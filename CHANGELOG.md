@@ -26,6 +26,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Documentation now describes grid/tree manual contraction plans as supported
+  with clickable virtual boundary operands, including the row-major grid pass,
+  bottom-up tree pass, and partial `remaining_operands` exports.
 - Grid/tree periodic cell normalization, hydration, serialization, and cell
   switching now preserve each cell's saved `contraction_plan` instead of
   silently clearing it.
@@ -93,7 +96,7 @@ All notable changes to this project will be documented in this file.
 - Frontend runtime test scaffolding now reuses named local JS dependency presets for shortcut, interaction, utility, and layout/subnetwork runtime scripts, reducing repeated copy boilerplate without changing test behavior.
 - Tree-periodic codegen renderers now include the missing type annotations needed for the targeted CLI `mypy` regression check, and the linear-periodic headless analysis regression test now matches the current single-analysis flow.
 - Editor HTTP request handling now rejects truncated request bodies deterministically, repeated session completion requests keep the first confirmed result instead of overwriting it, and benchmark-base planner guards clear all transient disclosure/inspection state consistently.
-- The editor toolbar no longer presents `For Tree` as “Not available yet”; its copy now matches the real support level of the mode while still making clear in docs that planner/manual contraction editing remains disabled there.
+- The editor toolbar no longer presents `For Tree` as “Not available yet”; its copy now matches the real support level shipped in 0.4.0.
 
 - Irregular imported graphs no longer fall back to a coarse grid-only reflow path; auto layout now uses layered component placement with overlap-safe spacing, and the toolbar keeps whole-graph layout available without requiring a temporary tensor selection.
 - Hyperedges now participate correctly in canonicalization, subnetworks, clipboard flows, metadata filters, graph rendering, and connection lookups, while planner/manual contraction editing and benchmark mode fail fast with clear messages whenever a design contains hyperedges.

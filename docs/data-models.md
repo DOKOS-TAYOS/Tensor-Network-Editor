@@ -369,14 +369,25 @@ This mode stores nine representative cells around a center cell:
 - `bottom`
 - `bottom_right`
 
-Each cell can store tensors, edges, groups, notes, and metadata. The typed
-boundary roles (`up`, `right`, `down`, `left`) describe how open bonds continue
-between neighboring cells.
+Each cell can store tensors, edges, groups, notes, metadata, and its own
+contraction plan. The typed boundary roles (`up`, `right`, `down`, `left`)
+describe how open bonds continue between neighboring cells.
 
 Grid periodic payloads are mainly for repeated two-dimensional structures.
-The typed cell object has a `contraction_plan` field because it reuses
-`LinearPeriodicCellSpec`, but validation rejects manual plans inside grid cells
-for this mode.
+Manual plans inside a grid cell can refer to virtual boundary operands as if
+they were clickable neighbors:
+
+- `__grid_up__`
+- `__grid_right__`
+- `__grid_down__`
+- `__grid_left__`
+
+These operands represent already-built payloads or surviving frontiers, not
+physical tensors stored in the cell. Generated code folds the grid in row-major
+order: it starts at the upper-left cell, moves left-to-right through each row,
+then carries the current partial result into the next row. If the plan leaves
+more than one operand alive, the export keeps those values in
+`remaining_operands` instead of forcing a final scalar or tensor.
 Hyperedges are also intentionally not stored inside these cells in v1.
 
 ## Tree Periodic Models
@@ -400,12 +411,18 @@ It also stores a `branching_factor` and the active representative cell. Parent
 and child boundary tensors describe how the local graph continues upward or
 downward in the repeated tree.
 
-Tree periodic payloads are for hierarchical repeated structures. Like the grid
-mode, they are focused on modeling, validation, serialization, and code
-generation rather than manual contraction plans inside each cell. The typed
-cell object has a `contraction_plan` field because it reuses
-`LinearPeriodicCellSpec`, but validation rejects manual plans inside tree
-cells.
+Tree periodic payloads are for hierarchical repeated structures. Each tree cell
+can store a manual contraction plan, and those plans can refer to virtual tree
+boundaries:
+
+- `__tree_parent__`
+- `__tree_child_<index>__`
+
+These operands represent the parent payload or one child payload at the current
+cell boundary. Generated code contracts from the leaves toward the root, level
+by level. That bottom-up direction keeps the live frontier bounded and lets a
+manual plan preserve a partial tree network in `remaining_operands` whenever
+the user intentionally leaves several operands alive.
 Hyperedges are also intentionally not stored inside these cells in v1.
 
 ## Result Models and Enums

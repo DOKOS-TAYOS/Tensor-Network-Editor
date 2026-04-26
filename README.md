@@ -289,7 +289,9 @@ whole load immediately.
 - Manual outer-product steps still cannot be exported safely to `tensorkrowch`.
 - In `For bidimensional` and `For Tree`, virtual boundary operands represent
   payload/frontier interfaces for partial contractions rather than physical
-  tensors you edit directly.
+  tensors you edit directly. Grid plans fold cells row-by-row from the
+  upper-left corner; tree plans fold leaves into parents until the root is
+  reached.
 
 ## Project Links
 
