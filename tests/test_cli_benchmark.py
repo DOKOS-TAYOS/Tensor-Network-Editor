@@ -236,7 +236,7 @@ def test_benchmark_subcommand_writes_latex_output_file(
     assert f"Wrote benchmark report to {output_path}" in capsys.readouterr().out
 
 
-def test_benchmark_subcommand_rejects_hyperedges(
+def test_benchmark_subcommand_accepts_hyperedges_with_warning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with patch(
@@ -245,5 +245,7 @@ def test_benchmark_subcommand_rejects_hyperedges(
     ):
         exit_code = main(["benchmark", "saved-network.json"])
 
-    assert exit_code == 2
-    assert "Hyperedges are not supported" in capsys.readouterr().out
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "Name" in output
+    assert "Hyperedges are analyzed as generated copy tensors" in output

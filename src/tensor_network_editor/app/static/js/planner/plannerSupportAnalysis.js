@@ -11,8 +11,6 @@ export function createPlannerAnalysisSupport({
 }) {
   const {
     benchmarkBaseStatusMessage,
-    hyperedgeStatusMessage,
-    hasHyperedges,
     isBenchmarkBasePosition,
   } = guards;
   let pendingContractionAnalysisOptions = null;
@@ -83,20 +81,6 @@ export function createPlannerAnalysisSupport({
   }
 
   function refreshContractionAnalysis(options = {}) {
-    if (hasHyperedges()) {
-      pendingContractionAnalysisOptions = null;
-      state.contractionAnalysisDirty = false;
-      if (state.spec) {
-        state.spec.contraction_plan = null;
-      }
-      state.contractionAnalysis = {
-        status: "hyperedgesDisabled",
-        message: hyperedgeStatusMessage,
-      };
-      renderPlanner();
-      ctx.renderOverlayDecorations();
-      return;
-    }
     if (isBenchmarkBasePosition()) {
       pendingContractionAnalysisOptions = null;
       state.contractionAnalysisDirty = false;

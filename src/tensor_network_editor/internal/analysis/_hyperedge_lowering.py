@@ -16,14 +16,19 @@ from ...models import (
 from ..models._model_tensor_data import TensorNumericLiteral
 
 
-def lower_hyperedges_to_pairwise_spec(spec: NetworkSpec) -> NetworkSpec:
+def lower_hyperedges_to_pairwise_spec(
+    spec: NetworkSpec,
+    *,
+    preserve_contraction_plan: bool = False,
+) -> NetworkSpec:
     """Return a normal-mode spec where hyperedges become copy tensors plus edges."""
     if not spec.hyperedges:
         return spec
 
     lowered = NetworkSpec.from_dict(spec.to_dict())
     lowered.hyperedges = []
-    lowered.contraction_plan = None
+    if not preserve_contraction_plan:
+        lowered.contraction_plan = None
     existing_tensor_ids = {tensor.id for tensor in lowered.tensors}
     existing_index_ids = {
         index.id for tensor in lowered.tensors for index in tensor.indices

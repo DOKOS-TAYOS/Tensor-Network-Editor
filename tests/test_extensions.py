@@ -129,6 +129,9 @@ def test_builtin_extension_registries_are_seeded() -> None:
         "peps_2x2",
         "mera",
         "binary_tree",
+        "ttn",
+        "pepo",
+        "heisenberg_mps",
     ]
 
 

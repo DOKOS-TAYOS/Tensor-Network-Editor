@@ -7,11 +7,21 @@ from tensor_network_editor.internal.templates._templates import (
     build_template_spec,
     list_template_names,
 )
+from tensor_network_editor.linting import lint_spec
 from tensor_network_editor.validation import ensure_valid_spec
 
 
 def test_template_catalog_exposes_expected_names() -> None:
-    assert list_template_names() == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+    assert list_template_names() == [
+        "mps",
+        "mpo",
+        "peps_2x2",
+        "mera",
+        "binary_tree",
+        "ttn",
+        "pepo",
+        "heisenberg_mps",
+    ]
 
 
 @pytest.mark.parametrize("template_name", list_template_names())
@@ -31,6 +41,9 @@ def test_all_templates_build_valid_specs(template_name: str) -> None:
         ("peps_2x2", 300.0, 260.0),
         ("mera", 560.0, 420.0),
         ("binary_tree", 560.0, 420.0),
+        ("ttn", 560.0, 420.0),
+        ("pepo", 680.0, 560.0),
+        ("heisenberg_mps", 900.0, 0.0),
     ],
 )
 def test_templates_use_generous_spacing(
@@ -233,3 +246,84 @@ def test_binary_tree_template_accepts_custom_depth_and_dimensions() -> None:
         for index in tensor.indices
         if index.name == "phys"
     } == {5}
+
+
+def test_ttn_template_accepts_custom_depth_and_dimensions() -> None:
+    spec = build_template_spec(
+        "ttn",
+        TemplateParameters(graph_size=4, bond_dimension=6, physical_dimension=3),
+    )
+    leaves = [tensor for tensor in spec.tensors if tensor.name.startswith("L4-")]
+
+    assert spec.name == "TTN depth 4"
+    assert len(spec.tensors) == 15
+    assert len(spec.edges) == 14
+    assert len(leaves) == 8
+    assert all(
+        any(index.name == "phys" for index in tensor.indices) for tensor in leaves
+    )
+    assert {
+        index.dimension
+        for tensor in spec.tensors
+        for index in tensor.indices
+        if index.name != "phys"
+    } == {6}
+    assert {
+        index.dimension
+        for tensor in leaves
+        for index in tensor.indices
+        if index.name == "phys"
+    } == {3}
+
+
+def test_pepo_template_accepts_custom_side_length_and_dimensions() -> None:
+    spec = build_template_spec(
+        "pepo",
+        TemplateParameters(graph_size=3, bond_dimension=5, physical_dimension=2),
+    )
+    center_tensor = next(tensor for tensor in spec.tensors if tensor.name == "B2")
+
+    assert spec.name == "PEPO 3x3"
+    assert len(spec.tensors) == 9
+    assert len(spec.edges) == 12
+    assert {index.name for index in center_tensor.indices} == {
+        "left",
+        "right",
+        "up",
+        "down",
+        "bra",
+        "ket",
+    }
+    assert {
+        index.dimension
+        for tensor in spec.tensors
+        for index in tensor.indices
+        if index.name in {"left", "right", "up", "down"}
+    } == {5}
+    assert {
+        index.dimension
+        for tensor in spec.tensors
+        for index in tensor.indices
+        if index.name in {"bra", "ket"}
+    } == {2}
+
+
+def test_heisenberg_mps_template_uses_guided_metadata_without_lint_warnings() -> None:
+    spec = build_template_spec("heisenberg_mps")
+    tensor_metadata = [tensor.metadata for tensor in spec.tensors]
+    index_metadata = [
+        index.metadata for tensor in spec.tensors for index in tensor.indices
+    ]
+
+    assert spec.name == "Heisenberg MPS"
+    assert len(spec.tensors) == 4
+    assert len(spec.edges) == 3
+    assert all(metadata.get("role") == "state" for metadata in tensor_metadata)
+    assert all(
+        "heisenberg" in str(metadata.get("tags", "")) for metadata in tensor_metadata
+    )
+    assert {str(metadata.get("leg_kind")) for metadata in index_metadata} <= {
+        "bond",
+        "physical",
+    }
+    assert lint_spec(spec).issues == []

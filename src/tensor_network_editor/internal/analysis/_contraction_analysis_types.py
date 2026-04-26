@@ -179,6 +179,27 @@ class ContractionComparison:
         return payload
 
 
+@dataclass(slots=True, frozen=True)
+class SyntheticContractionOperand:
+    """Synthetic operand generated internally for contraction analysis."""
+
+    operand_id: str
+    name: str
+    kind: str
+    source_hyperedge_id: str
+    source_tensor_ids: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the synthetic operand to a JSON-compatible mapping."""
+        return {
+            "operand_id": self.operand_id,
+            "name": self.name,
+            "kind": self.kind,
+            "source_hyperedge_id": self.source_hyperedge_id,
+            "source_tensor_ids": cast(JSONValue, list(self.source_tensor_ids)),
+        }
+
+
 @dataclass(slots=True)
 class ContractionAnalysisResult:
     """Top-level contraction analysis payload for the editor UI."""
@@ -192,6 +213,10 @@ class ContractionAnalysisResult:
     comparisons: dict[str, ContractionComparison] = field(default_factory=dict)
     automatic_strategy: str = "greedy"
     message: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    synthetic_operands: tuple[SyntheticContractionOperand, ...] = field(
+        default_factory=tuple
+    )
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the full contraction analysis result."""
@@ -210,6 +235,11 @@ class ContractionAnalysisResult:
                 },
             ),
             "automatic_strategy": self.automatic_strategy,
+            "warnings": cast(JSONValue, list(self.warnings)),
+            "synthetic_operands": cast(
+                JSONValue,
+                [operand.to_dict() for operand in self.synthetic_operands],
+            ),
         }
         if self.message is not None:
             payload["message"] = self.message

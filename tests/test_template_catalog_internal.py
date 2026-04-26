@@ -17,7 +17,16 @@ def test_template_catalog_internal_exposes_same_public_metadata() -> None:
     definitions = serialize_template_definitions()
     mera_definition = get_template_definition("mera")
 
-    assert names == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+    assert names == [
+        "mps",
+        "mpo",
+        "peps_2x2",
+        "mera",
+        "binary_tree",
+        "ttn",
+        "pepo",
+        "heisenberg_mps",
+    ]
     assert list(definitions) == names
     assert mera_definition.display_name == "MERA"
     assert mera_definition.graph_size_label == "Depth"

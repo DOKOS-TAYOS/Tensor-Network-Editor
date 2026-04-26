@@ -363,6 +363,9 @@ Use:
   `observable`
 - `analyze_spec(...)` for structural counts and contraction summaries
 - `analyze_contraction(...)` when you only need contraction analysis
+- normal-mode hyperedges are analyzed as internal generated copy tensors; the
+  returned contraction result includes `warnings` and `synthetic_operands` so
+  callers can explain that lowering to users
 - `canonicalize_spec(...)` for stable ordering, recursive metadata key ordering,
   normalized `metadata.tags`, and optional deterministic ids
 - `diff_specs(...)` to compare entities by stable ids
@@ -417,6 +420,8 @@ The package root only re-exports `build_template_spec(...)` and
 
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
+Built-ins include `mps`, `mpo`, `peps_2x2`, `mera`, `binary_tree`, `ttn`,
+`pepo`, and `heisenberg_mps`.
 
 ## Subnetwork Helpers
 

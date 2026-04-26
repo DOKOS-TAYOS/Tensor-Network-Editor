@@ -2,8 +2,8 @@
 
 This page covers the `tensor-network-editor` command. The CLI can launch the
 visual editor or run headless commands for validation, linting, analysis, code
-generation, benchmark comparisons, diffs, templates, and reusable-subnetwork
-catalogs.
+generation, benchmark comparisons, diagnostics, diffs, templates, and
+reusable-subnetwork catalogs.
 
 ## Contents
 
@@ -14,6 +14,7 @@ catalogs.
 - [Lint](#lint)
 - [Analyze](#analyze)
 - [Benchmark](#benchmark)
+- [Doctor](#doctor)
 - [Export](#export)
 - [Render](#render)
 - [Canonicalize](#canonicalize)
@@ -116,6 +117,7 @@ tensor-network-editor validate my_network.json
 tensor-network-editor lint my_network.json
 tensor-network-editor analyze my_network.json
 tensor-network-editor benchmark my_network.json
+tensor-network-editor doctor my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
 tensor-network-editor render my_network.json --format svg --output figure.svg
 tensor-network-editor render my_network.json --format png --output figure.png
@@ -268,6 +270,31 @@ needs to distinguish complete and incomplete comparisons.
 
 For periodic specs, benchmark uses the same active-cell normalization as
 `analyze`, so it operates on the active linear/grid/tree representative cell.
+For normal-mode specs with hyperedges, benchmark lowers those hyperedges to
+internal generated copy tensors, prints a warning, and leaves the saved visual
+model unchanged.
+
+## Doctor
+
+Run one friendly diagnostic command when you are not sure whether to validate,
+lint, analyze, or check installed extras:
+
+```bash
+tensor-network-editor doctor my_network.json
+tensor-network-editor doctor my_network.json --dtype float32
+tensor-network-editor doctor my_network.json --format json
+```
+
+`doctor` reports:
+
+- validation status
+- lint status
+- analysis and benchmark summaries when validation passes
+- available backends/extras such as `numpy`, `torch`, `opt_einsum`, and `PIL`
+- warnings and suggestions
+
+Exit code is `0` when the file loads and validation passes, `1` when validation
+finds errors, and `2` for load/parse errors.
 
 ## Export
 
@@ -400,7 +427,8 @@ tensor-network-editor template build peps_2x2 --graph-size 3
 commands, but the built spec itself is serialized as JSON when `--output` is
 omitted.
 
-Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, and Binary Tree.
+Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, Binary Tree,
+TTN (`ttn`), PEPO (`pepo`), and Heisenberg MPS (`heisenberg_mps`).
 When `--output` is omitted, `template build` prints the serialized spec JSON to
 standard output.
 
@@ -458,6 +486,7 @@ These commands support `--format json`:
 - `lint`
 - `analyze`
 - `benchmark`
+- `doctor`
 - `diff`
 - `subnetwork list`
 - `template list`
@@ -471,7 +500,8 @@ Use JSON output when another script should consume the result.
 Common exit codes:
 
 - `0`: command completed successfully
-- `1`: validation failed, or lint found warnings with `--fail-on warning`
+- `1`: validation failed, `doctor` found validation errors, or lint found
+  warnings with `--fail-on warning`
 - `2`: expected package error such as code generation, serialization, IO, or
   invalid option value
 - `130`: interrupted with Ctrl+C

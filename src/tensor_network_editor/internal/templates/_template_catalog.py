@@ -108,6 +108,36 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
     ),
+    "ttn": TemplateDefinition(
+        name="ttn",
+        display_name="TTN",
+        graph_size_label="Depth",
+        defaults=TemplateParameters(
+            graph_size=3,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
+    "pepo": TemplateDefinition(
+        name="pepo",
+        display_name="PEPO",
+        graph_size_label="Side length",
+        defaults=TemplateParameters(
+            graph_size=3,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
+    "heisenberg_mps": TemplateDefinition(
+        name="heisenberg_mps",
+        display_name="Heisenberg MPS",
+        graph_size_label="Sites",
+        defaults=TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+        ),
+    ),
 }
 
 _TEMPLATE_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")

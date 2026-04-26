@@ -278,9 +278,9 @@ Manual contraction plans still work without that extra.
 
 If a network is invalid or partially inconsistent, analysis may also be
 unavailable until validation issues are fixed.
-If the design contains hyperedges, planner/manual contraction editing is
-intentionally disabled in this first release.
-Benchmark mode follows the same limitation for hyperedge designs.
+If the design contains hyperedges in normal mode, planner and benchmark analysis
+lower them to internal generated copy tensors and show a warning. The saved
+visual model is not changed.
 
 ## TensorKrowch Rejects a Manual Plan
 
@@ -317,8 +317,8 @@ for another backend later.
 
 These are current limits, not installation problems:
 
-- hyperedges work only in normal mode, disable planner/manual contraction
-  editing plus benchmark mode while present
+- hyperedges work only in normal mode; planner and benchmark analyze them as
+  internal generated copy tensors
 - tensor values support portable built-in initializers, complex scalars, and
   external `.npy` / `.npz` / `.pt` arrays or tensors, but not symbolic
   expressions

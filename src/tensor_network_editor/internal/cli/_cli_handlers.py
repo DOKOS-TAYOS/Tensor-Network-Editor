@@ -40,6 +40,7 @@ from ._cli_benchmark import (
     serialize_benchmark_report_latex,
     serialize_benchmark_report_text,
 )
+from ._cli_doctor import build_doctor_report, format_doctor_report_text
 
 
 def handle_edit_command(
@@ -160,6 +161,31 @@ def handle_benchmark_command(
     else:
         print(_serialize_benchmark_report(report, output_format=args.format))
     return 0
+
+
+def handle_doctor_command(
+    args: argparse.Namespace,
+    *,
+    load_spec: Callable[..., NetworkSpec],
+    validate_spec: Callable[[NetworkSpec], list[ValidationIssue]],
+    lint_spec: Callable[..., LintReport],
+    analyze_spec: Callable[..., SpecAnalysisReport],
+    print_json: Callable[[object], None],
+) -> int:
+    """Run a friendly diagnostic report for one saved spec."""
+    spec = load_spec(args.path, **_python_load_kwargs(args))
+    report = build_doctor_report(
+        spec,
+        memory_dtype=args.dtype,
+        validate_spec=validate_spec,
+        lint_spec=lint_spec,
+        analyze_spec=analyze_spec,
+    )
+    if args.format == "json":
+        print_json(report.to_dict())
+    else:
+        print(format_doctor_report_text(report, path=args.path))
+    return 0 if report.ok else 1
 
 
 def handle_export_command(

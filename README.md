@@ -107,8 +107,9 @@ offline use, and generated code you can inspect.
   `.npz` data that generated code loads with shape checks.
 - Create first-class hyperedges in normal mode, reposition their virtual hubs
   in the editor, and let exports lower them automatically into copy tensors
-  plus binary edges for backend code.
-- Use built-in templates for MPS, MPO, PEPS, MERA, and binary-tree layouts.
+  plus binary edges for backend code, analysis, and benchmarks.
+- Use built-in templates for MPS, MPO, PEPS, MERA, binary-tree, TTN, PEPO, and
+  Heisenberg MPS layouts.
 - Save reusable subnetworks into project or shared catalogs and reinsert them
   later with fresh ids, tags, and quick previews.
 - Annotate tensors and indices with tags, guided metadata, and free-form JSON,
@@ -181,6 +182,14 @@ Generate a reproducible benchmark table from one saved design:
 ```bash
 tensor-network-editor benchmark my_network.json
 tensor-network-editor benchmark my_network.json --dtype float32 --format csv --output benchmark.csv
+```
+
+Run a friendly local diagnostic that combines validation, lint, analysis,
+benchmark, and optional-backend checks:
+
+```bash
+tensor-network-editor doctor my_network.json
+tensor-network-editor doctor my_network.json --format json
 ```
 
 Render one saved design as SVG or, with the optional `png` extra, PNG:
@@ -286,8 +295,8 @@ whole load immediately.
 
 - Hyperedges are supported only in normal mode. They are lowered to generated
   copy tensors for export, supported generated Python can reconstruct them as
-  `HyperedgeSpec`, and planner/manual contraction editing plus benchmark mode
-  are disabled while hyperedges exist in the design.
+  `HyperedgeSpec`, and planner/benchmark analysis handles them as internal copy
+  tensors while keeping the visual model unchanged.
 - Python import is intentionally conservative. It supports the package's own
   generated exports plus static AST patterns for simple `quimb`,
   `tensornetwork`, and `einsum` / `opt_einsum` sources. It also offers an

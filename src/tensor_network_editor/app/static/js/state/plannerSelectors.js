@@ -23,12 +23,23 @@ export function buildPlannerSeedOperands({
   isTreePeriodicMode,
   isTreePeriodicBoundaryTensor,
   getTreePeriodicReservedOperandIdForTensor,
+  syntheticOperands,
 }) {
   const baseOperands = (Array.isArray(tensors) ? tensors : []).map((tensor) => ({
     id: tensor.id,
     sourceTensorIds: [tensor.id],
     selectionIds: [tensor.id],
   }));
+  const syntheticSeedOperands = (Array.isArray(syntheticOperands) ? syntheticOperands : [])
+    .filter((operand) => operand && typeof operand.operand_id === "string")
+    .map((operand) => ({
+      id: operand.operand_id,
+      sourceTensorIds: Array.isArray(operand.source_tensor_ids)
+        ? operand.source_tensor_ids
+        : [],
+      selectionIds: [operand.operand_id],
+      visibleRepresentative: false,
+    }));
 
   const boundaryOperandConfigs = [
     {
@@ -54,7 +65,7 @@ export function buildPlannerSeedOperands({
       typeof config.getReservedOperandIdForTensor === "function"
   );
   if (!activeBoundaryConfig) {
-    return baseOperands;
+    return [...baseOperands, ...syntheticSeedOperands];
   }
 
   const boundaryOperands = (Array.isArray(specTensors) ? specTensors : [])
@@ -71,7 +82,7 @@ export function buildPlannerSeedOperands({
         : null;
     })
     .filter(Boolean);
-  return [...baseOperands, ...boundaryOperands];
+  return [...baseOperands, ...boundaryOperands, ...syntheticSeedOperands];
 }
 
 function buildPlannerResultSelectionIds(stepId, leftOperand, rightOperand, carrySourceOperand) {
@@ -114,9 +125,11 @@ export function buildPlannerOperandState({
       representativeByOperandId[selectionId] = operand.id;
     });
     sourceTensorIdsByOperandId[operand.id] = sourceTensorIds;
-    sourceTensorIds.forEach((tensorId) => {
-      representativeByTensorId[tensorId] = operand.id;
-    });
+    if (operand.visibleRepresentative !== false) {
+      sourceTensorIds.forEach((tensorId) => {
+        representativeByTensorId[tensorId] = operand.id;
+      });
+    }
     reservedOperandIds.add(operand.id);
   });
 

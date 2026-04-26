@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from tensor_network_editor.codegen.shared.common import prepare_network
@@ -22,6 +24,8 @@ from tensor_network_editor.models import (
     TensorSpec,
     TreePeriodicCellName,
 )
+from tensor_network_editor.types import JSONValue
+from tensor_network_editor.validation import validate_spec
 from tests.factories import (
     build_grid_periodic_grid_spec,
     build_linear_periodic_partial_carry_chain_spec,
@@ -171,9 +175,62 @@ def test_analyze_contraction_reports_manual_pairwise_costs(
     assert result.automatic_past is not None
 
 
-def test_analyze_contraction_rejects_hyperedges() -> None:
-    with pytest.raises(ValueError, match="Hyperedges are not supported"):
-        analyze_contraction(build_three_tensor_hyperedge_spec())
+def test_analyze_contraction_lowers_hyperedges_to_synthetic_operands() -> None:
+    result = analyze_contraction(build_three_tensor_hyperedge_spec())
+
+    assert result.manual.status == "incomplete"
+    assert result.network_output_shape == (2, 5, 7)
+    assert result.warnings == [
+        "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged."
+    ]
+    assert [operand.operand_id for operand in result.synthetic_operands] == [
+        "hyperedge_copy_hyperedge_h"
+    ]
+    assert result.synthetic_operands[0].source_hyperedge_id == "hyperedge_h"
+    payload = result.to_dict()
+    synthetic_operands = cast(list[dict[str, JSONValue]], payload["synthetic_operands"])
+    assert synthetic_operands[0]["operand_id"] == ("hyperedge_copy_hyperedge_h")
+
+
+def test_validate_spec_accepts_hyperedge_synthetic_contraction_operands() -> None:
+    spec = build_three_tensor_hyperedge_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_hyperedge",
+        name="Hyperedge plan",
+        steps=[
+            ContractionStepSpec(
+                id="step_a_copy",
+                left_operand_id="tensor_a",
+                right_operand_id="hyperedge_copy_hyperedge_h",
+            ),
+            ContractionStepSpec(
+                id="step_ab",
+                left_operand_id="step_a_copy",
+                right_operand_id="tensor_b",
+            ),
+        ],
+    )
+
+    assert validate_spec(spec) == []
+
+
+def test_validate_spec_rejects_unknown_hyperedge_contraction_operands() -> None:
+    spec = build_three_tensor_hyperedge_spec()
+    spec.contraction_plan = ContractionPlanSpec(
+        id="plan_hyperedge",
+        name="Hyperedge plan",
+        steps=[
+            ContractionStepSpec(
+                id="step_bad",
+                left_operand_id="tensor_a",
+                right_operand_id="missing_copy_operand",
+            )
+        ],
+    )
+
+    issues = validate_spec(spec)
+
+    assert [issue.code for issue in issues] == ["invalid-contraction-operand"]
 
 
 @pytest.mark.optional_backend

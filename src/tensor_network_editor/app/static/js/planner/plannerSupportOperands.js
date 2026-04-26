@@ -14,7 +14,6 @@ export function createPlannerOperandSupport({
 }) {
   const {
     clearPlannerTransientState,
-    hasHyperedges,
     isBenchmarkBasePosition,
     isGridPeriodicMode,
     isTreePeriodicMode,
@@ -80,7 +79,17 @@ export function createPlannerOperandSupport({
         typeof ctx.getTreePeriodicReservedOperandIdForTensor === "function"
           ? ctx.getTreePeriodicReservedOperandIdForTensor(tensor)
           : null,
+      syntheticOperands: getSyntheticAnalysisOperands(),
     });
+  }
+
+  function getSyntheticAnalysisOperands() {
+    return state.contractionAnalysis &&
+      state.contractionAnalysis.status === "ready" &&
+      state.contractionAnalysis.payload &&
+      Array.isArray(state.contractionAnalysis.payload.synthetic_operands)
+      ? state.contractionAnalysis.payload.synthetic_operands
+      : [];
   }
 
   function buildPlannerOperandStateForSteps(steps, tensors) {
@@ -174,11 +183,6 @@ export function createPlannerOperandSupport({
   }
 
   function repairContractionPlan() {
-    if (hasHyperedges()) {
-      state.spec.contraction_plan = null;
-      clearPlannerTransientState({ clearInspectionStepCount: true });
-      return;
-    }
     if (isTreePeriodicMode()) {
       clearPlannerTransientState({ clearInspectionStepCount: true });
     }
@@ -259,6 +263,12 @@ export function createPlannerOperandSupport({
       if (treeLabel) {
         return treeLabel;
       }
+    }
+    const syntheticOperand = getSyntheticAnalysisOperands().find(
+      (operand) => operand && operand.operand_id === operandId
+    );
+    if (syntheticOperand && syntheticOperand.name) {
+      return syntheticOperand.name;
     }
     const planSteps =
       state.spec.contraction_plan && Array.isArray(state.spec.contraction_plan.steps)

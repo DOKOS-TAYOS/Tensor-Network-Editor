@@ -40,7 +40,7 @@ from tensor_network_editor.models import (
     SpecDiffResult,
     ValidationIssue,
 )
-from tests.factories import build_sample_spec
+from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -550,6 +550,145 @@ def test_analyze_subcommand_reports_integer_metric_errors(
     )
 
 
+def test_build_command_parser_accepts_doctor_subcommand() -> None:
+    parser = build_command_parser()
+
+    parsed_args = parser.parse_args(
+        [
+            "doctor",
+            "saved-network.json",
+            "--dtype",
+            "float32",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert parsed_args.command == "doctor"
+    assert parsed_args.path == "saved-network.json"
+    assert parsed_args.dtype == "float32"
+    assert parsed_args.format == "json"
+
+
+def test_doctor_subcommand_text_includes_diagnostic_sections(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec_for_lint", return_value=sample_spec),
+        patch("tensor_network_editor.cli.validate_spec", return_value=[]),
+        patch("tensor_network_editor.cli.lint_spec", return_value=LintReport()),
+        patch(
+            "tensor_network_editor.cli.analyze_spec",
+            return_value=build_analysis_report("float32"),
+        ),
+    ):
+        exit_code = main(["doctor", "saved-network.json", "--dtype", "float32"])
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Validation" in output
+    assert "Lint" in output
+    assert "Analysis" in output
+    assert "Benchmark" in output
+    assert "Backends/Extras" in output
+    assert "Suggestions" in output
+
+
+def test_doctor_subcommand_json_has_stable_shape(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec_for_lint", return_value=sample_spec),
+        patch("tensor_network_editor.cli.validate_spec", return_value=[]),
+        patch("tensor_network_editor.cli.lint_spec", return_value=LintReport()),
+        patch(
+            "tensor_network_editor.cli.analyze_spec",
+            return_value=build_analysis_report(),
+        ),
+    ):
+        exit_code = main(["doctor", "saved-network.json", "--format", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert list(payload) == [
+        "ok",
+        "validation",
+        "lint",
+        "analysis",
+        "benchmark",
+        "backends",
+        "warnings",
+        "suggestions",
+    ]
+    assert payload["ok"] is True
+    assert payload["validation"]["issue_count"] == 0
+    assert payload["lint"]["issue_count"] == 0
+    assert payload["benchmark"]["memory_dtype"] == "float64"
+    assert "numpy" in payload["backends"]
+
+
+def test_doctor_subcommand_returns_1_for_validation_errors(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec_for_lint", return_value=sample_spec),
+        patch(
+            "tensor_network_editor.cli.validate_spec",
+            return_value=[
+                ValidationIssue(
+                    code="bad-index",
+                    message="Index dimension is invalid.",
+                    path="tensors.tensor_a.indices.tensor_a_i",
+                )
+            ],
+        ),
+        patch("tensor_network_editor.cli.lint_spec", return_value=LintReport()),
+    ):
+        exit_code = main(["doctor", "saved-network.json"])
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Validation" in output
+    assert "bad-index" in output
+    assert "Analysis" in output
+    assert "skipped" in output.lower()
+
+
+def test_doctor_subcommand_load_failure_returns_2(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch(
+        "tensor_network_editor.cli.load_spec_for_lint",
+        side_effect=ValueError("Could not read saved-network.json"),
+    ):
+        exit_code = main(["doctor", "saved-network.json"])
+
+    assert exit_code == 2
+    assert "Could not read saved-network.json" in capsys.readouterr().out
+
+
+def test_doctor_subcommand_reports_hyperedges_as_warning(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch(
+        "tensor_network_editor.cli.load_spec_for_lint",
+        return_value=build_three_tensor_hyperedge_spec(),
+    ):
+        exit_code = main(["doctor", "saved-network.json"])
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Hyperedges are analyzed as generated copy tensors" in output
+    assert "Validation" in output
+
+
 def test_export_subcommand_calls_generate_code_with_requested_output(
     sample_spec: NetworkSpec,
 ) -> None:
@@ -854,6 +993,35 @@ def test_template_build_subcommand_prints_json_when_no_output(
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["network"]["name"] == "MPS (5 sites)"
+
+
+@pytest.mark.parametrize(
+    ("template_name", "expected_name"),
+    [
+        ("ttn", "TTN depth 3"),
+        ("pepo", "PEPO 3x3"),
+        ("heisenberg_mps", "Heisenberg MPS"),
+    ],
+)
+def test_template_build_subcommand_generates_new_v3_templates(
+    template_name: str,
+    expected_name: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(
+        [
+            "template",
+            "build",
+            template_name,
+            "--format",
+            "json",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["network"]["name"] == expected_name
 
 
 def test_subnetwork_list_subcommand_prints_project_catalog(

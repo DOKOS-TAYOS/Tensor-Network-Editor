@@ -32,6 +32,8 @@ UP_OFFSET = (0.0, -28.0)
 DOWN_OFFSET = (0.0, 28.0)
 LOWER_LEFT_OFFSET = (-24.0, 34.0)
 LOWER_RIGHT_OFFSET = (24.0, 34.0)
+UPPER_PHYSICAL_OFFSET = (-26.0, -54.0)
+LOWER_PHYSICAL_OFFSET = (26.0, 42.0)
 TemplateIndexConfig = tuple[str, int, tuple[float, float]]
 LinearChainSiteIndexBuilder = Callable[
     [int, int, TemplateParameters], list[TemplateIndexConfig]
@@ -460,6 +462,14 @@ def _build_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
     return _build_generic_binary_tree_template(parameters)
 
 
+def _build_ttn_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build a tree tensor network with physical legs on the leaves."""
+    spec = _build_generic_binary_tree_template(parameters)
+    spec.id = f"template_ttn_{parameters.graph_size}"
+    spec.name = f"TTN depth {parameters.graph_size}"
+    return spec
+
+
 def _build_default_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build the default depth-3 binary-tree layout."""
     tensors = [
@@ -624,6 +634,106 @@ def _grid_tensor_name(row_index: int, column_index: int) -> str:
     return f"R{row_index + 1}C{column_index + 1}"
 
 
+def _build_pepo_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build a square PEPO operator grid with bra and ket physical legs."""
+    size = parameters.graph_size
+    tensors: list[TensorSpec] = []
+    tensor_lookup: dict[tuple[int, int], TensorSpec] = {}
+    for row_index in range(size):
+        for column_index in range(size):
+            tensor_indices: list[TemplateIndexConfig] = []
+            if column_index > 0:
+                tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
+            if column_index < size - 1:
+                tensor_indices.append(
+                    ("right", parameters.bond_dimension, RIGHT_OFFSET)
+                )
+            if row_index > 0:
+                tensor_indices.append(("up", parameters.bond_dimension, UP_OFFSET))
+            if row_index < size - 1:
+                tensor_indices.append(("down", parameters.bond_dimension, DOWN_OFFSET))
+            tensor_indices.extend(
+                [
+                    ("bra", parameters.physical_dimension, UPPER_PHYSICAL_OFFSET),
+                    ("ket", parameters.physical_dimension, LOWER_PHYSICAL_OFFSET),
+                ]
+            )
+            tensor = _make_tensor(
+                f"tensor_r{row_index + 1}_c{column_index + 1}",
+                _grid_tensor_name(row_index, column_index),
+                340.0 * column_index,
+                VERTICAL_SPACING * row_index,
+                tensor_indices,
+            )
+            tensors.append(tensor)
+            tensor_lookup[(row_index, column_index)] = tensor
+    edges = []
+    for row_index in range(size):
+        for column_index in range(size):
+            current_tensor = tensor_lookup[(row_index, column_index)]
+            if column_index + 1 < size:
+                edges.append(
+                    _make_edge(
+                        f"edge_r{row_index + 1}_c{column_index + 1}_right",
+                        current_tensor,
+                        "right",
+                        tensor_lookup[(row_index, column_index + 1)],
+                        "left",
+                    )
+                )
+            if row_index + 1 < size:
+                edges.append(
+                    _make_edge(
+                        f"edge_r{row_index + 1}_c{column_index + 1}_down",
+                        current_tensor,
+                        "down",
+                        tensor_lookup[(row_index + 1, column_index)],
+                        "up",
+                    )
+                )
+    return NetworkSpec(
+        id=f"template_pepo_{size}",
+        name=f"PEPO {size}x{size}",
+        tensors=tensors,
+        edges=edges,
+    )
+
+
+def _build_heisenberg_mps_template(parameters: TemplateParameters) -> NetworkSpec:
+    """Build an MPS with physics metadata prefilled for a Heisenberg chain."""
+    spec = _build_linear_chain_template(
+        "heisenberg_mps",
+        parameters,
+        tensor_name_prefix="A",
+        spacing=HORIZONTAL_SPACING,
+        site_index_builder=_build_mps_site_indices,
+    )
+    spec.id = f"template_heisenberg_mps_{parameters.graph_size}"
+    spec.name = (
+        "Heisenberg MPS"
+        if parameters.graph_size
+        == TEMPLATE_DEFINITIONS["heisenberg_mps"].defaults.graph_size
+        else f"Heisenberg MPS ({parameters.graph_size} sites)"
+    )
+    for tensor in spec.tensors:
+        tensor.metadata = {
+            "role": "state",
+            "state": "ground",
+            "symmetry": "u1",
+            "tags": "heisenberg mps",
+        }
+        for index in tensor.indices:
+            if index.name == "phys":
+                index.metadata = {
+                    "leg_kind": "physical",
+                    "symmetry": "u1",
+                    "observable": "sz",
+                }
+            else:
+                index.metadata = {"leg_kind": "bond", "symmetry": "u1"}
+    return spec
+
+
 def _make_tensor(
     tensor_id: str,
     name: str,
@@ -710,5 +820,23 @@ def register_builtin_templates() -> None:
         "binary_tree",
         TEMPLATE_DEFINITIONS["binary_tree"],
         _build_binary_tree_template,
+        overwrite=True,
+    )
+    register_template(
+        "ttn",
+        TEMPLATE_DEFINITIONS["ttn"],
+        _build_ttn_template,
+        overwrite=True,
+    )
+    register_template(
+        "pepo",
+        TEMPLATE_DEFINITIONS["pepo"],
+        _build_pepo_template,
+        overwrite=True,
+    )
+    register_template(
+        "heisenberg_mps",
+        TEMPLATE_DEFINITIONS["heisenberg_mps"],
+        _build_heisenberg_mps_template,
         overwrite=True,
     )

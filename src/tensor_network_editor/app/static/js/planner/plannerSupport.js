@@ -37,7 +37,7 @@ export function createPlannerSupport({
       gridPeriodicStatusMessage: "Contractions are disabled in For bidimensional mode.",
       treePeriodicStatusMessage: "Contractions are disabled in For Tree mode.",
       hyperedgeStatusMessage:
-        "Manual contraction planning is unavailable while the design contains hyperedges.",
+        "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged.",
     },
   });
   const operandSupport = createPlannerOperandSupport({

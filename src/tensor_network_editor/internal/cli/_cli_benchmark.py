@@ -54,11 +54,13 @@ class BenchmarkReport:
 
     memory_dtype: str
     rows: list[BenchmarkRow] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the benchmark report to a JSON-compatible mapping."""
         return {
             "memory_dtype": self.memory_dtype,
+            "warnings": cast(JSONValue, list(self.warnings)),
             "rows": cast(JSONValue, [row.to_dict() for row in self.rows]),
         }
 
@@ -69,6 +71,7 @@ def build_benchmark_report(
     """Build a stable benchmark table from one contraction analysis result."""
     return BenchmarkReport(
         memory_dtype=analysis.memory_dtype,
+        warnings=list(analysis.warnings),
         rows=[
             _build_manual_row("manual", "Manual", analysis.manual),
             _build_automatic_row("auto_full", "Auto full", analysis.automatic_full),
@@ -157,9 +160,15 @@ def serialize_benchmark_report_text(report: BenchmarkReport) -> str:
         )
 
     separator = "  ".join("-" * width for width in column_widths)
-    return "\n".join(
+    table_text = "\n".join(
         [format_row(rows[0]), separator] + [format_row(row) for row in rows[1:]]
     )
+    if not report.warnings:
+        return table_text
+    warning_text = "\n".join(
+        ["Warnings:", *[f"- {warning}" for warning in report.warnings]]
+    )
+    return f"{warning_text}\n\n{table_text}"
 
 
 def serialize_benchmark_report_latex(report: BenchmarkReport) -> str:

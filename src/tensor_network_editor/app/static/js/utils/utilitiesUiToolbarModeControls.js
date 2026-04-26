@@ -44,7 +44,6 @@ export function createUiToolbarModeControlSupport({
       benchmarkMode,
       benchmarkActivePosition,
       activeBenchmarkScheme,
-      hasHyperedges,
     } = derivedState;
 
     setMenuItemChecked(singleModeMenuItem, !forMode && !benchmarkMode);
@@ -57,14 +56,12 @@ export function createUiToolbarModeControlSupport({
     }
     if (benchmarkModeMenuItem) {
       setMenuItemChecked(benchmarkModeMenuItem, benchmarkMode);
-      benchmarkModeMenuItem.disabled = !benchmarkMode && (forMode || hasHyperedges);
+      benchmarkModeMenuItem.disabled = !benchmarkMode && forMode;
       setTooltipDescription(
         benchmarkModeMenuItem,
         forMode
           ? "Benchmark mode is unavailable while a For mode is active."
-          : hasHyperedges
-            ? "Benchmark mode is unavailable while the design contains hyperedges."
-            : "Compare manual contraction schemes on the current tensor network."
+          : "Compare manual contraction schemes on the current tensor network."
       );
     }
     if (toolbarModeControls) {
@@ -217,9 +214,7 @@ export function createUiToolbarModeControlSupport({
         setTooltipDescription(
           benchmarkCompareButton,
           benchmarkCompareButton.disabled
-            ? hasHyperedges
-              ? "Benchmark comparison is unavailable while the design contains hyperedges."
-              : "Create at least one scheme first."
+            ? "Create at least one scheme first."
             : "Compare the saved contraction schemes."
         );
       }

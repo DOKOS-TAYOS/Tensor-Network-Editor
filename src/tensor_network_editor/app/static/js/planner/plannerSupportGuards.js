@@ -8,7 +8,6 @@ export function createPlannerGuardSupport({
     benchmarkBaseStatusMessage,
     gridPeriodicStatusMessage,
     treePeriodicStatusMessage,
-    hyperedgeStatusMessage,
   } = statusMessages;
 
   function isBenchmarkBasePosition() {
@@ -68,33 +67,10 @@ export function createPlannerGuardSupport({
     return false;
   }
 
-  function guardHyperedgePlannerAction(message = hyperedgeStatusMessage) {
-    if (!hasHyperedges()) {
-      return false;
-    }
-    state.plannerMode = false;
-    clearPlannerTransientState({ clearInspectionStepCount: true });
-    if (state.spec) {
-      state.spec.contraction_plan = null;
-    }
-    state.contractionAnalysis = {
-      status: "hyperedgesDisabled",
-      message,
-    };
-    if (typeof ctx.syncPendingInteractionClasses === "function") {
-      ctx.syncPendingInteractionClasses();
-    }
-    renderPlanner();
-    ctx.renderOverlayDecorations();
-    ctx.setStatus(message);
-    return true;
-  }
-
   return {
     benchmarkBaseStatusMessage,
     gridPeriodicStatusMessage,
     treePeriodicStatusMessage,
-    hyperedgeStatusMessage,
     isBenchmarkBasePosition,
     isGridPeriodicMode,
     isTreePeriodicMode,
@@ -104,6 +80,5 @@ export function createPlannerGuardSupport({
     guardBenchmarkBasePlannerAction,
     guardGridPeriodicPlannerAction,
     guardTreePeriodicPlannerAction,
-    guardHyperedgePlannerAction,
   };
 }

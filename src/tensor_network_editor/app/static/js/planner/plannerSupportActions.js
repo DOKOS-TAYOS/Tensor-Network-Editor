@@ -13,7 +13,6 @@ export function createPlannerActionSupport({
     guardBenchmarkBasePlannerAction,
     guardGridPeriodicPlannerAction,
     guardTreePeriodicPlannerAction,
-    guardHyperedgePlannerAction,
     resetPlannerBadgeDisclosureState,
   } = guards;
   const {
@@ -35,9 +34,6 @@ export function createPlannerActionSupport({
   });
 
   function handlePlannerOperandClick(operandId) {
-    if (guardHyperedgePlannerAction()) {
-      return;
-    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -72,9 +68,6 @@ export function createPlannerActionSupport({
   }
 
   function trimContractionPlan(stepCount) {
-    if (guardHyperedgePlannerAction()) {
-      return;
-    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -110,9 +103,6 @@ export function createPlannerActionSupport({
   }
 
   function togglePlannerMode() {
-    if (guardHyperedgePlannerAction()) {
-      return;
-    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -145,9 +135,6 @@ export function createPlannerActionSupport({
   }
 
   function startAutomaticPreview(mode) {
-    if (guardHyperedgePlannerAction()) {
-      return;
-    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }
@@ -161,9 +148,6 @@ export function createPlannerActionSupport({
   }
 
   function acceptAutomaticPlan(mode) {
-    if (guardHyperedgePlannerAction()) {
-      return;
-    }
     if (guardTreePeriodicPlannerAction()) {
       return;
     }

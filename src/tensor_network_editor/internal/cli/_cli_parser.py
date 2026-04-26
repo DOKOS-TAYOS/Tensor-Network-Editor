@@ -22,6 +22,7 @@ class CliHandlerBindings:
     handle_lint: CommandHandler
     handle_analyze: CommandHandler
     handle_benchmark: CommandHandler
+    handle_doctor: CommandHandler
     handle_export: CommandHandler
     handle_render: CommandHandler
     handle_diff: CommandHandler
@@ -122,6 +123,23 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     )
     benchmark_parser.add_argument("--output", type=str)
     benchmark_parser.set_defaults(handler=handlers.handle_benchmark)
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Run friendly diagnostics for a saved spec and local environment.",
+    )
+    doctor_parser.add_argument("path", type=str)
+    doctor_parser.add_argument(
+        "--dtype",
+        choices=list(SUPPORTED_MEMORY_DTYPES),
+        default=DEFAULT_MEMORY_DTYPE,
+    )
+    doctor_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+    )
+    doctor_parser.set_defaults(handler=handlers.handle_doctor)
 
     export_parser = subparsers.add_parser(
         "export", help="Generate backend Python code from a saved spec."

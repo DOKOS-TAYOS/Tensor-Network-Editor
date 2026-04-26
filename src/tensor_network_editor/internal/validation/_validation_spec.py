@@ -5,6 +5,7 @@ from __future__ import annotations
 from ...errors import SpecValidationError
 from ...models import NetworkSpec, ValidationIssue
 from ..analysis._analysis import NetworkAnalysis, analyze_network
+from ..analysis._hyperedge_lowering import lower_hyperedges_to_pairwise_spec
 from ._validation_common import append_issue
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
@@ -67,7 +68,7 @@ def validate_spec_with_analysis(
     if spec.contraction_plan is not None:
         validate_contraction_plan(
             spec.contraction_plan,
-            tensor_ids=tensor_ids,
+            tensor_ids=_contraction_operand_ids_for_validation(spec, tensor_ids),
             issues=issues,
         )
 
@@ -89,6 +90,33 @@ def validate_spec_with_analysis(
         validate_tree_periodic_tree(spec.tree_periodic_tree, issues=issues)
 
     return issues, analysis
+
+
+def _contraction_operand_ids_for_validation(
+    spec: NetworkSpec,
+    visible_tensor_ids: set[str],
+) -> set[str]:
+    """Return operand ids that a contraction plan may reference."""
+    if not _spec_allows_hyperedge_analysis(spec):
+        return visible_tensor_ids
+    try:
+        lowered_spec = lower_hyperedges_to_pairwise_spec(
+            spec,
+            preserve_contraction_plan=True,
+        )
+    except KeyError:
+        return visible_tensor_ids
+    return {tensor.id for tensor in lowered_spec.tensors}
+
+
+def _spec_allows_hyperedge_analysis(spec: NetworkSpec) -> bool:
+    """Return whether hyperedges can be lowered for normal-mode analysis."""
+    return (
+        bool(spec.hyperedges)
+        and spec.linear_periodic_chain is None
+        and spec.grid_periodic_grid is None
+        and spec.tree_periodic_tree is None
+    )
 
 
 def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:

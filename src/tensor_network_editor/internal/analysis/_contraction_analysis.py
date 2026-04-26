@@ -18,12 +18,20 @@ from ._contraction_analysis_compare import _build_contraction_comparisons
 from ._contraction_analysis_manual import (
     _analyze_manual_plan_and_state,
 )
-from ._contraction_analysis_types import ContractionAnalysisResult
+from ._contraction_analysis_types import (
+    ContractionAnalysisResult,
+    SyntheticContractionOperand,
+)
 from ._contraction_plan import (
     prepare_contraction_inputs,
 )
+from ._hyperedge_lowering import lower_hyperedges_to_pairwise_spec
 from ._memory_dtypes import DEFAULT_MEMORY_DTYPE, dtype_size_in_bytes
 from ._prepared_network import PreparedNetwork, prepare_analyzed_network
+
+_HYPEREDGE_ANALYSIS_WARNING = (
+    "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged."
+)
 
 
 def analyze_contraction(
@@ -32,10 +40,6 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
-    if spec.hyperedges:
-        raise ValueError(
-            "Hyperedges are not supported by manual contraction planning or benchmark mode yet."
-        )
     validated_spec = ensure_valid_spec(spec)
     return _analyze_validated_contraction(
         validated_spec,
@@ -51,9 +55,15 @@ def _analyze_validated_contraction(
     """Analyze contraction data for a spec that was already validated."""
     normalized_spec = _normalize_spec_for_contraction_analysis(spec, validate=False)
     prepared = prepare_analyzed_network(analyze_network(normalized_spec))
+    warnings, synthetic_operands = _build_hyperedge_analysis_metadata(
+        original_spec=spec,
+        normalized_spec=normalized_spec,
+    )
     return _analyze_prepared_contraction(
         prepared,
         memory_dtype=memory_dtype,
+        warnings=warnings,
+        synthetic_operands=synthetic_operands,
     )
 
 
@@ -76,6 +86,11 @@ def _normalize_spec_for_contraction_analysis(
         return tree_periodic_active_cell_as_analysis_network(
             resolved_spec.tree_periodic_tree
         )
+    if resolved_spec.hyperedges:
+        return lower_hyperedges_to_pairwise_spec(
+            resolved_spec,
+            preserve_contraction_plan=True,
+        )
     return resolved_spec
 
 
@@ -83,6 +98,8 @@ def _analyze_prepared_contraction(
     prepared: PreparedNetwork,
     *,
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
+    warnings: list[str] | None = None,
+    synthetic_operands: tuple[SyntheticContractionOperand, ...] = (),
 ) -> ContractionAnalysisResult:
     """Analyze contraction paths using an already prepared network."""
     spec = prepared.spec
@@ -142,4 +159,39 @@ def _analyze_prepared_contraction(
         ),
         automatic_strategy="greedy",
         message=message,
+        warnings=list(warnings or []),
+        synthetic_operands=synthetic_operands,
     )
+
+
+def _build_hyperedge_analysis_metadata(
+    *,
+    original_spec: NetworkSpec,
+    normalized_spec: NetworkSpec,
+) -> tuple[list[str], tuple[SyntheticContractionOperand, ...]]:
+    """Return warnings and synthetic operand metadata for lowered hyperedges."""
+    if not original_spec.hyperedges:
+        return [], ()
+    hyperedge_by_id = {
+        hyperedge.id: hyperedge for hyperedge in original_spec.hyperedges
+    }
+    operands: list[SyntheticContractionOperand] = []
+    for tensor in normalized_spec.tensors:
+        source_hyperedge_id = tensor.metadata.get("generated_for_hyperedge")
+        if not isinstance(source_hyperedge_id, str):
+            continue
+        hyperedge = hyperedge_by_id.get(source_hyperedge_id)
+        if hyperedge is None:
+            continue
+        operands.append(
+            SyntheticContractionOperand(
+                operand_id=tensor.id,
+                name=tensor.name,
+                kind="hyperedge_copy_tensor",
+                source_hyperedge_id=hyperedge.id,
+                source_tensor_ids=tuple(
+                    endpoint.tensor_id for endpoint in hyperedge.endpoints
+                ),
+            )
+        )
+    return [_HYPEREDGE_ANALYSIS_WARNING], tuple(operands)

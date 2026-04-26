@@ -162,7 +162,7 @@ def test_analyze_spec_passes_memory_dtype_to_contraction_analysis() -> None:
     spec = build_three_tensor_spec()
 
     with patch(
-        "tensor_network_editor.analysis._analyze_prepared_contraction",
+        "tensor_network_editor.analysis._analyze_validated_contraction",
         return_value=None,
     ) as analyze_mock:
         report = analyze_spec(spec, memory_dtype="float32")
@@ -176,7 +176,7 @@ def test_analyze_spec_defaults_memory_dtype_to_float64() -> None:
     spec = build_three_tensor_spec()
 
     with patch(
-        "tensor_network_editor.analysis._analyze_prepared_contraction",
+        "tensor_network_editor.analysis._analyze_validated_contraction",
         return_value=None,
     ) as analyze_mock:
         analyze_spec(spec)
@@ -256,7 +256,16 @@ def test_diff_specs_compares_entities_by_stable_ids() -> None:
 
 
 def test_list_template_names_is_available_from_public_templates_module() -> None:
-    assert list_template_names() == ["mps", "mpo", "peps_2x2", "mera", "binary_tree"]
+    assert list_template_names() == [
+        "mps",
+        "mpo",
+        "peps_2x2",
+        "mera",
+        "binary_tree",
+        "ttn",
+        "pepo",
+        "heisenberg_mps",
+    ]
 
 
 def test_removed_compatibility_modules_are_not_importable() -> None:

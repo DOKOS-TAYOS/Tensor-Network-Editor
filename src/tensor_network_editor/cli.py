@@ -31,6 +31,7 @@ from .internal.cli._cli_handlers import (
     handle_benchmark_command,
     handle_canonicalize_command,
     handle_diff_command,
+    handle_doctor_command,
     handle_edit_command,
     handle_export_command,
     handle_lint_command,
@@ -85,6 +86,7 @@ def build_command_parser() -> argparse.ArgumentParser:
             handle_lint=_handle_lint,
             handle_analyze=_handle_analyze,
             handle_benchmark=_handle_benchmark,
+            handle_doctor=_handle_doctor,
             handle_export=_handle_export,
             handle_render=_handle_render,
             handle_diff=_handle_diff,
@@ -186,6 +188,18 @@ def _handle_benchmark(args: argparse.Namespace) -> int:
             content,
             description="benchmark report",
         ),
+    )
+
+
+def _handle_doctor(args: argparse.Namespace) -> int:
+    """Run validation, lint, analysis, benchmark, and dependency diagnostics."""
+    return handle_doctor_command(
+        args,
+        load_spec=load_spec_for_lint,
+        validate_spec=validate_spec,
+        lint_spec=lint_spec,
+        analyze_spec=analyze_spec,
+        print_json=print_json,
     )
 
 

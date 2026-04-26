@@ -28,6 +28,7 @@ from tests.factories import (
     build_outer_product_plan_spec,
     build_sample_spec,
     build_sample_spec_with_view_snapshots,
+    build_three_tensor_hyperedge_spec,
 )
 from tests.optional_backends import require_light_optional_modules
 
@@ -1653,6 +1654,30 @@ def test_analyze_contraction_route_uses_active_linear_periodic_cell(
     assert payload["automatic_future"]["status"] in {"complete", "unavailable"}
     assert payload["comparisons"]["manual_vs_automatic_full"]["memory_dtype"] == (
         "float64"
+    )
+
+
+def test_analyze_contraction_route_accepts_hyperedges(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/analyze-contraction",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": build_three_tensor_hyperedge_spec().to_dict(),
+            }
+        },
+    )
+
+    assert status == 200
+    assert payload["ok"] is True
+    assert payload["warnings"] == [
+        "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged."
+    ]
+    assert (
+        payload["synthetic_operands"][0]["operand_id"] == "hyperedge_copy_hyperedge_h"
     )
 
 

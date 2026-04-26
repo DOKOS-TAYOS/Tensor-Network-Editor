@@ -149,6 +149,9 @@ Built-in templates:
 - `PEPS`
 - `MERA`
 - `Binary Tree`
+- `TTN`
+- `PEPO`
+- `Heisenberg MPS`
 
 Template controls include:
 
@@ -158,9 +161,9 @@ Template controls include:
 
 The graph-size label depends on the selected template:
 
-- `MPS` and `MPO` use `Sites`
-- `PEPS` uses `Side length`
-- `MERA` and `Binary Tree` use `Depth`
+- `MPS`, `MPO`, and `Heisenberg MPS` use `Sites`
+- `PEPS` and `PEPO` use `Side length`
+- `MERA`, `Binary Tree`, and `TTN` use `Depth`
 
 You can also build templates from Python or the CLI. See [api.md](api.md) and
 [cli.md](cli.md#template-commands).
@@ -464,8 +467,9 @@ Useful ideas:
   want reproducible tables outside the browser
 - benchmark scheme views keep template, subnetwork-library, and reflow actions
   disabled so comparison sessions do not drift into normal editing by mistake
-- designs that contain hyperedges cannot enter benchmark mode until those
-  hyperedges are removed
+- designs that contain hyperedges are benchmarked by lowering those hyperedges
+  to internal generated copy tensors; the editor shows a warning and does not
+  change the visual model
 
 If the active `.venv` does not include the `planner` extra, manual benchmark
 rows still work and the automatic rows are reported as unavailable.
@@ -581,11 +585,14 @@ linear or grid neighborhood would hide that intent.
   memory estimates should match your intended element width.
 - Run `tensor-network-editor benchmark my_network.json --format csv --output benchmark.csv`
   when you want a stable comparison table for experiments or papers.
+- Run `tensor-network-editor doctor my_network.json` when you want one command
+  to combine validation, lint, analysis, benchmark, and dependency checks.
 
 ## Current Limits
 
-- Hyperedges are available only in normal mode. While present, planner/manual
-  contraction editing and benchmark mode are disabled.
+- Hyperedges are available only in normal mode. Planner and benchmark analyze
+  them as internal generated copy tensors, with a warning, while the visual
+  model remains unchanged.
 - Tensor values support portable built-in initializers, complex scalars, and
   external `.npy` / `.npz` / `.pt` arrays or tensors, but not symbolic
   expressions.

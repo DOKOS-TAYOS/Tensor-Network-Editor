@@ -4753,26 +4753,84 @@ def test_planner_renders_hyperedge_unavailable_state(
         await registerPlanner(ctx);
 
         ctx.state.spec = ctx.normalizeSpec(buildHyperedgePlannerSpec());
-        ctx.bumpSpecRevision();
-        ctx.refreshContractionAnalysis();
+        ctx.state.contractionAnalysis = {
+          status: "ready",
+          payload: {
+            memory_dtype: "float64",
+            warnings: [
+              "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged.",
+            ],
+            synthetic_operands: [
+              {
+                operand_id: "hyperedge_copy_hyperedge_guard",
+                name: "Copy guard",
+                source_hyperedge_id: "hyperedge_guard",
+                source_tensor_ids: ["tensor_a", "tensor_b", "tensor_c"],
+              },
+            ],
+            network_output_shape: [],
+            manual: {
+              status: "incomplete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 1,
+                peak_intermediate_bytes: 8,
+                final_shape: null,
+              },
+            },
+            automatic_full: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 1,
+                peak_intermediate_bytes: 8,
+              },
+            },
+            automatic_future: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 1,
+                peak_intermediate_bytes: 8,
+              },
+            },
+            automatic_past: {
+              status: "complete",
+              steps: [],
+              summary: {
+                total_estimated_flops: 0,
+                total_estimated_macs: 0,
+                peak_intermediate_size: 1,
+                peak_intermediate_bytes: 8,
+              },
+            },
+            comparisons: {},
+          },
+        };
         ctx.renderPlanner();
 
-        if (ctx.state.contractionAnalysis?.status !== "hyperedgesDisabled") {
-          throw new Error(`Expected refreshContractionAnalysis() to disable planner analysis for hyperedges, received ${JSON.stringify(ctx.state.contractionAnalysis)}.`);
-        }
-        if (ctx.state.spec.contraction_plan !== null) {
-          throw new Error("Expected the stale manual contraction plan to be cleared when hyperedges are present.");
+        if (ctx.state.spec.contraction_plan === null) {
+          throw new Error("Expected the manual contraction plan to be preserved when hyperedges are analyzed internally.");
         }
 
         const html = ctx.dom.plannerPanel.innerHTML;
-        if (!html.includes("Manual contraction planning is unavailable while the design contains hyperedges.")) {
-          throw new Error(`Expected the planner panel to explain the hyperedge restriction, received: ${html}`);
+        if (!html.includes("Hyperedges are analyzed as generated copy tensors")) {
+          throw new Error(`Expected the planner panel to show the hyperedge lowering warning, received: ${html}`);
         }
         if (!html.includes('id="toggle-planner-mode-button"')) {
           throw new Error(`Expected the planner toolbar to stay visible, received: ${html}`);
         }
-        if (!html.includes('id="toggle-planner-mode-button"') || !html.includes("disabled")) {
-          throw new Error(`Expected planner actions to be disabled while hyperedges exist, received: ${html}`);
+        const buttonStart = html.indexOf('id="toggle-planner-mode-button"');
+        const buttonEnd = buttonStart >= 0 ? html.indexOf(">", buttonStart) : -1;
+        const toggleButtonHtml = buttonEnd >= 0 ? html.slice(buttonStart, buttonEnd) : "";
+        if (toggleButtonHtml.includes("disabled")) {
+          throw new Error(`Expected planner actions to stay enabled while hyperedges exist, received: ${html}`);
         }
       """,
     )

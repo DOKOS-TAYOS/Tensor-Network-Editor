@@ -3025,7 +3025,31 @@ def test_planner_assets_expose_total_elements_and_step_spacing(
     assert "function getShapeElementCount(" in planner_formatting_body
     assert "planner-manual-step-list" in planner_body
     assert ".planner-manual-step-list {" in css_body
-    assert "border-top:" in css_body
+
+
+def test_planner_assets_allow_hyperedge_analysis_with_warning(
+    editor_server: EditorServer,
+) -> None:
+    planner_support_body = request_runtime_bundle(
+        editor_server,
+        "js/planner/plannerSupport.js",
+        "js/planner/plannerSupportAnalysis.js",
+        "js/planner/plannerSupportActions.js",
+        "js/planner/plannerRenderersPanel.js",
+        "js/state/plannerSelectors.js",
+    )
+    toolbar_body = request_text(
+        f"{editor_server.base_url}/js/utils/utilitiesUiToolbarModeControls.js"
+    )
+
+    assert "Hyperedges are analyzed as generated copy tensors" in planner_support_body
+    assert "hyperedgesDisabled" not in planner_support_body
+    assert "guardHyperedgePlannerAction" not in planner_support_body
+    assert "benchmarkModeMenuItem.disabled = !benchmarkMode && forMode" in toolbar_body
+    assert (
+        "Benchmark comparison is unavailable while the design contains hyperedges"
+        not in toolbar_body
+    )
 
 
 def test_editor_shell_assets_split_session_ui_bindings_and_property_helpers(

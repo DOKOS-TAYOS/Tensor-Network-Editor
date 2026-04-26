@@ -26,6 +26,11 @@ All notable changes to this project will be documented in this file.
 - Generated Python for linear, grid, and tree periodic modes now embeds
   compact round-trip metadata so supported imports recover the editable
   periodic-mode payload instead of treating those exports as one-way artifacts.
+- The CLI now includes `tensor-network-editor doctor`, a friendly diagnostic
+  command that combines validation, lint, analysis, benchmark summaries, and
+  backend/extra availability checks in text or JSON.
+- Built-in templates now include `ttn`, `pepo`, and `heisenberg_mps` for common
+  tree, operator-grid, and physics-oriented MPS starting points.
 - Packaging now declares `numpy` and `torch` optional extras for generated
   `einsum_numpy` and `einsum_torch` workflows while keeping base dependencies
   empty.
@@ -44,6 +49,9 @@ All notable changes to this project will be documented in this file.
 - Contraction analysis now reuses equivalent automatic greedy path lookups within
   one analysis run, and generated hyperedge copy tensors no longer materialize
   large nested literal payloads during backend preparation.
+- Contraction analysis and benchmark mode now analyze normal-mode hyperedges by
+  lowering them to internal generated copy tensors, while preserving the saved
+  visual model and surfacing a clear warning.
 - Einsum code generation now caches repeated automatic random-route lookups per
   generator instance, and validation skips full JSON serialization for plainly
   serializable metadata payloads.
