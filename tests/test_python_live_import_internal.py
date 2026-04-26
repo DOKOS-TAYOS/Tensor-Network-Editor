@@ -23,6 +23,14 @@ class _ArrayLike:
         return self._values
 
 
+class _ComplexArrayLike:
+    def __init__(self, values: list[list[complex]]) -> None:
+        self._values = values
+
+    def tolist(self) -> list[list[complex]]:
+        return self._values
+
+
 def test_python_live_import_tensor_data_helpers_preserve_literal_payloads() -> None:
     tensor_data_module = import_module(
         "tensor_network_editor.internal.io._python_live_import_tensor_data"
@@ -38,6 +46,43 @@ def test_python_live_import_tensor_data_helpers_preserve_literal_payloads() -> N
     assert tensor_data is not None
     assert tensor_data.mode is TensorDataMode.LITERAL
     assert tensor_data.values == [[1.0, 2.0], [3.0, 4.0]]
+
+
+def test_python_live_import_tensor_data_helpers_preserve_complex_literals() -> None:
+    tensor_data_module = import_module(
+        "tensor_network_editor.internal.io._python_live_import_tensor_data"
+    )
+
+    scalar_literal = tensor_data_module.coerce_tensor_literal(1.5 - 2j)
+    tensor_data, warning = tensor_data_module.lower_runtime_tensor_data(
+        _ComplexArrayLike([[1.0 + 2.0j, 3.0 - 4.0j]]),
+        shape=(1, 2),
+        tensor_name="ComplexA",
+    )
+
+    assert scalar_literal == {"real": 1.5, "imag": -2.0}
+    assert warning is None
+    assert tensor_data is not None
+    assert tensor_data.mode is TensorDataMode.LITERAL
+    assert tensor_data.values == [
+        [{"real": 1.0, "imag": 2.0}, {"real": 3.0, "imag": -4.0}]
+    ]
+
+
+def test_python_live_import_tensor_data_warning_mentions_complex_values() -> None:
+    tensor_data_module = import_module(
+        "tensor_network_editor.internal.io._python_live_import_tensor_data"
+    )
+
+    tensor_data, warning = tensor_data_module.lower_runtime_tensor_data(
+        ["not numeric"],
+        shape=(1,),
+        tensor_name="Bad",
+    )
+
+    assert tensor_data is None
+    assert warning is not None
+    assert "finite real or complex tensor values" in warning
 
 
 def test_python_live_import_tensor_data_helpers_accept_numpy_like_values() -> None:

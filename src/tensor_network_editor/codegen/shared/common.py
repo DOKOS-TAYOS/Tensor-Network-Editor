@@ -52,6 +52,7 @@ __all__ = [
     "tensor_collection_reference_by_id",
     "tensor_display_name_by_id",
     "tensor_variable_name",
+    "uses_external_tensor_data",
 ]
 
 
@@ -314,10 +315,74 @@ def render_tensor_data_expression(
     if tensor_data.mode is TensorDataMode.IDENTITY:
         dimension = tensor.spec.shape[0] if tensor.spec.shape else 1
         return f"{module_alias}.eye({dimension}{dtype_suffix})"
+    if tensor_data.mode is TensorDataMode.EXTERNAL:
+        return _render_external_tensor_data_expression(
+            tensor,
+            module_alias=module_alias,
+        )
     return (
         f"{module_alias}.{literal_constructor_name}("
         f"{_render_python_literal(tensor_data.values)}{dtype_suffix})"
     )
+
+
+def uses_external_tensor_data(prepared: PreparedNetwork) -> bool:
+    """Return whether any prepared tensor loads data from an external file."""
+    return any(
+        tensor.spec.tensor_data is not None
+        and tensor.spec.tensor_data.mode is TensorDataMode.EXTERNAL
+        for tensor in prepared.tensors
+    )
+
+
+def _render_external_tensor_data_expression(
+    tensor: PreparedTensor,
+    *,
+    module_alias: str,
+) -> str:
+    """Render a backend-specific external NumPy-file data initializer."""
+    tensor_data = cast(TensorDataSpec, tensor.spec.tensor_data)
+    call_expression = (
+        "_load_external_tensor_data("
+        f"{tensor_data.file_path!r}, "
+        f"expected_shape={tensor.spec.shape!r}, "
+        f"array_key={tensor_data.array_key!r})"
+    )
+    dtype_expression = _render_tensor_data_dtype_expression(
+        tensor_data,
+        module_alias=module_alias,
+        default_suffix="",
+    )
+    if module_alias == "torch":
+        if dtype_expression:
+            return f"torch.as_tensor({call_expression}, dtype={dtype_expression})"
+        return f"torch.as_tensor({call_expression})"
+    if dtype_expression:
+        return f"{call_expression}.astype({dtype_expression}, copy=False)"
+    return call_expression
+
+
+def _render_external_tensor_data_helper_lines() -> list[str]:
+    """Render the shared helper used by generated code to load .npy/.npz data."""
+    return [
+        "def _load_external_tensor_data(path, *, expected_shape, array_key=None):",
+        "    loaded = np.load(path)",
+        "    if hasattr(loaded, 'files'):",
+        "        if array_key is None:",
+        "            raise ValueError('External .npz tensor data requires array_key.')",
+        "        data = loaded[array_key]",
+        "    else:",
+        "        if array_key is not None:",
+        "            raise ValueError('External .npy tensor data does not use array_key.')",
+        "        data = loaded",
+        "    if tuple(data.shape) != tuple(expected_shape):",
+        "        raise ValueError(",
+        "            f'External tensor data shape {tuple(data.shape)!r} does not match '",
+        "            f'expected shape {tuple(expected_shape)!r}.'",
+        "        )",
+        "    return data",
+        "",
+    ]
 
 
 def _hyperedge_copy_tensor_signature(tensor: PreparedTensor) -> tuple[int, int] | None:
@@ -351,7 +416,8 @@ def _render_hyperedge_copy_tensor_data_assignments(
     repeated_shape = f"({dimension},) * {rank}"
     repeated_indices = f"({module_alias}.arange({dimension}),) * {rank}"
     lines = [
-        f"{tensor.data_variable_name} = {module_alias}.zeros({repeated_shape}{zeros_initializer_suffix})"
+        _render_hyperedge_copy_tensor_comment(tensor),
+        f"{tensor.data_variable_name} = {module_alias}.zeros({repeated_shape}{zeros_initializer_suffix})",
     ]
     if module_alias == "torch":
         lines.append(
@@ -362,6 +428,18 @@ def _render_hyperedge_copy_tensor_data_assignments(
     else:
         lines.append(f"{tensor.data_variable_name}[{repeated_indices}] = 1")
     return lines
+
+
+def _render_hyperedge_copy_tensor_comment(tensor: PreparedTensor) -> str:
+    """Render structured metadata for lowered hyperedge reconstruction."""
+    hyperedge_id = str(tensor.spec.metadata["generated_for_hyperedge"])
+    hyperedge_name = tensor.spec.name.removeprefix("Copy ")
+    return (
+        "# Hyperedge copy tensor | "
+        f"id={hyperedge_id} | "
+        f"name={hyperedge_name} | "
+        f"data={tensor.data_variable_name}"
+    )
 
 
 def _render_copy_tensor_data_assignments(
@@ -481,6 +559,8 @@ def render_tensor_data_assignments(
 ) -> list[str]:
     """Render one data-variable assignment per tensor in display order."""
     lines: list[str] = []
+    if uses_external_tensor_data(prepared):
+        lines.extend(_render_external_tensor_data_helper_lines())
     for tensor in prepared.tensors:
         lines.append(f"# Tensor {_tensor_display_name(tensor)} data")
         hyperedge_copy_tensor_lines = _render_hyperedge_copy_tensor_data_assignments(

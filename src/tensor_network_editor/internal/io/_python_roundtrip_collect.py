@@ -25,6 +25,7 @@ from ._python_roundtrip_ast import (
 )
 from ._python_roundtrip_build import (
     _default_tensor_name_from_position,
+    _HyperedgeCopyTensorComment,
     _ManualStepComment,
     _parse_tensor_expression,
     _PendingEdge,
@@ -37,6 +38,10 @@ if TYPE_CHECKING:
 _MANUAL_STEP_COMMENT_PATTERN = re.compile(
     r"^\s*# Manual step (?P<step_id>\S+) \| left=(?P<left_operand_id>\S+) \| "
     r"right=(?P<right_operand_id>\S+)\s*$"
+)
+_HYPEREDGE_COPY_TENSOR_COMMENT_PATTERN = re.compile(
+    r"^\s*# Hyperedge copy tensor \| id=(?P<hyperedge_id>[^|]+) \| "
+    r"name=(?P<hyperedge_name>[^|]+) \| data=(?P<data_variable_name>\S+)\s*$"
 )
 
 
@@ -379,6 +384,28 @@ def _collect_manual_step_comments(code: str) -> dict[int, _ManualStepComment]:
             right_operand_id=match.group("right_operand_id"),
         )
     return comments_by_statement_line
+
+
+def _collect_hyperedge_copy_tensor_comments(
+    code: str,
+) -> dict[str, _HyperedgeCopyTensorComment]:
+    """Collect structured hyperedge-copy comments keyed by data variable name."""
+    comments_by_data_variable_name: dict[str, _HyperedgeCopyTensorComment] = {}
+    for line in code.splitlines():
+        if not line.lstrip().startswith("# Hyperedge copy tensor"):
+            continue
+        match = _HYPEREDGE_COPY_TENSOR_COMMENT_PATTERN.match(line)
+        if match is None:
+            raise SerializationError(
+                "Generated Python hyperedge copy tensor comment is malformed."
+            )
+        comment = _HyperedgeCopyTensorComment(
+            hyperedge_id=match.group("hyperedge_id").strip(),
+            hyperedge_name=match.group("hyperedge_name").strip(),
+            data_variable_name=match.group("data_variable_name").strip(),
+        )
+        comments_by_data_variable_name[comment.data_variable_name] = comment
+    return comments_by_data_variable_name
 
 
 def _collect_manual_step(

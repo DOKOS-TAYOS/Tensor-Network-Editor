@@ -203,6 +203,17 @@ export function createSpecNormalizationBindings({ state, constants, runtime }) {
         distribution: distribution === "uniform" ? "uniform" : "normal",
       }, tensorData);
     }
+    if (mode === "external") {
+      const normalizedExternal = {
+        mode: "external",
+        file_path: String(tensorData.file_path || "").trim(),
+      };
+      const arrayKey = String(tensorData.array_key || "").trim();
+      if (arrayKey) {
+        normalizedExternal.array_key = arrayKey;
+      }
+      return withOptionalTensorDataDType(normalizedExternal, tensorData);
+    }
     return null;
   }
 

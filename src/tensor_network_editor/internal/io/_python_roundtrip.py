@@ -11,6 +11,7 @@ from ._python_roundtrip_build import (
     _build_edge_specs,
     _build_empty_network_spec,
     _build_network_spec,
+    _HyperedgeCopyTensorComment,
     _ManualStepComment,
     _ParsedTensor,
     _PendingEdge,
@@ -20,6 +21,7 @@ from ._python_roundtrip_collect import (
     _collect_copy_tensor_data_update,
     _collect_data_shape,
     _collect_einsum_labels,
+    _collect_hyperedge_copy_tensor_comments,
     _collect_manual_step,
     _collect_manual_step_comments,
     _collect_pending_edge,
@@ -34,6 +36,7 @@ class _RoundtripParseState:
 
     module: ast.Module
     manual_step_comments_by_statement_line: dict[int, _ManualStepComment]
+    hyperedge_copy_tensors_by_data_name: dict[str, _HyperedgeCopyTensorComment]
     data_shapes: dict[str, tuple[int, ...]] = field(default_factory=dict)
     tensor_data_by_name: dict[str, TensorDataSpec | None] = field(default_factory=dict)
     tensors_by_reference: dict[str, _ParsedTensor] = field(default_factory=dict)
@@ -59,6 +62,9 @@ def _build_roundtrip_parse_state(code: str) -> _RoundtripParseState:
     return _RoundtripParseState(
         module=module,
         manual_step_comments_by_statement_line=_collect_manual_step_comments(code),
+        hyperedge_copy_tensors_by_data_name=(
+            _collect_hyperedge_copy_tensor_comments(code)
+        ),
     )
 
 
@@ -121,4 +127,5 @@ def parse_generated_python_network(
             state.pending_manual_steps if include_manual_plan else None
         ),
         preferred_tensor_ids_by_reference=state.preferred_tensor_ids_by_reference,
+        hyperedge_copy_tensors_by_data_name=(state.hyperedge_copy_tensors_by_data_name),
     )

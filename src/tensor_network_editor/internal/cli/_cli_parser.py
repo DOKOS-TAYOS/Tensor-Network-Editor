@@ -23,6 +23,7 @@ class CliHandlerBindings:
     handle_analyze: CommandHandler
     handle_benchmark: CommandHandler
     handle_export: CommandHandler
+    handle_render: CommandHandler
     handle_diff: CommandHandler
     handle_canonicalize: CommandHandler
     handle_template_list: CommandHandler
@@ -140,6 +141,18 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     )
     export_parser.add_argument("--output", type=str)
     export_parser.set_defaults(handler=handlers.handle_export)
+
+    render_parser = subparsers.add_parser(
+        "render", help="Render a saved spec as a static image."
+    )
+    render_parser.add_argument("path", type=str)
+    render_parser.add_argument(
+        "--format",
+        choices=["svg"],
+        default="svg",
+    )
+    render_parser.add_argument("--output", type=str)
+    render_parser.set_defaults(handler=handlers.handle_render)
 
     diff_parser = subparsers.add_parser(
         "diff", help="Compare two specs and summarize entity-level changes."

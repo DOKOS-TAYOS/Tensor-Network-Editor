@@ -520,6 +520,56 @@ def test_validate_spec_accepts_identity_and_copy_tensor_initializers() -> None:
     assert validate_spec(spec) == []
 
 
+def test_validate_spec_accepts_external_tensor_initializer() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/left.npy",
+    )
+
+    assert validate_spec(spec) == []
+
+
+def test_validate_spec_rejects_external_tensor_initializer_without_path() -> None:
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="",
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-tensor-data")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
+def test_validate_spec_rejects_external_tensor_initializer_for_unsupported_suffix() -> (
+    None
+):
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/left.csv",
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-tensor-data")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
+def test_validate_spec_rejects_npz_external_tensor_initializer_without_array_key() -> (
+    None
+):
+    spec = build_valid_spec()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/left.npz",
+    )
+
+    issue = find_issue(validate_spec(spec), "invalid-tensor-data")
+
+    assert issue.path == "tensors.tensor_left.tensor_data"
+
+
 def test_validate_spec_rejects_identity_tensor_initializer_for_non_square_shape() -> (
     None
 ):

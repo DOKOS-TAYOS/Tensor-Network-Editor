@@ -575,6 +575,45 @@ def test_export_subcommand_calls_generate_code_with_requested_output(
     generate_mock.assert_called_once()
     assert generate_mock.call_args.kwargs["output_path"] == "generated.py"
     assert generate_mock.call_args.kwargs["print_code"] is False
+    assert (
+        generate_mock.call_args.kwargs["external_data_base_path"]
+        == Path("saved-network.json").resolve().parent
+    )
+
+
+def test_render_subcommand_writes_svg_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_svg", return_value="<svg />"
+        ) as render_mock,
+    ):
+        exit_code = main(["render", "saved-network.json", "--output", "figure.svg"])
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "figure.svg"
+
+
+def test_render_subcommand_prints_svg_when_no_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
+        patch(
+            "tensor_network_editor.cli.render_spec_svg",
+            return_value="<svg>network</svg>",
+        ),
+    ):
+        exit_code = main(["render", "saved-network.json"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "<svg>network</svg>\n"
 
 
 def test_diff_subcommand_prints_json(

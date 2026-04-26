@@ -95,6 +95,7 @@ export function createStandardTensorDataSupport() {
         "identity",
         "copy",
         "random",
+        "external",
       ].includes(mode)
     ) {
       return mode;
@@ -117,6 +118,18 @@ export function createStandardTensorDataSupport() {
   function getTensorRandomSeed(tensor) {
     const seed = tensor?.tensor_data?.seed;
     return Number.isInteger(seed) && seed >= 0 ? seed : 0;
+  }
+
+  function getTensorExternalFilePath(tensor) {
+    return String(tensor?.tensor_data?.file_path || "");
+  }
+
+  function getTensorExternalArrayKey(tensor) {
+    return String(tensor?.tensor_data?.array_key || "");
+  }
+
+  function shouldShowTensorExternalArrayKey(filePath) {
+    return String(filePath || "").trim().toLowerCase().endsWith(".npz");
   }
 
   function cloneTensorLiteral(value) {
@@ -309,6 +322,9 @@ export function createStandardTensorDataSupport() {
     if (tensorDataMode === "random") {
       return `Current initializer: seeded random values for ${formatTensorShape(tensorShape)}.`;
     }
+    if (tensorDataMode === "external") {
+      return `Current initializer: external .npy/.npz data for ${formatTensorShape(tensorShape)}.`;
+    }
     if (tensorDataMode === "fill") {
       return `Current initializer: fill with ${formatTensorScalarLiteral(
         tensor.tensor_data.fill_value
@@ -331,6 +347,9 @@ export function createStandardTensorDataSupport() {
     getTensorDataDType,
     getTensorRandomDistribution,
     getTensorRandomSeed,
+    getTensorExternalFilePath,
+    getTensorExternalArrayKey,
+    shouldShowTensorExternalArrayKey,
     cloneTensorLiteral,
     buildFilledTensorLiteral,
     buildDefaultTensorLiteralValues,

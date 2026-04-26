@@ -12,6 +12,12 @@ All notable changes to this project will be documented in this file.
 - Tensor initializers now support explicit zeros, identity/delta, generalized
   copy tensors, seeded normal/uniform random values, portable dtype choices,
   and JSON-friendly complex scalars across saved specs and generated code.
+- Tensor initializers now support external `.npy` and `.npz` data references,
+  including editor fields, validation, generated NumPy loading helpers, CLI
+  path anchoring, and generated-source round-trips.
+- Saved designs can now be rendered headlessly to SVG from the public
+  `tensor_network_editor.rendering` API or the `tensor-network-editor render`
+  CLI command, without requiring a browser or Node runtime.
 - Packaging now declares `numpy` and `torch` optional extras for generated
   `einsum_numpy` and `einsum_torch` workflows while keeping base dependencies
   empty.
@@ -51,6 +57,9 @@ All notable changes to this project will be documented in this file.
   silently clearing it.
 - Subnetwork catalog tests now isolate their working directory while preserving
   the default project-local catalog lookup used by normal editor sessions.
+- Supported generated Python round-trips now reconstruct first-class
+  `HyperedgeSpec` objects from structured generated copy-tensor comments, and
+  live Python imports preserve finite complex runtime tensor values.
 
 ## [0.4.0] - 2026-04-25
 

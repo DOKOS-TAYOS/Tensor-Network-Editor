@@ -31,6 +31,7 @@ class TensorDataMode(StrEnum):
     IDENTITY = "identity"
     COPY = "copy"
     RANDOM = "random"
+    EXTERNAL = "external"
 
 
 class TensorDataDType(StrEnum):
@@ -59,6 +60,8 @@ class TensorDataSpec:
     dtype: TensorDataDType | None = None
     seed: int | None = None
     distribution: TensorDataRandomDistribution | None = None
+    file_path: str | None = None
+    array_key: str | None = None
 
     def __post_init__(self) -> None:
         """Reject inconsistent mode-specific fields."""
@@ -67,6 +70,16 @@ class TensorDataSpec:
             self.dtype = TensorDataDType(self.dtype)
         if self.distribution is not None:
             self.distribution = TensorDataRandomDistribution(self.distribution)
+        if self.file_path is not None:
+            self.file_path = coerce_string(
+                self.file_path,
+                field_name="tensor_data.file_path",
+            )
+        if self.array_key is not None:
+            self.array_key = coerce_string(
+                self.array_key,
+                field_name="tensor_data.array_key",
+            )
 
         if self.mode in {
             TensorDataMode.ZEROS,
@@ -79,6 +92,8 @@ class TensorDataSpec:
                 or self.values is not None
                 or self.seed is not None
                 or self.distribution is not None
+                or self.file_path is not None
+                or self.array_key is not None
             ):
                 raise ValueError(
                     f"TensorDataMode.{self.mode.name} does not accept extra values."
@@ -90,10 +105,12 @@ class TensorDataSpec:
                 or self.values is not None
                 or self.seed is not None
                 or self.distribution is not None
+                or self.file_path is not None
+                or self.array_key is not None
             ):
                 raise ValueError(
                     "TensorDataMode.FILL requires 'fill_value' and forbids "
-                    "'values', 'seed', and 'distribution'."
+                    "'values', 'seed', 'distribution', 'file_path', and 'array_key'."
                 )
             self.fill_value = _coerce_tensor_scalar_literal(
                 self.fill_value,
@@ -101,9 +118,15 @@ class TensorDataSpec:
             )
             return
         if self.mode is TensorDataMode.RANDOM:
-            if self.fill_value is not None or self.values is not None:
+            if (
+                self.fill_value is not None
+                or self.values is not None
+                or self.file_path is not None
+                or self.array_key is not None
+            ):
                 raise ValueError(
-                    "TensorDataMode.RANDOM forbids 'fill_value' and 'values'."
+                    "TensorDataMode.RANDOM forbids 'fill_value', 'values', "
+                    "'file_path', and 'array_key'."
                 )
             if self.seed is None:
                 self.seed = 0
@@ -114,15 +137,29 @@ class TensorDataSpec:
             if self.distribution is None:
                 self.distribution = TensorDataRandomDistribution.NORMAL
             return
+        if self.mode is TensorDataMode.EXTERNAL:
+            if (
+                self.fill_value is not None
+                or self.values is not None
+                or self.seed is not None
+                or self.distribution is not None
+            ):
+                raise ValueError(
+                    "TensorDataMode.EXTERNAL forbids 'fill_value', 'values', "
+                    "'seed', and 'distribution'."
+                )
+            return
         if (
             self.values is None
             or self.fill_value is not None
             or self.seed is not None
             or self.distribution is not None
+            or self.file_path is not None
+            or self.array_key is not None
         ):
             raise ValueError(
                 "TensorDataMode.LITERAL requires 'values' and forbids "
-                "'fill_value', 'seed', and 'distribution'."
+                "'fill_value', 'seed', 'distribution', 'file_path', and 'array_key'."
             )
 
     def to_dict(self) -> dict[str, JSONValue]:
@@ -140,6 +177,10 @@ class TensorDataSpec:
                 TensorDataRandomDistribution,
                 self.distribution,
             ).value
+        if self.mode is TensorDataMode.EXTERNAL:
+            payload["file_path"] = self.file_path
+            if self.array_key is not None:
+                payload["array_key"] = self.array_key
         return payload
 
     @classmethod
@@ -188,6 +229,23 @@ class TensorDataSpec:
                 dtype=dtype,
                 seed=coerce_int(data_payload.get("seed", 0), field_name="seed"),
                 distribution=distribution,
+            )
+        if mode is TensorDataMode.EXTERNAL:
+            return cls(
+                mode=mode,
+                dtype=dtype,
+                file_path=coerce_string(
+                    data_payload.get("file_path", ""),
+                    field_name="tensor_data.file_path",
+                ),
+                array_key=(
+                    coerce_string(
+                        data_payload["array_key"],
+                        field_name="tensor_data.array_key",
+                    )
+                    if data_payload.get("array_key") is not None
+                    else None
+                ),
             )
         return cls(
             mode=mode,

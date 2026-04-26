@@ -7649,6 +7649,51 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
             `Invalid literal edits should not trigger a rerender, received ${JSON.stringify(renderCalls)}.`
           );
         }
+        renderCalls.length = 0;
+        graphRenderCount = 0;
+        minimapRenderCount = 0;
+        const externalModeSelect = document.getElementById("tensor-data-mode-select");
+        externalModeSelect.value = "external";
+        externalModeSelect.dispatchEvent("change");
+        if (!document.getElementById("tensor-data-external-path-input")) {
+          throw new Error("External tensor data should expose a file path input.");
+        }
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({ mode: "external", file_path: "" })
+        ) {
+          throw new Error(
+            `Expected external mode to initialize tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        commitField(
+          document.getElementById("tensor-data-external-path-input"),
+          "data/a.npz"
+        );
+        if (!document.getElementById("tensor-data-external-array-key-input")) {
+          throw new Error("External .npz tensor data should expose an array key input.");
+        }
+        commitField(
+          document.getElementById("tensor-data-external-array-key-input"),
+          "left"
+        );
+        if (
+          JSON.stringify(ctx.state.spec.tensors[0].tensor_data)
+          !== JSON.stringify({
+            mode: "external",
+            file_path: "data/a.npz",
+            array_key: "left",
+          })
+        ) {
+          throw new Error(
+            `Expected external path and key edits to update tensor data, received ${JSON.stringify(ctx.state.spec.tensors[0].tensor_data)}.`
+          );
+        }
+        assertLastRenderDidNotInvalidateGraph(
+          renderCalls,
+          () => graphRenderCount,
+          () => minimapRenderCount
+        );
         ctx.window.setTimeout = (callback) => {
           callback();
           return 1;
@@ -11714,6 +11759,24 @@ def _write_tensor_initializer_parsing_runtime_script(tmp_path: Path) -> Path:
             }
             if (dataSupport.getTensorRandomDistribution(tensor) !== "uniform") {
               throw new Error("Expected uniform random distribution.");
+            }
+            const externalTensor = {
+              indices: [{ dimension: 2 }, { dimension: 3 }],
+              tensor_data: {
+                mode: "external",
+                file_path: "data/a.npz",
+                array_key: "a",
+                dtype: "float64",
+              },
+            };
+            if (dataSupport.getTensorDataMode(externalTensor) !== "external") {
+              throw new Error("Expected external tensor-data mode.");
+            }
+            if (dataSupport.getTensorExternalFilePath(externalTensor) !== "data/a.npz") {
+              throw new Error("Expected external file path.");
+            }
+            if (dataSupport.getTensorExternalArrayKey(externalTensor) !== "a") {
+              throw new Error("Expected external array key.");
             }
           """
         ),

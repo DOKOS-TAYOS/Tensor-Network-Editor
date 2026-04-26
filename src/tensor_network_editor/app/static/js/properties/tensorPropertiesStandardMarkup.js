@@ -16,6 +16,9 @@ export function createStandardTensorPropertiesMarkupSupport({
     getTensorDataDType,
     getTensorRandomDistribution,
     getTensorRandomSeed,
+    getTensorExternalFilePath,
+    getTensorExternalArrayKey,
+    shouldShowTensorExternalArrayKey,
     buildDefaultTensorLiteralValues,
     formatTensorScalarLiteral,
   } = dataSupport;
@@ -204,6 +207,8 @@ export function createStandardTensorPropertiesMarkupSupport({
         : 0;
     const tensorRandomSeed = getTensorRandomSeed(tensor);
     const tensorRandomDistribution = getTensorRandomDistribution(tensor);
+    const tensorExternalFilePath = getTensorExternalFilePath(tensor);
+    const tensorExternalArrayKey = getTensorExternalArrayKey(tensor);
     const tensorLiteralText =
       tensorDataMode === "literal"
         ? JSON.stringify(buildDefaultTensorLiteralValues(tensor, tensorShape), null, 2)
@@ -305,6 +310,9 @@ export function createStandardTensorPropertiesMarkupSupport({
             <option value="random"${tensorDataMode === "random" ? " selected" : ""}>
               Random
             </option>
+            <option value="external"${tensorDataMode === "external" ? " selected" : ""}>
+              External .npy/.npz
+            </option>
           </select>
         </div>
       </div>
@@ -405,6 +413,34 @@ export function createStandardTensorPropertiesMarkupSupport({
                 </div>
               </div>
             </div>
+          ` 
+          : ""
+      }
+      ${
+        tensorDataMode === "external"
+          ? `
+            <div class="field-group">
+              <label for="tensor-data-external-path-input">External .npy/.npz</label>
+              <input
+                id="tensor-data-external-path-input"
+                data-focus-key="tensor:${tensor.id}:tensor-data-external-path"
+                value="${ctx.escapeHtml(tensorExternalFilePath)}"
+              />
+            </div>
+            ${
+              shouldShowTensorExternalArrayKey(tensorExternalFilePath)
+                ? `
+                  <div class="field-group">
+                    <label for="tensor-data-external-array-key-input">Array key</label>
+                    <input
+                      id="tensor-data-external-array-key-input"
+                      data-focus-key="tensor:${tensor.id}:tensor-data-external-array-key"
+                      value="${ctx.escapeHtml(tensorExternalArrayKey)}"
+                    />
+                  </div>
+                `
+                : ""
+            }
           `
           : ""
       }

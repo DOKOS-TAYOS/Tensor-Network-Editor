@@ -24,6 +24,7 @@ from ..shared.common import (
     render_tensor_data_assignments,
     tensor_collection_reference_by_id,
     tensor_display_name_by_id,
+    uses_external_tensor_data,
 )
 
 
@@ -115,7 +116,7 @@ class TensorKrowchCodeGenerator(CodeGenerator):
             code=render_code_sections(
                 CodeSection(
                     title=None,
-                    lines=["import torch", "import tensorkrowch as tk"],
+                    lines=self._render_import_lines(prepared),
                 ),
                 CodeSection(title="Tensor collection", lines=tensor_collection_lines),
                 CodeSection(title="Network setup", lines=network_setup_lines),
@@ -129,6 +130,15 @@ class TensorKrowchCodeGenerator(CodeGenerator):
                 CodeSection(title="Outputs", lines=output_lines),
             ),
         )
+
+    @staticmethod
+    def _render_import_lines(prepared: PreparedNetwork) -> list[str]:
+        """Render imports needed by the TensorKrowch backend."""
+        lines: list[str] = []
+        if uses_external_tensor_data(prepared):
+            lines.append("import numpy as np")
+        lines.extend(["import torch", "import tensorkrowch as tk"])
+        return lines
 
     @staticmethod
     def node_name(tensor: PreparedTensor) -> str:

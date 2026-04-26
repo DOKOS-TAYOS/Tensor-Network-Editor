@@ -12,6 +12,7 @@ from ...models import (
     ContractionStepSpec,
     EdgeEndpointRef,
     EdgeSpec,
+    HyperedgeSpec,
     IndexSpec,
     NetworkSpec,
     TensorDataSpec,
@@ -66,6 +67,15 @@ class _ManualStepComment:
     step_id: str
     left_operand_id: str
     right_operand_id: str
+
+
+@dataclass(slots=True, frozen=True)
+class _HyperedgeCopyTensorComment:
+    """Structured metadata parsed from a generated hyperedge-copy comment."""
+
+    hyperedge_id: str
+    hyperedge_name: str
+    data_variable_name: str
 
 
 @dataclass(slots=True)
@@ -368,6 +378,11 @@ def _build_network_spec(
     edge_specs: list[_EdgeDescriptor],
     pending_manual_steps: list[_PendingManualStep] | None = None,
     preferred_tensor_ids_by_reference: dict[str, str] | None = None,
+    hyperedge_copy_tensors_by_data_name: dict[
+        str,
+        _HyperedgeCopyTensorComment,
+    ]
+    | None = None,
 ) -> NetworkSpec:
     """Convert parsed tensors and edges into a reconstructed ``NetworkSpec``."""
     edge_labels = _build_edge_label_map(edge_specs)
@@ -387,16 +402,142 @@ def _build_network_spec(
         index_id_by_reference_and_position=index_id_by_reference_and_position,
     )
     contraction_plan = _build_imported_contraction_plan(pending_manual_steps)
+    tensor_specs, edges, hyperedges = _restore_imported_hyperedges(
+        tensor_specs=tensor_specs,
+        edges=edges,
+        edge_specs=edge_specs,
+        tensors_by_reference=tensors_by_reference,
+        tensor_id_by_reference=tensor_id_by_reference,
+        index_id_by_reference_and_position=index_id_by_reference_and_position,
+        hyperedge_copy_tensors_by_data_name=(hyperedge_copy_tensors_by_data_name or {}),
+    )
 
     return NetworkSpec(
         id="imported_python_network",
         name="Imported Python Network",
         tensors=tensor_specs,
         edges=edges,
+        hyperedges=hyperedges,
         groups=[],
         notes=[],
         contraction_plan=contraction_plan,
     )
+
+
+def _restore_imported_hyperedges(
+    *,
+    tensor_specs: list[TensorSpec],
+    edges: list[EdgeSpec],
+    edge_specs: list[_EdgeDescriptor],
+    tensors_by_reference: dict[str, _ParsedTensor],
+    tensor_id_by_reference: dict[str, str],
+    index_id_by_reference_and_position: dict[tuple[str, int], str],
+    hyperedge_copy_tensors_by_data_name: dict[str, _HyperedgeCopyTensorComment],
+) -> tuple[list[TensorSpec], list[EdgeSpec], list[HyperedgeSpec]]:
+    """Convert marked copy tensors and their generated edges into hyperedges."""
+    if not hyperedge_copy_tensors_by_data_name:
+        return tensor_specs, edges, []
+
+    hyperedges: list[HyperedgeSpec] = []
+    copy_tensor_ids_to_remove: set[str] = set()
+    edge_positions_to_remove: set[int] = set()
+    for copy_reference, copy_comment in _iter_marked_copy_tensor_references(
+        tensors_by_reference=tensors_by_reference,
+        hyperedge_copy_tensors_by_data_name=hyperedge_copy_tensors_by_data_name,
+    ):
+        endpoint_entries: list[tuple[int, EdgeEndpointRef]] = []
+        local_edge_positions: set[int] = set()
+        for edge_position, edge_spec in enumerate(edge_specs):
+            connected_endpoint = _endpoint_connected_to_copy_reference(
+                copy_reference=copy_reference,
+                edge_spec=edge_spec,
+                tensor_id_by_reference=tensor_id_by_reference,
+                index_id_by_reference_and_position=(index_id_by_reference_and_position),
+            )
+            if connected_endpoint is None:
+                continue
+            copy_index_position, endpoint = connected_endpoint
+            endpoint_entries.append((copy_index_position, endpoint))
+            local_edge_positions.add(edge_position)
+
+        if len(endpoint_entries) < 3:
+            continue
+        endpoint_entries.sort(key=lambda item: item[0])
+        hyperedges.append(
+            HyperedgeSpec(
+                id=copy_comment.hyperedge_id,
+                name=copy_comment.hyperedge_name,
+                endpoints=[endpoint for _, endpoint in endpoint_entries],
+            )
+        )
+        copy_tensor_ids_to_remove.add(tensor_id_by_reference[copy_reference])
+        edge_positions_to_remove.update(local_edge_positions)
+
+    if not hyperedges:
+        return tensor_specs, edges, []
+    filtered_tensors = [
+        tensor for tensor in tensor_specs if tensor.id not in copy_tensor_ids_to_remove
+    ]
+    filtered_edges = [
+        edge
+        for edge_position, edge in enumerate(edges)
+        if edge_position not in edge_positions_to_remove
+    ]
+    return filtered_tensors, filtered_edges, hyperedges
+
+
+def _iter_marked_copy_tensor_references(
+    *,
+    tensors_by_reference: dict[str, _ParsedTensor],
+    hyperedge_copy_tensors_by_data_name: dict[str, _HyperedgeCopyTensorComment],
+) -> list[tuple[str, _HyperedgeCopyTensorComment]]:
+    """Return parsed tensor references marked as generated hyperedge copies."""
+    references: list[tuple[str, _HyperedgeCopyTensorComment]] = []
+    for reference, parsed_tensor in tensors_by_reference.items():
+        copy_comment = hyperedge_copy_tensors_by_data_name.get(
+            parsed_tensor.data_variable_name
+        )
+        if copy_comment is not None:
+            references.append((reference, copy_comment))
+    return references
+
+
+def _endpoint_connected_to_copy_reference(
+    *,
+    copy_reference: str,
+    edge_spec: _EdgeDescriptor,
+    tensor_id_by_reference: dict[str, str],
+    index_id_by_reference_and_position: dict[tuple[str, int], str],
+) -> tuple[int, EdgeEndpointRef] | None:
+    """Return the non-copy endpoint for an edge touching a marked copy tensor."""
+    (
+        left_reference,
+        left_index_position,
+        right_reference,
+        right_index_position,
+        _edge_name,
+    ) = edge_spec
+    if left_reference == copy_reference and right_reference != copy_reference:
+        return (
+            left_index_position,
+            EdgeEndpointRef(
+                tensor_id=tensor_id_by_reference[right_reference],
+                index_id=index_id_by_reference_and_position[
+                    (right_reference, right_index_position)
+                ],
+            ),
+        )
+    if right_reference == copy_reference and left_reference != copy_reference:
+        return (
+            right_index_position,
+            EdgeEndpointRef(
+                tensor_id=tensor_id_by_reference[left_reference],
+                index_id=index_id_by_reference_and_position[
+                    (left_reference, left_index_position)
+                ],
+            ),
+        )
+    return None
 
 
 def _build_edge_label_map(

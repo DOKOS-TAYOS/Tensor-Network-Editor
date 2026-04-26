@@ -15,6 +15,7 @@ catalogs.
 - [Analyze](#analyze)
 - [Benchmark](#benchmark)
 - [Export](#export)
+- [Render](#render)
 - [Canonicalize](#canonicalize)
 - [Diff](#diff)
 - [Template Commands](#template-commands)
@@ -116,6 +117,7 @@ tensor-network-editor lint my_network.json
 tensor-network-editor analyze my_network.json
 tensor-network-editor benchmark my_network.json
 tensor-network-editor export my_network.json --engine quimb --output generated_network.py
+tensor-network-editor render my_network.json --format svg --output figure.svg
 tensor-network-editor canonicalize my_network.json
 tensor-network-editor diff before.json after.json
 tensor-network-editor template list
@@ -295,6 +297,26 @@ Supported collection formats:
 - `dict`
 
 If `--output` is omitted, generated code is printed to standard output.
+
+Relative external tensor-data paths stored in the JSON are resolved relative to
+the input spec path before they are emitted into generated code.
+
+## Render
+
+Render a saved design to static SVG without opening the browser editor:
+
+```bash
+tensor-network-editor render my_network.json --format svg --output figure.svg
+```
+
+If `--output` is omitted, the SVG is printed to standard output:
+
+```bash
+tensor-network-editor render my_network.json --format svg
+```
+
+The headless renderer is pure Python and uses the saved canvas positions. It
+draws tensors, indices, pairwise edges, hyperedges, groups, and notes.
 
 ## Canonicalize
 

@@ -35,6 +35,7 @@ from tensor_network_editor.models import (
     TensorDataMode,
     TensorDataSpec,
 )
+from tensor_network_editor.rendering import SvgRenderOptions, render_spec_svg
 from tests.conftest import distribution_for_checkout_import_or_skip
 from tests.factories import (
     build_outer_product_plan_spec,
@@ -143,6 +144,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "IndexSpec",
         "NetworkSpec",
         "PythonLoadOptions",
+        "SvgRenderOptions",
         "TensorCollectionFormat",
         "TensorDataMode",
         "TensorDataSpec",
@@ -161,6 +163,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_python_spec",
         "load_spec",
         "open_editor",
+        "render_spec_svg",
         "save_spec",
         "semantic_diff_specs",
         "validate_spec",
@@ -169,6 +172,8 @@ def test_package_root_exports_supported_public_api() -> None:
     assert tensor_network_editor.open_editor is open_editor
     assert tensor_network_editor.load_spec is _load_spec
     assert tensor_network_editor.load_python_spec is load_python_spec
+    assert tensor_network_editor.render_spec_svg is render_spec_svg
+    assert tensor_network_editor.SvgRenderOptions is SvgRenderOptions
     assert tensor_network_editor.save_spec is _save_spec
     assert not hasattr(tensor_network_editor, "tensor_network_creation")
     assert not hasattr(tensor_network_editor, "launch_tensor_network_editor")
@@ -567,22 +572,44 @@ def test_load_spec_from_python_code_round_trips_tensor_data(
 
 
 @pytest.mark.parametrize("engine", list(EngineName))
-def test_load_spec_from_python_code_lowers_hyperedges_to_binary_network(
+def test_load_spec_from_python_code_round_trips_external_tensor_data(
+    engine: EngineName,
+) -> None:
+    sample_spec = build_three_tensor_spec_without_plan()
+    sample_spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/a.npz",
+        array_key="a",
+    )
+    result = generate_code(sample_spec, engine=engine)
+
+    loaded_spec = load_spec_from_python_code(result.code)
+
+    assert loaded_spec.tensors[0].tensor_data == TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/a.npz",
+        array_key="a",
+    )
+
+
+@pytest.mark.parametrize("engine", list(EngineName))
+def test_load_spec_from_python_code_round_trips_hyperedges(
     engine: EngineName,
 ) -> None:
     result = generate_code(build_three_tensor_hyperedge_spec(), engine=engine)
 
     loaded_spec = load_spec_from_python_code(result.code)
-    copy_tensors = [
-        tensor for tensor in loaded_spec.tensors if tensor.shape == (3, 3, 3)
-    ]
+    hyperedge = loaded_spec.hyperedges[0]
+    tensor_name_by_id = {tensor.id: tensor.name for tensor in loaded_spec.tensors}
 
-    assert loaded_spec.hyperedges == []
-    assert len(loaded_spec.tensors) == 4
-    assert len(loaded_spec.edges) == 3
-    assert len(copy_tensors) == 1
-    assert copy_tensors[0].tensor_data is not None
-    assert copy_tensors[0].tensor_data.mode is TensorDataMode.LITERAL
+    assert len(loaded_spec.hyperedges) == 1
+    assert hyperedge.name == "shared_h"
+    assert len(hyperedge.endpoints) == 3
+    assert sorted(
+        tensor_name_by_id[endpoint.tensor_id] for endpoint in hyperedge.endpoints
+    ) == ["A", "B", "C"]
+    assert [tensor.name for tensor in loaded_spec.tensors] == ["A", "B", "C"]
+    assert loaded_spec.edges == []
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

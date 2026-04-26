@@ -504,6 +504,94 @@ def test_generate_code_uses_extended_tensor_data_initializers(
 
 
 @pytest.mark.parametrize(
+    ("engine", "expected_snippets"),
+    [
+        (
+            EngineName.TENSORNETWORK,
+            [
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.npy'",
+                "expected_shape=(2, 3)",
+                "array_key=None",
+            ],
+        ),
+        (
+            EngineName.QUIMB,
+            [
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.npy'",
+                "expected_shape=(2, 3)",
+                "array_key=None",
+            ],
+        ),
+        (
+            EngineName.EINSUM_NUMPY,
+            [
+                "a_data = _load_external_tensor_data(",
+                "'project_data/a.npy'",
+                "expected_shape=(2, 3)",
+                "array_key=None",
+            ],
+        ),
+        (
+            EngineName.TENSORKROWCH,
+            [
+                "a_data = torch.as_tensor(_load_external_tensor_data(",
+                "'project_data/a.npy'",
+                "expected_shape=(2, 3)",
+                "array_key=None",
+                "dtype=torch.float64",
+            ],
+        ),
+        (
+            EngineName.EINSUM_TORCH,
+            [
+                "a_data = torch.as_tensor(_load_external_tensor_data(",
+                "'project_data/a.npy'",
+                "expected_shape=(2, 3)",
+                "array_key=None",
+                "dtype=torch.float64",
+            ],
+        ),
+    ],
+)
+def test_generate_code_uses_external_tensor_data_initializers(
+    engine: EngineName,
+    expected_snippets: list[str],
+) -> None:
+    spec = build_sample_spec_without_plan()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="project_data/a.npy",
+        dtype=TensorDataDType.FLOAT64,
+    )
+
+    result = generate_code(spec, engine=engine)
+
+    for snippet in expected_snippets:
+        assert snippet in result.code
+    assert "def _load_external_tensor_data(" in result.code
+
+
+def test_generate_code_anchors_relative_external_tensor_paths_to_base_path() -> None:
+    spec = build_sample_spec_without_plan()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="project_data/a.npz",
+        array_key="left",
+    )
+
+    result = generate_code(
+        spec,
+        engine=EngineName.EINSUM_NUMPY,
+        external_data_base_path="C:/project/designs",
+    )
+
+    assert "'C:/project/designs/project_data/a.npz'" in result.code
+    assert "array_key='left'" in result.code
+
+
+@pytest.mark.parametrize(
     ("engine", "expected_snippets", "unexpected_snippet"),
     [
         (

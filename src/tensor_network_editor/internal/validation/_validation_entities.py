@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from pathlib import PurePath
 
 from ...models import (
     CanvasNoteSpec,
@@ -208,6 +209,8 @@ def validate_tensor_data(
             or tensor_data.values is not None
             or tensor_data.seed is not None
             or tensor_data.distribution is not None
+            or tensor_data.file_path is not None
+            or tensor_data.array_key is not None
         ):
             append_issue(
                 issues,
@@ -234,6 +237,8 @@ def validate_tensor_data(
             or tensor_data.values is not None
             or tensor_data.seed is not None
             or tensor_data.distribution is not None
+            or tensor_data.file_path is not None
+            or tensor_data.array_key is not None
         ):
             append_issue(
                 issues,
@@ -254,6 +259,8 @@ def validate_tensor_data(
             or not isinstance(tensor_data.seed, int)
             or tensor_data.seed < 0
             or tensor_data.distribution is None
+            or tensor_data.file_path is not None
+            or tensor_data.array_key is not None
         ):
             append_issue(
                 issues,
@@ -265,11 +272,16 @@ def validate_tensor_data(
                 path=path,
             )
         return
+    if tensor_data.mode is TensorDataMode.EXTERNAL:
+        _validate_external_tensor_data(tensor=tensor, path=path, issues=issues)
+        return
     if (
         tensor_data.values is None
         or tensor_data.fill_value is not None
         or tensor_data.seed is not None
         or tensor_data.distribution is not None
+        or tensor_data.file_path is not None
+        or tensor_data.array_key is not None
     ):
         append_issue(
             issues,
@@ -296,6 +308,51 @@ def validate_tensor_data(
             message=(
                 f"Tensor '{tensor.id}' literal data has shape {literal_shape!r}, "
                 f"expected {tensor.shape!r}."
+            ),
+            path=path,
+        )
+
+
+def _validate_external_tensor_data(
+    *,
+    tensor: TensorSpec,
+    path: str,
+    issues: list[ValidationIssue],
+) -> None:
+    """Require a supported external NumPy data reference."""
+    tensor_data = tensor.tensor_data
+    if tensor_data is None:
+        return
+    file_path = tensor_data.file_path.strip() if tensor_data.file_path else ""
+    if not file_path:
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=(
+                f"Tensor '{tensor.id}' external initializer requires a .npy or "
+                ".npz file_path."
+            ),
+            path=path,
+        )
+        return
+    suffix = PurePath(file_path).suffix.lower()
+    if suffix not in {".npy", ".npz"}:
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=(
+                f"Tensor '{tensor.id}' external initializer only supports .npy "
+                "and .npz files."
+            ),
+            path=path,
+        )
+        return
+    if suffix == ".npz" and not (tensor_data.array_key or "").strip():
+        append_issue(
+            issues,
+            code="invalid-tensor-data",
+            message=(
+                f"Tensor '{tensor.id}' external .npz initializer requires array_key."
             ),
             path=path,
         )

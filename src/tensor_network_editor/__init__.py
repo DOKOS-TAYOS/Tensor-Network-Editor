@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         TensorSpec,
         ValidationIssue,
     )
+    from .rendering import SvgRenderOptions, render_spec_svg
     from .templates import build_template_spec, list_template_names
     from .validation import validate_spec
 
@@ -70,6 +71,7 @@ __all__ = [
     "IndexSpec",
     "NetworkSpec",
     "PythonLoadOptions",
+    "SvgRenderOptions",
     "TensorCollectionFormat",
     "TensorDataMode",
     "TensorDataSpec",
@@ -88,6 +90,7 @@ __all__ = [
     "load_python_spec",
     "load_spec",
     "open_editor",
+    "render_spec_svg",
     "save_spec",
     "semantic_diff_specs",
     "validate_spec",
@@ -111,6 +114,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "IndexSpec": ".models",
     "NetworkSpec": ".models",
     "PythonLoadOptions": ".io",
+    "SvgRenderOptions": ".rendering",
     "TensorCollectionFormat": ".models",
     "TensorDataMode": ".models",
     "TensorDataSpec": ".models",
@@ -128,6 +132,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "load_python_spec": ".io",
     "load_spec": ".io",
     "open_editor": ".editor",
+    "render_spec_svg": ".rendering",
     "save_spec": ".io",
     "semantic_diff_specs": ".internal.diffing._diffing",
     "validate_spec": ".validation",

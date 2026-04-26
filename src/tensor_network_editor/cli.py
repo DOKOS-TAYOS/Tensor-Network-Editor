@@ -34,6 +34,7 @@ from .internal.cli._cli_handlers import (
     handle_edit_command,
     handle_export_command,
     handle_lint_command,
+    handle_render_command,
     handle_subnetwork_export_command,
     handle_subnetwork_list_command,
     handle_subnetwork_save_command,
@@ -51,6 +52,7 @@ from .internal.cli._logging import (
 from .internal.diffing._diffing import diff_specs, semantic_diff_specs
 from .io import load_spec, save_spec
 from .linting import lint_spec
+from .rendering import render_spec_svg
 from .templates import (
     build_template_spec,
     list_template_names,
@@ -84,6 +86,7 @@ def build_command_parser() -> argparse.ArgumentParser:
             handle_analyze=_handle_analyze,
             handle_benchmark=_handle_benchmark,
             handle_export=_handle_export,
+            handle_render=_handle_render,
             handle_diff=_handle_diff,
             handle_canonicalize=_handle_canonicalize,
             handle_template_list=_handle_template_list,
@@ -186,6 +189,15 @@ def _handle_export(args: argparse.Namespace) -> int:
         args,
         load_spec=load_spec,
         generate_code=generate_code,
+    )
+
+
+def _handle_render(args: argparse.Namespace) -> int:
+    """Render a saved spec as a static image without launching the editor."""
+    return handle_render_command(
+        args,
+        load_spec=load_spec,
+        render_spec_svg=render_spec_svg,
     )
 
 

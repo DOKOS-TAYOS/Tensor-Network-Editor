@@ -320,6 +320,8 @@ Available modes:
 - `Random`: seeded normal or uniform values, with seed `0` as the default
 - `Explicit values`: you provide JSON values that exactly match the tensor
   shape
+- `External .npy/.npz`: generated code loads values from a NumPy file and
+  checks the loaded shape
 
 Useful rules:
 
@@ -330,10 +332,14 @@ Useful rules:
 - explicit values must be valid JSON and must match the tensor shape exactly
 - invalid JSON or ragged lists are rejected before they overwrite the saved
   design
+- `.npy` files use the whole stored array
+- `.npz` files need an `Array key`
+- when you export from the CLI, relative external file paths are interpreted
+  relative to the JSON design file
 - saved JSON round-trips these initializer modes, and generated Python emits
   backend-native constructors for them
-- symbolic expressions and direct `.npy` / `.pt` imports are still out of scope
-  for the editor
+- symbolic expressions and direct `.pt` imports are still out of scope for the
+  editor
 
 <p align="center">
   <img
@@ -369,8 +375,8 @@ Useful rules:
   tensor plus ordinary binary edges
 - generated copy tensors use compact zeros-plus-diagonal-fill source instead
   of writing giant nested literals
-- supported generated Python round-trips keep that lowered binary network; they
-  do not reconstruct the original hyperedge yet
+- supported generated Python round-trips reconstruct the original hyperedge
+  from structured copy-tensor markers
 
 ## Manual Contraction Plans
 
@@ -578,11 +584,10 @@ linear or grid neighborhood would hide that intent.
 ## Current Limits
 
 - Hyperedges are available only in normal mode. While present, planner/manual
-  contraction editing and benchmark mode are disabled, and generated Python
-  re-imports the lowered binary network instead of reconstructing the original
-  hyperedge.
-- Tensor values support portable built-in initializers and complex scalars, but
-  not symbolic expressions or direct `.npy` / `.pt` imports.
+  contraction editing and benchmark mode are disabled.
+- Tensor values support portable built-in initializers, complex scalars, and
+  external `.npy` / `.npz` arrays, but not symbolic expressions or direct `.pt`
+  imports.
 - TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with every bundled
   backend.

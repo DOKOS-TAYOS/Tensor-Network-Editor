@@ -176,9 +176,26 @@ def handle_export_command(
         collection_format=TensorCollectionFormat(args.collection_format),
         print_code=args.output is None,
         output_path=args.output,
+        external_data_base_path=Path(args.path).resolve().parent,
     )
     if args.output is not None:
         print(f"Wrote generated code to {args.output}")
+    return 0
+
+
+def handle_render_command(
+    args: argparse.Namespace,
+    *,
+    load_spec: Callable[..., NetworkSpec],
+    render_spec_svg: Callable[..., str],
+) -> int:
+    """Render a saved spec as a static SVG image."""
+    spec = load_spec(args.path, **_python_load_kwargs(args))
+    svg = render_spec_svg(spec, output_path=args.output)
+    if args.output is None:
+        print(svg)
+    else:
+        print(f"Wrote SVG rendering to {args.output}")
     return 0
 
 

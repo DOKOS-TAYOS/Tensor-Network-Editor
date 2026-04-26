@@ -95,14 +95,16 @@ offline use, and generated code you can inspect.
   closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
+- Render saved designs to static SVG from Python or the CLI without needing a
+  browser or Node runtime.
 - Import supported Python network layouts from generated exports plus simple
   `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
   explicit live imports for `quimb` and `tensornetwork` objects in a
   subprocess.
 - Edit tensor initializers in the sidebar with zeros, ones, fill values,
   identity/delta, copy tensors, seeded random values, dtype choices, and
-  explicit real or complex literals that round-trip through saved designs and
-  emit as backend-native generated Python.
+  explicit real or complex literals, or point a tensor at external `.npy` /
+  `.npz` data that generated code loads with shape checks.
 - Create first-class hyperedges in normal mode, reposition their virtual hubs
   in the editor, and let exports lower them automatically into copy tensors
   plus binary edges for backend code.
@@ -181,6 +183,12 @@ tensor-network-editor benchmark my_network.json
 tensor-network-editor benchmark my_network.json --dtype float32 --format csv --output benchmark.csv
 ```
 
+Render one saved design as SVG:
+
+```bash
+tensor-network-editor render my_network.json --format svg --output figure.svg
+```
+
 Use the editor from Python:
 
 ```python
@@ -211,6 +219,16 @@ from tensor_network_editor import EngineName, generate_code, load_spec
 spec = load_spec("my_network.json")
 result = generate_code(spec, engine=EngineName.EINSUM_NUMPY)
 print(result.code)
+```
+
+Render SVG from Python:
+
+```python
+from tensor_network_editor import load_spec, render_spec_svg
+
+
+spec = load_spec("my_network.json")
+svg = render_spec_svg(spec, output_path="figure.svg")
 ```
 
 Load a live `quimb` or `tensornetwork` object from Python source:

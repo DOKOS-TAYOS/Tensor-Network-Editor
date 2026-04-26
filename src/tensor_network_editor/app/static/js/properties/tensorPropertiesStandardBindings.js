@@ -16,6 +16,8 @@ export function createStandardTensorPropertiesBindingSupport({
     getTensorDataDType,
     getTensorRandomDistribution,
     getTensorRandomSeed,
+    getTensorExternalFilePath,
+    getTensorExternalArrayKey,
     buildDefaultTensorLiteralValues,
     analyzeTensorDataFillInput,
     analyzeTensorLiteralInput,
@@ -82,6 +84,8 @@ export function createStandardTensorPropertiesBindingSupport({
         : 0;
     const tensorRandomSeed = getTensorRandomSeed(tensor);
     const tensorRandomDistribution = getTensorRandomDistribution(tensor);
+    const tensorExternalFilePath = getTensorExternalFilePath(tensor);
+    const tensorExternalArrayKey = getTensorExternalArrayKey(tensor);
     const tensorNameInput = document.getElementById("tensor-name-input");
     const tensorColorInput = document.getElementById("tensor-color-input");
     const tensorTagsInput = document.getElementById("tensor-tags-input");
@@ -94,6 +98,12 @@ export function createStandardTensorPropertiesBindingSupport({
     const tensorDataDTypeSelect = document.getElementById("tensor-data-dtype-select");
     const tensorDataFillInput = document.getElementById("tensor-data-fill-input");
     const tensorDataValuesInput = document.getElementById("tensor-data-values-input");
+    const tensorDataExternalPathInput = document.getElementById(
+      "tensor-data-external-path-input"
+    );
+    const tensorDataExternalArrayKeyInput = document.getElementById(
+      "tensor-data-external-array-key-input"
+    );
     const tensorDataRandomSeedInput = document.getElementById(
       "tensor-data-random-seed-input"
     );
@@ -178,6 +188,29 @@ export function createStandardTensorPropertiesBindingSupport({
       return distribution === "uniform" ? "uniform" : "normal";
     }
 
+    function readExternalFilePath() {
+      const rawPath = tensorDataExternalPathInput?.value;
+      return String(rawPath || tensorExternalFilePath).trim();
+    }
+
+    function readExternalArrayKey() {
+      const rawArrayKey = tensorDataExternalArrayKeyInput?.value;
+      return String(rawArrayKey || tensorExternalArrayKey).trim();
+    }
+
+    function buildExternalTensorData() {
+      const filePath = readExternalFilePath();
+      const arrayKey = readExternalArrayKey();
+      const tensorData = {
+        mode: "external",
+        file_path: filePath,
+      };
+      if (arrayKey) {
+        tensorData.array_key = arrayKey;
+      }
+      return tensorData;
+    }
+
     function buildTensorDataForMode(nextMode) {
       const shapeError = validateTensorDataModeForShape(nextMode);
       if (shapeError) {
@@ -256,6 +289,12 @@ export function createStandardTensorPropertiesBindingSupport({
             seed,
             distribution: readRandomDistribution(),
           }),
+        };
+      }
+      if (nextMode === "external") {
+        return {
+          ok: true,
+          tensorData: withSelectedDType(buildExternalTensorData()),
         };
       }
       return {
@@ -398,6 +437,32 @@ export function createStandardTensorPropertiesBindingSupport({
         {
           scheduleOnInput: false,
           commitOnEnter: false,
+        }
+      );
+    }
+
+    if (tensorDataExternalPathInput) {
+      bindDebouncedAutosave(
+        tensorDataExternalPathInput,
+        `tensor:${tensor.id}:tensor-data-external-path`,
+        () => {
+          updateTensorDataFromControls("external", { properties: true });
+        },
+        {
+          scheduleOnInput: false,
+        }
+      );
+    }
+
+    if (tensorDataExternalArrayKeyInput) {
+      bindDebouncedAutosave(
+        tensorDataExternalArrayKeyInput,
+        `tensor:${tensor.id}:tensor-data-external-array-key`,
+        () => {
+          updateTensorDataFromControls("external", { properties: true });
+        },
+        {
+          scheduleOnInput: false,
         }
       );
     }

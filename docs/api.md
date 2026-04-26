@@ -8,6 +8,7 @@ data model fields themselves, see [data-models.md](data-models.md).
 - [Main Imports](#main-imports)
 - [Launch the Editor](#launch-the-editor)
 - [Generate Code](#generate-code)
+- [Render SVG](#render-svg)
 - [Save and Load Designs](#save-and-load-designs)
 - [Validate, Lint, Analyze, Canonicalize, and Diff](#validate-lint-analyze-canonicalize-and-diff)
 - [Templates](#templates)
@@ -27,6 +28,7 @@ from tensor_network_editor import (
     PythonLoadOptions,
     TensorDataMode,
     TensorDataSpec,
+    SvgRenderOptions,
     TensorCollectionFormat,
     ValidationIssue,
     analyze_contraction,
@@ -40,6 +42,7 @@ from tensor_network_editor import (
     load_python_spec,
     load_spec,
     open_editor,
+    render_spec_svg,
     save_spec,
     semantic_diff_specs,
     validate_spec,
@@ -61,6 +64,7 @@ Useful public modules:
 | `tensor_network_editor.editor` | `EditorLaunchOptions` and `open_editor(...)` |
 | `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
 | `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
+| `tensor_network_editor.rendering` | pure-Python SVG rendering helpers |
 | `tensor_network_editor.validation` | hard validation helpers |
 | `tensor_network_editor.linting` | soft modeling diagnostics |
 | `tensor_network_editor.analysis` | structural and contraction analysis |
@@ -159,6 +163,9 @@ Useful behavior:
 
 - `print_code=True` prints the generated source
 - `output_path="..."` writes the generated source to a file
+- `external_data_base_path="..."` anchors relative `.npy` / `.npz` tensor-data
+  paths before writing generated code; without it, the stored path text is used
+  as-is
 - `collection_format` can be `LIST`, `MATRIX`, or `DICT`
 - a backend-specific export problem raises `CodeGenerationError` from
   `tensor_network_editor.errors`
@@ -166,6 +173,28 @@ Useful behavior:
 If a saved `contraction_plan` exists, generated code follows that manual plan.
 Complete plans emit a final `result`. Partial plans emit intermediate values
 and a `remaining_operands` mapping.
+
+## Render SVG
+
+Use `render_spec_svg(...)` when you want a static figure without opening the
+browser editor.
+
+```python
+from tensor_network_editor import SvgRenderOptions, load_spec, render_spec_svg
+
+
+spec = load_spec("my_network.json")
+svg = render_spec_svg(
+    spec,
+    options=SvgRenderOptions(padding=48.0),
+    output_path="figure.svg",
+)
+print(svg[:80])
+```
+
+The renderer is pure Python. It validates the spec, uses the saved canvas
+positions, draws tensors, indices, pairwise edges, hyperedges, groups, and
+notes, and writes the same SVG string to `output_path` when one is supplied.
 
 ## Save and Load Designs
 
@@ -277,11 +306,10 @@ currently supports `best_available`. The external `quimb`, `tensornetwork`, and
 portable `simple` reconstruction contract. That means external and live imports
 do not recover editor layout/groups/notes or rebuild manual contraction plans.
 Editor-only `view_snapshots` are still reset to an empty list because Python
-source does not carry scene layout. Hyperedges from generated exports are still
-re-imported in lowered copy-tensor form rather than reconstructed as
-`HyperedgeSpec`. Linear, grid, and tree periodic generated Python remain
-export-only for now, and this is still not a general Python-to-network
-importer.
+source does not carry scene layout. Hyperedges from supported generated exports
+are reconstructed as `HyperedgeSpec` from the structured copy-tensor markers.
+Linear, grid, and tree periodic generated Python remain export-only for now,
+and this is still not a general Python-to-network importer.
 
 ## Validate, Lint, Analyze, Canonicalize, and Diff
 

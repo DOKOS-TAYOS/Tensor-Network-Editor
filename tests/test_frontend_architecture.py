@@ -3374,6 +3374,21 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
               }},
               metadata: {{}},
             }},
+            {{
+              position: {{}},
+              size: {{}},
+              indices: [
+                {{ dimension: 2, metadata: {{}} }},
+                {{ dimension: 3, metadata: {{}} }},
+              ],
+              tensor_data: {{
+                mode: "external",
+                file_path: "data/left.npz",
+                array_key: "left",
+                dtype: "float64",
+              }},
+              metadata: {{}},
+            }},
           ],
           groups: [{{ tensor_ids: ["tensor_a"] }}],
           edges: [{{ left: {{}}, right: {{}}, metadata: {{}} }}],
@@ -3395,6 +3410,19 @@ def test_runtime_history_and_spec_kernel_modules_preserve_explicit_contracts(
         ) {{
           throw new Error(
             `Expected valid tensor data to be preserved, received ${{JSON.stringify(normalizedGraphSection.tensors[1].tensor_data)}}.`
+          );
+        }}
+        if (
+          JSON.stringify(normalizedGraphSection.tensors[2].tensor_data)
+          !== JSON.stringify({{
+            mode: "external",
+            file_path: "data/left.npz",
+            array_key: "left",
+            dtype: "float64",
+          }})
+        ) {{
+          throw new Error(
+            `Expected external tensor data to be preserved, received ${{JSON.stringify(normalizedGraphSection.tensors[2].tensor_data)}}.`
           );
         }}
 

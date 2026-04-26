@@ -154,10 +154,15 @@ Supported tensor-data modes are:
 - `TensorDataMode.RANDOM`: create deterministic seeded normal or uniform data
 - `TensorDataMode.LITERAL`: store nested Python lists of finite real or complex
   values that exactly match `tensor.shape`
+- `TensorDataMode.EXTERNAL`: load tensor values from a `.npy` or `.npz` file in
+  generated code, with a runtime shape check
 
 `TensorDataSpec.dtype` can be `float32`, `float64`, `complex64`, or
 `complex128`. Complex scalars are JSON objects such as
 `{"real": 1.0, "imag": -0.5}`.
+For external data, `file_path` is required. `.npz` files also require
+`array_key`. The optional `dtype` field asks generated code to convert the
+loaded array.
 
 Serialized tensor-data payloads are small JSON objects:
 
@@ -168,11 +173,18 @@ Serialized tensor-data payloads are small JSON objects:
 {"mode": "copy"}
 {"mode": "random", "seed": 123, "distribution": "uniform", "dtype": "float32"}
 {"mode": "literal", "values": [[1.0, 0.0], [0.0, 1.0]]}
+{"mode": "external", "file_path": "data/tensor_a.npz", "array_key": "a", "dtype": "float64"}
 ```
 
-Generated hyperedge copy tensors are an implementation detail of exports, but
-when they are reloaded from supported generated Python their literal copy data
-is recovered as `TensorDataMode.LITERAL`.
+When generated code is written from the CLI, relative external `file_path`
+values are resolved relative to the input JSON file. In the Python API, pass
+`external_data_base_path=...` to `generate_code(...)` when you want the same
+anchoring behavior. Without that argument, the path is emitted exactly as
+stored.
+
+Generated hyperedge copy tensors are an implementation detail of exports.
+Supported generated Python reloads use structured comments around those copy
+tensors to reconstruct the original `HyperedgeSpec`.
 
 In the editor sidebar, tensor and index properties expose:
 

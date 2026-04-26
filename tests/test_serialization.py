@@ -112,6 +112,29 @@ def test_tensor_data_round_trips_dtype_complex_and_random_payloads() -> None:
     assert restored.tensors[1].tensor_data == spec.tensors[1].tensor_data
 
 
+def test_tensor_data_round_trips_external_payload() -> None:
+    spec = build_sample_spec_with_view_snapshots()
+    spec.tensors[0].tensor_data = TensorDataSpec(
+        mode=TensorDataMode.EXTERNAL,
+        file_path="data/left.npz",
+        array_key="left",
+        dtype=TensorDataDType.FLOAT64,
+    )
+
+    payload = serialize_spec(spec)
+    restored = deserialize_spec(payload)
+    network_payload = cast(dict[str, JSONValue], payload["network"])
+    tensors_payload = cast(list[JSONValue], network_payload["tensors"])
+
+    assert cast(dict[str, JSONValue], tensors_payload[0])["tensor_data"] == {
+        "mode": "external",
+        "dtype": "float64",
+        "file_path": "data/left.npz",
+        "array_key": "left",
+    }
+    assert restored.tensors[0].tensor_data == spec.tensors[0].tensor_data
+
+
 def test_serialize_spec_preserves_hyperedges_payload() -> None:
     spec = build_three_tensor_spec_without_plan()
     spec.tensors[2].indices.insert(
