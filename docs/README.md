@@ -63,7 +63,7 @@ the session.
 <p align="center">
   <img
     src="images/benchmark-periodic.png"
-    alt="Benchmark comparison and periodic mode screenshot"
+    alt="Modes menu and periodic editor screenshot"
     width="900"
   />
 </p>
@@ -87,7 +87,7 @@ the session.
 <p align="center">
   <img
     src="images/manual-planner.png"
-    alt="Manual contraction plan and planner comparison screenshot"
+    alt="Six-node manual contraction planner with the first step selected"
     width="900"
   />
 </p>
@@ -95,7 +95,7 @@ the session.
 <p align="center">
   <img
     src="images/python-import-fallback.png"
-    alt="Python import options and fallback workflow screenshot"
+    alt="File menu with load and export actions in the editor"
     width="900"
   />
 </p>
@@ -103,7 +103,7 @@ the session.
 <p align="center">
   <img
     src="images/cli-validation-workflow.png"
-    alt="CLI validation linting analysis and JSON output screenshot"
+    alt="Editor shortcuts dialog screenshot"
     width="900"
   />
 </p>

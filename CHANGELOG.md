@@ -35,6 +35,9 @@ All notable changes to this project will be documented in this file.
   serializable metadata payloads.
 - Frontend runtime tests now share the state module dependency preset used by
   scripts that copy `state.js`, avoiding repeated benchmark-state wiring.
+- Documentation screenshots now use real browser-captured editor states with a
+  consistent viewport and corrected canvas framing for metadata, tensor
+  initializers, periodic modes, templates, shortcuts, and planner workflows.
 - Removed obsolete private compatibility shims for split model and periodic
   code-generation internals.
 

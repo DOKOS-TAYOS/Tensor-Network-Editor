@@ -42,7 +42,7 @@ offline use, and generated code you can inspect.
 <p align="center">
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/benchmark-periodic.png"
-    alt="Benchmark comparison and periodic mode screenshot"
+    alt="Modes menu and periodic editor screenshot"
     width="900"
   />
 </p>
@@ -66,7 +66,7 @@ offline use, and generated code you can inspect.
 <p align="center">
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/manual-planner.png"
-    alt="Manual contraction plan and planner comparison screenshot"
+    alt="Six-node manual contraction planner with the first step selected"
     width="900"
   />
 </p>
@@ -74,7 +74,7 @@ offline use, and generated code you can inspect.
 <p align="center">
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/python-import-fallback.png"
-    alt="Python import options and fallback workflow screenshot"
+    alt="File menu with load and export actions in the editor"
     width="900"
   />
 </p>
@@ -82,7 +82,7 @@ offline use, and generated code you can inspect.
 <p align="center">
   <img
     src="https://raw.githubusercontent.com/DOKOS-TAYOS/Tensor-Network-Editor/main/docs/images/cli-validation-workflow.png"
-    alt="CLI validation linting analysis and JSON output screenshot"
+    alt="Editor shortcuts dialog screenshot"
     width="900"
   />
 </p>

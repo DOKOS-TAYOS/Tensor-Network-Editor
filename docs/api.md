@@ -213,7 +213,7 @@ Important details:
 <p align="center">
   <img
     src="images/python-import-fallback.png"
-    alt="PythonLoadOptions and live import fallback workflow"
+    alt="Editor File menu with load and export actions"
     width="900"
   />
 </p>
@@ -338,7 +338,7 @@ Supported memory dtypes for analysis are `float16`, `float32`, `float64`,
 <p align="center">
   <img
     src="images/cli-validation-workflow.png"
-    alt="Validation linting analysis and diff diagnostic workflow"
+    alt="Editor shortcuts dialog with validation-adjacent workflow shortcuts"
     width="900"
   />
 </p>

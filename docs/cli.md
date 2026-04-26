@@ -129,7 +129,7 @@ These are useful for scripts, quick checks, and CI.
 <p align="center">
   <img
     src="images/cli-validation-workflow.png"
-    alt="CLI validation linting analysis and JSON output workflow"
+    alt="Editor shortcuts dialog for interactive workflows"
     width="900"
   />
 </p>

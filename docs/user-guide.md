@@ -428,7 +428,7 @@ suggestions.
 <p align="center">
   <img
     src="images/manual-planner.png"
-    alt="Manual contraction plan and planner comparison in the editor"
+    alt="Six-node manual contraction planner with the first step selected"
     width="900"
   />
 </p>
@@ -466,7 +466,7 @@ rows still work and the automatic rows are reported as unavailable.
 <p align="center">
   <img
     src="images/benchmark-periodic.png"
-    alt="Benchmark comparison table and periodic mode navigation"
+    alt="Modes menu and linear periodic editor navigation"
     width="900"
   />
 </p>
