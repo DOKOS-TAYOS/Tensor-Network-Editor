@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import cast
 
 from ...models import (
     CanvasPosition,
@@ -853,10 +854,10 @@ def _set_nested_literal_value(
     value: float,
 ) -> None:
     """Assign one scalar inside a nested tensor literal structure."""
-    current: TensorNumericLiteral = values
+    current_values = cast(list[TensorNumericLiteral], values)
     for index in index_path[:-1]:
-        current = current[index]  # type: ignore[index]
-    current[index_path[-1]] = value  # type: ignore[index]
+        current_values = cast(list[TensorNumericLiteral], current_values[index])
+    current_values[index_path[-1]] = value
 
 
 def _make_tensor(

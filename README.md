@@ -136,7 +136,9 @@ offline use, and generated code you can inspect.
 - Use the package from the CLI or directly from Python.
 
 The editor opens in your browser, but the server runs locally on your own
-machine. No Node runtime or cloud service is needed for normal use.
+machine. No Node runtime or cloud service is needed for normal use. A future
+desktop wrapper such as `pywebview` may sit on top of this local flow, but the
+browser-served editor remains the core interface and compatibility target.
 
 ## Minimal Installation
 
@@ -342,6 +344,10 @@ whole load immediately.
 
 ## Current Limits
 
+- Scope boundaries are intentional, not placeholders for a future rewrite:
+  TenPy code generation is out of scope, symbolic tensor expressions stay
+  limited to the current portable initializer/data model, and `tensorkrowch`
+  support will remain within the current feasible subset.
 - Hyperedges are supported only in normal mode. They are lowered to generated
   copy tensors for export, supported generated Python can reconstruct them as
   `HyperedgeSpec`, and planner/benchmark analysis handles them as internal copy
@@ -363,10 +369,10 @@ whole load immediately.
 - Tensor values in the visual editor support portable built-in initializers,
   dtype choices, JSON-friendly complex scalars, and external `.npy`, `.npz`,
   and `.pt` data references. Symbolic expressions are not supported yet.
-- TenPy code generation is not included.
 - Linear, grid, and tree periodic code generation work with all bundled
   backends.
-- Manual outer-product steps still cannot be exported safely to `tensorkrowch`.
+- Manual outer-product steps still cannot be exported safely to `tensorkrowch`,
+  and that restriction is considered a stable project boundary.
 - In `For bidimensional` and `For Tree`, virtual boundary operands represent
   payload/frontier interfaces for partial contractions rather than physical
   tensors you edit directly. Grid plans fold cells row-by-row from the

@@ -42,6 +42,26 @@ python -m pyright
 python -m pytest -q
 ```
 
+For the real-browser editor E2E checks, install Playwright and run the browser
+marker explicitly when you are working on the frontend/editor session flow:
+
+PowerShell:
+
+```powershell
+python -m pip install playwright
+python -m playwright install chromium
+$env:TNE_RUN_BROWSER_E2E = "1"
+python -m pytest -q -m browser
+```
+
+Bash:
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+TNE_RUN_BROWSER_E2E=1 python -m pytest -q -m browser
+```
+
 If a command is too slow on your machine, mention which command you ran and what
 you were able to verify.
 

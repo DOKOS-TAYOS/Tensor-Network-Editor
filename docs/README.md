@@ -46,6 +46,21 @@ The browser interface is local to your machine. The package starts a local
 server, opens a browser tab by default, and waits until you confirm or cancel
 the session.
 
+A future desktop wrapper such as `pywebview` can build on top of that local
+server model, but the browser-served editor is the core supported surface
+today.
+
+## Stable Scope Boundaries
+
+Some limits are intentional project boundaries rather than short-term missing
+features:
+
+- TenPy code generation is out of scope.
+- Symbolic tensor expressions stay limited to the current portable
+  initializer/data model.
+- `tensorkrowch` support remains within the current feasible subset, including
+  the known restriction around manual outer-product export.
+
 ## Screenshots
 
 <p align="center">

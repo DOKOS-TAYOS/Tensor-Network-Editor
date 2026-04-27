@@ -111,10 +111,14 @@ jobs:
           $env:TNE_REQUIRE_OPTIONAL_BACKENDS = "1"
           & $env:VENV_PYTHON -m pytest -q -m optional_backend
 
-  browser-smoke:
-    name: Browser smoke
-    runs-on: ubuntu-latest
+  browser-e2e:
+    name: Browser E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         shell: pwsh
@@ -131,18 +135,26 @@ jobs:
       - name: Create virtual environment
         run: |
           python -m venv .venv
-          "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if ($env:RUNNER_OS -eq "Windows") {
+            "VENV_PYTHON=.venv\Scripts\python.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            "VENV_PYTHON=.venv/bin/python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
 
-      - name: Install browser smoke dependencies
+      - name: Install browser E2E dependencies
         run: |
           & $env:VENV_PYTHON -m pip install --upgrade pip
           & $env:VENV_PYTHON -m pip install -e ".[dev]"
           & $env:VENV_PYTHON -m pip install playwright
-          & $env:VENV_PYTHON -m playwright install --with-deps chromium
+          if ($env:RUNNER_OS -eq "Linux") {
+            & $env:VENV_PYTHON -m playwright install --with-deps chromium
+          } else {
+            & $env:VENV_PYTHON -m playwright install chromium
+          }
 
-      - name: Run browser smoke test
+      - name: Run browser E2E tests
         run: |
-          $env:TNE_RUN_BROWSER_SMOKE = "1"
+          $env:TNE_RUN_BROWSER_E2E = "1"
           & $env:VENV_PYTHON -m pytest -q -m browser
 
   package:

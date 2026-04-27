@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from ...types import JSONValue
 
@@ -293,7 +293,7 @@ def _require_template_parameter_default(
         raise ValueError(
             f"Template default '{field_name}' must be a {expected_type.__name__}."
         )
-    return cast(int | float | bool | str, value)
+    return value
 
 
 def _get_template_parameter_fields(
@@ -750,7 +750,7 @@ def validate_template_parameters(
             "Template parameter 'physical_dimension' must be 2 when "
             f"'initial_state' is '{initial_state}'."
         )
-    return TemplateParameters(**cast(dict[str, Any], resolved_values))
+    return TemplateParameters(**resolved_values)
 
 
 def _reset_template_registry_for_tests() -> None:

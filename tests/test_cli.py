@@ -361,12 +361,16 @@ def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
     assert isinstance(options, EditorLaunchOptions)
     assert options.template_catalog_path is not None
     assert options.subnetwork_catalog_path is not None
-    assert Path(options.template_catalog_path).resolve() == (
-        design_path.parent / ".tensor-network-editor" / "templates.json"
-    ).resolve()
-    assert Path(options.subnetwork_catalog_path).resolve() == (
-        design_path.parent / ".tensor-network-editor" / "subnetworks.json"
-    ).resolve()
+    assert (
+        Path(options.template_catalog_path).resolve()
+        == (design_path.parent / ".tensor-network-editor" / "templates.json").resolve()
+    )
+    assert (
+        Path(options.subnetwork_catalog_path).resolve()
+        == (
+            design_path.parent / ".tensor-network-editor" / "subnetworks.json"
+        ).resolve()
+    )
 
 
 def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
@@ -399,7 +403,10 @@ def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
     options = open_editor_mock.call_args.kwargs["options"]
     assert isinstance(options, EditorLaunchOptions)
     assert options.code_path is not None
-    assert Path(options.code_path).resolve() == (design_path.parent / "generated.py").resolve()
+    assert (
+        Path(options.code_path).resolve()
+        == (design_path.parent / "generated.py").resolve()
+    )
 
 
 def test_main_returns_130_on_keyboard_interrupt() -> None:

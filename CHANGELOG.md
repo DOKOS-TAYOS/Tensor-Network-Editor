@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 
 - Contributor and citation metadata now live in `CONTRIBUTING.md` and
   `CITATION.cff`.
+- Real-browser editor E2E coverage now goes beyond shell startup: CI runs the
+  browser marker on Linux and Windows, and the suite now checks recoverable
+  draft autosave plus full session completion with generated code.
 - Academic figure exports now support PDF alongside SVG, PNG, TikZ/LaTeX, and
   Graphviz/DOT through the browser editor, render API, CLI, and public Python
   helpers.
@@ -60,6 +63,16 @@ All notable changes to this project will be documented in this file.
 - Browser editor sessions now keep a project-local recoverable draft under
   `.tensor-network-editor/drafts/`, prompt to restore it on startup, and clear
   it only after explicit save, Done, Cancel, or Start fresh actions.
+
+### Changed
+
+- Documentation now states that TenPy support is out of scope, symbolic tensor
+  support stays limited to the current portable model, and the known
+  `tensorkrowch` export restriction is a stable project boundary rather than a
+  planned future expansion.
+- Documentation now treats a future `pywebview` integration as a desktop layer
+  on top of the existing local browser-served editor, not a replacement for the
+  current core interface.
 - Browser editor sessions can now start with `dark`, `light`, `contrast`,
   `colorblind`, or `shiny` color themes through `EditorLaunchOptions.theme`,
   `open_editor(theme=...)`, or `tensor-network-editor edit --theme`.

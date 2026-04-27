@@ -53,7 +53,9 @@ the design and target another backend later.
 
 The editor itself runs locally. The package starts a Python HTTP server on your
 machine, opens a browser tab by default, and waits until you press `Done` or
-`Cancel`. Normal use does not require Node.js or a cloud service.
+`Cancel`. Normal use does not require Node.js or a cloud service. A future
+desktop wrapper such as `pywebview` can sit on top of the same local server,
+but the browser-served editor remains the primary supported surface.
 
 ## Choosing The Right Tool
 
