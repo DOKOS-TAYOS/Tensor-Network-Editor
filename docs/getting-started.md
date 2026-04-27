@@ -154,6 +154,9 @@ print(result.code)
 - Read [user-guide.md](user-guide.md) for normal editor workflow, templates,
   subnetworks, metadata filters, benchmark mode, shortcuts, planner behavior,
   and practical tips.
+- Read [extended_guide.md](extended_guide.md) when you want the complete
+  practical manual with deeper examples, CLI recipes, Python recipes, exports,
+  modes, and current limits in one place.
 - Read [api.md](api.md) if you want to integrate the package into Python code.
 - Read [cli.md](cli.md) if you want validation, linting, analysis, export, and
   diff commands from the terminal.

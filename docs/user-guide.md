@@ -4,6 +4,10 @@ This guide explains how to use `tensor-network-editor` comfortably after the
 first launch. It focuses on practical workflow, choices, examples, and current
 limits.
 
+For a longer manual with deeper CLI recipes, Python recipes, export workflows,
+periodic-mode details, and decision guidance, see
+[extended_guide.md](extended_guide.md).
+
 ## Contents
 
 - [Core Idea](#core-idea)

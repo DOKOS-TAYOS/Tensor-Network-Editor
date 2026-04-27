@@ -9,6 +9,8 @@ avoid reading one huge document from top to bottom.
 - New to the project: read [getting-started.md](getting-started.md).
 - Installing or setting up extras: read [installation.md](installation.md).
 - Using the visual editor regularly: read [user-guide.md](user-guide.md).
+- Looking for the complete practical manual: read
+  [extended_guide.md](extended_guide.md).
 - Calling the package from Python: read [api.md](api.md).
 - Extending templates or code generators: read [api.md](api.md).
 - Building specs by hand: read [data-models.md](data-models.md).
@@ -125,6 +127,7 @@ the stable user-facing API.
 | Try the editor for the first time | [getting-started.md](getting-started.md) |
 | Choose a backend or collection format | [user-guide.md](user-guide.md) |
 | Use templates, reusable subnetworks, auto layout, benchmark mode, or periodic modes | [user-guide.md](user-guide.md) |
+| Read the full user manual with deeper workflows and recipes | [extended_guide.md](extended_guide.md) |
 | Generate code from Python | [api.md](api.md) |
 | Reuse tensor-network fragments | [user-guide.md](user-guide.md#subnetwork-library), [api.md](api.md#subnetwork-helpers), [cli.md](cli.md#subnetwork-commands) |
 | Understand `NetworkSpec` and related models | [data-models.md](data-models.md) |

@@ -326,6 +326,9 @@ whole load immediately.
 - [User guide](docs/user-guide.md): editor workflow, templates, reusable
   subnetworks, auto layout, planner, tips, benchmark mode, periodic modes, and
   limits.
+- [Extended guide](docs/extended_guide.md): complete user manual with deeper
+  workflows, CLI recipes, Python recipes, modes, exports, and practical
+  guidance.
 - [Python API](docs/api.md): public functions and practical examples.
 - [Data models](docs/data-models.md): `NetworkSpec`, tensors, edges,
   hyperedges, groups, notes, contraction plans, and periodic-mode payloads.

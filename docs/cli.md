@@ -442,8 +442,10 @@ tensor-network-editor template build peps_2x2 --graph-size 3
 commands, but the built spec itself is serialized as JSON when `--output` is
 omitted.
 
-Built-in templates include MPS, MPO, PEPS (`peps_2x2`), MERA, Binary Tree,
-TTN (`ttn`), PEPO (`pepo`), and Heisenberg MPS (`heisenberg_mps`).
+Built-in templates include MPS (`mps`), MPO (`mpo`), PEPS (`peps_2x2`), MERA
+(`mera`), Binary Tree (`binary_tree`), TTN (`ttn`), PEPO (`pepo`), Heisenberg
+MPS (`heisenberg_mps`), Ising MPS (`ising_mps`), Transverse Ising MPO
+(`transverse_ising_mpo`), and TEBD Gate Layer (`tebd_gate_layer`).
 When `--output` is omitted, `template build` prints the serialized spec JSON to
 standard output.
 

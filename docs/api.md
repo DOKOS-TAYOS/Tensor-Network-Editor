@@ -132,6 +132,9 @@ Main parameters:
   path
 - `options.shared_subnetwork_catalog_path`: optional shared reusable-subnetwork
   catalog path merged with the project catalog at runtime
+- `options.draft_path`: optional path for the recoverable local editor draft;
+  leave it unset to use the project-local default under
+  `.tensor-network-editor/drafts/`
 
 Return value:
 
