@@ -359,12 +359,14 @@ def test_edit_subcommand_uses_loaded_spec_directory_for_template_catalog(
     load_mock.assert_called_once_with(str(design_path))
     options = open_editor_mock.call_args.kwargs["options"]
     assert isinstance(options, EditorLaunchOptions)
-    assert options.template_catalog_path == (
+    assert options.template_catalog_path is not None
+    assert options.subnetwork_catalog_path is not None
+    assert Path(options.template_catalog_path).resolve() == (
         design_path.parent / ".tensor-network-editor" / "templates.json"
-    )
-    assert options.subnetwork_catalog_path == (
+    ).resolve()
+    assert Path(options.subnetwork_catalog_path).resolve() == (
         design_path.parent / ".tensor-network-editor" / "subnetworks.json"
-    )
+    ).resolve()
 
 
 def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
@@ -396,7 +398,8 @@ def test_edit_subcommand_anchors_relative_save_code_to_loaded_spec_directory(
     load_mock.assert_called_once_with(str(design_path))
     options = open_editor_mock.call_args.kwargs["options"]
     assert isinstance(options, EditorLaunchOptions)
-    assert options.code_path == design_path.parent / "generated.py"
+    assert options.code_path is not None
+    assert Path(options.code_path).resolve() == (design_path.parent / "generated.py").resolve()
 
 
 def test_main_returns_130_on_keyboard_interrupt() -> None:
@@ -1353,7 +1356,7 @@ def test_template_build_subcommand_prints_json_when_no_output(
     [
         ("ttn", "TTN depth 3"),
         ("pepo", "PEPO 3x3"),
-        ("transverse_ising_mpo", "Transverse Ising MPO"),
+        ("mpo", "MPO"),
     ],
 )
 def test_template_build_subcommand_generates_new_v3_templates(
@@ -1408,6 +1411,64 @@ def test_template_build_subcommand_accepts_new_mps_configuration_flags(
     assert payload["network"]["metadata"]["symmetry"] == "z2"
     assert payload["network"]["metadata"]["initial_state"] == "neel"
     assert len(payload["network"]["edges"]) == 4
+
+
+def test_template_build_subcommand_accepts_new_mpo_and_ttn_configuration_flags(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mpo_exit_code = main(
+        [
+            "template",
+            "build",
+            "mpo",
+            "--graph-size",
+            "4",
+            "--bond-dimension",
+            "3",
+            "--physical-dimension",
+            "2",
+            "--boundary-condition",
+            "periodic",
+            "--j",
+            "1.5",
+            "--h",
+            "0.25",
+            "--format",
+            "json",
+        ]
+    )
+    mpo_payload = json.loads(capsys.readouterr().out)
+
+    ttn_exit_code = main(
+        [
+            "template",
+            "build",
+            "ttn",
+            "--depth",
+            "4",
+            "--bond-dimension",
+            "3",
+            "--physical-dimension",
+            "2",
+            "--root-open-leg",
+            "--no-leaf-physical-legs",
+            "--isometric",
+            "--format",
+            "json",
+        ]
+    )
+    ttn_payload = json.loads(capsys.readouterr().out)
+
+    assert mpo_exit_code == 0
+    assert mpo_payload["network"]["metadata"]["boundary_condition"] == "periodic"
+    assert mpo_payload["network"]["metadata"]["j"] == 1.5
+    assert mpo_payload["network"]["metadata"]["h"] == 0.25
+    assert len(mpo_payload["network"]["edges"]) == 4
+    assert ttn_exit_code == 0
+    assert ttn_payload["network"]["metadata"]["depth"] == 4
+    assert ttn_payload["network"]["metadata"]["root_open_leg"] is True
+    assert ttn_payload["network"]["metadata"]["leaf_physical_legs"] is False
+    assert ttn_payload["network"]["metadata"]["isometric"] is True
 
 
 def test_subnetwork_list_subcommand_prints_project_catalog(

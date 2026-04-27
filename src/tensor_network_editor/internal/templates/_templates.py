@@ -9,8 +9,6 @@ from ._template_catalog import (
     TemplateParameters,
     get_template_definition,
     list_template_names,
-    parse_template_choice,
-    parse_template_integer,
     register_static_template,
     register_template,
     serialize_template_definitions,
@@ -30,46 +28,17 @@ def parse_template_parameters(
         return defaults
     if not isinstance(raw_parameters, dict):
         raise ValueError("Template 'parameters' payload must be an object.")
+    parameter_values = {
+        parameter_field.name: getattr(defaults, parameter_field.name)
+        for parameter_field in TemplateParameters.__dataclass_fields__.values()
+    }
+    for parameter_field in definition.parameter_fields:
+        parameter_values[parameter_field.name] = raw_parameters.get(
+            parameter_field.name
+        )
     return validate_template_parameters(
         template_name,
-        TemplateParameters(
-            graph_size=parse_template_integer(
-                raw_parameters.get("graph_size"),
-                field_name="graph_size",
-                default=defaults.graph_size,
-                minimum=definition.minimum_graph_size,
-            ),
-            bond_dimension=parse_template_integer(
-                raw_parameters.get("bond_dimension"),
-                field_name="bond_dimension",
-                default=defaults.bond_dimension,
-                minimum=definition.minimum_bond_dimension,
-            ),
-            physical_dimension=parse_template_integer(
-                raw_parameters.get("physical_dimension"),
-                field_name="physical_dimension",
-                default=defaults.physical_dimension,
-                minimum=definition.minimum_physical_dimension,
-            ),
-            boundary_condition=parse_template_choice(
-                raw_parameters.get("boundary_condition"),
-                field_name="boundary_condition",
-                default=defaults.boundary_condition,
-                choices=("open", "periodic"),
-            ),
-            symmetry=parse_template_choice(
-                raw_parameters.get("symmetry"),
-                field_name="symmetry",
-                default=defaults.symmetry,
-                choices=("none", "u1", "z2"),
-            ),
-            initial_state=parse_template_choice(
-                raw_parameters.get("initial_state"),
-                field_name="initial_state",
-                default=defaults.initial_state,
-                choices=("zeros", "random", "all_up", "all_down", "neel"),
-            ),
-        ),
+        TemplateParameters(**parameter_values),
     )
 
 

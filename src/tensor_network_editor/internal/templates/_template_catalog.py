@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import dataclass, field, fields
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ...types import JSONValue
 
@@ -16,11 +16,11 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class TemplateParameters:
-    """Normalized parameters accepted by a built-in template."""
+    """Normalized parameters accepted by built-in templates."""
 
-    graph_size: int
-    bond_dimension: int
-    physical_dimension: int
+    graph_size: int | None = None
+    bond_dimension: int | None = None
+    physical_dimension: int | None = None
     boundary_condition: Literal["open", "periodic"] = "open"
     symmetry: Literal["none", "u1", "z2"] = "none"
     initial_state: Literal[
@@ -30,6 +30,12 @@ class TemplateParameters:
         "all_down",
         "neel",
     ] = "zeros"
+    depth: int | None = None
+    j: float | None = None
+    h: float | None = None
+    leaf_physical_legs: bool = True
+    root_open_leg: bool = False
+    isometric: bool = False
 
 
 @dataclass(frozen=True)
@@ -53,9 +59,9 @@ class TemplateParameterFieldDefinition:
 
     name: str
     label: str
-    kind: Literal["integer", "choice"]
-    default: int | str
-    minimum: int | None = None
+    kind: Literal["integer", "number", "boolean", "choice"]
+    default: int | float | bool | str
+    minimum: int | float | None = None
     options: tuple[TemplateParameterOptionDefinition, ...] = ()
 
     def to_dict(self) -> dict[str, JSONValue]:
@@ -64,10 +70,10 @@ class TemplateParameterFieldDefinition:
             "name": self.name,
             "label": self.label,
             "kind": self.kind,
-            "default": self.default,
+            "default": cast(JSONValue, self.default),
         }
         if self.minimum is not None:
-            payload["minimum"] = self.minimum
+            payload["minimum"] = cast(JSONValue, self.minimum)
         if self.options:
             payload["options"] = [option.to_dict() for option in self.options]
         return payload
@@ -92,16 +98,15 @@ class TemplateDefinition:
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the template definition for frontend bootstrap payloads."""
-        defaults, minimums = _serialize_template_parameter_payload(
-            self,
-        )
+        defaults, minimums = _serialize_template_parameter_payload(self)
         return {
             "display_name": self.display_name,
             "graph_size_label": self.graph_size_label,
             "defaults": defaults,
             "minimums": minimums,
             "parameter_fields": [
-                parameter_field.to_dict() for parameter_field in self.parameter_fields
+                parameter_field.to_dict()
+                for parameter_field in _get_template_parameter_fields(self)
             ],
             "supports_parameters": self.supports_parameters,
             "source": self.source,
@@ -110,7 +115,8 @@ class TemplateDefinition:
 
 def _build_standard_parameter_fields(
     *,
-    graph_size_label: str,
+    size_field_name: str,
+    size_field_label: str,
     defaults: TemplateParameters,
     minimum_graph_size: int = 2,
     minimum_bond_dimension: int = 1,
@@ -119,24 +125,32 @@ def _build_standard_parameter_fields(
     """Return the common numeric template-parameter definitions."""
     return (
         TemplateParameterFieldDefinition(
-            name="graph_size",
-            label=f"Graph size ({graph_size_label})",
+            name=size_field_name,
+            label=size_field_label,
             kind="integer",
-            default=defaults.graph_size,
+            default=_require_template_parameter_default(defaults, size_field_name, int),
             minimum=minimum_graph_size,
         ),
         TemplateParameterFieldDefinition(
             name="bond_dimension",
             label="Bond dimension",
             kind="integer",
-            default=defaults.bond_dimension,
+            default=_require_template_parameter_default(
+                defaults,
+                "bond_dimension",
+                int,
+            ),
             minimum=minimum_bond_dimension,
         ),
         TemplateParameterFieldDefinition(
             name="physical_dimension",
             label="Physical dimension",
             kind="integer",
-            default=defaults.physical_dimension,
+            default=_require_template_parameter_default(
+                defaults,
+                "physical_dimension",
+                int,
+            ),
             minimum=minimum_physical_dimension,
         ),
     )
@@ -148,7 +162,8 @@ def _build_mps_parameter_fields(
     """Return the extended MPS parameter controls shown in the editor."""
     return (
         *_build_standard_parameter_fields(
-            graph_size_label="Sites",
+            size_field_name="graph_size",
+            size_field_label="Graph size (Sites)",
             defaults=defaults,
         ),
         TemplateParameterFieldDefinition(
@@ -194,23 +209,122 @@ def _build_mps_parameter_fields(
     )
 
 
-def _serialize_template_parameter_payload(
+def _build_mpo_parameter_fields(
+    defaults: TemplateParameters,
+) -> tuple[TemplateParameterFieldDefinition, ...]:
+    """Return the extended MPO parameter controls."""
+    return (
+        *_build_standard_parameter_fields(
+            size_field_name="graph_size",
+            size_field_label="Graph size (Sites)",
+            defaults=defaults,
+        ),
+        TemplateParameterFieldDefinition(
+            name="boundary_condition",
+            label="Boundary condition",
+            kind="choice",
+            default=defaults.boundary_condition,
+            options=(
+                TemplateParameterOptionDefinition(value="open", label="Open"),
+                TemplateParameterOptionDefinition(
+                    value="periodic",
+                    label="Periodic",
+                ),
+            ),
+        ),
+        TemplateParameterFieldDefinition(
+            name="j",
+            label="J",
+            kind="number",
+            default=_require_template_parameter_default(defaults, "j", float),
+        ),
+        TemplateParameterFieldDefinition(
+            name="h",
+            label="h",
+            kind="number",
+            default=_require_template_parameter_default(defaults, "h", float),
+        ),
+    )
+
+
+def _build_ttn_parameter_fields(
+    defaults: TemplateParameters,
+) -> tuple[TemplateParameterFieldDefinition, ...]:
+    """Return the extended TTN parameter controls."""
+    return (
+        *_build_standard_parameter_fields(
+            size_field_name="depth",
+            size_field_label="Depth",
+            defaults=defaults,
+        ),
+        TemplateParameterFieldDefinition(
+            name="leaf_physical_legs",
+            label="Leaf physical legs",
+            kind="boolean",
+            default=defaults.leaf_physical_legs,
+        ),
+        TemplateParameterFieldDefinition(
+            name="root_open_leg",
+            label="Root open leg",
+            kind="boolean",
+            default=defaults.root_open_leg,
+        ),
+        TemplateParameterFieldDefinition(
+            name="isometric",
+            label="Isometric",
+            kind="boolean",
+            default=defaults.isometric,
+        ),
+    )
+
+
+def _require_template_parameter_default(
+    defaults: TemplateParameters,
+    field_name: str,
+    expected_type: type[int] | type[float] | type[bool] | type[str],
+) -> int | float | bool | str:
+    """Return one non-null template default value with the expected type."""
+    value = getattr(defaults, field_name)
+    if value is None:
+        raise ValueError(f"Template default '{field_name}' cannot be None.")
+    if expected_type is float and isinstance(value, int | float):
+        return float(value)
+    if not isinstance(value, expected_type):
+        raise ValueError(
+            f"Template default '{field_name}' must be a {expected_type.__name__}."
+        )
+    return cast(int | float | bool | str, value)
+
+
+def _get_template_parameter_fields(
     definition: TemplateDefinition,
-) -> tuple[dict[str, JSONValue], dict[str, JSONValue]]:
-    """Return serialized defaults and minimums for one template definition."""
-    parameter_fields = definition.parameter_fields or _build_standard_parameter_fields(
-        graph_size_label=definition.graph_size_label,
+) -> tuple[TemplateParameterFieldDefinition, ...]:
+    """Return the effective parameter fields for one template definition."""
+    if definition.parameter_fields:
+        return definition.parameter_fields
+    return _build_standard_parameter_fields(
+        size_field_name="graph_size",
+        size_field_label=f"Graph size ({definition.graph_size_label})",
         defaults=definition.defaults,
         minimum_graph_size=definition.minimum_graph_size,
         minimum_bond_dimension=definition.minimum_bond_dimension,
         minimum_physical_dimension=definition.minimum_physical_dimension,
     )
+
+
+def _serialize_template_parameter_payload(
+    definition: TemplateDefinition,
+) -> tuple[dict[str, JSONValue], dict[str, JSONValue]]:
+    """Return serialized defaults and minimums for one template definition."""
     defaults: dict[str, JSONValue] = {}
     minimums: dict[str, JSONValue] = {}
-    for parameter_field in parameter_fields:
-        defaults[parameter_field.name] = parameter_field.default
+    for parameter_field in _get_template_parameter_fields(definition):
+        defaults[parameter_field.name] = cast(JSONValue, parameter_field.default)
         if parameter_field.minimum is not None:
-            minimums[parameter_field.name] = parameter_field.minimum
+            minimums[parameter_field.name] = cast(
+                JSONValue,
+                parameter_field.minimum,
+            )
     return defaults, minimums
 
 
@@ -219,7 +333,7 @@ def _get_parameter_field_definition(
     field_name: str,
 ) -> TemplateParameterFieldDefinition | None:
     """Return the parameter metadata entry for one field when it exists."""
-    for parameter_field in definition.parameter_fields:
+    for parameter_field in _get_template_parameter_fields(definition):
         if parameter_field.name == field_name:
             return parameter_field
     return None
@@ -251,14 +365,19 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             graph_size=4,
             bond_dimension=3,
             physical_dimension=2,
+            boundary_condition="open",
+            j=1.0,
+            h=1.0,
         ),
-        parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Sites",
-            defaults=TemplateParameters(
+        parameter_fields=_build_mpo_parameter_fields(
+            TemplateParameters(
                 graph_size=4,
                 bond_dimension=3,
                 physical_dimension=2,
-            ),
+                boundary_condition="open",
+                j=1.0,
+                h=1.0,
+            )
         ),
     ),
     "peps_2x2": TemplateDefinition(
@@ -271,7 +390,8 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
         parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Side length",
+            size_field_name="graph_size",
+            size_field_label="Graph size (Side length)",
             defaults=TemplateParameters(
                 graph_size=3,
                 bond_dimension=3,
@@ -289,25 +409,8 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
         parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Depth",
-            defaults=TemplateParameters(
-                graph_size=3,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
-        ),
-    ),
-    "binary_tree": TemplateDefinition(
-        name="binary_tree",
-        display_name="Binary Tree",
-        graph_size_label="Depth",
-        defaults=TemplateParameters(
-            graph_size=3,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
-        parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Depth",
+            size_field_name="graph_size",
+            size_field_label="Graph size (Depth)",
             defaults=TemplateParameters(
                 graph_size=3,
                 bond_dimension=3,
@@ -320,17 +423,22 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
         display_name="TTN",
         graph_size_label="Depth",
         defaults=TemplateParameters(
-            graph_size=3,
+            depth=3,
             bond_dimension=3,
             physical_dimension=2,
+            leaf_physical_legs=True,
+            root_open_leg=False,
+            isometric=False,
         ),
-        parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Depth",
-            defaults=TemplateParameters(
-                graph_size=3,
+        parameter_fields=_build_ttn_parameter_fields(
+            TemplateParameters(
+                depth=3,
                 bond_dimension=3,
                 physical_dimension=2,
-            ),
+                leaf_physical_legs=True,
+                root_open_leg=False,
+                isometric=False,
+            )
         ),
     ),
     "pepo": TemplateDefinition(
@@ -343,27 +451,10 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
         parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Side length",
+            size_field_name="graph_size",
+            size_field_label="Graph size (Side length)",
             defaults=TemplateParameters(
                 graph_size=3,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
-        ),
-    ),
-    "transverse_ising_mpo": TemplateDefinition(
-        name="transverse_ising_mpo",
-        display_name="Transverse Ising MPO",
-        graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
-        parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Sites",
-            defaults=TemplateParameters(
-                graph_size=4,
                 bond_dimension=3,
                 physical_dimension=2,
             ),
@@ -379,7 +470,8 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             physical_dimension=2,
         ),
         parameter_fields=_build_standard_parameter_fields(
-            graph_size_label="Sites",
+            size_field_name="graph_size",
+            size_field_label="Graph size (Sites)",
             defaults=TemplateParameters(
                 graph_size=4,
                 bond_dimension=3,
@@ -533,7 +625,11 @@ def get_template_definition(template_name: str) -> TemplateDefinition:
 
 
 def parse_template_integer(
-    value: object, *, field_name: str, default: int, minimum: int
+    value: object,
+    *,
+    field_name: str,
+    default: int,
+    minimum: int,
 ) -> int:
     """Validate one integer template parameter and apply its default."""
     if value is None:
@@ -547,84 +643,38 @@ def parse_template_integer(
     return value
 
 
-def validate_template_parameters(
-    template_name: str, parameters: TemplateParameters
-) -> TemplateParameters:
-    """Normalize template parameters against the rules for ``template_name``."""
-    definition = get_template_definition(template_name)
-    boundary_condition_definition = _get_parameter_field_definition(
-        definition,
-        "boundary_condition",
-    )
-    symmetry_definition = _get_parameter_field_definition(
-        definition,
-        "symmetry",
-    )
-    initial_state_definition = _get_parameter_field_definition(
-        definition,
-        "initial_state",
-    )
-    boundary_condition = (
-        parse_template_choice(
-            parameters.boundary_condition,
-            field_name="boundary_condition",
-            default=definition.defaults.boundary_condition,
-            choices=tuple(
-                option.value for option in boundary_condition_definition.options
-            ),
-        )
-        if boundary_condition_definition is not None
-        else definition.defaults.boundary_condition
-    )
-    symmetry = (
-        parse_template_choice(
-            parameters.symmetry,
-            field_name="symmetry",
-            default=definition.defaults.symmetry,
-            choices=tuple(option.value for option in symmetry_definition.options),
-        )
-        if symmetry_definition is not None
-        else definition.defaults.symmetry
-    )
-    initial_state = (
-        parse_template_choice(
-            parameters.initial_state,
-            field_name="initial_state",
-            default=definition.defaults.initial_state,
-            choices=tuple(option.value for option in initial_state_definition.options),
-        )
-        if initial_state_definition is not None
-        else definition.defaults.initial_state
-    )
-    physical_dimension = parse_template_integer(
-        parameters.physical_dimension,
-        field_name="physical_dimension",
-        default=definition.defaults.physical_dimension,
-        minimum=definition.minimum_physical_dimension,
-    )
-    if initial_state in {"all_up", "all_down", "neel"} and physical_dimension != 2:
+def parse_template_number(
+    value: object,
+    *,
+    field_name: str,
+    default: float,
+    minimum: float | None = None,
+) -> float:
+    """Validate one numeric template parameter and apply its default."""
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"Template parameter '{field_name}' must be a number.")
+    numeric_value = float(value)
+    if minimum is not None and numeric_value < minimum:
         raise ValueError(
-            "Template parameter 'physical_dimension' must be 2 when "
-            f"'initial_state' is '{initial_state}'."
+            f"Template parameter '{field_name}' must be greater than or equal to {minimum}."
         )
-    return TemplateParameters(
-        graph_size=parse_template_integer(
-            parameters.graph_size,
-            field_name="graph_size",
-            default=definition.defaults.graph_size,
-            minimum=definition.minimum_graph_size,
-        ),
-        bond_dimension=parse_template_integer(
-            parameters.bond_dimension,
-            field_name="bond_dimension",
-            default=definition.defaults.bond_dimension,
-            minimum=definition.minimum_bond_dimension,
-        ),
-        physical_dimension=physical_dimension,
-        boundary_condition=boundary_condition,
-        symmetry=symmetry,
-        initial_state=initial_state,
-    )
+    return numeric_value
+
+
+def parse_template_boolean(
+    value: object,
+    *,
+    field_name: str,
+    default: bool,
+) -> bool:
+    """Validate one boolean template parameter and apply its default."""
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"Template parameter '{field_name}' must be a boolean.")
+    return value
 
 
 def parse_template_choice(
@@ -645,6 +695,62 @@ def parse_template_choice(
             f"Template parameter '{field_name}' must be one of: {', '.join(choices)}."
         )
     return normalized_value
+
+
+def validate_template_parameters(
+    template_name: str,
+    parameters: TemplateParameters,
+) -> TemplateParameters:
+    """Normalize template parameters against the rules for ``template_name``."""
+    definition = get_template_definition(template_name)
+    resolved_values = {
+        parameter_field.name: getattr(definition.defaults, parameter_field.name)
+        for parameter_field in fields(TemplateParameters)
+    }
+    for parameter_field in _get_template_parameter_fields(definition):
+        raw_value = getattr(parameters, parameter_field.name)
+        if parameter_field.kind == "integer":
+            resolved_values[parameter_field.name] = parse_template_integer(
+                raw_value,
+                field_name=parameter_field.name,
+                default=int(parameter_field.default),
+                minimum=int(parameter_field.minimum or 1),
+            )
+            continue
+        if parameter_field.kind == "number":
+            resolved_values[parameter_field.name] = parse_template_number(
+                raw_value,
+                field_name=parameter_field.name,
+                default=float(parameter_field.default),
+                minimum=(
+                    float(parameter_field.minimum)
+                    if parameter_field.minimum is not None
+                    else None
+                ),
+            )
+            continue
+        if parameter_field.kind == "boolean":
+            resolved_values[parameter_field.name] = parse_template_boolean(
+                raw_value,
+                field_name=parameter_field.name,
+                default=bool(parameter_field.default),
+            )
+            continue
+        resolved_values[parameter_field.name] = parse_template_choice(
+            raw_value,
+            field_name=parameter_field.name,
+            default=str(parameter_field.default),
+            choices=tuple(option.value for option in parameter_field.options),
+        )
+
+    physical_dimension = cast(int | None, resolved_values.get("physical_dimension"))
+    initial_state = cast(str, resolved_values.get("initial_state", "zeros"))
+    if initial_state in {"all_up", "all_down", "neel"} and physical_dimension != 2:
+        raise ValueError(
+            "Template parameter 'physical_dimension' must be 2 when "
+            f"'initial_state' is '{initial_state}'."
+        )
+    return TemplateParameters(**cast(dict[str, Any], resolved_values))
 
 
 def _reset_template_registry_for_tests() -> None:

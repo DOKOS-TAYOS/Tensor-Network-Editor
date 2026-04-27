@@ -186,7 +186,8 @@ def test_render_route_returns_academic_text_exports(
 
     assert tikz_payload["format"] == "tikz"
     assert tikz_payload["content_type"] == "text/x-tex;charset=utf-8"
-    assert tikz_payload["text"].startswith(r"\begin{tikzpicture}")
+    assert tikz_payload["text"].startswith(r"\def\tneGlobalWidth")
+    assert r"\begin{tikzpicture}" in tikz_payload["text"]
     assert r"\node[tne index]" not in tikz_payload["text"]
     assert r"\draw[tne edge]" in tikz_payload["text"]
     assert dot_payload["format"] == "dot"
@@ -950,6 +951,54 @@ def test_template_route_applies_requested_mps_model_parameters(
     assert payload["spec"]["network"]["metadata"]["symmetry"] == "z2"
     assert payload["spec"]["network"]["metadata"]["initial_state"] == "neel"
     assert len(payload["spec"]["network"]["edges"]) == 4
+
+
+def test_template_route_applies_requested_mpo_and_ttn_parameters(
+    editor_server: EditorServer,
+) -> None:
+    mpo_payload = request_json(
+        f"{editor_server.base_url}/api/template",
+        method="POST",
+        payload={
+            "template": "mpo",
+            "parameters": {
+                "graph_size": 4,
+                "bond_dimension": 3,
+                "physical_dimension": 2,
+                "boundary_condition": "periodic",
+                "j": 1.5,
+                "h": 0.25,
+            },
+        },
+    )
+    ttn_payload = request_json(
+        f"{editor_server.base_url}/api/template",
+        method="POST",
+        payload={
+            "template": "ttn",
+            "parameters": {
+                "depth": 4,
+                "bond_dimension": 3,
+                "physical_dimension": 2,
+                "leaf_physical_legs": False,
+                "root_open_leg": True,
+                "isometric": True,
+            },
+        },
+    )
+
+    assert mpo_payload["ok"] is True
+    assert (
+        mpo_payload["spec"]["network"]["metadata"]["boundary_condition"] == "periodic"
+    )
+    assert mpo_payload["spec"]["network"]["metadata"]["j"] == 1.5
+    assert mpo_payload["spec"]["network"]["metadata"]["h"] == 0.25
+    assert len(mpo_payload["spec"]["network"]["edges"]) == 4
+    assert ttn_payload["ok"] is True
+    assert ttn_payload["spec"]["network"]["metadata"]["depth"] == 4
+    assert ttn_payload["spec"]["network"]["metadata"]["leaf_physical_legs"] is False
+    assert ttn_payload["spec"]["network"]["metadata"]["root_open_leg"] is True
+    assert ttn_payload["spec"]["network"]["metadata"]["isometric"] is True
 
 
 def test_template_route_rejects_invalid_template_parameters(

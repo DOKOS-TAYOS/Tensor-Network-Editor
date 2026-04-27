@@ -443,10 +443,13 @@ commands, but the built spec itself is serialized as JSON when `--output` is
 omitted.
 
 Built-in templates include MPS (`mps`), MPO (`mpo`), PEPS (`peps_2x2`), MERA
-(`mera`), Binary Tree (`binary_tree`), TTN (`ttn`), PEPO (`pepo`), Transverse
-Ising MPO (`transverse_ising_mpo`), and TEBD Gate Layer
+(`mera`), TTN (`ttn`), PEPO (`pepo`), and TEBD Gate Layer
 (`tebd_gate_layer`). The `mps` template also accepts
-`--boundary-condition`, `--symmetry`, and `--initial-state`.
+`--boundary-condition`, `--symmetry`, and `--initial-state`. The `mpo`
+template accepts `--boundary-condition`, `--j`, and `--h`. The `ttn`
+template accepts `--depth`, `--leaf-physical-legs` /
+`--no-leaf-physical-legs`, `--root-open-leg` / `--no-root-open-leg`, and
+`--isometric` / `--no-isometric`.
 When `--output` is omitted, `template build` prints the serialized spec JSON to
 standard output.
 

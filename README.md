@@ -108,8 +108,9 @@ offline use, and generated code you can inspect.
 - Create first-class hyperedges in normal mode, reposition their virtual hubs
   in the editor, and let exports lower them automatically into copy tensors
   plus binary edges for backend code, analysis, and benchmarks.
-- Use built-in templates for MPS, MPO, PEPS, MERA, binary-tree, TTN, PEPO,
-  Heisenberg MPS, Ising MPS, transverse-Ising MPO, and TEBD gate-layer layouts.
+- Use built-in templates for MPS, MPO, PEPS, MERA, TTN, PEPO, and TEBD
+  gate-layer layouts, including configurable MPO boundary/coupling fields and
+  TTN depth/leg options.
 - Build normal-mode designs from Python with a small fluent builder API when
   direct scripting is faster than manual canvas editing.
 - Save reusable subnetworks into project or shared catalogs and reinsert them

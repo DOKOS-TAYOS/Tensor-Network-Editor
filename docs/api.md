@@ -476,10 +476,12 @@ The package root only re-exports `build_template_spec(...)` and
 
 Templates are useful when you want a valid starting network without placing
 every tensor manually.
-Built-ins include `mps`, `mpo`, `peps_2x2`, `mera`, `binary_tree`, `ttn`,
-`pepo`, `transverse_ising_mpo`, and `tebd_gate_layer`. The `mps` template can
-also parse `boundary_condition`, `symmetry`, and `initial_state` options when
-you pass them through `parse_template_parameters(...)`.
+Built-ins include `mps`, `mpo`, `peps_2x2`, `mera`, `ttn`, `pepo`, and
+`tebd_gate_layer`. The `mps` template can also parse
+`boundary_condition`, `symmetry`, and `initial_state` options. The `mpo`
+template can also parse `boundary_condition`, `j`, and `h`, and the `ttn`
+template can also parse `depth`, `leaf_physical_legs`, `root_open_leg`, and
+`isometric` when you pass them through `parse_template_parameters(...)`.
 
 ## Subnetwork Helpers
 

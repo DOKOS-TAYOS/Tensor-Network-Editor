@@ -1161,6 +1161,32 @@ select {
   text-align: center;
 }
 
+.template-boolean-field {
+  grid-template-rows: auto auto;
+}
+
+.template-boolean-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: var(--canvas-control-height);
+  color: var(--ink);
+}
+
+.template-boolean-toggle input {
+  width: 1rem;
+  height: 1rem;
+  min-height: auto;
+  margin: 0;
+  accent-color: var(--accent-strong);
+}
+
+.template-boolean-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
 .template-parameter-panel select,
 .template-parameter-panel input {
   height: var(--canvas-control-height);
@@ -1168,6 +1194,11 @@ select {
   box-sizing: border-box;
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.template-parameter-panel .template-boolean-toggle input {
+  height: 1rem;
+  min-height: auto;
 }
 
 .template-inline-warning {

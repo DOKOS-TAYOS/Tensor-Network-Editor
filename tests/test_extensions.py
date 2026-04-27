@@ -128,10 +128,8 @@ def test_builtin_extension_registries_are_seeded() -> None:
         "mpo",
         "peps_2x2",
         "mera",
-        "binary_tree",
         "ttn",
         "pepo",
-        "transverse_ising_mpo",
         "tebd_gate_layer",
     ]
 

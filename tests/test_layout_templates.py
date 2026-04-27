@@ -17,10 +17,8 @@ def test_template_catalog_exposes_expected_names() -> None:
         "mpo",
         "peps_2x2",
         "mera",
-        "binary_tree",
         "ttn",
         "pepo",
-        "transverse_ising_mpo",
         "tebd_gate_layer",
     ]
 
@@ -41,10 +39,8 @@ def test_all_templates_build_valid_specs(template_name: str) -> None:
         ("mpo", 930.0, 0.0),
         ("peps_2x2", 300.0, 260.0),
         ("mera", 560.0, 420.0),
-        ("binary_tree", 560.0, 420.0),
         ("ttn", 560.0, 420.0),
         ("pepo", 680.0, 560.0),
-        ("transverse_ising_mpo", 930.0, 0.0),
         ("tebd_gate_layer", 900.0, 220.0),
     ],
 )
@@ -108,15 +104,15 @@ def test_templates_use_generous_spacing(
             },
         ),
         (
-            "binary_tree",
+            "ttn",
             {
-                "Root": {"left", "right"},
-                "Left": {"up", "left", "right"},
-                "Right": {"up", "left", "right"},
-                "LL": {"up", "phys"},
-                "LR": {"up", "phys"},
-                "RL": {"up", "phys"},
-                "RR": {"up", "phys"},
+                "L1-1": {"left", "right"},
+                "L2-1": {"up", "left", "right"},
+                "L2-2": {"up", "left", "right"},
+                "L3-1": {"up", "phys"},
+                "L3-2": {"up", "phys"},
+                "L3-3": {"up", "phys"},
+                "L3-4": {"up", "phys"},
             },
         ),
     ],
@@ -222,14 +218,43 @@ def test_mera_template_accepts_custom_depth_and_dimensions() -> None:
     } == {3}
 
 
-def test_binary_tree_template_accepts_custom_depth_and_dimensions() -> None:
+def test_mpo_template_accepts_periodic_boundary_and_coupling_metadata() -> None:
     spec = build_template_spec(
-        "binary_tree",
-        TemplateParameters(graph_size=4, bond_dimension=8, physical_dimension=5),
+        "mpo",
+        TemplateParameters(
+            graph_size=5,
+            bond_dimension=4,
+            physical_dimension=2,
+            boundary_condition="periodic",
+            j=1.5,
+            h=0.25,
+        ),
+    )
+
+    assert spec.name == "MPO (5 sites)"
+    assert len(spec.tensors) == 5
+    assert len(spec.edges) == 5
+    assert spec.metadata["template_name"] == "mpo"
+    assert spec.metadata["boundary_condition"] == "periodic"
+    assert spec.metadata["j"] == pytest.approx(1.5)
+    assert spec.metadata["h"] == pytest.approx(0.25)
+    assert {index.name for index in spec.tensors[0].indices} == {
+        "left",
+        "right",
+        "bra",
+        "ket",
+    }
+    assert all(tensor.metadata.get("role") == "operator" for tensor in spec.tensors)
+
+
+def test_ttn_template_accepts_custom_depth_and_dimensions() -> None:
+    spec = build_template_spec(
+        "ttn",
+        TemplateParameters(depth=4, bond_dimension=8, physical_dimension=5),
     )
     leaves = [tensor for tensor in spec.tensors if tensor.name.startswith("L4-")]
 
-    assert spec.name == "Binary Tree depth 4"
+    assert spec.name == "TTN depth 4"
     assert len(spec.tensors) == 15
     assert len(spec.edges) == 14
     assert len(leaves) == 8
@@ -248,34 +273,6 @@ def test_binary_tree_template_accepts_custom_depth_and_dimensions() -> None:
         for index in tensor.indices
         if index.name == "phys"
     } == {5}
-
-
-def test_ttn_template_accepts_custom_depth_and_dimensions() -> None:
-    spec = build_template_spec(
-        "ttn",
-        TemplateParameters(graph_size=4, bond_dimension=6, physical_dimension=3),
-    )
-    leaves = [tensor for tensor in spec.tensors if tensor.name.startswith("L4-")]
-
-    assert spec.name == "TTN depth 4"
-    assert len(spec.tensors) == 15
-    assert len(spec.edges) == 14
-    assert len(leaves) == 8
-    assert all(
-        any(index.name == "phys" for index in tensor.indices) for tensor in leaves
-    )
-    assert {
-        index.dimension
-        for tensor in spec.tensors
-        for index in tensor.indices
-        if index.name != "phys"
-    } == {6}
-    assert {
-        index.dimension
-        for tensor in leaves
-        for index in tensor.indices
-        if index.name == "phys"
-    } == {3}
 
 
 def test_pepo_template_accepts_custom_side_length_and_dimensions() -> None:
@@ -365,28 +362,31 @@ def test_mps_template_supports_periodic_boundary_and_neel_initialization() -> No
     assert spec.tensors[1].tensor_data.to_dict()["mode"] == "literal"
 
 
-def test_transverse_ising_mpo_template_uses_operator_metadata() -> None:
+def test_ttn_template_can_disable_leaf_physical_legs_and_open_the_root() -> None:
     spec = build_template_spec(
-        "transverse_ising_mpo",
-        TemplateParameters(graph_size=5, bond_dimension=4, physical_dimension=2),
+        "ttn",
+        TemplateParameters(
+            depth=4,
+            bond_dimension=6,
+            physical_dimension=3,
+            leaf_physical_legs=False,
+            root_open_leg=True,
+            isometric=True,
+        ),
     )
+    leaves = [tensor for tensor in spec.tensors if tensor.name.startswith("L4-")]
+    root = next(tensor for tensor in spec.tensors if tensor.name == "L1-1")
 
-    assert spec.name == "Transverse Ising MPO (5 sites)"
-    assert len(spec.tensors) == 5
-    assert len(spec.edges) == 4
-    assert all(tensor.name.startswith("W") for tensor in spec.tensors)
-    assert all(tensor.metadata.get("role") == "operator" for tensor in spec.tensors)
-    assert {
-        index.dimension
-        for tensor in spec.tensors
-        for index in tensor.indices
-        if index.name in {"left", "right"}
-    } == {4}
-    assert {
-        str(index.metadata.get("leg_kind"))
-        for tensor in spec.tensors
-        for index in tensor.indices
-    } <= {"bond", "physical"}
+    assert spec.name == "TTN depth 4"
+    assert spec.metadata["template_name"] == "ttn"
+    assert spec.metadata["depth"] == 4
+    assert spec.metadata["leaf_physical_legs"] is False
+    assert spec.metadata["root_open_leg"] is True
+    assert spec.metadata["isometric"] is True
+    assert all(
+        "phys" not in {index.name for index in tensor.indices} for tensor in leaves
+    )
+    assert {index.name for index in root.indices} == {"left", "right", "out"}
 
 
 def test_tebd_gate_layer_template_adds_even_two_site_gates() -> None:

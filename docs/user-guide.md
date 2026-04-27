@@ -176,12 +176,8 @@ Built-in templates:
 - `MPO`
 - `PEPS`
 - `MERA`
-- `Binary Tree`
 - `TTN`
 - `PEPO`
-- `Heisenberg MPS`
-- `Ising MPS`
-- `Transverse Ising MPO`
 - `TEBD Gate Layer`
 
 Template controls include:
@@ -189,13 +185,15 @@ Template controls include:
 - graph size
 - bond dimension
 - physical dimension
+- `MPS` also exposes boundary, symmetry, and initialization presets
+- `MPO` also exposes boundary condition plus `J` and `h`
+- `TTN` also exposes depth, leaf legs, root open leg, and isometric toggles
 
 The graph-size label depends on the selected template:
 
-- `MPS`, `MPO`, `Heisenberg MPS`, `Ising MPS`, `Transverse Ising MPO`, and
-  `TEBD Gate Layer` use `Sites`
+- `MPS`, `MPO`, and `TEBD Gate Layer` use `Sites`
 - `PEPS` and `PEPO` use `Side length`
-- `MERA`, `Binary Tree`, and `TTN` use `Depth`
+- `MERA` and `TTN` use `Depth`
 
 You can also build templates from Python or the CLI. See [api.md](api.md) and
 [cli.md](cli.md#template-commands).

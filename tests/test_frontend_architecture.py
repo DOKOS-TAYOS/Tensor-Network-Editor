@@ -3946,9 +3946,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           templateSettingsButton: getButton("template-settings-button"),
           templateSettingsPopover: getButton("template-settings-popover"),
           reflowLayoutPopover: getButton("reflow-layout-popover"),
-          templateGraphSizeInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
-          templateBondDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
-          templatePhysicalDimensionInput: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
+          templateParameterPanel: {{ addEventListener(type, handler) {{ this[type] = handler; }} }},
           insertTemplateButton: getButton("insert-template-button"),
           saveSessionTemplateMenuItem: getButton("save-session-template-menu-item"),
           saveSubnetworkLibraryMenuItem: getButton("save-subnetwork-library-menu-item"),
@@ -4477,9 +4475,7 @@ def test_note_button_creates_a_single_note_when_features_and_shell_bindings_are_
             gridPeriodicDownCellButton: getButton("grid-periodic-down-cell-button"),
             linearPeriodicNextCellButton: getButton("linear-periodic-next-cell-button"),
             templateSelect: {{ addEventListener() {{}} }},
-            templateGraphSizeInput: {{ addEventListener() {{}} }},
-            templateBondDimensionInput: {{ addEventListener() {{}} }},
-            templatePhysicalDimensionInput: {{ addEventListener() {{}} }},
+            templateParameterPanel: {{ addEventListener() {{}} }},
             insertTemplateButton: getButton("insert-template-button"),
             insertSubnetworkButton: getButton("insert-subnetwork-button"),
             renameTemplateButton: getButton("rename-template-button"),
@@ -5575,6 +5571,51 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
         const templatesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesTemplates.js")!r}).href;
         const {{ createTemplateOptionHelpers }} = await import(templatesUrl);
 
+        function createFakeNode(tagName = "div") {{
+          return {{
+            tagName: String(tagName || "div").toUpperCase(),
+            value: "",
+            textContent: "",
+            innerHTML: "",
+            className: "",
+            hidden: false,
+            type: "",
+            dataset: {{}},
+            attributes: {{}},
+            children: [],
+            appendChild(child) {{
+              if (!child) {{
+                return child;
+              }}
+              child.parentElement = this;
+              this.children.push(child);
+              return child;
+            }},
+            setAttribute(name, value) {{
+              this.attributes[name] = String(value);
+            }},
+          }};
+        }}
+
+        function findControlByName(root, parameterName) {{
+          const stack = [...(root.children || [])];
+          while (stack.length) {{
+            const node = stack.shift();
+            if (
+              node
+              && node.dataset
+              && node.dataset.templateParameterName === parameterName
+              && ["INPUT", "SELECT"].includes(node.tagName)
+            ) {{
+              return node;
+            }}
+            if (node && Array.isArray(node.children) && node.children.length) {{
+              stack.unshift(...node.children);
+            }}
+          }}
+          return null;
+        }}
+
         const state = {{
           catalogTemplateNames: [],
           catalogTemplateDefinitions: {{}},
@@ -5591,29 +5632,11 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
           innerHTML: "",
           appendChild() {{}},
         }};
-        const templateGraphSizeField = {{ hidden: false }};
-        const templateGraphSizeLabel = {{ textContent: "" }};
-        const templateGraphSizeInput = {{ value: "", min: "" }};
-        const templateBondDimensionField = {{ hidden: false }};
-        const templateBondDimensionInput = {{ value: "", min: "" }};
-        const templatePhysicalDimensionField = {{ hidden: false }};
-        const templatePhysicalDimensionInput = {{ value: "", min: "" }};
+        const templateParameterPanel = createFakeNode("div");
         const helpers = createTemplateOptionHelpers({{
           state,
           document: {{
-            createElement(tagName) {{
-              return {{
-                tagName,
-                value: "",
-                textContent: "",
-                label: "",
-                selected: false,
-                children: [],
-                appendChild(child) {{
-                  this.children.push(child);
-                }},
-              }};
-            }},
+            createElement: createFakeNode,
           }},
           engineSelect: {{
             innerHTML: "",
@@ -5624,14 +5647,7 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
             appendChild() {{}},
           }},
           templateSelect,
-          templateParameterPanel: {{ hidden: false }},
-          templateGraphSizeField,
-          templateGraphSizeLabel,
-          templateGraphSizeInput,
-          templateBondDimensionField,
-          templateBondDimensionInput,
-          templatePhysicalDimensionField,
-          templatePhysicalDimensionInput,
+          templateParameterPanel,
           enforceLinearPeriodicEngineSupport() {{}},
           updateToolbarState() {{}},
         }});
@@ -5665,9 +5681,16 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
             `Expected the PEPS parameter state to keep the catalog default of 3, received ${{state.templateParametersByTemplate.peps_2x2.graph_size}}.`
           );
         }}
-        if (templateGraphSizeInput.value !== "3") {{
+        const graphSizeControl = findControlByName(
+          templateParameterPanel,
+          "graph_size"
+        );
+        if (!graphSizeControl) {{
+          throw new Error("Expected the dynamic template panel to render a graph-size control.");
+        }}
+        if (graphSizeControl.value !== "3") {{
           throw new Error(
-            `Expected the PEPS graph-size control to show 3 by default, received ${{templateGraphSizeInput.value}}.`
+            `Expected the PEPS graph-size control to show 3 by default, received ${{graphSizeControl.value}}.`
           );
         }}
       """,
@@ -5683,17 +5706,66 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
-def test_template_helpers_surface_extra_mps_controls(
+def test_template_helpers_render_dynamic_field_kinds_and_persist_values(
     tmp_path: Path,
 ) -> None:
     script_path = _write_runtime_script(
         tmp_path,
-        "template_helpers_surface_extra_mps_controls.mjs",
+        "template_helpers_render_dynamic_field_kinds_and_persist_values.mjs",
         f"""
         import {{ pathToFileURL }} from "node:url";
 
         const templatesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesTemplates.js")!r}).href;
         const {{ createTemplateOptionHelpers }} = await import(templatesUrl);
+
+        function createFakeNode(tagName = "div") {{
+          return {{
+            tagName: String(tagName || "div").toUpperCase(),
+            value: "",
+            textContent: "",
+            innerHTML: "",
+            className: "",
+            hidden: false,
+            type: "",
+            checked: false,
+            dataset: {{}},
+            attributes: {{}},
+            children: [],
+            appendChild(child) {{
+              if (!child) {{
+                return child;
+              }}
+              child.parentElement = this;
+              this.children.push(child);
+              return child;
+            }},
+            setAttribute(name, value) {{
+              this.attributes[name] = String(value);
+            }},
+            getAttribute(name) {{
+              return this.attributes[name] || null;
+            }},
+          }};
+        }}
+
+        function findControlByName(root, parameterName) {{
+          const stack = [...(root.children || [])];
+          while (stack.length) {{
+            const node = stack.shift();
+            if (
+              node
+              && node.dataset
+              && node.dataset.templateParameterName === parameterName
+              && ["INPUT", "SELECT"].includes(node.tagName)
+            ) {{
+              return node;
+            }}
+            if (node && Array.isArray(node.children) && node.children.length) {{
+              stack.unshift(...node.children);
+            }}
+          }}
+          return null;
+        }}
 
         const state = {{
           catalogTemplateNames: [],
@@ -5711,63 +5783,33 @@ def test_template_helpers_surface_extra_mps_controls(
           innerHTML: "",
           appendChild() {{}},
         }};
-        const templateBoundaryConditionField = {{ hidden: true }};
-        const templateBoundaryConditionSelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
-        const templateSymmetryField = {{ hidden: true }};
-        const templateSymmetrySelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
-        const templateInitialStateField = {{ hidden: true }};
-        const templateInitialStateSelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
+        const templateParameterPanel = createFakeNode("div");
         const helpers = createTemplateOptionHelpers({{
           state,
           document: {{
-            createElement(tagName) {{
-              return {{
-                tagName,
-                value: "",
-                textContent: "",
-                label: "",
-                selected: false,
-                children: [],
-                appendChild(child) {{
-                  this.children.push(child);
-                }},
-              }};
-            }},
+            createElement: createFakeNode,
           }},
           engineSelect: {{ innerHTML: "", appendChild() {{}} }},
           collectionFormatSelect: {{ innerHTML: "", appendChild() {{}} }},
           templateSelect,
-          templateParameterPanel: {{ hidden: false }},
-          templateGraphSizeField: {{ hidden: false }},
-          templateGraphSizeLabel: {{ textContent: "" }},
-          templateGraphSizeInput: {{ value: "", min: "" }},
-          templateBondDimensionField: {{ hidden: false }},
-          templateBondDimensionInput: {{ value: "", min: "" }},
-          templatePhysicalDimensionField: {{ hidden: false }},
-          templatePhysicalDimensionInput: {{ value: "", min: "" }},
-          templateBoundaryConditionField,
-          templateBoundaryConditionSelect,
-          templateSymmetryField,
-          templateSymmetrySelect,
-          templateInitialStateField,
-          templateInitialStateSelect,
+          templateParameterPanel,
           enforceLinearPeriodicEngineSupport() {{}},
           updateToolbarState() {{}},
         }});
 
         helpers.applyTemplateCatalogPayload({{
-          templateNames: ["mps"],
+          templateNames: ["mpo", "ttn"],
           templateDefinitions: {{
-            mps: {{
-              display_name: "MPS",
+            mpo: {{
+              display_name: "MPO",
               graph_size_label: "Sites",
               defaults: {{
                 graph_size: 4,
                 bond_dimension: 3,
                 physical_dimension: 2,
                 boundary_condition: "open",
-                symmetry: "none",
-                initial_state: "zeros",
+                j: 1.0,
+                h: 1.0,
               }},
               minimums: {{
                 graph_size: 2,
@@ -5776,8 +5818,6 @@ def test_template_helpers_surface_extra_mps_controls(
               }},
               parameter_fields: [
                 {{ name: "graph_size", label: "Graph size (Sites)", kind: "integer", default: 4, minimum: 2 }},
-                {{ name: "bond_dimension", label: "Bond dimension", kind: "integer", default: 3, minimum: 1 }},
-                {{ name: "physical_dimension", label: "Physical dimension", kind: "integer", default: 2, minimum: 1 }},
                 {{
                   name: "boundary_condition",
                   label: "Boundary condition",
@@ -5788,53 +5828,92 @@ def test_template_helpers_surface_extra_mps_controls(
                     {{ value: "periodic", label: "Periodic" }},
                   ],
                 }},
-                {{
-                  name: "symmetry",
-                  label: "Symmetry",
-                  kind: "choice",
-                  default: "none",
-                  options: [
-                    {{ value: "none", label: "None" }},
-                    {{ value: "u1", label: "U1" }},
-                    {{ value: "z2", label: "Z2" }},
-                  ],
-                }},
-                {{
-                  name: "initial_state",
-                  label: "Initial state",
-                  kind: "choice",
-                  default: "zeros",
-                  options: [
-                    {{ value: "zeros", label: "Zeros" }},
-                    {{ value: "random", label: "Random" }},
-                    {{ value: "all_up", label: "All up" }},
-                    {{ value: "all_down", label: "All down" }},
-                    {{ value: "neel", label: "Neel" }},
-                  ],
-                }},
+                {{ name: "j", label: "J", kind: "number", default: 1.0 }},
+                {{ name: "h", label: "h", kind: "number", default: 1.0 }},
+              ],
+              supports_parameters: true,
+              source: "global",
+            }},
+            ttn: {{
+              display_name: "TTN",
+              defaults: {{
+                depth: 3,
+                bond_dimension: 2,
+                physical_dimension: 2,
+                leaf_physical_legs: true,
+                root_open_leg: false,
+                isometric: false,
+              }},
+              minimums: {{
+                depth: 1,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              }},
+              parameter_fields: [
+                {{ name: "depth", label: "Depth", kind: "integer", default: 3, minimum: 1 }},
+                {{ name: "leaf_physical_legs", label: "Leaf physical legs", kind: "boolean", default: true }},
+                {{ name: "root_open_leg", label: "Root open leg", kind: "boolean", default: false }},
               ],
               supports_parameters: true,
               source: "global",
             }},
           }},
-          selectedTemplate: "mps",
+          selectedTemplate: "mpo",
           templateCatalogWarnings: [],
         }});
 
-        if (templateBoundaryConditionField.hidden) {{
-          throw new Error("Expected MPS boundary-condition field to be visible.");
+        const boundaryConditionControl = findControlByName(
+          templateParameterPanel,
+          "boundary_condition"
+        );
+        const couplingControl = findControlByName(templateParameterPanel, "j");
+        if (!boundaryConditionControl || !couplingControl) {{
+          throw new Error("Expected the generic template panel to render choice and numeric controls for MPO.");
         }}
-        if (templateSymmetryField.hidden) {{
-          throw new Error("Expected MPS symmetry field to be visible.");
+        if (boundaryConditionControl.value !== "open") {{
+          throw new Error(`Expected default boundary condition 'open', received ${{boundaryConditionControl.value}}.`);
         }}
-        if (templateInitialStateField.hidden) {{
-          throw new Error("Expected MPS initial-state field to be visible.");
+        if (couplingControl.value !== "1") {{
+          throw new Error(`Expected default coupling value '1', received ${{couplingControl.value}}.`);
         }}
-        if (templateBoundaryConditionSelect.value !== "open") {{
-          throw new Error(`Expected default boundary condition 'open', received ${{templateBoundaryConditionSelect.value}}.`);
+
+        boundaryConditionControl.value = "periodic";
+        couplingControl.value = "2.5";
+        helpers.persistTemplateParametersFromControls();
+
+        if (state.templateParametersByTemplate.mpo.boundary_condition !== "periodic") {{
+          throw new Error("Expected the choice control to persist the updated MPO boundary condition.");
         }}
-        if (templateInitialStateSelect.value !== "zeros") {{
-          throw new Error(`Expected default initial state 'zeros', received ${{templateInitialStateSelect.value}}.`);
+        if (state.templateParametersByTemplate.mpo.j !== 2.5) {{
+          throw new Error(`Expected the number control to persist 2.5, received ${{state.templateParametersByTemplate.mpo.j}}.`);
+        }}
+
+        templateSelect.value = "ttn";
+        helpers.syncTemplateParameterControls("ttn");
+        const leafPhysicalLegsControl = findControlByName(
+          templateParameterPanel,
+          "leaf_physical_legs"
+        );
+        const rootOpenLegControl = findControlByName(
+          templateParameterPanel,
+          "root_open_leg"
+        );
+        if (!leafPhysicalLegsControl || !rootOpenLegControl) {{
+          throw new Error("Expected the generic template panel to render boolean controls for TTN.");
+        }}
+        if (leafPhysicalLegsControl.checked !== true || rootOpenLegControl.checked !== false) {{
+          throw new Error("Expected TTN boolean controls to reflect their catalog defaults.");
+        }}
+
+        leafPhysicalLegsControl.checked = false;
+        rootOpenLegControl.checked = true;
+        helpers.persistTemplateParametersFromControls();
+
+        if (state.templateParametersByTemplate.ttn.leaf_physical_legs !== false) {{
+          throw new Error("Expected the boolean control to persist false for leaf physical legs.");
+        }}
+        if (state.templateParametersByTemplate.ttn.root_open_leg !== true) {{
+          throw new Error("Expected the boolean control to persist true for the root open leg.");
         }}
       """,
     )
@@ -5842,7 +5921,7 @@ def test_template_helpers_surface_extra_mps_controls(
     completed_process = _run_runtime_script(script_path)
 
     assert completed_process.returncode == 0, (
-        "The template-helpers MPS controls regression script failed.\n"
+        "The template-helpers dynamic field kinds regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

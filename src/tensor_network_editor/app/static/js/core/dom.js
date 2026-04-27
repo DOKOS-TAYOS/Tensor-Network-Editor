@@ -87,35 +87,6 @@ export function getDomRefs(document) {
     templateSettingsPopover: document.getElementById("template-settings-popover"),
     reflowLayoutPopover: document.getElementById("reflow-layout-popover"),
     templateParameterPanel: document.getElementById("template-parameter-panel"),
-    templateGraphSizeField: document.getElementById("template-graph-size-field"),
-    templateGraphSizeLabel: document.getElementById("template-graph-size-label"),
-    templateGraphSizeInput: document.getElementById("template-graph-size-input"),
-    templateBondDimensionField: document.getElementById(
-      "template-bond-dimension-field"
-    ),
-    templateBondDimensionInput: document.getElementById(
-      "template-bond-dimension-input"
-    ),
-    templatePhysicalDimensionField: document.getElementById(
-      "template-physical-dimension-field"
-    ),
-    templatePhysicalDimensionInput: document.getElementById(
-      "template-physical-dimension-input"
-    ),
-    templateBoundaryConditionField: document.getElementById(
-      "template-boundary-condition-field"
-    ),
-    templateBoundaryConditionSelect: document.getElementById(
-      "template-boundary-condition-select"
-    ),
-    templateSymmetryField: document.getElementById("template-symmetry-field"),
-    templateSymmetrySelect: document.getElementById("template-symmetry-select"),
-    templateInitialStateField: document.getElementById(
-      "template-initial-state-field"
-    ),
-    templateInitialStateSelect: document.getElementById(
-      "template-initial-state-select"
-    ),
     insertTemplateButton: document.getElementById("insert-template-button"),
     saveSessionTemplateMenuItem: document.getElementById(
       "save-session-template-menu-item"

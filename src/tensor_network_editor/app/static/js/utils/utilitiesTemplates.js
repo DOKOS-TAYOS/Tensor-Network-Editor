@@ -158,6 +158,39 @@ function sanitizeTemplateIntegerValue(value, fallback, minimum) {
   return Math.max(minimum, numericValue);
 }
 
+function sanitizeTemplateNumberValue(value, fallback, minimum = null) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    if (minimum === null || minimum === undefined) {
+      return fallback;
+    }
+    return Math.max(minimum, fallback);
+  }
+  if (minimum === null || minimum === undefined) {
+    return numericValue;
+  }
+  return Math.max(minimum, numericValue);
+}
+
+function sanitizeTemplateBooleanValue(value, fallback) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalizedValue = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalizedValue)) {
+      return true;
+    }
+    if (["false", "0", "no", "off"].includes(normalizedValue)) {
+      return false;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return Boolean(fallback);
+}
+
 function sanitizeTemplateChoiceValue(value, fallback, options) {
   if (typeof value !== "string" || !value.trim()) {
     return fallback;
@@ -204,35 +237,212 @@ function getTemplateParameterFields(definition) {
   return buildLegacyTemplateParameterFields(definition);
 }
 
-function buildTemplateParameterState(templateNames, templateDefinitions) {
+function getChoiceOptionValues(parameterField) {
+  return Array.isArray(parameterField.options)
+    ? parameterField.options.map((option) => option.value)
+    : [];
+}
+
+function sanitizeTemplateParameterFieldValue(parameterField, value) {
+  if (parameterField.kind === "choice") {
+    return sanitizeTemplateChoiceValue(
+      value,
+      parameterField.default,
+      getChoiceOptionValues(parameterField)
+    );
+  }
+  if (parameterField.kind === "number") {
+    return sanitizeTemplateNumberValue(
+      value,
+      parameterField.default,
+      parameterField.minimum
+    );
+  }
+  if (parameterField.kind === "boolean") {
+    return sanitizeTemplateBooleanValue(value, parameterField.default);
+  }
+  return sanitizeTemplateIntegerValue(
+    value,
+    parameterField.default,
+    parameterField.minimum || 1
+  );
+}
+
+function buildTemplateParameterStateForDefinition(definition, sourceParameters = {}) {
+  const parameterFields = getTemplateParameterFields(definition);
+  const parameterState = {};
+  parameterFields.forEach((parameterField) => {
+    parameterState[parameterField.name] = sanitizeTemplateParameterFieldValue(
+      parameterField,
+      Object.prototype.hasOwnProperty.call(sourceParameters, parameterField.name)
+        ? sourceParameters[parameterField.name]
+        : parameterField.default
+    );
+  });
+  return parameterState;
+}
+
+function buildTemplateParameterState(
+  templateNames,
+  templateDefinitions,
+  sourceParametersByTemplate = {}
+) {
   return Object.fromEntries(
     templateNames.map((templateName) => {
       const definition = getTemplateDefinition(templateDefinitions, templateName);
-      const parameterFields = getTemplateParameterFields(definition);
-      const parameterState = {};
-      parameterFields.forEach((parameterField) => {
-        if (parameterField.kind === "choice") {
-          parameterState[parameterField.name] = sanitizeTemplateChoiceValue(
-            parameterField.default,
-            parameterField.default,
-            Array.isArray(parameterField.options)
-              ? parameterField.options.map((option) => option.value)
-              : []
-          );
-          return;
-        }
-        parameterState[parameterField.name] = sanitizeTemplateIntegerValue(
-          parameterField.default,
-          parameterField.default,
-          parameterField.minimum || 1
-        );
-      });
       return [
         templateName,
-        parameterState,
+        buildTemplateParameterStateForDefinition(
+          definition,
+          sourceParametersByTemplate[templateName] || {}
+        ),
       ];
     })
   );
+}
+
+function setElementAttribute(element, attributeName, attributeValue) {
+  if (!element) {
+    return;
+  }
+  if (typeof element.setAttribute === "function") {
+    element.setAttribute(attributeName, attributeValue);
+    return;
+  }
+  if (!element.attributes) {
+    element.attributes = {};
+  }
+  element.attributes[attributeName] = String(attributeValue);
+}
+
+function findClosestElementByPredicate(target, predicate) {
+  let currentTarget = target;
+  while (currentTarget) {
+    if (predicate(currentTarget)) {
+      return currentTarget;
+    }
+    currentTarget = currentTarget.parentElement || currentTarget.parentNode || null;
+  }
+  return null;
+}
+
+function isRenderableTemplateParameterPanel(document, templateParameterPanel) {
+  return Boolean(
+    document
+      && typeof document.createElement === "function"
+      && templateParameterPanel
+      && typeof templateParameterPanel.appendChild === "function"
+  );
+}
+
+function clearTemplateParameterPanel(templateParameterPanel) {
+  if (!templateParameterPanel) {
+    return;
+  }
+  if (typeof templateParameterPanel.replaceChildren === "function") {
+    templateParameterPanel.replaceChildren();
+    return;
+  }
+  if ("innerHTML" in templateParameterPanel) {
+    templateParameterPanel.innerHTML = "";
+  }
+  if (Array.isArray(templateParameterPanel.children)) {
+    templateParameterPanel.children.length = 0;
+  }
+}
+
+function appendTemplateParameterTitle(document, fieldElement, parameterField) {
+  const title = document.createElement("span");
+  title.className = "template-parameter-title";
+  title.textContent = parameterField.label;
+  fieldElement.appendChild(title);
+}
+
+function createTemplateNumberControl(document, parameterField, value) {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.value = String(value);
+  input.step = parameterField.kind === "number" ? "any" : "1";
+  input.inputMode = parameterField.kind === "number" ? "decimal" : "numeric";
+  if (parameterField.minimum !== undefined && parameterField.minimum !== null) {
+    input.min = String(parameterField.minimum);
+  }
+  return input;
+}
+
+function createTemplateChoiceControl(document, parameterField, value) {
+  const select = document.createElement("select");
+  (Array.isArray(parameterField.options) ? parameterField.options : []).forEach(
+    (optionDefinition) => {
+      const option = document.createElement("option");
+      option.value = optionDefinition.value;
+      option.textContent = optionDefinition.label;
+      option.selected = option.value === value;
+      select.appendChild(option);
+    }
+  );
+  select.value = value;
+  return select;
+}
+
+function createTemplateBooleanControl(document, parameterField, value) {
+  const toggleShell = document.createElement("span");
+  toggleShell.className = "template-boolean-toggle";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = Boolean(value);
+  const valueLabel = document.createElement("span");
+  valueLabel.className = "template-boolean-label";
+  valueLabel.textContent = "Enabled";
+  toggleShell.appendChild(input);
+  toggleShell.appendChild(valueLabel);
+  return {
+    control: input,
+    shell: toggleShell,
+  };
+}
+
+function renderTemplateParameterField(document, parameterField, value) {
+  const fieldElement = document.createElement("label");
+  fieldElement.id = `template-parameter-${parameterField.name}-field`;
+  fieldElement.dataset.templateParameterName = parameterField.name;
+  fieldElement.dataset.templateParameterKind = parameterField.kind;
+
+  let control = null;
+  if (parameterField.kind === "choice") {
+    fieldElement.className =
+      "template-parameter-field template-select-field select-chevron-field";
+    setElementAttribute(fieldElement, "data-expanded", "false");
+    appendTemplateParameterTitle(document, fieldElement, parameterField);
+    control = createTemplateChoiceControl(document, parameterField, value);
+    fieldElement.appendChild(control);
+  } else if (parameterField.kind === "boolean") {
+    fieldElement.className =
+      "template-parameter-field template-boolean-field";
+    appendTemplateParameterTitle(document, fieldElement, parameterField);
+    const booleanControl = createTemplateBooleanControl(
+      document,
+      parameterField,
+      value
+    );
+    control = booleanControl.control;
+    fieldElement.appendChild(booleanControl.shell);
+  } else {
+    fieldElement.className =
+      "template-parameter-field template-number-field";
+    appendTemplateParameterTitle(document, fieldElement, parameterField);
+    control = createTemplateNumberControl(document, parameterField, value);
+    fieldElement.appendChild(control);
+  }
+
+  control.id = `template-parameter-${parameterField.name}-input`;
+  control.dataset.templateParameterName = parameterField.name;
+  control.dataset.templateParameterKind = parameterField.kind;
+  control.setAttribute?.("aria-label", parameterField.label);
+  if (parameterField.kind !== "boolean") {
+    setElementAttribute(fieldElement, "for", control.id);
+  }
+  return { fieldElement, control };
 }
 
 export function createTemplateOptionHelpers({
@@ -242,36 +452,10 @@ export function createTemplateOptionHelpers({
   collectionFormatSelect,
   templateSelect,
   templateParameterPanel,
-  templateGraphSizeField,
-  templateGraphSizeLabel,
-  templateGraphSizeInput,
-  templateBondDimensionField,
-  templateBondDimensionInput,
-  templatePhysicalDimensionField,
-  templatePhysicalDimensionInput,
-  templateBoundaryConditionField,
-  templateBoundaryConditionSelect,
-  templateSymmetryField,
-  templateSymmetrySelect,
-  templateInitialStateField,
-  templateInitialStateSelect,
   enforceLinearPeriodicEngineSupport,
   updateToolbarState,
 }) {
-  const templateChoiceControls = {
-    boundary_condition: {
-      field: templateBoundaryConditionField,
-      select: templateBoundaryConditionSelect,
-    },
-    symmetry: {
-      field: templateSymmetryField,
-      select: templateSymmetrySelect,
-    },
-    initial_state: {
-      field: templateInitialStateField,
-      select: templateInitialStateSelect,
-    },
-  };
+  const renderedParameterControls = new Map();
 
   function getStateTemplateDefinition(templateName = templateSelect.value) {
     return getTemplateDefinition(state.templateDefinitions, templateName);
@@ -372,16 +556,9 @@ export function createTemplateOptionHelpers({
     const previousParameters = state.templateParametersByTemplate || {};
     const nextParameters = buildTemplateParameterState(
       nextTemplateNames,
-      nextTemplateDefinitions
+      nextTemplateDefinitions,
+      previousParameters
     );
-    nextTemplateNames.forEach((templateName) => {
-      if (previousParameters[templateName]) {
-        nextParameters[templateName] = {
-          ...nextParameters[templateName],
-          ...previousParameters[templateName],
-        };
-      }
-    });
     state.availableTemplates = nextTemplateNames;
     state.templateDefinitions = nextTemplateDefinitions;
     if (templateCatalogWarnings !== null) {
@@ -422,166 +599,85 @@ export function createTemplateOptionHelpers({
     });
   }
 
-  function syncChoiceControl(parameterField, parameters) {
-    const control = templateChoiceControls[parameterField.name];
-    if (!control || !control.field || !control.select) {
-      return;
-    }
-    control.field.hidden = false;
-    control.select.innerHTML = "";
-    (Array.isArray(parameterField.options) ? parameterField.options : []).forEach(
-      (optionDefinition) => {
-        const option = document.createElement("option");
-        option.value = optionDefinition.value;
-        option.textContent = optionDefinition.label;
-        if (option.value === parameters[parameterField.name]) {
-          option.selected = true;
-        }
-        control.select.appendChild(option);
-      }
-    );
-    control.select.value = parameters[parameterField.name];
-  }
-
   function syncTemplateParameterControls(templateName = templateSelect.value) {
     if (!templateParameterPanel) {
       return;
     }
+    renderedParameterControls.clear();
     const definition = getStateTemplateDefinition(templateName);
-    if (!definition) {
+    const supportsParameters = Boolean(
+      definition && definition.supports_parameters !== false
+    );
+    const parameterFields = definition ? getTemplateParameterFields(definition) : [];
+    if (!definition || !supportsParameters || !parameterFields.length) {
       templateParameterPanel.hidden = true;
+      clearTemplateParameterPanel(templateParameterPanel);
       return;
     }
     templateParameterPanel.hidden = false;
-    const supportsParameters = definition.supports_parameters !== false;
-    if (templateGraphSizeField) {
-      templateGraphSizeField.hidden = !supportsParameters;
-    }
-    if (templateBondDimensionField) {
-      templateBondDimensionField.hidden = !supportsParameters;
-    }
-    if (templatePhysicalDimensionField) {
-      templatePhysicalDimensionField.hidden = !supportsParameters;
-    }
-    Object.values(templateChoiceControls).forEach((control) => {
-      if (control.field) {
-        control.field.hidden = true;
-      }
-    });
-    if (!supportsParameters) {
+    if (!isRenderableTemplateParameterPanel(document, templateParameterPanel)) {
       return;
     }
-    const parameterFields = getTemplateParameterFields(definition);
+    clearTemplateParameterPanel(templateParameterPanel);
     const parameters =
       state.templateParametersByTemplate[templateName]
       || buildTemplateParameterState([templateName], {
         [templateName]: definition,
       })[templateName];
     parameterFields.forEach((parameterField) => {
-      if (parameterField.kind === "choice") {
-        syncChoiceControl(parameterField, parameters);
-        return;
-      }
-      if (parameterField.name === "graph_size") {
-        templateGraphSizeLabel.textContent = parameterField.label;
-        templateGraphSizeInput.min = String(parameterField.minimum || 1);
-        templateGraphSizeInput.value = String(
-          sanitizeTemplateIntegerValue(
-            parameters.graph_size,
-            parameterField.default,
-            parameterField.minimum || 1
-          )
-        );
-      }
-      if (parameterField.name === "bond_dimension") {
-        templateBondDimensionInput.min = String(parameterField.minimum || 1);
-        templateBondDimensionInput.value = String(
-          sanitizeTemplateIntegerValue(
-            parameters.bond_dimension,
-            parameterField.default,
-            parameterField.minimum || 1
-          )
-        );
-      }
-      if (parameterField.name === "physical_dimension") {
-        templatePhysicalDimensionInput.min = String(parameterField.minimum || 1);
-        templatePhysicalDimensionInput.value = String(
-          sanitizeTemplateIntegerValue(
-            parameters.physical_dimension,
-            parameterField.default,
-            parameterField.minimum || 1
-          )
-        );
-      }
+      const renderedField = renderTemplateParameterField(
+        document,
+        parameterField,
+        parameters[parameterField.name]
+      );
+      renderedParameterControls.set(parameterField.name, {
+        parameterField,
+        fieldElement: renderedField.fieldElement,
+        control: renderedField.control,
+      });
+      templateParameterPanel.appendChild(renderedField.fieldElement);
     });
   }
 
   function readTemplateParametersFromControls() {
-    const definition = getStateTemplateDefinition();
+    const templateName = templateSelect.value;
+    const definition = getStateTemplateDefinition(templateName);
     if (!definition) {
-      return {
-        graph_size: 2,
-        bond_dimension: 3,
-        physical_dimension: 2,
-      };
+      return buildTemplateParameterStateForDefinition({
+        defaults: TEMPLATE_PARAMETER_DEFAULTS,
+        minimums: TEMPLATE_PARAMETER_DEFAULTS,
+      });
     }
-    if (definition.supports_parameters === false) {
-      const defaults = definition.defaults || {};
-      return {
-        graph_size: sanitizeTemplateIntegerValue(defaults.graph_size, 1, 1),
-        bond_dimension: sanitizeTemplateIntegerValue(defaults.bond_dimension, 1, 1),
-        physical_dimension: sanitizeTemplateIntegerValue(
-          defaults.physical_dimension,
-          1,
-          1
-        ),
-      };
+    const fallbackParameters =
+      state.templateParametersByTemplate[templateName]
+      || buildTemplateParameterState([templateName], {
+        [templateName]: definition,
+      })[templateName];
+    if (definition.supports_parameters === false || !renderedParameterControls.size) {
+      return { ...fallbackParameters };
     }
-    const parameterFields = getTemplateParameterFields(definition);
     const parameters = {};
-    parameterFields.forEach((parameterField) => {
-      if (parameterField.kind === "choice") {
-        const control = templateChoiceControls[parameterField.name];
-        parameters[parameterField.name] = sanitizeTemplateChoiceValue(
-          control && control.select ? control.select.value : parameterField.default,
-          parameterField.default,
-          Array.isArray(parameterField.options)
-            ? parameterField.options.map((option) => option.value)
-            : []
+    getTemplateParameterFields(definition).forEach((parameterField) => {
+      const renderedControl = renderedParameterControls.get(parameterField.name);
+      const control = renderedControl ? renderedControl.control : null;
+      if (parameterField.kind === "boolean") {
+        parameters[parameterField.name] = sanitizeTemplateParameterFieldValue(
+          parameterField,
+          control ? control.checked : fallbackParameters[parameterField.name]
         );
-        if (control && control.select) {
-          control.select.value = parameters[parameterField.name];
+        if (control) {
+          control.checked = parameters[parameterField.name];
         }
         return;
       }
-      if (parameterField.name === "graph_size") {
-        parameters.graph_size = sanitizeTemplateIntegerValue(
-          templateGraphSizeInput.value,
-          parameterField.default,
-          parameterField.minimum || 1
-        );
-        templateGraphSizeInput.value = String(parameters.graph_size);
-      }
-      if (parameterField.name === "bond_dimension") {
-        parameters.bond_dimension = sanitizeTemplateIntegerValue(
-          templateBondDimensionInput.value,
-          parameterField.default,
-          parameterField.minimum || 1
-        );
-        templateBondDimensionInput.value = String(parameters.bond_dimension);
-      }
-      if (parameterField.name === "physical_dimension") {
-        parameters.physical_dimension = sanitizeTemplateIntegerValue(
-          templatePhysicalDimensionInput.value,
-          parameterField.default,
-          parameterField.minimum || 1
-        );
-        templatePhysicalDimensionInput.value = String(parameters.physical_dimension);
+      parameters[parameterField.name] = sanitizeTemplateParameterFieldValue(
+        parameterField,
+        control ? control.value : fallbackParameters[parameterField.name]
+      );
+      if (control) {
+        control.value = String(parameters[parameterField.name]);
       }
     });
-    templateGraphSizeInput.value = String(parameters.graph_size);
-    templateBondDimensionInput.value = String(parameters.bond_dimension);
-    templatePhysicalDimensionInput.value = String(parameters.physical_dimension);
     return parameters;
   }
 
@@ -696,6 +792,70 @@ export function createTemplateOptionHelpers({
     return true;
   }
 
+  function handleTemplateParameterPanelDisclosure(event) {
+    const target = event && event.target ? event.target : null;
+    const fieldElement = findClosestElementByPredicate(
+      target,
+      (candidate) =>
+        candidate
+        && candidate.dataset
+        && candidate.dataset.templateParameterName
+        && typeof candidate.className === "string"
+        && candidate.className.includes("select-chevron-field")
+    );
+    if (!fieldElement) {
+      return;
+    }
+    const currentExpandedValue =
+      typeof fieldElement.getAttribute === "function"
+        ? fieldElement.getAttribute("data-expanded")
+        : fieldElement.attributes?.["data-expanded"];
+    setElementAttribute(
+      fieldElement,
+      "data-expanded",
+      currentExpandedValue === "true" ? "false" : "true"
+    );
+  }
+
+  function handleTemplateParameterPanelKeydown(event) {
+    const target = event && event.target ? event.target : null;
+    const fieldElement = findClosestElementByPredicate(
+      target,
+      (candidate) =>
+        candidate
+        && candidate.dataset
+        && candidate.dataset.templateParameterName
+        && typeof candidate.className === "string"
+        && candidate.className.includes("select-chevron-field")
+    );
+    if (!fieldElement) {
+      return;
+    }
+    if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+      setElementAttribute(fieldElement, "data-expanded", "true");
+    }
+    if (["Escape", "Tab"].includes(event.key)) {
+      setElementAttribute(fieldElement, "data-expanded", "false");
+    }
+  }
+
+  function handleTemplateParameterPanelFocusOut(event) {
+    const target = event && event.target ? event.target : null;
+    const fieldElement = findClosestElementByPredicate(
+      target,
+      (candidate) =>
+        candidate
+        && candidate.dataset
+        && candidate.dataset.templateParameterName
+        && typeof candidate.className === "string"
+        && candidate.className.includes("select-chevron-field")
+    );
+    if (!fieldElement) {
+      return;
+    }
+    setElementAttribute(fieldElement, "data-expanded", "false");
+  }
+
   return {
     populateEngineOptions,
     formatEngineLabel,
@@ -708,8 +868,15 @@ export function createTemplateOptionHelpers({
     getTemplateSource,
     getTemplateSpec,
     listTemplateEntries,
-    buildTemplateParameterState: (templateNames, templateDefinitions) =>
-      buildTemplateParameterState(templateNames, templateDefinitions),
+    buildTemplateParameterState: (
+      templateNames,
+      templateDefinitions,
+      sourceParametersByTemplate = {}
+    ) => buildTemplateParameterState(
+      templateNames,
+      templateDefinitions,
+      sourceParametersByTemplate
+    ),
     applyTemplateCatalogPayload,
     rebuildTemplateCatalog,
     syncTemplateParameterControls,
@@ -717,6 +884,9 @@ export function createTemplateOptionHelpers({
     persistTemplateParametersFromControls,
     handleTemplateSelectionChange,
     handleTemplateParameterInput,
+    handleTemplateParameterPanelDisclosure,
+    handleTemplateParameterPanelKeydown,
+    handleTemplateParameterPanelFocusOut,
     hasTemplateDisplayName,
     getNextSessionTemplateDisplayName,
     addSessionTemplate,

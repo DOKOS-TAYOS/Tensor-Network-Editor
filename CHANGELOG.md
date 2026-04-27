@@ -19,9 +19,18 @@ All notable changes to this project will be documented in this file.
 - Public `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers now make
   it easier to build normal-mode `NetworkSpec` objects from Python without
   hand-writing ids and endpoint references.
-- Built-in templates now include `transverse_ising_mpo` and
-  `tebd_gate_layer`, while `mps` now covers common 1D physics starting points
-  through configurable boundary, symmetry, and initialization presets.
+- Built-in template parameters now come from catalog-defined field metadata in
+  the backend and browser editor, so templates can expose integer, numeric,
+  boolean, and choice controls without hardcoded UI wiring.
+- The `mpo` template now absorbs the old `transverse_ising_mpo` role, adds
+  `boundary_condition`, `j`, and `h` parameters, and supports structural
+  periodic wiring plus matching template metadata.
+- The `ttn` template now absorbs the old `binary_tree` role, uses `depth` as
+  its public size parameter, and adds `leaf_physical_legs`, `root_open_leg`,
+  and `isometric` configuration options.
+- Built-in templates now include `tebd_gate_layer`, while `mps` still covers
+  common 1D physics starting points through configurable boundary, symmetry,
+  and initialization presets.
 - Saved designs can now be rendered to academic text formats with TikZ/LaTeX
   and Graphviz/DOT through the public rendering API and `render` CLI command.
 - The browser editor's File menu can now export the current canvas directly as

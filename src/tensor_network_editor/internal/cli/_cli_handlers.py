@@ -352,11 +352,17 @@ def handle_template_build_command(
         key: value
         for key, value in {
             "graph_size": args.graph_size,
+            "depth": args.depth,
             "bond_dimension": args.bond_dimension,
             "physical_dimension": args.physical_dimension,
             "boundary_condition": args.boundary_condition,
+            "j": args.j,
+            "h": args.h,
             "symmetry": args.symmetry,
             "initial_state": args.initial_state,
+            "leaf_physical_legs": args.leaf_physical_legs,
+            "root_open_leg": args.root_open_leg,
+            "isometric": args.isometric,
         }.items()
         if value is not None
     }

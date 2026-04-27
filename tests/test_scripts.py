@@ -124,9 +124,9 @@ def test_run_pyright_locates_checkout_and_shared_venv_roots(
     python_path.write_text("", encoding="utf-8")
     module = load_script_module("run_pyright.py")
 
-    assert module.find_checkout_root(worktree_root / "src") == worktree_root
-    assert module.find_shared_venv_root(worktree_root) == repo_root
-    assert module.python_executable(repo_root) == python_path
+    assert module.find_checkout_root(worktree_root / "src").resolve() == worktree_root.resolve()
+    assert module.find_shared_venv_root(worktree_root).resolve() == repo_root.resolve()
+    assert module.python_executable(repo_root).resolve() == python_path.resolve()
 
 
 def test_run_pyright_builds_config_for_current_checkout(tmp_path: Path) -> None:

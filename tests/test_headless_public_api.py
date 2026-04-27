@@ -266,10 +266,8 @@ def test_list_template_names_is_available_from_public_templates_module() -> None
         "mpo",
         "peps_2x2",
         "mera",
-        "binary_tree",
         "ttn",
         "pepo",
-        "transverse_ising_mpo",
         "tebd_gate_layer",
     ]
 

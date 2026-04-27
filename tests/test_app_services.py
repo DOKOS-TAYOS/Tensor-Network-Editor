@@ -119,16 +119,17 @@ def test_build_template_from_payload_returns_network_spec(
 ) -> None:
     spec = build_template_from_payload(
         editor_session,
-        "binary_tree",
+        "ttn",
         {
-            "graph_size": 4,
+            "depth": 4,
             "bond_dimension": 8,
             "physical_dimension": 5,
+            "root_open_leg": True,
         },
     )
 
     assert isinstance(spec, NetworkSpec)
-    assert spec.name == "Binary Tree depth 4"
+    assert spec.name == "TTN depth 4"
 
 
 def test_analyze_serialized_contraction_returns_structured_result(

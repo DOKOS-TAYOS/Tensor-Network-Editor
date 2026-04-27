@@ -15,6 +15,7 @@ from ...models import (
     TensorSpec,
 )
 from ...validation import ensure_valid_spec
+from ..models._model_tensor_data import TensorNumericLiteral
 from ._template_catalog import (
     TEMPLATE_DEFINITIONS,
     TemplateParameters,
@@ -40,7 +41,7 @@ GATE_UPPER_LEFT_OFFSET = (-36.0, -38.0)
 GATE_UPPER_RIGHT_OFFSET = (36.0, -38.0)
 GATE_LOWER_LEFT_OFFSET = (-36.0, 38.0)
 GATE_LOWER_RIGHT_OFFSET = (36.0, 38.0)
-TemplateIndexConfig = tuple[str, int, tuple[float, float]]
+TemplateIndexConfig = tuple[str, int | None, tuple[float, float]]
 LinearChainSiteIndexBuilder = Callable[
     [int, int, TemplateParameters], list[TemplateIndexConfig]
 ]
@@ -78,13 +79,15 @@ def _build_mps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build an MPO template with the requested site count and dimensions."""
-    return _build_linear_chain_template(
+    spec = _build_linear_chain_template(
         "mpo",
         parameters,
         tensor_name_prefix="W",
         spacing=330.0,
         site_index_builder=_build_mpo_site_indices,
+        periodic=parameters.boundary_condition == "periodic",
     )
+    return _apply_mpo_template_configuration(spec, parameters)
 
 
 def _build_linear_chain_template(
@@ -97,7 +100,7 @@ def _build_linear_chain_template(
     periodic: bool = False,
 ) -> NetworkSpec:
     """Build one left-to-right chain template from a per-site index factory."""
-    length = parameters.graph_size
+    length = _resolve_graph_size(parameters)
     tensors = [
         _make_tensor(
             f"tensor_{site_index}",
@@ -144,9 +147,9 @@ def _build_mpo_site_indices(
 ) -> list[TemplateIndexConfig]:
     """Return the named index layout for one MPO site."""
     tensor_indices: list[TemplateIndexConfig] = []
-    if site_index > 0:
+    if parameters.boundary_condition == "periodic" or site_index > 0:
         tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
-    if site_index < length - 1:
+    if parameters.boundary_condition == "periodic" or site_index < length - 1:
         tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
     tensor_indices.extend(
         [
@@ -188,7 +191,7 @@ def _make_linear_chain_edges(
 
 def _build_peps_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build the requested PEPS template variant."""
-    if parameters.graph_size == 2:
+    if _resolve_graph_size(parameters) == 2:
         return _build_default_peps_template(parameters)
     return _build_generic_peps_template(parameters)
 
@@ -257,7 +260,7 @@ def _build_default_peps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 def _build_generic_peps_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build a square PEPS grid larger than the default 2x2 layout."""
-    size = parameters.graph_size
+    size = _resolve_graph_size(parameters)
     tensors: list[TensorSpec] = []
     tensor_lookup: dict[tuple[int, int], TensorSpec] = {}
     for row_index in range(size):
@@ -323,7 +326,10 @@ def _build_generic_peps_template(parameters: TemplateParameters) -> NetworkSpec:
 
 def _build_mera_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build the requested MERA template variant."""
-    if parameters.graph_size == TEMPLATE_DEFINITIONS["mera"].defaults.graph_size:
+    if (
+        _resolve_graph_size(parameters)
+        == TEMPLATE_DEFINITIONS["mera"].defaults.graph_size
+    ):
         return _build_default_mera_template(parameters)
     return _build_generic_mera_template(parameters)
 
@@ -413,7 +419,7 @@ def _build_default_mera_template(parameters: TemplateParameters) -> NetworkSpec:
 
 def _build_generic_mera_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build a generic MERA layout with the requested depth."""
-    depth = parameters.graph_size
+    depth = _resolve_graph_size(parameters)
     levels: list[list[TensorSpec]] = []
     for level_index in range(depth):
         level_tensors = []
@@ -479,116 +485,35 @@ def _build_generic_mera_template(parameters: TemplateParameters) -> NetworkSpec:
     )
 
 
-def _build_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build the requested binary-tree template variant."""
-    if parameters.graph_size == TEMPLATE_DEFINITIONS["binary_tree"].defaults.graph_size:
-        return _build_default_binary_tree_template(parameters)
-    return _build_generic_binary_tree_template(parameters)
-
-
 def _build_ttn_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build a tree tensor network with physical legs on the leaves."""
-    spec = _build_generic_binary_tree_template(parameters)
-    spec.id = f"template_ttn_{parameters.graph_size}"
-    spec.name = f"TTN depth {parameters.graph_size}"
+    """Build the canonical TTN layout."""
+    depth = _resolve_ttn_depth(parameters)
+    spec = _build_generic_ttn_template(parameters, depth=depth)
+    spec.id = f"template_ttn_{depth}"
+    spec.name = f"TTN depth {depth}"
+    spec.metadata = {
+        "template_name": "ttn",
+        "depth": depth,
+        "leaf_physical_legs": parameters.leaf_physical_legs,
+        "root_open_leg": parameters.root_open_leg,
+        "isometric": parameters.isometric,
+    }
+    for tensor in spec.tensors:
+        tensor.metadata = {
+            "role": "isometry" if parameters.isometric else "tensor",
+            "family": "ttn",
+            "isometric": parameters.isometric,
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="none")
     return spec
 
 
-def _build_default_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build the default depth-3 binary-tree layout."""
-    tensors = [
-        _make_tensor(
-            "tensor_root",
-            "Root",
-            320.0,
-            0.0,
-            [
-                ("left", parameters.bond_dimension, LEFT_OFFSET),
-                ("right", parameters.bond_dimension, RIGHT_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_left",
-            "Left",
-            110.0,
-            210.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("left", parameters.bond_dimension, LEFT_OFFSET),
-                ("right", parameters.bond_dimension, RIGHT_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_right",
-            "Right",
-            530.0,
-            210.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("left", parameters.bond_dimension, LEFT_OFFSET),
-                ("right", parameters.bond_dimension, RIGHT_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_ll",
-            "LL",
-            0.0,
-            420.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("phys", parameters.physical_dimension, DOWN_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_lr",
-            "LR",
-            220.0,
-            420.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("phys", parameters.physical_dimension, DOWN_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_rl",
-            "RL",
-            420.0,
-            420.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("phys", parameters.physical_dimension, DOWN_OFFSET),
-            ],
-        ),
-        _make_tensor(
-            "tensor_rr",
-            "RR",
-            640.0,
-            420.0,
-            [
-                ("up", parameters.bond_dimension, UP_OFFSET),
-                ("phys", parameters.physical_dimension, DOWN_OFFSET),
-            ],
-        ),
-    ]
-    edges = [
-        _make_edge("edge_root_left", tensors[0], "left", tensors[1], "up"),
-        _make_edge("edge_root_right", tensors[0], "right", tensors[2], "up"),
-        _make_edge("edge_left_ll", tensors[1], "left", tensors[3], "up"),
-        _make_edge("edge_left_lr", tensors[1], "right", tensors[4], "up"),
-        _make_edge("edge_right_rl", tensors[2], "left", tensors[5], "up"),
-        _make_edge("edge_right_rr", tensors[2], "right", tensors[6], "up"),
-    ]
-    return NetworkSpec(
-        id="template_binary_tree_3",
-        name="Binary Tree",
-        tensors=tensors,
-        edges=edges,
-    )
-
-
-def _build_generic_binary_tree_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build a generic binary tree with the requested depth."""
-    depth = parameters.graph_size
+def _build_generic_ttn_template(
+    parameters: TemplateParameters,
+    *,
+    depth: int,
+) -> NetworkSpec:
+    """Build a generic TTN with the requested depth."""
     levels: list[list[TensorSpec]] = []
     for level_index in range(depth):
         level_tensors = []
@@ -602,7 +527,9 @@ def _build_generic_binary_tree_template(parameters: TemplateParameters) -> Netwo
                 tensor_indices.append(
                     ("right", parameters.bond_dimension, RIGHT_OFFSET)
                 )
-            if level_index == depth - 1:
+            if level_index == 0 and parameters.root_open_leg:
+                tensor_indices.append(("out", parameters.bond_dimension, UP_OFFSET))
+            if level_index == depth - 1 and parameters.leaf_physical_legs:
                 tensor_indices.append(
                     ("phys", parameters.physical_dimension, DOWN_OFFSET)
                 )
@@ -644,8 +571,8 @@ def _build_generic_binary_tree_template(parameters: TemplateParameters) -> Netwo
                 )
             )
     return NetworkSpec(
-        id=f"template_binary_tree_{depth}",
-        name=f"Binary Tree depth {depth}",
+        id=f"template_ttn_{depth}",
+        name=f"TTN depth {depth}",
         tensors=[tensor for level in levels for tensor in level],
         edges=edges,
     )
@@ -660,7 +587,7 @@ def _grid_tensor_name(row_index: int, column_index: int) -> str:
 
 def _build_pepo_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build a square PEPO operator grid with bra and ket physical legs."""
-    size = parameters.graph_size
+    size = _resolve_graph_size(parameters)
     tensors: list[TensorSpec] = []
     tensor_lookup: dict[tuple[int, int], TensorSpec] = {}
     for row_index in range(size):
@@ -723,31 +650,9 @@ def _build_pepo_template(parameters: TemplateParameters) -> NetworkSpec:
     )
 
 
-def _build_transverse_ising_mpo_template(
-    parameters: TemplateParameters,
-) -> NetworkSpec:
-    """Build a transverse-Ising MPO operator template."""
-    spec = _build_linear_chain_template(
-        "transverse_ising_mpo",
-        parameters,
-        tensor_name_prefix="W",
-        spacing=330.0,
-        site_index_builder=_build_mpo_site_indices,
-    )
-    for tensor in spec.tensors:
-        tensor.metadata = {
-            "role": "operator",
-            "observable": "transverse_ising_hamiltonian",
-            "symmetry": "z2",
-            "tags": "transverse ising mpo",
-        }
-        _annotate_physics_1d_indices(tensor, symmetry="z2")
-    return spec
-
-
 def _build_tebd_gate_layer_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build an MPS chain with an even TEBD two-site gate layer."""
-    site_count = parameters.graph_size
+    site_count = _resolve_graph_size(parameters)
     site_tensors = [
         _make_tensor(
             f"tensor_site_{site_index + 1}",
@@ -869,6 +774,30 @@ def _apply_mps_template_configuration(
     return spec
 
 
+def _apply_mpo_template_configuration(
+    spec: NetworkSpec,
+    parameters: TemplateParameters,
+) -> NetworkSpec:
+    """Attach semantic MPO metadata to the built operator chain."""
+    spec.metadata = {
+        "template_name": "mpo",
+        "role": "operator",
+        "boundary_condition": parameters.boundary_condition,
+        "j": parameters.j,
+        "h": parameters.h,
+    }
+    for tensor in spec.tensors:
+        tensor.metadata = {
+            "role": "operator",
+            "family": "mpo",
+            "boundary_condition": parameters.boundary_condition,
+            "j": parameters.j,
+            "h": parameters.h,
+        }
+        _annotate_physics_1d_indices(tensor, symmetry="none")
+    return spec
+
+
 def _build_mps_tensor_data(
     tensor: TensorSpec,
     *,
@@ -911,7 +840,7 @@ def _build_mps_literal_state_tensor_data(
     )
 
 
-def _build_zero_literal(shape: list[int]) -> list[object] | float:
+def _build_zero_literal(shape: list[int]) -> TensorNumericLiteral:
     """Build one nested zero-filled literal matching the provided shape."""
     if not shape:
         return 0.0
@@ -919,12 +848,12 @@ def _build_zero_literal(shape: list[int]) -> list[object] | float:
 
 
 def _set_nested_literal_value(
-    values: list[object] | float,
+    values: TensorNumericLiteral,
     index_path: list[int],
     value: float,
 ) -> None:
     """Assign one scalar inside a nested tensor literal structure."""
-    current: list[object] | float = values
+    current: TensorNumericLiteral = values
     for index in index_path[:-1]:
         current = current[index]  # type: ignore[index]
     current[index_path[-1]] = value  # type: ignore[index]
@@ -952,16 +881,23 @@ def _make_tensor(
 def _make_named_index(
     tensor_id: str,
     suffix: str,
-    dimension: int,
+    dimension: int | None,
     offset: tuple[float, float],
 ) -> IndexSpec:
     """Create one named index for a template tensor."""
     return IndexSpec(
         id=f"{tensor_id}_{suffix}",
         name=suffix,
-        dimension=dimension,
+        dimension=_resolve_required_dimension(dimension),
         offset=CanvasPosition(x=offset[0], y=offset[1]),
     )
+
+
+def _resolve_required_dimension(dimension: int | None) -> int:
+    """Return one validated template index dimension."""
+    if dimension is None:
+        raise ValueError("Template index dimensions must be resolved before building.")
+    return dimension
 
 
 def _make_edge(
@@ -984,6 +920,20 @@ def _make_edge(
             index_id=f"{right_tensor.id}_{right_index_suffix}",
         ),
     )
+
+
+def _resolve_graph_size(parameters: TemplateParameters) -> int:
+    """Return the validated graph-size parameter for size-based templates."""
+    if parameters.graph_size is None:
+        raise ValueError("Template parameter 'graph_size' is required.")
+    return parameters.graph_size
+
+
+def _resolve_ttn_depth(parameters: TemplateParameters) -> int:
+    """Return the validated depth parameter for the TTN template."""
+    if parameters.depth is None:
+        raise ValueError("Template parameter 'depth' is required.")
+    return parameters.depth
 
 
 def register_builtin_templates() -> None:
@@ -1013,12 +963,6 @@ def register_builtin_templates() -> None:
         overwrite=True,
     )
     register_template(
-        "binary_tree",
-        TEMPLATE_DEFINITIONS["binary_tree"],
-        _build_binary_tree_template,
-        overwrite=True,
-    )
-    register_template(
         "ttn",
         TEMPLATE_DEFINITIONS["ttn"],
         _build_ttn_template,
@@ -1028,12 +972,6 @@ def register_builtin_templates() -> None:
         "pepo",
         TEMPLATE_DEFINITIONS["pepo"],
         _build_pepo_template,
-        overwrite=True,
-    )
-    register_template(
-        "transverse_ising_mpo",
-        TEMPLATE_DEFINITIONS["transverse_ising_mpo"],
-        _build_transverse_ising_mpo_template,
         overwrite=True,
     )
     register_template(

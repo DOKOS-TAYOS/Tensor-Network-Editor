@@ -28,10 +28,8 @@ def test_template_catalog_internal_exposes_same_public_metadata() -> None:
         "mpo",
         "peps_2x2",
         "mera",
-        "binary_tree",
         "ttn",
         "pepo",
-        "transverse_ising_mpo",
         "tebd_gate_layer",
     ]
     assert list(definitions) == names
@@ -164,6 +162,48 @@ def test_parse_template_parameters_accepts_new_mps_options() -> None:
     )
 
 
+def test_parse_template_parameters_accepts_new_mpo_and_ttn_options() -> None:
+    mpo_parameters = parse_template_parameters(
+        "mpo",
+        {
+            "graph_size": 6,
+            "bond_dimension": 4,
+            "physical_dimension": 2,
+            "boundary_condition": "periodic",
+            "j": 1.5,
+            "h": 0.25,
+        },
+    )
+    ttn_parameters = parse_template_parameters(
+        "ttn",
+        {
+            "depth": 4,
+            "bond_dimension": 6,
+            "physical_dimension": 3,
+            "leaf_physical_legs": False,
+            "root_open_leg": True,
+            "isometric": True,
+        },
+    )
+
+    assert mpo_parameters == TemplateParameters(
+        graph_size=6,
+        bond_dimension=4,
+        physical_dimension=2,
+        boundary_condition="periodic",
+        j=1.5,
+        h=0.25,
+    )
+    assert ttn_parameters == TemplateParameters(
+        depth=4,
+        bond_dimension=6,
+        physical_dimension=3,
+        leaf_physical_legs=False,
+        root_open_leg=True,
+        isometric=True,
+    )
+
+
 def test_mps_periodic_neel_builder_embeds_requested_configuration() -> None:
     spec = build_template(
         "mps",
@@ -195,6 +235,40 @@ def test_mps_periodic_neel_builder_embeds_requested_configuration() -> None:
     assert spec.tensors[0].indices[0].metadata["symmetry"] == "z2"
 
 
+def test_mpo_and_ttn_builders_embed_requested_configuration() -> None:
+    mpo_spec = build_template(
+        "mpo",
+        TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+            boundary_condition="periodic",
+            j=1.5,
+            h=0.25,
+        ),
+    )
+    ttn_spec = build_template(
+        "ttn",
+        TemplateParameters(
+            depth=4,
+            bond_dimension=3,
+            physical_dimension=2,
+            leaf_physical_legs=False,
+            root_open_leg=True,
+            isometric=True,
+        ),
+    )
+
+    assert mpo_spec.metadata["boundary_condition"] == "periodic"
+    assert mpo_spec.metadata["j"] == pytest.approx(1.5)
+    assert mpo_spec.metadata["h"] == pytest.approx(0.25)
+    assert len(mpo_spec.edges) == 4
+    assert ttn_spec.metadata["depth"] == 4
+    assert ttn_spec.metadata["leaf_physical_legs"] is False
+    assert ttn_spec.metadata["root_open_leg"] is True
+    assert ttn_spec.metadata["isometric"] is True
+
+
 def test_parse_template_parameters_rejects_spin_presets_for_non_spin_dimension() -> (
     None
 ):
@@ -211,3 +285,11 @@ def test_parse_template_parameters_rejects_spin_presets_for_non_spin_dimension()
                 "initial_state": "all_up",
             },
         )
+
+
+def test_parse_template_parameters_rejects_removed_template_names() -> None:
+    with pytest.raises(ValueError, match="Unknown template"):
+        parse_template_parameters("binary_tree")
+
+    with pytest.raises(ValueError, match="Unknown template"):
+        parse_template_parameters("transverse_ising_mpo")

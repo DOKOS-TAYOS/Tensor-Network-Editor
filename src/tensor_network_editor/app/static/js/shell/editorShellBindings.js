@@ -64,15 +64,7 @@ export function createEditorShellBindings({
     templateSettingsButton,
     templateSettingsPopover,
     reflowLayoutPopover,
-    templateGraphSizeInput,
-    templateBondDimensionInput,
-    templatePhysicalDimensionInput,
-    templateBoundaryConditionField,
-    templateBoundaryConditionSelect,
-    templateSymmetryField,
-    templateSymmetrySelect,
-    templateInitialStateField,
-    templateInitialStateSelect,
+    templateParameterPanel,
     insertTemplateButton,
     saveSessionTemplateMenuItem,
     saveSubnetworkLibraryMenuItem,
@@ -623,37 +615,23 @@ export function createEditorShellBindings({
       setSelectChevronExpanded(templateSelectField, false);
       actions.handleTemplateSelectionChange(event);
     });
-    bindListener(templateGraphSizeInput, "change", actions.handleTemplateParameterInput);
-    bindListener(templateBondDimensionInput, "change", actions.handleTemplateParameterInput);
     bindListener(
-      templatePhysicalDimensionInput,
-      "change",
-      actions.handleTemplateParameterInput
-    );
-    bindSelectChevronDisclosure(
-      templateBoundaryConditionField,
-      templateBoundaryConditionSelect
-    );
-    bindSelectChevronDisclosure(
-      templateSymmetryField,
-      templateSymmetrySelect
-    );
-    bindSelectChevronDisclosure(
-      templateInitialStateField,
-      templateInitialStateSelect
+      templateParameterPanel,
+      "mousedown",
+      actions.handleTemplateParameterPanelDisclosure
     );
     bindListener(
-      templateBoundaryConditionSelect,
-      "change",
-      actions.handleTemplateParameterInput
+      templateParameterPanel,
+      "keydown",
+      actions.handleTemplateParameterPanelKeydown
     );
     bindListener(
-      templateSymmetrySelect,
-      "change",
-      actions.handleTemplateParameterInput
+      templateParameterPanel,
+      "focusout",
+      actions.handleTemplateParameterPanelFocusOut
     );
     bindListener(
-      templateInitialStateSelect,
+      templateParameterPanel,
       "change",
       actions.handleTemplateParameterInput
     );

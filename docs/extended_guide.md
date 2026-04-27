@@ -387,10 +387,8 @@ Built-in template names:
 - `mpo`
 - `peps_2x2`
 - `mera`
-- `binary_tree`
 - `ttn`
 - `pepo`
-- `transverse_ising_mpo`
 - `tebd_gate_layer`
 
 Template parameters:
@@ -400,12 +398,15 @@ Template parameters:
 - physical dimension
 - `mps` also supports `boundary_condition`, `symmetry`, and `initial_state`
   (`zeros`, `random`, `all_up`, `all_down`, `neel`)
+- `mpo` also supports `boundary_condition`, `j`, and `h`
+- `ttn` also supports `depth`, `leaf_physical_legs`, `root_open_leg`, and
+  `isometric`
 
 The graph-size label depends on the template:
 
 - MPS-like and MPO-like templates use `Sites`.
 - PEPS and PEPO use `Side length`.
-- MERA, Binary Tree, and TTN use `Depth`.
+- MERA and TTN use `Depth`.
 
 CLI examples:
 

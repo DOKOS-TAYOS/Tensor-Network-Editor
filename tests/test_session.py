@@ -73,9 +73,9 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     template_definitions = cast(JsonDict, payload["template_definitions"])
     mps_definition = cast(JsonDict, template_definitions["mps"])
     peps_definition = cast(JsonDict, template_definitions["peps_2x2"])
-    binary_tree_definition = cast(JsonDict, template_definitions["binary_tree"])
+    ttn_definition = cast(JsonDict, template_definitions["ttn"])
     peps_defaults = cast(JsonDict, peps_definition["defaults"])
-    binary_tree_defaults = cast(JsonDict, binary_tree_definition["defaults"])
+    ttn_defaults = cast(JsonDict, ttn_definition["defaults"])
     spec_payload = cast(JsonDict, payload["spec"])
     network_payload = cast(JsonDict, spec_payload["network"])
 
@@ -88,7 +88,7 @@ def test_bootstrap_payload_includes_template_parameter_definitions(
     assert network_payload["id"] == "network_demo"
     assert mps_definition["graph_size_label"] == "Sites"
     assert peps_defaults["graph_size"] == 3
-    assert binary_tree_defaults["graph_size"] == 3
+    assert ttn_defaults["depth"] == 3
 
 
 def test_generate_returns_preview_without_finishing_session(

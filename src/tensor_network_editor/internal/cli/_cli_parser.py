@@ -240,12 +240,15 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     )
     template_build_parser.add_argument("template_name", type=str)
     template_build_parser.add_argument("--graph-size", type=int)
+    template_build_parser.add_argument("--depth", type=int)
     template_build_parser.add_argument("--bond-dimension", type=int)
     template_build_parser.add_argument("--physical-dimension", type=int)
     template_build_parser.add_argument(
         "--boundary-condition",
         choices=("open", "periodic"),
     )
+    template_build_parser.add_argument("--j", type=float)
+    template_build_parser.add_argument("--h", type=float)
     template_build_parser.add_argument(
         "--symmetry",
         choices=("none", "u1", "z2"),
@@ -253,6 +256,21 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     template_build_parser.add_argument(
         "--initial-state",
         choices=("zeros", "random", "all_up", "all_down", "neel"),
+    )
+    template_build_parser.add_argument(
+        "--leaf-physical-legs",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    template_build_parser.add_argument(
+        "--root-open-leg",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    template_build_parser.add_argument(
+        "--isometric",
+        action=argparse.BooleanOptionalAction,
+        default=None,
     )
     template_build_parser.add_argument("--output", type=str)
     _add_output_format_argument(template_build_parser)
