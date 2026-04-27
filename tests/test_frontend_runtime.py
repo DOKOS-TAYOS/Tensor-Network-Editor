@@ -5604,6 +5604,16 @@ def _write_port_layering_runtime_regression_script(tmp_path: Path) -> Path:
                 `A connected port should stay above tensors so connections remain visible: connected=${{zIndexFor("back_connected")}}, front=${{frontTensorZIndex}}.`
               );
             }}
+
+            state.selectionIds = ["tensor_back"];
+            const selectedModel = builder();
+            const selectedZIndexFor = (elementId) =>
+              selectedModel.descriptorsById[elementId].data.zIndex;
+            if (!(selectedZIndexFor("back_open") > selectedZIndexFor("tensor_front"))) {{
+              throw new Error(
+                `A selected tensor should keep its open ports visible above front tensors: open=${{selectedZIndexFor("back_open")}}, front=${{selectedZIndexFor("tensor_front")}}.`
+              );
+            }}
             """
         ),
         encoding="utf-8",

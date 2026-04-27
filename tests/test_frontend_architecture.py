@@ -4144,6 +4144,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.generatedCodeModalCloseButton.click();
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
         dom.fileMenuButton.click();
+        dom.exportSubmenuShell.mouseenter();
         dom.exportMenuItem.mouseenter();
         dom.exportMenuItem.focus();
         dom.exportMenuItem.click();
@@ -4212,9 +4213,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           throw new Error(`Expected the File button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (
-          flowEvents.filter((entry) => entry === "openToolbarSubmenu:export").length < 2
+          flowEvents.filter((entry) => entry === "openToolbarSubmenu:export").length < 4
         ) {{
-          throw new Error(`Expected the File Export item to open its submenu from hover, focus, or click, received ${{JSON.stringify(flowEvents)}}.`);
+          throw new Error(`Expected the File Export item to open its submenu from shell hover, item hover, focus, or click, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("downloadExportAs:png")) {{
           throw new Error(`Expected the File menu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);

@@ -31,23 +31,34 @@ export function createUtilityGeometryBindings({
     );
   }
 
-  function isIndexElevated(indexId) {
+  function isTensorActiveForPorts(tensorId) {
+    return Boolean(
+      tensorId &&
+        ((Array.isArray(state.selectionIds) && state.selectionIds.includes(tensorId)) ||
+          (state.activeTensorDrag &&
+            Array.isArray(state.activeTensorDrag.tensorIds) &&
+            state.activeTensorDrag.tensorIds.includes(tensorId)))
+    );
+  }
+
+  function isIndexElevated(indexId, tensorId = null) {
     return Boolean(
       isIndexConnected(indexId) ||
         state.pendingIndexId === indexId ||
+        isTensorActiveForPorts(tensorId) ||
         (Array.isArray(state.selectionIds) && state.selectionIds.includes(indexId))
     );
   }
 
-  function getLayeredPortZIndex(indexId, indexPosition, tensorRank) {
-    if (isIndexElevated(indexId)) {
+  function getLayeredPortZIndex(indexId, indexPosition, tensorRank, tensorId = null) {
+    if (isIndexElevated(indexId, tensorId)) {
       return PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition;
     }
     return TENSOR_BASE_Z_INDEX + tensorRank + 0.2 + indexPosition / 1000;
   }
 
-  function getLayeredIndexLabelZIndex(indexId, indexPosition, tensorRank) {
-    if (isIndexElevated(indexId)) {
+  function getLayeredIndexLabelZIndex(indexId, indexPosition, tensorRank, tensorId = null) {
+    if (isIndexElevated(indexId, tensorId)) {
       return INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition;
     }
     return TENSOR_BASE_Z_INDEX + tensorRank + 0.24 + indexPosition / 1000;
@@ -492,14 +503,14 @@ export function createUtilityGeometryBindings({
         if (indexElement && indexElement.length) {
           indexElement.data(
             "zIndex",
-            getLayeredPortZIndex(index.id, indexPosition, tensorRank)
+            getLayeredPortZIndex(index.id, indexPosition, tensorRank, tensor.id)
           );
         }
         const labelElement = state.cy.getElementById(runtime.indexLabelNodeId(index.id));
         if (labelElement && labelElement.length) {
           labelElement.data(
             "zIndex",
-            getLayeredIndexLabelZIndex(index.id, indexPosition, tensorRank)
+            getLayeredIndexLabelZIndex(index.id, indexPosition, tensorRank, tensor.id)
           );
         }
       });

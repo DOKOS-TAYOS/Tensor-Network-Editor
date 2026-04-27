@@ -40,23 +40,46 @@ export function createGraphElementModelBuilder({
     return classNames.filter(Boolean).join(" ");
   }
 
-  function isIndexElevated(indexId, isConnected) {
+  function isTensorActiveForPorts(tensorId) {
+    return Boolean(
+      tensorId &&
+        ((Array.isArray(state.selectionIds) && state.selectionIds.includes(tensorId)) ||
+          (state.activeTensorDrag &&
+            Array.isArray(state.activeTensorDrag.tensorIds) &&
+            state.activeTensorDrag.tensorIds.includes(tensorId)))
+    );
+  }
+
+  function isIndexElevated(indexId, isConnected, tensorId = null) {
     return Boolean(
       isConnected ||
         state.pendingIndexId === indexId ||
+        isTensorActiveForPorts(tensorId) ||
         (Array.isArray(state.selectionIds) && state.selectionIds.includes(indexId))
     );
   }
 
-  function getLayeredPortZIndex(indexId, indexPosition, tensorRank, isConnected) {
-    if (isIndexElevated(indexId, isConnected)) {
+  function getLayeredPortZIndex(
+    indexId,
+    indexPosition,
+    tensorRank,
+    isConnected,
+    tensorId = null
+  ) {
+    if (isIndexElevated(indexId, isConnected, tensorId)) {
       return port + tensorRank * 10 + indexPosition;
     }
     return tensor + tensorRank + 0.2 + indexPosition / 1000;
   }
 
-  function getLayeredIndexLabelZIndex(indexId, indexPosition, tensorRank, isConnected) {
-    if (isIndexElevated(indexId, isConnected)) {
+  function getLayeredIndexLabelZIndex(
+    indexId,
+    indexPosition,
+    tensorRank,
+    isConnected,
+    tensorId = null
+  ) {
+    if (isIndexElevated(indexId, isConnected, tensorId)) {
       return indexLabel + tensorRank * 10 + indexPosition;
     }
     return tensor + tensorRank + 0.24 + indexPosition / 1000;
@@ -180,6 +203,9 @@ export function createGraphElementModelBuilder({
           state.pendingPlannerSelectionId === tensorItem.id
             ? "planner-pending-tensor"
             : "",
+          Array.isArray(state.selectionIds) && state.selectionIds.includes(tensorItem.id)
+            ? "is-selection-highlight"
+            : "",
           getMetadataFilterClass(metadataFilterHighlight, "tensor", tensorItem.id)
         ),
         position: { x: tensorItem.position.x, y: tensorItem.position.y },
@@ -210,7 +236,8 @@ export function createGraphElementModelBuilder({
               indexItem.id,
               indexPosition,
               tensorRank,
-              isConnectedIndex
+              isConnectedIndex,
+              tensorItem.id
             ),
           },
           classes: [
@@ -235,7 +262,8 @@ export function createGraphElementModelBuilder({
               indexItem.id,
               indexPosition,
               tensorRank,
-              isConnectedIndex
+              isConnectedIndex,
+              tensorItem.id
             ),
           },
           classes: getMetadataFilterClass(metadataFilterHighlight, "index", indexItem.id),

@@ -94,6 +94,10 @@ All notable changes to this project will be documented in this file.
   submenu, the two-index mini menu keeps its shared dimension controls while
   disabling hyperedge creation, and open ports no longer draw over front tensor
   boxes unless they are connected or actively selected.
+- The browser editor now keeps the `Export` submenu open from hover/focus with
+  label toggles inside it, keeps selected tensor outlines and ports visible
+  during clicks and drags, adds breathing room to the subnetwork library list,
+  and keeps tensor resize handles below the minimap.
 - Academic text exports now default missing label-visibility state to visible,
   so isolated session flows can still export TikZ/LaTeX and Graphviz/DOT.
 - Documentation now describes grid/tree manual contraction plans as supported

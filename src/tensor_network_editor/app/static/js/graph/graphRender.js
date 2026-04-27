@@ -287,6 +287,14 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "node[kind = 'tensor'].is-selection-highlight",
+          style: {
+            "border-color": GRAPH_THEME.selection,
+            "border-width": 4,
+            "overlay-opacity": 0,
+          },
+        },
+        {
           selector: "node[kind = 'index']:selected",
           style: {
             "border-color": GRAPH_THEME.selection,

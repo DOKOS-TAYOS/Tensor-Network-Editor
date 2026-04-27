@@ -773,6 +773,11 @@ select {
   z-index: 230;
 }
 
+.toolbar-menu-submenu:hover > .toolbar-submenu-panel,
+.toolbar-menu-submenu:focus-within > .toolbar-submenu-panel {
+  display: grid;
+}
+
 .toolbar-menu-item {
   width: 100%;
   min-width: 0;
@@ -1726,6 +1731,7 @@ select {
   position: absolute;
   right: 1rem;
   bottom: 1rem;
+  z-index: 40;
   width: 220px;
   padding: 0.6rem 0.6rem 0.75rem;
   border-radius: 8px;
@@ -3279,6 +3285,7 @@ textarea[disabled] {
   gap: 0.85rem;
   max-height: min(60dvh, 580px);
   overflow: auto;
+  padding-top: 0.25rem;
   padding-right: 0.15rem;
 }
 

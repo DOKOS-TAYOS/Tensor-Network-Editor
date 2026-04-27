@@ -48,6 +48,21 @@ export function registerHistorySelection(ctx) {
     const previousSelectionIdSet = new Set(previousSelectionIds);
     const nextSelectionIdSet = new Set(nextSelectionIds);
     state.cy.batch(() => {
+      const highlightedElements = state.cy.$(".is-selection-highlight");
+      if (
+        highlightedElements &&
+        typeof highlightedElements.forEach === "function"
+      ) {
+        highlightedElements.forEach((element) => {
+          const elementId = typeof element.id === "function" ? element.id() : null;
+          if (
+            (!elementId || !nextSelectionIdSet.has(elementId)) &&
+            typeof element.removeClass === "function"
+          ) {
+            element.removeClass("is-selection-highlight");
+          }
+        });
+      }
       previousSelectionIds.forEach((selectionId) => {
         if (nextSelectionIdSet.has(selectionId)) {
           return;
@@ -66,11 +81,20 @@ export function registerHistorySelection(ctx) {
           element.select();
         }
       });
+      nextSelectionIds.forEach((selectionId) => {
+        const element = state.cy.getElementById(selectionId);
+        if (element && element.length && typeof element.addClass === "function") {
+          element.addClass("is-selection-highlight");
+        }
+      });
     });
     state.cySelectionSyncedIds = nextSelectionIds.filter((selectionId) => {
       const element = state.cy.getElementById(selectionId);
       return Boolean(element && element.length);
     });
+    if (typeof ctx.applyTensorLayerData === "function") {
+      ctx.applyTensorLayerData();
+    }
     ctx.renderOverlayDecorations();
   }
 

@@ -199,6 +199,18 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert 'id="export-show-index-names-menu-item"' in html
     assert 'id="export-show-bond-names-menu-item"' in html
     assert 'role="menuitemcheckbox"' in html
+    export_submenu_panel_index = html.index('id="export-submenu-panel"')
+    export_submenu_shell_end_index = html.index(
+        'id="save-session-template-menu-item"',
+        export_submenu_panel_index,
+    )
+    assert (
+        html.index('id="export-dot-menu-item"')
+        < html.index('id="export-show-tensor-names-menu-item"')
+        < html.index('id="export-show-index-names-menu-item"')
+        < html.index('id="export-show-bond-names-menu-item"')
+        < export_submenu_shell_end_index
+    )
     assert '<option value="tikz">TikZ/LaTeX</option>' in html
     assert '<option value="dot">Graphviz/DOT</option>' in html
     assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
@@ -742,6 +754,7 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".toolbar-menu-item-description {" in body
     assert "display: none;" in body
     assert ".toolbar-menu-item-shortcut {" in body
+    assert ".toolbar-menu-submenu:hover > .toolbar-submenu-panel" in body
     assert "background: #0e639c;" not in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
@@ -753,6 +766,15 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert ".code-preview {" in body
     assert "padding: 3.4rem 1rem 1rem;" not in body
     assert "padding: 1rem;" in body
+    assert "padding-top: 0.25rem;" in body
+    assert ".minimap-shell {" in body
+    assert "z-index: 40;" in body
+    assert "node[kind = 'tensor'].is-selection-highlight" in request_text(
+        f"{editor_server.base_url}/js/graph/graphRender.js"
+    )
+    assert 'addClass("is-selection-highlight")' in request_text(
+        f"{editor_server.base_url}/js/graph/historySelection.js"
+    )
     assert ".code-preview .token.keyword {" in body
     assert ".code-preview .token.function {" in body
 
@@ -3217,7 +3239,11 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert (
         "return PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition;" in utilities_body
     )
-    assert "getLayeredPortZIndex(index.id, indexPosition, tensorRank)" in utilities_body
+    assert (
+        "getLayeredPortZIndex(index.id, indexPosition, tensorRank, tensor.id)"
+        in utilities_body
+    )
+    assert "function isTensorActiveForPorts(" in utilities_body
     assert "getLayeredPortZIndex(" in graph_model_body
     assert 'edgeElement.data("zIndex", EDGE_Z_INDEX);' in utilities_body
 

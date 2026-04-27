@@ -84,7 +84,7 @@ export function createUiToolbarActionStateSupport({
       generateButton.disabled = !state.spec || !state.selectedEngine;
     }
     if (exportMenuItem) {
-      exportMenuItem.disabled = !state.spec;
+      exportMenuItem.disabled = false;
     }
     if (exportPythonMenuItem) {
       exportPythonMenuItem.disabled = !state.spec || !state.selectedEngine;

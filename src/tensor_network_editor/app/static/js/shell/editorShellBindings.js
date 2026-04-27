@@ -489,26 +489,17 @@ export function createEditorShellBindings({
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("dot");
     });
-    bindListener(exportMenuItem, "mouseenter", () => {
+    const openExportSubmenu = () => {
       if (typeof actions.openToolbarSubmenu === "function") {
         actions.openToolbarSubmenu("export");
       }
-    });
-    bindListener(exportMenuItem, "focus", () => {
-      if (typeof actions.openToolbarSubmenu === "function") {
-        actions.openToolbarSubmenu("export");
-      }
-    });
-    bindListener(exportMenuItem, "click", () => {
-      if (typeof actions.openToolbarSubmenu === "function") {
-        actions.openToolbarSubmenu("export");
-      }
-    });
-    bindListener(exportSubmenuPanel, "mouseenter", () => {
-      if (typeof actions.openToolbarSubmenu === "function") {
-        actions.openToolbarSubmenu("export");
-      }
-    });
+    };
+    bindListener(exportSubmenuShell, "mouseenter", openExportSubmenu);
+    bindListener(exportSubmenuShell, "focusin", openExportSubmenu);
+    bindListener(exportMenuItem, "mouseenter", openExportSubmenu);
+    bindListener(exportMenuItem, "focus", openExportSubmenu);
+    bindListener(exportMenuItem, "click", openExportSubmenu);
+    bindListener(exportSubmenuPanel, "mouseenter", openExportSubmenu);
     bindListener(exportSubmenuShell, "mouseleave", () => {
       if (typeof actions.closeToolbarSubmenu === "function") {
         actions.closeToolbarSubmenu("export");
