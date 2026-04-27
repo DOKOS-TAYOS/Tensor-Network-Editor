@@ -60,6 +60,15 @@ tensor-network-editor edit --no-browser
 
 Then open the local URL printed in the terminal.
 
+You can also choose the editor colors when the session starts:
+
+```bash
+tensor-network-editor edit --theme light
+```
+
+Available themes are `dark`, `light`, `contrast`, `colorblind`, and `shiny`.
+The default is `dark`, and the choice only changes the browser appearance.
+
 ## 3. Create a Small Network
 
 A simple first design is enough:

@@ -138,6 +138,23 @@ Start with a different backend selected:
 tensor-network-editor edit --engine quimb
 ```
 
+Start with a different color theme:
+
+```bash
+tensor-network-editor edit --theme colorblind
+```
+
+The available themes are:
+
+- `dark`: the default dark editor palette
+- `light`: a neutral light palette
+- `contrast`: high-contrast black, white, yellow, and cyan
+- `colorblind`: a palette based on distinguishable Okabe-Ito style colors
+- `shiny`: a dark palette with brighter cyan, pink, green, and yellow accents
+
+Themes are chosen only when the editor starts. They do not change the saved
+JSON design, generated Python code, or recoverable draft data.
+
 Save generated code when the session is confirmed:
 
 ```bash
@@ -171,6 +188,7 @@ def main() -> None:
     result = open_editor(
         options=EditorLaunchOptions(
             default_engine=EngineName.EINSUM_NUMPY,
+            theme="light",
             open_browser=True,
         )
     )

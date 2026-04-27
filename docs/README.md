@@ -35,6 +35,8 @@ avoid reading one huge document from top to bottom.
 - auto-layout the current selection or the whole graph when needed
 - benchmark contraction variants from the editor or the CLI
 - use linear, grid, and tree periodic editor modes
+- choose the editor color theme at startup: `dark`, `light`, `contrast`,
+  `colorblind`, or `shiny`
 - use keyboard shortcuts for common editor actions such as adding indices,
   opening Reflow, saving subnetworks, and moving between periodic cells
 - inspect validation, linting, diff, benchmark, and analysis results from
@@ -125,7 +127,7 @@ the stable user-facing API.
 | --- | --- |
 | Install the package quickly | [installation.md](installation.md) |
 | Try the editor for the first time | [getting-started.md](getting-started.md) |
-| Choose a backend or collection format | [user-guide.md](user-guide.md) |
+| Choose a backend, collection format, or editor theme | [user-guide.md](user-guide.md) |
 | Use templates, reusable subnetworks, auto layout, benchmark mode, or periodic modes | [user-guide.md](user-guide.md) |
 | Read the full user manual with deeper workflows and recipes | [extended_guide.md](extended_guide.md) |
 | Generate code from Python | [api.md](api.md) |
