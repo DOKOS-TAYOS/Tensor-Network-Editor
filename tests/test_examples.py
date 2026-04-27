@@ -25,7 +25,7 @@ def test_public_examples_run_without_optional_backends(
     monkeypatch.chdir(tmp_path)
     script_path = REPO_ROOT / "examples" / script_name
 
-    runpy.run_path(script_path, run_name="__main__")
+    runpy.run_path(str(script_path), run_name="__main__")
 
     output = capsys.readouterr().out
     assert "OK:" in output
