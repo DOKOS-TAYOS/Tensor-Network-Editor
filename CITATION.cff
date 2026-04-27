@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Tensor Network Editor in academic work, please cite it using this metadata."
+title: "Tensor Network Editor"
+type: software
+authors:
+  - family-names: "Mata Ali"
+    given-names: "Alejandro"
+version: "0.4.0"
+date-released: "2026-04-25"
+repository-code: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+url: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
+license: "MIT"
+abstract: "A local Python package and browser editor for drawing tensor networks, saving versioned JSON designs, and generating readable Python code for tensor-network backends."
+keywords:
+  - "tensor networks"
+  - "scientific computing"
+  - "code generation"
+  - "visual editor"
+  - "Python"

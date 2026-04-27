@@ -19,8 +19,8 @@ remain covered by their own licenses and notices.
      Copyright (c) 2016-2024, The Cytoscape Consortium.
    - License: MIT License
    - Notice handling:
-     The vendored minified file preserves the upstream MIT notice and bundled
-     upstream MIT notices for embedded helper code.
+     The vendored minified file preserves the upstream MIT notice at the top of
+     the file.
 
 2. PrismJS
    - Bundled files:
@@ -33,8 +33,8 @@ remain covered by their own licenses and notices.
      Copyright (C) 2012-2024 Lea Verou and Prism contributors.
    - License: MIT License
    - Notice handling:
-     The vendored minified files are distributed under the upstream MIT
-     license.
+     The vendored minified files do not carry a visible license header, so this
+     file provides the upstream MIT notice for the bundled PrismJS assets.
 
 The following MIT License text applies to Cytoscape.js and PrismJS:
 

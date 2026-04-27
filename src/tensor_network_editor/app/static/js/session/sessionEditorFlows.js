@@ -20,6 +20,15 @@ export function createSessionEditorFlows({
     commands.syncGeneratedCodePreview(code);
   }
 
+  function ensureAcademicExportLabels() {
+    const labels = state.academicExportLabels || {};
+    state.academicExportLabels = {
+      tensor: labels.tensor !== false,
+      index: labels.index !== false,
+      bond: labels.bond !== false,
+    };
+  }
+
   function showCodeGenerationError(message) {
     const safeMessage = message || "Code generation failed.";
     store.setGeneratedCode(`Code generation failed:\n${safeMessage}`);
@@ -326,6 +335,7 @@ export function createSessionEditorFlows({
       return;
     }
     try {
+      ensureAcademicExportLabels();
       const payload = await sessionService.renderSpec({
         format,
         spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),

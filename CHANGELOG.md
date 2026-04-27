@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Contributor and citation metadata now live in `CONTRIBUTING.md` and
+  `CITATION.cff`.
 - Practical example scripts now cover MPS template code generation, PEPS
   TikZ/DOT rendering, first-class hyperedges, contraction benchmarking, and
   tensor initializers without requiring optional backend packages.
@@ -86,6 +88,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Third-party bundled-asset notices now describe Cytoscape.js and PrismJS notice
+  handling more accurately.
+- Academic text exports now default missing label-visibility state to visible,
+  so isolated session flows can still export TikZ/LaTeX and Graphviz/DOT.
 - Documentation now describes grid/tree manual contraction plans as supported
   with clickable virtual boundary operands, including the row-major grid pass,
   bottom-up tree pass, and partial `remaining_operands` exports.
