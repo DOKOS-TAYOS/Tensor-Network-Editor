@@ -32,6 +32,9 @@ export function createEditorShellBindings({
     exportSvgMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
+    exportShowTensorNamesMenuItem,
+    exportShowIndexNamesMenuItem,
+    exportShowBondNamesMenuItem,
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
@@ -122,6 +125,14 @@ export function createEditorShellBindings({
       return;
     }
     target.addEventListener(eventName, handler, options);
+  }
+
+  function toggleAcademicExportLabel(labelKey) {
+    if (!state.academicExportLabels) {
+      state.academicExportLabels = { tensor: true, index: true, bond: true };
+    }
+    state.academicExportLabels[labelKey] = !state.academicExportLabels[labelKey];
+    actions.updateToolbarState();
   }
 
   function targetWithinElement(target, element) {
@@ -471,6 +482,15 @@ export function createEditorShellBindings({
     bindListener(exportDotMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("dot");
+    });
+    bindListener(exportShowTensorNamesMenuItem, "click", () => {
+      toggleAcademicExportLabel("tensor");
+    });
+    bindListener(exportShowIndexNamesMenuItem, "click", () => {
+      toggleAcademicExportLabel("index");
+    });
+    bindListener(exportShowBondNamesMenuItem, "click", () => {
+      toggleAcademicExportLabel("bond");
     });
     bindListener(exportFormatSelect, "change", () => {
       actions.updateToolbarState();

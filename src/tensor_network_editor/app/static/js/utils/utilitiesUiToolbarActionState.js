@@ -15,6 +15,9 @@ export function createUiToolbarActionStateSupport({
     exportSvgMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
+    exportShowTensorNamesMenuItem,
+    exportShowIndexNamesMenuItem,
+    exportShowBondNamesMenuItem,
     templateSelect,
     templateSettingsButton,
     insertTemplateButton,
@@ -47,6 +50,14 @@ export function createUiToolbarActionStateSupport({
     benchmarkCompareModal,
     benchmarkCompareTableBody,
   } = dom;
+
+  function syncAcademicExportLabelMenuItem(menuItem, isChecked) {
+    if (!menuItem) {
+      return;
+    }
+    menuItem.classList.toggle("is-checked", Boolean(isChecked));
+    menuItem.setAttribute("aria-checked", String(Boolean(isChecked)));
+  }
 
   function syncToolbarActionState(derivedState) {
     const {
@@ -86,6 +97,18 @@ export function createUiToolbarActionStateSupport({
     if (exportDotMenuItem) {
       exportDotMenuItem.disabled = !state.spec;
     }
+    syncAcademicExportLabelMenuItem(
+      exportShowTensorNamesMenuItem,
+      state.academicExportLabels.tensor
+    );
+    syncAcademicExportLabelMenuItem(
+      exportShowIndexNamesMenuItem,
+      state.academicExportLabels.index
+    );
+    syncAcademicExportLabelMenuItem(
+      exportShowBondNamesMenuItem,
+      state.academicExportLabels.bond
+    );
     if (saveSessionTemplateMenuItem) {
       saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
     }

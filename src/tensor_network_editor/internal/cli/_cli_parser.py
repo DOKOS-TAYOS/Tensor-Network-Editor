@@ -171,6 +171,29 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         default="svg",
     )
     render_parser.add_argument("--output", type=str)
+    render_parser.add_argument(
+        "--hide-tensor-names",
+        dest="show_tensor_names",
+        action="store_false",
+        help="Hide tensor names in TikZ and DOT renders.",
+    )
+    render_parser.add_argument(
+        "--hide-index-names",
+        dest="show_index_names",
+        action="store_false",
+        help="Hide index names in TikZ and DOT renders.",
+    )
+    render_parser.add_argument(
+        "--hide-bond-names",
+        dest="show_bond_names",
+        action="store_false",
+        help="Hide bond names in TikZ and DOT renders.",
+    )
+    render_parser.set_defaults(
+        show_tensor_names=True,
+        show_index_names=True,
+        show_bond_names=True,
+    )
     render_parser.set_defaults(handler=handlers.handle_render)
 
     diff_parser = subparsers.add_parser(

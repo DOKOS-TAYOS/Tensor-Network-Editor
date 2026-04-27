@@ -58,6 +58,7 @@ class TikzRenderOptions:
     show_edge_labels: bool = True
     include_groups: bool = True
     include_notes: bool = True
+    show_tensor_labels: bool = True
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,6 +69,9 @@ class DotRenderOptions:
     include_groups: bool = True
     include_notes: bool = True
     include_hyperedges: bool = True
+    show_tensor_labels: bool = True
+    show_index_labels: bool = True
+    show_edge_labels: bool = True
 
 
 @dataclass(slots=True, frozen=True)
@@ -428,7 +432,7 @@ class _TikzRenderer:
         lines = [
             r"\begin{tikzpicture}",
             r"\tikzset{",
-            r"  tne tensor/.style={draw, rounded corners=2pt, fill=blue!12, align=center, inner sep=3pt},",
+            r"  tne tensor/.style={draw, circle, fill=blue!12, align=center, inner sep=3pt},",
             r"  tne index/.style={draw, circle, fill=yellow!35, inner sep=1.5pt, minimum size=0.22cm, font=\scriptsize},",
             r"  tne index label/.style={font=\scriptsize, align=center},",
             r"  tne edge/.style={draw, line width=0.6pt},",
@@ -512,11 +516,12 @@ class _TikzRenderer:
     def _render_tensors(self) -> list[str]:
         lines: list[str] = []
         for tensor in self._spec.tensors:
+            label = _latex_text(tensor.name) if self._options.show_tensor_labels else ""
+            tensor_size = max(tensor.size.width, tensor.size.height)
             lines.append(
-                rf"\node[tne tensor, minimum width={self._length(tensor.size.width)}, "
-                rf"minimum height={self._length(tensor.size.height)}] "
+                rf"\node[tne tensor, minimum size={self._length(tensor_size)}] "
                 rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position)} "
-                rf"{{{_latex_text(tensor.name)}}};"
+                rf"{{{label}}};"
             )
             lines.extend(self._render_indices(tensor))
         return lines
@@ -591,7 +596,8 @@ class _DotRenderer:
 
     def _render_tensors(self) -> list[str]:
         return [
-            f'  {_dot_string(tensor.id)} [label={_dot_string(tensor.name)}, shape="box"];'
+            f"  {_dot_string(tensor.id)} "
+            f'[label={_dot_string(_dot_tensor_label(tensor, self._options))}, shape="circle"];'
             for tensor in self._spec.tensors
         ]
 
@@ -603,7 +609,8 @@ class _DotRenderer:
                     continue
                 open_node_id = _dot_open_index_id(index.id)
                 lines.append(
-                    f'  {_dot_string(open_node_id)} [label={_dot_string(f"{index.name} ({index.dimension})")}, shape="circle"];'
+                    f"  {_dot_string(open_node_id)} "
+                    f'[label={_dot_string(_dot_index_label(index, self._options))}, shape="circle"];'
                 )
                 lines.append(
                     f'  {_dot_string(tensor.id)} -- {_dot_string(open_node_id)} [style="dotted"];'
@@ -619,9 +626,12 @@ class _DotRenderer:
                 continue
             left_tensor, left_index = left_entry
             right_tensor, _ = right_entry
+            edge_attributes = _dot_attributes(
+                label=_dot_edge_label(edge, left_index, self._options)
+            )
             lines.append(
-                f"  {_dot_string(left_tensor.id)} -- {_dot_string(right_tensor.id)} "
-                f"[label={_dot_string(_dot_edge_label(edge, left_index))}];"
+                f"  {_dot_string(left_tensor.id)} -- {_dot_string(right_tensor.id)}"
+                f"{edge_attributes};"
             )
         return lines
 
@@ -629,16 +639,20 @@ class _DotRenderer:
         lines: list[str] = []
         for hyperedge in self._spec.hyperedges:
             lines.append(
-                f'  {_dot_string(hyperedge.id)} [label={_dot_string(hyperedge.name)}, shape="point"];'
+                f"  {_dot_string(hyperedge.id)} "
+                f'[label={_dot_string(_dot_hyperedge_label(hyperedge, self._options))}, shape="point"];'
             )
             for endpoint in hyperedge.endpoints:
                 endpoint_entry = self._index_by_id.get(endpoint.index_id)
                 if endpoint_entry is None:
                     continue
                 tensor, index = endpoint_entry
+                edge_attributes = _dot_attributes(
+                    label=_dot_hyperedge_endpoint_label(index, self._options)
+                )
                 lines.append(
-                    f"  {_dot_string(tensor.id)} -- {_dot_string(hyperedge.id)} "
-                    f"[label={_dot_string(f'{index.name}={index.dimension}')}];"
+                    f"  {_dot_string(tensor.id)} -- {_dot_string(hyperedge.id)}"
+                    f"{edge_attributes};"
                 )
         return lines
 
@@ -1036,9 +1050,51 @@ def _dot_cluster_id(group_id: str) -> str:
     return f"cluster_{_safe_identifier(group_id)}"
 
 
-def _dot_edge_label(edge: EdgeSpec, left_index: IndexSpec) -> str:
-    index_label = f"{left_index.name}={left_index.dimension}"
-    return f"{edge.name} / {index_label}" if edge.name else index_label
+def _dot_tensor_label(tensor: TensorSpec, options: DotRenderOptions) -> str:
+    return tensor.name if options.show_tensor_labels else ""
+
+
+def _dot_index_label(index: IndexSpec, options: DotRenderOptions) -> str:
+    if not options.show_index_labels:
+        return ""
+    return f"{index.name} ({index.dimension})"
+
+
+def _dot_edge_label(
+    edge: EdgeSpec,
+    left_index: IndexSpec,
+    options: DotRenderOptions,
+) -> str:
+    labels: list[str] = []
+    if options.show_edge_labels and edge.name:
+        labels.append(edge.name)
+    if options.show_index_labels:
+        labels.append(f"{left_index.name}={left_index.dimension}")
+    return " / ".join(labels)
+
+
+def _dot_hyperedge_label(
+    hyperedge: HyperedgeSpec,
+    options: DotRenderOptions,
+) -> str:
+    if not options.show_edge_labels:
+        return ""
+    return hyperedge.name
+
+
+def _dot_hyperedge_endpoint_label(
+    index: IndexSpec,
+    options: DotRenderOptions,
+) -> str:
+    if not options.show_index_labels:
+        return ""
+    return f"{index.name}={index.dimension}"
+
+
+def _dot_attributes(*, label: str) -> str:
+    if not label:
+        return ""
+    return f" [label={_dot_string(label)}]"
 
 
 def _connected_index_ids(spec: NetworkSpec) -> set[str]:

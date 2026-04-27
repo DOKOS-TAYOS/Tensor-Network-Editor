@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 - The browser editor's File menu can now export the current canvas directly as
   TikZ/LaTeX (`.tex`) or Graphviz/DOT (`.dot`) using the same academic
   renderers.
+- TikZ/LaTeX and Graphviz/DOT renders now draw tensors as circles and let users
+  independently show or hide tensor, index, and bond names.
 - `tensor-network-editor doctor` now adds more actionable suggestions for
   suspicious model structure, available backend choices, incomplete manual
   plans, and manual paths that are clearly more expensive than `auto_full`.

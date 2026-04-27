@@ -23,10 +23,19 @@ export function createEditorSessionService({ apiGet, apiPost }) {
     generateCode(request) {
       return apiPost("/api/generate", buildCodegenPayload(request));
     },
-    renderSpec({ format, spec }) {
+    renderSpec({
+      format,
+      spec,
+      showTensorNames = true,
+      showIndexNames = true,
+      showBondNames = true,
+    }) {
       return apiPost("/api/render", {
         format,
         spec,
+        show_tensor_names: showTensorNames,
+        show_index_names: showIndexNames,
+        show_bond_names: showBondNames,
       });
     },
     completeSession(request) {

@@ -24,6 +24,11 @@ export function createInitialState() {
     availableCollectionFormats: [],
     selectedEngine: null,
     selectedCollectionFormat: null,
+    academicExportLabels: {
+      tensor: true,
+      index: true,
+      bond: true,
+    },
     selectedElement: null,
     selectionIds: [],
     primarySelectionId: null,

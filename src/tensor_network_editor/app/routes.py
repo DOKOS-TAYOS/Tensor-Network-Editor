@@ -15,7 +15,12 @@ from ..errors import (
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io import deserialize_spec, serialize_spec
 from ..models import CodegenResult, EditorResult
-from ..rendering import render_spec_dot, render_spec_tikz
+from ..rendering import (
+    DotRenderOptions,
+    TikzRenderOptions,
+    render_spec_dot,
+    render_spec_tikz,
+)
 from ..types import JSONValue
 from ..validation import validate_spec
 from ._drafts import clear_project_draft, load_project_draft, save_project_draft
@@ -36,6 +41,7 @@ from ._protocol import (
     parse_template_delete_request,
     parse_template_promote_request,
     parse_template_rename_request,
+    require_boolean,
     require_serialized_spec,
     serialize_codegen_result,
     serialize_editor_result,
@@ -184,10 +190,36 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
         serialized_spec = require_serialized_spec(payload)
         spec = deserialize_spec(serialized_spec, validate=False)
         if render_format == "tikz":
-            text = render_spec_tikz(spec)
+            text = render_spec_tikz(
+                spec,
+                options=TikzRenderOptions(
+                    show_tensor_labels=require_boolean(
+                        payload, "show_tensor_names", default=True
+                    ),
+                    show_index_labels=require_boolean(
+                        payload, "show_index_names", default=True
+                    ),
+                    show_edge_labels=require_boolean(
+                        payload, "show_bond_names", default=True
+                    ),
+                ),
+            )
             content_type = "text/x-tex;charset=utf-8"
         else:
-            text = render_spec_dot(spec)
+            text = render_spec_dot(
+                spec,
+                options=DotRenderOptions(
+                    show_tensor_labels=require_boolean(
+                        payload, "show_tensor_names", default=True
+                    ),
+                    show_index_labels=require_boolean(
+                        payload, "show_index_names", default=True
+                    ),
+                    show_edge_labels=require_boolean(
+                        payload, "show_bond_names", default=True
+                    ),
+                ),
+            )
             content_type = "text/vnd.graphviz;charset=utf-8"
     except ValueError as exc:
         return bad_request_response(str(exc))

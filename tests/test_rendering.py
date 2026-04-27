@@ -54,6 +54,7 @@ def test_render_spec_tikz_returns_tikzpicture_for_normal_network() -> None:
     tikz = render_spec_tikz(build_sample_spec())
 
     assert tikz.startswith(r"\begin{tikzpicture}")
+    assert r"tne tensor/.style={draw, circle" in tikz
     assert r"\node[tne tensor," in tikz
     assert "(tensor_tensor_a)" in tikz
     assert r"\node[tne index] (index_tensor_a_i)" in tikz
@@ -76,7 +77,7 @@ def test_render_spec_dot_returns_graphviz_graph_for_normal_network() -> None:
     dot = render_spec_dot(build_sample_spec())
 
     assert dot.startswith('graph "demo" {')
-    assert '"tensor_a" [label="A", shape="box"]' in dot
+    assert '"tensor_a" [label="A", shape="circle"]' in dot
     assert '"open_tensor_a_i" [label="i (2)", shape="circle"]' in dot
     assert '"tensor_a" -- "tensor_b" [label="bond_x / x=3"]' in dot
     assert "subgraph cluster_group_demo" in dot
@@ -108,6 +109,56 @@ def test_academic_renderers_include_hyperedges_and_open_indices() -> None:
     assert '"open_tensor_a_i" [label="i (2)", shape="circle"]' in dot
 
 
+def test_academic_renderers_can_hide_tensor_index_and_bond_labels() -> None:
+    spec = build_sample_spec()
+
+    tikz = render_spec_tikz(
+        spec,
+        options=TikzRenderOptions(
+            show_tensor_labels=False,
+            show_index_labels=False,
+            show_edge_labels=False,
+        ),
+    )
+    dot = render_spec_dot(
+        spec,
+        options=DotRenderOptions(
+            show_tensor_labels=False,
+            show_index_labels=False,
+            show_edge_labels=False,
+        ),
+    )
+
+    assert r"\node[tne tensor, minimum size=" in tikz
+    assert r"\node[tne index label]" not in tikz
+    assert r"bond\_x" not in tikz
+    assert r"{A}" not in tikz
+    assert r"{B}" not in tikz
+    assert '"tensor_a" [label="", shape="circle"]' in dot
+    assert '"open_tensor_a_i" [label="", shape="circle"]' in dot
+    assert '"tensor_a" -- "tensor_b";' in dot
+    assert "bond_x" not in dot
+    assert "x=3" not in dot
+
+
+def test_dot_renderer_keeps_index_and_bond_labels_separately_optional() -> None:
+    spec = build_sample_spec()
+
+    only_index_labels = render_spec_dot(
+        spec,
+        options=DotRenderOptions(show_edge_labels=False),
+    )
+    only_bond_labels = render_spec_dot(
+        spec,
+        options=DotRenderOptions(show_index_labels=False),
+    )
+
+    assert '"tensor_a" -- "tensor_b" [label="x=3"]' in only_index_labels
+    assert "bond_x / x=3" not in only_index_labels
+    assert '"tensor_a" -- "tensor_b" [label="bond_x"]' in only_bond_labels
+    assert "bond_x / x=3" not in only_bond_labels
+
+
 def test_academic_renderers_escape_labels_conservatively() -> None:
     spec = build_sample_spec()
     spec.name = 'demo_100% & "quote"\nline'
@@ -124,7 +175,7 @@ def test_academic_renderers_escape_labels_conservatively() -> None:
     assert r"bond\_\%\&" in tikz
     assert "note ``quoted'' second line" in tikz
     assert 'graph "demo_100% & \\"quote\\"\\nline"' in dot
-    assert '"tensor_a" [label="A_%&", shape="box"]' in dot
+    assert '"tensor_a" [label="A_%&", shape="circle"]' in dot
     assert '"note_demo" [label="note \\"quoted\\"\\nsecond line", shape="note"]' in dot
 
 

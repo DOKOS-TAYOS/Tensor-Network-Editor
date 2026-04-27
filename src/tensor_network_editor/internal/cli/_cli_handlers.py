@@ -12,6 +12,7 @@ from ...editor import EditorLaunchOptions
 from ...errors import SerializationError
 from ...io import PythonLoadOptions
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
+from ...rendering import DotRenderOptions, TikzRenderOptions
 from ...types import JSONValue, StrPath
 from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
@@ -229,10 +230,26 @@ def handle_render_command(
         print(f"Wrote PNG rendering to {args.output}")
         return 0
     if args.format == "tikz":
-        text = render_spec_tikz(spec, output_path=args.output)
+        text = render_spec_tikz(
+            spec,
+            options=TikzRenderOptions(
+                show_tensor_labels=args.show_tensor_names,
+                show_index_labels=args.show_index_names,
+                show_edge_labels=args.show_bond_names,
+            ),
+            output_path=args.output,
+        )
         output_label = "TikZ"
     elif args.format == "dot":
-        text = render_spec_dot(spec, output_path=args.output)
+        text = render_spec_dot(
+            spec,
+            options=DotRenderOptions(
+                show_tensor_labels=args.show_tensor_names,
+                show_index_labels=args.show_index_names,
+                show_edge_labels=args.show_bond_names,
+            ),
+            output_path=args.output,
+        )
         output_label = "Graphviz/DOT"
     else:
         text = render_spec_svg(spec, output_path=args.output)

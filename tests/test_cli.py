@@ -41,6 +41,7 @@ from tensor_network_editor.models import (
     SpecDiffResult,
     ValidationIssue,
 )
+from tensor_network_editor.rendering import DotRenderOptions, TikzRenderOptions
 from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -920,6 +921,39 @@ def test_render_subcommand_writes_tikz_output(sample_spec: NetworkSpec) -> None:
     assert render_mock.call_args.kwargs["output_path"] == "figure.tex"
 
 
+def test_render_subcommand_passes_tikz_label_options(
+    sample_spec: NetworkSpec,
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_tikz",
+            return_value=r"\begin{tikzpicture}\end{tikzpicture}",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "tikz",
+                "--hide-tensor-names",
+                "--hide-index-names",
+                "--hide-bond-names",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    options = render_mock.call_args.kwargs["options"]
+    assert isinstance(options, TikzRenderOptions)
+    assert options.show_tensor_labels is False
+    assert options.show_index_labels is False
+    assert options.show_edge_labels is False
+
+
 def test_render_subcommand_writes_dot_output(sample_spec: NetworkSpec) -> None:
     with (
         patch(
@@ -946,6 +980,37 @@ def test_render_subcommand_writes_dot_output(sample_spec: NetworkSpec) -> None:
     render_mock.assert_called_once()
     assert render_mock.call_args.args == (sample_spec,)
     assert render_mock.call_args.kwargs["output_path"] == "graph.dot"
+
+
+def test_render_subcommand_passes_dot_label_options(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_dot",
+            return_value='graph "network_demo" {}',
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "dot",
+                "--hide-tensor-names",
+                "--hide-index-names",
+                "--hide-bond-names",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    options = render_mock.call_args.kwargs["options"]
+    assert isinstance(options, DotRenderOptions)
+    assert options.show_tensor_labels is False
+    assert options.show_index_labels is False
+    assert options.show_edge_labels is False
 
 
 def test_render_subcommand_rejects_png_without_output(

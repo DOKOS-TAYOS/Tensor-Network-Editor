@@ -196,6 +196,48 @@ def test_render_route_returns_academic_text_exports(
     assert '"tensor_a" -- "tensor_b" [label="bond_x / x=3"]' in dot_payload["text"]
 
 
+def test_render_route_applies_academic_label_options(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    tikz_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={
+            "format": "tikz",
+            "spec": serialized_spec,
+            "show_tensor_names": False,
+            "show_index_names": False,
+            "show_bond_names": False,
+        },
+    )
+    dot_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={
+            "format": "dot",
+            "spec": serialized_spec,
+            "show_tensor_names": False,
+            "show_index_names": False,
+            "show_bond_names": False,
+        },
+    )
+
+    assert r"{A}" not in tikz_payload["text"]
+    assert r"\node[tne index label]" not in tikz_payload["text"]
+    assert r"bond\_x" not in tikz_payload["text"]
+    assert '"tensor_a" [label="", shape="circle"]' in dot_payload["text"]
+    assert '"open_tensor_a_i" [label="", shape="circle"]' in dot_payload["text"]
+    assert '"tensor_a" -- "tensor_b";' in dot_payload["text"]
+    assert "bond_x" not in dot_payload["text"]
+    assert "x=3" not in dot_payload["text"]
+
+
 def test_render_route_rejects_unsupported_academic_format(
     editor_server: EditorServer,
 ) -> None:

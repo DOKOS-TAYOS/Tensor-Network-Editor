@@ -195,6 +195,10 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert 'id="export-svg-menu-item"' in html
     assert 'id="export-tikz-menu-item"' in html
     assert 'id="export-dot-menu-item"' in html
+    assert 'id="export-show-tensor-names-menu-item"' in html
+    assert 'id="export-show-index-names-menu-item"' in html
+    assert 'id="export-show-bond-names-menu-item"' in html
+    assert 'role="menuitemcheckbox"' in html
     assert '<option value="tikz">TikZ/LaTeX</option>' in html
     assert '<option value="dot">Graphviz/DOT</option>' in html
     assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
@@ -1950,6 +1954,9 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
         f"{editor_server.base_url}/js/shell/editorShellBindings.js"
     )
     dom_body = request_text(f"{editor_server.base_url}/js/core/dom.js")
+    request_body = request_text(
+        f"{editor_server.base_url}/js/services/editorSessionService.js"
+    )
     interactions_body = request_interactions_runtime_bundle(editor_server)
     utilities_body = request_utilities_runtime_bundle(editor_server)
 
@@ -2010,6 +2017,9 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert "async function downloadSelectedExport()" in interactions_body
     assert "async function downloadExportAs(format)" in interactions_body
     assert "async function downloadAcademicExport(format)" in interactions_body
+    assert "showTensorNames: state.academicExportLabels.tensor" in interactions_body
+    assert "showIndexNames: state.academicExportLabels.index" in interactions_body
+    assert "showBondNames: state.academicExportLabels.bond" in interactions_body
     assert 'case "tikz":' in interactions_body
     assert 'case "dot":' in interactions_body
     assert "await downloadAcademicExport(" in interactions_body
@@ -2020,6 +2030,12 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert "exportSvgMenuItem.disabled =" in utilities_body
     assert "exportTikzMenuItem.disabled =" in utilities_body
     assert "exportDotMenuItem.disabled =" in utilities_body
+    assert "syncAcademicExportLabelMenuItem(" in utilities_body
+    assert "exportShowTensorNamesMenuItem" in shell_bindings_body
+    assert "toggleAcademicExportLabel(" in shell_bindings_body
+    assert "show_tensor_names: showTensorNames" in request_body
+    assert "show_index_names: showIndexNames" in request_body
+    assert "show_bond_names: showBondNames" in request_body
 
 
 def test_template_insertion_assets_refresh_lookups_and_anchor_new_contract_operands(

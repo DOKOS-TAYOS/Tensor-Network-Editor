@@ -329,6 +329,9 @@ export function createSessionEditorFlows({
       const payload = await sessionService.renderSpec({
         format,
         spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
+        showTensorNames: state.academicExportLabels.tensor,
+        showIndexNames: state.academicExportLabels.index,
+        showBondNames: state.academicExportLabels.bond,
       });
       if (!payload.ok) {
         actions.setStatus(
