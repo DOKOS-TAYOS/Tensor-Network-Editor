@@ -743,8 +743,34 @@ select {
   z-index: 220;
 }
 
+.toolbar-menu-panel.has-submenu {
+  overflow: visible;
+}
+
 .toolbar-menu-panel[hidden] {
   display: none;
+}
+
+.toolbar-menu-submenu {
+  position: relative;
+}
+
+.toolbar-menu-submenu-trigger .toolbar-menu-submenu-arrow {
+  display: inline-flex;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.toolbar-submenu-panel {
+  position: absolute;
+  top: -0.3rem;
+  left: calc(100% + 0.35rem);
+  min-width: 13.5rem;
+  max-width: min(calc(100vw - 1rem), 20rem);
+  max-height: min(70dvh, calc(100dvh - var(--toolbar-menu-top, 0px) - 0.75rem));
+  overflow: auto;
+  z-index: 230;
 }
 
 .toolbar-menu-item {

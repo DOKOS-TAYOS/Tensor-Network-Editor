@@ -32,7 +32,7 @@
                 >
                   File
                 </button>
-                <div id="file-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                <div id="file-menu-panel" class="toolbar-menu-panel cursor-menu-panel has-submenu" role="menu" hidden>
                   <button
                     id="new-design-button"
                     class="toolbar-menu-item"
@@ -75,86 +75,114 @@
                     </span>
                   </button>
                   <div class="toolbar-menu-separator" role="separator"></div>
-                  <button
-                    id="export-python-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the current design as a Python script."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export to .py</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
+                  <div id="export-submenu-shell" class="toolbar-menu-submenu">
+                    <button
+                      id="export-menu-item"
+                      class="toolbar-menu-item toolbar-menu-submenu-trigger"
+                      type="button"
+                      role="menuitem"
+                      aria-haspopup="menu"
+                      aria-expanded="false"
+                      title="Choose an export format."
+                    >
+                      <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                      <span class="toolbar-menu-item-content">
+                        <span class="toolbar-menu-item-header">
+                          <span class="toolbar-menu-item-label">Export</span>
+                          <span class="toolbar-menu-item-shortcut toolbar-menu-submenu-arrow" aria-hidden="true">&rsaquo;</span>
+                        </span>
+                        <span class="toolbar-menu-item-description">Choose an export format.</span>
                       </span>
-                      <span class="toolbar-menu-item-description">Generate a Python script from the current design.</span>
-                    </span>
-                  </button>
-                  <button
-                    id="export-png-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the current design as a PNG image."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export to .png</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
-                      </span>
-                      <span class="toolbar-menu-item-description">Save the canvas as a PNG image.</span>
-                    </span>
-                  </button>
-                  <button
-                    id="export-svg-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the current design as an SVG image."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export to .svg</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
-                      </span>
-                      <span class="toolbar-menu-item-description">Save the canvas as an SVG image.</span>
-                    </span>
-                  </button>
-                  <button
-                    id="export-tikz-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the current design as a TikZ/LaTeX figure."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export to .tex</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
-                      </span>
-                      <span class="toolbar-menu-item-description">Save the current design as a TikZ/LaTeX figure.</span>
-                    </span>
-                  </button>
-                  <button
-                    id="export-dot-menu-item"
-                    class="toolbar-menu-item"
-                    type="button"
-                    role="menuitem"
-                    title="Export the current design as a Graphviz/DOT graph."
-                  >
-                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
-                    <span class="toolbar-menu-item-content">
-                      <span class="toolbar-menu-item-header">
-                        <span class="toolbar-menu-item-label">Export to .dot</span>
-                        <span class="toolbar-menu-item-shortcut"></span>
-                      </span>
-                      <span class="toolbar-menu-item-description">Save the current design as a Graphviz/DOT graph.</span>
-                    </span>
-                  </button>
+                    </button>
+                    <div
+                      id="export-submenu-panel"
+                      class="toolbar-menu-panel toolbar-submenu-panel"
+                      role="menu"
+                      hidden
+                    >
+                      <button
+                        id="export-python-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as a Python script."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .py</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Generate a Python script from the current design.</span>
+                        </span>
+                      </button>
+                      <button
+                        id="export-png-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as a PNG image."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .png</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Save the canvas as a PNG image.</span>
+                        </span>
+                      </button>
+                      <button
+                        id="export-svg-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as an SVG image."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .svg</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Save the canvas as an SVG image.</span>
+                        </span>
+                      </button>
+                      <button
+                        id="export-tikz-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as a TikZ/LaTeX figure."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .tex</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Save the current design as a TikZ/LaTeX figure.</span>
+                        </span>
+                      </button>
+                      <button
+                        id="export-dot-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as a Graphviz/DOT graph."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .dot</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Save the current design as a Graphviz/DOT graph.</span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="toolbar-menu-separator" role="separator"></div>
                   <button
                     id="export-show-tensor-names-menu-item"
                     class="toolbar-menu-item is-checked"

@@ -14,6 +14,8 @@ export function createUtilityUiPanelsSupport({
     templatesMenuPanel,
     helpMenuButton,
     helpMenuPanel,
+    exportMenuItem,
+    exportSubmenuPanel,
     templateSettingsButton,
     templateSettingsPopover,
     reflowLayoutPopover,
@@ -94,6 +96,16 @@ export function createUtilityUiPanelsSupport({
       setExpandedState(elements.button, isOpen);
       toggleElementClass(elements.button, "is-active", isOpen);
     });
+    const isExportSubmenuOpen =
+      openToolbarMenu === "file" &&
+      state.openToolbarSubmenu === "export" &&
+      exportMenuItem &&
+      !exportMenuItem.disabled;
+    if (exportSubmenuPanel) {
+      exportSubmenuPanel.hidden = !isExportSubmenuOpen;
+    }
+    setExpandedState(exportMenuItem, isExportSubmenuOpen);
+    toggleElementClass(exportMenuItem, "is-active", isExportSubmenuOpen);
     const isTemplateSettingsOpen =
       Boolean(state.isTemplateSettingsOpen)
       && templateSettingsButton
@@ -140,6 +152,7 @@ export function createUtilityUiPanelsSupport({
       return false;
     }
     state.openToolbarMenu = null;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
@@ -151,6 +164,7 @@ export function createUtilityUiPanelsSupport({
       return state.openToolbarMenu;
     }
     state.openToolbarMenu = menuName;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
@@ -162,10 +176,39 @@ export function createUtilityUiPanelsSupport({
       return state.openToolbarMenu;
     }
     state.openToolbarMenu = state.openToolbarMenu === menuName ? null : menuName;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return state.openToolbarMenu;
+  }
+
+  function openToolbarSubmenu(submenuName) {
+    if (!state.openToolbarMenu || !submenuName) {
+      return state.openToolbarSubmenu;
+    }
+    state.openToolbarSubmenu = submenuName;
+    syncToolbarTransientUi();
+    return state.openToolbarSubmenu;
+  }
+
+  function closeToolbarSubmenu(submenuName = null) {
+    if (submenuName && state.openToolbarSubmenu !== submenuName) {
+      return state.openToolbarSubmenu;
+    }
+    state.openToolbarSubmenu = null;
+    syncToolbarTransientUi();
+    return state.openToolbarSubmenu;
+  }
+
+  function toggleToolbarSubmenu(submenuName) {
+    if (!state.openToolbarMenu || !submenuName) {
+      return state.openToolbarSubmenu;
+    }
+    state.openToolbarSubmenu =
+      state.openToolbarSubmenu === submenuName ? null : submenuName;
+    syncToolbarTransientUi();
+    return state.openToolbarSubmenu;
   }
 
   function toggleTemplateSettingsPopover() {
@@ -174,6 +217,7 @@ export function createUtilityUiPanelsSupport({
     }
     state.isTemplateSettingsOpen = !state.isTemplateSettingsOpen;
     state.openToolbarMenu = null;
+    state.openToolbarSubmenu = null;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
     return state.isTemplateSettingsOpen;
@@ -185,6 +229,7 @@ export function createUtilityUiPanelsSupport({
     }
     state.isReflowLayoutOpen = !state.isReflowLayoutOpen;
     state.openToolbarMenu = null;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     syncToolbarTransientUi();
     return state.isReflowLayoutOpen;
@@ -274,6 +319,7 @@ export function createUtilityUiPanelsSupport({
     state.activeHelpSection = HELP_SECTION_CONTENT[section] ? section : "info";
     state.isHelpOpen = true;
     state.openToolbarMenu = null;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();
@@ -358,6 +404,9 @@ export function createUtilityUiPanelsSupport({
     syncToolbarTransientUi,
     closeTransientToolbarUi,
     openToolbarMenu,
+    openToolbarSubmenu,
+    closeToolbarSubmenu,
+    toggleToolbarSubmenu,
     toggleToolbarMenu,
     toggleTemplateSettingsPopover,
     toggleReflowLayoutPopover,

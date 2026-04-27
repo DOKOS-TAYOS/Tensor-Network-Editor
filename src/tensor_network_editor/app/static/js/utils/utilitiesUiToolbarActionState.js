@@ -10,6 +10,7 @@ export function createUiToolbarActionStateSupport({
   const {
     undoButton,
     redoButton,
+    exportMenuItem,
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
@@ -81,6 +82,9 @@ export function createUiToolbarActionStateSupport({
     }
     if (generateButton) {
       generateButton.disabled = !state.spec || !state.selectedEngine;
+    }
+    if (exportMenuItem) {
+      exportMenuItem.disabled = !state.spec;
     }
     if (exportPythonMenuItem) {
       exportPythonMenuItem.disabled = !state.spec || !state.selectedEngine;

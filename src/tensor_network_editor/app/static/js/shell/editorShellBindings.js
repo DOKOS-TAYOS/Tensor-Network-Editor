@@ -27,6 +27,9 @@ export function createEditorShellBindings({
     templateLoadInput,
     undoButton,
     redoButton,
+    exportMenuItem,
+    exportSubmenuShell,
+    exportSubmenuPanel,
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
@@ -158,6 +161,8 @@ export function createEditorShellBindings({
   function isWithinTransientToolbarUi(target) {
     return [
       ...toolbarMenus.flatMap((menu) => [menu.button, menu.panel]),
+      exportSubmenuShell,
+      exportSubmenuPanel,
       templateSettingsButton,
       templateSettingsPopover,
       reflowImportedButton,
@@ -320,6 +325,7 @@ export function createEditorShellBindings({
     if (typeof shortcutTooltip.applyTitleHint === "function") {
       [
         "new-design-button",
+        "export-menu-item",
         "export-python-menu-item",
         "export-png-menu-item",
         "export-svg-menu-item",
@@ -482,6 +488,31 @@ export function createEditorShellBindings({
     bindListener(exportDotMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("dot");
+    });
+    bindListener(exportMenuItem, "mouseenter", () => {
+      if (typeof actions.openToolbarSubmenu === "function") {
+        actions.openToolbarSubmenu("export");
+      }
+    });
+    bindListener(exportMenuItem, "focus", () => {
+      if (typeof actions.openToolbarSubmenu === "function") {
+        actions.openToolbarSubmenu("export");
+      }
+    });
+    bindListener(exportMenuItem, "click", () => {
+      if (typeof actions.openToolbarSubmenu === "function") {
+        actions.openToolbarSubmenu("export");
+      }
+    });
+    bindListener(exportSubmenuPanel, "mouseenter", () => {
+      if (typeof actions.openToolbarSubmenu === "function") {
+        actions.openToolbarSubmenu("export");
+      }
+    });
+    bindListener(exportSubmenuShell, "mouseleave", () => {
+      if (typeof actions.closeToolbarSubmenu === "function") {
+        actions.closeToolbarSubmenu("export");
+      }
     });
     bindListener(exportShowTensorNamesMenuItem, "click", () => {
       toggleAcademicExportLabel("tensor");

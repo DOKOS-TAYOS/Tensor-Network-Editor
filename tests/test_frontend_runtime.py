@@ -5425,6 +5425,185 @@ def _write_multi_index_dimension_batch_runtime_regression_script(
               13,
               "The multi-index context menu"
             );
+
+            ctx.state.spec = ctx.normalizeSpec(buildSpec());
+            ctx.bumpSpecRevision();
+            const twoSelectedIndexIds = ["tensor_a_left", "tensor_b_left"];
+            ctx.setSelection(twoSelectedIndexIds, { primaryId: "tensor_b_left" });
+            ctx.openCanvasContextMenu({
+              kind: "index",
+              id: "tensor_b_left",
+              clientX: 120,
+              clientY: 160,
+            });
+
+            const twoIndexMenuHtml = ctx.dom.canvasContextMenuRoot.innerHTML;
+            if (!twoIndexMenuHtml.includes("context-menu-selection-dimension-input")) {
+              throw new Error(
+                `Expected exactly two selected indices to keep the multi-index context menu, received ${twoIndexMenuHtml}.`
+              );
+            }
+            if (
+              !/id="context-menu-create-hyperedge-button"[^>]*disabled/.test(
+                twoIndexMenuHtml
+              )
+            ) {
+              throw new Error(
+                `Expected the two-index context menu to expose a disabled hyperedge button, received ${twoIndexMenuHtml}.`
+              );
+            }
+            const twoIndexDimensionInput = document.getElementById(
+              "context-menu-selection-dimension-input"
+            );
+            if (!twoIndexDimensionInput) {
+              throw new Error(
+                "Expected the two-index context menu shared dimension input to be registered."
+              );
+            }
+            twoIndexDimensionInput.value = "17";
+            twoIndexDimensionInput.dispatchEvent("blur");
+            assertDimensions(
+              ctx,
+              twoSelectedIndexIds,
+              17,
+              "The two-index context menu"
+            );
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+def _write_port_layering_runtime_regression_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "port_layering_runtime_regression.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const graphModelUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "views" / "graphElementModel.js")!r}).href;
+            const graphModelModule = await import(graphModelUrl);
+            const {{ createGraphElementModelBuilder }} = graphModelModule;
+
+            const state = {{
+              pendingIndexId: null,
+              pendingPlannerSelectionId: null,
+              selectionIds: [],
+              spec: {{
+                tensors: [
+                  {{
+                    id: "tensor_back",
+                    name: "Back",
+                    position: {{ x: 100, y: 100 }},
+                    size: {{ width: 140, height: 84 }},
+                    indices: [
+                      {{
+                        id: "back_open",
+                        name: "open",
+                        dimension: 2,
+                        offset: {{ x: 40, y: 0 }},
+                        metadata: {{}},
+                      }},
+                      {{
+                        id: "back_connected",
+                        name: "connected",
+                        dimension: 2,
+                        offset: {{ x: -40, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                    metadata: {{}},
+                  }},
+                  {{
+                    id: "tensor_front",
+                    name: "Front",
+                    position: {{ x: 130, y: 100 }},
+                    size: {{ width: 140, height: 84 }},
+                    indices: [
+                      {{
+                        id: "front_connected",
+                        name: "connected",
+                        dimension: 2,
+                        offset: {{ x: 40, y: 0 }},
+                        metadata: {{}},
+                      }},
+                    ],
+                    metadata: {{}},
+                  }},
+                ],
+                edges: [
+                  {{
+                    id: "edge_shared",
+                    left: {{ index_id: "back_connected" }},
+                    right: {{ index_id: "front_connected" }},
+                    metadata: {{}},
+                  }},
+                ],
+                hyperedges: [],
+              }},
+            }};
+
+            const builder = createGraphElementModelBuilder({{
+              state,
+              buildContractionScene: () => null,
+              ensureTensorIndexOffsets: () => {{}},
+              findIndexOwner: (indexId) => {{
+                for (const tensor of state.spec.tensors) {{
+                  const index = tensor.indices.find((candidate) => candidate.id === indexId);
+                  if (index) {{
+                    return {{ tensor, index }};
+                  }}
+                }}
+                return null;
+              }},
+              findTensorById: (tensorId) =>
+                state.spec.tensors.find((tensor) => tensor.id === tensorId) || null,
+              getIndexColor: () => "#456cbf",
+              getMetadataColor: (metadata, fallbackColor) => fallbackColor,
+              getMetadataFilterEntityState: () => "",
+              getMetadataFilterHighlight: () => null,
+              getHyperedgeHubPosition: () => null,
+              hyperedgeHubNodeId: (hyperedgeId) => `hyperedge-hub:${{hyperedgeId}}`,
+              hyperedgeSpokeEdgeId: (hyperedgeId, endpointPosition) =>
+                `hyperedge-spoke:${{hyperedgeId}}:${{endpointPosition}}`,
+              indexAbsolutePosition: (tensor, index) => ({{
+                x: tensor.position.x + index.offset.x,
+                y: tensor.position.y + index.offset.y,
+              }}),
+              indexLabelNodeId: (indexId) => `${{indexId}}__label`,
+              indexLabelPosition: (position) => position,
+              isInspectingPastStage: () => false,
+              readableTextColor: () => "#111111",
+              shiftColor: (color) => color,
+              tensorHeight: (tensor) => tensor.size.height,
+              tensorLayerRank: (tensorId) => (tensorId === "tensor_front" ? 1 : 0),
+              tensorWidth: (tensor) => tensor.size.width,
+              zIndexes: {{
+                edge: 100,
+                indexLabel: 230,
+                port: 200,
+                tensor: 10,
+              }},
+            }});
+
+            const model = builder();
+            const zIndexFor = (elementId) => model.descriptorsById[elementId].data.zIndex;
+            const frontTensorZIndex = zIndexFor("tensor_front");
+
+            if (!(zIndexFor("tensor_back") < zIndexFor("back_open"))) {{
+              throw new Error("An open port should still sit above its owning tensor.");
+            }}
+            if (!(zIndexFor("back_open") < frontTensorZIndex)) {{
+              throw new Error(
+                `An open port from a rear tensor should not cover a front tensor: open=${{zIndexFor("back_open")}}, front=${{frontTensorZIndex}}.`
+              );
+            }}
+            if (!(zIndexFor("back_connected") > frontTensorZIndex)) {{
+              throw new Error(
+                `A connected port should stay above tensors so connections remain visible: connected=${{zIndexFor("back_connected")}}, front=${{frontTensorZIndex}}.`
+              );
+            }}
             """
         ),
         encoding="utf-8",
@@ -9953,6 +10132,26 @@ def test_multi_index_dimension_edits_apply_from_selection_and_context_menu(
 
     assert completed_process.returncode == 0, (
         "The multi-index dimension batch-edit runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_graph_model_layers_open_ports_below_front_tensors(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_port_layering_runtime_regression_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The port layering runtime regression script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

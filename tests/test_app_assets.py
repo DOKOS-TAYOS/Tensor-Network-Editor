@@ -3208,10 +3208,17 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
         'tensorElement.data("zIndex", TENSOR_BASE_Z_INDEX + tensorRank);'
         in utilities_body
     )
+    assert "function getLayeredPortZIndex(" in utilities_body
+    assert "function getLayeredIndexLabelZIndex(" in utilities_body
     assert (
-        'indexElement.data("zIndex", PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition);'
+        "return TENSOR_BASE_Z_INDEX + tensorRank + 0.2 + indexPosition / 1000;"
         in utilities_body
     )
+    assert (
+        "return PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition;" in utilities_body
+    )
+    assert "getLayeredPortZIndex(index.id, indexPosition, tensorRank)" in utilities_body
+    assert "getLayeredPortZIndex(" in graph_model_body
     assert 'edgeElement.data("zIndex", EDGE_Z_INDEX);' in utilities_body
 
 

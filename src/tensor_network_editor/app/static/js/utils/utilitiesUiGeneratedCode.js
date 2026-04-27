@@ -69,6 +69,7 @@ export function createUtilityUiGeneratedCodeSupport({
       typeof forceOpen === "boolean" ? forceOpen : !state.isGeneratedCodeModalOpen;
     state.isGeneratedCodeModalOpen = hasGeneratedCode ? nextOpen : false;
     state.openToolbarMenu = null;
+    state.openToolbarSubmenu = null;
     state.isTemplateSettingsOpen = false;
     state.isReflowLayoutOpen = false;
     syncToolbarTransientUi();

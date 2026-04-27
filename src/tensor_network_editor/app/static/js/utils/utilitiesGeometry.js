@@ -18,6 +18,41 @@ export function createUtilityGeometryBindings({
   const PORT_BASE_Z_INDEX = 200;
   const INDEX_LABEL_BASE_Z_INDEX = 230;
 
+  function isIndexConnected(indexId) {
+    if (typeof runtime.findConnectionByIndexId === "function") {
+      return Boolean(runtime.findConnectionByIndexId(indexId));
+    }
+    if (typeof runtime.findEdgeByIndexId === "function" && runtime.findEdgeByIndexId(indexId)) {
+      return true;
+    }
+    return Boolean(
+      typeof runtime.findHyperedgeByIndexId === "function" &&
+        runtime.findHyperedgeByIndexId(indexId)
+    );
+  }
+
+  function isIndexElevated(indexId) {
+    return Boolean(
+      isIndexConnected(indexId) ||
+        state.pendingIndexId === indexId ||
+        (Array.isArray(state.selectionIds) && state.selectionIds.includes(indexId))
+    );
+  }
+
+  function getLayeredPortZIndex(indexId, indexPosition, tensorRank) {
+    if (isIndexElevated(indexId)) {
+      return PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition;
+    }
+    return TENSOR_BASE_Z_INDEX + tensorRank + 0.2 + indexPosition / 1000;
+  }
+
+  function getLayeredIndexLabelZIndex(indexId, indexPosition, tensorRank) {
+    if (isIndexElevated(indexId)) {
+      return INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition;
+    }
+    return TENSOR_BASE_Z_INDEX + tensorRank + 0.24 + indexPosition / 1000;
+  }
+
   function tensorWidth(tensor) {
     return Math.max(
       MIN_TENSOR_WIDTH,
@@ -455,11 +490,17 @@ export function createUtilityGeometryBindings({
       tensor.indices.forEach((index, indexPosition) => {
         const indexElement = state.cy.getElementById(index.id);
         if (indexElement && indexElement.length) {
-          indexElement.data("zIndex", PORT_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
+          indexElement.data(
+            "zIndex",
+            getLayeredPortZIndex(index.id, indexPosition, tensorRank)
+          );
         }
         const labelElement = state.cy.getElementById(runtime.indexLabelNodeId(index.id));
         if (labelElement && labelElement.length) {
-          labelElement.data("zIndex", INDEX_LABEL_BASE_Z_INDEX + tensorRank * 10 + indexPosition);
+          labelElement.data(
+            "zIndex",
+            getLayeredIndexLabelZIndex(index.id, indexPosition, tensorRank)
+          );
         }
       });
     });

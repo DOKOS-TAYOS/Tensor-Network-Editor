@@ -90,6 +90,10 @@ All notable changes to this project will be documented in this file.
 
 - Third-party bundled-asset notices now describe Cytoscape.js and PrismJS notice
   handling more accurately.
+- The browser editor File menu now groups export formats behind an `Export`
+  submenu, the two-index mini menu keeps its shared dimension controls while
+  disabling hyperedge creation, and open ports no longer draw over front tensor
+  boxes unless they are connected or actively selected.
 - Academic text exports now default missing label-visibility state to visible,
   so isolated session flows can still export TikZ/LaTeX and Graphviz/DOT.
 - Documentation now describes grid/tree manual contraction plans as supported

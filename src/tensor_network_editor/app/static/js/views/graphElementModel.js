@@ -40,6 +40,28 @@ export function createGraphElementModelBuilder({
     return classNames.filter(Boolean).join(" ");
   }
 
+  function isIndexElevated(indexId, isConnected) {
+    return Boolean(
+      isConnected ||
+        state.pendingIndexId === indexId ||
+        (Array.isArray(state.selectionIds) && state.selectionIds.includes(indexId))
+    );
+  }
+
+  function getLayeredPortZIndex(indexId, indexPosition, tensorRank, isConnected) {
+    if (isIndexElevated(indexId, isConnected)) {
+      return port + tensorRank * 10 + indexPosition;
+    }
+    return tensor + tensorRank + 0.2 + indexPosition / 1000;
+  }
+
+  function getLayeredIndexLabelZIndex(indexId, indexPosition, tensorRank, isConnected) {
+    if (isIndexElevated(indexId, isConnected)) {
+      return indexLabel + tensorRank * 10 + indexPosition;
+    }
+    return tensor + tensorRank + 0.24 + indexPosition / 1000;
+  }
+
   function getMetadataFilterClass(metadataFilterHighlight, entityKind, entityId) {
     if (!metadataFilterHighlight || typeof getMetadataFilterEntityState !== "function") {
       return "";
@@ -166,7 +188,8 @@ export function createGraphElementModelBuilder({
       });
 
       tensorItem.indices.forEach((indexItem, indexPosition) => {
-        const indexColor = getIndexColor(indexItem, connectedIndexIds.has(indexItem.id));
+        const isConnectedIndex = connectedIndexIds.has(indexItem.id);
+        const indexColor = getIndexColor(indexItem, isConnectedIndex);
         const indexPositionAbsolute = resolvedContractionScene
           ? {
               x: tensorItem.position.x + indexItem.offset.x,
@@ -183,10 +206,15 @@ export function createGraphElementModelBuilder({
             backgroundColor: indexColor,
             borderColor: shiftColor(indexColor, 34),
             textColor: readableTextColor(indexColor),
-            zIndex: port + tensorRank * 10 + indexPosition,
+            zIndex: getLayeredPortZIndex(
+              indexItem.id,
+              indexPosition,
+              tensorRank,
+              isConnectedIndex
+            ),
           },
           classes: [
-            connectedIndexIds.has(indexItem.id) ? "index-connected" : "index-open",
+            isConnectedIndex ? "index-connected" : "index-open",
             state.pendingIndexId === indexItem.id ? "planner-pending-index" : "",
             getMetadataFilterClass(metadataFilterHighlight, "index", indexItem.id),
           ]
@@ -203,7 +231,12 @@ export function createGraphElementModelBuilder({
             kind: "index-label",
             label: `${indexItem.name} · ${indexItem.dimension}`,
             textColor: shiftColor(indexColor, 64),
-            zIndex: indexLabel + tensorRank * 10 + indexPosition,
+            zIndex: getLayeredIndexLabelZIndex(
+              indexItem.id,
+              indexPosition,
+              tensorRank,
+              isConnectedIndex
+            ),
           },
           classes: getMetadataFilterClass(metadataFilterHighlight, "index", indexItem.id),
           position: indexLabelPosition(indexPositionAbsolute),

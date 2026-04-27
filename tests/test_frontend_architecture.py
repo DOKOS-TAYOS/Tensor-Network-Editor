@@ -3696,10 +3696,22 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             addEventListener(type, handler) {{
               this.listeners[type] = handler;
             }},
-            click() {{
-              if (this.listeners.click) {{
-                this.listeners.click({{ target: this }});
+            dispatch(type, event = {{}}) {{
+              if (this.listeners[type]) {{
+                this.listeners[type]({{ target: this, ...event }});
               }}
+            }},
+            click() {{
+              this.dispatch("click");
+            }},
+            focus() {{
+              this.dispatch("focus");
+            }},
+            mouseenter() {{
+              this.dispatch("mouseenter");
+            }},
+            mouseleave() {{
+              this.dispatch("mouseleave");
             }},
           }};
         }}
@@ -3898,6 +3910,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           templateLoadInput: {{ addEventListener(type, handler) {{ this[type] = handler; }}, click() {{ flowEvents.push("templateLoadInput.click"); }} }},
           undoButton: getButton("undo-button"),
           redoButton: getButton("redo-button"),
+          exportMenuItem: getButton("export-menu-item"),
+          exportSubmenuShell: getButton("export-submenu-shell"),
+          exportSubmenuPanel: getButton("export-submenu-panel"),
           exportPythonMenuItem: getButton("export-python-menu-item"),
           exportPngMenuItem: getButton("export-png-menu-item"),
           exportSvgMenuItem: getButton("export-svg-menu-item"),
@@ -4003,6 +4018,12 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           downloadExportAs: (format) => flowEvents.push(`downloadExportAs:${{format}}`),
           openToolbarMenu: (menuName) => flowEvents.push(`openToolbarMenu:${{menuName}}`),
           toggleToolbarMenu: (menuName) => flowEvents.push(`toggleToolbarMenu:${{menuName}}`),
+          openToolbarSubmenu: (submenuName) =>
+            flowEvents.push(`openToolbarSubmenu:${{submenuName}}`),
+          closeToolbarSubmenu: (submenuName) =>
+            flowEvents.push(`closeToolbarSubmenu:${{submenuName || ""}}`),
+          toggleToolbarSubmenu: (submenuName) =>
+            flowEvents.push(`toggleToolbarSubmenu:${{submenuName}}`),
           closeTransientToolbarUi: () => {{
             flowEvents.push("closeTransientToolbarUi");
             return true;
@@ -4123,6 +4144,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.generatedCodeModalCloseButton.click();
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
         dom.fileMenuButton.click();
+        dom.exportMenuItem.mouseenter();
+        dom.exportMenuItem.focus();
+        dom.exportMenuItem.click();
         dom.exportPngMenuItem.click();
         dom.exportTikzMenuItem.click();
         dom.exportDotMenuItem.click();
@@ -4186,6 +4210,11 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("toggleToolbarMenu:file")) {{
           throw new Error(`Expected the File button to toggle its menu, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (
+          flowEvents.filter((entry) => entry === "openToolbarSubmenu:export").length < 2
+        ) {{
+          throw new Error(`Expected the File Export item to open its submenu from hover, focus, or click, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("downloadExportAs:png")) {{
           throw new Error(`Expected the File menu to dispatch format-specific exports, received ${{JSON.stringify(flowEvents)}}.`);

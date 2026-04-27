@@ -126,6 +126,7 @@ export function createInitialState() {
     },
     activeHelpSection: "info",
     openToolbarMenu: null,
+    openToolbarSubmenu: null,
     isTemplateSettingsOpen: false,
     isReflowLayoutOpen: false,
     isGeneratedCodeModalOpen: false,

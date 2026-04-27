@@ -236,6 +236,7 @@ export function registerGraphRender(ctx) {
             "border-width": 4,
             "overlay-color": GRAPH_THEME.pendingIndex,
             "overlay-opacity": 0.18,
+            "z-index": INDEX_LABEL_BASE_Z_INDEX + 1000,
           },
         },
         {
@@ -290,6 +291,7 @@ export function registerGraphRender(ctx) {
           style: {
             "border-color": GRAPH_THEME.selection,
             "overlay-opacity": 0,
+            "z-index": INDEX_LABEL_BASE_Z_INDEX + 1000,
           },
         },
         {
