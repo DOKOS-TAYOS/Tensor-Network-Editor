@@ -193,17 +193,16 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert 'id="export-python-menu-item"' in html
     assert 'id="export-png-menu-item"' in html
     assert 'id="export-svg-menu-item"' in html
+    assert 'id="export-pdf-menu-item"' in html
     assert 'id="export-tikz-menu-item"' in html
     assert 'id="export-dot-menu-item"' in html
     assert 'id="export-show-tensor-names-menu-item"' in html
     assert 'id="export-show-index-names-menu-item"' in html
     assert 'id="export-show-bond-names-menu-item"' in html
+    assert 'id="close-with-info-menu-item"' in html
+    assert 'id="close-without-info-menu-item"' in html
     assert 'role="menuitemcheckbox"' in html
-    export_submenu_panel_index = html.index('id="export-submenu-panel"')
-    export_submenu_shell_end_index = html.index(
-        'id="save-session-template-menu-item"',
-        export_submenu_panel_index,
-    )
+    export_submenu_shell_end_index = html.index('id="close-with-info-menu-item"')
     assert (
         html.index('id="export-dot-menu-item"')
         < html.index('id="export-show-tensor-names-menu-item"')
@@ -211,6 +210,10 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
         < html.index('id="export-show-bond-names-menu-item"')
         < export_submenu_shell_end_index
     )
+    assert html.index('id="close-with-info-menu-item"') < html.index(
+        'id="close-without-info-menu-item"'
+    )
+    assert '<option value="pdf">PDF</option>' in html
     assert '<option value="tikz">TikZ/LaTeX</option>' in html
     assert '<option value="dot">Graphviz/DOT</option>' in html
     assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
@@ -241,18 +244,17 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert "window.__TNE_ASSET_VERSION__" in html
 
 
-def test_root_renders_done_and_cancel_as_icon_toolbar_actions(
+def test_root_places_close_actions_in_file_menu(
     editor_server: EditorServer,
 ) -> None:
     html = request_text(f"{editor_server.base_url}/")
 
-    assert 'id="done-button"' in html
-    assert 'id="cancel-button"' in html
-    assert 'class="icon-button toolbar-icon-button danger button-close-static"' in html
-    assert 'aria-label="Done"' in html
-    assert 'aria-label="Cancel"' in html
-    assert ">Done<" not in html
-    assert ">Cancel<" not in html
+    assert 'id="close-with-info-menu-item"' in html
+    assert 'id="close-without-info-menu-item"' in html
+    assert 'id="done-button"' not in html
+    assert 'id="cancel-button"' not in html
+    assert "Close with info" in html
+    assert "Close without info" in html
 
 
 def test_root_exposes_linear_periodic_toolbar_controls(
@@ -623,7 +625,7 @@ def test_interactions_asset_exposes_updated_keyboard_shortcuts(
     assert "Ctrl/Cmd+Shift+F" in html
     assert "<strong>I</strong><span>Add index to selected tensors</span>" in html
     assert "<strong>R</strong><span>Open Reflow</span>" in html
-    assert "<strong>Ctrl/Cmd+Enter</strong><span>Finish editor session</span>" in html
+    assert "<strong>Ctrl/Cmd+Enter</strong><span>Close with info</span>" in html
     assert "Shift+S" in html
     assert "Shift+E" in html
     assert ">D<" in html
@@ -1819,6 +1821,7 @@ def test_top_toolbar_menu_items_keep_neutral_surface_style(
         "export-python-menu-item",
         "export-png-menu-item",
         "export-svg-menu-item",
+        "export-pdf-menu-item",
         "export-tikz-menu-item",
         "export-dot-menu-item",
         "save-session-template-menu-item",
@@ -2011,19 +2014,47 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
         'exportSvgMenuItem: document.getElementById("export-svg-menu-item")' in dom_body
     )
     assert (
+        'exportPdfMenuItem: document.getElementById("export-pdf-menu-item")' in dom_body
+    )
+    assert (
         'exportTikzMenuItem: document.getElementById("export-tikz-menu-item")'
         in dom_body
     )
     assert (
         'exportDotMenuItem: document.getElementById("export-dot-menu-item")' in dom_body
     )
+    assert (
+        'closeWithInfoMenuItem: document.getElementById("close-with-info-menu-item")'
+        in dom_body
+    )
+    assert (
+        'closeWithoutInfoMenuItem: document.getElementById("close-without-info-menu-item")'
+        in dom_body
+        or (
+            "closeWithoutInfoMenuItem: document.getElementById(" in dom_body
+            and '"close-without-info-menu-item"' in dom_body
+        )
+    )
     assert 'from "./shell/editorShellBindings.js"' in bootstrap_body
     assert "bindMenubarMenu(menu.name, menu.button, menu.panel);" in shell_bindings_body
     assert 'bindListener(exportPythonMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportPngMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportSvgMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportPdfMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportTikzMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportDotMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(closeWithInfoMenuItem, "click", () => {' in shell_bindings_body
+    assert (
+        'bindListener(closeWithoutInfoMenuItem, "click", () => {' in shell_bindings_body
+    )
+    assert (
+        'bindListener(windowRef, "beforeunload", actions.sendCancelBeacon);'
+        not in shell_bindings_body
+    )
+    assert (
+        'bindListener(windowRef, "pagehide", actions.sendCancelBeacon);'
+        not in shell_bindings_body
+    )
     assert (
         'bindListener(saveSessionTemplateMenuItem, "click", () => {'
         in shell_bindings_body
@@ -2042,6 +2073,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert "showTensorNames: state.academicExportLabels.tensor" in interactions_body
     assert "showIndexNames: state.academicExportLabels.index" in interactions_body
     assert "showBondNames: state.academicExportLabels.bond" in interactions_body
+    assert 'case "pdf":' in interactions_body
     assert 'case "tikz":' in interactions_body
     assert 'case "dot":' in interactions_body
     assert "await downloadAcademicExport(" in interactions_body
@@ -2050,6 +2082,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert "exportPythonMenuItem.disabled =" in utilities_body
     assert "exportPngMenuItem.disabled =" in utilities_body
     assert "exportSvgMenuItem.disabled =" in utilities_body
+    assert "exportPdfMenuItem.disabled =" in utilities_body
     assert "exportTikzMenuItem.disabled =" in utilities_body
     assert "exportDotMenuItem.disabled =" in utilities_body
     assert "syncAcademicExportLabelMenuItem(" in utilities_body

@@ -33,11 +33,14 @@ export function createEditorShellBindings({
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
+    exportPdfMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
     exportShowTensorNamesMenuItem,
     exportShowIndexNamesMenuItem,
     exportShowBondNamesMenuItem,
+    closeWithInfoMenuItem,
+    closeWithoutInfoMenuItem,
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
@@ -344,8 +347,8 @@ export function createEditorShellBindings({
         "open-subnetwork-library-menu-item",
         "help-shortcuts-menu-item",
         "help-about-menu-item",
-        "done-button",
-        "cancel-button",
+        "close-with-info-menu-item",
+        "close-without-info-menu-item",
         "linear-periodic-previous-cell-button",
         "grid-periodic-up-cell-button",
         "grid-periodic-down-cell-button",
@@ -401,16 +404,16 @@ export function createEditorShellBindings({
       "Move to the next item in the current mode."
     );
     shortcutTooltip.applyShortcutHint(
-      "done-button",
-      "Done",
+      "close-with-info-menu-item",
+      "Close with info",
       "Ctrl/Cmd+Enter",
-      "Finish the editor session and return the current design to Python."
+      "Close the editor and return the current design to Python."
     );
     shortcutTooltip.applyShortcutHint(
-      "cancel-button",
-      "Cancel",
+      "close-without-info-menu-item",
+      "Close without info",
       "",
-      "Cancel the editor session without returning the current design to Python."
+      "Close the editor without returning the current design to Python."
     );
     shortcutTooltip.applyShortcutHint(
       "sidebar-tab-selection",
@@ -455,8 +458,14 @@ export function createEditorShellBindings({
       }
     });
     bindListener(documentRef.getElementById("generate-button"), "click", actions.generateCode);
-    bindListener(documentRef.getElementById("done-button"), "click", actions.completeEditor);
-    bindListener(documentRef.getElementById("cancel-button"), "click", actions.cancelEditor);
+    bindListener(closeWithInfoMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.completeEditor();
+    });
+    bindListener(closeWithoutInfoMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.cancelEditor();
+    });
     bindListener(copyCodeButton, "click", actions.copyGeneratedCode);
     bindListener(expandGeneratedCodeButton, "click", () =>
       actions.toggleGeneratedCodeModal(true)
@@ -480,6 +489,10 @@ export function createEditorShellBindings({
     bindListener(exportSvgMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("svg");
+    });
+    bindListener(exportPdfMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("pdf");
     });
     bindListener(exportTikzMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
@@ -750,8 +763,6 @@ export function createEditorShellBindings({
     bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);
     bindListener(templateLoadInput, "change", actions.loadSessionTemplatesFromFile);
     bindListener(windowRef, "keydown", actions.handleKeydown);
-    bindListener(windowRef, "beforeunload", actions.sendCancelBeacon);
-    bindListener(windowRef, "pagehide", actions.sendCancelBeacon);
     bindListener(windowRef, "resize", actions.handleWindowResize);
     bindListener(windowRef, "mousemove", actions.handleGlobalMouseMove);
     bindListener(windowRef, "mouseup", actions.handleGlobalMouseUp);

@@ -41,7 +41,11 @@ from tensor_network_editor.models import (
     SpecDiffResult,
     ValidationIssue,
 )
-from tensor_network_editor.rendering import DotRenderOptions, TikzRenderOptions
+from tensor_network_editor.rendering import (
+    DotRenderOptions,
+    SvgRenderOptions,
+    TikzRenderOptions,
+)
 from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -865,6 +869,34 @@ def test_render_subcommand_writes_svg_output(sample_spec: NetworkSpec) -> None:
     assert render_mock.call_args.kwargs["output_path"] == "figure.svg"
 
 
+def test_render_subcommand_passes_svg_label_options(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_svg", return_value="<svg />"
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--hide-tensor-names",
+                "--hide-index-names",
+                "--hide-bond-names",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    options = render_mock.call_args.kwargs["options"]
+    assert isinstance(options, SvgRenderOptions)
+    assert options.show_tensor_labels is False
+    assert options.show_index_labels is False
+    assert options.show_edge_labels is False
+
+
 def test_render_subcommand_writes_png_output(sample_spec: NetworkSpec) -> None:
     with (
         patch(
@@ -891,6 +923,34 @@ def test_render_subcommand_writes_png_output(sample_spec: NetworkSpec) -> None:
     render_mock.assert_called_once()
     assert render_mock.call_args.args == (sample_spec,)
     assert render_mock.call_args.kwargs["output_path"] == "figure.png"
+
+
+def test_render_subcommand_writes_pdf_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_pdf",
+            return_value=b"%PDF-1.4",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "pdf",
+                "--output",
+                "figure.pdf",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "figure.pdf"
 
 
 def test_render_subcommand_writes_tikz_output(sample_spec: NetworkSpec) -> None:
@@ -1022,6 +1082,17 @@ def test_render_subcommand_rejects_png_without_output(
 
     assert exit_code == 2
     assert "PNG render requires --output" in capsys.readouterr().out
+
+
+def test_render_subcommand_rejects_pdf_without_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch("tensor_network_editor.cli.load_spec", return_value=sample_spec):
+        exit_code = main(["render", "saved-network.json", "--format", "pdf"])
+
+    assert exit_code == 2
+    assert "PDF render requires --output" in capsys.readouterr().out
 
 
 def test_render_subcommand_prints_tikz_when_no_output(

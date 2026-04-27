@@ -98,7 +98,7 @@ python -m pip install tensor-network-editor
 The distribution name is `tensor-network-editor`. The Python import package is
 `tensor_network_editor`.
 
-The base package has no mandatory runtime dependencies beyond Python `3.11+`.
+The base package requires Python `3.11+` and `Pillow>=10`.
 Install extras only when you need them:
 
 ```bash
@@ -108,15 +108,14 @@ python -m pip install "tensor-network-editor[quimb]"
 python -m pip install "tensor-network-editor[tensornetwork]"
 python -m pip install "tensor-network-editor[tensorkrowch]"
 python -m pip install "tensor-network-editor[planner]"
-python -m pip install "tensor-network-editor[png]"
 ```
 
 Backend extras let you run generated code in the same environment. The editor
 can still generate source text when a backend package is not installed.
 
 The `planner` extra installs `opt_einsum`, which enables automatic greedy
-contraction suggestions and automatic benchmark rows. The `png` extra installs
-Pillow for PNG rendering.
+contraction suggestions and automatic benchmark rows. Pillow is now part of the
+base installation because academic PNG/PDF rendering depends on it.
 
 ## Launching The Editor
 

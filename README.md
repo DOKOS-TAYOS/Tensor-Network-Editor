@@ -202,18 +202,19 @@ tensor-network-editor doctor my_network.json
 tensor-network-editor doctor my_network.json --format json
 ```
 
-Render one saved design as SVG, TikZ/LaTeX, Graphviz/DOT, or with the optional
-`png` extra, PNG:
+Render one saved design as SVG, PDF, TikZ/LaTeX, Graphviz/DOT, or with the
+optional `png` extra, PNG:
 
 ```bash
 tensor-network-editor render my_network.json --format svg --output figure.svg
+tensor-network-editor render my_network.json --format pdf --output figure.pdf
 tensor-network-editor render my_network.json --format tikz --output figure.tex
 tensor-network-editor render my_network.json --format dot --output graph.dot
 tensor-network-editor render my_network.json --format png --output figure.png
 ```
 
-The editor File menu also offers direct `.tex` and `.dot` exports for the
-current canvas.
+The editor File menu also offers direct academic `.svg`, `.png`, `.pdf`, `.tex`,
+and `.dot` exports for the current canvas.
 
 Use the editor from Python:
 
@@ -271,6 +272,7 @@ Render static figures from Python:
 from tensor_network_editor import (
     load_spec,
     render_spec_dot,
+    render_spec_pdf,
     render_spec_png,
     render_spec_svg,
     render_spec_tikz,
@@ -282,6 +284,7 @@ svg = render_spec_svg(spec, output_path="figure.svg")
 tikz = render_spec_tikz(spec, output_path="figure.tex")
 dot = render_spec_dot(spec, output_path="graph.dot")
 png = render_spec_png(spec, output_path="figure.png")
+pdf = render_spec_pdf(spec, output_path="figure.pdf")
 ```
 
 Load a live `quimb` or `tensornetwork` object from Python source:

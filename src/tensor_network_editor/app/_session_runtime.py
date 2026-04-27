@@ -9,6 +9,7 @@ from ..models import EditorResult, NetworkSpec
 
 _DEPRECATED_POLL_INTERVAL_SENTINEL = object()
 _POLL_INTERVAL_REMOVAL_DATE = "2026-10-01"
+_EDITOR_WAIT_POLL_INTERVAL_SECONDS = 0.1
 
 
 class SupportsWaitForResult(Protocol):
@@ -16,6 +17,10 @@ class SupportsWaitForResult(Protocol):
 
     def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
         """Wait for the final editor result or ``None`` on timeout."""
+        ...
+
+    def is_finished(self) -> bool:
+        """Return whether the session has already finished."""
         ...
 
 
@@ -38,4 +43,9 @@ def wait_for_editor_result(
             DeprecationWarning,
             stacklevel=2,
         )
-    return session.wait_for_result(timeout=None)
+    while True:
+        result = session.wait_for_result(timeout=_EDITOR_WAIT_POLL_INTERVAL_SECONDS)
+        if result is not None:
+            return result
+        if session.is_finished():
+            return None

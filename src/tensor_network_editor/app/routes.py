@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 from http import HTTPStatus
 from typing import Literal, cast
@@ -17,8 +18,12 @@ from ..io import deserialize_spec, serialize_spec
 from ..models import CodegenResult, EditorResult
 from ..rendering import (
     DotRenderOptions,
+    SvgRenderOptions,
     TikzRenderOptions,
     render_spec_dot,
+    render_spec_pdf,
+    render_spec_png,
+    render_spec_svg,
     render_spec_tikz,
 )
 from ..types import JSONValue
@@ -186,9 +191,18 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Render the current editor payload to an academic text format."""
     del session
     try:
-        render_format = _resolve_academic_render_format(payload)
+        render_format = _resolve_render_format(payload)
         serialized_spec = require_serialized_spec(payload)
         spec = deserialize_spec(serialized_spec, validate=False)
+        svg_options = SvgRenderOptions(
+            show_tensor_labels=require_boolean(
+                payload, "show_tensor_names", default=True
+            ),
+            show_index_labels=require_boolean(
+                payload, "show_index_names", default=True
+            ),
+            show_edge_labels=require_boolean(payload, "show_bond_names", default=True),
+        )
         if render_format == "tikz":
             text = render_spec_tikz(
                 spec,
@@ -205,7 +219,12 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
                 ),
             )
             content_type = "text/x-tex;charset=utf-8"
-        else:
+            response_payload: JsonDict = {
+                "format": render_format,
+                "text": text,
+                "content_type": content_type,
+            }
+        elif render_format == "dot":
             text = render_spec_dot(
                 spec,
                 options=DotRenderOptions(
@@ -221,19 +240,39 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
                 ),
             )
             content_type = "text/vnd.graphviz;charset=utf-8"
+            response_payload = {
+                "format": render_format,
+                "text": text,
+                "content_type": content_type,
+            }
+        elif render_format == "svg":
+            text = render_spec_svg(spec, options=svg_options)
+            response_payload = {
+                "format": render_format,
+                "text": text,
+                "content_type": "image/svg+xml;charset=utf-8",
+            }
+        elif render_format == "png":
+            binary = render_spec_png(spec, options=svg_options)
+            response_payload = {
+                "format": render_format,
+                "base64": base64.b64encode(binary).decode("ascii"),
+                "content_type": "image/png",
+            }
+        else:
+            binary = render_spec_pdf(spec, options=svg_options)
+            response_payload = {
+                "format": render_format,
+                "base64": base64.b64encode(binary).decode("ascii"),
+                "content_type": "application/pdf",
+            }
     except ValueError as exc:
         return bad_request_response(str(exc))
     except SerializationError as exc:
         return bad_request_response(str(exc))
     except SpecValidationError as exc:
         return issues_response(exc.issues)
-    return ok_response(
-        {
-            "format": render_format,
-            "text": text,
-            "content_type": content_type,
-        }
-    )
+    return ok_response(response_payload)
 
 
 def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -433,15 +472,18 @@ def _serialize_generate_result(result: CodegenResult) -> JsonDict:
     return serialize_codegen_result(result)
 
 
-def _resolve_academic_render_format(payload: JsonDict) -> Literal["tikz", "dot"]:
+def _resolve_render_format(
+    payload: JsonDict,
+) -> Literal["tikz", "dot", "svg", "png", "pdf"]:
     raw_format = payload.get("format")
     if not isinstance(raw_format, str) or not raw_format.strip():
         raise ValueError("Missing 'format' payload.")
     normalized_format = raw_format.strip().lower()
-    if normalized_format == "tikz" or normalized_format == "dot":
-        return cast(Literal["tikz", "dot"], normalized_format)
+    if normalized_format in {"tikz", "dot", "svg", "png", "pdf"}:
+        return cast(Literal["tikz", "dot", "svg", "png", "pdf"], normalized_format)
     raise ValueError(
-        f"Unsupported render format '{raw_format}'. Expected 'tikz' or 'dot'."
+        "Unsupported render format "
+        f"'{raw_format}'. Expected 'tikz', 'dot', 'svg', 'png', or 'pdf'."
     )
 
 

@@ -14,6 +14,7 @@ export function createUiToolbarActionStateSupport({
     exportPythonMenuItem,
     exportPngMenuItem,
     exportSvgMenuItem,
+    exportPdfMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
     exportShowTensorNamesMenuItem,
@@ -94,6 +95,9 @@ export function createUiToolbarActionStateSupport({
     }
     if (exportSvgMenuItem) {
       exportSvgMenuItem.disabled = !state.spec;
+    }
+    if (exportPdfMenuItem) {
+      exportPdfMenuItem.disabled = !state.spec;
     }
     if (exportTikzMenuItem) {
       exportTikzMenuItem.disabled = !state.spec;

@@ -4287,10 +4287,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           throw new Error("Expected the toolbar shortcut hints to include button descriptions.");
         }}
         if (
-          getButton("done-button").dataset.shortcutDescription
-          !== "Finish the editor session and return the current design to Python."
+          getButton("close-with-info-menu-item").dataset.shortcutDescription
+          !== "Close the editor and return the current design to Python."
         ) {{
-          throw new Error("Expected Done to explain that it returns the current design to Python.");
+          throw new Error("Expected Close with info to explain that it returns the current design to Python.");
         }}
         if (
           getButton("collection-format-select-field").dataset.shortcutDescription
@@ -4321,10 +4321,10 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           throw new Error("Expected Close generated code to keep its hover disabled.");
         }}
         if (
-          getButton("cancel-button").dataset.shortcutDescription
-          !== "Cancel the editor session without returning the current design to Python."
+          getButton("close-without-info-menu-item").dataset.shortcutDescription
+          !== "Close the editor without returning the current design to Python."
         ) {{
-          throw new Error("Expected Cancel to explain that it closes without returning the current design.");
+          throw new Error("Expected Close without info to explain that it closes without returning the current design.");
         }}
         if (
           getButton("sidebar-tab-selection").dataset.shortcutDescription

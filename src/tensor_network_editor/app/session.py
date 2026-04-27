@@ -353,6 +353,10 @@ class EditorSession:
         with self._lock:
             return self._result
 
+    def is_finished(self) -> bool:
+        """Return whether the session has already completed or been cancelled."""
+        return self._finished_event.is_set()
+
 
 def launch_editor_session(
     initial_spec: NetworkSpec | None = None,

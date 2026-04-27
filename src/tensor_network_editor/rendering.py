@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from html import escape
 from importlib import import_module
 from io import BytesIO
-from math import ceil, isfinite
+from math import ceil, cos, hypot, isfinite, pi, sin
+from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import quoteattr
 
@@ -34,8 +35,11 @@ class SvgRenderOptions:
     """Options for the static SVG renderer."""
 
     padding: float = 56.0
+    show_tensor_labels: bool = True
     show_index_labels: bool = True
     show_edge_labels: bool = True
+    include_groups: bool = True
+    include_notes: bool = True
     background: str = "#171b22"
     tensor_fill: str = "#235f72"
     tensor_stroke: str = "#6fb7ca"
@@ -53,7 +57,8 @@ class SvgRenderOptions:
 class TikzRenderOptions:
     """Options for the static TikZ renderer."""
 
-    scale: float = 0.02
+    scale: float = 1.0
+    global_width: str = r"\linewidth"
     show_index_labels: bool = True
     show_edge_labels: bool = True
     include_groups: bool = True
@@ -129,6 +134,28 @@ def render_spec_png(
     return png
 
 
+def render_spec_pdf(
+    spec: NetworkSpec,
+    *,
+    options: SvgRenderOptions | None = None,
+    scale: float = 2.0,
+    output_path: StrPath | None = None,
+) -> bytes:
+    """Render one tensor-network specification as PDF bytes using Pillow."""
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+        raise ValueError("PDF render scale must be a positive finite number.")
+    if not isfinite(float(scale)) or scale <= 0:
+        raise ValueError("PDF render scale must be a positive finite number.")
+    resolved_options = options or SvgRenderOptions()
+    validated_spec = ensure_valid_spec(spec)
+    pdf = _PngRenderer(
+        validated_spec, resolved_options, scale=float(scale)
+    ).render_pdf()
+    if output_path is not None:
+        write_binary(output_path, pdf, description="PDF network rendering")
+    return pdf
+
+
 def render_spec_tikz(
     spec: NetworkSpec,
     *,
@@ -178,6 +205,12 @@ class _SvgRenderer:
             for tensor in spec.tensors
             for index in tensor.indices
         }
+        self._index_order_by_id = {
+            index.id: index_position
+            for tensor in spec.tensors
+            for index_position, index in enumerate(tensor.indices)
+        }
+        self._connected_index_ids = _connected_index_ids(spec)
 
     def render(self) -> str:
         """Return the complete SVG document."""
@@ -199,41 +232,56 @@ class _SvgRenderer:
                 f"fill={_attr(self._options.background)} />"
             ),
         ]
-        lines.extend(self._render_groups())
+        if self._options.include_groups:
+            lines.extend(self._render_groups())
         lines.extend(self._render_edges())
         lines.extend(self._render_hyperedges())
+        lines.extend(self._render_open_indices())
         lines.extend(self._render_tensors())
-        lines.extend(self._render_notes())
+        lines.extend(self._render_index_labels())
+        if self._options.include_notes:
+            lines.extend(self._render_notes())
         lines.append("</svg>")
         return "\n".join(lines)
 
     def _compute_bounds(self) -> _Bounds:
         points: list[CanvasPosition] = []
         for tensor in self._spec.tensors:
-            half_width = tensor.size.width / 2
-            half_height = tensor.size.height / 2
-            points.extend(
-                [
-                    CanvasPosition(
-                        tensor.position.x - half_width, tensor.position.y - half_height
-                    ),
-                    CanvasPosition(
-                        tensor.position.x + half_width, tensor.position.y + half_height
-                    ),
-                ]
-            )
-            points.extend(
-                self._index_position(tensor, index) for index in tensor.indices
-            )
-        for note in self._spec.notes:
-            points.extend(
-                [
-                    note.position,
-                    CanvasPosition(
-                        note.position.x + _NOTE_WIDTH, note.position.y + _NOTE_HEIGHT
-                    ),
-                ]
-            )
+            if not self.is_port_tensor(tensor):
+                radius = self.tensor_radius(tensor)
+                points.extend(
+                    [
+                        CanvasPosition(
+                            tensor.position.x - radius, tensor.position.y - radius
+                        ),
+                        CanvasPosition(
+                            tensor.position.x + radius, tensor.position.y + radius
+                        ),
+                    ]
+                )
+            for index in tensor.indices:
+                points.append(self.connection_point(tensor, index))
+                if not self.is_index_connected(index.id):
+                    points.append(self.open_index_endpoint(tensor, index))
+                if self._options.show_index_labels:
+                    label_point = self.index_label_point(tensor, index)
+                    points.extend(
+                        [
+                            label_point,
+                            CanvasPosition(label_point.x + 56.0, label_point.y + 18.0),
+                        ]
+                    )
+        if self._options.include_notes:
+            for note in self._spec.notes:
+                points.extend(
+                    [
+                        note.position,
+                        CanvasPosition(
+                            note.position.x + _NOTE_WIDTH,
+                            note.position.y + _NOTE_HEIGHT,
+                        ),
+                    ]
+                )
         for hyperedge in self._spec.hyperedges:
             points.append(self._hyperedge_hub_position(hyperedge))
         if not points:
@@ -306,7 +354,7 @@ class _SvgRenderer:
                 tensor_index = self._index_by_id.get(endpoint.index_id)
                 if tensor_index is None:
                     continue
-                endpoint_position = self._index_position(*tensor_index)
+                endpoint_position = self.connection_point(*tensor_index)
                 lines.append(
                     f'<line class="hyperedge-spoke" x1={_attr(endpoint_position.x)} '
                     f"y1={_attr(endpoint_position.y)} x2={_attr(hub.x)} y2={_attr(hub.y)} "
@@ -329,43 +377,49 @@ class _SvgRenderer:
     def _render_tensors(self) -> list[str]:
         lines: list[str] = []
         for tensor in self._spec.tensors:
-            x = tensor.position.x - tensor.size.width / 2
-            y = tensor.position.y - tensor.size.height / 2
+            if self.is_port_tensor(tensor):
+                continue
+            radius = self.tensor_radius(tensor)
             lines.append(
-                f'<rect class="tensor" x={_attr(x)} y={_attr(y)} '
-                f"width={_attr(tensor.size.width)} height={_attr(tensor.size.height)} "
-                f'rx="8" ry="8" fill={_attr(self._options.tensor_fill)} '
+                f'<circle class="tensor" cx={_attr(tensor.position.x)} cy={_attr(tensor.position.y)} '
+                f"r={_attr(radius)} fill={_attr(self._options.tensor_fill)} "
                 f'stroke={_attr(self._options.tensor_stroke)} stroke-width="2" />'
             )
-            lines.append(
-                f'<text class="tensor-label" x={_attr(tensor.position.x)} '
-                f"y={_attr(y + 28)} fill={_attr(self._options.text_fill)} "
-                f'font-size="18" font-family={_attr(self._options.font_family)} '
-                f'text-anchor="middle">{_text(tensor.name)}</text>'
-            )
-            lines.extend(self._render_indices(tensor))
+            if self._options.show_tensor_labels:
+                lines.append(
+                    f'<text class="tensor-label" x={_attr(tensor.position.x)} '
+                    f"y={_attr(tensor.position.y + 6)} fill={_attr(self._options.text_fill)} "
+                    f'font-size="18" font-family={_attr(self._options.font_family)} '
+                    f'text-anchor="middle">{_text(tensor.name)}</text>'
+                )
         return lines
 
-    def _render_indices(self, tensor: TensorSpec) -> list[str]:
+    def _render_open_indices(self) -> list[str]:
         lines: list[str] = []
-        for index_position, index in enumerate(tensor.indices, start=1):
-            point = self._index_position(tensor, index)
-            lines.append(
-                f'<circle class="index" cx={_attr(point.x)} cy={_attr(point.y)} '
-                f"r={_attr(_INDEX_RADIUS)} fill={_attr(self._options.index_fill)} "
-                f'stroke="#47380d" stroke-width="1.5" />'
-            )
-            lines.append(
-                f'<text class="index-number" x={_attr(point.x)} y={_attr(point.y + 4)} '
-                f'fill="#1b1b1b" font-size="11" font-weight="700" '
-                f'font-family={_attr(self._options.font_family)} text-anchor="middle">'
-                f"{index_position}</text>"
-            )
-            if self._options.show_index_labels:
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                if self.is_index_connected(index.id):
+                    continue
+                source = self.connection_point(tensor, index)
+                target = self.open_index_endpoint(tensor, index)
                 lines.append(
-                    f'<text class="index-label" x={_attr(point.x)} y={_attr(point.y + 26)} '
+                    f'<line class="open-index" x1={_attr(source.x)} y1={_attr(source.y)} '
+                    f"x2={_attr(target.x)} y2={_attr(target.y)} "
+                    f'stroke={_attr(self._options.edge_stroke)} stroke-width="3" />'
+                )
+        return lines
+
+    def _render_index_labels(self) -> list[str]:
+        if not self._options.show_index_labels:
+            return []
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                label_point = self.index_label_point(tensor, index)
+                lines.append(
+                    f'<text class="index-label" x={_attr(label_point.x)} y={_attr(label_point.y)} '
                     f'fill={_attr(self._options.muted_text_fill)} font-size="10" '
-                    f'font-family={_attr(self._options.font_family)} text-anchor="middle">'
+                    f"font-family={_attr(self._options.font_family)} text-anchor={_attr(self._svg_text_anchor(tensor, index))}>"
                     f"{_text(index.name)} {_text(str(index.dimension))}</text>"
                 )
         return lines
@@ -396,11 +450,11 @@ class _SvgRenderer:
         right = self._index_by_id.get(edge.right.index_id)
         if left is None or right is None:
             return None
-        return self._index_position(*left), self._index_position(*right)
+        return self.connection_point(*left), self.connection_point(*right)
 
     def _hyperedge_hub_position(self, hyperedge: HyperedgeSpec) -> CanvasPosition:
         endpoint_positions = [
-            self._index_position(*tensor_index)
+            self.connection_point(*tensor_index)
             for endpoint in hyperedge.endpoints
             if (tensor_index := self._index_by_id.get(endpoint.index_id)) is not None
         ]
@@ -417,6 +471,69 @@ class _SvgRenderer:
             y=tensor.position.y + index.offset.y,
         )
 
+    def tensor_radius(self, tensor: TensorSpec) -> float:
+        return max(24.0, min(tensor.size.width, tensor.size.height) / 2.0)
+
+    def is_port_tensor(self, tensor: TensorSpec) -> bool:
+        return (
+            tensor.linear_periodic_role is not None
+            or tensor.grid_periodic_role is not None
+            or tensor.tree_periodic_role is not None
+        )
+
+    def is_index_connected(self, index_id: str) -> bool:
+        return index_id in self._connected_index_ids
+
+    def connection_point(self, tensor: TensorSpec, index: IndexSpec) -> CanvasPosition:
+        direction = self._index_direction(tensor, index)
+        radius = 0.0 if self.is_port_tensor(tensor) else self.tensor_radius(tensor)
+        return CanvasPosition(
+            x=tensor.position.x + direction.x * radius,
+            y=tensor.position.y + direction.y * radius,
+        )
+
+    def open_index_endpoint(
+        self,
+        tensor: TensorSpec,
+        index: IndexSpec,
+        *,
+        port_length: float = 34.0,
+    ) -> CanvasPosition:
+        direction = self._index_direction(tensor, index)
+        source = self.connection_point(tensor, index)
+        return CanvasPosition(
+            x=source.x + direction.x * port_length,
+            y=source.y + direction.y * port_length,
+        )
+
+    def index_label_point(self, tensor: TensorSpec, index: IndexSpec) -> CanvasPosition:
+        direction = self._index_direction(tensor, index)
+        source = self.connection_point(tensor, index)
+        label_distance = 18.0 if self.is_index_connected(index.id) else 24.0
+        return CanvasPosition(
+            x=source.x + direction.x * label_distance,
+            y=source.y + direction.y * label_distance + 4.0,
+        )
+
+    def _svg_text_anchor(self, tensor: TensorSpec, index: IndexSpec) -> str:
+        direction = self._index_direction(tensor, index)
+        if direction.x >= 0.4:
+            return "start"
+        if direction.x <= -0.4:
+            return "end"
+        return "middle"
+
+    def _index_direction(self, tensor: TensorSpec, index: IndexSpec) -> CanvasPosition:
+        magnitude = hypot(index.offset.x, index.offset.y)
+        if magnitude > 1e-6:
+            return CanvasPosition(
+                x=index.offset.x / magnitude, y=index.offset.y / magnitude
+            )
+        index_order = self._index_order_by_id.get(index.id, 0)
+        index_count = max(1, len(tensor.indices))
+        angle = -pi / 2 + (2 * pi * index_order / index_count)
+        return CanvasPosition(x=cos(angle), y=sin(angle))
+
 
 class _TikzRenderer:
     """Small deterministic TikZ renderer for one validated network spec."""
@@ -429,32 +546,40 @@ class _TikzRenderer:
 
     def render(self) -> str:
         """Return the complete TikZ picture."""
+        bounds = self._geometry._compute_bounds()
+        world_width = max(bounds.width, 1.0)
         lines = [
-            r"\begin{tikzpicture}",
+            rf"\def\tneGlobalWidth{{{self._options.global_width}}}",
+            rf"\pgfmathsetlengthmacro{{\tneUnit}}{{{_number(self._options.scale)}*\tneGlobalWidth/{_number(world_width)}}}",
+            r"\pgfmathsetlengthmacro{\tneLineWidth}{0.6*\tneUnit}",
+            r"\pgfmathsetlengthmacro{\tneHyperedgeSize}{9*\tneUnit}",
+            r"\begin{tikzpicture}[x=\tneUnit, y=\tneUnit, line width=\tneLineWidth]",
             r"\tikzset{",
-            r"  tne tensor/.style={draw, circle, fill=blue!12, align=center, inner sep=3pt},",
-            r"  tne index/.style={draw, circle, fill=yellow!35, inner sep=1.5pt, minimum size=0.22cm, font=\scriptsize},",
-            r"  tne index label/.style={font=\scriptsize, align=center},",
-            r"  tne edge/.style={draw, line width=0.6pt},",
-            r"  tne edge label/.style={font=\scriptsize, fill=white, inner sep=1pt},",
-            r"  tne hyperedge/.style={draw, circle, fill=orange!70, inner sep=1.5pt, minimum size=0.18cm},",
-            r"  tne hyperedge spoke/.style={draw, dashed, orange!80, line width=0.5pt},",
-            r"  tne group/.style={draw, dashed, rounded corners=2pt, gray},",
-            r"  tne group label/.style={font=\scriptsize, gray, anchor=west},",
-            r"  tne note/.style={draw, rounded corners=2pt, fill=gray!10, align=left, anchor=north west, font=\scriptsize},",
+            r"  tne tensor/.style={draw, circle, fill=blue!12, align=center, inner sep=3*\tneUnit, font=\scriptsize},",
+            r"  tne open index/.style={draw},",
+            r"  tne index label/.style={font=\fontsize{4}{4.8}\selectfont, align=center},",
+            r"  tne edge/.style={draw},",
+            r"  tne edge label/.style={font=\fontsize{4}{4.8}\selectfont, fill=white, inner sep=1*\tneUnit},",
+            r"  tne hyperedge/.style={draw, circle, fill=orange!70, inner sep=1.5*\tneUnit, minimum size=\tneHyperedgeSize},",
+            r"  tne hyperedge spoke/.style={draw, dashed, orange!80, line width=0.5*\tneUnit},",
+            r"  tne group/.style={draw, dashed, rounded corners=2*\tneUnit, gray},",
+            r"  tne group label/.style={font=\fontsize{4}{4.8}\selectfont, gray, anchor=west},",
+            r"  tne note/.style={draw, rounded corners=2*\tneUnit, fill=gray!10, align=left, anchor=north west, font=\fontsize{4.5}{5.4}\selectfont},",
             r"}",
         ]
         if self._options.include_groups:
-            lines.extend(self._render_groups())
-        lines.extend(self._render_edges())
-        lines.extend(self._render_hyperedges())
-        lines.extend(self._render_tensors())
+            lines.extend(self._render_groups(bounds))
+        lines.extend(self._render_tensors(bounds))
+        lines.extend(self._render_edges(bounds))
+        lines.extend(self._render_hyperedges(bounds))
+        lines.extend(self._render_open_indices(bounds))
+        lines.extend(self._render_index_labels(bounds))
         if self._options.include_notes:
-            lines.extend(self._render_notes())
+            lines.extend(self._render_notes(bounds))
         lines.append(r"\end{tikzpicture}")
         return "\n".join(lines)
 
-    def _render_groups(self) -> list[str]:
+    def _render_groups(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
         tensor_by_id = self._geometry._tensor_by_id
         for group in self._spec.groups:
@@ -465,101 +590,112 @@ class _TikzRenderer:
             ]
             if not group_tensors:
                 continue
-            bounds = _tensor_collection_bounds(group_tensors, padding=_GROUP_PADDING)
-            lines.append(
-                rf"\draw[tne group] {self._point(CanvasPosition(bounds.x1, bounds.y1))} "
-                rf"rectangle {self._point(CanvasPosition(bounds.x2, bounds.y2))};"
+            group_bounds = _tensor_collection_bounds(
+                group_tensors, padding=_GROUP_PADDING
             )
             lines.append(
-                rf"\node[tne group label] at {self._point(CanvasPosition(bounds.x1 + 8.0, bounds.y1 + 14.0))} "
+                rf"\draw[tne group] {self._point(CanvasPosition(group_bounds.x1, group_bounds.y1), bounds)} "
+                rf"rectangle {self._point(CanvasPosition(group_bounds.x2, group_bounds.y2), bounds)};"
+            )
+            lines.append(
+                rf"\node[tne group label] at {self._point(CanvasPosition(group_bounds.x1 + 8.0, group_bounds.y1 + 14.0), bounds)} "
                 rf"{{{_latex_text(group.name)}}};"
             )
         return lines
 
-    def _render_edges(self) -> list[str]:
+    def _render_edges(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
         for edge in self._spec.edges:
-            if edge.left.index_id not in self._index_by_id:
+            left_entry = self._index_by_id.get(edge.left.index_id)
+            right_entry = self._index_by_id.get(edge.right.index_id)
+            if left_entry is None or right_entry is None:
                 continue
-            if edge.right.index_id not in self._index_by_id:
-                continue
-            line = (
-                rf"\draw[tne edge] ({_tikz_node_id('index', edge.left.index_id)}) -- "
-                rf"({_tikz_node_id('index', edge.right.index_id)})"
-            )
+            source = self._geometry.connection_point(*left_entry)
+            target = self._geometry.connection_point(*right_entry)
+            line = rf"\draw[tne edge] {self._point(source, bounds)} -- {self._point(target, bounds)}"
             if self._options.show_edge_labels and edge.name:
                 line += rf" node[midway, above, tne edge label] {{{_latex_text(edge.name)}}}"
             lines.append(line + ";")
         return lines
 
-    def _render_hyperedges(self) -> list[str]:
+    def _render_hyperedges(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
         for hyperedge in self._spec.hyperedges:
             hub_node_id = _tikz_node_id("hyperedge", hyperedge.id)
             hub = self._geometry._hyperedge_hub_position(hyperedge)
             lines.append(
-                rf"\node[tne hyperedge] ({hub_node_id}) at {self._point(hub)} {{}};"
+                rf"\node[tne hyperedge] ({hub_node_id}) at {self._point(hub, bounds)} {{}};"
             )
             for endpoint in hyperedge.endpoints:
-                if endpoint.index_id not in self._index_by_id:
+                tensor_index = self._index_by_id.get(endpoint.index_id)
+                if tensor_index is None:
                     continue
+                endpoint_position = self._geometry.connection_point(*tensor_index)
                 lines.append(
-                    rf"\draw[tne hyperedge spoke] ({_tikz_node_id('index', endpoint.index_id)}) -- ({hub_node_id});"
+                    rf"\draw[tne hyperedge spoke] {self._point(endpoint_position, bounds)} -- ({hub_node_id});"
                 )
             if self._options.show_edge_labels and hyperedge.name:
                 label_position = CanvasPosition(hub.x, hub.y - 17.0)
                 lines.append(
-                    rf"\node[tne edge label] at {self._point(label_position)} {{{_latex_text(hyperedge.name)}}};"
+                    rf"\node[tne edge label] at {self._point(label_position, bounds)} {{{_latex_text(hyperedge.name)}}};"
                 )
         return lines
 
-    def _render_tensors(self) -> list[str]:
+    def _render_tensors(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
         for tensor in self._spec.tensors:
+            if self._geometry.is_port_tensor(tensor):
+                continue
             label = _latex_text(tensor.name) if self._options.show_tensor_labels else ""
-            tensor_size = max(tensor.size.width, tensor.size.height)
+            tensor_size = self._geometry.tensor_radius(tensor) * 2.0
             lines.append(
                 rf"\node[tne tensor, minimum size={self._length(tensor_size)}] "
-                rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position)} "
+                rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position, bounds)} "
                 rf"{{{label}}};"
             )
-            lines.extend(self._render_indices(tensor))
         return lines
 
-    def _render_indices(self, tensor: TensorSpec) -> list[str]:
+    def _render_open_indices(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
-        for index_position, index in enumerate(tensor.indices, start=1):
-            point = self._geometry._index_position(tensor, index)
-            lines.append(
-                rf"\node[tne index] ({_tikz_node_id('index', index.id)}) at {self._point(point)} "
-                rf"{{{index_position}}};"
-            )
-            if self._options.show_index_labels:
-                label_point = CanvasPosition(point.x, point.y + 26.0)
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                if self._geometry.is_index_connected(index.id):
+                    continue
+                source = self._geometry.connection_point(tensor, index)
+                target = self._geometry.open_index_endpoint(tensor, index)
                 lines.append(
-                    rf"\node[tne index label] at {self._point(label_point)} "
+                    rf"\draw[tne open index] {self._point(source, bounds)} -- {self._point(target, bounds)};"
+                )
+        return lines
+
+    def _render_index_labels(self, bounds: _Bounds) -> list[str]:
+        if not self._options.show_index_labels:
+            return []
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                label_point = self._geometry.index_label_point(tensor, index)
+                lines.append(
+                    rf"\node[tne index label] at {self._point(label_point, bounds)} "
                     rf"{{{_latex_text(index.name)} {_latex_text(str(index.dimension))}}};"
                 )
         return lines
 
-    def _render_notes(self) -> list[str]:
+    def _render_notes(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
         for note in self._spec.notes:
             lines.append(
                 rf"\node[tne note, text width={self._length(_NOTE_WIDTH)}] "
-                rf"({_tikz_node_id('note', note.id)}) at {self._point(note.position)} "
+                rf"({_tikz_node_id('note', note.id)}) at {self._point(note.position, bounds)} "
                 rf"{{{_latex_text(note.text)}}};"
             )
         return lines
 
-    def _point(self, point: CanvasPosition) -> str:
-        return (
-            f"({_number(point.x * self._options.scale)}, "
-            f"{_number(-point.y * self._options.scale)})"
-        )
+    def _point(self, point: CanvasPosition, bounds: _Bounds) -> str:
+        return f"({_number(point.x - bounds.x1)}, {_number(bounds.y2 - point.y)})"
 
     def _length(self, value: float) -> str:
-        return f"{_number(value * self._options.scale)}cm"
+        return f"{_number(value)}*\\tneUnit"
 
 
 class _DotRenderer:
@@ -694,6 +830,20 @@ class _PngRenderer:
 
     def render(self) -> bytes:
         """Return the complete PNG document as bytes."""
+        image = self._render_image()
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def render_pdf(self) -> bytes:
+        """Return the complete PDF document as bytes."""
+        image = self._render_image()
+        buffer = BytesIO()
+        image.save(buffer, format="PDF", resolution=72.0 * self._scale)
+        return buffer.getvalue()
+
+    def _render_image(self) -> Any:
+        """Return the rendered Pillow image."""
         image_module, draw_module, font_module = _load_pillow_modules()
         bounds = self._geometry._compute_bounds()
         width = max(240, ceil(bounds.width))
@@ -701,15 +851,17 @@ class _PngRenderer:
         pixel_size = (ceil(width * self._scale), ceil(height * self._scale))
         image = image_module.new("RGB", pixel_size, self._options.background)
         draw = draw_module.Draw(image)
-        font = font_module.load_default()
-        self._render_groups(draw, bounds, font)
-        self._render_edges(draw, bounds, font)
-        self._render_hyperedges(draw, bounds, font)
-        self._render_tensors(draw, bounds, font)
-        self._render_notes(draw, bounds, font)
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        return buffer.getvalue()
+        fonts = _PillowFontBundle(font_module, scale=self._scale)
+        if self._options.include_groups:
+            self._render_groups(draw, bounds, fonts.group)
+        self._render_edges(draw, bounds, fonts.edge)
+        self._render_hyperedges(draw, bounds, fonts.edge)
+        self._render_open_indices(draw, bounds)
+        self._render_tensors(draw, bounds, fonts.tensor)
+        self._render_index_labels(draw, bounds, fonts.index)
+        if self._options.include_notes:
+            self._render_notes(draw, bounds, fonts.note)
+        return image
 
     def _render_groups(self, draw: Any, bounds: _Bounds, font: Any) -> None:
         for group in self._spec.groups:
@@ -777,7 +929,7 @@ class _PngRenderer:
                 tensor_index = self._index_by_id.get(endpoint.index_id)
                 if tensor_index is None:
                     continue
-                endpoint_position = self._geometry._index_position(*tensor_index)
+                endpoint_position = self._geometry.connection_point(*tensor_index)
                 draw.line(
                     [
                         self._point_to_pixels(endpoint_position, bounds),
@@ -802,60 +954,51 @@ class _PngRenderer:
 
     def _render_tensors(self, draw: Any, bounds: _Bounds, font: Any) -> None:
         for tensor in self._spec.tensors:
-            tensor_bounds = _Bounds(
-                x1=tensor.position.x - tensor.size.width / 2,
-                y1=tensor.position.y - tensor.size.height / 2,
-                x2=tensor.position.x + tensor.size.width / 2,
-                y2=tensor.position.y + tensor.size.height / 2,
-            )
-            draw.rounded_rectangle(
-                self._box_to_pixels(tensor_bounds, bounds),
-                radius=self._pixels(8.0),
+            if self._geometry.is_port_tensor(tensor):
+                continue
+            radius = self._geometry.tensor_radius(tensor)
+            pixel_point = self._point_to_pixels(tensor.position, bounds)
+            pixel_radius = self._pixels(radius)
+            draw.ellipse(
+                _pixel_circle_box(pixel_point, pixel_radius),
                 fill=self._options.tensor_fill,
                 outline=self._options.tensor_stroke,
                 width=self._pixels(2.0),
             )
-            self._draw_text(
-                draw,
-                self._point_to_pixels(
-                    CanvasPosition(tensor.position.x, tensor_bounds.y1 + 22),
-                    bounds,
-                ),
-                tensor.name,
-                fill=self._options.text_fill,
-                font=font,
-            )
-            self._render_indices(draw, bounds, font, tensor)
+            if self._options.show_tensor_labels:
+                self._draw_text(
+                    draw,
+                    pixel_point,
+                    tensor.name,
+                    fill=self._options.text_fill,
+                    font=font,
+                )
 
-    def _render_indices(
-        self,
-        draw: Any,
-        bounds: _Bounds,
-        font: Any,
-        tensor: TensorSpec,
-    ) -> None:
-        for index_position, index in enumerate(tensor.indices, start=1):
-            point = self._geometry._index_position(tensor, index)
-            pixel_point = self._point_to_pixels(point, bounds)
-            index_radius = self._pixels(_INDEX_RADIUS)
-            draw.ellipse(
-                _pixel_circle_box(pixel_point, index_radius),
-                fill=self._options.index_fill,
-                outline="#47380d",
-                width=self._pixels(1.5),
-            )
-            self._draw_text(
-                draw,
-                pixel_point,
-                str(index_position),
-                fill="#1b1b1b",
-                font=font,
-            )
-            if self._options.show_index_labels:
+    def _render_open_indices(self, draw: Any, bounds: _Bounds) -> None:
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                if self._geometry.is_index_connected(index.id):
+                    continue
+                source = self._geometry.connection_point(tensor, index)
+                target = self._geometry.open_index_endpoint(tensor, index)
+                draw.line(
+                    [
+                        self._point_to_pixels(source, bounds),
+                        self._point_to_pixels(target, bounds),
+                    ],
+                    fill=self._options.edge_stroke,
+                    width=self._pixels(3.0),
+                )
+
+    def _render_index_labels(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+        if not self._options.show_index_labels:
+            return
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
                 self._draw_text(
                     draw,
                     self._point_to_pixels(
-                        CanvasPosition(point.x, point.y + 26),
+                        self._geometry.index_label_point(tensor, index),
                         bounds,
                     ),
                     f"{index.name} {index.dimension}",
@@ -933,6 +1076,44 @@ class _PngRenderer:
             draw.text(xy, text, fill=fill, font=font, anchor=anchor)
         except TypeError:
             draw.text(xy, text, fill=fill, font=font)
+
+
+@dataclass(slots=True, frozen=True)
+class _PillowFontBundle:
+    """Scaled Pillow fonts for the academic raster renderers."""
+
+    tensor: Any
+    index: Any
+    edge: Any
+    group: Any
+    note: Any
+
+    def __init__(self, font_module: Any, *, scale: float) -> None:
+        object.__setattr__(
+            self,
+            "tensor",
+            _load_pillow_font(font_module, pixel_size=max(22, int(round(26 * scale)))),
+        )
+        object.__setattr__(
+            self,
+            "index",
+            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
+        )
+        object.__setattr__(
+            self,
+            "edge",
+            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
+        )
+        object.__setattr__(
+            self,
+            "group",
+            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
+        )
+        object.__setattr__(
+            self,
+            "note",
+            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
+        )
 
 
 def _tensor_collection_bounds(
@@ -1140,9 +1321,30 @@ def _load_pillow_modules() -> tuple[Any, Any, Any]:
         )
     except ImportError as exc:
         raise RuntimeError(
-            "PNG rendering requires the optional Pillow dependency. "
-            "Install it with tensor-network-editor[png]."
+            "PNG/PDF rendering requires Pillow. "
+            "Reinstall the package or add Pillow to the current environment."
         ) from exc
+
+
+def _load_pillow_font(font_module: Any, *, pixel_size: int) -> Any:
+    """Load a scalable Pillow font, falling back gracefully when unavailable."""
+    package_font_path = (
+        Path(font_module.__file__).resolve().parent / "Fonts" / "DejaVuSans.ttf"
+    )
+    for font_name in (
+        str(package_font_path),
+        "DejaVuSans.ttf",
+        "arial.ttf",
+        "Arial.ttf",
+    ):
+        try:
+            return font_module.truetype(font_name, pixel_size)
+        except (AttributeError, OSError):
+            continue
+    try:
+        return font_module.load_default(size=pixel_size)
+    except TypeError:
+        return font_module.load_default()
 
 
 __all__ = [
@@ -1150,6 +1352,7 @@ __all__ = [
     "SvgRenderOptions",
     "TikzRenderOptions",
     "render_spec_dot",
+    "render_spec_pdf",
     "render_spec_png",
     "render_spec_svg",
     "render_spec_tikz",

@@ -29,6 +29,20 @@ export function createSessionEditorFlows({
     };
   }
 
+  function decodeBase64ToUint8Array(value) {
+    const base64Decoder =
+      typeof globalThis.atob === "function"
+        ? globalThis.atob.bind(globalThis)
+        : typeof Buffer !== "undefined"
+          ? (encoded) => Buffer.from(encoded, "base64").toString("binary")
+          : null;
+    if (!base64Decoder || typeof Uint8Array !== "function") {
+      throw new Error("Binary downloads are not available in this browser.");
+    }
+    const decoded = base64Decoder(value);
+    return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  }
+
   function showCodeGenerationError(message) {
     const safeMessage = message || "Code generation failed.";
     store.setGeneratedCode(`Code generation failed:\n${safeMessage}`);
@@ -319,15 +333,35 @@ export function createSessionEditorFlows({
 
   async function downloadAcademicExport(format) {
     const exportDetails = {
+      svg: {
+        extension: "svg",
+        label: "SVG",
+        contentType: "image/svg+xml;charset=utf-8",
+        responseKind: "text",
+      },
+      png: {
+        extension: "png",
+        label: "PNG",
+        contentType: "image/png",
+        responseKind: "binary",
+      },
+      pdf: {
+        extension: "pdf",
+        label: "PDF",
+        contentType: "application/pdf",
+        responseKind: "binary",
+      },
       tikz: {
         extension: "tex",
         label: "TikZ/LaTeX",
         contentType: "text/x-tex;charset=utf-8",
+        responseKind: "text",
       },
       dot: {
         extension: "dot",
         label: "Graphviz/DOT",
         contentType: "text/vnd.graphviz;charset=utf-8",
+        responseKind: "text",
       },
     }[format];
     if (!exportDetails) {
@@ -350,11 +384,21 @@ export function createSessionEditorFlows({
         );
         return;
       }
-      sessionUi.downloadText(
-        `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.${exportDetails.extension}`,
-        payload.text || "",
-        payload.content_type || exportDetails.contentType
-      );
+      const filename = `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.${exportDetails.extension}`;
+      if (exportDetails.responseKind === "binary") {
+        sessionUi.downloadBlob(
+          filename,
+          new Blob([decodeBase64ToUint8Array(payload.base64 || "")], {
+            type: payload.content_type || exportDetails.contentType,
+          })
+        );
+      } else {
+        sessionUi.downloadText(
+          filename,
+          payload.text || "",
+          payload.content_type || exportDetails.contentType
+        );
+      }
       actions.setStatus(`Exported a ${exportDetails.label} file.`, "success");
     } catch (error) {
       actions.setStatus(
@@ -367,10 +411,13 @@ export function createSessionEditorFlows({
   async function downloadSelectedExport() {
     switch (exportFormatSelect.value) {
       case "png":
-        actions.downloadPngExport();
+        await downloadAcademicExport("png");
         break;
       case "svg":
-        actions.downloadSvgExport();
+        await downloadAcademicExport("svg");
+        break;
+      case "pdf":
+        await downloadAcademicExport("pdf");
         break;
       case "tikz":
         await downloadAcademicExport("tikz");

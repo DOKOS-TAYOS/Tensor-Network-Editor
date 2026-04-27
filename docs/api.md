@@ -191,9 +191,9 @@ and a `remaining_operands` mapping.
 
 ## Render Static Figures
 
-Use `render_spec_svg(...)`, `render_spec_tikz(...)`, `render_spec_dot(...)`, or
-`render_spec_png(...)` when you want a static figure without opening the browser
-editor.
+Use `render_spec_svg(...)`, `render_spec_pdf(...)`, `render_spec_tikz(...)`,
+`render_spec_dot(...)`, or `render_spec_png(...)` when you want a static figure
+without opening the browser editor.
 
 ```python
 from tensor_network_editor import (
@@ -202,6 +202,7 @@ from tensor_network_editor import (
     TikzRenderOptions,
     load_spec,
     render_spec_dot,
+    render_spec_pdf,
     render_spec_png,
     render_spec_svg,
     render_spec_tikz,
@@ -225,14 +226,15 @@ dot = render_spec_dot(
     output_path="graph.dot",
 )
 png = render_spec_png(spec, output_path="figure.png")
+pdf = render_spec_pdf(spec, output_path="figure.pdf")
 print(svg[:80])
 ```
 
 SVG, TikZ, and DOT rendering are pure Python and have no browser, Node, LaTeX,
-or Graphviz runtime dependency. PNG export uses the same saved canvas positions
-and requires the optional `png` extra (`Pillow`). The renderers validate the
-spec and draw tensors, indices, pairwise edges, hyperedges, groups, and notes
-where the target format supports them.
+or Graphviz runtime dependency. PNG and PDF export use the same academic figure
+renderer and require the optional `png` extra (`Pillow`). The renderers validate
+the spec and draw tensors, open ports, pairwise edges, hyperedges, groups, and
+notes where the target format supports them.
 
 ## Save and Load Designs
 

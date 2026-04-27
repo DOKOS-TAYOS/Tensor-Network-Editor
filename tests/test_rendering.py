@@ -1,19 +1,29 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
+from tensor_network_editor.models import NetworkSpec
 from tensor_network_editor.rendering import (
     DotRenderOptions,
     SvgRenderOptions,
     TikzRenderOptions,
     render_spec_dot,
+    render_spec_pdf,
     render_spec_svg,
     render_spec_tikz,
 )
 from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
+
+
+def _assign_demo_index_offsets() -> NetworkSpec:
+    spec = build_sample_spec()
+    spec.tensors[0].indices[0].offset.x = -58.0
+    spec.tensors[0].indices[1].offset.x = 58.0
+    spec.tensors[1].indices[0].offset.x = -58.0
+    spec.tensors[1].indices[1].offset.x = 58.0
+    return spec
 
 
 def test_render_spec_svg_returns_standalone_svg_for_normal_network() -> None:
@@ -27,6 +37,39 @@ def test_render_spec_svg_returns_standalone_svg_for_normal_network() -> None:
     assert "bond_x" in svg
     assert "Demo Group" in svg
     assert "Check the contraction order" in svg
+
+
+def test_academic_svg_and_tikz_exports_use_tensor_circles_and_dangling_ports() -> None:
+    spec = _assign_demo_index_offsets()
+
+    svg = render_spec_svg(spec)
+    tikz = render_spec_tikz(spec)
+
+    assert '<circle class="tensor"' in svg
+    assert '<rect class="tensor"' not in svg
+    assert 'class="index"' not in svg
+    assert 'class="open-index"' in svg
+    assert r"\node[tne index]" not in tikz
+    assert r"\draw[tne open index]" in tikz
+
+
+def test_academic_svg_renderer_can_hide_tensor_index_and_bond_labels() -> None:
+    spec = _assign_demo_index_offsets()
+
+    svg = render_spec_svg(
+        spec,
+        options=SvgRenderOptions(
+            show_tensor_labels=False,
+            show_index_labels=False,
+            show_edge_labels=False,
+        ),
+    )
+
+    assert ">A<" not in svg
+    assert ">B<" not in svg
+    assert "bond_x" not in svg
+    assert ">i 2<" not in svg
+    assert ">j 4<" not in svg
 
 
 def test_render_spec_svg_renders_hyperedge_hubs_and_spokes() -> None:
@@ -53,16 +96,41 @@ def test_render_spec_svg_writes_output_path(tmp_path: Path) -> None:
 def test_render_spec_tikz_returns_tikzpicture_for_normal_network() -> None:
     tikz = render_spec_tikz(build_sample_spec())
 
-    assert tikz.startswith(r"\begin{tikzpicture}")
+    assert r"\def\tneGlobalWidth{\linewidth}" in tikz
+    assert (
+        r"\begin{tikzpicture}[x=\tneUnit, y=\tneUnit, line width=\tneLineWidth]" in tikz
+    )
+    assert tikz.splitlines()[0] == r"\def\tneGlobalWidth{\linewidth}"
     assert r"tne tensor/.style={draw, circle" in tikz
+    assert (
+        r"tne tensor/.style={draw, circle, fill=blue!12, align=center, inner sep=3*\tneUnit, font=\scriptsize}"
+        in tikz
+    )
+    assert r"tne index label/.style={font=\fontsize{4}{4.8}\selectfont" in tikz
+    assert r"tne edge label/.style={font=\fontsize{4}{4.8}\selectfont" in tikz
     assert r"\node[tne tensor," in tikz
     assert "(tensor_tensor_a)" in tikz
-    assert r"\node[tne index] (index_tensor_a_i)" in tikz
-    assert r"\draw[tne edge] (index_tensor_a_x) -- (index_tensor_b_x)" in tikz
+    assert r"\node[tne index]" not in tikz
+    assert r"\draw[tne edge]" in tikz
+    assert r"\draw[tne open index]" in tikz
     assert r"bond\_x" in tikz
     assert r"Demo Group" in tikz
     assert r"Check the contraction order" in tikz
     assert tikz.endswith(r"\end{tikzpicture}")
+
+
+def test_render_spec_tikz_uses_single_global_width_control() -> None:
+    tikz = render_spec_tikz(
+        build_sample_spec(),
+        options=TikzRenderOptions(global_width=r"0.8\textwidth"),
+    )
+
+    assert r"\def\tneGlobalWidth{0.8\textwidth}" in tikz
+    assert r"\pgfmathsetlengthmacro{\tneUnit}{" in tikz
+    assert r"minimum size=\tneHyperedgeSize" in tikz
+    assert r"line width=\tneLineWidth" in tikz
+    assert r"*\tneUnit" in tikz
+    assert r"\pgfmathsetlengthmacro{\tneHyperedgeSpokeWidth}" not in tikz
 
 
 def test_render_spec_tikz_writes_output_path(tmp_path: Path) -> None:
@@ -103,6 +171,7 @@ def test_academic_renderers_include_hyperedges_and_open_indices() -> None:
 
     assert r"\node[tne hyperedge] (hyperedge_hyperedge_h)" in tikz
     assert "shared\\_h" in tikz
+    assert r"\node[tne index]" not in tikz
     assert r"\node[tne index label]" not in tikz
     assert '"hyperedge_h" [label="shared_h", shape="point"]' in dot
     assert '"tensor_a" -- "hyperedge_h" [label="h=3"]' in dot
@@ -179,30 +248,20 @@ def test_academic_renderers_escape_labels_conservatively() -> None:
     assert '"note_demo" [label="note \\"quoted\\"\\nsecond line", shape="note"]' in dot
 
 
-def test_render_spec_png_reports_missing_optional_dependency(
+def test_render_spec_png_reports_missing_pillow_dependency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import builtins
+    import tensor_network_editor.rendering as rendering_module
 
-    from tensor_network_editor.rendering import render_spec_png
+    def reject_pillow_modules() -> tuple[object, object, object]:
+        raise RuntimeError(
+            "PNG/PDF rendering requires Pillow. Reinstall the package or add Pillow to the current environment."
+        )
 
-    original_import = builtins.__import__
+    monkeypatch.setattr(rendering_module, "_load_pillow_modules", reject_pillow_modules)
 
-    def reject_pillow(
-        name: str,
-        globals_: Mapping[str, object] | None = None,
-        locals_: Mapping[str, object] | None = None,
-        fromlist: tuple[str, ...] = (),
-        level: int = 0,
-    ) -> object:
-        if name == "PIL" or name.startswith("PIL."):
-            raise ImportError("Pillow disabled for test")
-        return original_import(name, globals_, locals_, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", reject_pillow)
-
-    with pytest.raises(RuntimeError, match=r"tensor-network-editor\[png\]"):
-        render_spec_png(build_sample_spec())
+    with pytest.raises(RuntimeError, match=r"requires Pillow|add Pillow"):
+        rendering_module.render_spec_png(build_sample_spec())
 
 
 def test_render_spec_png_returns_png_bytes_and_writes_output_path(
@@ -217,3 +276,16 @@ def test_render_spec_png_returns_png_bytes_and_writes_output_path(
 
     assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
     assert output_path.read_bytes() == png_bytes
+
+
+def test_render_spec_pdf_returns_pdf_bytes_and_writes_output_path(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("PIL.Image")
+
+    output_path = tmp_path / "network.pdf"
+
+    pdf_bytes = render_spec_pdf(_assign_demo_index_offsets(), output_path=output_path)
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert output_path.read_bytes() == pdf_bytes

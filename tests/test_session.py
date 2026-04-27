@@ -203,28 +203,36 @@ def test_cancel_does_not_override_completed_result(
     assert session.wait_for_result(timeout=0.01) == result
 
 
-def test_wait_for_editor_result_delegates_to_session_once() -> None:
+def test_wait_for_editor_result_polls_until_the_session_finishes() -> None:
     class FakeSession:
         def __init__(self) -> None:
             self.calls: list[float | None] = []
+            self._finished = False
 
         def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
             self.calls.append(timeout)
+            self._finished = True
             return None
+
+        def is_finished(self) -> bool:
+            return self._finished
 
     session = FakeSession()
 
     result = wait_for_editor_result(session)
 
     assert result is None
-    assert session.calls == [None]
+    assert session.calls == [0.1]
 
 
 def test_wait_for_editor_result_warns_when_poll_interval_is_passed() -> None:
     class FakeSession:
         def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
-            assert timeout is None
+            assert timeout == 0.1
             return None
+
+        def is_finished(self) -> bool:
+            return True
 
     session = FakeSession()
 
@@ -235,6 +243,33 @@ def test_wait_for_editor_result_warns_when_poll_interval_is_passed() -> None:
         result = wait_for_editor_result(session, poll_interval=0.05)
 
     assert result is None
+
+
+def test_wait_for_editor_result_returns_completed_result_after_polling() -> None:
+    completed_result = EditorResult(
+        spec=build_blank_network_spec(),
+        engine=EngineName.EINSUM_NUMPY,
+        confirmed=False,
+    )
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
+            assert timeout == 0.1
+            self.calls += 1
+            return completed_result if self.calls == 3 else None
+
+        def is_finished(self) -> bool:
+            return False
+
+    session = FakeSession()
+
+    result = wait_for_editor_result(session)
+
+    assert result is completed_result
+    assert session.calls == 3
 
 
 def test_open_editor_waits_for_complete(

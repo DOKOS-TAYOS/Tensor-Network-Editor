@@ -37,6 +37,7 @@ export function getDomRefs(document) {
     exportPythonMenuItem: document.getElementById("export-python-menu-item"),
     exportPngMenuItem: document.getElementById("export-png-menu-item"),
     exportSvgMenuItem: document.getElementById("export-svg-menu-item"),
+    exportPdfMenuItem: document.getElementById("export-pdf-menu-item"),
     exportTikzMenuItem: document.getElementById("export-tikz-menu-item"),
     exportDotMenuItem: document.getElementById("export-dot-menu-item"),
     exportShowTensorNamesMenuItem: document.getElementById(
@@ -47,6 +48,10 @@ export function getDomRefs(document) {
     ),
     exportShowBondNamesMenuItem: document.getElementById(
       "export-show-bond-names-menu-item"
+    ),
+    closeWithInfoMenuItem: document.getElementById("close-with-info-menu-item"),
+    closeWithoutInfoMenuItem: document.getElementById(
+      "close-without-info-menu-item"
     ),
     singleModeMenuItem: document.getElementById("single-mode-menu-item"),
     linearPeriodicModeMenuItem: document.getElementById(

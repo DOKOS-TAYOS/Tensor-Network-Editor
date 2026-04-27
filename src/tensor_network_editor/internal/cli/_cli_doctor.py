@@ -216,7 +216,7 @@ def _backend_suggestions(
     *,
     spec: NetworkSpec,
 ) -> list[str]:
-    """Return friendly suggestions based on optional dependency availability."""
+    """Return friendly suggestions based on backend dependency availability."""
     suggestions: list[str] = []
     recommended_backend = _recommended_backend_suggestion(backends, spec=spec)
     if recommended_backend is not None:
@@ -224,7 +224,7 @@ def _backend_suggestions(
     pillow = backends.get("PIL")
     if isinstance(pillow, dict) and not pillow.get("available"):
         suggestions.append(
-            "Install tensor-network-editor[png] to enable headless PNG rendering."
+            "Pillow is missing; reinstall the package or add Pillow to enable headless PNG/PDF rendering."
         )
     return suggestions
 

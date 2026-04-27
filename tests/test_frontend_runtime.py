@@ -11893,6 +11893,30 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                   },
                   async renderSpec(payload) {
                     calls.push({ type: "renderSpec", payload });
+                    if (payload.format === "svg") {
+                      return {
+                        ok: true,
+                        format: "svg",
+                        text: "<?xml version='1.0'?><svg />",
+                        content_type: "image/svg+xml;charset=utf-8",
+                      };
+                    }
+                    if (payload.format === "png") {
+                      return {
+                        ok: true,
+                        format: "png",
+                        base64: "iVBORw0KGgo=",
+                        content_type: "image/png",
+                      };
+                    }
+                    if (payload.format === "pdf") {
+                      return {
+                        ok: true,
+                        format: "pdf",
+                        base64: "JVBERi0xLjQ=",
+                        content_type: "application/pdf",
+                      };
+                    }
                     return {
                       ok: true,
                       format: payload.format,
@@ -11918,6 +11942,9 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                 },
                 downloadText(filename, text, contentType) {
                   calls.push({ type: "downloadText", filename, text, contentType });
+                },
+                downloadBlob(filename, blob) {
+                  calls.push({ type: "downloadBlob", filename, contentType: blob.type });
                 },
                 closeWindow() {},
               },
@@ -11967,13 +11994,34 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               throw new Error("Explicit JSON save should resume future autosaves.");
             }
 
+            await flows.downloadExportAs("svg");
+            await flows.downloadExportAs("png");
+            await flows.downloadExportAs("pdf");
             await flows.downloadExportAs("tikz");
             await flows.downloadExportAs("dot");
+            const svgRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "svg"
+            );
+            const pngRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "png"
+            );
+            const pdfRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "pdf"
+            );
             const tikzRenderCall = calls.find(
               (entry) => entry.type === "renderSpec" && entry.payload.format === "tikz"
             );
             const dotRenderCall = calls.find(
               (entry) => entry.type === "renderSpec" && entry.payload.format === "dot"
+            );
+            const svgDownloadCall = calls.find(
+              (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.svg"
+            );
+            const pngDownloadCall = calls.find(
+              (entry) => entry.type === "downloadBlob" && entry.filename === "draft_demo.png"
+            );
+            const pdfDownloadCall = calls.find(
+              (entry) => entry.type === "downloadBlob" && entry.filename === "draft_demo.pdf"
             );
             const tikzDownloadCall = calls.find(
               (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.tex"
@@ -11981,14 +12029,26 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             const dotDownloadCall = calls.find(
               (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.dot"
             );
-            if (!tikzRenderCall || !dotRenderCall) {
+            if (!svgRenderCall || !pngRenderCall || !pdfRenderCall || !tikzRenderCall || !dotRenderCall) {
               throw new Error(`Expected academic exports to call renderSpec, received ${JSON.stringify(calls)}.`);
             }
             if (
+              !svgRenderCall.payload.spec.persistViewSnapshots ||
+              !pngRenderCall.payload.spec.persistViewSnapshots ||
+              !pdfRenderCall.payload.spec.persistViewSnapshots ||
               !tikzRenderCall.payload.spec.persistViewSnapshots ||
               !dotRenderCall.payload.spec.persistViewSnapshots
             ) {
               throw new Error(`Academic exports should persist view snapshots, received ${JSON.stringify(calls)}.`);
+            }
+            if (!svgDownloadCall || svgDownloadCall.contentType !== "image/svg+xml;charset=utf-8") {
+              throw new Error(`Expected SVG export to download a .svg file, received ${JSON.stringify(calls)}.`);
+            }
+            if (!pngDownloadCall || pngDownloadCall.contentType !== "image/png") {
+              throw new Error(`Expected PNG export to download a .png file, received ${JSON.stringify(calls)}.`);
+            }
+            if (!pdfDownloadCall || pdfDownloadCall.contentType !== "application/pdf") {
+              throw new Error(`Expected PDF export to download a .pdf file, received ${JSON.stringify(calls)}.`);
             }
             if (!tikzDownloadCall || tikzDownloadCall.contentType !== "text/x-tex;charset=utf-8") {
               throw new Error(`Expected TikZ export to download a .tex file, received ${JSON.stringify(calls)}.`);

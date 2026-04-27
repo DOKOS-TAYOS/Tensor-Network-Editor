@@ -12,7 +12,7 @@ from ...editor import EditorLaunchOptions
 from ...errors import SerializationError
 from ...io import PythonLoadOptions
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
-from ...rendering import DotRenderOptions, TikzRenderOptions
+from ...rendering import DotRenderOptions, SvgRenderOptions, TikzRenderOptions
 from ...types import JSONValue, StrPath
 from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
@@ -217,17 +217,29 @@ def handle_render_command(
     *,
     load_spec: Callable[..., NetworkSpec],
     render_spec_dot: Callable[..., str],
+    render_spec_pdf: Callable[..., bytes],
     render_spec_svg: Callable[..., str],
     render_spec_tikz: Callable[..., str],
     render_spec_png: Callable[..., bytes],
 ) -> int:
     """Render a saved spec as a static image."""
     spec = load_spec(args.path, **_python_load_kwargs(args))
+    svg_options = SvgRenderOptions(
+        show_tensor_labels=args.show_tensor_names,
+        show_index_labels=args.show_index_names,
+        show_edge_labels=args.show_bond_names,
+    )
     if args.format == "png":
         if args.output is None:
             raise ValueError("PNG render requires --output.")
-        render_spec_png(spec, output_path=args.output)
+        render_spec_png(spec, options=svg_options, output_path=args.output)
         print(f"Wrote PNG rendering to {args.output}")
+        return 0
+    if args.format == "pdf":
+        if args.output is None:
+            raise ValueError("PDF render requires --output.")
+        render_spec_pdf(spec, options=svg_options, output_path=args.output)
+        print(f"Wrote PDF rendering to {args.output}")
         return 0
     if args.format == "tikz":
         text = render_spec_tikz(
@@ -252,7 +264,7 @@ def handle_render_command(
         )
         output_label = "Graphviz/DOT"
     else:
-        text = render_spec_svg(spec, output_path=args.output)
+        text = render_spec_svg(spec, options=svg_options, output_path=args.output)
         output_label = "SVG"
     if args.output is None:
         print(text)

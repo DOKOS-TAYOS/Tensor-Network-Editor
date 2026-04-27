@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - Contributor and citation metadata now live in `CONTRIBUTING.md` and
   `CITATION.cff`.
+- Academic figure exports now support PDF alongside SVG, PNG, TikZ/LaTeX, and
+  Graphviz/DOT through the browser editor, render API, CLI, and public Python
+  helpers.
+- Pillow is now a base runtime dependency instead of an optional extra because
+  academic PNG/PDF export is part of the core rendering surface.
 - Practical example scripts now cover MPS template code generation, PEPS
   TikZ/DOT rendering, first-class hyperedges, contraction benchmarking, and
   tensor initializers without requiring optional backend packages.
@@ -23,6 +28,22 @@ All notable changes to this project will be documented in this file.
   renderers.
 - TikZ/LaTeX and Graphviz/DOT renders now draw tensors as circles and let users
   independently show or hide tensor, index, and bond names.
+- Academic SVG, PNG, PDF, and TikZ exports now share the same tensor-network
+  diagram style: tensors render as circles, dangling ports render as plain legs
+  instead of port circles, and the tensor/index/bond label toggles now apply to
+  every academic export mode.
+- TikZ/LaTeX figure exports now emit tensor and port geometry before using it in
+  edges, so generated diagrams compile reliably instead of referencing missing
+  node shapes.
+- TikZ/LaTeX figure exports now define a single `\tneGlobalWidth` control
+  (defaulting to `\linewidth`) and express coordinates, node sizes, note
+  widths, and line widths relative to that scale so exported figures resize
+  consistently from one place.
+- The editor now closes through explicit File-menu actions (`Close with info`
+  and `Close without info`) instead of top-right session buttons, and browser
+  refreshes no longer auto-cancel the session and tear down the local server.
+- Editor sessions now wait with short polling intervals so `Ctrl+C` remains
+  responsive on Windows terminals while the browser editor is open.
 - `tensor-network-editor doctor` now adds more actionable suggestions for
   suspicious model structure, available backend choices, incomplete manual
   plans, and manual paths that are clearly more expensive than `auto_full`.

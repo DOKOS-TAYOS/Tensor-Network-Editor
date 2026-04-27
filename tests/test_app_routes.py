@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Callable
 from http.client import HTTPConnection
@@ -186,10 +187,8 @@ def test_render_route_returns_academic_text_exports(
     assert tikz_payload["format"] == "tikz"
     assert tikz_payload["content_type"] == "text/x-tex;charset=utf-8"
     assert tikz_payload["text"].startswith(r"\begin{tikzpicture}")
-    assert (
-        r"\draw[tne edge] (index_tensor_a_x) -- (index_tensor_b_x)"
-        in (tikz_payload["text"])
-    )
+    assert r"\node[tne index]" not in tikz_payload["text"]
+    assert r"\draw[tne edge]" in tikz_payload["text"]
     assert dot_payload["format"] == "dot"
     assert dot_payload["content_type"] == "text/vnd.graphviz;charset=utf-8"
     assert dot_payload["text"].startswith('graph "demo" {')
@@ -238,6 +237,87 @@ def test_render_route_applies_academic_label_options(
     assert "x=3" not in dot_payload["text"]
 
 
+def test_render_route_returns_svg_png_and_pdf_exports(
+    editor_server: EditorServer,
+) -> None:
+    pytest.importorskip("PIL.Image")
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    svg_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "svg", "spec": serialized_spec},
+    )
+    png_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "png", "spec": serialized_spec},
+    )
+    pdf_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "pdf", "spec": serialized_spec},
+    )
+
+    assert svg_payload["format"] == "svg"
+    assert svg_payload["content_type"] == "image/svg+xml;charset=utf-8"
+    assert svg_payload["text"].startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert png_payload["format"] == "png"
+    assert png_payload["content_type"] == "image/png"
+    assert base64.b64decode(png_payload["base64"]).startswith(b"\x89PNG\r\n\x1a\n")
+    assert pdf_payload["format"] == "pdf"
+    assert pdf_payload["content_type"] == "application/pdf"
+    assert base64.b64decode(pdf_payload["base64"]).startswith(b"%PDF")
+
+
+def test_render_route_applies_label_options_to_svg_png_and_pdf(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    with (
+        patch(
+            "tensor_network_editor.app.routes.render_spec_svg",
+            return_value="<?xml version='1.0'?><svg />",
+        ) as render_svg_mock,
+        patch(
+            "tensor_network_editor.app.routes.render_spec_png",
+            return_value=b"\x89PNG\r\n\x1a\n",
+        ) as render_png_mock,
+        patch(
+            "tensor_network_editor.app.routes.render_spec_pdf",
+            return_value=b"%PDF-1.4",
+        ) as render_pdf_mock,
+    ):
+        for render_format in ("svg", "png", "pdf"):
+            payload = request_json(
+                f"{editor_server.base_url}/api/render",
+                method="POST",
+                payload={
+                    "format": render_format,
+                    "spec": serialized_spec,
+                    "show_tensor_names": False,
+                    "show_index_names": False,
+                    "show_bond_names": False,
+                },
+            )
+            assert payload["ok"] is True
+
+    for render_mock in (render_svg_mock, render_png_mock, render_pdf_mock):
+        options = render_mock.call_args.kwargs["options"]
+        assert options.show_tensor_labels is False
+        assert options.show_index_labels is False
+        assert options.show_edge_labels is False
+
+
 def test_render_route_rejects_unsupported_academic_format(
     editor_server: EditorServer,
 ) -> None:
@@ -247,7 +327,7 @@ def test_render_route_rejects_unsupported_academic_format(
         f"{editor_server.base_url}/api/render",
         method="POST",
         payload={
-            "format": "png",
+            "format": "json",
             "spec": {
                 "schema_version": SCHEMA_VERSION,
                 "network": spec.to_dict(),

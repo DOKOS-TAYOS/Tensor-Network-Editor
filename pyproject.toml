@@ -53,7 +53,7 @@ classifiers = [
   "Topic :: Software Development :: User Interfaces",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = ["Pillow>=10"]
 
 [project.urls]
 Homepage = "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
@@ -76,7 +76,6 @@ quimb = ["quimb>=1.7"]
 tensorkrowch = ["tensorkrowch>=1.1"]
 planner = ["opt_einsum>=3.3"]
 desktop = ["pywebview>=5,<6"]
-png = ["Pillow>=10"]
 
 [project.scripts]
 tensor-network-editor = "tensor_network_editor.cli:main"
