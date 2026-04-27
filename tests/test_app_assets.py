@@ -706,6 +706,8 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "top: var(--template-settings-popover-top, 0px);" in body
     assert "left: var(--template-settings-popover-left, 0px);" in body
     assert "position: fixed;" in body
+    assert ".template-parameter-panel {" in body
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in body
     assert ".select-chevron-field::after {" in body
     assert 'content: "";' in body
     assert "border-right: 2px solid rgba(236, 242, 251, 0.78);" in body
@@ -720,6 +722,8 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert ".template-select-field {" in body
     assert "grid-template-rows: var(--canvas-control-height);" in body
     assert "gap: 0;" in body
+    assert ".template-parameter-panel .template-select-field {" in body
+    assert "grid-template-rows: auto var(--canvas-control-height);" in body
     assert ".template-select-field::after {" in body
     assert "top: 50%;" in body
     assert ".template-select-field select {" in body

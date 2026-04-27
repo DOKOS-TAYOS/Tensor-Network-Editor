@@ -913,7 +913,7 @@ select {
 
 .template-parameter-panel {
   display: grid;
-  grid-template-columns: repeat(3, max-content);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem 1rem;
   justify-content: start;
   flex-shrink: 0;
@@ -1074,6 +1074,11 @@ select {
   gap: 0;
 }
 
+.template-parameter-panel .template-select-field {
+  grid-template-rows: auto var(--canvas-control-height);
+  gap: 0.35rem;
+}
+
 .template-parameter-title {
   color: var(--ink);
   font-size: 0.8rem;
@@ -1112,12 +1117,22 @@ select {
   top: 50%;
 }
 
+.template-parameter-panel .template-select-field::after {
+  top: calc(50% + 0.5rem);
+}
+
 .template-select-field select {
   min-width: 9rem;
   padding-right: 2.2rem;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+}
+
+.template-parameter-panel .template-select-field select,
+.template-parameter-panel .template-number-field input {
+  width: 100%;
+  min-width: 0;
 }
 
 .tensor-data-mode-field::after {
