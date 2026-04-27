@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Practical example scripts now cover MPS template code generation, PEPS
+  TikZ/DOT rendering, first-class hyperedges, contraction benchmarking, and
+  tensor initializers without requiring optional backend packages.
 - Public `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers now make
   it easier to build normal-mode `NetworkSpec` objects from Python without
   hand-writing ids and endpoint references.
