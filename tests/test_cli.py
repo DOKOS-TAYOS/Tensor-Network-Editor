@@ -1345,6 +1345,7 @@ def test_template_build_subcommand_prints_json_when_no_output(
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["network"]["name"] == "MPS (5 sites)"
+    assert payload["network"]["metadata"]["initial_state"] == "zeros"
 
 
 @pytest.mark.parametrize(
@@ -1352,7 +1353,7 @@ def test_template_build_subcommand_prints_json_when_no_output(
     [
         ("ttn", "TTN depth 3"),
         ("pepo", "PEPO 3x3"),
-        ("heisenberg_mps", "Heisenberg MPS"),
+        ("transverse_ising_mpo", "Transverse Ising MPO"),
     ],
 )
 def test_template_build_subcommand_generates_new_v3_templates(
@@ -1374,6 +1375,39 @@ def test_template_build_subcommand_generates_new_v3_templates(
 
     assert exit_code == 0
     assert payload["network"]["name"] == expected_name
+
+
+def test_template_build_subcommand_accepts_new_mps_configuration_flags(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(
+        [
+            "template",
+            "build",
+            "mps",
+            "--graph-size",
+            "4",
+            "--bond-dimension",
+            "3",
+            "--physical-dimension",
+            "2",
+            "--boundary-condition",
+            "periodic",
+            "--symmetry",
+            "z2",
+            "--initial-state",
+            "neel",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["network"]["metadata"]["boundary_condition"] == "periodic"
+    assert payload["network"]["metadata"]["symmetry"] == "z2"
+    assert payload["network"]["metadata"]["initial_state"] == "neel"
+    assert len(payload["network"]["edges"]) == 4
 
 
 def test_subnetwork_list_subcommand_prints_project_catalog(

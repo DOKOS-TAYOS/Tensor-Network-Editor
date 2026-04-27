@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from ...types import JSONValue
@@ -21,6 +21,56 @@ class TemplateParameters:
     graph_size: int
     bond_dimension: int
     physical_dimension: int
+    boundary_condition: Literal["open", "periodic"] = "open"
+    symmetry: Literal["none", "u1", "z2"] = "none"
+    initial_state: Literal[
+        "zeros",
+        "random",
+        "all_up",
+        "all_down",
+        "neel",
+    ] = "zeros"
+
+
+@dataclass(frozen=True)
+class TemplateParameterOptionDefinition:
+    """One select-option entry for a template parameter control."""
+
+    value: str
+    label: str
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize the option metadata for the frontend bootstrap payload."""
+        return {
+            "value": self.value,
+            "label": self.label,
+        }
+
+
+@dataclass(frozen=True)
+class TemplateParameterFieldDefinition:
+    """Describe one configurable template parameter."""
+
+    name: str
+    label: str
+    kind: Literal["integer", "choice"]
+    default: int | str
+    minimum: int | None = None
+    options: tuple[TemplateParameterOptionDefinition, ...] = ()
+
+    def to_dict(self) -> dict[str, JSONValue]:
+        """Serialize one parameter definition for frontend rendering."""
+        payload: dict[str, JSONValue] = {
+            "name": self.name,
+            "label": self.label,
+            "kind": self.kind,
+            "default": self.default,
+        }
+        if self.minimum is not None:
+            payload["minimum"] = self.minimum
+        if self.options:
+            payload["options"] = [option.to_dict() for option in self.options]
+        return payload
 
 
 @dataclass(frozen=True)
@@ -36,25 +86,143 @@ class TemplateDefinition:
     minimum_physical_dimension: int = 1
     supports_parameters: bool = True
     source: Literal["project", "global"] = "global"
+    parameter_fields: tuple[TemplateParameterFieldDefinition, ...] = field(
+        default_factory=tuple
+    )
 
     def to_dict(self) -> dict[str, JSONValue]:
         """Serialize the template definition for frontend bootstrap payloads."""
+        defaults, minimums = _serialize_template_parameter_payload(
+            self,
+        )
         return {
             "display_name": self.display_name,
             "graph_size_label": self.graph_size_label,
-            "defaults": {
-                "graph_size": self.defaults.graph_size,
-                "bond_dimension": self.defaults.bond_dimension,
-                "physical_dimension": self.defaults.physical_dimension,
-            },
-            "minimums": {
-                "graph_size": self.minimum_graph_size,
-                "bond_dimension": self.minimum_bond_dimension,
-                "physical_dimension": self.minimum_physical_dimension,
-            },
+            "defaults": defaults,
+            "minimums": minimums,
+            "parameter_fields": [
+                parameter_field.to_dict() for parameter_field in self.parameter_fields
+            ],
             "supports_parameters": self.supports_parameters,
             "source": self.source,
         }
+
+
+def _build_standard_parameter_fields(
+    *,
+    graph_size_label: str,
+    defaults: TemplateParameters,
+    minimum_graph_size: int = 2,
+    minimum_bond_dimension: int = 1,
+    minimum_physical_dimension: int = 1,
+) -> tuple[TemplateParameterFieldDefinition, ...]:
+    """Return the common numeric template-parameter definitions."""
+    return (
+        TemplateParameterFieldDefinition(
+            name="graph_size",
+            label=f"Graph size ({graph_size_label})",
+            kind="integer",
+            default=defaults.graph_size,
+            minimum=minimum_graph_size,
+        ),
+        TemplateParameterFieldDefinition(
+            name="bond_dimension",
+            label="Bond dimension",
+            kind="integer",
+            default=defaults.bond_dimension,
+            minimum=minimum_bond_dimension,
+        ),
+        TemplateParameterFieldDefinition(
+            name="physical_dimension",
+            label="Physical dimension",
+            kind="integer",
+            default=defaults.physical_dimension,
+            minimum=minimum_physical_dimension,
+        ),
+    )
+
+
+def _build_mps_parameter_fields(
+    defaults: TemplateParameters,
+) -> tuple[TemplateParameterFieldDefinition, ...]:
+    """Return the extended MPS parameter controls shown in the editor."""
+    return (
+        *_build_standard_parameter_fields(
+            graph_size_label="Sites",
+            defaults=defaults,
+        ),
+        TemplateParameterFieldDefinition(
+            name="boundary_condition",
+            label="Boundary condition",
+            kind="choice",
+            default=defaults.boundary_condition,
+            options=(
+                TemplateParameterOptionDefinition(value="open", label="Open"),
+                TemplateParameterOptionDefinition(
+                    value="periodic",
+                    label="Periodic",
+                ),
+            ),
+        ),
+        TemplateParameterFieldDefinition(
+            name="symmetry",
+            label="Symmetry",
+            kind="choice",
+            default=defaults.symmetry,
+            options=(
+                TemplateParameterOptionDefinition(value="none", label="None"),
+                TemplateParameterOptionDefinition(value="u1", label="U1"),
+                TemplateParameterOptionDefinition(value="z2", label="Z2"),
+            ),
+        ),
+        TemplateParameterFieldDefinition(
+            name="initial_state",
+            label="Initial state",
+            kind="choice",
+            default=defaults.initial_state,
+            options=(
+                TemplateParameterOptionDefinition(value="zeros", label="Zeros"),
+                TemplateParameterOptionDefinition(value="random", label="Random"),
+                TemplateParameterOptionDefinition(value="all_up", label="All up"),
+                TemplateParameterOptionDefinition(
+                    value="all_down",
+                    label="All down",
+                ),
+                TemplateParameterOptionDefinition(value="neel", label="Neel"),
+            ),
+        ),
+    )
+
+
+def _serialize_template_parameter_payload(
+    definition: TemplateDefinition,
+) -> tuple[dict[str, JSONValue], dict[str, JSONValue]]:
+    """Return serialized defaults and minimums for one template definition."""
+    parameter_fields = definition.parameter_fields or _build_standard_parameter_fields(
+        graph_size_label=definition.graph_size_label,
+        defaults=definition.defaults,
+        minimum_graph_size=definition.minimum_graph_size,
+        minimum_bond_dimension=definition.minimum_bond_dimension,
+        minimum_physical_dimension=definition.minimum_physical_dimension,
+    )
+    defaults: dict[str, JSONValue] = {}
+    minimums: dict[str, JSONValue] = {}
+    for parameter_field in parameter_fields:
+        defaults[parameter_field.name] = parameter_field.default
+        if parameter_field.minimum is not None:
+            minimums[parameter_field.name] = parameter_field.minimum
+    return defaults, minimums
+
+
+def _get_parameter_field_definition(
+    definition: TemplateDefinition,
+    field_name: str,
+) -> TemplateParameterFieldDefinition | None:
+    """Return the parameter metadata entry for one field when it exists."""
+    for parameter_field in definition.parameter_fields:
+        if parameter_field.name == field_name:
+            return parameter_field
+    return None
 
 
 TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
@@ -67,6 +235,13 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             bond_dimension=3,
             physical_dimension=2,
         ),
+        parameter_fields=_build_mps_parameter_fields(
+            TemplateParameters(
+                graph_size=4,
+                bond_dimension=3,
+                physical_dimension=2,
+            )
+        ),
     ),
     "mpo": TemplateDefinition(
         name="mpo",
@@ -76,6 +251,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             graph_size=4,
             bond_dimension=3,
             physical_dimension=2,
+        ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Sites",
+            defaults=TemplateParameters(
+                graph_size=4,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
         ),
     ),
     "peps_2x2": TemplateDefinition(
@@ -87,6 +270,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             bond_dimension=3,
             physical_dimension=2,
         ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Side length",
+            defaults=TemplateParameters(
+                graph_size=3,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
+        ),
     ),
     "mera": TemplateDefinition(
         name="mera",
@@ -96,6 +287,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             graph_size=3,
             bond_dimension=3,
             physical_dimension=2,
+        ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Depth",
+            defaults=TemplateParameters(
+                graph_size=3,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
         ),
     ),
     "binary_tree": TemplateDefinition(
@@ -107,6 +306,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             bond_dimension=3,
             physical_dimension=2,
         ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Depth",
+            defaults=TemplateParameters(
+                graph_size=3,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
+        ),
     ),
     "ttn": TemplateDefinition(
         name="ttn",
@@ -116,6 +323,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             graph_size=3,
             bond_dimension=3,
             physical_dimension=2,
+        ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Depth",
+            defaults=TemplateParameters(
+                graph_size=3,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
         ),
     ),
     "pepo": TemplateDefinition(
@@ -127,25 +342,13 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             bond_dimension=3,
             physical_dimension=2,
         ),
-    ),
-    "heisenberg_mps": TemplateDefinition(
-        name="heisenberg_mps",
-        display_name="Heisenberg MPS",
-        graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
-    ),
-    "ising_mps": TemplateDefinition(
-        name="ising_mps",
-        display_name="Ising MPS",
-        graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Side length",
+            defaults=TemplateParameters(
+                graph_size=3,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
         ),
     ),
     "transverse_ising_mpo": TemplateDefinition(
@@ -157,6 +360,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             bond_dimension=3,
             physical_dimension=2,
         ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Sites",
+            defaults=TemplateParameters(
+                graph_size=4,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
+        ),
     ),
     "tebd_gate_layer": TemplateDefinition(
         name="tebd_gate_layer",
@@ -166,6 +377,14 @@ TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
             graph_size=4,
             bond_dimension=3,
             physical_dimension=2,
+        ),
+        parameter_fields=_build_standard_parameter_fields(
+            graph_size_label="Sites",
+            defaults=TemplateParameters(
+                graph_size=4,
+                bond_dimension=3,
+                physical_dimension=2,
+            ),
         ),
     ),
 }
@@ -333,6 +552,61 @@ def validate_template_parameters(
 ) -> TemplateParameters:
     """Normalize template parameters against the rules for ``template_name``."""
     definition = get_template_definition(template_name)
+    boundary_condition_definition = _get_parameter_field_definition(
+        definition,
+        "boundary_condition",
+    )
+    symmetry_definition = _get_parameter_field_definition(
+        definition,
+        "symmetry",
+    )
+    initial_state_definition = _get_parameter_field_definition(
+        definition,
+        "initial_state",
+    )
+    boundary_condition = (
+        parse_template_choice(
+            parameters.boundary_condition,
+            field_name="boundary_condition",
+            default=definition.defaults.boundary_condition,
+            choices=tuple(
+                option.value for option in boundary_condition_definition.options
+            ),
+        )
+        if boundary_condition_definition is not None
+        else definition.defaults.boundary_condition
+    )
+    symmetry = (
+        parse_template_choice(
+            parameters.symmetry,
+            field_name="symmetry",
+            default=definition.defaults.symmetry,
+            choices=tuple(option.value for option in symmetry_definition.options),
+        )
+        if symmetry_definition is not None
+        else definition.defaults.symmetry
+    )
+    initial_state = (
+        parse_template_choice(
+            parameters.initial_state,
+            field_name="initial_state",
+            default=definition.defaults.initial_state,
+            choices=tuple(option.value for option in initial_state_definition.options),
+        )
+        if initial_state_definition is not None
+        else definition.defaults.initial_state
+    )
+    physical_dimension = parse_template_integer(
+        parameters.physical_dimension,
+        field_name="physical_dimension",
+        default=definition.defaults.physical_dimension,
+        minimum=definition.minimum_physical_dimension,
+    )
+    if initial_state in {"all_up", "all_down", "neel"} and physical_dimension != 2:
+        raise ValueError(
+            "Template parameter 'physical_dimension' must be 2 when "
+            f"'initial_state' is '{initial_state}'."
+        )
     return TemplateParameters(
         graph_size=parse_template_integer(
             parameters.graph_size,
@@ -346,13 +620,31 @@ def validate_template_parameters(
             default=definition.defaults.bond_dimension,
             minimum=definition.minimum_bond_dimension,
         ),
-        physical_dimension=parse_template_integer(
-            parameters.physical_dimension,
-            field_name="physical_dimension",
-            default=definition.defaults.physical_dimension,
-            minimum=definition.minimum_physical_dimension,
-        ),
+        physical_dimension=physical_dimension,
+        boundary_condition=boundary_condition,
+        symmetry=symmetry,
+        initial_state=initial_state,
     )
+
+
+def parse_template_choice(
+    value: object,
+    *,
+    field_name: str,
+    default: str,
+    choices: tuple[str, ...],
+) -> str:
+    """Validate one string template parameter against an allowed choice list."""
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f"Template parameter '{field_name}' must be a string.")
+    normalized_value = value.strip().lower()
+    if normalized_value not in choices:
+        raise ValueError(
+            f"Template parameter '{field_name}' must be one of: {', '.join(choices)}."
+        )
+    return normalized_value
 
 
 def _reset_template_registry_for_tests() -> None:

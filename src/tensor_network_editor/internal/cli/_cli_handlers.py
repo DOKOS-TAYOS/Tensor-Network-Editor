@@ -354,6 +354,9 @@ def handle_template_build_command(
             "graph_size": args.graph_size,
             "bond_dimension": args.bond_dimension,
             "physical_dimension": args.physical_dimension,
+            "boundary_condition": args.boundary_condition,
+            "symmetry": args.symmetry,
+            "initial_state": args.initial_state,
         }.items()
         if value is not None
     }

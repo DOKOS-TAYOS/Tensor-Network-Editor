@@ -269,8 +269,6 @@ def test_list_template_names_is_available_from_public_templates_module() -> None
         "binary_tree",
         "ttn",
         "pepo",
-        "heisenberg_mps",
-        "ising_mps",
         "transverse_ising_mpo",
         "tebd_gate_layer",
     ]

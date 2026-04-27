@@ -20,8 +20,6 @@ def test_template_catalog_exposes_expected_names() -> None:
         "binary_tree",
         "ttn",
         "pepo",
-        "heisenberg_mps",
-        "ising_mps",
         "transverse_ising_mpo",
         "tebd_gate_layer",
     ]
@@ -46,8 +44,6 @@ def test_all_templates_build_valid_specs(template_name: str) -> None:
         ("binary_tree", 560.0, 420.0),
         ("ttn", 560.0, 420.0),
         ("pepo", 680.0, 560.0),
-        ("heisenberg_mps", 900.0, 0.0),
-        ("ising_mps", 900.0, 0.0),
         ("transverse_ising_mpo", 930.0, 0.0),
         ("tebd_gate_layer", 900.0, 220.0),
     ],
@@ -314,43 +310,59 @@ def test_pepo_template_accepts_custom_side_length_and_dimensions() -> None:
     } == {2}
 
 
-def test_heisenberg_mps_template_uses_guided_metadata_without_lint_warnings() -> None:
-    spec = build_template_spec("heisenberg_mps")
-    tensor_metadata = [tensor.metadata for tensor in spec.tensors]
-    index_metadata = [
-        index.metadata for tensor in spec.tensors for index in tensor.indices
-    ]
-
-    assert spec.name == "Heisenberg MPS"
-    assert len(spec.tensors) == 4
-    assert len(spec.edges) == 3
-    assert all(metadata.get("role") == "state" for metadata in tensor_metadata)
-    assert all(
-        "heisenberg" in str(metadata.get("tags", "")) for metadata in tensor_metadata
+def test_mps_template_uses_requested_symmetry_metadata_without_lint_warnings() -> None:
+    spec = build_template_spec(
+        "mps",
+        TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+            symmetry="u1",
+            initial_state="zeros",
+        ),
     )
-    assert {str(metadata.get("leg_kind")) for metadata in index_metadata} <= {
-        "bond",
-        "physical",
-    }
-    assert lint_spec(spec).issues == []
 
-
-def test_ising_mps_template_uses_state_metadata_without_lint_warnings() -> None:
-    spec = build_template_spec("ising_mps")
-
-    assert spec.name == "Ising MPS"
+    assert spec.name == "MPS"
     assert len(spec.tensors) == 4
     assert len(spec.edges) == 3
+    assert spec.metadata["symmetry"] == "u1"
     assert all(tensor.metadata.get("role") == "state" for tensor in spec.tensors)
-    assert all(
-        "ising" in str(tensor.metadata.get("tags", "")) for tensor in spec.tensors
-    )
+    assert all(tensor.metadata.get("symmetry") == "u1" for tensor in spec.tensors)
     assert {
         str(index.metadata.get("leg_kind"))
         for tensor in spec.tensors
         for index in tensor.indices
     } <= {"bond", "physical"}
     assert lint_spec(spec).issues == []
+
+
+def test_mps_template_supports_periodic_boundary_and_neel_initialization() -> None:
+    spec = build_template_spec(
+        "mps",
+        TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+            boundary_condition="periodic",
+            symmetry="z2",
+            initial_state="neel",
+        ),
+    )
+
+    assert spec.name == "MPS"
+    assert len(spec.tensors) == 4
+    assert len(spec.edges) == 4
+    assert spec.metadata["boundary_condition"] == "periodic"
+    assert spec.metadata["initial_state"] == "neel"
+    assert {index.name for index in spec.tensors[0].indices} == {
+        "left",
+        "right",
+        "phys",
+    }
+    assert spec.tensors[0].tensor_data is not None
+    assert spec.tensors[1].tensor_data is not None
+    assert spec.tensors[0].tensor_data.to_dict()["mode"] == "literal"
+    assert spec.tensors[1].tensor_data.to_dict()["mode"] == "literal"
 
 
 def test_transverse_ising_mpo_template_uses_operator_metadata() -> None:

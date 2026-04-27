@@ -43,6 +43,12 @@ export function registerUtilities(ctx) {
     templateBondDimensionInput: ctx.dom.templateBondDimensionInput,
     templatePhysicalDimensionField: ctx.dom.templatePhysicalDimensionField,
     templatePhysicalDimensionInput: ctx.dom.templatePhysicalDimensionInput,
+    templateBoundaryConditionField: ctx.dom.templateBoundaryConditionField,
+    templateBoundaryConditionSelect: ctx.dom.templateBoundaryConditionSelect,
+    templateSymmetryField: ctx.dom.templateSymmetryField,
+    templateSymmetrySelect: ctx.dom.templateSymmetrySelect,
+    templateInitialStateField: ctx.dom.templateInitialStateField,
+    templateInitialStateSelect: ctx.dom.templateInitialStateSelect,
     enforceLinearPeriodicEngineSupport: runtime.enforceLinearPeriodicEngineSupport,
     updateToolbarState: runtime.updateToolbarState,
   });

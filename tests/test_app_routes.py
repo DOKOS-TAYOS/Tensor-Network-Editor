@@ -926,6 +926,32 @@ def test_template_route_applies_requested_parameters(
     } == {7}
 
 
+def test_template_route_applies_requested_mps_model_parameters(
+    editor_server: EditorServer,
+) -> None:
+    payload = request_json(
+        f"{editor_server.base_url}/api/template",
+        method="POST",
+        payload={
+            "template": "mps",
+            "parameters": {
+                "graph_size": 4,
+                "bond_dimension": 3,
+                "physical_dimension": 2,
+                "boundary_condition": "periodic",
+                "symmetry": "z2",
+                "initial_state": "neel",
+            },
+        },
+    )
+
+    assert payload["ok"] is True
+    assert payload["spec"]["network"]["metadata"]["boundary_condition"] == "periodic"
+    assert payload["spec"]["network"]["metadata"]["symmetry"] == "z2"
+    assert payload["spec"]["network"]["metadata"]["initial_state"] == "neel"
+    assert len(payload["spec"]["network"]["edges"]) == 4
+
+
 def test_template_route_rejects_invalid_template_parameters(
     editor_server: EditorServer,
 ) -> None:
@@ -945,6 +971,28 @@ def test_template_route_rejects_invalid_template_parameters(
     assert status == 400
     assert payload["ok"] is False
     assert "graph_size" in payload["message"]
+
+
+def test_template_route_rejects_spin_presets_for_non_spin_dimension(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/template",
+        method="POST",
+        payload={
+            "template": "mps",
+            "parameters": {
+                "graph_size": 4,
+                "bond_dimension": 3,
+                "physical_dimension": 3,
+                "initial_state": "all_up",
+            },
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "physical_dimension" in payload["message"]
 
 
 def test_template_promote_route_persists_project_template_catalog(

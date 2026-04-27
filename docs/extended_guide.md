@@ -390,8 +390,6 @@ Built-in template names:
 - `binary_tree`
 - `ttn`
 - `pepo`
-- `heisenberg_mps`
-- `ising_mps`
 - `transverse_ising_mpo`
 - `tebd_gate_layer`
 
@@ -400,6 +398,8 @@ Template parameters:
 - graph size
 - bond dimension
 - physical dimension
+- `mps` also supports `boundary_condition`, `symmetry`, and `initial_state`
+  (`zeros`, `random`, `all_up`, `all_down`, `neel`)
 
 The graph-size label depends on the template:
 

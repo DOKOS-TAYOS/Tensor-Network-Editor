@@ -67,6 +67,12 @@ export function createEditorShellBindings({
     templateGraphSizeInput,
     templateBondDimensionInput,
     templatePhysicalDimensionInput,
+    templateBoundaryConditionField,
+    templateBoundaryConditionSelect,
+    templateSymmetryField,
+    templateSymmetrySelect,
+    templateInitialStateField,
+    templateInitialStateSelect,
     insertTemplateButton,
     saveSessionTemplateMenuItem,
     saveSubnetworkLibraryMenuItem,
@@ -621,6 +627,33 @@ export function createEditorShellBindings({
     bindListener(templateBondDimensionInput, "change", actions.handleTemplateParameterInput);
     bindListener(
       templatePhysicalDimensionInput,
+      "change",
+      actions.handleTemplateParameterInput
+    );
+    bindSelectChevronDisclosure(
+      templateBoundaryConditionField,
+      templateBoundaryConditionSelect
+    );
+    bindSelectChevronDisclosure(
+      templateSymmetryField,
+      templateSymmetrySelect
+    );
+    bindSelectChevronDisclosure(
+      templateInitialStateField,
+      templateInitialStateSelect
+    );
+    bindListener(
+      templateBoundaryConditionSelect,
+      "change",
+      actions.handleTemplateParameterInput
+    );
+    bindListener(
+      templateSymmetrySelect,
+      "change",
+      actions.handleTemplateParameterInput
+    );
+    bindListener(
+      templateInitialStateSelect,
       "change",
       actions.handleTemplateParameterInput
     );

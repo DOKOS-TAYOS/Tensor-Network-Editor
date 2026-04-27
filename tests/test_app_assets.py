@@ -2346,6 +2346,12 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     )
     assert 'id="template-settings-button"' in html
     assert 'class="template-settings-icon"' in html
+    assert 'id="template-boundary-condition-field"' in html
+    assert 'id="template-boundary-condition-select"' in html
+    assert 'id="template-symmetry-field"' in html
+    assert 'id="template-symmetry-select"' in html
+    assert 'id="template-initial-state-field"' in html
+    assert 'id="template-initial-state-select"' in html
     assert ">...<" not in html
     assert 'id="reflow-imported-button"' in html
     assert 'aria-haspopup="dialog"' in html

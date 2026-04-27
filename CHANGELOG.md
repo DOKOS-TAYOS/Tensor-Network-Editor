@@ -19,8 +19,9 @@ All notable changes to this project will be documented in this file.
 - Public `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers now make
   it easier to build normal-mode `NetworkSpec` objects from Python without
   hand-writing ids and endpoint references.
-- Built-in templates now include `ising_mps`, `transverse_ising_mpo`, and
-  `tebd_gate_layer` for common 1D physics starting points.
+- Built-in templates now include `transverse_ising_mpo` and
+  `tebd_gate_layer`, while `mps` now covers common 1D physics starting points
+  through configurable boundary, symmetry, and initialization presets.
 - Saved designs can now be rendered to academic text formats with TikZ/LaTeX
   and Graphviz/DOT through the public rendering API and `render` CLI command.
 - The browser editor's File menu can now export the current canvas directly as
@@ -73,8 +74,8 @@ All notable changes to this project will be documented in this file.
 - The CLI now includes `tensor-network-editor doctor`, a friendly diagnostic
   command that combines validation, lint, analysis, benchmark summaries, and
   backend/extra availability checks in text or JSON.
-- Built-in templates now include `ttn`, `pepo`, and `heisenberg_mps` for common
-  tree, operator-grid, and physics-oriented MPS starting points.
+- Built-in templates now include `ttn` and `pepo` for common tree and
+  operator-grid starting points.
 - Packaging now declares `numpy` and `torch` optional extras for generated
   `einsum_numpy` and `einsum_torch` workflows while keeping base dependencies
   empty.
@@ -106,6 +107,11 @@ All notable changes to this project will be documented in this file.
   initializers, periodic modes, templates, shortcuts, and planner workflows.
 - Removed obsolete private compatibility shims for split model and periodic
   code-generation internals.
+- The `mps` template now owns the configurable 1D-state presets that were
+  previously split across separate Heisenberg and Ising MPS entries: users can
+  choose open or periodic boundaries, `none`/`u1`/`z2` symmetry tags, and
+  explicit `zeros`, `random`, `all_up`, `all_down`, or `neel` initial states
+  from the browser editor, Python helpers, and `template build` CLI command.
 
 ### Fixed
 

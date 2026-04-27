@@ -10,6 +10,8 @@ from ...models import (
     EdgeSpec,
     IndexSpec,
     NetworkSpec,
+    TensorDataMode,
+    TensorDataSpec,
     TensorSpec,
 )
 from ...validation import ensure_valid_spec
@@ -63,13 +65,15 @@ def build_template(
 
 def _build_mps_template(parameters: TemplateParameters) -> NetworkSpec:
     """Build an MPS template with the requested site count and dimensions."""
-    return _build_linear_chain_template(
+    spec = _build_linear_chain_template(
         "mps",
         parameters,
         tensor_name_prefix="A",
         spacing=HORIZONTAL_SPACING,
         site_index_builder=_build_mps_site_indices,
+        periodic=parameters.boundary_condition == "periodic",
     )
+    return _apply_mps_template_configuration(spec, parameters)
 
 
 def _build_mpo_template(parameters: TemplateParameters) -> NetworkSpec:
@@ -90,6 +94,7 @@ def _build_linear_chain_template(
     tensor_name_prefix: str,
     spacing: float,
     site_index_builder: LinearChainSiteIndexBuilder,
+    periodic: bool = False,
 ) -> NetworkSpec:
     """Build one left-to-right chain template from a per-site index factory."""
     length = parameters.graph_size
@@ -113,7 +118,7 @@ def _build_linear_chain_template(
         id=f"template_{template_name}_{length}",
         name=spec_name,
         tensors=tensors,
-        edges=_make_linear_chain_edges(tensors),
+        edges=_make_linear_chain_edges(tensors, periodic=periodic),
     )
 
 
@@ -124,9 +129,9 @@ def _build_mps_site_indices(
 ) -> list[TemplateIndexConfig]:
     """Return the named index layout for one MPS site."""
     tensor_indices: list[TemplateIndexConfig] = []
-    if site_index > 0:
+    if parameters.boundary_condition == "periodic" or site_index > 0:
         tensor_indices.append(("left", parameters.bond_dimension, LEFT_OFFSET))
-    if site_index < length - 1:
+    if parameters.boundary_condition == "periodic" or site_index < length - 1:
         tensor_indices.append(("right", parameters.bond_dimension, RIGHT_OFFSET))
     tensor_indices.append(("phys", parameters.physical_dimension, DOWN_OFFSET))
     return tensor_indices
@@ -152,9 +157,13 @@ def _build_mpo_site_indices(
     return tensor_indices
 
 
-def _make_linear_chain_edges(tensors: list[TensorSpec]) -> list[EdgeSpec]:
+def _make_linear_chain_edges(
+    tensors: list[TensorSpec],
+    *,
+    periodic: bool = False,
+) -> list[EdgeSpec]:
     """Return the right-to-left bonds between adjacent chain tensors."""
-    return [
+    edges = [
         _make_edge(
             f"edge_{site_index}_{site_index + 1}",
             tensors[site_index],
@@ -164,6 +173,17 @@ def _make_linear_chain_edges(tensors: list[TensorSpec]) -> list[EdgeSpec]:
         )
         for site_index in range(len(tensors) - 1)
     ]
+    if periodic and len(tensors) > 1:
+        edges.append(
+            _make_edge(
+                f"edge_{len(tensors)}_1",
+                tensors[-1],
+                "right",
+                tensors[0],
+                "left",
+            )
+        )
+    return edges
 
 
 def _build_peps_template(parameters: TemplateParameters) -> NetworkSpec:
@@ -703,61 +723,6 @@ def _build_pepo_template(parameters: TemplateParameters) -> NetworkSpec:
     )
 
 
-def _build_heisenberg_mps_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build an MPS with physics metadata prefilled for a Heisenberg chain."""
-    spec = _build_linear_chain_template(
-        "heisenberg_mps",
-        parameters,
-        tensor_name_prefix="A",
-        spacing=HORIZONTAL_SPACING,
-        site_index_builder=_build_mps_site_indices,
-    )
-    spec.id = f"template_heisenberg_mps_{parameters.graph_size}"
-    spec.name = (
-        "Heisenberg MPS"
-        if parameters.graph_size
-        == TEMPLATE_DEFINITIONS["heisenberg_mps"].defaults.graph_size
-        else f"Heisenberg MPS ({parameters.graph_size} sites)"
-    )
-    for tensor in spec.tensors:
-        tensor.metadata = {
-            "role": "state",
-            "state": "ground",
-            "symmetry": "u1",
-            "tags": "heisenberg mps",
-        }
-        for index in tensor.indices:
-            if index.name == "phys":
-                index.metadata = {
-                    "leg_kind": "physical",
-                    "symmetry": "u1",
-                    "observable": "sz",
-                }
-            else:
-                index.metadata = {"leg_kind": "bond", "symmetry": "u1"}
-    return spec
-
-
-def _build_ising_mps_template(parameters: TemplateParameters) -> NetworkSpec:
-    """Build an Ising-oriented MPS state template."""
-    spec = _build_linear_chain_template(
-        "ising_mps",
-        parameters,
-        tensor_name_prefix="A",
-        spacing=HORIZONTAL_SPACING,
-        site_index_builder=_build_mps_site_indices,
-    )
-    for tensor in spec.tensors:
-        tensor.metadata = {
-            "role": "state",
-            "state": "ising",
-            "symmetry": "z2",
-            "tags": "ising mps",
-        }
-        _annotate_physics_1d_indices(tensor, symmetry="z2")
-    return spec
-
-
 def _build_transverse_ising_mpo_template(
     parameters: TemplateParameters,
 ) -> NetworkSpec:
@@ -876,6 +841,95 @@ def _annotate_physics_1d_indices(tensor: TensorSpec, *, symmetry: str) -> None:
             index.metadata = {"leg_kind": "physical", "symmetry": symmetry}
 
 
+def _apply_mps_template_configuration(
+    spec: NetworkSpec,
+    parameters: TemplateParameters,
+) -> NetworkSpec:
+    """Attach metadata and tensor initialization presets to the built MPS."""
+    spec.metadata = {
+        "template_name": "mps",
+        "role": "state",
+        "boundary_condition": parameters.boundary_condition,
+        "symmetry": parameters.symmetry,
+        "initial_state": parameters.initial_state,
+    }
+    for tensor_index, tensor in enumerate(spec.tensors):
+        tensor.metadata = {
+            "role": "state",
+            "family": "mps",
+            "symmetry": parameters.symmetry,
+            "initial_state": parameters.initial_state,
+        }
+        _annotate_physics_1d_indices(tensor, symmetry=parameters.symmetry)
+        tensor.tensor_data = _build_mps_tensor_data(
+            tensor,
+            tensor_index=tensor_index,
+            parameters=parameters,
+        )
+    return spec
+
+
+def _build_mps_tensor_data(
+    tensor: TensorSpec,
+    *,
+    tensor_index: int,
+    parameters: TemplateParameters,
+) -> TensorDataSpec:
+    """Return the tensor-data initializer matching the chosen MPS preset."""
+    if parameters.initial_state == "zeros":
+        return TensorDataSpec(mode=TensorDataMode.ZEROS)
+    if parameters.initial_state == "random":
+        return TensorDataSpec(
+            mode=TensorDataMode.RANDOM,
+            seed=tensor_index,
+        )
+    if parameters.initial_state == "all_up":
+        return _build_mps_literal_state_tensor_data(tensor, basis_index=0)
+    if parameters.initial_state == "all_down":
+        return _build_mps_literal_state_tensor_data(tensor, basis_index=1)
+    return _build_mps_literal_state_tensor_data(
+        tensor,
+        basis_index=tensor_index % 2,
+    )
+
+
+def _build_mps_literal_state_tensor_data(
+    tensor: TensorSpec,
+    *,
+    basis_index: int,
+) -> TensorDataSpec:
+    """Build one explicit basis-state tensor embedded into the current shape."""
+    values = _build_zero_literal(list(tensor.shape))
+    _set_nested_literal_value(
+        values,
+        [0] * (len(tensor.shape) - 1) + [basis_index],
+        1.0,
+    )
+    return TensorDataSpec(
+        mode=TensorDataMode.LITERAL,
+        values=values,
+    )
+
+
+def _build_zero_literal(shape: list[int]) -> list[object] | float:
+    """Build one nested zero-filled literal matching the provided shape."""
+    if not shape:
+        return 0.0
+    return [_build_zero_literal(shape[1:]) for _ in range(shape[0])]
+
+
+def _set_nested_literal_value(
+    values: list[object] | float,
+    index_path: list[int],
+    value: float,
+) -> None:
+    """Assign one scalar inside a nested tensor literal structure."""
+    current: list[object] | float = values
+    for index in index_path[:-1]:
+        current = current[index]  # type: ignore[index]
+    current[index_path[-1]] = value  # type: ignore[index]
+
+
 def _make_tensor(
     tensor_id: str,
     name: str,
@@ -974,18 +1028,6 @@ def register_builtin_templates() -> None:
         "pepo",
         TEMPLATE_DEFINITIONS["pepo"],
         _build_pepo_template,
-        overwrite=True,
-    )
-    register_template(
-        "heisenberg_mps",
-        TEMPLATE_DEFINITIONS["heisenberg_mps"],
-        _build_heisenberg_mps_template,
-        overwrite=True,
-    )
-    register_template(
-        "ising_mps",
-        TEMPLATE_DEFINITIONS["ising_mps"],
-        _build_ising_mps_template,
         overwrite=True,
     )
     register_template(

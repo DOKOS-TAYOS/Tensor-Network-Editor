@@ -5680,3 +5680,169 @@ def test_template_helpers_keep_peps_default_graph_size_from_catalog(
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_template_helpers_surface_extra_mps_controls(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "template_helpers_surface_extra_mps_controls.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const templatesUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "utils" / "utilitiesTemplates.js")!r}).href;
+        const {{ createTemplateOptionHelpers }} = await import(templatesUrl);
+
+        const state = {{
+          catalogTemplateNames: [],
+          catalogTemplateDefinitions: {{}},
+          sessionTemplates: [],
+          availableTemplates: [],
+          templateDefinitions: {{}},
+          templateParametersByTemplate: {{}},
+          selectedEngine: "tensornetwork",
+          selectedCollectionFormat: "list",
+          templateCatalogWarnings: [],
+        }};
+        const templateSelect = {{
+          value: "",
+          innerHTML: "",
+          appendChild() {{}},
+        }};
+        const templateBoundaryConditionField = {{ hidden: true }};
+        const templateBoundaryConditionSelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
+        const templateSymmetryField = {{ hidden: true }};
+        const templateSymmetrySelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
+        const templateInitialStateField = {{ hidden: true }};
+        const templateInitialStateSelect = {{ value: "", innerHTML: "", appendChild() {{}} }};
+        const helpers = createTemplateOptionHelpers({{
+          state,
+          document: {{
+            createElement(tagName) {{
+              return {{
+                tagName,
+                value: "",
+                textContent: "",
+                label: "",
+                selected: false,
+                children: [],
+                appendChild(child) {{
+                  this.children.push(child);
+                }},
+              }};
+            }},
+          }},
+          engineSelect: {{ innerHTML: "", appendChild() {{}} }},
+          collectionFormatSelect: {{ innerHTML: "", appendChild() {{}} }},
+          templateSelect,
+          templateParameterPanel: {{ hidden: false }},
+          templateGraphSizeField: {{ hidden: false }},
+          templateGraphSizeLabel: {{ textContent: "" }},
+          templateGraphSizeInput: {{ value: "", min: "" }},
+          templateBondDimensionField: {{ hidden: false }},
+          templateBondDimensionInput: {{ value: "", min: "" }},
+          templatePhysicalDimensionField: {{ hidden: false }},
+          templatePhysicalDimensionInput: {{ value: "", min: "" }},
+          templateBoundaryConditionField,
+          templateBoundaryConditionSelect,
+          templateSymmetryField,
+          templateSymmetrySelect,
+          templateInitialStateField,
+          templateInitialStateSelect,
+          enforceLinearPeriodicEngineSupport() {{}},
+          updateToolbarState() {{}},
+        }});
+
+        helpers.applyTemplateCatalogPayload({{
+          templateNames: ["mps"],
+          templateDefinitions: {{
+            mps: {{
+              display_name: "MPS",
+              graph_size_label: "Sites",
+              defaults: {{
+                graph_size: 4,
+                bond_dimension: 3,
+                physical_dimension: 2,
+                boundary_condition: "open",
+                symmetry: "none",
+                initial_state: "zeros",
+              }},
+              minimums: {{
+                graph_size: 2,
+                bond_dimension: 1,
+                physical_dimension: 1,
+              }},
+              parameter_fields: [
+                {{ name: "graph_size", label: "Graph size (Sites)", kind: "integer", default: 4, minimum: 2 }},
+                {{ name: "bond_dimension", label: "Bond dimension", kind: "integer", default: 3, minimum: 1 }},
+                {{ name: "physical_dimension", label: "Physical dimension", kind: "integer", default: 2, minimum: 1 }},
+                {{
+                  name: "boundary_condition",
+                  label: "Boundary condition",
+                  kind: "choice",
+                  default: "open",
+                  options: [
+                    {{ value: "open", label: "Open" }},
+                    {{ value: "periodic", label: "Periodic" }},
+                  ],
+                }},
+                {{
+                  name: "symmetry",
+                  label: "Symmetry",
+                  kind: "choice",
+                  default: "none",
+                  options: [
+                    {{ value: "none", label: "None" }},
+                    {{ value: "u1", label: "U1" }},
+                    {{ value: "z2", label: "Z2" }},
+                  ],
+                }},
+                {{
+                  name: "initial_state",
+                  label: "Initial state",
+                  kind: "choice",
+                  default: "zeros",
+                  options: [
+                    {{ value: "zeros", label: "Zeros" }},
+                    {{ value: "random", label: "Random" }},
+                    {{ value: "all_up", label: "All up" }},
+                    {{ value: "all_down", label: "All down" }},
+                    {{ value: "neel", label: "Neel" }},
+                  ],
+                }},
+              ],
+              supports_parameters: true,
+              source: "global",
+            }},
+          }},
+          selectedTemplate: "mps",
+          templateCatalogWarnings: [],
+        }});
+
+        if (templateBoundaryConditionField.hidden) {{
+          throw new Error("Expected MPS boundary-condition field to be visible.");
+        }}
+        if (templateSymmetryField.hidden) {{
+          throw new Error("Expected MPS symmetry field to be visible.");
+        }}
+        if (templateInitialStateField.hidden) {{
+          throw new Error("Expected MPS initial-state field to be visible.");
+        }}
+        if (templateBoundaryConditionSelect.value !== "open") {{
+          throw new Error(`Expected default boundary condition 'open', received ${{templateBoundaryConditionSelect.value}}.`);
+        }}
+        if (templateInitialStateSelect.value !== "zeros") {{
+          throw new Error(`Expected default initial state 'zeros', received ${{templateInitialStateSelect.value}}.`);
+        }}
+      """,
+    )
+
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The template-helpers MPS controls regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )

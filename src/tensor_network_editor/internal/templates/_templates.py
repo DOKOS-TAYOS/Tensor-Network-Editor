@@ -9,6 +9,7 @@ from ._template_catalog import (
     TemplateParameters,
     get_template_definition,
     list_template_names,
+    parse_template_choice,
     parse_template_integer,
     register_static_template,
     register_template,
@@ -49,6 +50,24 @@ def parse_template_parameters(
                 field_name="physical_dimension",
                 default=defaults.physical_dimension,
                 minimum=definition.minimum_physical_dimension,
+            ),
+            boundary_condition=parse_template_choice(
+                raw_parameters.get("boundary_condition"),
+                field_name="boundary_condition",
+                default=defaults.boundary_condition,
+                choices=("open", "periodic"),
+            ),
+            symmetry=parse_template_choice(
+                raw_parameters.get("symmetry"),
+                field_name="symmetry",
+                default=defaults.symmetry,
+                choices=("none", "u1", "z2"),
+            ),
+            initial_state=parse_template_choice(
+                raw_parameters.get("initial_state"),
+                field_name="initial_state",
+                default=defaults.initial_state,
+                choices=("zeros", "random", "all_up", "all_down", "neel"),
             ),
         ),
     )
