@@ -326,6 +326,66 @@ _MINIMAP_SHORTCUT_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "theme.js": _js_source_name("theme.js"),
 }
 
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_theme_module_applies_runtime_graph_palette(tmp_path: Path) -> None:
+    script_path = tmp_path / "theme_runtime_regression.mjs"
+    theme_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "core"
+        / "theme.js"
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const themeUrl = pathToFileURL({str(theme_module_path)!r}).href;
+            const theme = await import(themeUrl);
+            const root = {{
+              dataset: {{}},
+              style: {{}},
+            }};
+            const documentRef = {{ documentElement: root }};
+            const initialSelection = theme.GRAPH_THEME.selection;
+            const appliedName = theme.applyEditorTheme("light", {{ documentRef }});
+
+            if (appliedName !== "light") {{
+              throw new Error(`Expected light theme, received ${{appliedName}}.`);
+            }}
+            if (root.dataset.theme !== "light") {{
+              throw new Error(`Expected root data-theme=light, received ${{root.dataset.theme}}.`);
+            }}
+            if (theme.GRAPH_THEME.selection === initialSelection) {{
+              throw new Error("Applying a theme should update the shared graph palette object.");
+            }}
+            if (!theme.EDITOR_THEME_NAMES.includes("colorblind")) {{
+              throw new Error("Supported theme names should include colorblind.");
+            }}
+            """
+        ),
+        encoding="utf-8",
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The theme runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 _INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_modules(
     (
         "actions/sessionCommands.js",

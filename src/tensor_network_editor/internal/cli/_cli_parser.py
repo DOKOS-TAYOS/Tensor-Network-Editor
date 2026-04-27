@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..._themes import DEFAULT_EDITOR_THEME, SUPPORTED_EDITOR_THEMES
 from ...models import EngineName, TensorCollectionFormat
 from ..analysis._memory_dtypes import DEFAULT_MEMORY_DTYPE, SUPPORTED_MEMORY_DTYPES
 from ._logging import LOG_LEVEL_NAMES
@@ -312,6 +313,12 @@ def _add_edit_arguments(parser: argparse.ArgumentParser) -> None:
         choices=[engine.value for engine in EngineName],
         default=EngineName.TENSORKROWCH.value,
         help="Default target engine shown in the editor.",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=list(SUPPORTED_EDITOR_THEMES),
+        default=DEFAULT_EDITOR_THEME,
+        help="Visual theme used by the browser editor.",
     )
     parser.add_argument(
         "--load",

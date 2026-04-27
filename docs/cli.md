@@ -41,6 +41,7 @@ Useful options:
 ```bash
 tensor-network-editor edit --load my_network.json
 tensor-network-editor edit --engine quimb
+tensor-network-editor edit --theme light
 tensor-network-editor edit --save-code generated_network.py
 tensor-network-editor edit --print-code
 tensor-network-editor edit --no-browser
@@ -54,6 +55,9 @@ tensor-network-editor edit --load my_network.json --engine quimb --save-code gen
 
 Use `--no-browser` when you want to start the local server but open the printed
 URL manually.
+
+Use `--theme` to choose the editor colors at startup. Available themes are
+`dark`, `light`, `contrast`, `colorblind`, and `shiny`; `dark` is the default.
 
 ## Debug Logging
 

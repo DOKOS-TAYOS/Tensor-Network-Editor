@@ -758,6 +758,11 @@ def test_css_asset_exposes_editor_dark_theme_tokens_and_compact_surfaces(
 ) -> None:
     body = request_text(f"{editor_server.base_url}/app.css")
 
+    assert ':root[data-theme="dark"]' in body
+    assert ':root[data-theme="light"]' in body
+    assert ':root[data-theme="contrast"]' in body
+    assert ':root[data-theme="colorblind"]' in body
+    assert ':root[data-theme="shiny"]' in body
     assert "--bg-app:" in body
     assert "--surface-canvas:" in body
     assert "--surface-panel:" in body
@@ -783,7 +788,10 @@ def test_graph_assets_import_shared_editor_theme_palette(
 
     assert 'from "../core/theme.js"' in graph_body
     assert 'from "../core/theme.js"' in export_body
-    assert "export const GRAPH_THEME = Object.freeze(" in theme_body
+    assert "export const EDITOR_THEME_NAMES = Object.freeze(" in theme_body
+    assert '["dark", "light", "contrast", "colorblind", "shiny"]' in theme_body
+    assert "export function applyEditorTheme(" in theme_body
+    assert "export const GRAPH_THEME = {" in theme_body
     assert "export const UI_THEME = Object.freeze(" in theme_body
     assert "GRAPH_THEME.selection" in graph_body
     assert "GRAPH_THEME.pendingTensor" in graph_body
@@ -865,7 +873,7 @@ def test_sidebar_assets_expose_resize_handle(editor_server: EditorServer) -> Non
     assert "--sidebar-width: 360px;" in css_body
     assert ".sidebar-resize-handle {" in css_body
     assert ".sidebar-toggle-button {" in css_body
-    assert "background: #000;" in sidebar_toggle_block
+    assert "background: var(--sidebar-toggle-bg);" in sidebar_toggle_block
     assert "height: 2.5rem;" in css_body
     assert "align-self: center;" in css_body
     assert ".sidebar-toggle-button svg {" in css_body

@@ -25,6 +25,7 @@ The package exposes the main functions and models at the top level:
 ```python
 from tensor_network_editor import (
     EngineName,
+    EditorThemeName,
     NetworkBuilder,
     NetworkSpec,
     PythonLoadOptions,
@@ -68,7 +69,7 @@ Useful public modules:
 
 | Module | Use it for |
 | --- | --- |
-| `tensor_network_editor.editor` | `EditorLaunchOptions` and `open_editor(...)` |
+| `tensor_network_editor.editor` | `EditorLaunchOptions`, `EditorThemeName`, and `open_editor(...)` |
 | `tensor_network_editor.builder` | fluent `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers |
 | `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
 | `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
@@ -99,6 +100,7 @@ def main() -> None:
     result = open_editor(
         options=EditorLaunchOptions(
             default_engine=EngineName.EINSUM_NUMPY,
+            theme="light",
             open_browser=True,
         ),
     )
@@ -118,6 +120,8 @@ Main parameters:
 - `spec`: preload an existing `NetworkSpec`
 - `options.default_engine`: initial target backend shown in the editor
 - `options.default_collection_format`: initial tensor collection layout
+- `options.theme`: initial color theme, one of `dark`, `light`, `contrast`,
+  `colorblind`, or `shiny`
 - `options.open_browser`: open the browser automatically
 - `options.host`: local host address, default `127.0.0.1`
 - `options.port`: local port, default `0` so the OS chooses one

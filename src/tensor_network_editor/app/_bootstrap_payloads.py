@@ -24,6 +24,7 @@ AUTHOR_NAME = "Alejandro Mata Ali"
 def build_bootstrap_payload(session: EditorSession) -> JsonDict:
     """Build the initial payload used to bootstrap the browser client."""
     return {
+        "theme": session.theme,
         "default_engine": engine_name_to_text(session.default_engine),
         "engines": cast(JSONValue, list_generator_names()),
         "default_collection_format": session.default_collection_format.value,

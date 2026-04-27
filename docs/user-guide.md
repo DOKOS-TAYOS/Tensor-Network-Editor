@@ -11,6 +11,7 @@ limits.
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Choosing a Backend](#choosing-a-backend)
 - [Choosing a Collection Format](#choosing-a-collection-format)
+- [Choosing a Theme](#choosing-a-theme)
 - [Templates](#templates)
 - [Subnetwork Library](#subnetwork-library)
 - [Layout Tools](#layout-tools)
@@ -136,6 +137,29 @@ Use:
 From Python, pass `TensorCollectionFormat.LIST`,
 `TensorCollectionFormat.MATRIX`, or `TensorCollectionFormat.DICT` to
 `generate_code(...)` or `open_editor(...)`.
+
+## Choosing a Theme
+
+The editor starts in the `dark` theme by default. If another palette is more
+comfortable for your display or vision, choose it when launching the session.
+
+CLI:
+
+```bash
+tensor-network-editor edit --theme colorblind
+```
+
+Python:
+
+```python
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
+
+open_editor(options=EditorLaunchOptions(theme="contrast"))
+```
+
+Available themes are `dark`, `light`, `contrast`, `colorblind`, and `shiny`.
+The choice only affects the browser editor appearance; saved network JSON and
+recoverable drafts keep the same model data.
 
 ## Templates
 

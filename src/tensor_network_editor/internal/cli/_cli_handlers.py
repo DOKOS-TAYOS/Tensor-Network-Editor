@@ -62,6 +62,7 @@ def handle_edit_command(
         "spec": initial_spec,
         "options": EditorLaunchOptions(
             default_engine=EngineName(args.engine),
+            theme=args.theme,
             open_browser=not args.no_browser,
             print_code=args.print_code,
             code_path=code_path,
@@ -70,6 +71,7 @@ def handle_edit_command(
     if loaded_spec_path is not None:
         open_editor_kwargs["options"] = EditorLaunchOptions(
             default_engine=EngineName(args.engine),
+            theme=args.theme,
             open_browser=not args.no_browser,
             print_code=args.print_code,
             code_path=code_path,

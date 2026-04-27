@@ -222,6 +222,28 @@ def test_edit_subcommand_uses_expected_defaults() -> None:
     )
 
 
+def test_edit_subcommand_accepts_theme() -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["edit", "--theme", "light", "--no-browser"])
+
+    assert exit_code == 0
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(theme="light", open_browser=False),
+    )
+
+
+def test_edit_subcommand_rejects_unknown_theme(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["edit", "--theme", "sepia"])
+
+    assert exit_code == 2
+    open_editor_mock.assert_not_called()
+    assert "invalid choice: 'sepia'" in capsys.readouterr().err
+
+
 def test_edit_subcommand_passes_live_python_import_options(
     sample_spec: NetworkSpec,
 ) -> None:
@@ -281,6 +303,8 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
                 "edit",
                 "--engine",
                 EngineName.EINSUM_NUMPY.value,
+                "--theme",
+                "contrast",
                 "--load",
                 "saved-network.json",
                 "--save-code",
@@ -296,6 +320,7 @@ def test_main_loads_spec_and_passes_output_flags(sample_spec: NetworkSpec) -> No
         spec=sample_spec,
         options=EditorLaunchOptions(
             default_engine=EngineName.EINSUM_NUMPY,
+            theme="contrast",
             open_browser=False,
             print_code=True,
             code_path=Path("saved-network.json").resolve().parent / "generated.py",

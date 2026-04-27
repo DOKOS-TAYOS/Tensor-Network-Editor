@@ -22,6 +22,9 @@ All notable changes to this project will be documented in this file.
 - Browser editor sessions now keep a project-local recoverable draft under
   `.tensor-network-editor/drafts/`, prompt to restore it on startup, and clear
   it only after explicit save, Done, Cancel, or Start fresh actions.
+- Browser editor sessions can now start with `dark`, `light`, `contrast`,
+  `colorblind`, or `shiny` color themes through `EditorLaunchOptions.theme`,
+  `open_editor(theme=...)`, or `tensor-network-editor edit --theme`.
 - Tensor initializers now support explicit zeros, identity/delta, generalized
   copy tensors, seeded normal/uniform random values, portable dtype choices,
   and JSON-friendly complex scalars across saved specs and generated code.

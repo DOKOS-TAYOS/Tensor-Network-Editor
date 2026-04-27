@@ -11,6 +11,7 @@ from types import FrameType
 from typing import Any
 from uuid import uuid4
 
+from .._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
 from ..codegen.registry import engine_name_to_text
 from ..internal.templates._templates import TemplateParameters
 from ..models import (
@@ -61,6 +62,7 @@ class EditorSession:
         default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
         default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
         *,
+        theme: EditorThemeName = DEFAULT_EDITOR_THEME,
         print_code: bool = False,
         code_path: StrPath | None = None,
         template_catalog_path: StrPath | None = None,
@@ -75,6 +77,7 @@ class EditorSession:
             default_engine: Backend initially selected in the editor.
             default_collection_format: Initial tensor collection layout for
                 generated code.
+            theme: Visual theme selected for this editor session.
             print_code: Whether to print generated code after confirmation.
             code_path: Optional output path for generated code after
                 confirmation.
@@ -90,6 +93,7 @@ class EditorSession:
         self.session_id = uuid4().hex[:8]
         self.default_engine = default_engine
         self.default_collection_format = default_collection_format
+        self.theme = normalize_editor_theme(theme)
         self.print_code = print_code
         self.code_path = code_path
         self.draft_path = resolve_project_draft_path(draft_path)
@@ -355,6 +359,7 @@ def launch_editor_session(
     *,
     default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    theme: EditorThemeName = DEFAULT_EDITOR_THEME,
     open_browser: bool = True,
     host: str = "127.0.0.1",
     port: int = 0,
@@ -373,6 +378,7 @@ def launch_editor_session(
         default_engine: Backend initially selected in the editor UI.
         default_collection_format: Initial tensor collection layout for
             generated code.
+        theme: Visual theme selected for this editor session.
         open_browser: Whether to ask the system browser to open the local URL.
         host: Local host interface to bind.
         port: Local port to bind. Use ``0`` for an ephemeral port.
@@ -401,6 +407,7 @@ def launch_editor_session(
         initial_spec=initial_spec,
         default_engine=default_engine,
         default_collection_format=default_collection_format,
+        theme=theme,
         print_code=print_code,
         code_path=code_path,
         template_catalog_path=template_catalog_path,

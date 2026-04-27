@@ -149,6 +149,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "EdgeEndpointRef",
         "EdgeSpec",
         "EditorLaunchOptions",
+        "EditorThemeName",
         "EditorResult",
         "EngineName",
         "DotRenderOptions",
@@ -225,11 +226,17 @@ def test_editor_launch_options_defaults_match_public_contract() -> None:
 
     assert options.default_engine is EngineName.TENSORKROWCH
     assert options.default_collection_format is TensorCollectionFormat.LIST
+    assert options.theme == "dark"
     assert options.open_browser is True
     assert options.host == "127.0.0.1"
     assert options.port == 0
     assert options.print_code is False
     assert options.code_path is None
+
+
+def test_editor_launch_options_rejects_unknown_theme() -> None:
+    with pytest.raises(ValueError, match="Unsupported editor theme 'sepia'"):
+        EditorLaunchOptions(theme="sepia")  # type: ignore[arg-type]
 
 
 def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> None:
@@ -244,6 +251,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
             options=EditorLaunchOptions(
                 default_engine=EngineName.EINSUM_NUMPY,
                 default_collection_format=TensorCollectionFormat.DICT,
+                theme="colorblind",
                 open_browser=False,
                 host="0.0.0.0",
                 port=8123,
@@ -260,6 +268,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         initial_spec=sample_spec,
         default_engine=EngineName.EINSUM_NUMPY,
         default_collection_format=TensorCollectionFormat.DICT,
+        theme="colorblind",
         open_browser=False,
         host="0.0.0.0",
         port=8123,
@@ -271,6 +280,30 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         draft_path=None,
         _on_server_ready=None,
     )
+
+
+def test_open_editor_theme_argument_overrides_options(
+    sample_spec: NetworkSpec,
+) -> None:
+    launch_result = object()
+
+    with patch(
+        "tensor_network_editor.editor.launch_editor_session",
+        return_value=launch_result,
+    ) as launch_editor_session_mock:
+        result = open_editor(
+            sample_spec,
+            theme="light",
+            options=EditorLaunchOptions(theme="dark", open_browser=False),
+        )
+
+    assert result is launch_result
+    assert launch_editor_session_mock.call_args.kwargs["theme"] == "light"
+
+
+def test_open_editor_rejects_unknown_theme(sample_spec: NetworkSpec) -> None:
+    with pytest.raises(ValueError, match="Unsupported editor theme 'sepia'"):
+        open_editor(sample_spec, theme="sepia")  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("engine", list(EngineName))

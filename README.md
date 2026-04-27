@@ -121,6 +121,8 @@ offline use, and generated code you can inspect.
 - Work with linear, grid, and tree periodic modes, including clickable virtual
   boundary operands for partial manual contractions, and export them with any
   bundled backend.
+- Choose the editor color theme at startup with `dark`, `light`, `contrast`,
+  `colorblind`, or `shiny`.
 - Reflow the current selection or the whole graph with `Auto layout` when
   imported or irregular networks need a cleaner arrangement.
 - Inspect manual contraction paths and optional planner suggestions.
@@ -173,6 +175,12 @@ tensor-network-editor edit
 This command starts a local server and waits until you press `Done` or
 `Cancel` in the browser session.
 
+Pick a color theme when you launch the editor:
+
+```bash
+tensor-network-editor edit --theme light
+```
+
 Open an existing design and save generated code when the session is confirmed:
 
 ```bash
@@ -211,10 +219,11 @@ Use the editor from Python:
 
 ```python
 from tensor_network_editor import open_editor
+from tensor_network_editor.editor import EditorLaunchOptions
 
 
 def main() -> None:
-    result = open_editor()
+    result = open_editor(options=EditorLaunchOptions(theme="colorblind"))
     if result is None:
         print("Editor cancelled.")
         return

@@ -32,6 +32,7 @@ def test_build_bootstrap_payload_matches_session_contract(
 ) -> None:
     payload = build_bootstrap_payload(editor_session)
 
+    assert payload["theme"] == "dark"
     assert payload["default_engine"] == engine_name_to_text(
         editor_session.default_engine
     )
@@ -47,6 +48,15 @@ def test_build_bootstrap_payload_matches_session_contract(
     assert tensor_annotations[0]["label"] == "Tensor role"
     assert index_annotations[0]["key"] == "leg_kind"
     assert index_annotations[0]["label"] == "Leg kind"
+
+
+def test_build_bootstrap_payload_includes_selected_theme() -> None:
+    session = EditorSession(theme="colorblind")
+
+    payload = build_bootstrap_payload(session)
+
+    assert session.theme == "colorblind"
+    assert payload["theme"] == "colorblind"
 
 
 def test_app_services_module_reexports_split_service_helpers() -> None:
