@@ -11,8 +11,8 @@ from ....models import (
 )
 from ...shared.common import (
     CodeSection,
-    render_code_section_lines,
     render_code_sections,
+    render_helper_function_lines,
 )
 
 
@@ -47,10 +47,14 @@ def render_linear_periodic_helper(
     sections: list[CodeSection],
 ) -> _RenderedCellHelper:
     """Render one generated helper function with titled body sections."""
-    helper_lines = [f"def {helper_name}({helper_signature}) -> {return_annotation}:"]
-    body_lines = render_code_section_lines(*sections)
-    helper_lines.extend([f"    {line}" if line else "" for line in body_lines])
-    return _RenderedCellHelper(lines=helper_lines)
+    return _RenderedCellHelper(
+        lines=render_helper_function_lines(
+            helper_name=helper_name,
+            helper_signature=helper_signature,
+            return_annotation=return_annotation,
+            sections=sections,
+        )
+    )
 
 
 def render_linear_periodic_script(

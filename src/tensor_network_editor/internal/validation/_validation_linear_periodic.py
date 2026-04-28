@@ -43,7 +43,11 @@ from ..modes._linear_periodic_carry import (
     resolve_linear_periodic_carry_operand_order,
     simulate_linear_periodic_carry_step,
 )
-from ._validation_common import append_issue, validate_metadata
+from ._validation_common import (
+    append_issue,
+    prefix_validation_issues,
+    validate_metadata,
+)
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
@@ -250,7 +254,7 @@ def _validate_linear_periodic_cell(
             issues=local_issues,
         )
 
-    issues.extend(_prefix_validation_issues(prefix, local_issues))
+    issues.extend(prefix_validation_issues(prefix, local_issues))
     _validate_linear_periodic_boundary_roles(cell_name, cell, issues=issues)
 
 
@@ -673,18 +677,3 @@ def _store_carry_step_result(
         labels=surviving_labels,
         axis_names=result_axis_names,
     )
-
-
-def _prefix_validation_issues(
-    prefix: str,
-    issues: list[ValidationIssue],
-) -> list[ValidationIssue]:
-    """Return a copy of ``issues`` with every path nested below ``prefix``."""
-    return [
-        ValidationIssue(
-            code=issue.code,
-            message=issue.message,
-            path=f"{prefix}.{issue.path}" if issue.path else prefix,
-        )
-        for issue in issues
-    ]

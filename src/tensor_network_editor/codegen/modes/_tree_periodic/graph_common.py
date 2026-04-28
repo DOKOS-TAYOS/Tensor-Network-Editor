@@ -9,7 +9,11 @@ from ....models import (
     TreePeriodicCellName,
     TreePeriodicTreeSpec,
 )
-from .common import _manual_plan_step_ids_for_tree, _render_partial_network_output_lines
+from .common import (
+    _manual_plan_step_ids_for_tree,
+    _render_partial_network_output_lines,
+    _render_tree_bottom_up_marker_lines,
+)
 from .graph_cells import _render_tree_graph_cell_helper
 from .shared import (
     render_tree_periodic_script,
@@ -112,13 +116,3 @@ def generate_graph_tree_periodic_code(
             output_lines=output_lines,
         ),
     )
-
-
-def _render_tree_bottom_up_marker_lines() -> list[str]:
-    """Render the explicit bottom-up pass marker for manual tree plans."""
-    return [
-        "",
-        "# Manual tree cell plans are assembled from leaves toward the root.",
-        "for level in range(n - 1, 0, -1):",
-        "    pass",
-    ]

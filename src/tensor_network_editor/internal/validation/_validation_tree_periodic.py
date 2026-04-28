@@ -18,7 +18,11 @@ from ..modes._tree_periodic import (
     tree_periodic_cell_as_network,
     tree_periodic_reserved_operand_id_for_tensor,
 )
-from ._validation_common import append_issue, validate_metadata
+from ._validation_common import (
+    append_issue,
+    prefix_validation_issues,
+    validate_metadata,
+)
 from ._validation_contraction import validate_contraction_plan
 from ._validation_edges import validate_edge
 from ._validation_entities import (
@@ -100,7 +104,7 @@ def _validate_tree_periodic_cell(
             issues=local_issues,
         )
 
-    issues.extend(_prefix_validation_issues(prefix, local_issues))
+    issues.extend(prefix_validation_issues(prefix, local_issues))
     _validate_tree_periodic_boundary_roles(
         cell_name,
         cell,
@@ -128,7 +132,7 @@ def _validate_tree_periodic_cell(
             },
             issues=plan_issues,
         )
-        issues.extend(_prefix_validation_issues(prefix, plan_issues))
+        issues.extend(prefix_validation_issues(prefix, plan_issues))
 
 
 def _validate_tree_periodic_boundary_roles(
@@ -215,18 +219,3 @@ def _validate_tree_periodic_boundary_roles(
 def _tree_periodic_cell_prefix(cell_name: TreePeriodicCellName) -> str:
     """Return the validation path prefix for one tree periodic cell."""
     return f"tree_periodic_tree.{cell_name.value}_cell"
-
-
-def _prefix_validation_issues(
-    prefix: str,
-    issues: list[ValidationIssue],
-) -> list[ValidationIssue]:
-    """Return a copy of ``issues`` with every path nested below ``prefix``."""
-    return [
-        ValidationIssue(
-            code=issue.code,
-            message=issue.message,
-            path=f"{prefix}.{issue.path}" if issue.path else prefix,
-        )
-        for issue in issues
-    ]

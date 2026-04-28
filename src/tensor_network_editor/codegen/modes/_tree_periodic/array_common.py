@@ -11,7 +11,11 @@ from ....models import (
 )
 from .array_einsum import _render_einsum_cell_helper
 from .array_quimb import _render_quimb_cell_helper
-from .common import _manual_plan_step_ids_for_tree, _render_partial_network_output_lines
+from .common import (
+    _manual_plan_step_ids_for_tree,
+    _render_partial_network_output_lines,
+    _render_tree_bottom_up_marker_lines,
+)
 from .shared import (
     render_tree_periodic_script,
     render_tree_periodic_shared_helpers,
@@ -262,13 +266,3 @@ def _generate_einsum_tree_periodic_code(
             output_lines=output_lines,
         ),
     )
-
-
-def _render_tree_bottom_up_marker_lines() -> list[str]:
-    """Render the explicit bottom-up pass marker for manual tree plans."""
-    return [
-        "",
-        "# Manual tree cell plans are assembled from leaves toward the root.",
-        "for level in range(n - 1, 0, -1):",
-        "    pass",
-    ]

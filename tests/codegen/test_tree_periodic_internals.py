@@ -36,6 +36,7 @@ def test_tree_periodic_common_helpers_resolve_cells_and_child_ports() -> None:
         _build_child_ports_by_index,
         _cell_from_tree,
         _render_parent_interface_validation,
+        _render_tree_bottom_up_marker_lines,
     )
     from tensor_network_editor.internal.modes._tree_periodic import (
         build_tree_periodic_interface_ports,
@@ -64,6 +65,12 @@ def test_tree_periodic_common_helpers_resolve_cells_and_child_ports() -> None:
     assert _render_parent_interface_validation(parent_ports) == [
         f"if len(parent_interface) != {len(parent_ports)}:",
         "    raise ValueError('The provided parent interface does not match this tree cell.')",
+    ]
+    assert _render_tree_bottom_up_marker_lines() == [
+        "",
+        "# Manual tree cell plans are assembled from leaves toward the root.",
+        "for level in range(n - 1, 0, -1):",
+        "    pass",
     ]
 
 

@@ -9,6 +9,7 @@ from tensor_network_editor.codegen.shared.common import (
     group_tensors_by_visual_rows,
     make_unique_identifiers,
     prepare_network,
+    render_helper_function_lines,
     sanitize_identifier,
     tensor_collection_reference_by_id,
     tensor_variable_name,
@@ -146,3 +147,14 @@ def test_prepare_network_lowers_hyperedges_to_copy_tensors_for_codegen() -> None
     assert len(copy_tensors) == 1
     assert copy_tensors[0].spec.tensor_data is None
     assert copy_tensors[0].spec.shape == (3, 3, 3)
+
+
+def test_render_helper_function_lines_indents_rendered_sections() -> None:
+    helper_lines = render_helper_function_lines(
+        helper_name="build_cell",
+        helper_signature="slot_index: int",
+        return_annotation="dict[str, object]",
+        sections=[],
+    )
+
+    assert helper_lines == ["def build_cell(slot_index: int) -> dict[str, object]:"]

@@ -24,13 +24,13 @@ from ._python_roundtrip_ast import (
     _parse_tensor_reference_string,
 )
 from ._python_roundtrip_build import (
-    _default_tensor_name_from_position,
     _HyperedgeCopyTensorComment,
     _ManualStepComment,
     _parse_tensor_expression,
     _PendingEdge,
     _PendingManualStep,
 )
+from ._python_roundtrip_helpers import default_tensor_name_from_position
 
 if TYPE_CHECKING:
     from ._python_roundtrip import _RoundtripParseState
@@ -141,7 +141,7 @@ def _collect_list_tensor_append(
         data_shapes=state.data_shapes,
         tensor_data_by_name=state.tensor_data_by_name,
         reference=reference,
-        fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
+        fallback_name=default_tensor_name_from_position(len(state.tensor_order)),
     )
     state.tensor_order.append(reference)
     return True
@@ -189,7 +189,7 @@ def _collect_matrix_tensor_append(
         data_shapes=state.data_shapes,
         tensor_data_by_name=state.tensor_data_by_name,
         reference=reference,
-        fallback_name=_default_tensor_name_from_position(len(state.tensor_order)),
+        fallback_name=default_tensor_name_from_position(len(state.tensor_order)),
     )
     state.tensor_rows[row_index].append(reference)
     state.tensor_order.append(reference)

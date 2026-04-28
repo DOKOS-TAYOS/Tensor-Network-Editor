@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +17,17 @@ def test_python_roundtrip_internal_helpers_normalize_generated_names() -> None:
     assert recover_tensor_name_from_data_variable("leaf_mid_data") == "Leaf Mid"
     assert recover_tensor_name_from_data_variable("a_data") == "A"
     assert sanitize_identifier(" Leaf Mid ") == "leaf_mid"
+
+
+def test_python_roundtrip_build_keeps_naming_logic_in_shared_helpers_module() -> None:
+    build_source = Path(
+        "src/tensor_network_editor/internal/io/_python_roundtrip_build.py"
+    ).read_text(encoding="utf-8")
+
+    assert "def _synthetic_data_variable_name(" not in build_source
+    assert "def _default_tensor_name_from_position(" not in build_source
+    assert "def _recover_tensor_name_from_data_variable(" not in build_source
+    assert "def _recover_index_name(" not in build_source
 
 
 def test_python_roundtrip_internal_ast_helpers_parse_supported_references() -> None:

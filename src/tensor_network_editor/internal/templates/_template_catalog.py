@@ -328,17 +328,6 @@ def _serialize_template_parameter_payload(
     return defaults, minimums
 
 
-def _get_parameter_field_definition(
-    definition: TemplateDefinition,
-    field_name: str,
-) -> TemplateParameterFieldDefinition | None:
-    """Return the parameter metadata entry for one field when it exists."""
-    for parameter_field in _get_template_parameter_fields(definition):
-        if parameter_field.name == field_name:
-            return parameter_field
-    return None
-
-
 TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
     "mps": TemplateDefinition(
         name="mps",

@@ -187,6 +187,20 @@ def render_code_section_lines(*sections: CodeSection) -> list[str]:
     return rendered_lines
 
 
+def render_helper_function_lines(
+    *,
+    helper_name: str,
+    helper_signature: str,
+    return_annotation: str,
+    sections: list[CodeSection],
+) -> list[str]:
+    """Render one helper function body from titled code sections."""
+    helper_lines = [f"def {helper_name}({helper_signature}) -> {return_annotation}:"]
+    body_lines = render_code_section_lines(*sections)
+    helper_lines.extend([f"    {line}" if line else "" for line in body_lines])
+    return helper_lines
+
+
 def render_tensor_collection_initialization(
     collection_name: str,
     collection_format: TensorCollectionFormat,

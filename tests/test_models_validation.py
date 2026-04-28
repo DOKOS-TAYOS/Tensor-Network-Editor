@@ -7,6 +7,9 @@ from typing import Any, cast
 import pytest
 
 from tensor_network_editor.errors import SpecValidationError
+from tensor_network_editor.internal.validation._validation_common import (
+    prefix_validation_issues,
+)
 from tensor_network_editor.internal.validation._validation_linear_periodic import (
     _build_carry_validation_context,
 )
@@ -143,6 +146,37 @@ def find_issue(issues: list[ValidationIssue], code: str) -> ValidationIssue:
 
 def find_issue_paths(issues: list[ValidationIssue], code: str) -> list[str]:
     return [issue.path for issue in issues if issue.code == code]
+
+
+def test_prefix_validation_issues_nests_existing_paths() -> None:
+    prefixed = prefix_validation_issues(
+        "grid_periodic_grid.center_cell",
+        [
+            ValidationIssue(
+                code="invalid-size",
+                message="bad size",
+                path="tensors.tensor_a.size",
+            ),
+            ValidationIssue(
+                code="missing-note",
+                message="missing note",
+                path="",
+            ),
+        ],
+    )
+
+    assert prefixed == [
+        ValidationIssue(
+            code="invalid-size",
+            message="bad size",
+            path="grid_periodic_grid.center_cell.tensors.tensor_a.size",
+        ),
+        ValidationIssue(
+            code="missing-note",
+            message="missing note",
+            path="grid_periodic_grid.center_cell",
+        ),
+    ]
 
 
 def duplicate_index_connection(spec: NetworkSpec) -> None:

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from ...models import (
     CanvasNoteSpec,
-    EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
     IndexSpec,
@@ -18,6 +17,7 @@ from ...models import (
     TreePeriodicTreeSpec,
 )
 from ..analysis._analysis import analyze_network
+from ._common import remap_analysis_edge_endpoint
 
 TREE_PERIODIC_PARENT_OPERAND_ID = "__tree_parent__"
 TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX = "__tree_child_"
@@ -136,11 +136,11 @@ def tree_periodic_cell_as_analysis_network(
             EdgeSpec(
                 id=edge.id,
                 name=edge.name,
-                left=_analysis_edge_endpoint(
+                left=remap_analysis_edge_endpoint(
                     edge.left,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
-                right=_analysis_edge_endpoint(
+                right=remap_analysis_edge_endpoint(
                     edge.right,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
@@ -340,15 +340,3 @@ def is_tree_periodic_reserved_operand_id(operand_id: str) -> bool:
 def _analysis_tensor_id(tensor: TensorSpec) -> str:
     """Return the analysis operand id for a tree-periodic cell tensor."""
     return tree_periodic_reserved_operand_id_for_tensor(tensor) or tensor.id
-
-
-def _analysis_edge_endpoint(
-    endpoint: EdgeEndpointRef,
-    *,
-    tensor_id_by_original_id: dict[str, str],
-) -> EdgeEndpointRef:
-    """Return an edge endpoint with boundary tensor ids remapped."""
-    return EdgeEndpointRef(
-        tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
-        index_id=endpoint.index_id,
-    )

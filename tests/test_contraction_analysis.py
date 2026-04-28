@@ -12,6 +12,9 @@ from tensor_network_editor.internal.analysis._contraction_plan import (
     prepare_contraction_inputs,
     simulate_contraction_plan,
 )
+from tensor_network_editor.internal.modes._common import (
+    remap_analysis_edge_endpoint,
+)
 from tensor_network_editor.models import (
     CanvasPosition,
     ContractionPlanSpec,
@@ -150,6 +153,18 @@ def build_long_tensor_chain_spec(tensor_count: int) -> NetworkSpec:
             name="Long chain",
             steps=steps,
         ),
+    )
+
+
+def test_remap_analysis_edge_endpoint_rewrites_boundary_tensor_ids() -> None:
+    remapped = remap_analysis_edge_endpoint(
+        EdgeEndpointRef(tensor_id="boundary_tensor", index_id="index_1"),
+        tensor_id_by_original_id={"boundary_tensor": "__grid_left__"},
+    )
+
+    assert remapped == EdgeEndpointRef(
+        tensor_id="__grid_left__",
+        index_id="index_1",
     )
 
 

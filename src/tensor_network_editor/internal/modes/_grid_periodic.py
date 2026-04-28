@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from ...models import (
     CanvasNoteSpec,
-    EdgeEndpointRef,
     EdgeSpec,
     GridPeriodicCellName,
     GridPeriodicGridSpec,
@@ -18,6 +17,7 @@ from ...models import (
     TensorSpec,
 )
 from ..analysis._analysis import analyze_network
+from ._common import remap_analysis_edge_endpoint
 
 GRID_PERIODIC_UP_OPERAND_ID = "__grid_up__"
 GRID_PERIODIC_RIGHT_OPERAND_ID = "__grid_right__"
@@ -152,11 +152,11 @@ def grid_periodic_cell_as_analysis_network(
             EdgeSpec(
                 id=edge.id,
                 name=edge.name,
-                left=_analysis_edge_endpoint(
+                left=remap_analysis_edge_endpoint(
                     edge.left,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
-                right=_analysis_edge_endpoint(
+                right=remap_analysis_edge_endpoint(
                     edge.right,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
@@ -310,18 +310,6 @@ def build_grid_periodic_interface_ports(
             )
         )
     return tuple(ports)
-
-
-def _analysis_edge_endpoint(
-    endpoint: EdgeEndpointRef,
-    *,
-    tensor_id_by_original_id: dict[str, str],
-) -> EdgeEndpointRef:
-    """Return an edge endpoint with boundary tensor ids remapped."""
-    return EdgeEndpointRef(
-        tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
-        index_id=endpoint.index_id,
-    )
 
 
 def grid_periodic_reserved_operand_id_for_role(

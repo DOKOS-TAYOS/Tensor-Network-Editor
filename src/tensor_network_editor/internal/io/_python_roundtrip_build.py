@@ -29,7 +29,6 @@ from ._python_roundtrip_ast import (
     _parse_tensor_data_initializer,
 )
 from ._python_roundtrip_helpers import (
-    default_tensor_name_from_position,
     recover_index_name,
     recover_tensor_name_from_data_variable,
     synthetic_data_variable_name,
@@ -112,7 +111,7 @@ def _parse_tensor_expression(
             reference=reference,
             data_variable_name=data_variable_name,
             shape=shape,
-            name=_recover_tensor_name_from_data_variable(
+            name=recover_tensor_name_from_data_variable(
                 data_variable_name, fallback_name
             ),
             index_labels=None,
@@ -160,7 +159,7 @@ def _parse_tensor_expression(
             shape=shape,
             name=(
                 _literal_string(_keyword_value(expression, "name"))
-                or _recover_tensor_name_from_data_variable(
+                or recover_tensor_name_from_data_variable(
                     data_variable_name, fallback_name
                 )
             ),
@@ -199,7 +198,7 @@ def _parse_tensor_expression(
             shape=shape,
             name=(
                 tensor_name
-                or _recover_tensor_name_from_data_variable(
+                or recover_tensor_name_from_data_variable(
                     data_variable_name, fallback_name
                 )
             ),
@@ -240,44 +239,11 @@ def _resolve_tensor_data_expression(
         if parsed_initializer is not None:
             shape, tensor_data = parsed_initializer
             return (
-                _synthetic_data_variable_name(reference, fallback_name),
+                synthetic_data_variable_name(reference, fallback_name),
                 shape,
                 tensor_data,
             )
     return None
-
-
-def _synthetic_data_variable_name(reference: str, fallback_name: str | None) -> str:
-    """Delegate synthetic data-variable naming to the helper module."""
-    return synthetic_data_variable_name(reference, fallback_name)
-
-
-def _default_tensor_name_from_position(position: int) -> str:
-    """Delegate positional tensor naming to the helper module."""
-    return default_tensor_name_from_position(position)
-
-
-def _recover_tensor_name_from_data_variable(
-    data_variable_name: str, fallback_name: str | None = None
-) -> str:
-    """Delegate tensor-name recovery to the helper module."""
-    return recover_tensor_name_from_data_variable(data_variable_name, fallback_name)
-
-
-def _recover_index_name(
-    *,
-    label: str,
-    tensor_name: str,
-    data_variable_name: str,
-    connected_edge_label: str | None,
-) -> str:
-    """Delegate index-name recovery to the helper module."""
-    return recover_index_name(
-        label=label,
-        tensor_name=tensor_name,
-        data_variable_name=data_variable_name,
-        connected_edge_label=connected_edge_label,
-    )
 
 
 def _build_edge_specs(
@@ -604,7 +570,7 @@ def _build_imported_index_specs(
         index_specs.append(
             IndexSpec(
                 id=index_id,
-                name=_recover_index_name(
+                name=recover_index_name(
                     label=label,
                     tensor_name=parsed_tensor.name,
                     data_variable_name=parsed_tensor.data_variable_name,

@@ -103,3 +103,13 @@ def _runtime_coordinate_expressions(
     if cell_name is TreePeriodicCellName.ROOT:
         return "0", "0"
     return "level", "node_index"
+
+
+def _render_tree_bottom_up_marker_lines() -> list[str]:
+    """Render the explicit bottom-up pass marker for manual tree plans."""
+    return [
+        "",
+        "# Manual tree cell plans are assembled from leaves toward the root.",
+        "for level in range(n - 1, 0, -1):",
+        "    pass",
+    ]

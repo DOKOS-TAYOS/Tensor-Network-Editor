@@ -100,3 +100,18 @@ def append_duplicate_id_issues(
                 message=f"{message_prefix} '{value}' is duplicated.",
                 path=path,
             )
+
+
+def prefix_validation_issues(
+    prefix: str,
+    issues: list[ValidationIssue],
+) -> list[ValidationIssue]:
+    """Return a copy of ``issues`` with every path nested below ``prefix``."""
+    return [
+        ValidationIssue(
+            code=issue.code,
+            message=issue.message,
+            path=f"{prefix}.{issue.path}" if issue.path else prefix,
+        )
+        for issue in issues
+    ]

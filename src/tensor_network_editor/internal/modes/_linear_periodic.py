@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from ...models import (
     CanvasNoteSpec,
     ContractionStepSpec,
-    EdgeEndpointRef,
     EdgeSpec,
     GroupSpec,
     IndexSpec,
@@ -19,6 +18,7 @@ from ...models import (
     TensorSpec,
 )
 from ..analysis._analysis import analyze_network
+from ._common import remap_analysis_edge_endpoint
 
 LINEAR_PERIODIC_PREVIOUS_OPERAND_ID = "__linear_previous__"
 LINEAR_PERIODIC_NEXT_OPERAND_ID = "__linear_next__"
@@ -175,11 +175,11 @@ def linear_periodic_cell_as_analysis_network(
             EdgeSpec(
                 id=edge.id,
                 name=edge.name,
-                left=_analysis_edge_endpoint(
+                left=remap_analysis_edge_endpoint(
                     edge.left,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
-                right=_analysis_edge_endpoint(
+                right=remap_analysis_edge_endpoint(
                     edge.right,
                     tensor_id_by_original_id=tensor_id_by_original_id,
                 ),
@@ -343,18 +343,6 @@ def _analysis_tensor_id(tensor: TensorSpec) -> str:
     if tensor.linear_periodic_role is LinearPeriodicTensorRole.NEXT:
         return LINEAR_PERIODIC_NEXT_OPERAND_ID
     return tensor.id
-
-
-def _analysis_edge_endpoint(
-    endpoint: EdgeEndpointRef,
-    *,
-    tensor_id_by_original_id: dict[str, str],
-) -> EdgeEndpointRef:
-    """Return an edge endpoint with boundary tensor ids remapped."""
-    return EdgeEndpointRef(
-        tensor_id=tensor_id_by_original_id.get(endpoint.tensor_id, endpoint.tensor_id),
-        index_id=endpoint.index_id,
-    )
 
 
 def is_linear_periodic_reserved_operand_id(operand_id: str) -> bool:
