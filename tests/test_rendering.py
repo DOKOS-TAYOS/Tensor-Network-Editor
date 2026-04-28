@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 import pytest
 
@@ -10,6 +11,7 @@ from tensor_network_editor.rendering import (
     DotRenderOptions,
     SvgRenderOptions,
     TikzRenderOptions,
+    _SvgRenderer,
     render_spec_dot,
     render_spec_pdf,
     render_spec_svg,
@@ -55,29 +57,91 @@ def _assign_demo_index_offsets() -> NetworkSpec:
     return spec
 
 
+def _build_three_parallel_edge_spec() -> NetworkSpec:
+    spec = _assign_demo_index_offsets()
+    spec.tensors[1].indices[1].dimension = 2
+    spec.tensors[0].indices.append(
+        type(spec.tensors[0].indices[0])(
+            id="tensor_a_k",
+            name="k",
+            dimension=5,
+        )
+    )
+    spec.tensors[1].indices.append(
+        type(spec.tensors[1].indices[0])(
+            id="tensor_b_k",
+            name="k",
+            dimension=5,
+        )
+    )
+    spec.edges.append(
+        type(spec.edges[0])(
+            id="edge_parallel_left",
+            name="bond_left",
+            left=type(spec.edges[0].left)(
+                tensor_id="tensor_a",
+                index_id="tensor_a_i",
+            ),
+            right=type(spec.edges[0].right)(
+                tensor_id="tensor_b",
+                index_id="tensor_b_j",
+            ),
+        )
+    )
+    spec.edges.append(
+        type(spec.edges[0])(
+            id="edge_parallel_right",
+            name="bond_right",
+            left=type(spec.edges[0].left)(
+                tensor_id="tensor_a",
+                index_id="tensor_a_k",
+            ),
+            right=type(spec.edges[0].right)(
+                tensor_id="tensor_b",
+                index_id="tensor_b_k",
+            ),
+        )
+    )
+    return spec
+
+
+def _svg_text_content(svg: str) -> list[str]:
+    root = ET.fromstring(svg)
+    text_nodes = root.findall(".//{http://www.w3.org/2000/svg}text")
+    return [
+        "".join(text_node.itertext()).strip()
+        for text_node in text_nodes
+        if "".join(text_node.itertext()).strip()
+    ]
+
+
 def test_render_spec_svg_returns_standalone_svg_for_normal_network() -> None:
+    pytest.importorskip("matplotlib")
     svg = render_spec_svg(build_sample_spec())
+    root = ET.fromstring(svg)
+    text_content = _svg_text_content(svg)
 
     assert svg.startswith('<?xml version="1.0" encoding="UTF-8"?>')
-    assert '<svg xmlns="http://www.w3.org/2000/svg"' in svg
-    assert "demo" in svg
-    assert "A" in svg
-    assert "B" in svg
-    assert "bond_x" in svg
-    assert "Demo Group" in svg
-    assert "Check the contraction order" in svg
+    assert root.tag == "{http://www.w3.org/2000/svg}svg"
+    assert "<text" in svg
+    assert "A" in text_content
+    assert "B" in text_content
+    assert "bond_x" in text_content
+    assert "Demo Group" in text_content
+    assert any("Check the contraction order" in item for item in text_content)
 
 
 def test_academic_svg_and_tikz_exports_use_tensor_circles_and_dangling_ports() -> None:
     spec = _assign_demo_index_offsets()
 
+    pytest.importorskip("matplotlib")
     svg = render_spec_svg(spec)
     tikz = render_spec_tikz(spec)
+    text_content = _svg_text_content(svg)
 
-    assert '<circle class="tensor"' in svg
-    assert '<rect class="tensor"' not in svg
-    assert 'class="index"' not in svg
-    assert 'class="open-index"' in svg
+    assert "<path" in svg
+    assert "i 2" in text_content
+    assert "j 4" in text_content
     assert r"\node[tne index]" not in tikz
     assert r"\draw[tne open index]" in tikz
 
@@ -85,15 +149,14 @@ def test_academic_svg_and_tikz_exports_use_tensor_circles_and_dangling_ports() -
 def test_academic_svg_tikz_and_dot_preserve_entity_colors_and_parallel_edges() -> None:
     spec = _build_colored_parallel_edge_spec()
 
+    pytest.importorskip("matplotlib")
     svg = render_spec_svg(spec)
     tikz = render_spec_tikz(spec)
     dot = render_spec_dot(spec)
 
-    assert 'fill="#123456"' in svg
-    assert 'stroke="#ff00aa"' in svg
-    assert '<path class="edge"' in svg
-    assert "Q 240 160" not in svg
-    assert "Q" in svg
+    assert "#123456" in svg
+    assert "#ff00aa" in svg
+    assert svg.count("<path") >= 2
     assert r"\definecolor{tneColor123456}{HTML}{123456}" in tikz
     assert r"\definecolor{tneColorff00aa}{HTML}{ff00aa}" in tikz
     assert r"draw=tneColorff00aa" in tikz
@@ -102,19 +165,42 @@ def test_academic_svg_tikz_and_dot_preserve_entity_colors_and_parallel_edges() -
     assert 'color="#ff00aa"' in dot
 
 
+def test_academic_parallel_edges_curve_far_enough_to_separate_three_bonds() -> None:
+    spec = _build_three_parallel_edge_spec()
+    edge_render_infos = _SvgRenderer(
+        spec,
+        SvgRenderOptions(
+            include_groups=False,
+            include_notes=False,
+            show_index_labels=False,
+            show_edge_labels=False,
+        ),
+    )._edge_render_infos()
+    control_y_values = [
+        edge_info.control.y
+        for edge_info in edge_render_infos
+        if edge_info.control is not None
+    ]
+
+    assert len(control_y_values) == 3
+    assert max(control_y_values) - min(control_y_values) >= 80.0
+
+
 def test_academic_edges_reach_tensor_centers_in_svg_and_tikz() -> None:
     spec = _assign_demo_index_offsets()
 
-    svg = render_spec_svg(spec)
+    edge_render_infos = _SvgRenderer(spec, SvgRenderOptions())._edge_render_infos()
     tikz = render_spec_tikz(spec)
 
-    assert 'd="M 120 160 L 360 160"' in svg
+    assert edge_render_infos[0].source == spec.tensors[0].position
+    assert edge_render_infos[0].target == spec.tensors[1].position
     assert "(150, 116) -- (390, 116)" in tikz
 
 
 def test_academic_svg_renderer_can_hide_tensor_index_and_bond_labels() -> None:
     spec = _assign_demo_index_offsets()
 
+    pytest.importorskip("matplotlib")
     svg = render_spec_svg(
         spec,
         options=SvgRenderOptions(
@@ -123,12 +209,13 @@ def test_academic_svg_renderer_can_hide_tensor_index_and_bond_labels() -> None:
             show_edge_labels=False,
         ),
     )
+    text_content = _svg_text_content(svg)
 
-    assert ">A<" not in svg
-    assert ">B<" not in svg
-    assert "bond_x" not in svg
-    assert ">i 2<" not in svg
-    assert ">j 4<" not in svg
+    assert "A" not in text_content
+    assert "B" not in text_content
+    assert "bond_x" not in text_content
+    assert "i 2" not in text_content
+    assert "j 4" not in text_content
 
 
 def test_render_spec_svg_renders_hyperedge_hubs_and_spokes() -> None:
@@ -136,15 +223,17 @@ def test_render_spec_svg_renders_hyperedge_hubs_and_spokes() -> None:
     spec.hyperedges[0].hub_offset.x = 16.0
     spec.hyperedges[0].hub_offset.y = -8.0
 
+    pytest.importorskip("matplotlib")
     svg = render_spec_svg(spec, options=SvgRenderOptions(show_index_labels=False))
+    text_content = _svg_text_content(svg)
 
-    assert "shared_h" in svg
-    assert 'class="hyperedge-spoke"' in svg
-    assert 'class="hyperedge-hub"' in svg
+    assert "shared_h" in text_content
+    assert svg.count("<path") >= 3
     assert "tensor_a_h" not in svg
 
 
 def test_render_spec_svg_writes_output_path(tmp_path: Path) -> None:
+    pytest.importorskip("matplotlib")
     output_path = tmp_path / "network.svg"
 
     svg = render_spec_svg(build_sample_spec(), output_path=output_path)
@@ -157,6 +246,7 @@ def test_render_spec_svg_reuses_edge_geometry_within_one_render(
 ) -> None:
     import tensor_network_editor.rendering as rendering_module
 
+    pytest.importorskip("matplotlib")
     spec = _build_colored_parallel_edge_spec()
     edge_render_info_call_count = 0
     original_edge_render_infos = rendering_module._SvgRenderer._edge_render_infos
@@ -175,6 +265,15 @@ def test_render_spec_svg_reuses_edge_geometry_within_one_render(
     render_spec_svg(spec)
 
     assert edge_render_info_call_count == 1
+
+
+def test_render_spec_svg_keeps_labels_as_svg_text_elements() -> None:
+    pytest.importorskip("matplotlib")
+
+    svg = render_spec_svg(build_sample_spec())
+
+    assert "<text" in svg
+    assert "<path" in svg
 
 
 def test_render_spec_tikz_returns_tikzpicture_for_normal_network() -> None:
@@ -332,26 +431,34 @@ def test_academic_renderers_escape_labels_conservatively() -> None:
     assert '"note_demo" [label="note \\"quoted\\"\\nsecond line", shape="note"]' in dot
 
 
-def test_render_spec_png_reports_missing_pillow_dependency(
+def test_render_spec_svg_png_and_pdf_report_missing_matplotlib_dependency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import tensor_network_editor.rendering as rendering_module
 
-    def reject_pillow_modules() -> tuple[object, object, object]:
+    def reject_matplotlib_modules() -> tuple[object, object, object, object]:
         raise RuntimeError(
-            "PNG/PDF rendering requires Pillow. Reinstall the package or add Pillow to the current environment."
+            "PNG/SVG/PDF rendering requires Matplotlib. Reinstall the package or add Matplotlib to the current environment."
         )
 
-    monkeypatch.setattr(rendering_module, "_load_pillow_modules", reject_pillow_modules)
+    monkeypatch.setattr(
+        rendering_module,
+        "_load_matplotlib_modules",
+        reject_matplotlib_modules,
+    )
 
-    with pytest.raises(RuntimeError, match=r"requires Pillow|add Pillow"):
+    with pytest.raises(RuntimeError, match=r"requires Matplotlib|add Matplotlib"):
+        rendering_module.render_spec_svg(build_sample_spec())
+    with pytest.raises(RuntimeError, match=r"requires Matplotlib|add Matplotlib"):
         rendering_module.render_spec_png(build_sample_spec())
+    with pytest.raises(RuntimeError, match=r"requires Matplotlib|add Matplotlib"):
+        rendering_module.render_spec_pdf(build_sample_spec())
 
 
 def test_render_spec_png_returns_png_bytes_and_writes_output_path(
     tmp_path: Path,
 ) -> None:
-    pytest.importorskip("PIL.Image")
+    pytest.importorskip("matplotlib")
     from tensor_network_editor.rendering import render_spec_png
 
     output_path = tmp_path / "network.png"
@@ -365,11 +472,12 @@ def test_render_spec_png_returns_png_bytes_and_writes_output_path(
 def test_render_spec_pdf_returns_pdf_bytes_and_writes_output_path(
     tmp_path: Path,
 ) -> None:
-    pytest.importorskip("PIL.Image")
+    pytest.importorskip("matplotlib")
 
     output_path = tmp_path / "network.pdf"
 
     pdf_bytes = render_spec_pdf(_assign_demo_index_offsets(), output_path=output_path)
 
     assert pdf_bytes.startswith(b"%PDF")
+    assert b"/Font" in pdf_bytes
     assert output_path.read_bytes() == pdf_bytes

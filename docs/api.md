@@ -73,7 +73,7 @@ Useful public modules:
 | `tensor_network_editor.builder` | fluent `NetworkBuilder`, `TensorHandle`, and `IndexHandle` helpers |
 | `tensor_network_editor.io` | JSON/Python loading, saving, `serialize_spec(...)`, and `SCHEMA_VERSION` |
 | `tensor_network_editor.models` | data classes, result models, enums, and periodic-mode types |
-| `tensor_network_editor.rendering` | pure-Python SVG, TikZ, DOT, and optional PNG rendering helpers |
+| `tensor_network_editor.rendering` | Matplotlib-backed SVG/PNG/PDF plus pure-Python TikZ and DOT rendering helpers |
 | `tensor_network_editor.validation` | hard validation helpers |
 | `tensor_network_editor.linting` | soft modeling diagnostics |
 | `tensor_network_editor.analysis` | structural and contraction analysis |
@@ -230,11 +230,12 @@ pdf = render_spec_pdf(spec, output_path="figure.pdf")
 print(svg[:80])
 ```
 
-SVG, TikZ, and DOT rendering are pure Python and have no browser, Node, LaTeX,
-or Graphviz runtime dependency. PNG and PDF export use the same academic figure
-renderer and require the optional `png` extra (`Pillow`). The renderers validate
-the spec and draw tensors, open ports, pairwise edges, hyperedges, groups, and
-notes where the target format supports them.
+SVG, PNG, and PDF export use the same Matplotlib-based academic figure
+renderer, so SVG keeps text as real SVG text nodes and PDF stays vectorial with
+selectable text in normal viewers. TikZ and DOT rendering are still pure Python
+and have no browser, Node, LaTeX, or Graphviz runtime dependency. The
+renderers validate the spec and draw tensors, open ports, pairwise edges,
+hyperedges, groups, and notes where the target format supports them.
 
 ## Save and Load Designs
 

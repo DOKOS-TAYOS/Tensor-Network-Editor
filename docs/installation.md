@@ -70,7 +70,7 @@ python -m pip install "tensor-network-editor[tensorkrowch]"
 The `numpy` extra installs NumPy for generated `einsum_numpy` code. The
 `torch` extra installs PyTorch for generated `einsum_torch` code and is also
 useful before running PyTorch-backed examples. The base package now includes
-`Pillow` for academic exports and `opt_einsum` for automatic greedy
+`matplotlib` for academic SVG/PNG/PDF exports and `opt_einsum` for automatic greedy
 contraction suggestions.
 
 Desktop extra:

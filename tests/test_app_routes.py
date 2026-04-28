@@ -241,7 +241,7 @@ def test_render_route_applies_academic_label_options(
 def test_render_route_returns_svg_png_and_pdf_exports(
     editor_server: EditorServer,
 ) -> None:
-    pytest.importorskip("PIL.Image")
+    pytest.importorskip("matplotlib")
     spec = build_sample_spec()
     serialized_spec = {
         "schema_version": SCHEMA_VERSION,

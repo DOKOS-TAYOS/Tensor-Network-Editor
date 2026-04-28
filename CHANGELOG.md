@@ -14,8 +14,9 @@ All notable changes to this project will be documented in this file.
 - Academic figure exports now support PDF alongside SVG, PNG, TikZ/LaTeX, and
   Graphviz/DOT through the browser editor, render API, CLI, and public Python
   helpers.
-- Pillow is now a base runtime dependency instead of an optional extra because
-  academic PNG/PDF export is part of the core rendering surface.
+- Matplotlib is now a base runtime dependency instead of an optional extra
+  because academic SVG, PNG, and vector PDF export are part of the core
+  rendering surface.
 - Practical example scripts now cover MPS template code generation, PEPS
   TikZ/DOT rendering, first-class hyperedges, contraction benchmarking, and
   tensor initializers without requiring optional backend packages.
@@ -66,6 +67,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The File > Export submenu now stays reachable across the trigger/panel seam,
+  browser PNG export falls back to rasterizing the academic SVG when backend
+  PNG rendering is unavailable, and academic multi-bond renders curve parallel
+  edges more aggressively so dense index layouts stay distinguishable.
+- Academic SVG, PNG, and PDF exports now share a Matplotlib-backed renderer, so
+  SVG keeps real text nodes, PNG matches the same academic styling, and PDF is
+  vectorial enough to zoom cleanly and keep text selectable.
 - Academic figure exports now draw pairwise bonds from tensor center to tensor
   center below the tensor nodes, curve parallel bonds between the same tensors,
   and preserve per-tensor, per-bond, and hyperedge colors across SVG, PNG, PDF,
@@ -112,7 +120,7 @@ All notable changes to this project will be documented in this file.
   `tensor_network_editor.rendering` API or the `tensor-network-editor render`
   CLI command, without requiring a browser or Node runtime.
 - Saved designs can now be rendered headlessly to PNG through the public
-  rendering API and CLI when the optional `png` extra is installed.
+  rendering API and CLI as part of the base installation.
 - Generated Python for linear, grid, and tree periodic modes now embeds
   compact round-trip metadata so supported imports recover the editable
   periodic-mode payload instead of treating those exports as one-way artifacts.

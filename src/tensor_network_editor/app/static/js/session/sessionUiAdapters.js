@@ -9,6 +9,7 @@ export function createSessionUiAdapters({
   copyText = null,
   downloadText = null,
   downloadBlob = null,
+  rasterizeSvgToPng = null,
   requestFileText = null,
   openFilePicker = null,
   schedule = null,
@@ -66,6 +67,84 @@ export function createSessionUiAdapters({
           }
           resolvedDownloadBlob(filename, new blobCtor([text], { type: contentType }));
         };
+  const resolvedRasterizeSvgToPng =
+    typeof rasterizeSvgToPng === "function"
+      ? rasterizeSvgToPng
+      : async ({
+          svgText,
+          sourceContentType = "image/svg+xml;charset=utf-8",
+        }) => {
+          const imageCtor =
+            windowRef && typeof windowRef.Image === "function"
+              ? windowRef.Image
+              : typeof Image === "function"
+                ? Image
+                : null;
+          if (
+            !documentRef ||
+            !urlRef ||
+            typeof urlRef.createObjectURL !== "function" ||
+            typeof urlRef.revokeObjectURL !== "function" ||
+            typeof blobCtor !== "function" ||
+            typeof imageCtor !== "function"
+          ) {
+            throw new Error("PNG fallback rendering is not available in this browser.");
+          }
+          const svgBlob = new blobCtor([svgText], { type: sourceContentType });
+          const svgUrl = urlRef.createObjectURL(svgBlob);
+          try {
+            const image = await new Promise((resolve, reject) => {
+              const nextImage = new imageCtor();
+              nextImage.onload = () => resolve(nextImage);
+              nextImage.onerror = () => {
+                reject(
+                  new Error(
+                    "Could not load the SVG export for browser PNG conversion."
+                  )
+                );
+              };
+              nextImage.src = svgUrl;
+            });
+            const canvas = documentRef.createElement("canvas");
+            if (!canvas || typeof canvas.getContext !== "function") {
+              throw new Error("Canvas rendering is not available in this browser.");
+            }
+            const width = Math.max(
+              1,
+              Math.round(image.naturalWidth || image.width || 1)
+            );
+            const height = Math.max(
+              1,
+              Math.round(image.naturalHeight || image.height || 1)
+            );
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext("2d");
+            if (!context) {
+              throw new Error("Canvas rendering is not available in this browser.");
+            }
+            context.drawImage(image, 0, 0, width, height);
+            return await new Promise((resolve, reject) => {
+              if (typeof canvas.toBlob !== "function") {
+                reject(
+                  new Error(
+                    "Canvas PNG export is not available in this browser."
+                  )
+                );
+                return;
+              }
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  resolve(blob);
+                  return;
+                }
+                reject(new Error("Could not convert the SVG export into PNG."));
+              }, "image/png");
+            });
+          } finally {
+            urlRef.revokeObjectURL(svgUrl);
+          }
+        };
   const resolvedRequestFileText =
     typeof requestFileText === "function"
       ? requestFileText
@@ -117,6 +196,7 @@ export function createSessionUiAdapters({
     copyText: resolvedCopyText,
     downloadText: resolvedDownloadText,
     downloadBlob: resolvedDownloadBlob,
+    rasterizeSvgToPng: resolvedRasterizeSvgToPng,
     requestFileText: resolvedRequestFileText,
     openFilePicker: resolvedOpenFilePicker,
     schedule: resolvedSchedule,

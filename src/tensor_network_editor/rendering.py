@@ -1,4 +1,4 @@
-"""Public helpers for rendering tensor-network specs as static SVG."""
+"""Public helpers for rendering tensor-network specs as static figures."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from html import escape
 from importlib import import_module
 from io import BytesIO
 from math import ceil, cos, hypot, isfinite, pi, sin
-from pathlib import Path
 from typing import Any
 from xml.sax.saxutils import quoteattr
 
@@ -33,7 +32,7 @@ _PARALLEL_EDGE_SPACING = 22.0
 
 @dataclass(slots=True, frozen=True)
 class SvgRenderOptions:
-    """Options for the static SVG renderer."""
+    """Options for the academic SVG/PNG/PDF renderers."""
 
     padding: float = 56.0
     show_tensor_labels: bool = True
@@ -82,7 +81,7 @@ class DotRenderOptions:
 
 @dataclass(slots=True, frozen=True)
 class _Bounds:
-    """Axis-aligned world-space bounds for an SVG export."""
+    """Axis-aligned world-space bounds for an academic export."""
 
     x1: float
     y1: float
@@ -120,7 +119,7 @@ def render_spec_svg(
     """Render one tensor-network specification as a standalone SVG string."""
     resolved_options = options or SvgRenderOptions()
     validated_spec = ensure_valid_spec(spec)
-    svg = _SvgRenderer(validated_spec, resolved_options).render()
+    svg = _MatplotlibRenderer(validated_spec, resolved_options).render_svg()
     if output_path is not None:
         write_utf8_text(output_path, svg, description="SVG network rendering")
     return svg
@@ -133,14 +132,18 @@ def render_spec_png(
     scale: float = 2.0,
     output_path: StrPath | None = None,
 ) -> bytes:
-    """Render one tensor-network specification as PNG bytes using Pillow."""
+    """Render one tensor-network specification as PNG bytes using Matplotlib."""
     if isinstance(scale, bool) or not isinstance(scale, (int, float)):
         raise ValueError("PNG render scale must be a positive finite number.")
     if not isfinite(float(scale)) or scale <= 0:
         raise ValueError("PNG render scale must be a positive finite number.")
     resolved_options = options or SvgRenderOptions()
     validated_spec = ensure_valid_spec(spec)
-    png = _PngRenderer(validated_spec, resolved_options, scale=float(scale)).render()
+    png = _MatplotlibRenderer(
+        validated_spec,
+        resolved_options,
+        scale=float(scale),
+    ).render_png()
     if output_path is not None:
         write_binary(output_path, png, description="PNG network rendering")
     return png
@@ -153,14 +156,14 @@ def render_spec_pdf(
     scale: float = 2.0,
     output_path: StrPath | None = None,
 ) -> bytes:
-    """Render one tensor-network specification as PDF bytes using Pillow."""
+    """Render one tensor-network specification as PDF bytes using Matplotlib."""
     if isinstance(scale, bool) or not isinstance(scale, (int, float)):
         raise ValueError("PDF render scale must be a positive finite number.")
     if not isfinite(float(scale)) or scale <= 0:
         raise ValueError("PDF render scale must be a positive finite number.")
     resolved_options = options or SvgRenderOptions()
     validated_spec = ensure_valid_spec(spec)
-    pdf = _PngRenderer(
+    pdf = _MatplotlibRenderer(
         validated_spec, resolved_options, scale=float(scale)
     ).render_pdf()
     if output_path is not None:
@@ -206,7 +209,7 @@ def render_spec_dot(
 
 
 class _SvgRenderer:
-    """Small deterministic SVG renderer for one validated network spec."""
+    """Shared geometry helper for academic network renderers."""
 
     def __init__(self, spec: NetworkSpec, options: SvgRenderOptions) -> None:
         self._spec = spec
@@ -1007,15 +1010,17 @@ class _DotRenderer:
         ]
 
 
-class _PngRenderer:
-    """Small deterministic Pillow renderer for one validated network spec."""
+class _MatplotlibRenderer:
+    """Matplotlib-backed academic renderer for one validated network spec."""
+
+    _BASE_DPI = 100.0
 
     def __init__(
         self,
         spec: NetworkSpec,
         options: SvgRenderOptions,
         *,
-        scale: float,
+        scale: float = 1.0,
     ) -> None:
         self._spec = spec
         self._options = options
@@ -1023,43 +1028,153 @@ class _PngRenderer:
         self._geometry = _SvgRenderer(spec, options)
         self._tensor_by_id = self._geometry._tensor_by_id
         self._index_by_id = self._geometry._index_by_id
+        self._font_families = _font_family_list(options.font_family)
 
-    def render(self) -> bytes:
+    def render_svg(self) -> str:
+        """Return the complete SVG document."""
+        svg = self._render_document(file_format="svg").decode("utf-8")
+        return _normalize_svg_document(svg)
+
+    def render_png(self) -> bytes:
         """Return the complete PNG document as bytes."""
-        image = self._render_image()
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        return buffer.getvalue()
+        return self._render_document(file_format="png")
 
     def render_pdf(self) -> bytes:
-        """Return the complete PDF document as bytes."""
-        image = self._render_image()
-        buffer = BytesIO()
-        image.save(buffer, format="PDF", resolution=72.0 * self._scale)
-        return buffer.getvalue()
+        """Return the complete vector PDF document as bytes."""
+        return self._render_document(file_format="pdf")
 
-    def _render_image(self) -> Any:
-        """Return the rendered Pillow image."""
-        image_module, draw_module, font_module = _load_pillow_modules()
-        bounds = self._geometry._compute_bounds()
-        width = max(240, ceil(bounds.width))
-        height = max(180, ceil(bounds.height))
-        pixel_size = (ceil(width * self._scale), ceil(height * self._scale))
-        image = image_module.new("RGB", pixel_size, self._options.background)
-        draw = draw_module.Draw(image)
-        fonts = _PillowFontBundle(font_module, scale=self._scale)
+    def _render_document(self, *, file_format: str) -> bytes:
+        matplotlib_module, pyplot_module, patches_module, path_module = (
+            _load_matplotlib_modules()
+        )
+        figure: Any | None = None
+        with matplotlib_module.rc_context(self._rc_params()):
+            try:
+                (
+                    figure,
+                    axes,
+                    edge_render_infos,
+                    bounds,
+                    canvas_width,
+                    canvas_height,
+                ) = self._build_figure(pyplot_module)
+                self._draw_scene(
+                    axes,
+                    patches_module,
+                    path_module,
+                    edge_render_infos,
+                    bounds,
+                    canvas_width=canvas_width,
+                    canvas_height=canvas_height,
+                )
+                buffer = BytesIO()
+                assert figure is not None
+                figure.savefig(buffer, **self._savefig_kwargs(file_format=file_format))
+                return buffer.getvalue()
+            finally:
+                if figure is not None:
+                    pyplot_module.close(figure)
+
+    def _rc_params(self) -> dict[str, Any]:
+        return {
+            "font.family": list(self._font_families),
+            "font.sans-serif": list(self._font_families),
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+            "svg.fonttype": "none",
+            "text.usetex": False,
+        }
+
+    def _build_figure(
+        self,
+        pyplot_module: Any,
+    ) -> tuple[Any, Any, list[_RenderedEdge], _Bounds, int, int]:
+        edge_render_infos = self._geometry._edge_render_infos()
+        bounds = self._geometry._compute_bounds(edge_render_infos)
+        canvas_width = max(240, ceil(bounds.width))
+        canvas_height = max(180, ceil(bounds.height))
+        figure = pyplot_module.figure(
+            figsize=(
+                canvas_width / self._BASE_DPI,
+                canvas_height / self._BASE_DPI,
+            ),
+            dpi=self._BASE_DPI,
+            facecolor=self._options.background,
+        )
+        axes = figure.add_axes((0.0, 0.0, 1.0, 1.0))
+        axes.set_facecolor(self._options.background)
+        axes.set_xlim(bounds.x1, bounds.x1 + canvas_width)
+        axes.set_ylim(bounds.y1 + canvas_height, bounds.y1)
+        axes.set_aspect("equal", adjustable="box")
+        axes.set_axis_off()
+        return (
+            figure,
+            axes,
+            edge_render_infos,
+            bounds,
+            canvas_width,
+            canvas_height,
+        )
+
+    def _savefig_kwargs(self, *, file_format: str) -> dict[str, Any]:
+        save_kwargs: dict[str, Any] = {
+            "format": file_format,
+            "bbox_inches": None,
+            "pad_inches": 0.0,
+            "facecolor": self._options.background,
+            "edgecolor": self._options.background,
+            "transparent": False,
+            "metadata": self._render_metadata(file_format=file_format),
+        }
+        if file_format == "png":
+            save_kwargs["dpi"] = self._BASE_DPI * self._scale
+        return save_kwargs
+
+    def _render_metadata(self, *, file_format: str) -> dict[str, Any]:
+        if file_format == "svg":
+            return {
+                "Creator": "tensor-network-editor",
+                "Date": None,
+                "Title": self._spec.name,
+            }
+        if file_format == "png":
+            return {
+                "Software": "tensor-network-editor",
+                "Title": self._spec.name,
+            }
+        return {"Creator": "tensor-network-editor", "Title": self._spec.name}
+
+    def _draw_scene(
+        self,
+        axes: Any,
+        patches_module: Any,
+        path_module: Any,
+        edge_render_infos: Sequence[_RenderedEdge],
+        bounds: _Bounds,
+        *,
+        canvas_width: int,
+        canvas_height: int,
+    ) -> None:
+        background = patches_module.Rectangle(
+            (bounds.x1, bounds.y1),
+            canvas_width,
+            canvas_height,
+            facecolor=self._options.background,
+            edgecolor="none",
+            zorder=-100,
+        )
+        axes.add_patch(background)
         if self._options.include_groups:
-            self._render_groups(draw, bounds, fonts.group)
-        self._render_edges(draw, bounds, fonts.edge)
-        self._render_hyperedges(draw, bounds, fonts.edge)
-        self._render_open_indices(draw, bounds)
-        self._render_tensors(draw, bounds, fonts.tensor)
-        self._render_index_labels(draw, bounds, fonts.index)
+            self._render_groups(axes, patches_module)
+        self._render_edges(axes, patches_module, path_module, edge_render_infos)
+        self._render_hyperedges(axes, patches_module)
+        self._render_open_indices(axes)
+        self._render_tensors(axes, patches_module)
+        self._render_index_labels(axes)
         if self._options.include_notes:
-            self._render_notes(draw, bounds, fonts.note)
-        return image
+            self._render_notes(axes, patches_module)
 
-    def _render_groups(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+    def _render_groups(self, axes: Any, patches_module: Any) -> None:
         for group in self._spec.groups:
             group_tensors = [
                 self._tensor_by_id[tensor_id]
@@ -1072,61 +1187,91 @@ class _PngRenderer:
                 group_tensors,
                 padding=_GROUP_PADDING,
             )
-            draw.rounded_rectangle(
-                self._box_to_pixels(group_bounds, bounds),
-                radius=self._pixels(10.0),
-                outline=_metadata_color(group.metadata, self._options.group_stroke),
-                width=self._pixels(2.0),
+            axes.add_patch(
+                patches_module.FancyBboxPatch(
+                    (group_bounds.x1, group_bounds.y1),
+                    group_bounds.width,
+                    group_bounds.height,
+                    boxstyle="round,pad=0,rounding_size=10",
+                    facecolor="none",
+                    edgecolor=_metadata_color(
+                        group.metadata, self._options.group_stroke
+                    ),
+                    linewidth=1.5,
+                    linestyle=(0, (8, 6)),
+                    zorder=0.5,
+                )
             )
-            self._draw_text(
-                draw,
-                self._point_to_pixels(
-                    CanvasPosition(group_bounds.x1 + 12, group_bounds.y1 + 14),
-                    bounds,
-                ),
+            axes.text(
+                group_bounds.x1 + 12,
+                group_bounds.y1 + 20,
                 group.name,
-                fill=self._options.muted_text_fill,
-                font=font,
-                anchor="lm",
+                color=self._options.muted_text_fill,
+                fontsize=12,
+                fontfamily=list(self._font_families),
+                ha="left",
+                va="center",
+                zorder=3.0,
             )
 
-    def _render_edges(self, draw: Any, bounds: _Bounds, font: Any) -> None:
-        for edge_info in self._geometry._edge_render_infos():
+    def _render_edges(
+        self,
+        axes: Any,
+        patches_module: Any,
+        path_module: Any,
+        edge_render_infos: Sequence[_RenderedEdge],
+    ) -> None:
+        for edge_info in edge_render_infos:
             if edge_info.control is None:
-                points = [edge_info.source, edge_info.target]
+                vertices = [
+                    (edge_info.source.x, edge_info.source.y),
+                    (edge_info.target.x, edge_info.target.y),
+                ]
+                codes = [path_module.Path.MOVETO, path_module.Path.LINETO]
                 label_point = _midpoint(edge_info.source, edge_info.target)
             else:
-                points = _sample_quadratic_points(
-                    edge_info.source,
-                    edge_info.control,
-                    edge_info.target,
-                )
+                vertices = [
+                    (edge_info.source.x, edge_info.source.y),
+                    (edge_info.control.x, edge_info.control.y),
+                    (edge_info.target.x, edge_info.target.y),
+                ]
+                codes = [
+                    path_module.Path.MOVETO,
+                    path_module.Path.CURVE3,
+                    path_module.Path.CURVE3,
+                ]
                 label_point = _quadratic_midpoint(
                     edge_info.source,
                     edge_info.control,
                     edge_info.target,
                 )
-            draw.line(
-                [self._point_to_pixels(point, bounds) for point in points],
-                fill=edge_info.stroke,
-                width=self._pixels(3.0),
+            axes.add_patch(
+                patches_module.PathPatch(
+                    path_module.Path(vertices, codes),
+                    facecolor="none",
+                    edgecolor=edge_info.stroke,
+                    linewidth=2.8,
+                    capstyle="round",
+                    joinstyle="round",
+                    zorder=1.0,
+                )
             )
             if self._options.show_edge_labels and edge_info.edge.name:
-                self._draw_text(
-                    draw,
-                    self._point_to_pixels(
-                        CanvasPosition(label_point.x, label_point.y - 10),
-                        bounds,
-                    ),
+                axes.text(
+                    label_point.x,
+                    label_point.y - 10,
                     edge_info.edge.name,
-                    fill=self._options.muted_text_fill,
-                    font=font,
+                    color=self._options.muted_text_fill,
+                    fontsize=11,
+                    fontfamily=list(self._font_families),
+                    ha="center",
+                    va="center",
+                    zorder=3.0,
                 )
 
-    def _render_hyperedges(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+    def _render_hyperedges(self, axes: Any, patches_module: Any) -> None:
         for hyperedge in self._spec.hyperedges:
             hub = self._geometry._hyperedge_hub_position(hyperedge)
-            hub_point = self._point_to_pixels(hub, bounds)
             hyperedge_stroke = _metadata_color(
                 hyperedge.metadata,
                 self._options.hyperedge_stroke,
@@ -1137,35 +1282,42 @@ class _PngRenderer:
                     continue
                 tensor, _ = tensor_index
                 endpoint_position = tensor.position
-                draw.line(
-                    [
-                        self._point_to_pixels(endpoint_position, bounds),
-                        hub_point,
-                    ],
-                    fill=hyperedge_stroke,
-                    width=self._pixels(2.5),
+                axes.plot(
+                    [endpoint_position.x, hub.x],
+                    [endpoint_position.y, hub.y],
+                    color=hyperedge_stroke,
+                    linewidth=2.3,
+                    linestyle=(0, (5, 4)),
+                    solid_capstyle="round",
+                    zorder=1.1,
                 )
-            hub_radius = self._pixels(11.0)
-            draw.ellipse(
-                _pixel_circle_box(hub_point, hub_radius),
-                fill=hyperedge_stroke,
+            axes.add_patch(
+                patches_module.Circle(
+                    (hub.x, hub.y),
+                    radius=11.0,
+                    facecolor=hyperedge_stroke,
+                    edgecolor="none",
+                    zorder=1.2,
+                )
             )
             if self._options.show_edge_labels and hyperedge.name:
-                self._draw_text(
-                    draw,
-                    self._point_to_pixels(CanvasPosition(hub.x, hub.y - 17), bounds),
+                axes.text(
+                    hub.x,
+                    hub.y - 17,
                     hyperedge.name,
-                    fill=self._options.text_fill,
-                    font=font,
+                    color=self._options.text_fill,
+                    fontsize=11,
+                    fontfamily=list(self._font_families),
+                    ha="center",
+                    va="center",
+                    zorder=3.0,
                 )
 
-    def _render_tensors(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+    def _render_tensors(self, axes: Any, patches_module: Any) -> None:
         for tensor in self._spec.tensors:
             if self._geometry.is_port_tensor(tensor):
                 continue
             radius = self._geometry.tensor_radius(tensor)
-            pixel_point = self._point_to_pixels(tensor.position, bounds)
-            pixel_radius = self._pixels(radius)
             tensor_custom_color = _metadata_color_or_none(tensor.metadata)
             tensor_fill = tensor_custom_color or self._options.tensor_fill
             tensor_stroke = (
@@ -1173,161 +1325,93 @@ class _PngRenderer:
                 if tensor_custom_color
                 else self._options.tensor_stroke
             )
-            draw.ellipse(
-                _pixel_circle_box(pixel_point, pixel_radius),
-                fill=tensor_fill,
-                outline=tensor_stroke,
-                width=self._pixels(2.0),
+            axes.add_patch(
+                patches_module.Circle(
+                    (tensor.position.x, tensor.position.y),
+                    radius=radius,
+                    facecolor=tensor_fill,
+                    edgecolor=tensor_stroke,
+                    linewidth=2.0,
+                    zorder=2.0,
+                )
             )
             if self._options.show_tensor_labels:
-                self._draw_text(
-                    draw,
-                    pixel_point,
+                axes.text(
+                    tensor.position.x,
+                    tensor.position.y,
                     tensor.name,
-                    fill=self._options.text_fill,
-                    font=font,
+                    color=self._options.text_fill,
+                    fontsize=18,
+                    fontfamily=list(self._font_families),
+                    ha="center",
+                    va="center",
+                    zorder=3.0,
                 )
 
-    def _render_open_indices(self, draw: Any, bounds: _Bounds) -> None:
+    def _render_open_indices(self, axes: Any) -> None:
         for tensor in self._spec.tensors:
             for index in tensor.indices:
                 if self._geometry.is_index_connected(index.id):
                     continue
                 source = self._geometry.connection_point(tensor, index)
                 target = self._geometry.open_index_endpoint(tensor, index)
-                draw.line(
-                    [
-                        self._point_to_pixels(source, bounds),
-                        self._point_to_pixels(target, bounds),
-                    ],
-                    fill=_metadata_color(index.metadata, self._options.edge_stroke),
-                    width=self._pixels(3.0),
+                axes.plot(
+                    [source.x, target.x],
+                    [source.y, target.y],
+                    color=_metadata_color(index.metadata, self._options.edge_stroke),
+                    linewidth=2.8,
+                    solid_capstyle="round",
+                    zorder=1.0,
                 )
 
-    def _render_index_labels(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+    def _render_index_labels(self, axes: Any) -> None:
         if not self._options.show_index_labels:
             return
         for tensor in self._spec.tensors:
             for index in tensor.indices:
-                self._draw_text(
-                    draw,
-                    self._point_to_pixels(
-                        self._geometry.index_label_point(tensor, index),
-                        bounds,
-                    ),
+                label_point = self._geometry.index_label_point(tensor, index)
+                axes.text(
+                    label_point.x,
+                    label_point.y,
                     f"{index.name} {index.dimension}",
-                    fill=self._options.muted_text_fill,
-                    font=font,
+                    color=self._options.muted_text_fill,
+                    fontsize=10,
+                    fontfamily=list(self._font_families),
+                    ha=_horizontal_alignment(
+                        self._geometry._svg_text_anchor(tensor, index)
+                    ),
+                    va="center",
+                    zorder=3.0,
                 )
 
-    def _render_notes(self, draw: Any, bounds: _Bounds, font: Any) -> None:
+    def _render_notes(self, axes: Any, patches_module: Any) -> None:
         for note in self._spec.notes:
-            note_bounds = _Bounds(
-                x1=note.position.x,
-                y1=note.position.y,
-                x2=note.position.x + _NOTE_WIDTH,
-                y2=note.position.y + _NOTE_HEIGHT,
-            )
-            draw.rounded_rectangle(
-                self._box_to_pixels(note_bounds, bounds),
-                radius=self._pixels(8.0),
-                fill=_metadata_color(note.metadata, self._options.note_fill),
-                outline=_metadata_color(note.metadata, self._options.group_stroke),
-                width=self._pixels(1.0),
+            axes.add_patch(
+                patches_module.FancyBboxPatch(
+                    (note.position.x, note.position.y),
+                    _NOTE_WIDTH,
+                    _NOTE_HEIGHT,
+                    boxstyle="round,pad=0,rounding_size=8",
+                    facecolor=_metadata_color(note.metadata, self._options.note_fill),
+                    edgecolor=_metadata_color(
+                        note.metadata, self._options.group_stroke
+                    ),
+                    linewidth=1.0,
+                    zorder=0.8,
+                )
             )
             for line_index, note_line in enumerate(_wrap_text(note.text, max_chars=32)):
-                self._draw_text(
-                    draw,
-                    self._point_to_pixels(
-                        CanvasPosition(
-                            note.position.x + 12,
-                            note.position.y + 20 + line_index * 16,
-                        ),
-                        bounds,
-                    ),
+                axes.text(
+                    note.position.x + 12,
+                    note.position.y + 24 + line_index * 16,
                     note_line,
-                    fill=self._options.text_fill,
-                    font=font,
-                    anchor="lm",
+                    color=self._options.text_fill,
+                    fontsize=12,
+                    fontfamily=list(self._font_families),
+                    ha="left",
+                    va="center",
+                    zorder=3.0,
                 )
-
-    def _point_to_pixels(
-        self,
-        point: CanvasPosition,
-        bounds: _Bounds,
-    ) -> tuple[int, int]:
-        return (
-            self._pixels(point.x - bounds.x1),
-            self._pixels(point.y - bounds.y1),
-        )
-
-    def _box_to_pixels(
-        self,
-        box: _Bounds,
-        bounds: _Bounds,
-    ) -> tuple[int, int, int, int]:
-        return (
-            self._pixels(box.x1 - bounds.x1),
-            self._pixels(box.y1 - bounds.y1),
-            self._pixels(box.x2 - bounds.x1),
-            self._pixels(box.y2 - bounds.y1),
-        )
-
-    def _pixels(self, value: float) -> int:
-        return max(1, int(round(value * self._scale)))
-
-    @staticmethod
-    def _draw_text(
-        draw: Any,
-        xy: tuple[int, int],
-        text: str,
-        *,
-        fill: str,
-        font: Any,
-        anchor: str = "mm",
-    ) -> None:
-        try:
-            draw.text(xy, text, fill=fill, font=font, anchor=anchor)
-        except TypeError:
-            draw.text(xy, text, fill=fill, font=font)
-
-
-@dataclass(slots=True, frozen=True)
-class _PillowFontBundle:
-    """Scaled Pillow fonts for the academic raster renderers."""
-
-    tensor: Any
-    index: Any
-    edge: Any
-    group: Any
-    note: Any
-
-    def __init__(self, font_module: Any, *, scale: float) -> None:
-        object.__setattr__(
-            self,
-            "tensor",
-            _load_pillow_font(font_module, pixel_size=max(22, int(round(26 * scale)))),
-        )
-        object.__setattr__(
-            self,
-            "index",
-            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
-        )
-        object.__setattr__(
-            self,
-            "edge",
-            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
-        )
-        object.__setattr__(
-            self,
-            "group",
-            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
-        )
-        object.__setattr__(
-            self,
-            "note",
-            _load_pillow_font(font_module, pixel_size=max(16, int(round(18 * scale)))),
-        )
 
 
 def _tensor_collection_bounds(
@@ -1388,7 +1472,11 @@ def _parallel_edge_control_point(
             x=midpoint.x + cos(angle) * _PARALLEL_EDGE_SPACING,
             y=midpoint.y + sin(angle) * _PARALLEL_EDGE_SPACING,
         )
-    offset = (edge_position - (edge_count - 1) / 2) * _PARALLEL_EDGE_SPACING
+    spacing = max(
+        _PARALLEL_EDGE_SPACING,
+        min(length * 0.24, 72.0),
+    )
+    offset = (edge_position - (edge_count - 1) / 2) * spacing
     return CanvasPosition(
         x=midpoint.x + (-dy / length) * offset,
         y=midpoint.y + (dx / length) * offset,
@@ -1624,52 +1712,47 @@ def _number(value: object) -> str:
     return str(value)
 
 
-def _pixel_circle_box(
-    center: tuple[int, int],
-    radius: int,
-) -> tuple[int, int, int, int]:
-    return (
-        center[0] - radius,
-        center[1] - radius,
-        center[0] + radius,
-        center[1] + radius,
-    )
+def _font_family_list(font_family: str) -> tuple[str, ...]:
+    families = tuple(item.strip() for item in font_family.split(",") if item.strip())
+    if families:
+        return families
+    return ("DejaVu Sans", "sans-serif")
 
 
-def _load_pillow_modules() -> tuple[Any, Any, Any]:
-    """Import Pillow lazily so SVG rendering keeps zero dependencies."""
+def _horizontal_alignment(svg_anchor: str) -> str:
+    if svg_anchor == "start":
+        return "left"
+    if svg_anchor == "end":
+        return "right"
+    return "center"
+
+
+def _load_matplotlib_modules() -> tuple[Any, Any, Any, Any]:
+    """Import Matplotlib lazily for academic SVG/PNG/PDF exports."""
     try:
+        matplotlib_module = import_module("matplotlib")
+        matplotlib_module.use("Agg", force=True)
         return (
-            import_module("PIL.Image"),
-            import_module("PIL.ImageDraw"),
-            import_module("PIL.ImageFont"),
+            matplotlib_module,
+            import_module("matplotlib.pyplot"),
+            import_module("matplotlib.patches"),
+            import_module("matplotlib.path"),
         )
     except ImportError as exc:
         raise RuntimeError(
-            "PNG/PDF rendering requires Pillow. "
-            "Reinstall the package or add Pillow to the current environment."
+            "PNG/SVG/PDF rendering requires Matplotlib. "
+            "Reinstall the package or add Matplotlib to the current environment."
         ) from exc
 
 
-def _load_pillow_font(font_module: Any, *, pixel_size: int) -> Any:
-    """Load a scalable Pillow font, falling back gracefully when unavailable."""
-    package_font_path = (
-        Path(font_module.__file__).resolve().parent / "Fonts" / "DejaVuSans.ttf"
-    )
-    for font_name in (
-        str(package_font_path),
-        "DejaVuSans.ttf",
-        "arial.ttf",
-        "Arial.ttf",
-    ):
-        try:
-            return font_module.truetype(font_name, pixel_size)
-        except (AttributeError, OSError):
-            continue
-    try:
-        return font_module.load_default(size=pixel_size)
-    except TypeError:
-        return font_module.load_default()
+def _normalize_svg_document(svg: str) -> str:
+    normalized = svg.lstrip("\ufeff")
+    if normalized.startswith("<?xml"):
+        first_line, separator, remainder = normalized.partition("\n")
+        if separator:
+            return "\n".join(['<?xml version="1.0" encoding="UTF-8"?>', remainder])
+        return '<?xml version="1.0" encoding="UTF-8"?>'
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + normalized
 
 
 __all__ = [

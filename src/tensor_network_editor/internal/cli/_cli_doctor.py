@@ -20,7 +20,7 @@ _BACKEND_IMPORTS: tuple[tuple[str, str], ...] = (
     ("quimb", "quimb"),
     ("tensorkrowch", "tensorkrowch"),
     ("opt_einsum", "opt_einsum"),
-    ("PIL", "PIL"),
+    ("matplotlib", "matplotlib"),
 )
 
 
@@ -221,10 +221,10 @@ def _backend_suggestions(
     recommended_backend = _recommended_backend_suggestion(backends, spec=spec)
     if recommended_backend is not None:
         suggestions.append(recommended_backend)
-    pillow = backends.get("PIL")
-    if isinstance(pillow, dict) and not pillow.get("available"):
+    matplotlib = backends.get("matplotlib")
+    if isinstance(matplotlib, dict) and not matplotlib.get("available"):
         suggestions.append(
-            "Pillow is missing; reinstall the package or add Pillow to enable headless PNG/PDF rendering."
+            "Matplotlib is missing; reinstall the package or add Matplotlib to enable headless PNG/SVG/PDF rendering."
         )
     return suggestions
 

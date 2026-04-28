@@ -100,7 +100,8 @@ python -m pip install tensor-network-editor
 The distribution name is `tensor-network-editor`. The Python import package is
 `tensor_network_editor`.
 
-The base package requires Python `3.11+`, `Pillow>=10`, and `opt_einsum>=3.3`.
+The base package requires Python `3.11+`, `matplotlib>=3.8`, and
+`opt_einsum>=3.3`.
 Install extras only when you need them:
 
 ```bash
@@ -115,8 +116,8 @@ Backend extras let you run generated code in the same environment. The editor
 can still generate source text when a backend package is not installed.
 
 The base installation includes `opt_einsum`, which enables automatic greedy
-contraction suggestions and automatic benchmark rows. Pillow is also part of
-the base installation because academic PNG/PDF rendering depends on it.
+contraction suggestions and automatic benchmark rows. Matplotlib is also part
+of the base installation because academic SVG/PNG/PDF rendering depends on it.
 
 ## Launching The Editor
 
@@ -1048,13 +1049,14 @@ Rendering creates static diagrams from saved canvas geometry.
 Supported render targets:
 
 - SVG
-- PNG with the `png` extra
+- PNG
+- PDF
 - TikZ/LaTeX
 - Graphviz/DOT
 
-SVG, TikZ, and DOT renderers are pure Python. They do not require a browser,
-Node.js, LaTeX, or Graphviz to produce text output. PNG rendering requires
-Pillow.
+SVG, PNG, and PDF share the same Matplotlib-based academic renderer. They do
+not require a browser, Node.js, LaTeX, or Graphviz. TikZ output is still plain
+text and DOT output is still Graphviz text.
 
 TikZ output is a `tikzpicture`, not a complete LaTeX document. DOT output is a
 Graphviz `graph`.

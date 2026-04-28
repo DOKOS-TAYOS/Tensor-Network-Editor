@@ -1922,6 +1922,20 @@ def test_top_toolbar_menu_items_keep_neutral_surface_style(
         )
 
 
+def test_export_submenu_css_removes_the_hover_gap_between_trigger_and_panel(
+    editor_server: EditorServer,
+) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+    submenu_start = css_body.index(".toolbar-submenu-panel {")
+    submenu_end = css_body.index(
+        ".toolbar-menu-submenu:hover > .toolbar-submenu-panel,"
+    )
+    submenu_block = css_body[submenu_start:submenu_end]
+
+    assert "left: calc(100% + 0.35rem);" not in submenu_block
+    assert "left: 100%;" in submenu_block
+
+
 def test_planner_comparison_assets_color_improvements_and_regressions(
     editor_server: EditorServer,
 ) -> None:

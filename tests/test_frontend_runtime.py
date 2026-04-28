@@ -12623,6 +12623,184 @@ def test_session_editor_flows_autosave_and_clear_project_drafts(
     )
 
 
+def _write_session_editor_png_fallback_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "session_editor_png_fallback.mjs"
+    _copy_js_modules(tmp_path, _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES)
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createSessionEditorFlows } = await import(
+              new URL("./session/sessionEditorFlows.js", baseUrl).href
+            );
+
+            const calls = [];
+            const state = {
+              spec: { name: "draft demo" },
+              generatedCode: "",
+              editorFinished: false,
+              draftAutosaveReady: false,
+              draftAutosaveTimer: null,
+              draftAutosaveDirty: false,
+              draftAutosaveSaving: false,
+              academicExportLabels: {
+                tensor: true,
+                index: true,
+                bond: true,
+              },
+            };
+            const flows = createSessionEditorFlows({
+              dom: {
+                exportFormatSelect: { value: "py" },
+                generatedCode: { value: "" },
+                loadInput: null,
+              },
+              state,
+              store: {
+                setGeneratedCode() {},
+                setEditorFinished() {},
+              },
+              selectors: {
+                getSelectedEngine: () => "einsum_numpy",
+                getSelectedCollectionFormat: () => "dict",
+              },
+              services: {
+                session: {
+                  async renderSpec(payload) {
+                    calls.push({ type: "renderSpec", payload });
+                    if (payload.format === "png") {
+                      throw new Error("PNG/SVG/PDF rendering requires Matplotlib.");
+                    }
+                    if (payload.format === "svg") {
+                      return {
+                        ok: true,
+                        format: "svg",
+                        text: "<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='320' height='200'><rect width='320' height='200' fill='#171b22'/></svg>",
+                        content_type: "image/svg+xml;charset=utf-8",
+                      };
+                    }
+                    throw new Error(`Unexpected fallback format: ${payload.format}`);
+                  },
+                },
+              },
+              commands: {
+                syncGeneratedCodePreview() {},
+              },
+              sessionUi: {
+                async rasterizeSvgToPng({ filename, svgText, sourceContentType }) {
+                  calls.push({
+                    type: "rasterizeSvgToPng",
+                    filename,
+                    svgText,
+                    sourceContentType,
+                  });
+                  return { type: "image/png" };
+                },
+                downloadBlob(filename, blob) {
+                  calls.push({
+                    type: "downloadBlob",
+                    filename,
+                    contentType: blob.type,
+                  });
+                },
+                closeWindow() {},
+              },
+              actions: {
+                serializeCurrentSpec({ persistViewSnapshots }) {
+                  return {
+                    schema_version: 2,
+                    persistViewSnapshots,
+                    network: { id: "network_draft" },
+                  };
+                },
+                sanitizeFilename: (value) => value.replace(/\\s+/g, "_"),
+                setStatus(message, level = "info") {
+                  calls.push({ type: "status", message, level });
+                },
+                ensureCodePanelVisible() {},
+                syncCodeGenerationWarning() {},
+                getTensorKrowchManualPlanIssueMessage: () => "",
+                stripImportLines: (code) => code,
+                formatIssues: () => "issues",
+              },
+            });
+
+            await flows.downloadExportAs("png");
+
+            const pngCalls = calls.filter(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "png"
+            );
+            const svgCalls = calls.filter(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "svg"
+            );
+            if (pngCalls.length !== 1 || svgCalls.length !== 1) {
+              throw new Error(
+                `Expected the PNG export to retry through SVG exactly once, received ${JSON.stringify(calls)}.`
+              );
+            }
+            const fallbackCall = calls.find(
+              (entry) => entry.type === "rasterizeSvgToPng"
+            );
+            if (
+              !fallbackCall ||
+              fallbackCall.filename !== "draft_demo.png" ||
+              fallbackCall.sourceContentType !== "image/svg+xml;charset=utf-8"
+            ) {
+              throw new Error(
+                `Expected the SVG fallback to rasterize through the injected UI adapter, received ${JSON.stringify(calls)}.`
+              );
+            }
+            const downloadCall = calls.find(
+              (entry) => entry.type === "downloadBlob"
+            );
+            if (
+              !downloadCall ||
+              downloadCall.filename !== "draft_demo.png" ||
+              downloadCall.contentType !== "image/png"
+            ) {
+              throw new Error(
+                `Expected the fallback PNG export to download an image/png blob, received ${JSON.stringify(calls)}.`
+              );
+            }
+            const successStatus = calls.find(
+              (entry) =>
+                entry.type === "status" &&
+                entry.level === "success" &&
+                entry.message === "Exported a PNG file."
+            );
+            if (!successStatus) {
+              throw new Error(
+                `Expected the fallback PNG export to report success, received ${JSON.stringify(calls)}.`
+              );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_editor_flows_fall_back_to_svg_when_png_render_fails(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_session_editor_png_fallback_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The session-editor PNG fallback runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 def _write_tensor_initializer_parsing_runtime_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "tensor_initializer_parsing.mjs"
     _copy_js_modules(

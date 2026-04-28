@@ -89,7 +89,7 @@ def test_project_metadata_declares_package_data_and_license_files() -> None:
     assert third_party_notices.read_text(encoding="utf-8").strip()
 
 
-def test_project_metadata_declares_required_pillow_dependency_and_backend_extras() -> (
+def test_project_metadata_declares_required_matplotlib_dependency_and_backend_extras() -> (
     None
 ):
     pyproject_path = Path.cwd() / "pyproject.toml"
@@ -97,7 +97,7 @@ def test_project_metadata_declares_required_pillow_dependency_and_backend_extras
     dependencies = payload["project"]["dependencies"]
     optional_dependencies = payload["project"]["optional-dependencies"]
 
-    assert "Pillow>=10" in dependencies
+    assert "matplotlib>=3.8" in dependencies
     assert optional_dependencies["numpy"] == ["numpy>=1.24"]
     assert optional_dependencies["torch"] == ["torch>=2.0"]
     assert "png" not in optional_dependencies
@@ -113,8 +113,8 @@ def test_third_party_notices_describe_bundled_asset_scope() -> None:
         third_party_text
     )
     assert "Runtime pip-installed dependencies are not bundled" in third_party_text
-    assert "Package: Pillow" in third_party_text
-    assert "License: CMU License (`MIT-CMU`)" in third_party_text
+    assert "Package: Matplotlib" in third_party_text
+    assert "License: Matplotlib license" in third_party_text
     assert "THIRD_PARTY_LICENSES" in readme_text
 
 

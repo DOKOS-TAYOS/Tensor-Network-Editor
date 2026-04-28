@@ -331,6 +331,36 @@ export function createSessionEditorFlows({
     }
   }
 
+  function buildAcademicRenderRequest(format) {
+    ensureAcademicExportLabels();
+    return {
+      format,
+      spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
+      showTensorNames: state.academicExportLabels.tensor,
+      showIndexNames: state.academicExportLabels.index,
+      showBondNames: state.academicExportLabels.bond,
+    };
+  }
+
+  async function tryDownloadPngViaSvgFallback(filename) {
+    if (typeof sessionUi.rasterizeSvgToPng !== "function") {
+      return false;
+    }
+    const svgPayload = await sessionService.renderSpec(buildAcademicRenderRequest("svg"));
+    if (!svgPayload.ok) {
+      throw new Error(svgPayload.message || actions.formatIssues(svgPayload.issues));
+    }
+    const pngBlob = await sessionUi.rasterizeSvgToPng({
+      filename,
+      svgText: svgPayload.text || "",
+      sourceContentType:
+        svgPayload.content_type || "image/svg+xml;charset=utf-8",
+    });
+    sessionUi.downloadBlob(filename, pngBlob);
+    actions.setStatus("Exported a PNG file.", "success");
+    return true;
+  }
+
   async function downloadAcademicExport(format) {
     const exportDetails = {
       svg: {
@@ -368,23 +398,24 @@ export function createSessionEditorFlows({
       actions.setStatus(`Unsupported export format: ${format}`, "error");
       return;
     }
+    const filename = `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.${exportDetails.extension}`;
     try {
-      ensureAcademicExportLabels();
-      const payload = await sessionService.renderSpec({
-        format,
-        spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
-        showTensorNames: state.academicExportLabels.tensor,
-        showIndexNames: state.academicExportLabels.index,
-        showBondNames: state.academicExportLabels.bond,
-      });
+      const payload = await sessionService.renderSpec(
+        buildAcademicRenderRequest(format)
+      );
       if (!payload.ok) {
+        if (
+          format === "png" &&
+          await tryDownloadPngViaSvgFallback(filename)
+        ) {
+          return;
+        }
         actions.setStatus(
           payload.message || actions.formatIssues(payload.issues),
           "error"
         );
         return;
       }
-      const filename = `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.${exportDetails.extension}`;
       if (exportDetails.responseKind === "binary") {
         sessionUi.downloadBlob(
           filename,
@@ -401,6 +432,12 @@ export function createSessionEditorFlows({
       }
       actions.setStatus(`Exported a ${exportDetails.label} file.`, "success");
     } catch (error) {
+      if (
+        format === "png" &&
+        await tryDownloadPngViaSvgFallback(filename).catch(() => false)
+      ) {
+        return;
+      }
       actions.setStatus(
         `Could not export ${exportDetails.label}: ${error.message}`,
         "error"

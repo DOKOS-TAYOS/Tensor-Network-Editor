@@ -1231,7 +1231,7 @@ select {
 .toolbar-submenu-panel {
   position: absolute;
   top: -0.3rem;
-  left: calc(100% + 0.35rem);
+  left: 100%;
   min-width: 13.5rem;
   max-width: min(calc(100vw - 1rem), 20rem);
   max-height: min(70dvh, calc(100dvh - var(--toolbar-menu-top, 0px) - 0.75rem));

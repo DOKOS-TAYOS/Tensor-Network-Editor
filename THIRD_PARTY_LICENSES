@@ -5,26 +5,26 @@ This distribution bundles third-party frontend assets inside
 `src/tensor_network_editor/app/static/vendor/`.
 
 Runtime pip-installed dependencies are not bundled into this source
-distribution or wheel. Required installs (`Pillow`, `opt_einsum`) and optional
+distribution or wheel. Required installs (`matplotlib`, `opt_einsum`) and optional
 extras such as `numpy`, `torch`, `quimb`, `tensornetwork`, `tensorkrowch`, or
 `pywebview` remain covered by their own licenses and notices.
 
 Runtime dependency notice
 -------------------------
 
-Pillow is a required runtime dependency for academic PNG/PDF rendering.
+Matplotlib is a required runtime dependency for academic SVG/PNG/PDF rendering.
 
-- Package: Pillow
-- Version range used by this project: `>=10`
-- Project: https://python-pillow.org/
-- Package index: https://pypi.org/project/Pillow/
-- License: CMU License (`MIT-CMU`)
+- Package: Matplotlib
+- Version range used by this project: `>=3.8`
+- Project: https://matplotlib.org/
+- Package index: https://pypi.org/project/matplotlib/
+- License: Matplotlib license
 - Copyright:
-  Copyright (c) 1997-2011 by Secret Labs AB.
-  Copyright (c) 1995-2011 by Fredrik Lundh.
-  Copyright (c) 2010-2026 by Pillow contributors.
+  Copyright (c) 2012- Matplotlib Development Team.
+  Copyright (c) 2002-2011 John Hunter, Darren Dale, Eric Firing, and the
+  Matplotlib development team.
 - Notice handling:
-  Pillow is installed as an external Python dependency rather than being
+  Matplotlib is installed as an external Python dependency rather than being
   vendored into this repository. Its own distribution carries the authoritative
   license text and notices.
 
