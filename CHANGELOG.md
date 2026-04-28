@@ -168,6 +168,8 @@ All notable changes to this project will be documented in this file.
   label toggles inside it, keeps selected tensor outlines and ports visible
   during clicks and drags, adds breathing room to the subnetwork library list,
   and keeps tensor resize handles below the minimap.
+- Tensor ports now stay visible when their tensor is pressed or dragged, and
+  stay attached throughout live dragging.
 - Academic text exports now default missing label-visibility state to visible,
   so isolated session flows can still export TikZ/LaTeX and Graphviz/DOT.
 - Documentation now describes grid/tree manual contraction plans as supported

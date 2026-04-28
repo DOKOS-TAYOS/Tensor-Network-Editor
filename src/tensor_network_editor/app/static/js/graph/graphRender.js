@@ -149,6 +149,12 @@ export function registerGraphRender(ctx) {
           },
         },
         {
+          selector: "node[kind = 'tensor']:grabbed",
+          style: {
+            "background-opacity": 0.34,
+          },
+        },
+        {
           selector: "node[kind = 'index']",
           style: {
             width: INDEX_RADIUS * 2,
@@ -517,7 +523,7 @@ export function registerGraphRender(ctx) {
       };
     });
 
-    state.cy.on("position", "node[kind = 'tensor']", (event) => {
+    function handleTensorMove(event) {
       if (state.syncingTensorPositions) {
         return;
       }
@@ -558,7 +564,10 @@ export function registerGraphRender(ctx) {
         moveCompanionTensorsDuringDrag();
       }
       ctx.renderOverlayDecorations();
-    });
+    }
+
+    state.cy.on("position", "node[kind = 'tensor']", handleTensorMove);
+    state.cy.on("drag", "node[kind = 'tensor']", handleTensorMove);
 
     function handleTensorRelease(event) {
       const tensor = typeof ctx.findVisibleTensorById === "function"

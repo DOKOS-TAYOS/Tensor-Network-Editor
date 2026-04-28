@@ -4069,6 +4069,96 @@ def test_bring_tensor_to_front_does_not_reposition_unrelated_ports(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_tensor_drag_keeps_ports_attached_while_moving(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "tensor_drag_ports_live_regression.mjs",
+        _build_runtime_prelude()
+        + """
+        function buildSimpleGraphSpec() {
+          return {
+            id: "network_drag_ports",
+            name: "drag-ports",
+            tensors: [
+              {
+                id: "tensor_a",
+                name: "A",
+                position: { x: 120, y: 120 },
+                size: { width: 140, height: 84 },
+                indices: [
+                  { id: "tensor_a_left", name: "left", dimension: 2, offset: { x: -38, y: 0 }, metadata: {} },
+                  { id: "tensor_a_right", name: "right", dimension: 3, offset: { x: 38, y: 0 }, metadata: {} },
+                ],
+                metadata: {},
+              },
+            ],
+            groups: [],
+            edges: [],
+            notes: [],
+            contraction_plan: null,
+            metadata: {},
+          };
+        }
+
+        const ctx = await buildContext();
+        const cyHarness = createCyStub();
+        ctx.cytoscape = () => cyHarness.cy;
+        await registerHistory(ctx);
+        await registerNotes(ctx);
+        await registerGraphRender(ctx);
+
+        ctx.state.spec = ctx.normalizeSpec(buildSimpleGraphSpec());
+        ctx.bumpSpecRevision();
+        ctx.initGraph();
+        ctx.renderGraph();
+        cyHarness.resetStats();
+
+        const tensorElement = ctx.state.cy.getElementById("tensor_a");
+        cyHarness.trigger("grab", "node[kind = 'tensor']", {
+          originalEvent: { button: 0 },
+          target: tensorElement,
+        });
+        tensorElement.position({ x: 180, y: 150 });
+        cyHarness.trigger("drag", "node[kind = 'tensor']", {
+          target: tensorElement,
+        });
+
+        const leftPortSnapshot = cyHarness.getElementSnapshot("tensor_a_left");
+        const rightPortSnapshot = cyHarness.getElementSnapshot("tensor_a_right");
+        if (
+          !leftPortSnapshot ||
+          leftPortSnapshot.position.x !== 142 ||
+          leftPortSnapshot.position.y !== 150
+        ) {
+          throw new Error(`Expected the left port to move during tensor drag, received ${JSON.stringify(leftPortSnapshot)}.`);
+        }
+        if (
+          !rightPortSnapshot ||
+          rightPortSnapshot.position.x !== 218 ||
+          rightPortSnapshot.position.y !== 150
+        ) {
+          throw new Error(`Expected the right port to move during tensor drag, received ${JSON.stringify(rightPortSnapshot)}.`);
+        }
+        if (
+          !cyHarness.stats.positionSetIds.includes("tensor_a_left") ||
+          !cyHarness.stats.positionSetIds.includes("tensor_a_right")
+        ) {
+          throw new Error(`Expected tensor drag to update port node positions, received ${cyHarness.stats.positionSetIds}.`);
+        }
+      """,
+    )
+    completed_process = _run_runtime_script(script_path)
+
+    assert completed_process.returncode == 0, (
+        "The tensor drag live-port regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_sync_cy_selection_clears_stray_cytoscape_selection_by_delta(
     tmp_path: Path,
 ) -> None:

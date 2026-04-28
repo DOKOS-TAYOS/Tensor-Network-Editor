@@ -3332,6 +3332,8 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert 'from "./graphRenderLifecycle.js"' in graph_body
     assert 'from "./graphRenderDrag.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
+    assert "selector: \"node[kind = 'tensor']:grabbed\"" in graph_body
+    assert '"background-opacity": 0.34' in graph_body
     assert '"border-width": 4' in graph_body
     assert '"border-color": GRAPH_THEME.selection' in graph_body
     assert "function renderGraph(" in graph_lifecycle_body
