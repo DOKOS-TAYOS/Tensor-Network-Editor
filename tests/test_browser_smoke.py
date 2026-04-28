@@ -41,6 +41,27 @@ def _import_playwright_sync_api() -> Any:
         )
 
 
+def _wait_for_recoverable_draft_name(page: Any, expected_name: str) -> None:
+    """Wait until the browser autosave endpoint exposes the edited draft name."""
+    page.wait_for_function(
+        """
+        async (expectedName) => {
+          const response = await fetch("/api/draft", { cache: "no-store" });
+          const payload = await response.json();
+          return Boolean(
+            payload.ok
+            && payload.draft
+            && payload.draft.spec
+            && payload.draft.spec.network
+            && payload.draft.spec.network.name === expectedName
+          );
+        }
+        """,
+        expected_name,
+        timeout=5000,
+    )
+
+
 def test_editor_shell_loads_in_real_browser(editor_server: EditorServer) -> None:
     _require_browser_e2e_enabled()
     sync_api = _import_playwright_sync_api()
@@ -76,8 +97,9 @@ def test_editor_autosaves_recoverable_draft_after_mutation(tmp_path: Path) -> No
                 page.locator("#network-name-input").wait_for(
                     state="visible", timeout=5000
                 )
-                page.locator("#network-name-input").fill("Recoverable Browser Draft")
-                page.wait_for_timeout(1200)
+                expected_name = "Recoverable Browser Draft"
+                page.locator("#network-name-input").fill(expected_name)
+                _wait_for_recoverable_draft_name(page, expected_name)
 
                 draft_payload = page.evaluate(
                     """
