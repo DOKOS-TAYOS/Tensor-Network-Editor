@@ -5,9 +5,9 @@ This distribution bundles third-party frontend assets inside
 `src/tensor_network_editor/app/static/vendor/`.
 
 Runtime pip-installed dependencies are not bundled into this source
-distribution or wheel. When users install dependencies or extras such as
-`Pillow`, `quimb`, `tensornetwork`, `tensorkrowch`, `opt_einsum`, or
-`pywebview`, those packages remain covered by their own licenses and notices.
+distribution or wheel. Required installs (`Pillow`, `opt_einsum`) and optional
+extras such as `numpy`, `torch`, `quimb`, `tensornetwork`, `tensorkrowch`, or
+`pywebview` remain covered by their own licenses and notices.
 
 Runtime dependency notice
 -------------------------

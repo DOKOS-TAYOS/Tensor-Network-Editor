@@ -380,6 +380,21 @@ def test_theme_module_applies_runtime_graph_palette(tmp_path: Path) -> None:
             if (theme.GRAPH_THEME.selection === initialSelection) {{
               throw new Error("Applying a theme should update the shared graph palette object.");
             }}
+            if (theme.GRAPH_THEME.edgeLabelBackground !== "#ffffff") {{
+              throw new Error(
+                `Expected light-mode bond labels to switch to a white background, received ${{theme.GRAPH_THEME.edgeLabelBackground}}.`
+              );
+            }}
+            if (theme.GRAPH_THEME.edgeLabelText !== "#172033") {{
+              throw new Error(
+                `Expected light-mode bond labels to switch to dark text, received ${{theme.GRAPH_THEME.edgeLabelText}}.`
+              );
+            }}
+            if (theme.GRAPH_THEME.tensorBorderFallback !== "#000000") {{
+              throw new Error(
+                `Expected light-mode tensors to use a dark fallback border, received ${{theme.GRAPH_THEME.tensorBorderFallback}}.`
+              );
+            }}
             if (!theme.EDITOR_THEME_NAMES.includes("colorblind")) {{
               throw new Error("Supported theme names should include colorblind.");
             }}
@@ -582,6 +597,189 @@ def test_editor_bootstrap_prefers_saved_theme_over_backend_default(
 
     assert completed_process.returncode == 0, (
         "The editor bootstrap theme runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_editor_bootstrap_template_catalog_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "editor_bootstrap_template_catalog_runtime.mjs"
+    _copy_js_modules(
+        tmp_path,
+        {
+            "editorBootstrapFlow.js": "shell/editorBootstrapFlow.js",
+            "theme.js": "core/theme.js",
+        },
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createEditorBootstrapFlow } = await import(
+              new URL("./editorBootstrapFlow.js", baseUrl).href
+            );
+
+            let resolveDraftLoad;
+            const calls = [];
+            const state = {
+              availableCollectionFormats: [],
+              selectedTheme: "dark",
+              subnetworkCatalogWarnings: [],
+              templateCatalogWarnings: [],
+            };
+            const store = {
+              setSelectedTheme(value) {
+                state.selectedTheme = value;
+              },
+              setSpec(value) {
+                state.spec = value;
+              },
+              setSchemaVersion(value) {
+                state.schemaVersion = value;
+              },
+              setAppMetadata(value) {
+                state.appMetadata = value;
+              },
+              setAvailableCollectionFormats(value) {
+                state.availableCollectionFormats = value;
+              },
+              setAnnotationDefinitions(value) {
+                state.annotationDefinitions = value;
+              },
+              setSelectedEngine(value) {
+                state.selectedEngine = value;
+              },
+              setSelectedCollectionFormat(value) {
+                state.selectedCollectionFormat = value;
+              },
+              setSubnetworkCatalogData(value) {
+                state.subnetworkCatalogData = value;
+              },
+            };
+            const flow = createEditorBootstrapFlow({
+              state,
+              store,
+              sessionService: {
+                async loadBootstrap() {
+                  calls.push("loadBootstrap");
+                  return {
+                    theme: "dark",
+                    spec: {
+                      schema_version: 4,
+                      network: {
+                        id: "network_bootstrap",
+                        tensors: [],
+                        edges: [],
+                        groups: [],
+                        notes: [],
+                        metadata: {},
+                      },
+                    },
+                    schema_version: 4,
+                    app_metadata: {},
+                    collection_formats: ["list"],
+                    templates: ["mps"],
+                    template_definitions: {
+                      mps: {
+                        display_name: "MPS",
+                        supports_parameters: true,
+                        source: "global",
+                      },
+                    },
+                    template_catalog_warnings: [],
+                    subnetworks: [],
+                    subnetwork_definitions: {},
+                    subnetwork_catalog_warnings: [],
+                    selected_subnetwork: "",
+                    annotation_definitions: {},
+                    default_engine: "tensornetwork",
+                    default_collection_format: "list",
+                    engines: ["tensornetwork"],
+                  };
+                },
+                async loadDraft() {
+                  calls.push("loadDraft:start");
+                  await new Promise((resolve) => {
+                    resolveDraftLoad = resolve;
+                  });
+                  calls.push("loadDraft:end");
+                  return { draft: null };
+                },
+              },
+              actions: {
+                normalizeSpec(spec) {
+                  return spec;
+                },
+                applyTemplateCatalogPayload(payload) {
+                  calls.push(
+                    `applyTemplateCatalogPayload:${payload.templateNames.join(",")}`
+                  );
+                  state.templatePayload = payload;
+                },
+                reconcileTensorOrder() {},
+                populateEngineOptions() {},
+                enforceLinearPeriodicEngineSupport() {},
+                populateCollectionFormatOptions() {},
+                initGraph() {},
+                clearHistory() {},
+                render() {},
+                updateToolbarState() {},
+                markContractionAnalysisDirty() {},
+                setStatus(message, level) {
+                  calls.push(`setStatus:${level}:${message}`);
+                },
+              },
+              documentRef: { documentElement: { dataset: {}, style: {} } },
+              windowRef: {
+                localStorage: {
+                  getItem() {
+                    return null;
+                  },
+                },
+              },
+              confirmAction() {
+                return false;
+              },
+            });
+
+            const bootstrapPromise = flow.bootstrap();
+            await Promise.resolve();
+
+            if (!calls.includes("loadDraft:start")) {
+              throw new Error(
+                `Expected draft loading to start, received ${JSON.stringify(calls)}.`
+              );
+            }
+            if (!calls.some((entry) => entry.startsWith("applyTemplateCatalogPayload:"))) {
+              throw new Error(
+                `Expected template catalog to be available before draft recovery completes, received ${JSON.stringify(calls)}.`
+              );
+            }
+
+            resolveDraftLoad();
+            await bootstrapPromise;
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_editor_bootstrap_applies_template_catalog_before_draft_recovery(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_editor_bootstrap_template_catalog_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The editor bootstrap template catalog runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -10746,6 +10944,7 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             templateSettingsShell.parentElement = templateToolbarGroup;
             const reflowLayoutShell = createButton();
             reflowLayoutShell.parentElement = templateToolbarGroup;
+            let renderCalls = 0;
 
             const ctx = {
               state: createInitialState(),
@@ -11038,7 +11237,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               renderPlanner() {},
               refreshContractionAnalysis() {},
               renderSidebarTabs() {},
-              render() {},
+              render() {
+                renderCalls += 1;
+              },
               repairContractionPlan() {},
               clearGeneratedCodePreview() {},
             };
@@ -11290,6 +11491,11 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (ctx.window.localStorage.values["tensor-network-editor.theme"] !== "light") {
               throw new Error(
                 `Expected the theme preference to persist, received ${ctx.window.localStorage.values["tensor-network-editor.theme"]}.`
+              );
+            }
+            if (renderCalls !== 1) {
+              throw new Error(
+                `Expected theme changes to trigger an immediate render pass, received ${renderCalls} render calls.`
               );
             }
             if (

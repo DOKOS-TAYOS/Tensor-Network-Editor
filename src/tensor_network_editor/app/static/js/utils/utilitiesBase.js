@@ -174,6 +174,16 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     return luminance > 0.62 ? "#091018" : "#f5f9ff";
   }
 
+  function resolveTensorBorderColor(hexColor) {
+    const normalizedColor = getMetadataColor({ color: hexColor }, GRAPH_THEME.tensorFallback);
+    if (normalizedColor === GRAPH_THEME.tensorFallback) {
+      return GRAPH_THEME.tensorBorderFallback;
+    }
+    return readableTextColor(normalizedColor) === "#091018"
+      ? shiftColor(normalizedColor, -96)
+      : shiftColor(normalizedColor, 26);
+  }
+
   function parseHexColor(hexColor) {
     const normalized = getMetadataColor({ color: hexColor }, "#000000");
     return {
@@ -266,6 +276,7 @@ export function createUtilityBaseBindings({ ctx, state, dom }) {
     getMetadataColor,
     shiftColor,
     readableTextColor,
+    resolveTensorBorderColor,
     parseHexColor,
     formatColorHex,
     downloadDataUrl,

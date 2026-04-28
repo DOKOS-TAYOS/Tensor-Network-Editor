@@ -66,6 +66,18 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Browser editor startup now makes the template catalog available before
+  recoverable draft loading finishes, and preloads the largest startup scripts
+  so the initial toolbar becomes interactive sooner.
+- Non-dark browser editor themes now use theme-aware semantic UI tokens for
+  planner highlights, accent buttons, sidebar tabs, code controls, benchmark
+  emphasis, and reusable-subnetwork previews so light, contrast, colorblind,
+  and shiny modes stay visually consistent instead of inheriting dark-only
+  surfaces.
+- Light and colorblind-friendly themes now keep pale hover states readable,
+  repaint tensor colors immediately after a theme switch, draw default tensor
+  cards with dark borders, and show bond labels with light backgrounds instead
+  of stale dark-theme styling.
 - `opt_einsum` is now a required runtime dependency instead of the optional
   `planner` extra, so automatic planner suggestions and automatic benchmark
   rows are available from the base installation.

@@ -17,6 +17,7 @@ export function createEditorBootstrapFlow({
 }) {
   async function bootstrap() {
     const payload = await sessionService.loadBootstrap();
+    const draftPayloadPromise = loadRecoverableDraft();
     const selectedThemeName = resolvePreferredEditorThemeName({
       bootstrapThemeName: payload.theme,
       storageRef: windowRef?.localStorage || null,
@@ -27,14 +28,6 @@ export function createEditorBootstrapFlow({
     } else {
       state.selectedTheme = selectedThemeName;
     }
-    const draftPayload = await loadRecoverableDraft();
-    const restoredDraft = await chooseRecoverableDraft(draftPayload);
-    const activeSpecPayload = restoredDraft?.spec || payload.spec;
-    const activeEngine = restoredDraft?.engine || payload.default_engine;
-    const activeCollectionFormat =
-      restoredDraft?.collection_format || payload.default_collection_format || "list";
-    store.setSpec(actions.normalizeSpec(activeSpecPayload.network));
-    store.setSchemaVersion(activeSpecPayload.schema_version || payload.schema_version);
     if (typeof store.setAppMetadata === "function") {
       store.setAppMetadata(payload.app_metadata);
     } else {
@@ -85,6 +78,14 @@ export function createEditorBootstrapFlow({
         : [];
     }
     store.setAnnotationDefinitions(payload.annotation_definitions);
+    const draftPayload = await draftPayloadPromise;
+    const restoredDraft = await chooseRecoverableDraft(draftPayload);
+    const activeSpecPayload = restoredDraft?.spec || payload.spec;
+    const activeEngine = restoredDraft?.engine || payload.default_engine;
+    const activeCollectionFormat =
+      restoredDraft?.collection_format || payload.default_collection_format || "list";
+    store.setSpec(actions.normalizeSpec(activeSpecPayload.network));
+    store.setSchemaVersion(activeSpecPayload.schema_version || payload.schema_version);
     store.setSelectedEngine(activeEngine);
     store.setSelectedCollectionFormat(activeCollectionFormat);
     actions.reconcileTensorOrder();

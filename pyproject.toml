@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tensor-network-editor"
 dynamic = ["version"]
-description = "Interactive local editor for building tensor networks and generating Python code."
+description = "Local visual editor for tensor networks: versioned JSON diagrams and Python code for einsum and optional backends."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

@@ -86,6 +86,119 @@
   --modal-backdrop-bg: rgba(6, 10, 16, 0.76);
   --close-button-danger-bg: rgba(98, 28, 36, 0.42);
   --close-button-danger-border: rgba(203, 79, 92, 0.42);
+  --accent-emphasis-text: var(--accent-ice);
+  --accent-button-border: rgba(196, 181, 253, 0.3);
+  --accent-button-active-border: rgba(196, 181, 253, 0.58);
+  --positive-button-border: rgba(143, 210, 168, 0.34);
+  --positive-button-hover-border: rgba(143, 210, 168, 0.58);
+  --positive-button-hover-bg: rgba(24, 46, 34, 0.96);
+  --positive-button-hover-shadow: 0 0 0 1px rgba(143, 210, 168, 0.14);
+  --positive-menu-border: rgba(143, 210, 168, 0.26);
+  --positive-menu-bg: rgba(24, 46, 34, 0.22);
+  --positive-template-settings-border: rgba(143, 210, 168, 0.34);
+  --positive-template-settings-bg: rgba(24, 46, 34, 0.86);
+  --positive-template-settings-hover-color: var(--positive-ice);
+  --insert-button-border: rgba(127, 208, 220, 0.34);
+  --insert-button-hover-border: rgba(127, 208, 220, 0.58);
+  --insert-button-hover-bg: rgba(18, 46, 54, 0.96);
+  --insert-button-hover-shadow: 0 0 0 1px rgba(127, 208, 220, 0.14);
+  --insert-menu-border: rgba(127, 208, 220, 0.26);
+  --insert-menu-bg: rgba(18, 46, 54, 0.22);
+  --insert-template-settings-border: rgba(127, 208, 220, 0.34);
+  --insert-template-settings-bg: rgba(18, 46, 54, 0.86);
+  --insert-template-settings-hover-color: var(--insert-ice);
+  --insert-button-active-bg: var(--insert-soft);
+  --insert-button-active-border: rgba(127, 208, 220, 0.58);
+  --insert-button-active-text: var(--insert-ice);
+  --template-button-border: rgba(240, 217, 138, 0.34);
+  --template-button-hover-border: rgba(240, 217, 138, 0.58);
+  --template-button-hover-bg: rgba(55, 46, 18, 0.96);
+  --template-button-hover-shadow: 0 0 0 1px rgba(240, 217, 138, 0.14);
+  --template-menu-border: rgba(240, 217, 138, 0.26);
+  --template-menu-bg: rgba(55, 46, 18, 0.22);
+  --template-template-settings-border: rgba(240, 217, 138, 0.34);
+  --template-template-settings-bg: rgba(55, 46, 18, 0.86);
+  --template-template-settings-hover-color: var(--template-ice);
+  --template-button-active-bg: var(--template-soft);
+  --template-button-active-border: rgba(240, 217, 138, 0.58);
+  --template-button-active-text: var(--template-ice);
+  --contraction-button-border: rgba(240, 161, 95, 0.34);
+  --contraction-button-hover-border: rgba(240, 161, 95, 0.58);
+  --contraction-button-hover-bg: rgba(58, 34, 18, 0.96);
+  --contraction-button-hover-shadow: 0 0 0 1px rgba(240, 161, 95, 0.14);
+  --contraction-menu-border: rgba(240, 161, 95, 0.26);
+  --contraction-menu-bg: rgba(58, 34, 18, 0.22);
+  --contraction-template-settings-border: rgba(240, 161, 95, 0.34);
+  --contraction-template-settings-bg: rgba(58, 34, 18, 0.86);
+  --contraction-template-settings-hover-color: var(--contraction-ice);
+  --contraction-button-active-bg: var(--contraction-soft);
+  --contraction-button-active-border: rgba(240, 161, 95, 0.58);
+  --contraction-button-active-text: var(--contraction-ice);
+  --danger-button-border: rgba(240, 138, 134, 0.34);
+  --danger-button-hover-border: rgba(240, 138, 134, 0.58);
+  --danger-button-hover-bg: rgba(58, 24, 26, 0.96);
+  --danger-button-hover-shadow: 0 0 0 1px rgba(240, 138, 134, 0.14);
+  --danger-menu-border: rgba(240, 138, 134, 0.26);
+  --danger-menu-bg: rgba(58, 24, 26, 0.22);
+  --danger-template-settings-border: rgba(240, 138, 134, 0.34);
+  --danger-template-settings-bg: rgba(58, 24, 26, 0.86);
+  --danger-template-settings-hover-color: var(--danger-ice);
+  --sidebar-toggle-border: var(--border-strong);
+  --sidebar-tab-active-border: var(--toolbar-active-border);
+  --template-settings-button-color: var(--muted);
+  --template-settings-button-border: var(--border-strong);
+  --template-settings-button-bg: var(--panel-strong);
+  --template-settings-button-hover-color: var(--ink);
+  --reflow-divider-bg: var(--divider-bg);
+  --select-chevron-color: var(--text-secondary);
+  --info-icon-border: var(--border-strong);
+  --info-icon-focus-outline: var(--control-hover-border);
+  --planner-disclosure-bg: var(--card-toggle-bg);
+  --planner-disclosure-nested-bg: var(--card-bg);
+  --planner-disclosure-show-color: var(--accent-strong);
+  --planner-disclosure-hide-color: var(--contraction);
+  --planner-manual-divider: var(--divider-bg);
+  --planner-card-bg: var(--card-bg);
+  --planner-card-selected-bg: var(--accent-soft);
+  --planner-step-active-bg: var(--accent-soft);
+  --planner-badge-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  --planner-order-badge-border: rgba(255, 205, 112, 0.7);
+  --planner-order-badge-bg: rgba(87, 57, 12, 0.94);
+  --planner-order-badge-color: #ffe7ae;
+  --planner-result-badge-border: rgba(168, 220, 255, 0.82);
+  --planner-result-badge-bg: rgba(15, 46, 63, 0.94);
+  --planner-result-badge-color: #d7f4ff;
+  --planner-preview-badge-border: rgba(97, 199, 255, 0.8);
+  --planner-preview-badge-bg: rgba(11, 52, 74, 0.94);
+  --planner-preview-badge-color: #d7f4ff;
+  --planner-pending-tensor-border: var(--danger);
+  --planner-pending-index-border: var(--insert);
+  --code-action-bg: var(--card-bg-strong);
+  --code-action-hover-bg: var(--panel-strong);
+  --shortcut-tooltip-shortcut-color: var(--accent-emphasis-text);
+  --metadata-chip-text: var(--accent-emphasis-text);
+  --canvas-tool-active-text: var(--accent-emphasis-text);
+  --benchmark-row-border: var(--border-subtle);
+  --benchmark-best-bg: var(--positive-soft);
+  --benchmark-worst-bg: var(--danger-soft);
+  --subnetwork-row-selection-ring: rgba(167, 139, 250, 0.28);
+  --subnetwork-preview-border: rgba(76, 92, 120, 0.84);
+  --subnetwork-preview-bg:
+    radial-gradient(circle at top left, rgba(126, 182, 255, 0.18), transparent 55%),
+    linear-gradient(180deg, rgba(20, 28, 40, 0.96), rgba(11, 16, 24, 0.98));
+  --subnetwork-preview-edge: rgba(164, 178, 203, 0.72);
+  --subnetwork-preview-tensor-fill: rgba(110, 176, 255, 0.28);
+  --subnetwork-preview-tensor-stroke: rgba(171, 213, 255, 0.94);
+  --subnetwork-source-project-bg: rgba(110, 176, 255, 0.14);
+  --subnetwork-source-project-color: rgba(173, 213, 255, 0.98);
+  --subnetwork-source-shared-bg: rgba(148, 228, 169, 0.14);
+  --subnetwork-source-shared-color: rgba(176, 239, 190, 0.98);
+  --subnetwork-source-session-bg: rgba(196, 181, 253, 0.14);
+  --subnetwork-source-session-color: rgba(226, 216, 255, 0.98);
+  --subnetwork-library-id-color: rgba(223, 231, 244, 0.92);
+  --subnetwork-tag-bg: rgba(69, 81, 102, 0.5);
+  --subnetwork-tag-color: rgba(224, 231, 242, 0.9);
+  --subnetwork-tag-empty-bg: rgba(52, 60, 74, 0.4);
 }
 
 :root[data-theme="dark"] {
@@ -127,6 +240,10 @@
   --danger-soft: rgba(220, 38, 38, 0.12);
   --danger-ice: #fee2e2;
   --shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+  --control-hover-bg: rgba(241, 245, 249, 0.98);
+  --control-hover-border: rgba(79, 70, 229, 0.44);
+  --control-hover-shadow: 0 0 0 1px rgba(79, 70, 229, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   --body-glow-primary: rgba(79, 70, 229, 0.08);
   --body-glow-secondary: rgba(14, 165, 233, 0.08);
   --toolbar-bg: rgba(255, 255, 255, 0.92);
@@ -166,6 +283,91 @@
   --modal-backdrop-bg: rgba(15, 23, 42, 0.28);
   --close-button-danger-bg: rgba(254, 226, 226, 0.9);
   --close-button-danger-border: rgba(185, 28, 28, 0.35);
+  --accent-emphasis-text: var(--accent-strong);
+  --accent-button-border: rgba(79, 70, 229, 0.26);
+  --accent-button-active-border: rgba(79, 70, 229, 0.4);
+  --positive-button-border: rgba(21, 128, 61, 0.32);
+  --positive-button-hover-border: rgba(21, 128, 61, 0.54);
+  --positive-button-hover-bg: rgba(240, 253, 244, 0.98);
+  --positive-button-hover-shadow: 0 0 0 1px rgba(22, 163, 74, 0.12);
+  --positive-menu-border: rgba(21, 128, 61, 0.24);
+  --positive-menu-bg: rgba(220, 252, 231, 0.8);
+  --positive-template-settings-border: rgba(21, 128, 61, 0.3);
+  --positive-template-settings-bg: rgba(240, 253, 244, 0.98);
+  --positive-template-settings-hover-color: var(--positive);
+  --insert-button-border: rgba(3, 105, 161, 0.32);
+  --insert-button-hover-border: rgba(3, 105, 161, 0.54);
+  --insert-button-hover-bg: rgba(240, 249, 255, 0.98);
+  --insert-button-hover-shadow: 0 0 0 1px rgba(14, 165, 233, 0.12);
+  --insert-menu-border: rgba(3, 105, 161, 0.24);
+  --insert-menu-bg: rgba(224, 242, 254, 0.82);
+  --insert-template-settings-border: rgba(3, 105, 161, 0.3);
+  --insert-template-settings-bg: rgba(240, 249, 255, 0.98);
+  --insert-template-settings-hover-color: var(--insert);
+  --insert-button-active-border: rgba(3, 105, 161, 0.44);
+  --insert-button-active-text: var(--insert);
+  --template-button-border: rgba(161, 98, 7, 0.34);
+  --template-button-hover-border: rgba(161, 98, 7, 0.56);
+  --template-button-hover-bg: rgba(255, 251, 235, 0.98);
+  --template-button-hover-shadow: 0 0 0 1px rgba(202, 138, 4, 0.12);
+  --template-menu-border: rgba(161, 98, 7, 0.24);
+  --template-menu-bg: rgba(254, 249, 195, 0.82);
+  --template-template-settings-border: rgba(161, 98, 7, 0.3);
+  --template-template-settings-bg: rgba(255, 251, 235, 0.98);
+  --template-template-settings-hover-color: var(--template);
+  --template-button-active-border: rgba(161, 98, 7, 0.44);
+  --template-button-active-text: var(--template);
+  --contraction-button-border: rgba(194, 65, 12, 0.34);
+  --contraction-button-hover-border: rgba(194, 65, 12, 0.56);
+  --contraction-button-hover-bg: rgba(255, 247, 237, 0.98);
+  --contraction-button-hover-shadow: 0 0 0 1px rgba(234, 88, 12, 0.12);
+  --contraction-menu-border: rgba(194, 65, 12, 0.24);
+  --contraction-menu-bg: rgba(255, 237, 213, 0.82);
+  --contraction-template-settings-border: rgba(194, 65, 12, 0.3);
+  --contraction-template-settings-bg: rgba(255, 247, 237, 0.98);
+  --contraction-template-settings-hover-color: var(--contraction);
+  --contraction-button-active-border: rgba(194, 65, 12, 0.44);
+  --contraction-button-active-text: var(--contraction);
+  --danger-button-border: rgba(185, 28, 28, 0.34);
+  --danger-button-hover-border: rgba(185, 28, 28, 0.56);
+  --danger-button-hover-bg: rgba(254, 242, 242, 0.98);
+  --danger-button-hover-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12);
+  --danger-menu-border: rgba(185, 28, 28, 0.24);
+  --danger-menu-bg: rgba(254, 226, 226, 0.8);
+  --danger-template-settings-border: rgba(185, 28, 28, 0.3);
+  --danger-template-settings-bg: rgba(254, 242, 242, 0.98);
+  --danger-template-settings-hover-color: var(--danger);
+  --planner-disclosure-show-color: var(--accent-strong);
+  --planner-disclosure-hide-color: var(--contraction);
+  --planner-badge-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  --planner-order-badge-border: rgba(180, 83, 9, 0.42);
+  --planner-order-badge-bg: rgba(255, 247, 214, 0.98);
+  --planner-order-badge-color: #92400e;
+  --planner-result-badge-border: rgba(3, 105, 161, 0.4);
+  --planner-result-badge-bg: rgba(224, 242, 254, 0.98);
+  --planner-result-badge-color: #0c4a6e;
+  --planner-preview-badge-border: rgba(29, 78, 216, 0.38);
+  --planner-preview-badge-bg: rgba(224, 231, 255, 0.98);
+  --planner-preview-badge-color: #1e3a8a;
+  --shortcut-tooltip-shortcut-color: var(--accent-strong);
+  --subnetwork-row-selection-ring: rgba(79, 70, 229, 0.24);
+  --subnetwork-preview-border: rgba(100, 116, 139, 0.42);
+  --subnetwork-preview-bg:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(226, 232, 240, 0.98));
+  --subnetwork-preview-edge: rgba(100, 116, 139, 0.72);
+  --subnetwork-preview-tensor-fill: rgba(79, 70, 229, 0.16);
+  --subnetwork-preview-tensor-stroke: rgba(67, 56, 202, 0.56);
+  --subnetwork-source-project-bg: rgba(79, 70, 229, 0.12);
+  --subnetwork-source-project-color: #4338ca;
+  --subnetwork-source-shared-bg: rgba(22, 163, 74, 0.12);
+  --subnetwork-source-shared-color: #166534;
+  --subnetwork-source-session-bg: rgba(124, 58, 237, 0.12);
+  --subnetwork-source-session-color: #6d28d9;
+  --subnetwork-library-id-color: #334155;
+  --subnetwork-tag-bg: rgba(226, 232, 240, 0.96);
+  --subnetwork-tag-color: #334155;
+  --subnetwork-tag-empty-bg: rgba(241, 245, 249, 0.96);
 }
 
 :root[data-theme="contrast"] {
@@ -242,6 +444,101 @@
   --modal-backdrop-bg: rgba(0, 0, 0, 0.82);
   --close-button-danger-bg: #300000;
   --close-button-danger-border: #ff5f5f;
+  --accent-emphasis-text: var(--accent);
+  --accent-button-border: var(--accent);
+  --accent-button-active-border: var(--accent);
+  --positive-button-border: var(--positive);
+  --positive-button-hover-border: var(--positive);
+  --positive-button-hover-bg: #001e0c;
+  --positive-button-hover-shadow: none;
+  --positive-menu-border: var(--positive);
+  --positive-menu-bg: #001e0c;
+  --positive-template-settings-border: var(--positive);
+  --positive-template-settings-bg: #001e0c;
+  --positive-template-settings-hover-color: var(--positive);
+  --insert-button-border: var(--insert);
+  --insert-button-hover-border: var(--insert);
+  --insert-button-hover-bg: #001f1f;
+  --insert-button-hover-shadow: none;
+  --insert-menu-border: var(--insert);
+  --insert-menu-bg: #001f1f;
+  --insert-template-settings-border: var(--insert);
+  --insert-template-settings-bg: #001f1f;
+  --insert-template-settings-hover-color: var(--insert);
+  --insert-button-active-bg: var(--insert);
+  --insert-button-active-border: var(--insert);
+  --insert-button-active-text: #000000;
+  --template-button-border: var(--template);
+  --template-button-hover-border: var(--template);
+  --template-button-hover-bg: #202000;
+  --template-button-hover-shadow: none;
+  --template-menu-border: var(--template);
+  --template-menu-bg: #202000;
+  --template-template-settings-border: var(--template);
+  --template-template-settings-bg: #202000;
+  --template-template-settings-hover-color: var(--template);
+  --template-button-active-bg: var(--template);
+  --template-button-active-border: var(--template);
+  --template-button-active-text: #000000;
+  --contraction-button-border: var(--contraction);
+  --contraction-button-hover-border: var(--contraction);
+  --contraction-button-hover-bg: #2b1800;
+  --contraction-button-hover-shadow: none;
+  --contraction-menu-border: var(--contraction);
+  --contraction-menu-bg: #2b1800;
+  --contraction-template-settings-border: var(--contraction);
+  --contraction-template-settings-bg: #2b1800;
+  --contraction-template-settings-hover-color: var(--contraction);
+  --contraction-button-active-bg: var(--contraction);
+  --contraction-button-active-border: var(--contraction);
+  --contraction-button-active-text: #000000;
+  --danger-button-border: var(--danger);
+  --danger-button-hover-border: var(--danger);
+  --danger-button-hover-bg: #240000;
+  --danger-button-hover-shadow: none;
+  --danger-menu-border: var(--danger);
+  --danger-menu-bg: #240000;
+  --danger-template-settings-border: var(--danger);
+  --danger-template-settings-bg: #240000;
+  --danger-template-settings-hover-color: var(--danger);
+  --template-settings-button-color: var(--text-primary);
+  --template-settings-button-border: var(--border-strong);
+  --template-settings-button-bg: var(--surface-panel);
+  --template-settings-button-hover-color: var(--accent);
+  --reflow-divider-bg: var(--border-strong);
+  --select-chevron-color: var(--text-primary);
+  --planner-disclosure-show-color: var(--accent);
+  --planner-disclosure-hide-color: var(--insert);
+  --planner-badge-shadow: none;
+  --planner-order-badge-border: var(--template);
+  --planner-order-badge-bg: var(--template);
+  --planner-order-badge-color: #000000;
+  --planner-result-badge-border: var(--insert);
+  --planner-result-badge-bg: var(--insert);
+  --planner-result-badge-color: #000000;
+  --planner-preview-badge-border: var(--insert);
+  --planner-preview-badge-bg: var(--insert);
+  --planner-preview-badge-color: #000000;
+  --code-action-hover-bg: #111111;
+  --shortcut-tooltip-shortcut-color: var(--accent);
+  --subnetwork-row-selection-ring: rgba(255, 255, 0, 0.42);
+  --subnetwork-preview-border: var(--border-strong);
+  --subnetwork-preview-bg:
+    radial-gradient(circle at top left, rgba(255, 255, 0, 0.14), transparent 55%),
+    linear-gradient(180deg, #000000, #000000);
+  --subnetwork-preview-edge: #ffffff;
+  --subnetwork-preview-tensor-fill: rgba(255, 255, 0, 0.16);
+  --subnetwork-preview-tensor-stroke: #00ffff;
+  --subnetwork-source-project-bg: #202000;
+  --subnetwork-source-project-color: #ffff00;
+  --subnetwork-source-shared-bg: #001e0c;
+  --subnetwork-source-shared-color: #00ff66;
+  --subnetwork-source-session-bg: #220022;
+  --subnetwork-source-session-color: #ff00ff;
+  --subnetwork-library-id-color: #ffffff;
+  --subnetwork-tag-bg: #111111;
+  --subnetwork-tag-color: #ffffff;
+  --subnetwork-tag-empty-bg: #050505;
 }
 
 :root[data-theme="colorblind"] {
@@ -279,6 +576,10 @@
   --danger-soft: rgba(204, 121, 167, 0.16);
   --danger-ice: #fbeaf3;
   --shadow: 0 18px 34px rgba(32, 33, 36, 0.14);
+  --control-hover-bg: rgba(238, 236, 225, 0.98);
+  --control-hover-border: rgba(0, 114, 178, 0.42);
+  --control-hover-shadow: 0 0 0 1px rgba(0, 114, 178, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   --body-glow-primary: rgba(0, 114, 178, 0.08);
   --body-glow-secondary: rgba(0, 158, 115, 0.08);
   --toolbar-bg: rgba(255, 255, 255, 0.92);
@@ -318,6 +619,91 @@
   --modal-backdrop-bg: rgba(32, 33, 36, 0.28);
   --close-button-danger-bg: rgba(251, 234, 243, 0.92);
   --close-button-danger-border: rgba(204, 121, 167, 0.42);
+  --accent-emphasis-text: var(--accent-strong);
+  --accent-button-border: rgba(0, 114, 178, 0.28);
+  --accent-button-active-border: rgba(0, 114, 178, 0.42);
+  --positive-button-border: rgba(0, 158, 115, 0.34);
+  --positive-button-hover-border: rgba(0, 158, 115, 0.54);
+  --positive-button-hover-bg: rgba(231, 247, 241, 0.98);
+  --positive-button-hover-shadow: 0 0 0 1px rgba(0, 158, 115, 0.12);
+  --positive-menu-border: rgba(0, 158, 115, 0.24);
+  --positive-menu-bg: rgba(231, 247, 241, 0.82);
+  --positive-template-settings-border: rgba(0, 158, 115, 0.3);
+  --positive-template-settings-bg: rgba(231, 247, 241, 0.98);
+  --positive-template-settings-hover-color: var(--positive);
+  --insert-button-border: rgba(86, 180, 233, 0.34);
+  --insert-button-hover-border: rgba(86, 180, 233, 0.54);
+  --insert-button-hover-bg: rgba(231, 245, 252, 0.98);
+  --insert-button-hover-shadow: 0 0 0 1px rgba(86, 180, 233, 0.12);
+  --insert-menu-border: rgba(86, 180, 233, 0.24);
+  --insert-menu-bg: rgba(231, 245, 252, 0.82);
+  --insert-template-settings-border: rgba(86, 180, 233, 0.3);
+  --insert-template-settings-bg: rgba(231, 245, 252, 0.98);
+  --insert-template-settings-hover-color: var(--insert);
+  --insert-button-active-border: rgba(86, 180, 233, 0.44);
+  --insert-button-active-text: var(--insert);
+  --template-button-border: rgba(230, 159, 0, 0.36);
+  --template-button-hover-border: rgba(230, 159, 0, 0.56);
+  --template-button-hover-bg: rgba(255, 244, 216, 0.98);
+  --template-button-hover-shadow: 0 0 0 1px rgba(230, 159, 0, 0.12);
+  --template-menu-border: rgba(230, 159, 0, 0.24);
+  --template-menu-bg: rgba(255, 244, 216, 0.82);
+  --template-template-settings-border: rgba(230, 159, 0, 0.3);
+  --template-template-settings-bg: rgba(255, 244, 216, 0.98);
+  --template-template-settings-hover-color: var(--template);
+  --template-button-active-border: rgba(230, 159, 0, 0.44);
+  --template-button-active-text: var(--template);
+  --contraction-button-border: rgba(213, 94, 0, 0.36);
+  --contraction-button-hover-border: rgba(213, 94, 0, 0.56);
+  --contraction-button-hover-bg: rgba(255, 234, 220, 0.98);
+  --contraction-button-hover-shadow: 0 0 0 1px rgba(213, 94, 0, 0.12);
+  --contraction-menu-border: rgba(213, 94, 0, 0.24);
+  --contraction-menu-bg: rgba(255, 234, 220, 0.82);
+  --contraction-template-settings-border: rgba(213, 94, 0, 0.3);
+  --contraction-template-settings-bg: rgba(255, 234, 220, 0.98);
+  --contraction-template-settings-hover-color: var(--contraction);
+  --contraction-button-active-border: rgba(213, 94, 0, 0.44);
+  --contraction-button-active-text: var(--contraction);
+  --danger-button-border: rgba(204, 121, 167, 0.34);
+  --danger-button-hover-border: rgba(204, 121, 167, 0.56);
+  --danger-button-hover-bg: rgba(251, 234, 243, 0.98);
+  --danger-button-hover-shadow: 0 0 0 1px rgba(204, 121, 167, 0.12);
+  --danger-menu-border: rgba(204, 121, 167, 0.24);
+  --danger-menu-bg: rgba(251, 234, 243, 0.8);
+  --danger-template-settings-border: rgba(204, 121, 167, 0.3);
+  --danger-template-settings-bg: rgba(251, 234, 243, 0.98);
+  --danger-template-settings-hover-color: var(--danger);
+  --planner-disclosure-show-color: var(--accent-strong);
+  --planner-disclosure-hide-color: var(--contraction);
+  --planner-badge-shadow: 0 8px 18px rgba(32, 33, 36, 0.14);
+  --planner-order-badge-border: rgba(230, 159, 0, 0.46);
+  --planner-order-badge-bg: rgba(255, 244, 216, 0.98);
+  --planner-order-badge-color: #8a5b00;
+  --planner-result-badge-border: rgba(86, 180, 233, 0.42);
+  --planner-result-badge-bg: rgba(231, 245, 252, 0.98);
+  --planner-result-badge-color: #005f95;
+  --planner-preview-badge-border: rgba(0, 114, 178, 0.38);
+  --planner-preview-badge-bg: rgba(227, 242, 251, 0.98);
+  --planner-preview-badge-color: #004f7c;
+  --shortcut-tooltip-shortcut-color: var(--accent-strong);
+  --subnetwork-row-selection-ring: rgba(0, 114, 178, 0.24);
+  --subnetwork-preview-border: rgba(91, 91, 91, 0.46);
+  --subnetwork-preview-bg:
+    radial-gradient(circle at top left, rgba(0, 114, 178, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(249, 248, 241, 0.98), rgba(232, 230, 220, 0.98));
+  --subnetwork-preview-edge: rgba(91, 91, 91, 0.72);
+  --subnetwork-preview-tensor-fill: rgba(0, 114, 178, 0.14);
+  --subnetwork-preview-tensor-stroke: rgba(0, 95, 149, 0.56);
+  --subnetwork-source-project-bg: rgba(0, 114, 178, 0.12);
+  --subnetwork-source-project-color: #005f95;
+  --subnetwork-source-shared-bg: rgba(0, 158, 115, 0.12);
+  --subnetwork-source-shared-color: #00795a;
+  --subnetwork-source-session-bg: rgba(204, 121, 167, 0.12);
+  --subnetwork-source-session-color: #a55d86;
+  --subnetwork-library-id-color: #3f3f46;
+  --subnetwork-tag-bg: rgba(238, 236, 225, 0.98);
+  --subnetwork-tag-color: #3f3f46;
+  --subnetwork-tag-empty-bg: rgba(249, 248, 241, 0.98);
 }
 
 :root[data-theme="shiny"] {
@@ -394,6 +780,86 @@
   --modal-backdrop-bg: rgba(3, 6, 18, 0.76);
   --close-button-danger-bg: rgba(127, 29, 29, 0.42);
   --close-button-danger-border: rgba(248, 113, 113, 0.46);
+  --accent-emphasis-text: var(--accent-ice);
+  --accent-button-border: rgba(34, 211, 238, 0.32);
+  --accent-button-active-border: rgba(34, 211, 238, 0.52);
+  --positive-button-border: rgba(52, 211, 153, 0.36);
+  --positive-button-hover-border: rgba(52, 211, 153, 0.58);
+  --positive-button-hover-bg: rgba(8, 38, 31, 0.96);
+  --positive-button-hover-shadow: 0 0 0 1px rgba(52, 211, 153, 0.16);
+  --positive-menu-border: rgba(52, 211, 153, 0.28);
+  --positive-menu-bg: rgba(8, 38, 31, 0.3);
+  --positive-template-settings-border: rgba(52, 211, 153, 0.34);
+  --positive-template-settings-bg: rgba(8, 38, 31, 0.9);
+  --positive-template-settings-hover-color: var(--positive-ice);
+  --insert-button-border: rgba(94, 234, 212, 0.36);
+  --insert-button-hover-border: rgba(94, 234, 212, 0.58);
+  --insert-button-hover-bg: rgba(7, 38, 40, 0.96);
+  --insert-button-hover-shadow: 0 0 0 1px rgba(94, 234, 212, 0.16);
+  --insert-menu-border: rgba(94, 234, 212, 0.28);
+  --insert-menu-bg: rgba(7, 38, 40, 0.3);
+  --insert-template-settings-border: rgba(94, 234, 212, 0.34);
+  --insert-template-settings-bg: rgba(7, 38, 40, 0.9);
+  --insert-template-settings-hover-color: var(--insert-ice);
+  --insert-button-active-border: rgba(94, 234, 212, 0.58);
+  --template-button-border: rgba(250, 204, 21, 0.36);
+  --template-button-hover-border: rgba(250, 204, 21, 0.58);
+  --template-button-hover-bg: rgba(48, 38, 7, 0.96);
+  --template-button-hover-shadow: 0 0 0 1px rgba(250, 204, 21, 0.16);
+  --template-menu-border: rgba(250, 204, 21, 0.28);
+  --template-menu-bg: rgba(48, 38, 7, 0.3);
+  --template-template-settings-border: rgba(250, 204, 21, 0.34);
+  --template-template-settings-bg: rgba(48, 38, 7, 0.9);
+  --template-template-settings-hover-color: var(--template-ice);
+  --template-button-active-border: rgba(250, 204, 21, 0.58);
+  --contraction-button-border: rgba(251, 113, 133, 0.36);
+  --contraction-button-hover-border: rgba(251, 113, 133, 0.58);
+  --contraction-button-hover-bg: rgba(50, 20, 32, 0.96);
+  --contraction-button-hover-shadow: 0 0 0 1px rgba(251, 113, 133, 0.16);
+  --contraction-menu-border: rgba(251, 113, 133, 0.28);
+  --contraction-menu-bg: rgba(50, 20, 32, 0.3);
+  --contraction-template-settings-border: rgba(251, 113, 133, 0.34);
+  --contraction-template-settings-bg: rgba(50, 20, 32, 0.9);
+  --contraction-template-settings-hover-color: var(--contraction-ice);
+  --contraction-button-active-border: rgba(251, 113, 133, 0.58);
+  --danger-button-border: rgba(248, 113, 113, 0.36);
+  --danger-button-hover-border: rgba(248, 113, 113, 0.58);
+  --danger-button-hover-bg: rgba(53, 17, 17, 0.96);
+  --danger-button-hover-shadow: 0 0 0 1px rgba(248, 113, 113, 0.16);
+  --danger-menu-border: rgba(248, 113, 113, 0.28);
+  --danger-menu-bg: rgba(53, 17, 17, 0.3);
+  --danger-template-settings-border: rgba(248, 113, 113, 0.34);
+  --danger-template-settings-bg: rgba(53, 17, 17, 0.9);
+  --danger-template-settings-hover-color: var(--danger-ice);
+  --planner-disclosure-show-color: var(--accent-strong);
+  --planner-disclosure-hide-color: #f9a8d4;
+  --planner-order-badge-border: rgba(250, 204, 21, 0.72);
+  --planner-order-badge-bg: rgba(61, 47, 8, 0.94);
+  --planner-order-badge-color: #fef08a;
+  --planner-result-badge-border: rgba(94, 234, 212, 0.82);
+  --planner-result-badge-bg: rgba(6, 56, 63, 0.94);
+  --planner-result-badge-color: #d1fae5;
+  --planner-preview-badge-border: rgba(34, 211, 238, 0.8);
+  --planner-preview-badge-bg: rgba(8, 53, 74, 0.94);
+  --planner-preview-badge-color: #cffafe;
+  --shortcut-tooltip-shortcut-color: var(--accent-ice);
+  --subnetwork-row-selection-ring: rgba(34, 211, 238, 0.28);
+  --subnetwork-preview-border: rgba(125, 211, 252, 0.46);
+  --subnetwork-preview-bg:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 55%),
+    linear-gradient(180deg, rgba(14, 18, 42, 0.98), rgba(7, 9, 21, 0.98));
+  --subnetwork-preview-edge: rgba(165, 180, 252, 0.72);
+  --subnetwork-preview-tensor-fill: rgba(34, 211, 238, 0.22);
+  --subnetwork-preview-tensor-stroke: rgba(94, 234, 212, 0.82);
+  --subnetwork-source-project-bg: rgba(34, 211, 238, 0.14);
+  --subnetwork-source-project-color: #a5f3fc;
+  --subnetwork-source-shared-bg: rgba(52, 211, 153, 0.14);
+  --subnetwork-source-shared-color: #d1fae5;
+  --subnetwork-source-session-bg: rgba(244, 114, 182, 0.14);
+  --subnetwork-source-session-color: #fbcfe8;
+  --subnetwork-tag-bg: rgba(26, 31, 69, 0.96);
+  --subnetwork-tag-color: #dff7ff;
+  --subnetwork-tag-empty-bg: rgba(14, 18, 42, 0.96);
 }
 
 * {
@@ -499,15 +965,15 @@ button.is-active {
 }
 
 .button-accent-cool {
-  color: var(--accent-ice);
-  border-color: rgba(196, 181, 253, 0.3);
+  color: var(--accent-emphasis-text);
+  border-color: var(--accent-button-border);
 }
 
 button.button-accent-cool.is-active,
 button.button-accent-cool[aria-pressed="true"] {
   background: var(--accent-soft);
-  border-color: rgba(196, 181, 253, 0.58);
-  color: var(--accent-ice);
+  border-color: var(--accent-button-active-border);
+  color: var(--accent-emphasis-text);
 }
 
 .button-quiet {
@@ -519,100 +985,100 @@ button.button-accent-cool[aria-pressed="true"] {
 .button-accent-positive,
 .apply-button {
   color: var(--positive);
-  border-color: rgba(143, 210, 168, 0.34);
-  --button-hover-border: rgba(143, 210, 168, 0.58);
-  --button-hover-bg: rgba(24, 46, 34, 0.96);
-  --button-hover-shadow: 0 0 0 1px rgba(143, 210, 168, 0.14);
+  border-color: var(--positive-button-border);
+  --button-hover-border: var(--positive-button-hover-border);
+  --button-hover-bg: var(--positive-button-hover-bg);
+  --button-hover-shadow: var(--positive-button-hover-shadow);
   --toolbar-menu-item-color: var(--positive);
-  --toolbar-menu-item-border: rgba(143, 210, 168, 0.26);
-  --toolbar-menu-item-bg: rgba(24, 46, 34, 0.22);
+  --toolbar-menu-item-border: var(--positive-menu-border);
+  --toolbar-menu-item-bg: var(--positive-menu-bg);
   --template-settings-button-color: var(--positive);
-  --template-settings-button-border: rgba(143, 210, 168, 0.34);
-  --template-settings-button-bg: rgba(24, 46, 34, 0.86);
-  --template-settings-button-hover-color: var(--positive-ice);
+  --template-settings-button-border: var(--positive-template-settings-border);
+  --template-settings-button-bg: var(--positive-template-settings-bg);
+  --template-settings-button-hover-color: var(--positive-template-settings-hover-color);
 }
 
 .button-accent-insert {
   color: var(--insert);
-  border-color: rgba(127, 208, 220, 0.34);
-  --button-hover-border: rgba(127, 208, 220, 0.58);
-  --button-hover-bg: rgba(18, 46, 54, 0.96);
-  --button-hover-shadow: 0 0 0 1px rgba(127, 208, 220, 0.14);
+  border-color: var(--insert-button-border);
+  --button-hover-border: var(--insert-button-hover-border);
+  --button-hover-bg: var(--insert-button-hover-bg);
+  --button-hover-shadow: var(--insert-button-hover-shadow);
   --toolbar-menu-item-color: var(--insert);
-  --toolbar-menu-item-border: rgba(127, 208, 220, 0.26);
-  --toolbar-menu-item-bg: rgba(18, 46, 54, 0.22);
+  --toolbar-menu-item-border: var(--insert-menu-border);
+  --toolbar-menu-item-bg: var(--insert-menu-bg);
   --template-settings-button-color: var(--insert);
-  --template-settings-button-border: rgba(127, 208, 220, 0.34);
-  --template-settings-button-bg: rgba(18, 46, 54, 0.86);
-  --template-settings-button-hover-color: var(--insert-ice);
+  --template-settings-button-border: var(--insert-template-settings-border);
+  --template-settings-button-bg: var(--insert-template-settings-bg);
+  --template-settings-button-hover-color: var(--insert-template-settings-hover-color);
 }
 
 button.button-accent-insert.is-active,
 button.button-accent-insert[aria-pressed="true"] {
-  background: var(--insert-soft);
-  border-color: rgba(127, 208, 220, 0.58);
-  color: var(--insert-ice);
+  background: var(--insert-button-active-bg);
+  border-color: var(--insert-button-active-border);
+  color: var(--insert-button-active-text);
 }
 
 .button-accent-template {
   color: var(--template);
-  border-color: rgba(240, 217, 138, 0.34);
-  --button-hover-border: rgba(240, 217, 138, 0.58);
-  --button-hover-bg: rgba(55, 46, 18, 0.96);
-  --button-hover-shadow: 0 0 0 1px rgba(240, 217, 138, 0.14);
+  border-color: var(--template-button-border);
+  --button-hover-border: var(--template-button-hover-border);
+  --button-hover-bg: var(--template-button-hover-bg);
+  --button-hover-shadow: var(--template-button-hover-shadow);
   --toolbar-menu-item-color: var(--template);
-  --toolbar-menu-item-border: rgba(240, 217, 138, 0.26);
-  --toolbar-menu-item-bg: rgba(55, 46, 18, 0.22);
+  --toolbar-menu-item-border: var(--template-menu-border);
+  --toolbar-menu-item-bg: var(--template-menu-bg);
   --template-settings-button-color: var(--template);
-  --template-settings-button-border: rgba(240, 217, 138, 0.34);
-  --template-settings-button-bg: rgba(55, 46, 18, 0.86);
-  --template-settings-button-hover-color: var(--template-ice);
+  --template-settings-button-border: var(--template-template-settings-border);
+  --template-settings-button-bg: var(--template-template-settings-bg);
+  --template-settings-button-hover-color: var(--template-template-settings-hover-color);
 }
 
 button.button-accent-template.is-active,
 button.button-accent-template[aria-pressed="true"] {
-  background: var(--template-soft);
-  border-color: rgba(240, 217, 138, 0.58);
-  color: var(--template-ice);
+  background: var(--template-button-active-bg);
+  border-color: var(--template-button-active-border);
+  color: var(--template-button-active-text);
 }
 
 .button-accent-contraction {
   color: var(--contraction);
-  border-color: rgba(240, 161, 95, 0.34);
-  --button-hover-border: rgba(240, 161, 95, 0.58);
-  --button-hover-bg: rgba(58, 34, 18, 0.96);
-  --button-hover-shadow: 0 0 0 1px rgba(240, 161, 95, 0.14);
+  border-color: var(--contraction-button-border);
+  --button-hover-border: var(--contraction-button-hover-border);
+  --button-hover-bg: var(--contraction-button-hover-bg);
+  --button-hover-shadow: var(--contraction-button-hover-shadow);
   --toolbar-menu-item-color: var(--contraction);
-  --toolbar-menu-item-border: rgba(240, 161, 95, 0.26);
-  --toolbar-menu-item-bg: rgba(58, 34, 18, 0.22);
+  --toolbar-menu-item-border: var(--contraction-menu-border);
+  --toolbar-menu-item-bg: var(--contraction-menu-bg);
   --template-settings-button-color: var(--contraction);
-  --template-settings-button-border: rgba(240, 161, 95, 0.34);
-  --template-settings-button-bg: rgba(58, 34, 18, 0.86);
-  --template-settings-button-hover-color: var(--contraction-ice);
+  --template-settings-button-border: var(--contraction-template-settings-border);
+  --template-settings-button-bg: var(--contraction-template-settings-bg);
+  --template-settings-button-hover-color: var(--contraction-template-settings-hover-color);
 }
 
 button.button-accent-contraction.is-active,
 button.button-accent-contraction[aria-pressed="true"],
 button.apply-button.is-active,
 button.apply-button[aria-pressed="true"] {
-  background: var(--contraction-soft);
-  border-color: rgba(240, 161, 95, 0.58);
-  color: var(--contraction-ice);
+  background: var(--contraction-button-active-bg);
+  border-color: var(--contraction-button-active-border);
+  color: var(--contraction-button-active-text);
 }
 
 .danger {
   color: var(--danger);
-  border-color: rgba(240, 138, 134, 0.34);
-  --button-hover-border: rgba(240, 138, 134, 0.58);
-  --button-hover-bg: rgba(58, 24, 26, 0.96);
-  --button-hover-shadow: 0 0 0 1px rgba(240, 138, 134, 0.14);
+  border-color: var(--danger-button-border);
+  --button-hover-border: var(--danger-button-hover-border);
+  --button-hover-bg: var(--danger-button-hover-bg);
+  --button-hover-shadow: var(--danger-button-hover-shadow);
   --toolbar-menu-item-color: var(--danger);
-  --toolbar-menu-item-border: rgba(240, 138, 134, 0.26);
-  --toolbar-menu-item-bg: rgba(58, 24, 26, 0.22);
+  --toolbar-menu-item-border: var(--danger-menu-border);
+  --toolbar-menu-item-bg: var(--danger-menu-bg);
   --template-settings-button-color: var(--danger);
-  --template-settings-button-border: rgba(240, 138, 134, 0.34);
-  --template-settings-button-bg: rgba(58, 24, 26, 0.86);
-  --template-settings-button-hover-color: var(--danger-ice);
+  --template-settings-button-border: var(--danger-template-settings-border);
+  --template-settings-button-bg: var(--danger-template-settings-bg);
+  --template-settings-button-hover-color: var(--danger-template-settings-hover-color);
 }
 
 textarea,
@@ -933,17 +1399,14 @@ select {
 }
 
 .template-settings-button {
-  color: var(--template-settings-button-color, rgba(194, 201, 214, 0.82));
-  border-color: var(--template-settings-button-border, rgba(112, 124, 147, 0.44));
-  background: var(--template-settings-button-bg, rgba(14, 20, 30, 0.84));
+  color: var(--template-settings-button-color);
+  border-color: var(--template-settings-button-border);
+  background: var(--template-settings-button-bg);
 }
 
 .template-settings-button:hover,
 .template-settings-button:focus-visible {
-  color: var(
-    --template-settings-button-hover-color,
-    rgba(236, 242, 251, 0.94)
-  );
+  color: var(--template-settings-button-hover-color);
 }
 
 .template-settings-icon {
@@ -1008,7 +1471,7 @@ select {
 .reflow-section-divider {
   height: 1px;
   margin: 0.1rem 0 0.2rem;
-  background: rgba(76, 92, 120, 0.84);
+  background: var(--reflow-divider-bg);
 }
 
 .reflow-section-caption {
@@ -1097,8 +1560,8 @@ select {
   top: calc(50% + 0.5rem);
   width: 0.44rem;
   height: 0.44rem;
-  border-right: 2px solid rgba(236, 242, 251, 0.78);
-  border-bottom: 2px solid rgba(236, 242, 251, 0.78);
+  border-right: 2px solid var(--select-chevron-color);
+  border-bottom: 2px solid var(--select-chevron-color);
   pointer-events: none;
   transform: translateY(-50%) rotate(-45deg);
   transform-origin: center;
@@ -1438,7 +1901,7 @@ select {
 .canvas-tool-button.is-open {
   border-color: var(--selection-accent);
   background: var(--canvas-tool-active-bg);
-  color: var(--accent-ice);
+  color: var(--canvas-tool-active-text);
 }
 
 .canvas-tool-popover {
@@ -1906,7 +2369,7 @@ select {
   align-self: center;
   font-weight: 700;
   background: var(--sidebar-toggle-bg);
-  border-color: rgba(132, 143, 167, 0.44);
+  border-color: var(--sidebar-toggle-border);
   color: var(--ink);
   --button-hover-bg: var(--sidebar-toggle-bg);
 }
@@ -1943,7 +2406,7 @@ select {
 
 .sidebar-tab[aria-selected="true"] {
   color: var(--ink);
-  border-color: rgba(196, 181, 253, 0.3);
+  border-color: var(--sidebar-tab-active-border);
   background: var(--sidebar-tab-active-bg);
 }
 
@@ -2080,7 +2543,7 @@ select {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(195, 205, 226, 0.45);
+  border: 1px solid var(--info-icon-border);
   background: var(--info-icon-bg);
   color: var(--info-icon-color);
   font-size: 0.8rem;
@@ -2090,7 +2553,7 @@ select {
 }
 
 .planner-chip-info:focus-visible {
-  outline: 1px solid rgba(173, 196, 255, 0.8);
+  outline: 1px solid var(--info-icon-focus-outline);
   outline-offset: 2px;
 }
 
@@ -2107,7 +2570,7 @@ select {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(195, 205, 226, 0.45);
+  border: 1px solid var(--info-icon-border);
   background: var(--info-icon-bg);
   color: var(--info-icon-color);
   font-size: 0.8rem;
@@ -2117,7 +2580,7 @@ select {
 }
 
 .field-help-icon:focus-visible {
-  outline: 1px solid rgba(173, 196, 255, 0.8);
+  outline: 1px solid var(--info-icon-focus-outline);
   outline-offset: 2px;
 }
 
@@ -2158,7 +2621,7 @@ select {
   align-items: center;
   gap: 0.8rem;
   text-align: left;
-  background: rgba(23, 29, 40, 0.96);
+  background: var(--planner-disclosure-bg);
 }
 
 .planner-disclosure-toggle.is-open {
@@ -2171,11 +2634,11 @@ select {
 }
 
 .planner-disclosure-state-show {
-  color: #d8ccff;
+  color: var(--planner-disclosure-show-color);
 }
 
 .planner-disclosure-state-hide {
-  color: #ffd2f3;
+  color: var(--planner-disclosure-hide-color);
 }
 
 .index-disclosure-state {
@@ -2195,7 +2658,7 @@ select {
 
 .planner-nested-disclosure-toggle {
   padding: 0.55rem 0.7rem;
-  background: rgba(16, 20, 29, 0.94);
+  background: var(--planner-disclosure-nested-bg);
 }
 
 .planner-nested-disclosure-body {
@@ -2214,7 +2677,7 @@ select {
 .planner-manual-step-list {
   margin-top: 1rem;
   padding-top: 0.95rem;
-  border-top: 1px solid rgba(76, 92, 120, 0.65);
+  border-top: 1px solid var(--planner-manual-divider);
 }
 
 .planner-step-header {
@@ -2261,12 +2724,12 @@ select {
   padding: 0.75rem;
   border-radius: 8px;
   border: 1px solid var(--border-subtle);
-  background: rgba(20, 26, 37, 0.96);
+  background: var(--planner-card-bg);
 }
 
 .planner-intermediate-card.is-selected {
   border-color: var(--accent-strong);
-  background: rgba(37, 31, 54, 0.96);
+  background: var(--planner-card-selected-bg);
 }
 
 .planner-order-badge-stack {
@@ -2295,13 +2758,13 @@ select {
   justify-content: center;
   font-size: 0.7rem;
   font-weight: 700;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--planner-badge-shadow);
 }
 
 .planner-order-badge {
-  border: 1px solid rgba(255, 205, 112, 0.7);
-  background: rgba(87, 57, 12, 0.94);
-  color: #ffe7ae;
+  border: 1px solid var(--planner-order-badge-border);
+  background: var(--planner-order-badge-bg);
+  color: var(--planner-order-badge-color);
 }
 
 .planner-result-count-badge {
@@ -2310,15 +2773,15 @@ select {
   min-height: 1rem;
   padding: 0.08rem 0.32rem;
   border-radius: 0.42rem;
-  border: 1px solid rgba(168, 220, 255, 0.82);
-  background: rgba(15, 46, 63, 0.94);
-  color: #d7f4ff;
+  border: 1px solid var(--planner-result-badge-border);
+  background: var(--planner-result-badge-bg);
+  color: var(--planner-result-badge-color);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
   font-weight: 700;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--planner-badge-shadow);
   pointer-events: none;
   z-index: 3;
 }
@@ -2341,7 +2804,7 @@ select {
 
 .planner-step.is-active {
   border-color: var(--selection-accent);
-  background: rgba(35, 30, 49, 0.96);
+  background: var(--planner-step-active-bg);
 }
 
 .planner-step-toggle {
@@ -2363,17 +2826,17 @@ select {
 }
 
 .planner-preview-badge {
-  border: 1px solid rgba(97, 199, 255, 0.8);
-  background: rgba(11, 52, 74, 0.94);
-  color: #d7f4ff;
+  border: 1px solid var(--planner-preview-badge-border);
+  background: var(--planner-preview-badge-bg);
+  color: var(--planner-preview-badge-color);
 }
 
 .planner-pending-tensor {
-  border-color: #ff8c87;
+  border-color: var(--planner-pending-tensor-border);
 }
 
 .planner-pending-index {
-  border-color: #61c7ff;
+  border-color: var(--planner-pending-index-border);
 }
 
 .field-group {
@@ -2424,7 +2887,7 @@ select {
 }
 
 .shortcut-tooltip-shortcut {
-  color: var(--accent-ice);
+  color: var(--shortcut-tooltip-shortcut-color);
   font-size: 0.68rem;
   white-space: nowrap;
 }
@@ -2768,7 +3231,7 @@ textarea[disabled] {
   padding: 0.28rem 0.6rem;
   border-radius: 999px;
   background: var(--metadata-chip-bg);
-  color: var(--accent-ice);
+  color: var(--metadata-chip-text);
   font-size: 0.82rem;
 }
 
@@ -2817,12 +3280,12 @@ textarea[disabled] {
 }
 
 .code-action-button {
-  background: rgba(24, 33, 46, 0.92);
+  background: var(--code-action-bg);
   border-color: var(--border-subtle);
 }
 
 .code-action-button:hover:not(:disabled) {
-  background: rgba(36, 48, 66, 0.98);
+  background: var(--code-action-hover-bg);
 }
 
 .code-action-button:disabled {
@@ -3245,7 +3708,7 @@ textarea[disabled] {
 .benchmark-compare-table th,
 .benchmark-compare-table td {
   padding: 0.75rem 0.85rem;
-  border-bottom: 1px solid rgba(44, 52, 72, 0.95);
+  border-bottom: 1px solid var(--benchmark-row-border);
   text-align: left;
 }
 
@@ -3259,12 +3722,12 @@ textarea[disabled] {
 }
 
 .benchmark-compare-cell.is-best {
-  background: rgba(142, 229, 167, 0.18);
+  background: var(--benchmark-best-bg);
   color: var(--positive);
 }
 
 .benchmark-compare-cell.is-worst {
-  background: rgba(255, 110, 102, 0.14);
+  background: var(--benchmark-worst-bg);
   color: var(--danger);
 }
 
@@ -3353,7 +3816,7 @@ textarea[disabled] {
 }
 
 .subnetwork-library-row.is-batch-selected {
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.28);
+  box-shadow: 0 0 0 1px var(--subnetwork-row-selection-ring);
 }
 
 .subnetwork-library-preview {
@@ -3362,10 +3825,8 @@ textarea[disabled] {
   min-height: 88px;
   padding: 0.35rem;
   border-radius: 8px;
-  border: 1px solid rgba(76, 92, 120, 0.84);
-  background:
-    radial-gradient(circle at top left, rgba(126, 182, 255, 0.18), transparent 55%),
-    linear-gradient(180deg, rgba(20, 28, 40, 0.96), rgba(11, 16, 24, 0.98));
+  border: 1px solid var(--subnetwork-preview-border);
+  background: var(--subnetwork-preview-bg);
 }
 
 .subnetwork-library-preview svg {
@@ -3374,13 +3835,13 @@ textarea[disabled] {
 }
 
 .subnetwork-library-preview-edges line {
-  stroke: rgba(164, 178, 203, 0.72);
+  stroke: var(--subnetwork-preview-edge);
   stroke-width: 2.4;
 }
 
 .subnetwork-library-preview-tensors rect {
-  fill: rgba(110, 176, 255, 0.28);
-  stroke: rgba(171, 213, 255, 0.94);
+  fill: var(--subnetwork-preview-tensor-fill);
+  stroke: var(--subnetwork-preview-tensor-stroke);
   stroke-width: 1.6;
 }
 
@@ -3414,18 +3875,18 @@ textarea[disabled] {
 }
 
 .subnetwork-library-source.source-project {
-  background: rgba(110, 176, 255, 0.14);
-  color: rgba(173, 213, 255, 0.98);
+  background: var(--subnetwork-source-project-bg);
+  color: var(--subnetwork-source-project-color);
 }
 
 .subnetwork-library-source.source-shared {
-  background: rgba(148, 228, 169, 0.14);
-  color: rgba(176, 239, 190, 0.98);
+  background: var(--subnetwork-source-shared-bg);
+  color: var(--subnetwork-source-shared-color);
 }
 
 .subnetwork-library-source.source-session {
-  background: rgba(196, 181, 253, 0.14);
-  color: rgba(226, 216, 255, 0.98);
+  background: var(--subnetwork-source-session-bg);
+  color: var(--subnetwork-source-session-color);
 }
 
 .subnetwork-library-meta,
@@ -3436,7 +3897,7 @@ textarea[disabled] {
 }
 
 .subnetwork-library-id code {
-  color: rgba(223, 231, 244, 0.92);
+  color: var(--subnetwork-library-id-color);
 }
 
 .subnetwork-library-tags {
@@ -3450,13 +3911,13 @@ textarea[disabled] {
   align-items: center;
   padding: 0.2rem 0.48rem;
   border-radius: 999px;
-  background: rgba(69, 81, 102, 0.5);
-  color: rgba(224, 231, 242, 0.9);
+  background: var(--subnetwork-tag-bg);
+  color: var(--subnetwork-tag-color);
   font-size: 0.78rem;
 }
 
 .subnetwork-library-tag.is-empty {
-  background: rgba(52, 60, 74, 0.4);
+  background: var(--subnetwork-tag-empty-bg);
   color: var(--muted);
 }
 

@@ -80,6 +80,9 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     html, headers = request_with_headers(f"{editor_server.base_url}/")
 
     assert "Tensor Network Editor" in html
+    assert 'rel="preload"' in html
+    assert "/vendor/cytoscape.min.js?v=" in html
+    assert 'rel="modulepreload"' in html
     assert 'type="module"' in html
     assert "/js/main.js?v=" in html
     assert 'id="collection-format-select"' in html
@@ -710,8 +713,8 @@ def test_css_asset_aligns_template_controls_apart_from_main_canvas_actions(
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in body
     assert ".select-chevron-field::after {" in body
     assert 'content: "";' in body
-    assert "border-right: 2px solid rgba(236, 242, 251, 0.78);" in body
-    assert "border-bottom: 2px solid rgba(236, 242, 251, 0.78);" in body
+    assert "border-right: 2px solid var(--select-chevron-color);" in body
+    assert "border-bottom: 2px solid var(--select-chevron-color);" in body
     assert "transform: translateY(-50%) rotate(-45deg);" in body
     assert '.select-chevron-field[data-expanded="true"]::after {' in body
     assert "transform: translateY(-50%) rotate(45deg);" in body
@@ -811,6 +814,38 @@ def test_css_asset_exposes_editor_dark_theme_tokens_and_compact_surfaces(
     assert ".help-dialog {" in body
 
 
+def test_css_asset_exposes_semantic_theme_tokens_for_non_dark_consistency(
+    editor_server: EditorServer,
+) -> None:
+    body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert "--planner-disclosure-bg:" in body
+    assert "--planner-disclosure-nested-bg:" in body
+    assert "--planner-disclosure-show-color:" in body
+    assert "--planner-disclosure-hide-color:" in body
+    assert "--planner-step-active-bg:" in body
+    assert "--planner-order-badge-bg:" in body
+    assert "--planner-result-badge-bg:" in body
+    assert "--planner-preview-badge-bg:" in body
+    assert "--planner-pending-tensor-border:" in body
+    assert "--planner-pending-index-border:" in body
+    assert "--sidebar-toggle-border:" in body
+    assert "--sidebar-tab-active-border:" in body
+    assert "--control-hover-bg:" in body
+    assert "--control-hover-border:" in body
+    assert "--select-chevron-color:" in body
+    assert "--info-icon-border:" in body
+    assert "--code-action-bg:" in body
+    assert "--code-action-hover-bg:" in body
+    assert "--benchmark-row-border:" in body
+    assert "--benchmark-best-bg:" in body
+    assert "--benchmark-worst-bg:" in body
+    assert "--subnetwork-preview-bg:" in body
+    assert "--subnetwork-preview-border:" in body
+    assert "--subnetwork-source-project-bg:" in body
+    assert "--subnetwork-tag-bg:" in body
+
+
 def test_graph_assets_import_shared_editor_theme_palette(
     editor_server: EditorServer,
 ) -> None:
@@ -828,6 +863,10 @@ def test_graph_assets_import_shared_editor_theme_palette(
     assert "GRAPH_THEME.selection" in graph_body
     assert "GRAPH_THEME.pendingTensor" in graph_body
     assert "GRAPH_THEME.pendingIndex" in graph_body
+    assert '"text-background-color": "data(labelBackgroundColor)"' in graph_body
+    assert 'color: "data(labelTextColor)"' in graph_body
+    assert "tensorBorderFallback" in theme_body
+    assert "edgeLabelBackground" in theme_body
     assert "GRAPH_THEME.canvasBackground" in export_body
     assert "GRAPH_THEME.selectionFill" in export_body
 
@@ -866,6 +905,43 @@ def test_css_asset_uses_two_row_shortcut_tooltips(
     assert ".shortcut-tooltip-description {" in css_body
     assert "line-height: 1.35;" in css_body
     assert "white-space: pre-line;" in css_body
+
+
+def test_css_asset_routes_problematic_non_dark_surfaces_through_theme_variables(
+    editor_server: EditorServer,
+) -> None:
+    css_body = request_text(f"{editor_server.base_url}/app.css")
+
+    assert ".planner-disclosure-toggle {" in css_body
+    assert "background: var(--planner-disclosure-bg);" in css_body
+    assert ".planner-nested-disclosure-toggle {" in css_body
+    assert "background: var(--planner-disclosure-nested-bg);" in css_body
+    assert ".planner-disclosure-state-show {" in css_body
+    assert "color: var(--planner-disclosure-show-color);" in css_body
+    assert ".planner-disclosure-state-hide {" in css_body
+    assert "color: var(--planner-disclosure-hide-color);" in css_body
+    assert ".planner-step.is-active {" in css_body
+    assert "background: var(--planner-step-active-bg);" in css_body
+    assert "--control-hover-bg: rgba(241, 245, 249, 0.98);" in css_body
+    assert "--control-hover-bg: rgba(238, 236, 225, 0.98);" in css_body
+    assert ".sidebar-toggle-button {" in css_body
+    assert "border-color: var(--sidebar-toggle-border);" in css_body
+    assert '.sidebar-tab[aria-selected="true"] {' in css_body
+    assert "border-color: var(--sidebar-tab-active-border);" in css_body
+    assert ".select-chevron-field::after {" in css_body
+    assert "border-right: 2px solid var(--select-chevron-color);" in css_body
+    assert "border-bottom: 2px solid var(--select-chevron-color);" in css_body
+    assert ".code-action-button {" in css_body
+    assert "background: var(--code-action-bg);" in css_body
+    assert ".code-action-button:hover:not(:disabled) {" in css_body
+    assert "background: var(--code-action-hover-bg);" in css_body
+    assert ".benchmark-compare-table th," in css_body
+    assert "border-bottom: 1px solid var(--benchmark-row-border);" in css_body
+    assert ".subnetwork-library-preview {" in css_body
+    assert "border: 1px solid var(--subnetwork-preview-border);" in css_body
+    assert "background: var(--subnetwork-preview-bg);" in css_body
+    assert ".subnetwork-library-tag {" in css_body
+    assert "background: var(--subnetwork-tag-bg);" in css_body
 
 
 def test_css_asset_standardizes_hover_across_controls(

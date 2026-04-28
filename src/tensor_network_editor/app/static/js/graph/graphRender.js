@@ -77,6 +77,7 @@ export function registerGraphRender(ctx) {
     isInspectingPastStage: () =>
       typeof ctx.isInspectingPastStage === "function" && ctx.isInspectingPastStage(),
     readableTextColor: (color) => ctx.readableTextColor(color),
+    resolveTensorBorderColor: (color) => ctx.resolveTensorBorderColor(color),
     shiftColor: (color, amount) => ctx.shiftColor(color, amount),
     tensorHeight: (tensor) => ctx.tensorHeight(tensor),
     tensorLayerRank: (tensorId) => ctx.tensorLayerRank(tensorId),
@@ -247,8 +248,8 @@ export function registerGraphRender(ctx) {
             "curve-style": "bezier",
             label: "data(label)",
             "font-size": 11,
-            color: "data(textColor)",
-            "text-background-color": GRAPH_THEME.selectionTextBackground,
+            color: "data(labelTextColor)",
+            "text-background-color": "data(labelBackgroundColor)",
             "text-background-opacity": 0.92,
             "text-background-padding": 4,
             "text-rotation": "autorotate",
