@@ -43,6 +43,12 @@ export function registerExportMinimap(ctx) {
   let minimapFrameId = null;
   let minimapRenderQueued = false;
 
+  function resolveTensorBorderColor(tensorColor) {
+    return typeof ctx.resolveTensorBorderColor === "function"
+      ? ctx.resolveTensorBorderColor(tensorColor)
+      : ctx.shiftColor(tensorColor, 22);
+  }
+
   function handleMinimapMouseDown(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -396,7 +402,7 @@ export function registerExportMinimap(ctx) {
 
     visibleTensors.forEach((tensor) => {
       const tensorColor = ctx.getMetadataColor(tensor.metadata, GRAPH_THEME.tensorFallback);
-      const borderColor = ctx.resolveTensorBorderColor(tensorColor);
+      const borderColor = resolveTensorBorderColor(tensorColor);
       lines.push(
         `<rect x="${tensor.position.x - ctx.tensorWidth(tensor) / 2}" y="${tensor.position.y - ctx.tensorHeight(tensor) / 2}" width="${ctx.tensorWidth(tensor)}" height="${ctx.tensorHeight(tensor)}" rx="8" ry="8" fill="${tensorColor}" stroke="${borderColor}" stroke-width="2" />`
       );

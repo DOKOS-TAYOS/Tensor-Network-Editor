@@ -154,6 +154,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Browser draft autosave now saves edited design names within the real-browser
+  E2E timing budget.
+- Split frontend helper modules now keep tensor border-color fallbacks and theme
+  menu checked states in sync when exercised through their runtime facades.
 - Third-party bundled-asset notices now describe Cytoscape.js and PrismJS notice
   handling more accurately.
 - The browser editor File menu now groups export formats behind an `Export`

@@ -10,7 +10,7 @@ export function createSessionEditorFlows({
 }) {
   const { exportFormatSelect, generatedCode, loadInput } = dom;
   const sessionService = services.session;
-  const DRAFT_AUTOSAVE_DELAY_MS = 800;
+  const DRAFT_AUTOSAVE_DELAY_MS = 500;
 
   function syncGeneratedCodePreview(code) {
     if (typeof actions.syncGeneratedCodePreview === "function") {

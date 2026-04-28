@@ -71,12 +71,11 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     if (typeof ctx.refreshGraphThemeStyles === "function") {
       ctx.refreshGraphThemeStyles();
     }
+    toolbarSupport.updateToolbarState();
     if (typeof ctx.render === "function") {
       ctx.render({
         code: false,
       });
-    } else {
-      toolbarSupport.updateToolbarState();
     }
     if (announce) {
       statusSupport.setStatus(

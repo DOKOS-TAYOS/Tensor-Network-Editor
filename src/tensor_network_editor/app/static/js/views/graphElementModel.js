@@ -31,6 +31,10 @@ export function createGraphElementModelBuilder({
     port = 200,
     tensor = 10,
   } = zIndexes || {};
+  const getTensorBorderColor =
+    typeof resolveTensorBorderColor === "function"
+      ? resolveTensorBorderColor
+      : (color) => (typeof shiftColor === "function" ? shiftColor(color, 22) : color);
 
   function appendDescriptor(accumulator, descriptor) {
     accumulator.orderedIds.push(descriptor.data.id);
@@ -196,7 +200,7 @@ export function createGraphElementModelBuilder({
           height: tensorHeight(tensorItem),
           resultCount: Number(tensorItem.resultCount || 0),
           backgroundColor: tensorColor,
-          borderColor: resolveTensorBorderColor(tensorColor),
+          borderColor: getTensorBorderColor(tensorColor),
           textColor: readableTextColor(tensorColor),
           zIndex: tensor + tensorRank,
         },
