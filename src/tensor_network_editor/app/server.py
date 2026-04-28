@@ -12,7 +12,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BufferedReader
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Protocol, TypeAlias, cast
 from urllib.parse import urlparse
 
 from . import routes
@@ -36,6 +36,7 @@ _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
     "Try again. If the problem continues, check the terminal output for this "
     "session or rerun with debug logging."
 )
+_ScannedStaticAssetFile: TypeAlias = tuple[Path, str, int, int]
 
 
 class SupportsReadBytes(Protocol):
@@ -114,39 +115,57 @@ def _content_type_for_path(path: Path) -> str:
 
 def _scan_static_asset_files(
     static_dir: Path,
-) -> list[tuple[Path, str, int, int]]:
+) -> list[_ScannedStaticAssetFile]:
     """Return sorted static asset metadata for one static directory."""
     resolved_static_dir = static_dir.resolve()
-    return [
-        (
-            path,
-            path.relative_to(resolved_static_dir).as_posix(),
-            path.stat().st_mtime_ns,
-            path.stat().st_size,
+    scanned_files: list[_ScannedStaticAssetFile] = []
+    for path in sorted(
+        path for path in resolved_static_dir.rglob("*") if path.is_file()
+    ):
+        path_stat = path.stat()
+        scanned_files.append(
+            (
+                path,
+                path.relative_to(resolved_static_dir).as_posix(),
+                path_stat.st_mtime_ns,
+                path_stat.st_size,
+            )
         )
-        for path in sorted(
-            path for path in resolved_static_dir.rglob("*") if path.is_file()
-        )
-    ]
+    return scanned_files
 
 
-def _build_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
-    """Read and cache the static editor asset tree for one process."""
-    resolved_static_dir = static_dir.resolve()
-    scanned_files = _scan_static_asset_files(resolved_static_dir)
-    asset_version = (
-        str(max(mtime_ns for _, _, mtime_ns, _ in scanned_files))
-        if scanned_files
-        else "0"
-    )
-    body_by_relative_path: dict[str, bytes] = {}
-    content_type_by_relative_path: dict[str, str] = {}
-    source_signature = tuple(
+def _build_static_asset_source_signature(
+    scanned_files: list[_ScannedStaticAssetFile],
+) -> tuple[tuple[str, int, int], ...]:
+    """Return the stable change-detection signature for one asset scan."""
+    return tuple(
         (relative_path, mtime_ns, size)
         for _, relative_path, mtime_ns, size in scanned_files
     )
 
-    for file_path, relative_path, _, _ in scanned_files:
+
+def _build_static_asset_cache(
+    static_dir: Path,
+    *,
+    scanned_files: list[_ScannedStaticAssetFile] | None = None,
+) -> _StaticAssetCache:
+    """Read and cache the static editor asset tree for one process."""
+    resolved_static_dir = static_dir.resolve()
+    resolved_scanned_files = (
+        scanned_files
+        if scanned_files is not None
+        else _scan_static_asset_files(resolved_static_dir)
+    )
+    asset_version = (
+        str(max(mtime_ns for _, _, mtime_ns, _ in resolved_scanned_files))
+        if resolved_scanned_files
+        else "0"
+    )
+    body_by_relative_path: dict[str, bytes] = {}
+    content_type_by_relative_path: dict[str, str] = {}
+    source_signature = _build_static_asset_source_signature(resolved_scanned_files)
+
+    for file_path, relative_path, _, _ in resolved_scanned_files:
         if relative_path == "index.html":
             continue
         body_by_relative_path[relative_path] = file_path.read_bytes()
@@ -170,16 +189,15 @@ def _build_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
 def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
     """Return a shared static asset cache for one editor static directory."""
     resolved_static_dir = static_dir.resolve()
-    current_signature = tuple(
-        (relative_path, mtime_ns, size)
-        for _, relative_path, mtime_ns, size in _scan_static_asset_files(
-            resolved_static_dir
-        )
-    )
+    scanned_files = _scan_static_asset_files(resolved_static_dir)
+    current_signature = _build_static_asset_source_signature(scanned_files)
     with _STATIC_ASSET_CACHE_LOCK:
         cache = _STATIC_ASSET_CACHE_BY_ROOT.get(resolved_static_dir)
         if cache is None or cache.source_signature != current_signature:
-            cache = _build_static_asset_cache(resolved_static_dir)
+            cache = _build_static_asset_cache(
+                resolved_static_dir,
+                scanned_files=scanned_files,
+            )
             _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
         return cache
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -149,6 +150,31 @@ def test_render_spec_svg_writes_output_path(tmp_path: Path) -> None:
     svg = render_spec_svg(build_sample_spec(), output_path=output_path)
 
     assert output_path.read_text(encoding="utf-8") == svg
+
+
+def test_render_spec_svg_reuses_edge_geometry_within_one_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tensor_network_editor.rendering as rendering_module
+
+    spec = _build_colored_parallel_edge_spec()
+    edge_render_info_call_count = 0
+    original_edge_render_infos = rendering_module._SvgRenderer._edge_render_infos
+
+    def counting_edge_render_infos(self: Any) -> list[Any]:
+        nonlocal edge_render_info_call_count
+        edge_render_info_call_count += 1
+        return original_edge_render_infos(self)
+
+    monkeypatch.setattr(
+        rendering_module._SvgRenderer,
+        "_edge_render_infos",
+        counting_edge_render_infos,
+    )
+
+    render_spec_svg(spec)
+
+    assert edge_render_info_call_count == 1
 
 
 def test_render_spec_tikz_returns_tikzpicture_for_normal_network() -> None:

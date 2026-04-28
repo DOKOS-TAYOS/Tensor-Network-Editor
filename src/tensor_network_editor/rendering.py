@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from html import escape
 from importlib import import_module
@@ -226,7 +226,8 @@ class _SvgRenderer:
 
     def render(self) -> str:
         """Return the complete SVG document."""
-        bounds = self._compute_bounds()
+        edge_render_infos = self._edge_render_infos()
+        bounds = self._compute_bounds(edge_render_infos)
         width = max(240, ceil(bounds.width))
         height = max(180, ceil(bounds.height))
         lines = [
@@ -246,7 +247,7 @@ class _SvgRenderer:
         ]
         if self._options.include_groups:
             lines.extend(self._render_groups())
-        lines.extend(self._render_edges())
+        lines.extend(self._render_edges(edge_render_infos))
         lines.extend(self._render_hyperedges())
         lines.extend(self._render_open_indices())
         lines.extend(self._render_tensors())
@@ -256,8 +257,16 @@ class _SvgRenderer:
         lines.append("</svg>")
         return "\n".join(lines)
 
-    def _compute_bounds(self) -> _Bounds:
+    def _compute_bounds(
+        self,
+        edge_render_infos: Sequence[_RenderedEdge] | None = None,
+    ) -> _Bounds:
         points: list[CanvasPosition] = []
+        resolved_edge_render_infos = (
+            self._edge_render_infos()
+            if edge_render_infos is None
+            else edge_render_infos
+        )
         for tensor in self._spec.tensors:
             if not self.is_port_tensor(tensor):
                 radius = self.tensor_radius(tensor)
@@ -296,7 +305,7 @@ class _SvgRenderer:
                 )
         for hyperedge in self._spec.hyperedges:
             points.append(self._hyperedge_hub_position(hyperedge))
-        for edge_info in self._edge_render_infos():
+        for edge_info in resolved_edge_render_infos:
             if edge_info.control is not None:
                 points.append(edge_info.control)
         if not points:
@@ -340,9 +349,9 @@ class _SvgRenderer:
             )
         return lines
 
-    def _render_edges(self) -> list[str]:
+    def _render_edges(self, edge_render_infos: Sequence[_RenderedEdge]) -> list[str]:
         lines: list[str] = []
-        for edge_info in self._edge_render_infos():
+        for edge_info in edge_render_infos:
             source = edge_info.source
             target = edge_info.target
             if edge_info.control is None:
@@ -501,7 +510,13 @@ class _SvgRenderer:
             if endpoints is None:
                 continue
             source, target = endpoints
-            key = tuple(sorted((edge.left.tensor_id, edge.right.tensor_id)))
+            left_tensor_id = edge.left.tensor_id
+            right_tensor_id = edge.right.tensor_id
+            key: tuple[str, str] = (
+                (left_tensor_id, right_tensor_id)
+                if left_tensor_id <= right_tensor_id
+                else (right_tensor_id, left_tensor_id)
+            )
             grouped_edges.setdefault(key, []).append((edge, source, target))
 
         render_infos: list[_RenderedEdge] = []

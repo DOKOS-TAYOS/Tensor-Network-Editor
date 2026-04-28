@@ -145,3 +145,47 @@ def test_static_asset_cache_refreshes_when_static_files_change(
         refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
     )
     assert refreshed_cache.asset_version != first_cache.asset_version
+
+
+def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    static_dir = tmp_path / "static"
+    resolved_static_dir = static_dir.resolve()
+    asset_path = static_dir / "js" / "app.js"
+    asset_path.parent.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<script src='js/app.js?v=__ASSET_VERSION__'></script>",
+        encoding="utf-8",
+    )
+    asset_path.write_text("console.log('first');", encoding="utf-8")
+
+    scan_calls: list[Path] = []
+    original_scan = app_server._scan_static_asset_files
+
+    def recording_scan(path: Path) -> list[tuple[Path, str, int, int]]:
+        scan_calls.append(path.resolve())
+        return original_scan(path)
+
+    monkeypatch.setattr(app_server, "_scan_static_asset_files", recording_scan)
+    app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+
+    first_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert first_cache.body_by_relative_path["js/app.js"] == b"console.log('first');"
+    assert scan_calls == [resolved_static_dir]
+
+    asset_path.write_text("console.log('second');", encoding="utf-8")
+    future_timestamp_ns = (
+        max(path.stat().st_mtime_ns for path in static_dir.rglob("*") if path.is_file())
+        + 1_000_000_000
+    )
+    os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+
+    refreshed_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert (
+        refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
+    )
+    assert scan_calls == [resolved_static_dir, resolved_static_dir]

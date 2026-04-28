@@ -162,6 +162,13 @@ All notable changes to this project will be documented in this file.
 
 - Browser draft autosave now saves edited design names within the real-browser
   E2E timing budget.
+- Academic SVG rendering now computes pairwise edge geometry once per render,
+  while keeping the internal edge-grouping key typed as an exact tensor-id
+  pair so `pyright` no longer reports a tuple-size mismatch in
+  `rendering.py`.
+- The local editor's static asset cache now reuses one filesystem scan per
+  build or refresh and avoids duplicate `Path.stat()` calls while preserving
+  the same cache invalidation behavior.
 - Split frontend helper modules now keep tensor border-color fallbacks and theme
   menu checked states in sync when exercised through their runtime facades.
 - Third-party bundled-asset notices now describe Cytoscape.js and PrismJS notice
