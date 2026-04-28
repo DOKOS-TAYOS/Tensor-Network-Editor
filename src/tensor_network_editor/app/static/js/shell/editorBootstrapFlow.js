@@ -1,4 +1,7 @@
-import { applyEditorTheme } from "../core/theme.js";
+import {
+  applyEditorTheme,
+  resolvePreferredEditorThemeName,
+} from "../core/theme.js";
 
 const READY_STATUS_MESSAGE =
   "Editor ready. Drag the canvas to move, use Ctrl+wheel to zoom, use the wheel to pan, and right drag to box-select.";
@@ -9,11 +12,21 @@ export function createEditorBootstrapFlow({
   sessionService,
   actions,
   documentRef = null,
+  windowRef = null,
   confirmAction = null,
 }) {
   async function bootstrap() {
     const payload = await sessionService.loadBootstrap();
-    applyEditorTheme(payload.theme, { documentRef });
+    const selectedThemeName = resolvePreferredEditorThemeName({
+      bootstrapThemeName: payload.theme,
+      storageRef: windowRef?.localStorage || null,
+    });
+    applyEditorTheme(selectedThemeName, { documentRef });
+    if (typeof store.setSelectedTheme === "function") {
+      store.setSelectedTheme(selectedThemeName);
+    } else {
+      state.selectedTheme = selectedThemeName;
+    }
     const draftPayload = await loadRecoverableDraft();
     const restoredDraft = await chooseRecoverableDraft(draftPayload);
     const activeSpecPayload = restoredDraft?.spec || payload.spec;
@@ -81,6 +94,9 @@ export function createEditorBootstrapFlow({
     actions.initGraph();
     actions.clearHistory();
     actions.render();
+    if (typeof actions.updateToolbarState === "function") {
+      actions.updateToolbarState();
+    }
     state.draftAutosaveReady = true;
     if (typeof actions.markContractionAnalysisDirty === "function") {
       actions.markContractionAnalysisDirty();

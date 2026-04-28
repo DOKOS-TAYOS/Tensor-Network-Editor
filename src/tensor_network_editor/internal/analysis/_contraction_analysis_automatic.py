@@ -18,7 +18,11 @@ from ._contraction_analysis_types import (
 )
 from ._contraction_plan import simulate_contraction_step
 
-MISSING_OPT_EINSUM_MESSAGE = "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+MISSING_OPT_EINSUM_MESSAGE = (
+    "The required opt_einsum dependency is not available in the current .venv. "
+    "Reinstall tensor-network-editor in this environment to enable Auto full, "
+    "Auto future, and Auto past."
+)
 
 _AutomaticPath: TypeAlias = tuple[tuple[int, ...], ...]
 _AutomaticPathCacheKey: TypeAlias = tuple[

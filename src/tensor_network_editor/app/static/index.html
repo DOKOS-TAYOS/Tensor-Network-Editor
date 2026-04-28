@@ -287,6 +287,100 @@
 
               <div class="toolbar-menu toolbar-menubar-menu">
                 <button
+                  id="theme-menu-button"
+                  class="toolbar-menubar-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Theme
+                </button>
+                <div id="theme-menu-panel" class="toolbar-menu-panel cursor-menu-panel" role="menu" hidden>
+                  <button
+                    id="theme-dark-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Use the dark editor palette."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Dark</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Low-light palette for the editor and graph canvas.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="theme-light-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Use the light editor palette."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Light</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Bright neutral palette for daytime work.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="theme-contrast-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Use the high-contrast editor palette."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">High contrast</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Maximum contrast for text, controls, and graph elements.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="theme-colorblind-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Use the colorblind-friendly editor palette."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Colorblind-friendly</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Palette tuned to improve color differentiation.</span>
+                    </span>
+                  </button>
+                  <button
+                    id="theme-shiny-menu-item"
+                    class="toolbar-menu-item"
+                    type="button"
+                    role="menuitemradio"
+                    title="Use the shiny editor palette."
+                  >
+                    <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                    <span class="toolbar-menu-item-content">
+                      <span class="toolbar-menu-item-header">
+                        <span class="toolbar-menu-item-label">Shiny</span>
+                        <span class="toolbar-menu-item-shortcut"></span>
+                      </span>
+                      <span class="toolbar-menu-item-description">Neon-accented palette with stronger visual glow.</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="toolbar-menu toolbar-menubar-menu">
+                <button
                   id="modes-menu-button"
                   class="toolbar-menubar-button"
                   type="button"

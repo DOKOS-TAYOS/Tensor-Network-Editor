@@ -3,6 +3,10 @@ import { createUtilityUiGeneratedCodeSupport } from "./utilitiesUiGeneratedCode.
 import { createUtilityUiPanelsSupport } from "./utilitiesUiPanels.js";
 import { createUtilityUiStatusSupport } from "./utilitiesUiStatus.js";
 import { createUtilityUiToolbarSupport } from "./utilitiesUiToolbar.js";
+import {
+  applyEditorTheme,
+  formatEditorThemeLabel,
+} from "../core/theme.js";
 
 export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
   const domSupport = createUtilityUiDomSupport({
@@ -54,6 +58,26 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     statusMessage: dom.statusMessage,
   });
 
+  function setEditorTheme(
+    themeName,
+    { persist = true, announce = true } = {}
+  ) {
+    const normalizedThemeName = applyEditorTheme(themeName, {
+      documentRef: ctx.document,
+      storageRef: ctx.window?.localStorage || null,
+      persist,
+    });
+    state.selectedTheme = normalizedThemeName;
+    toolbarSupport.updateToolbarState();
+    if (announce) {
+      statusSupport.setStatus(
+        `Theme set to ${formatEditorThemeLabel(normalizedThemeName)}.`,
+        "success"
+      );
+    }
+    return normalizedThemeName;
+  }
+
   return {
     syncToolbarTransientUi: panelsSupport.syncToolbarTransientUi,
     closeTransientToolbarUi: panelsSupport.closeTransientToolbarUi,
@@ -68,6 +92,7 @@ export function createUtilityUiBindings({ ctx, state, dom, runtime }) {
     syncCodeGenerationWarning: toolbarSupport.syncCodeGenerationWarning,
     syncTemplateCatalogWarning: toolbarSupport.syncTemplateCatalogWarning,
     syncSubnetworkCatalogWarning: toolbarSupport.syncSubnetworkCatalogWarning,
+    setEditorTheme,
     syncHelpModalState: panelsSupport.syncHelpModalState,
     toggleHelpModal: panelsSupport.toggleHelpModal,
     openHelpSection: panelsSupport.openHelpSection,

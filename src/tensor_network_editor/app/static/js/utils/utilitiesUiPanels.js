@@ -8,6 +8,8 @@ export function createUtilityUiPanelsSupport({
   const {
     fileMenuButton,
     fileMenuPanel,
+    themeMenuButton,
+    themeMenuPanel,
     modesMenuButton,
     modesMenuPanel,
     templatesMenuButton,
@@ -47,6 +49,10 @@ export function createUtilityUiPanelsSupport({
     file: {
       button: fileMenuButton,
       panel: fileMenuPanel,
+    },
+    theme: {
+      button: themeMenuButton,
+      panel: themeMenuPanel,
     },
     modes: {
       button: modesMenuButton,

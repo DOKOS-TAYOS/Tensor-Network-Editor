@@ -27,7 +27,7 @@ This page intentionally goes deeper.
 - [Metadata And Filters](#metadata-and-filters)
 - [Hyperedges](#hyperedges)
 - [Manual Contraction Plans](#manual-contraction-plans)
-- [Planner Extra And Benchmark Mode](#planner-extra-and-benchmark-mode)
+- [Planner And Benchmark Mode](#planner-and-benchmark-mode)
 - [Periodic Modes](#periodic-modes)
 - [Saving, Loading, And Python Imports](#saving-loading-and-python-imports)
 - [Headless CLI Workflows](#headless-cli-workflows)
@@ -100,7 +100,7 @@ python -m pip install tensor-network-editor
 The distribution name is `tensor-network-editor`. The Python import package is
 `tensor_network_editor`.
 
-The base package requires Python `3.11+` and `Pillow>=10`.
+The base package requires Python `3.11+`, `Pillow>=10`, and `opt_einsum>=3.3`.
 Install extras only when you need them:
 
 ```bash
@@ -109,15 +109,14 @@ python -m pip install "tensor-network-editor[torch]"
 python -m pip install "tensor-network-editor[quimb]"
 python -m pip install "tensor-network-editor[tensornetwork]"
 python -m pip install "tensor-network-editor[tensorkrowch]"
-python -m pip install "tensor-network-editor[planner]"
 ```
 
 Backend extras let you run generated code in the same environment. The editor
 can still generate source text when a backend package is not installed.
 
-The `planner` extra installs `opt_einsum`, which enables automatic greedy
-contraction suggestions and automatic benchmark rows. Pillow is now part of the
-base installation because academic PNG/PDF rendering depends on it.
+The base installation includes `opt_einsum`, which enables automatic greedy
+contraction suggestions and automatic benchmark rows. Pillow is also part of
+the base installation because academic PNG/PDF rendering depends on it.
 
 ## Launching The Editor
 
@@ -621,13 +620,10 @@ editor layout state for planner operands and survive JSON round trips.
 Partial plans are useful when you intentionally want a frontier or intermediate
 network instead of one final scalar/tensor.
 
-## Planner Extra And Benchmark Mode
+## Planner And Benchmark Mode
 
-The optional planner extra enables automatic greedy contraction suggestions:
-
-```bash
-python -m pip install "tensor-network-editor[planner]"
-```
+The base installation includes automatic greedy contraction suggestions via
+`opt_einsum`.
 
 Planner metrics include:
 
@@ -637,8 +633,9 @@ Planner metrics include:
 - estimated peak memory for the selected dtype
 - the step where peak memory appears
 
-Without the `planner` extra, manual analysis still works. Automatic suggestions
-and automatic benchmark rows are marked unavailable.
+If the active `.venv` is missing the required `opt_einsum` dependency, manual
+analysis still works. Automatic suggestions and automatic benchmark rows are
+marked unavailable until the package is reinstalled correctly.
 
 Benchmark mode compares contraction variants:
 

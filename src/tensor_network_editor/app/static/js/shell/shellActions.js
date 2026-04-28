@@ -56,6 +56,7 @@ export function createShellActions(ctx) {
     closeToolbarSubmenu: (submenuName) => ctx.closeToolbarSubmenu(submenuName),
     toggleToolbarSubmenu: (submenuName) => ctx.toggleToolbarSubmenu(submenuName),
     closeTransientToolbarUi: () => ctx.closeTransientToolbarUi(),
+    setEditorTheme: (themeName, options) => ctx.setEditorTheme(themeName, options),
     toggleTemplateSettingsPopover: () => ctx.toggleTemplateSettingsPopover(),
     toggleReflowLayoutPopover: () => ctx.toggleReflowLayoutPopover(),
     toggleSubnetworkLibrary: (forceOpen) => ctx.toggleSubnetworkLibrary(forceOpen),

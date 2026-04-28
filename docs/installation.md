@@ -69,16 +69,8 @@ python -m pip install "tensor-network-editor[tensorkrowch]"
 
 The `numpy` extra installs NumPy for generated `einsum_numpy` code. The
 `torch` extra installs PyTorch for generated `einsum_torch` code and is also
-useful before running PyTorch-backed examples. The base package still has no
-mandatory runtime dependencies.
-
-Planner extra:
-
-```bash
-python -m pip install "tensor-network-editor[planner]"
-```
-
-The `planner` extra installs `opt_einsum`, which enables automatic greedy
+useful before running PyTorch-backed examples. The base package now includes
+`Pillow` for academic exports and `opt_einsum` for automatic greedy
 contraction suggestions.
 
 Desktop extra:
@@ -94,7 +86,7 @@ local browser editor.
 You can combine extras:
 
 ```bash
-python -m pip install "tensor-network-editor[numpy,quimb,planner]"
+python -m pip install "tensor-network-editor[numpy,quimb]"
 ```
 
 Use backend extras when you want generated code to run in the same environment.
@@ -150,7 +142,7 @@ Optional backend checks used by CI:
 PowerShell:
 
 ```powershell
-python -m pip install -e ".[dev,planner,tensornetwork,quimb]"
+python -m pip install -e ".[dev,tensornetwork,quimb]"
 $env:TNE_REQUIRE_OPTIONAL_BACKENDS = "1"
 python -m pytest -q -m optional_backend
 Remove-Item Env:\TNE_REQUIRE_OPTIONAL_BACKENDS
@@ -159,7 +151,7 @@ Remove-Item Env:\TNE_REQUIRE_OPTIONAL_BACKENDS
 Bash:
 
 ```bash
-python -m pip install -e ".[dev,planner,tensornetwork,quimb]"
+python -m pip install -e ".[dev,tensornetwork,quimb]"
 TNE_REQUIRE_OPTIONAL_BACKENDS=1 python -m pytest -q -m optional_backend
 ```
 

@@ -7,6 +7,14 @@ export const UI_THEME = Object.freeze({
 
 export const EDITOR_THEME_NAMES = Object.freeze(["dark", "light", "contrast", "colorblind", "shiny"]);
 export const DEFAULT_EDITOR_THEME_NAME = "dark";
+export const EDITOR_THEME_STORAGE_KEY = "tensor-network-editor.theme";
+export const EDITOR_THEME_LABELS = Object.freeze({
+  dark: "Dark",
+  light: "Light",
+  contrast: "High contrast",
+  colorblind: "Colorblind-friendly",
+  shiny: "Shiny",
+});
 
 const EDITOR_THEMES = Object.freeze({
   dark: Object.freeze({
@@ -108,6 +116,14 @@ const EDITOR_THEMES = Object.freeze({
 
 export const GRAPH_THEME = { ...EDITOR_THEMES[DEFAULT_EDITOR_THEME_NAME].graph };
 
+function resolveStoredEditorThemeName(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  const normalizedName = value.trim().toLowerCase();
+  return EDITOR_THEME_NAMES.includes(normalizedName) ? normalizedName : null;
+}
+
 export function normalizeEditorThemeName(themeName) {
   if (typeof themeName !== "string" || !themeName.trim()) {
     return DEFAULT_EDITOR_THEME_NAME;
@@ -118,7 +134,52 @@ export function normalizeEditorThemeName(themeName) {
     : DEFAULT_EDITOR_THEME_NAME;
 }
 
-export function applyEditorTheme(themeName, { documentRef = null } = {}) {
+export function formatEditorThemeLabel(themeName) {
+  const normalizedName = normalizeEditorThemeName(themeName);
+  return EDITOR_THEME_LABELS[normalizedName] || EDITOR_THEME_LABELS[DEFAULT_EDITOR_THEME_NAME];
+}
+
+export function readStoredEditorThemeName({ storageRef = null } = {}) {
+  if (!storageRef || typeof storageRef.getItem !== "function") {
+    return null;
+  }
+  try {
+    return resolveStoredEditorThemeName(
+      storageRef.getItem(EDITOR_THEME_STORAGE_KEY)
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function persistEditorThemeName(themeName, { storageRef = null } = {}) {
+  const normalizedName = normalizeEditorThemeName(themeName);
+  if (!storageRef || typeof storageRef.setItem !== "function") {
+    return normalizedName;
+  }
+  try {
+    storageRef.setItem(EDITOR_THEME_STORAGE_KEY, normalizedName);
+  } catch {
+    return normalizedName;
+  }
+  return normalizedName;
+}
+
+export function resolvePreferredEditorThemeName({
+  bootstrapThemeName = null,
+  storageRef = null,
+} = {}) {
+  const storedThemeName = readStoredEditorThemeName({ storageRef });
+  if (storedThemeName) {
+    return storedThemeName;
+  }
+  return normalizeEditorThemeName(bootstrapThemeName);
+}
+
+export function applyEditorTheme(
+  themeName,
+  { documentRef = null, storageRef = null, persist = false } = {}
+) {
   const normalizedName = normalizeEditorThemeName(themeName);
   const theme = EDITOR_THEMES[normalizedName];
   Object.assign(GRAPH_THEME, theme.graph);
@@ -126,6 +187,9 @@ export function applyEditorTheme(themeName, { documentRef = null } = {}) {
   if (root) {
     root.dataset.theme = normalizedName;
     root.style.colorScheme = theme.colorScheme;
+  }
+  if (persist) {
+    persistEditorThemeName(normalizedName, { storageRef });
   }
   return normalizedName;
 }

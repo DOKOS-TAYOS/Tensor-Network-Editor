@@ -127,6 +127,7 @@ _RELATIVE_JS_IMPORT_PATTERN = re.compile(
 _STATE_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
     "benchmarkState.js": _js_source_name("benchmarkState.js"),
     "state.runtime.mjs": _js_source_name("state.js"),
+    "theme.js": _js_source_name("theme.js"),
 }
 
 _UTILITY_RUNTIME_DEPENDENCY_MODULES: dict[str, str] = {
@@ -352,8 +353,23 @@ def test_theme_module_applies_runtime_graph_palette(tmp_path: Path) -> None:
               style: {{}},
             }};
             const documentRef = {{ documentElement: root }};
+            const storageRef = {{
+              values: {{}},
+              getItem(name) {{
+                return Object.prototype.hasOwnProperty.call(this.values, name)
+                  ? this.values[name]
+                  : null;
+              }},
+              setItem(name, value) {{
+                this.values[name] = String(value);
+              }},
+            }};
             const initialSelection = theme.GRAPH_THEME.selection;
-            const appliedName = theme.applyEditorTheme("light", {{ documentRef }});
+            const appliedName = theme.applyEditorTheme("light", {{
+              documentRef,
+              storageRef,
+              persist: true,
+            }});
 
             if (appliedName !== "light") {{
               throw new Error(`Expected light theme, received ${{appliedName}}.`);
@@ -366,6 +382,26 @@ def test_theme_module_applies_runtime_graph_palette(tmp_path: Path) -> None:
             }}
             if (!theme.EDITOR_THEME_NAMES.includes("colorblind")) {{
               throw new Error("Supported theme names should include colorblind.");
+            }}
+            if (storageRef.values[theme.EDITOR_THEME_STORAGE_KEY] !== "light") {{
+              throw new Error(
+                `Expected the persisted theme to be stored, received ${{storageRef.values[theme.EDITOR_THEME_STORAGE_KEY]}}.`
+              );
+            }}
+            if (theme.readStoredEditorThemeName({{ storageRef }}) !== "light") {{
+              throw new Error("Expected readStoredEditorThemeName to return the saved theme.");
+            }}
+            storageRef.values[theme.EDITOR_THEME_STORAGE_KEY] = "colorblind";
+            if (
+              theme.resolvePreferredEditorThemeName({{
+                bootstrapThemeName: "dark",
+                storageRef,
+              }}) !== "colorblind"
+            ) {{
+              throw new Error("Stored preferences should override the bootstrap theme.");
+            }}
+            if (theme.formatEditorThemeLabel("contrast") !== "High contrast") {{
+              throw new Error("Expected the theme formatter to return a human-friendly label.");
             }}
             """
         ),
@@ -381,6 +417,171 @@ def test_theme_module_applies_runtime_graph_palette(tmp_path: Path) -> None:
 
     assert completed_process.returncode == 0, (
         "The theme runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+def _write_editor_bootstrap_theme_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "editor_bootstrap_theme_runtime.mjs"
+    _copy_js_modules(
+        tmp_path,
+        {
+            "editorBootstrapFlow.js": "shell/editorBootstrapFlow.js",
+            "theme.js": "core/theme.js",
+        },
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createEditorBootstrapFlow } = await import(
+              new URL("./editorBootstrapFlow.js", baseUrl).href
+            );
+
+            const state = {
+              templateCatalogWarnings: [],
+              subnetworkCatalogWarnings: [],
+              availableCollectionFormats: [],
+              selectedTheme: "dark",
+            };
+            const calls = [];
+            const store = {
+              setSelectedTheme(value) {
+                state.selectedTheme = value;
+                calls.push({ type: "setSelectedTheme", value });
+              },
+              setSpec(value) {
+                state.spec = value;
+              },
+              setSchemaVersion(value) {
+                state.schemaVersion = value;
+              },
+              setAppMetadata(value) {
+                state.appMetadata = value;
+              },
+              setAvailableCollectionFormats(value) {
+                state.availableCollectionFormats = value;
+              },
+              setAnnotationDefinitions(value) {
+                state.annotationDefinitions = value;
+              },
+              setSelectedEngine(value) {
+                state.selectedEngine = value;
+              },
+              setSelectedCollectionFormat(value) {
+                state.selectedCollectionFormat = value;
+              },
+              setSubnetworkCatalogData(value) {
+                state.subnetworkCatalogData = value;
+              },
+            };
+            const root = {
+              dataset: {},
+              style: {},
+            };
+            const flow = createEditorBootstrapFlow({
+              state,
+              store,
+              sessionService: {
+                async loadBootstrap() {
+                  return {
+                    theme: "dark",
+                    spec: {
+                      schema_version: 4,
+                      network: { id: "network_bootstrap", tensors: [], edges: [], groups: [], notes: [], metadata: {} },
+                    },
+                    schema_version: 4,
+                    app_metadata: {},
+                    collection_formats: ["list"],
+                    templates: [],
+                    template_definitions: {},
+                    template_catalog_warnings: [],
+                    subnetworks: [],
+                    subnetwork_definitions: {},
+                    subnetwork_catalog_warnings: [],
+                    selected_subnetwork: "",
+                    annotation_definitions: {},
+                    default_engine: "tensornetwork",
+                    default_collection_format: "list",
+                    engines: ["tensornetwork"],
+                  };
+                },
+                async loadDraft() {
+                  return { draft: null };
+                },
+              },
+              actions: {
+                normalizeSpec(spec) {
+                  return spec;
+                },
+                applyTemplateCatalogPayload(payload) {
+                  state.templatePayload = payload;
+                },
+                reconcileTensorOrder() {},
+                populateEngineOptions(value) {
+                  state.engineOptions = value;
+                },
+                enforceLinearPeriodicEngineSupport() {},
+                populateCollectionFormatOptions(value) {
+                  state.collectionOptions = value;
+                },
+                initGraph() {},
+                clearHistory() {},
+                render() {},
+                setStatus(message, level) {
+                  calls.push({ type: "setStatus", message, level });
+                },
+              },
+              documentRef: { documentElement: root },
+              windowRef: {
+                localStorage: {
+                  getItem(name) {
+                    return name === "tensor-network-editor.theme" ? "colorblind" : null;
+                  },
+                },
+              },
+              confirmAction() {
+                return false;
+              },
+            });
+
+            await flow.bootstrap();
+
+            if (state.selectedTheme !== "colorblind") {
+              throw new Error(`Expected bootstrap to prefer the saved theme, received ${state.selectedTheme}.`);
+            }
+            if (root.dataset.theme !== "colorblind") {
+              throw new Error(`Expected bootstrap to apply the saved theme to the document root, received ${root.dataset.theme}.`);
+            }
+            if (root.style.colorScheme !== "light") {
+              throw new Error(`Expected the colorblind theme to set a light color scheme, received ${root.style.colorScheme}.`);
+            }
+            if (!calls.some((entry) => entry.type === "setSelectedTheme" && entry.value === "colorblind")) {
+              throw new Error(`Expected bootstrap to persist the selected theme in state, received ${JSON.stringify(calls)}.`);
+            }
+          """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_editor_bootstrap_prefers_saved_theme_over_backend_default(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_editor_bootstrap_theme_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The editor bootstrap theme runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )
@@ -4343,10 +4544,33 @@ def _write_hyperedge_shortcut_and_context_menu_runtime_regression_script(
             const { createInteractionShortcutBindings } = shortcutsModule;
 
             function createClassList() {
+              const names = new Set();
               return {
-                add() {},
-                remove() {},
-                toggle() {},
+                add(name) {
+                  names.add(name);
+                },
+                remove(name) {
+                  names.delete(name);
+                },
+                toggle(name, force) {
+                  if (force === true) {
+                    names.add(name);
+                    return true;
+                  }
+                  if (force === false) {
+                    names.delete(name);
+                    return false;
+                  }
+                  if (names.has(name)) {
+                    names.delete(name);
+                    return false;
+                  }
+                  names.add(name);
+                  return true;
+                },
+                contains(name) {
+                  return names.has(name);
+                },
               };
             }
 
@@ -10410,10 +10634,33 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             import { pathToFileURL } from "node:url";
 
             function createClassList() {
+              const names = new Set();
               return {
-                add() {},
-                remove() {},
-                toggle() {},
+                add(name) {
+                  names.add(name);
+                },
+                remove(name) {
+                  names.delete(name);
+                },
+                toggle(name, force) {
+                  if (force === true) {
+                    names.add(name);
+                    return true;
+                  }
+                  if (force === false) {
+                    names.delete(name);
+                    return false;
+                  }
+                  if (names.has(name)) {
+                    names.delete(name);
+                    return false;
+                  }
+                  names.add(name);
+                  return true;
+                },
+                contains(name) {
+                  return names.has(name);
+                },
               };
             }
 
@@ -10551,12 +10798,33 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                   width: 240,
                   height: 220,
                 }),
+                themeMenuButton: createButton({
+                  left: 76,
+                  top: 8,
+                  right: 136,
+                  bottom: 34,
+                  width: 60,
+                  height: 26,
+                }),
+                themeMenuPanel: createButton({
+                  left: 0,
+                  top: 0,
+                  right: 240,
+                  bottom: 260,
+                  width: 240,
+                  height: 260,
+                }),
                 modesMenuButton: createButton(),
                 modesMenuPanel: createButton(),
                 templatesMenuButton: createButton(),
                 templatesMenuPanel: createButton(),
                 helpMenuButton: createButton(),
                 helpMenuPanel: createButton(),
+                themeDarkMenuItem: createButton(),
+                themeLightMenuItem: createButton(),
+                themeContrastMenuItem: createButton(),
+                themeColorblindMenuItem: createButton(),
+                themeShinyMenuItem: createButton(),
                 addNoteButton: {
                   ...createButton(),
                   parentElement: primaryToolbarGroup,
@@ -10715,6 +10983,17 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                 confirm: () => true,
                 innerWidth: 1280,
                 innerHeight: 720,
+                localStorage: {
+                  values: {},
+                  getItem(name) {
+                    return Object.prototype.hasOwnProperty.call(this.values, name)
+                      ? this.values[name]
+                      : null;
+                  },
+                  setItem(name, value) {
+                    this.values[name] = String(value);
+                  },
+                },
                 Prism: {
                   highlightElement(element) {
                     if (element?.dataset) {
@@ -10725,6 +11004,10 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               },
               document: {
                 activeElement: null,
+                documentElement: {
+                  dataset: {},
+                  style: {},
+                },
                 createElement() {
                   return {
                     value: "",
@@ -10978,6 +11261,45 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
               throw new Error(
                 `Expected the floating toolbar menu to sit below its button, received ${ctx.dom.fileMenuPanel.style.getPropertyValue("--toolbar-menu-top")}.`
               );
+            }
+            runtime.openToolbarMenu("theme");
+            if (ctx.dom.themeMenuPanel.hidden !== false) {
+              throw new Error("Opening the theme menu should reveal its floating menu panel.");
+            }
+            if (
+              ctx.dom.themeMenuPanel.style.getPropertyValue("--toolbar-menu-left") !== "76px"
+            ) {
+              throw new Error(
+                `Expected the theme menu to anchor to its button, received ${ctx.dom.themeMenuPanel.style.getPropertyValue("--toolbar-menu-left")}.`
+              );
+            }
+            runtime.setEditorTheme("light", { announce: false });
+            if (ctx.state.selectedTheme !== "light") {
+              throw new Error(`Expected the selected theme to update, received ${ctx.state.selectedTheme}.`);
+            }
+            if (ctx.document.documentElement.dataset.theme !== "light") {
+              throw new Error(
+                `Expected the root dataset theme to update, received ${ctx.document.documentElement.dataset.theme}.`
+              );
+            }
+            if (ctx.document.documentElement.style.colorScheme !== "light") {
+              throw new Error(
+                `Expected the root color-scheme to update, received ${ctx.document.documentElement.style.colorScheme}.`
+              );
+            }
+            if (ctx.window.localStorage.values["tensor-network-editor.theme"] !== "light") {
+              throw new Error(
+                `Expected the theme preference to persist, received ${ctx.window.localStorage.values["tensor-network-editor.theme"]}.`
+              );
+            }
+            if (
+              ctx.dom.themeLightMenuItem.getAttribute("aria-checked") !== "true"
+              || !ctx.dom.themeLightMenuItem.classList.contains("is-checked")
+            ) {
+              throw new Error("The light theme menu item should be marked as checked.");
+            }
+            if (ctx.dom.themeDarkMenuItem.getAttribute("aria-checked") !== "false") {
+              throw new Error("The dark theme menu item should be unchecked after changing the theme.");
             }
             runtime.toggleTemplateSettingsPopover();
             if (ctx.dom.templateSettingsPopover.hidden !== false) {

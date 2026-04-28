@@ -45,6 +45,7 @@ export function createUtilityUiToolbarSupport({
     dom,
     runtime,
     setElementHidden,
+    setMenuItemChecked,
     setTooltipDescription,
     setButtonGroupDisabled,
     syncSubnetworkLibraryModalState,

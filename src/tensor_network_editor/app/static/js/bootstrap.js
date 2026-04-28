@@ -20,6 +20,7 @@ export function startEditor(ctx) {
     sessionService,
     actions,
     documentRef: document,
+    windowRef: window,
     confirmAction(message) {
       return window.confirm(message);
     },

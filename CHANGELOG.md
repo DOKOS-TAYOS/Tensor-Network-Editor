@@ -66,6 +66,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- `opt_einsum` is now a required runtime dependency instead of the optional
+  `planner` extra, so automatic planner suggestions and automatic benchmark
+  rows are available from the base installation.
 - Documentation now states that TenPy support is out of scope, symbolic tensor
   support stays limited to the current portable model, and the known
   `tensorkrowch` export restriction is a stable project boundary rather than a
@@ -76,6 +79,8 @@ All notable changes to this project will be documented in this file.
 - Browser editor sessions can now start with `dark`, `light`, `contrast`,
   `colorblind`, or `shiny` color themes through `EditorLaunchOptions.theme`,
   `open_editor(theme=...)`, or `tensor-network-editor edit --theme`.
+- The browser editor now exposes a dedicated `Theme` menu so users can switch
+  themes live in the UI and keep their preferred palette for later sessions.
 - Tensor initializers now support explicit zeros, identity/delta, generalized
   copy tensors, seeded normal/uniform random values, portable dtype choices,
   and JSON-friendly complex scalars across saved specs and generated code.

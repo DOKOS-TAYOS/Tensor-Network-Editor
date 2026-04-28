@@ -268,13 +268,14 @@ output-only and still raise the older clear import error.
 
 ## Planner Suggestions Are Unavailable
 
-Automatic greedy suggestions require the `planner` extra:
+Automatic greedy suggestions rely on the base `opt_einsum` dependency. If it
+is missing from the active `.venv`, reinstall the package in that environment:
 
 ```bash
-python -m pip install "tensor-network-editor[planner]"
+python -m pip install -U tensor-network-editor
 ```
 
-Manual contraction plans still work without that extra.
+Manual contraction plans still work while automatic analysis is unavailable.
 
 If a network is invalid or partially inconsistent, analysis may also be
 unavailable until validation issues are fixed.

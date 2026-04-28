@@ -61,7 +61,11 @@ def build_benchmark_analysis(
                 peak_intermediate_size=0,
                 peak_intermediate_bytes=0,
             ),
-            message="Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+            message=(
+                "The required opt_einsum dependency is not available in the "
+                "current .venv. Reinstall tensor-network-editor in this "
+                "environment to enable Auto full, Auto future, and Auto past."
+            ),
         ),
         automatic_past=AutomaticContractionPlanAnalysis(
             status="complete",
@@ -122,7 +126,7 @@ def test_build_benchmark_report_uses_stable_row_names_and_null_metrics_for_unava
     ]
     assert report.rows[2].status == "unavailable"
     assert report.rows[2].message == (
-        "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+        "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past."
     )
     assert report.rows[2].flop is None
     assert report.rows[2].peak_memory is None
@@ -200,7 +204,7 @@ def test_benchmark_subcommand_prints_json_report(
     ]
     assert payload["rows"][2]["status"] == "unavailable"
     assert payload["rows"][2]["message"] == (
-        "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+        "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past."
     )
     assert payload["rows"][2]["peak_memory"] is None
 

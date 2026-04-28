@@ -12,6 +12,8 @@ export function createEditorShellBindings({
     addNoteButton,
     fileMenuButton,
     fileMenuPanel,
+    themeMenuButton,
+    themeMenuPanel,
     modesMenuButton,
     modesMenuPanel,
     templatesMenuButton,
@@ -41,6 +43,11 @@ export function createEditorShellBindings({
     exportShowBondNamesMenuItem,
     closeWithInfoMenuItem,
     closeWithoutInfoMenuItem,
+    themeDarkMenuItem,
+    themeLightMenuItem,
+    themeContrastMenuItem,
+    themeColorblindMenuItem,
+    themeShinyMenuItem,
     exportFormatSelect,
     singleModeMenuItem,
     linearPeriodicModeMenuItem,
@@ -119,6 +126,7 @@ export function createEditorShellBindings({
 
   const toolbarMenus = [
     { name: "file", button: fileMenuButton, panel: fileMenuPanel },
+    { name: "theme", button: themeMenuButton, panel: themeMenuPanel },
     { name: "modes", button: modesMenuButton, panel: modesMenuPanel },
     { name: "templates", button: templatesMenuButton, panel: templatesMenuPanel },
     { name: "help", button: helpMenuButton, panel: helpMenuPanel },
@@ -347,6 +355,11 @@ export function createEditorShellBindings({
         "help-about-menu-item",
         "close-with-info-menu-item",
         "close-without-info-menu-item",
+        "theme-dark-menu-item",
+        "theme-light-menu-item",
+        "theme-contrast-menu-item",
+        "theme-colorblind-menu-item",
+        "theme-shiny-menu-item",
         "linear-periodic-previous-cell-button",
         "grid-periodic-up-cell-button",
         "grid-periodic-down-cell-button",
@@ -464,6 +477,17 @@ export function createEditorShellBindings({
       actions.closeTransientToolbarUi();
       actions.cancelEditor();
     });
+    const bindThemeMenuItem = (menuItem, themeName) => {
+      bindListener(menuItem, "click", () => {
+        actions.closeTransientToolbarUi();
+        actions.setEditorTheme(themeName);
+      });
+    };
+    bindThemeMenuItem(themeDarkMenuItem, "dark");
+    bindThemeMenuItem(themeLightMenuItem, "light");
+    bindThemeMenuItem(themeContrastMenuItem, "contrast");
+    bindThemeMenuItem(themeColorblindMenuItem, "colorblind");
+    bindThemeMenuItem(themeShinyMenuItem, "shiny");
     bindListener(copyCodeButton, "click", actions.copyGeneratedCode);
     bindListener(expandGeneratedCodeButton, "click", () =>
       actions.toggleGeneratedCodeModal(true)

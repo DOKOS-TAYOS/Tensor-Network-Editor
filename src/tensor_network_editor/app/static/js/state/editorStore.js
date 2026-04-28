@@ -44,6 +44,11 @@ export function createEditorStore(state) {
     return state.selectedCollectionFormat;
   }
 
+  function setSelectedTheme(themeName) {
+    state.selectedTheme = typeof themeName === "string" ? themeName : state.selectedTheme;
+    return state.selectedTheme;
+  }
+
   function setGeneratedCode(code) {
     state.generatedCode = typeof code === "string" ? code : "";
     return state.generatedCode;
@@ -148,6 +153,7 @@ export function createEditorStore(state) {
     setAnnotationDefinitions,
     setSelectedEngine,
     setSelectedCollectionFormat,
+    setSelectedTheme,
     setGeneratedCode,
     setEditorFinished,
     setLastImportedTensorIds,

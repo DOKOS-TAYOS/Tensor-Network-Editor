@@ -14,6 +14,8 @@ export function getDomRefs(document) {
     collectionFormatSelect: document.getElementById("collection-format-select"),
     fileMenuButton: document.getElementById("file-menu-button"),
     fileMenuPanel: document.getElementById("file-menu-panel"),
+    themeMenuButton: document.getElementById("theme-menu-button"),
+    themeMenuPanel: document.getElementById("theme-menu-panel"),
     modesMenuButton: document.getElementById("modes-menu-button"),
     modesMenuPanel: document.getElementById("modes-menu-panel"),
     templatesMenuButton: document.getElementById("templates-menu-button"),
@@ -53,6 +55,13 @@ export function getDomRefs(document) {
     closeWithoutInfoMenuItem: document.getElementById(
       "close-without-info-menu-item"
     ),
+    themeDarkMenuItem: document.getElementById("theme-dark-menu-item"),
+    themeLightMenuItem: document.getElementById("theme-light-menu-item"),
+    themeContrastMenuItem: document.getElementById("theme-contrast-menu-item"),
+    themeColorblindMenuItem: document.getElementById(
+      "theme-colorblind-menu-item"
+    ),
+    themeShinyMenuItem: document.getElementById("theme-shiny-menu-item"),
     singleModeMenuItem: document.getElementById("single-mode-menu-item"),
     linearPeriodicModeMenuItem: document.getElementById(
       "linear-periodic-mode-menu-item"

@@ -2235,7 +2235,7 @@ def test_planner_renders_comparison_summaries(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
-def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
+def test_planner_hides_automatic_sections_when_required_opt_einsum_is_unavailable(
     tmp_path: Path,
 ) -> None:
     script_path = _write_runtime_script(
@@ -2312,7 +2312,7 @@ def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
                 peak_intermediate_bytes: 0,
               },
               message:
-                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+                "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past.",
             },
             automatic_future: {
               status: "unavailable",
@@ -2324,7 +2324,7 @@ def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
                 peak_intermediate_bytes: 0,
               },
               message:
-                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+                "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past.",
             },
             automatic_past: {
               status: "unavailable",
@@ -2336,18 +2336,18 @@ def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
                 peak_intermediate_bytes: 0,
               },
               message:
-                "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+                "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past.",
             },
             comparisons: {
               manual_vs_automatic_full: {
                 status: "unavailable",
                 message:
-                  "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+                  "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past.",
               },
               manual_subtrees_vs_automatic_past: {
                 status: "unavailable",
                 message:
-                  "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past.",
+                  "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past.",
               },
             },
             automatic_strategy: "greedy",
@@ -2370,7 +2370,7 @@ def test_planner_hides_automatic_sections_when_opt_einsum_is_missing(
         if (!html.includes("planner-inline-meta planner-error")) {
           throw new Error(`Expected the missing opt_einsum warning to render in red, received: ${html}`);
         }
-        if (!html.includes("Install opt_einsum in the current .venv")) {
+        if (!html.includes("The required opt_einsum dependency is not available")) {
           throw new Error(`Expected the missing opt_einsum warning to be visible, received: ${html}`);
         }
         if (!html.includes(">Manual<")) {

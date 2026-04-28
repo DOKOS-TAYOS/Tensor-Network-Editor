@@ -33,7 +33,6 @@ from tests.factories import (
     build_three_tensor_spec,
     build_tree_periodic_tree_spec,
 )
-from tests.optional_backends import require_light_optional_module
 
 
 def build_four_tensor_chain_spec() -> NetworkSpec:
@@ -233,9 +232,7 @@ def test_validate_spec_rejects_unknown_hyperedge_contraction_operands() -> None:
     assert [issue.code for issue in issues] == ["invalid-contraction-operand"]
 
 
-@pytest.mark.optional_backend
 def test_analyze_contraction_uses_active_linear_periodic_cell_plan() -> None:
-    require_light_optional_module("opt_einsum")
     spec = build_linear_periodic_partial_carry_chain_spec()
 
     result = analyze_contraction(spec)
@@ -407,7 +404,7 @@ def test_analyze_contraction_marks_planner_value_errors_as_unavailable(
     assert result.comparisons["manual_vs_automatic_full"].status == "unavailable"
 
 
-def test_analyze_contraction_reports_missing_opt_einsum_clearly(
+def test_analyze_contraction_reports_missing_required_opt_einsum_clearly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_import_module(name: str) -> object:
@@ -423,7 +420,7 @@ def test_analyze_contraction_reports_missing_opt_einsum_clearly(
 
     assert result.automatic_full.status == "unavailable"
     assert result.automatic_full.message == (
-        "Install opt_einsum in the current .venv to enable Auto full, Auto future, and Auto past."
+        "The required opt_einsum dependency is not available in the current .venv. Reinstall tensor-network-editor in this environment to enable Auto full, Auto future, and Auto past."
     )
     assert result.automatic_future.status == "unavailable"
     assert result.automatic_future.message == result.automatic_full.message

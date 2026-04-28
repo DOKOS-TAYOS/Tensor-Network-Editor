@@ -1,3 +1,4 @@
+import { DEFAULT_EDITOR_THEME_NAME } from "../core/theme.js";
 import { createEmptyBenchmarkSession } from "./benchmarkState.js";
 
 export function createInitialState() {
@@ -24,6 +25,7 @@ export function createInitialState() {
     availableCollectionFormats: [],
     selectedEngine: null,
     selectedCollectionFormat: null,
+    selectedTheme: DEFAULT_EDITOR_THEME_NAME,
     academicExportLabels: {
       tensor: true,
       index: true,

@@ -3,6 +3,7 @@ export function createUiToolbarActionStateSupport({
   dom,
   runtime,
   setElementHidden,
+  setMenuItemChecked,
   setTooltipDescription,
   setButtonGroupDisabled,
   syncSubnetworkLibraryModalState,
@@ -20,6 +21,11 @@ export function createUiToolbarActionStateSupport({
     exportShowTensorNamesMenuItem,
     exportShowIndexNamesMenuItem,
     exportShowBondNamesMenuItem,
+    themeDarkMenuItem,
+    themeLightMenuItem,
+    themeContrastMenuItem,
+    themeColorblindMenuItem,
+    themeShinyMenuItem,
     templateSelect,
     templateSettingsButton,
     insertTemplateButton,
@@ -117,6 +123,19 @@ export function createUiToolbarActionStateSupport({
       exportShowBondNamesMenuItem,
       state.academicExportLabels.bond
     );
+    if (typeof setMenuItemChecked === "function") {
+      setMenuItemChecked(themeDarkMenuItem, state.selectedTheme === "dark");
+      setMenuItemChecked(themeLightMenuItem, state.selectedTheme === "light");
+      setMenuItemChecked(
+        themeContrastMenuItem,
+        state.selectedTheme === "contrast"
+      );
+      setMenuItemChecked(
+        themeColorblindMenuItem,
+        state.selectedTheme === "colorblind"
+      );
+      setMenuItemChecked(themeShinyMenuItem, state.selectedTheme === "shiny");
+    }
     if (saveSessionTemplateMenuItem) {
       saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
     }

@@ -126,7 +126,7 @@ offline use, and generated code you can inspect.
   `colorblind`, or `shiny`.
 - Reflow the current selection or the whole graph with `Auto layout` when
   imported or irregular networks need a cleaner arrangement.
-- Inspect manual contraction paths and optional planner suggestions.
+- Inspect manual contraction paths and automatic planner suggestions.
 - Benchmark manual and automatic contraction variants from the editor or the
   CLI, with reproducible CSV/TXT/LaTeX-style tables.
 - Use shortcut-driven editing for common actions such as adding tensors,
@@ -164,8 +164,8 @@ python -m pip install tensor-network-editor
 ```
 
 For backend extras such as `tensor-network-editor[numpy]` and
-`tensor-network-editor[torch]`, planner support, source installs, and
-development setup, read [docs/installation.md](docs/installation.md).
+`tensor-network-editor[torch]`, automatic planner support, source installs,
+and development setup, read [docs/installation.md](docs/installation.md).
 
 ## Basic Use
 

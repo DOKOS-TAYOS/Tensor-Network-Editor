@@ -23,7 +23,7 @@ periodic-mode details, and decision guidance, see
 - [Saving and Loading](#saving-and-loading)
 - [Hyperedges](#hyperedges)
 - [Manual Contraction Plans](#manual-contraction-plans)
-- [Planner Extra](#planner-extra)
+- [Planner](#planner)
 - [Benchmark Mode](#benchmark-mode)
 - [Periodic Modes](#periodic-modes)
 - [Useful Tips](#useful-tips)
@@ -446,14 +446,10 @@ cell borders; tree mode uses the parent border and one child border per branch.
 Leaving one of those operands alive is how you intentionally export a partial
 network such as an MPS-like frontier.
 
-## Planner Extra
+## Planner
 
-The optional `planner` extra installs `opt_einsum` and enables automatic greedy
-contraction suggestions.
-
-```bash
-python -m pip install "tensor-network-editor[planner]"
-```
+The base installation includes `opt_einsum`, so automatic greedy contraction
+suggestions are available out of the box.
 
 The planner can compare manual and automatic paths using metrics such as:
 
@@ -461,9 +457,6 @@ The planner can compare manual and automatic paths using metrics such as:
 - peak intermediate size
 - estimated peak bytes for the selected dtype
 - the step where the peak appears
-
-The package still works without the `planner` extra. You only lose automatic
-suggestions.
 
 <p align="center">
   <img
@@ -501,8 +494,9 @@ Useful ideas:
   to internal generated copy tensors; the editor shows a warning and does not
   change the visual model
 
-If the active `.venv` does not include the `planner` extra, manual benchmark
-rows still work and the automatic rows are reported as unavailable.
+If the active `.venv` is missing the required `opt_einsum` dependency, manual
+benchmark rows still work and the automatic rows are reported as unavailable
+until the package is reinstalled correctly.
 
 <p align="center">
   <img
