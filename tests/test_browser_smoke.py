@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
+import time
 from pathlib import Path
 from typing import Any
+from urllib.request import urlopen
 
 import pytest
 
@@ -41,24 +44,35 @@ def _import_playwright_sync_api() -> Any:
         )
 
 
-def _wait_for_recoverable_draft_name(page: Any, expected_name: str) -> None:
-    """Wait until the browser autosave endpoint exposes the edited draft name."""
-    page.wait_for_function(
-        """
-        async (expectedName) => {
-          const response = await fetch("/api/draft", { cache: "no-store" });
-          const payload = await response.json();
-          return Boolean(
-            payload.ok
-            && payload.draft
-            && payload.draft.spec
-            && payload.draft.spec.network
-            && payload.draft.spec.network.name === expectedName
-          );
-        }
-        """,
-        arg=expected_name,
-        timeout=5000,
+def _request_json(url: str) -> dict[str, Any]:
+    """Read one JSON response from a local editor server URL."""
+    with urlopen(url, timeout=1) as response:
+        return json.load(response)
+
+
+def _wait_for_recoverable_draft_name(
+    draft_url: str,
+    expected_name: str,
+    *,
+    timeout_seconds: float = 5.0,
+) -> dict[str, Any]:
+    """Wait until the autosave endpoint exposes the edited draft name."""
+    deadline = time.monotonic() + timeout_seconds
+    latest_payload: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        latest_payload = _request_json(draft_url)
+        draft = latest_payload.get("draft")
+        if isinstance(draft, dict):
+            spec = draft.get("spec")
+            if isinstance(spec, dict):
+                network = spec.get("network")
+                if isinstance(network, dict) and network.get("name") == expected_name:
+                    return latest_payload
+        time.sleep(0.05)
+    pytest.fail(
+        "The browser editor did not autosave the expected draft name. "
+        f"Latest /api/draft payload: {latest_payload!r}",
+        pytrace=False,
     )
 
 
@@ -99,15 +113,9 @@ def test_editor_autosaves_recoverable_draft_after_mutation(tmp_path: Path) -> No
                 )
                 expected_name = "Recoverable Browser Draft"
                 page.locator("#network-name-input").fill(expected_name)
-                _wait_for_recoverable_draft_name(page, expected_name)
-
-                draft_payload = page.evaluate(
-                    """
-                    async () => {
-                      const response = await fetch("/api/draft");
-                      return response.json();
-                    }
-                    """
+                draft_payload = _wait_for_recoverable_draft_name(
+                    f"{server.base_url}/api/draft",
+                    expected_name,
                 )
 
                 assert draft_payload["ok"] is True
