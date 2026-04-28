@@ -284,6 +284,28 @@ def test_frontend_facades_delegate_large_flows_to_helper_modules() -> None:
     )
 
 
+def test_history_selection_wires_design_mutations_to_draft_autosave() -> None:
+    history_selection_body = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "graph"
+        / "historySelection.js"
+    ).read_text(encoding="utf-8")
+
+    mutation_pipeline_block = history_selection_body.split(
+        "const mutationPipeline = createDesignMutationPipeline({", maxsplit=1
+    )[1].split("Object.assign(ctx", maxsplit=1)[0]
+
+    assert (
+        "scheduleDraftAutosave: () => callOptionalContext(" in mutation_pipeline_block
+    )
+    assert '"scheduleDraftAutosave"' in mutation_pipeline_block
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_store_and_selectors_track_template_catalog_state(
     tmp_path: Path,

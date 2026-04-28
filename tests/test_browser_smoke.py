@@ -112,7 +112,9 @@ def test_editor_autosaves_recoverable_draft_after_mutation(tmp_path: Path) -> No
                     state="visible", timeout=5000
                 )
                 expected_name = "Recoverable Browser Draft"
-                page.locator("#network-name-input").fill(expected_name)
+                network_name_input = page.locator("#network-name-input")
+                network_name_input.fill(expected_name)
+                network_name_input.press("Enter")
                 draft_payload = _wait_for_recoverable_draft_name(
                     f"{server.base_url}/api/draft",
                     expected_name,

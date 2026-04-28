@@ -213,6 +213,7 @@ export function registerHistorySelection(ctx) {
         ctx.isContractionSceneVisible()),
     refreshContractionAnalysis: () =>
       callOptionalContext("refreshContractionAnalysis"),
+    scheduleDraftAutosave: () => callOptionalContext("scheduleDraftAutosave"),
     setStatus: (message, level) => ctx.setStatus(message, level),
   });
 
