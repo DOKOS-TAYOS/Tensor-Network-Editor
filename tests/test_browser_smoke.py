@@ -57,7 +57,7 @@ def _wait_for_recoverable_draft_name(page: Any, expected_name: str) -> None:
           );
         }
         """,
-        expected_name,
+        arg=expected_name,
         timeout=5000,
     )
 
