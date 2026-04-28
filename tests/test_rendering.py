@@ -17,6 +17,34 @@ from tensor_network_editor.rendering import (
 from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
 
 
+def _build_colored_parallel_edge_spec() -> NetworkSpec:
+    spec = build_sample_spec()
+    spec.tensors[0].metadata["color"] = "#123456"
+    spec.tensors[1].metadata["color"] = "#abcdef"
+    spec.edges[0].metadata["color"] = "#ff00aa"
+    spec.tensors[0].indices[0].offset.x = -58.0
+    spec.tensors[0].indices[1].offset.x = 58.0
+    spec.tensors[1].indices[0].offset.x = -58.0
+    spec.tensors[1].indices[1].offset.x = 58.0
+    spec.tensors[1].indices[1].dimension = 2
+    spec.edges.append(
+        type(spec.edges[0])(
+            id="edge_parallel",
+            name="bond_parallel",
+            left=type(spec.edges[0].left)(
+                tensor_id="tensor_a",
+                index_id="tensor_a_i",
+            ),
+            right=type(spec.edges[0].right)(
+                tensor_id="tensor_b",
+                index_id="tensor_b_j",
+            ),
+            metadata={"color": "#00ffaa"},
+        )
+    )
+    return spec
+
+
 def _assign_demo_index_offsets() -> NetworkSpec:
     spec = build_sample_spec()
     spec.tensors[0].indices[0].offset.x = -58.0
@@ -51,6 +79,36 @@ def test_academic_svg_and_tikz_exports_use_tensor_circles_and_dangling_ports() -
     assert 'class="open-index"' in svg
     assert r"\node[tne index]" not in tikz
     assert r"\draw[tne open index]" in tikz
+
+
+def test_academic_svg_tikz_and_dot_preserve_entity_colors_and_parallel_edges() -> None:
+    spec = _build_colored_parallel_edge_spec()
+
+    svg = render_spec_svg(spec)
+    tikz = render_spec_tikz(spec)
+    dot = render_spec_dot(spec)
+
+    assert 'fill="#123456"' in svg
+    assert 'stroke="#ff00aa"' in svg
+    assert '<path class="edge"' in svg
+    assert "Q 240 160" not in svg
+    assert "Q" in svg
+    assert r"\definecolor{tneColor123456}{HTML}{123456}" in tikz
+    assert r"\definecolor{tneColorff00aa}{HTML}{ff00aa}" in tikz
+    assert r"draw=tneColorff00aa" in tikz
+    assert ".. controls" in tikz
+    assert 'fillcolor="#123456"' in dot
+    assert 'color="#ff00aa"' in dot
+
+
+def test_academic_edges_reach_tensor_centers_in_svg_and_tikz() -> None:
+    spec = _assign_demo_index_offsets()
+
+    svg = render_spec_svg(spec)
+    tikz = render_spec_tikz(spec)
+
+    assert 'd="M 120 160 L 360 160"' in svg
+    assert "(150, 116) -- (390, 116)" in tikz
 
 
 def test_academic_svg_renderer_can_hide_tensor_index_and_bond_labels() -> None:

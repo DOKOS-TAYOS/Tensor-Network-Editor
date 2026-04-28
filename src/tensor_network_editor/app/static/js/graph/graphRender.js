@@ -228,25 +228,6 @@ export function registerGraphRender(ctx) {
           },
         },
         {
-          selector: "node.planner-pending-tensor",
-          style: {
-            "border-color": GRAPH_THEME.pendingTensor,
-            "border-width": 4,
-            "overlay-color": GRAPH_THEME.pendingTensor,
-            "overlay-opacity": 0.1,
-          },
-        },
-        {
-          selector: "node.planner-pending-index",
-          style: {
-            "border-color": GRAPH_THEME.pendingIndex,
-            "border-width": 4,
-            "overlay-color": GRAPH_THEME.pendingIndex,
-            "overlay-opacity": 0.18,
-            "z-index": INDEX_LABEL_BASE_Z_INDEX + 1000,
-          },
-        },
-        {
           selector: "edge",
           style: {
             width: 3,
@@ -321,6 +302,25 @@ export function registerGraphRender(ctx) {
           selector: "edge:selected",
           style: {
             "line-color": GRAPH_THEME.selection,
+          },
+        },
+        {
+          selector: "node.planner-pending-tensor",
+          style: {
+            "border-color": GRAPH_THEME.pendingTensor,
+            "border-width": 4,
+            "overlay-color": GRAPH_THEME.pendingTensor,
+            "overlay-opacity": 0.1,
+          },
+        },
+        {
+          selector: "node.planner-pending-index",
+          style: {
+            "border-color": GRAPH_THEME.pendingIndex,
+            "border-width": 4,
+            "overlay-color": GRAPH_THEME.pendingIndex,
+            "overlay-opacity": 0.18,
+            "z-index": INDEX_LABEL_BASE_Z_INDEX + 1000,
           },
         },
       ],

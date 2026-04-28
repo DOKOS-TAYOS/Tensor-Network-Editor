@@ -66,6 +66,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Academic figure exports now draw pairwise bonds from tensor center to tensor
+  center below the tensor nodes, curve parallel bonds between the same tensors,
+  and preserve per-tensor, per-bond, and hyperedge colors across SVG, PNG, PDF,
+  TikZ/LaTeX, and Graphviz/DOT outputs.
 - Browser editor startup now makes the template catalog available before
   recoverable draft loading finishes, and preloads the largest startup scripts
   so the initial toolbar becomes interactive sooner.
@@ -78,6 +82,8 @@ All notable changes to this project will be documented in this file.
   repaint tensor colors immediately after a theme switch, draw default tensor
   cards with dark borders, and show bond labels with light backgrounds instead
   of stale dark-theme styling.
+- Manual contraction selection borders now render above normal selection
+  borders, so selected operands keep the contraction highlight in every theme.
 - `opt_einsum` is now a required runtime dependency instead of the optional
   `planner` extra, so automatic planner suggestions and automatic benchmark
   rows are available from the base installation.

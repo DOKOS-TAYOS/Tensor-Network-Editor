@@ -28,6 +28,7 @@ _INDEX_RADIUS = 10.0
 _GROUP_PADDING = 28.0
 _NOTE_WIDTH = 210.0
 _NOTE_HEIGHT = 82.0
+_PARALLEL_EDGE_SPACING = 22.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -97,6 +98,17 @@ class _Bounds:
     def height(self) -> float:
         """Return the bounds height."""
         return self.y2 - self.y1
+
+
+@dataclass(slots=True, frozen=True)
+class _RenderedEdge:
+    """Geometry and styling data for one pairwise edge render."""
+
+    edge: EdgeSpec
+    source: CanvasPosition
+    target: CanvasPosition
+    control: CanvasPosition | None
+    stroke: str
 
 
 def render_spec_svg(
@@ -284,6 +296,9 @@ class _SvgRenderer:
                 )
         for hyperedge in self._spec.hyperedges:
             points.append(self._hyperedge_hub_position(hyperedge))
+        for edge_info in self._edge_render_infos():
+            if edge_info.control is not None:
+                points.append(edge_info.control)
         if not points:
             return _Bounds(
                 x1=-self._options.padding,
@@ -313,7 +328,8 @@ class _SvgRenderer:
                 f'<rect class="group" x={_attr(bounds.x1)} y={_attr(bounds.y1)} '
                 f"width={_attr(bounds.width)} height={_attr(bounds.height)} "
                 f'rx="10" ry="10" fill="none" '
-                f'stroke={_attr(self._options.group_stroke)} stroke-width="1.5" '
+                f"stroke={_attr(_metadata_color(group.metadata, self._options.group_stroke))} "
+                f'stroke-width="1.5" '
                 f'stroke-dasharray="8 6" />'
             )
             lines.append(
@@ -326,23 +342,33 @@ class _SvgRenderer:
 
     def _render_edges(self) -> list[str]:
         lines: list[str] = []
-        for edge in self._spec.edges:
-            endpoints = self._edge_positions(edge)
-            if endpoints is None:
-                continue
-            source, target = endpoints
+        for edge_info in self._edge_render_infos():
+            source = edge_info.source
+            target = edge_info.target
+            if edge_info.control is None:
+                path_data = (
+                    f"M {_number(source.x)} {_number(source.y)} "
+                    f"L {_number(target.x)} {_number(target.y)}"
+                )
+                label_point = _midpoint(source, target)
+            else:
+                control = edge_info.control
+                path_data = (
+                    f"M {_number(source.x)} {_number(source.y)} "
+                    f"Q {_number(control.x)} {_number(control.y)} "
+                    f"{_number(target.x)} {_number(target.y)}"
+                )
+                label_point = _quadratic_midpoint(source, control, target)
             lines.append(
-                f'<line class="edge" x1={_attr(source.x)} y1={_attr(source.y)} '
-                f"x2={_attr(target.x)} y2={_attr(target.y)} "
-                f'stroke={_attr(self._options.edge_stroke)} stroke-width="3" />'
+                f'<path class="edge" d={_attr(path_data)} fill="none" '
+                f'stroke={_attr(edge_info.stroke)} stroke-width="3" />'
             )
-            if self._options.show_edge_labels and edge.name:
-                midpoint = _midpoint(source, target)
+            if self._options.show_edge_labels and edge_info.edge.name:
                 lines.append(
-                    f'<text class="edge-label" x={_attr(midpoint.x)} '
-                    f"y={_attr(midpoint.y - 10)} fill={_attr(self._options.muted_text_fill)} "
+                    f'<text class="edge-label" x={_attr(label_point.x)} '
+                    f"y={_attr(label_point.y - 10)} fill={_attr(self._options.muted_text_fill)} "
                     f'font-size="11" font-family={_attr(self._options.font_family)} '
-                    f'text-anchor="middle">{_text(edge.name)}</text>'
+                    f'text-anchor="middle">{_text(edge_info.edge.name)}</text>'
                 )
         return lines
 
@@ -350,20 +376,25 @@ class _SvgRenderer:
         lines: list[str] = []
         for hyperedge in self._spec.hyperedges:
             hub = self._hyperedge_hub_position(hyperedge)
+            hyperedge_stroke = _metadata_color(
+                hyperedge.metadata,
+                self._options.hyperedge_stroke,
+            )
             for endpoint in hyperedge.endpoints:
                 tensor_index = self._index_by_id.get(endpoint.index_id)
                 if tensor_index is None:
                     continue
-                endpoint_position = self.connection_point(*tensor_index)
+                tensor, _ = tensor_index
+                endpoint_position = tensor.position
                 lines.append(
                     f'<line class="hyperedge-spoke" x1={_attr(endpoint_position.x)} '
                     f"y1={_attr(endpoint_position.y)} x2={_attr(hub.x)} y2={_attr(hub.y)} "
-                    f"stroke={_attr(self._options.hyperedge_stroke)} "
+                    f"stroke={_attr(hyperedge_stroke)} "
                     f'stroke-width="2.5" stroke-dasharray="5 4" />'
                 )
             lines.append(
                 f'<circle class="hyperedge-hub" cx={_attr(hub.x)} cy={_attr(hub.y)} '
-                f'r="11" fill={_attr(self._options.hyperedge_stroke)} />'
+                f'r="11" fill={_attr(hyperedge_stroke)} />'
             )
             if self._options.show_edge_labels and hyperedge.name:
                 lines.append(
@@ -380,10 +411,18 @@ class _SvgRenderer:
             if self.is_port_tensor(tensor):
                 continue
             radius = self.tensor_radius(tensor)
+            tensor_custom_color = _metadata_color_or_none(tensor.metadata)
+            tensor_fill = tensor_custom_color or self._options.tensor_fill
+            tensor_stroke = (
+                _shift_hex_color(tensor_fill, 38, self._options.tensor_stroke)
+                if tensor_custom_color
+                else self._options.tensor_stroke
+            )
             lines.append(
                 f'<circle class="tensor" cx={_attr(tensor.position.x)} cy={_attr(tensor.position.y)} '
-                f"r={_attr(radius)} fill={_attr(self._options.tensor_fill)} "
-                f'stroke={_attr(self._options.tensor_stroke)} stroke-width="2" />'
+                f"r={_attr(radius)} fill={_attr(tensor_fill)} "
+                f"stroke={_attr(tensor_stroke)} "
+                f'stroke-width="2" />'
             )
             if self._options.show_tensor_labels:
                 lines.append(
@@ -405,7 +444,8 @@ class _SvgRenderer:
                 lines.append(
                     f'<line class="open-index" x1={_attr(source.x)} y1={_attr(source.y)} '
                     f"x2={_attr(target.x)} y2={_attr(target.y)} "
-                    f'stroke={_attr(self._options.edge_stroke)} stroke-width="3" />'
+                    f"stroke={_attr(_metadata_color(index.metadata, self._options.edge_stroke))} "
+                    f'stroke-width="3" />'
                 )
         return lines
 
@@ -450,7 +490,46 @@ class _SvgRenderer:
         right = self._index_by_id.get(edge.right.index_id)
         if left is None or right is None:
             return None
-        return self.connection_point(*left), self.connection_point(*right)
+        return left[0].position, right[0].position
+
+    def _edge_render_infos(self) -> list[_RenderedEdge]:
+        grouped_edges: dict[
+            tuple[str, str], list[tuple[EdgeSpec, CanvasPosition, CanvasPosition]]
+        ] = {}
+        for edge in self._spec.edges:
+            endpoints = self._edge_positions(edge)
+            if endpoints is None:
+                continue
+            source, target = endpoints
+            key = tuple(sorted((edge.left.tensor_id, edge.right.tensor_id)))
+            grouped_edges.setdefault(key, []).append((edge, source, target))
+
+        render_infos: list[_RenderedEdge] = []
+        for edge_entries in grouped_edges.values():
+            entry_count = len(edge_entries)
+            for edge_position, (edge, source, target) in enumerate(edge_entries):
+                control = (
+                    _parallel_edge_control_point(
+                        source,
+                        target,
+                        edge_position=edge_position,
+                        edge_count=entry_count,
+                    )
+                    if entry_count > 1
+                    else None
+                )
+                render_infos.append(
+                    _RenderedEdge(
+                        edge=edge,
+                        source=source,
+                        target=target,
+                        control=control,
+                        stroke=_metadata_color(
+                            edge.metadata, self._options.edge_stroke
+                        ),
+                    )
+                )
+        return render_infos
 
     def _hyperedge_hub_position(self, hyperedge: HyperedgeSpec) -> CanvasPosition:
         endpoint_positions = [
@@ -553,6 +632,7 @@ class _TikzRenderer:
             rf"\pgfmathsetlengthmacro{{\tneUnit}}{{{_number(self._options.scale)}*\tneGlobalWidth/{_number(world_width)}}}",
             r"\pgfmathsetlengthmacro{\tneLineWidth}{0.6*\tneUnit}",
             r"\pgfmathsetlengthmacro{\tneHyperedgeSize}{9*\tneUnit}",
+            *self._color_definitions(),
             r"\begin{tikzpicture}[x=\tneUnit, y=\tneUnit, line width=\tneLineWidth]",
             r"\tikzset{",
             r"  tne tensor/.style={draw, circle, fill=blue!12, align=center, inner sep=3*\tneUnit, font=\scriptsize},",
@@ -569,10 +649,10 @@ class _TikzRenderer:
         ]
         if self._options.include_groups:
             lines.extend(self._render_groups(bounds))
-        lines.extend(self._render_tensors(bounds))
         lines.extend(self._render_edges(bounds))
         lines.extend(self._render_hyperedges(bounds))
         lines.extend(self._render_open_indices(bounds))
+        lines.extend(self._render_tensors(bounds))
         lines.extend(self._render_index_labels(bounds))
         if self._options.include_notes:
             lines.extend(self._render_notes(bounds))
@@ -593,8 +673,13 @@ class _TikzRenderer:
             group_bounds = _tensor_collection_bounds(
                 group_tensors, padding=_GROUP_PADDING
             )
+            group_color = _metadata_color_or_none(group.metadata)
+            group_style = "tne group"
+            if group_color:
+                group_style += f", draw={_tikz_color_name(group_color)}"
             lines.append(
-                rf"\draw[tne group] {self._point(CanvasPosition(group_bounds.x1, group_bounds.y1), bounds)} "
+                rf"\draw[{group_style}] "
+                rf"{self._point(CanvasPosition(group_bounds.x1, group_bounds.y1), bounds)} "
                 rf"rectangle {self._point(CanvasPosition(group_bounds.x2, group_bounds.y2), bounds)};"
             )
             lines.append(
@@ -605,16 +690,23 @@ class _TikzRenderer:
 
     def _render_edges(self, bounds: _Bounds) -> list[str]:
         lines: list[str] = []
-        for edge in self._spec.edges:
-            left_entry = self._index_by_id.get(edge.left.index_id)
-            right_entry = self._index_by_id.get(edge.right.index_id)
-            if left_entry is None or right_entry is None:
-                continue
-            source = self._geometry.connection_point(*left_entry)
-            target = self._geometry.connection_point(*right_entry)
-            line = rf"\draw[tne edge] {self._point(source, bounds)} -- {self._point(target, bounds)}"
-            if self._options.show_edge_labels and edge.name:
-                line += rf" node[midway, above, tne edge label] {{{_latex_text(edge.name)}}}"
+        for edge_info in self._geometry._edge_render_infos():
+            draw_style = "tne edge"
+            if _metadata_color_or_none(edge_info.edge.metadata):
+                draw_style += f", draw={_tikz_color_name(edge_info.stroke)}"
+            if edge_info.control is None:
+                line = (
+                    rf"\draw[{draw_style}] {self._point(edge_info.source, bounds)} "
+                    rf"-- {self._point(edge_info.target, bounds)}"
+                )
+            else:
+                line = (
+                    rf"\draw[{draw_style}] {self._point(edge_info.source, bounds)} "
+                    rf".. controls {self._point(edge_info.control, bounds)} .. "
+                    rf"{self._point(edge_info.target, bounds)}"
+                )
+            if self._options.show_edge_labels and edge_info.edge.name:
+                line += rf" node[midway, above, tne edge label] {{{_latex_text(edge_info.edge.name)}}}"
             lines.append(line + ";")
         return lines
 
@@ -622,18 +714,37 @@ class _TikzRenderer:
         lines: list[str] = []
         for hyperedge in self._spec.hyperedges:
             hub_node_id = _tikz_node_id("hyperedge", hyperedge.id)
+            hub_coordinate_id = _tikz_node_id("hyperedge_coord", hyperedge.id)
             hub = self._geometry._hyperedge_hub_position(hyperedge)
+            hyperedge_color = _metadata_color(hyperedge.metadata, "#f08f45")
+            hyperedge_custom_color = _metadata_color_or_none(hyperedge.metadata)
+            hyperedge_style = "tne hyperedge"
+            hyperedge_spoke_style = "tne hyperedge spoke"
+            if hyperedge_custom_color:
+                hyperedge_style += (
+                    f", fill={_tikz_color_name(hyperedge_color)}, "
+                    f"draw={_tikz_color_name(hyperedge_color)}"
+                )
+                hyperedge_spoke_style += f", draw={_tikz_color_name(hyperedge_color)}"
+            spoke_lines: list[str] = []
             lines.append(
-                rf"\node[tne hyperedge] ({hub_node_id}) at {self._point(hub, bounds)} {{}};"
+                rf"\coordinate ({hub_coordinate_id}) at {self._point(hub, bounds)};"
             )
             for endpoint in hyperedge.endpoints:
                 tensor_index = self._index_by_id.get(endpoint.index_id)
                 if tensor_index is None:
                     continue
-                endpoint_position = self._geometry.connection_point(*tensor_index)
-                lines.append(
-                    rf"\draw[tne hyperedge spoke] {self._point(endpoint_position, bounds)} -- ({hub_node_id});"
+                tensor, _ = tensor_index
+                endpoint_position = tensor.position
+                spoke_lines.append(
+                    rf"\draw[{hyperedge_spoke_style}] "
+                    rf"{self._point(endpoint_position, bounds)} -- ({hub_coordinate_id});"
                 )
+            lines.extend(spoke_lines)
+            lines.append(
+                rf"\node[{hyperedge_style}] "
+                rf"({hub_node_id}) at ({hub_coordinate_id}) {{}};"
+            )
             if self._options.show_edge_labels and hyperedge.name:
                 label_position = CanvasPosition(hub.x, hub.y - 17.0)
                 lines.append(
@@ -648,8 +759,16 @@ class _TikzRenderer:
                 continue
             label = _latex_text(tensor.name) if self._options.show_tensor_labels else ""
             tensor_size = self._geometry.tensor_radius(tensor) * 2.0
+            tensor_custom_color = _metadata_color_or_none(tensor.metadata)
+            tensor_fill = tensor_custom_color or "#235f72"
+            tensor_stroke = (
+                _shift_hex_color(tensor_fill, 38, "#6fb7ca")
+                if tensor_custom_color
+                else "#6fb7ca"
+            )
             lines.append(
-                rf"\node[tne tensor, minimum size={self._length(tensor_size)}] "
+                rf"\node[tne tensor, minimum size={self._length(tensor_size)}, "
+                rf"fill={_tikz_color_name(tensor_fill)}, draw={_tikz_color_name(tensor_stroke)}] "
                 rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position, bounds)} "
                 rf"{{{label}}};"
             )
@@ -663,8 +782,12 @@ class _TikzRenderer:
                     continue
                 source = self._geometry.connection_point(tensor, index)
                 target = self._geometry.open_index_endpoint(tensor, index)
+                open_style = "tne open index"
+                if index_color := _metadata_color_or_none(index.metadata):
+                    open_style += f", draw={_tikz_color_name(index_color)}"
                 lines.append(
-                    rf"\draw[tne open index] {self._point(source, bounds)} -- {self._point(target, bounds)};"
+                    rf"\draw[{open_style}] "
+                    rf"{self._point(source, bounds)} -- {self._point(target, bounds)};"
                 )
         return lines
 
@@ -697,6 +820,36 @@ class _TikzRenderer:
     def _length(self, value: float) -> str:
         return f"{_number(value)}*\\tneUnit"
 
+    def _color_definitions(self) -> list[str]:
+        colors: set[str] = set()
+        for tensor in self._spec.tensors:
+            if self._geometry.is_port_tensor(tensor):
+                continue
+            tensor_custom_color = _metadata_color_or_none(tensor.metadata)
+            tensor_fill = tensor_custom_color or "#235f72"
+            colors.add(tensor_fill)
+            colors.add(
+                _shift_hex_color(tensor_fill, 38, "#6fb7ca")
+                if tensor_custom_color
+                else "#6fb7ca"
+            )
+            for index in tensor.indices:
+                if index_color := _metadata_color_or_none(index.metadata):
+                    colors.add(index_color)
+        for edge in self._spec.edges:
+            if edge_color := _metadata_color_or_none(edge.metadata):
+                colors.add(edge_color)
+        for hyperedge in self._spec.hyperedges:
+            if hyperedge_color := _metadata_color_or_none(hyperedge.metadata):
+                colors.add(hyperedge_color)
+        for group in self._spec.groups:
+            if group_color := _metadata_color_or_none(group.metadata):
+                colors.add(group_color)
+        return [
+            rf"\definecolor{{{_tikz_color_name(color)}}}{{HTML}}{{{color.removeprefix('#')}}}"
+            for color in sorted(colors)
+        ]
+
 
 class _DotRenderer:
     """Small deterministic Graphviz/DOT renderer for one validated network spec."""
@@ -714,6 +867,7 @@ class _DotRenderer:
         lines = [
             f"graph {_dot_string(self._spec.name or self._spec.id)} {{",
             '  graph [rankdir="LR"];',
+            "  graph [splines=true];",
             '  node [fontname="Arial"];',
             '  edge [fontname="Arial"];',
         ]
@@ -731,11 +885,22 @@ class _DotRenderer:
         return "\n".join(lines)
 
     def _render_tensors(self) -> list[str]:
-        return [
-            f"  {_dot_string(tensor.id)} "
-            f'[label={_dot_string(_dot_tensor_label(tensor, self._options))}, shape="circle"];'
-            for tensor in self._spec.tensors
-        ]
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            tensor_color = _metadata_color_or_none(tensor.metadata)
+            attributes = _dot_attributes(
+                label=_dot_tensor_label(tensor, self._options),
+                shape="circle",
+                style="filled" if tensor_color else None,
+                fillcolor=tensor_color,
+                color=(
+                    _shift_hex_color(tensor_color, 38, "#6fb7ca")
+                    if tensor_color
+                    else None
+                ),
+            )
+            lines.append(f"  {_dot_string(tensor.id)}{attributes};")
+        return lines
 
     def _render_open_indices(self) -> list[str]:
         lines: list[str] = []
@@ -748,8 +913,14 @@ class _DotRenderer:
                     f"  {_dot_string(open_node_id)} "
                     f'[label={_dot_string(_dot_index_label(index, self._options))}, shape="circle"];'
                 )
+                open_color = _metadata_color_or_none(index.metadata)
+                open_attributes = _dot_attributes(
+                    style="dotted",
+                    color=open_color,
+                )
                 lines.append(
-                    f'  {_dot_string(tensor.id)} -- {_dot_string(open_node_id)} [style="dotted"];'
+                    f"  {_dot_string(tensor.id)} -- {_dot_string(open_node_id)}"
+                    f"{open_attributes};"
                 )
         return lines
 
@@ -762,8 +933,10 @@ class _DotRenderer:
                 continue
             left_tensor, left_index = left_entry
             right_tensor, _ = right_entry
+            edge_label = _dot_edge_label(edge, left_index, self._options)
             edge_attributes = _dot_attributes(
-                label=_dot_edge_label(edge, left_index, self._options)
+                label=edge_label or None,
+                color=_metadata_color_or_none(edge.metadata),
             )
             lines.append(
                 f"  {_dot_string(left_tensor.id)} -- {_dot_string(right_tensor.id)}"
@@ -774,17 +947,23 @@ class _DotRenderer:
     def _render_hyperedges(self) -> list[str]:
         lines: list[str] = []
         for hyperedge in self._spec.hyperedges:
-            lines.append(
-                f"  {_dot_string(hyperedge.id)} "
-                f'[label={_dot_string(_dot_hyperedge_label(hyperedge, self._options))}, shape="point"];'
+            hyperedge_color = _metadata_color_or_none(hyperedge.metadata)
+            hyperedge_attributes = _dot_attributes(
+                label=_dot_hyperedge_label(hyperedge, self._options),
+                shape="point",
+                color=hyperedge_color,
+                fillcolor=hyperedge_color,
             )
+            lines.append(f"  {_dot_string(hyperedge.id)}{hyperedge_attributes};")
             for endpoint in hyperedge.endpoints:
                 endpoint_entry = self._index_by_id.get(endpoint.index_id)
                 if endpoint_entry is None:
                     continue
                 tensor, index = endpoint_entry
+                endpoint_label = _dot_hyperedge_endpoint_label(index, self._options)
                 edge_attributes = _dot_attributes(
-                    label=_dot_hyperedge_endpoint_label(index, self._options)
+                    label=endpoint_label or None,
+                    color=hyperedge_color,
                 )
                 lines.append(
                     f"  {_dot_string(tensor.id)} -- {_dot_string(hyperedge.id)}"
@@ -798,6 +977,8 @@ class _DotRenderer:
             cluster_id = _dot_cluster_id(group.id)
             lines.append(f"  subgraph {cluster_id} {{")
             lines.append(f"    label={_dot_string(group.name)};")
+            if group_color := _metadata_color_or_none(group.metadata):
+                lines.append(f"    color={_dot_string(group_color)};")
             for tensor_id in group.tensor_ids:
                 if tensor_id in self._tensor_by_id:
                     lines.append(f"    {_dot_string(tensor_id)};")
@@ -879,7 +1060,7 @@ class _PngRenderer:
             draw.rounded_rectangle(
                 self._box_to_pixels(group_bounds, bounds),
                 radius=self._pixels(10.0),
-                outline=self._options.group_stroke,
+                outline=_metadata_color(group.metadata, self._options.group_stroke),
                 width=self._pixels(2.0),
             )
             self._draw_text(
@@ -895,28 +1076,34 @@ class _PngRenderer:
             )
 
     def _render_edges(self, draw: Any, bounds: _Bounds, font: Any) -> None:
-        for edge in self._spec.edges:
-            endpoints = self._geometry._edge_positions(edge)
-            if endpoints is None:
-                continue
-            source, target = endpoints
+        for edge_info in self._geometry._edge_render_infos():
+            if edge_info.control is None:
+                points = [edge_info.source, edge_info.target]
+                label_point = _midpoint(edge_info.source, edge_info.target)
+            else:
+                points = _sample_quadratic_points(
+                    edge_info.source,
+                    edge_info.control,
+                    edge_info.target,
+                )
+                label_point = _quadratic_midpoint(
+                    edge_info.source,
+                    edge_info.control,
+                    edge_info.target,
+                )
             draw.line(
-                [
-                    self._point_to_pixels(source, bounds),
-                    self._point_to_pixels(target, bounds),
-                ],
-                fill=self._options.edge_stroke,
+                [self._point_to_pixels(point, bounds) for point in points],
+                fill=edge_info.stroke,
                 width=self._pixels(3.0),
             )
-            if self._options.show_edge_labels and edge.name:
-                midpoint = _midpoint(source, target)
+            if self._options.show_edge_labels and edge_info.edge.name:
                 self._draw_text(
                     draw,
                     self._point_to_pixels(
-                        CanvasPosition(midpoint.x, midpoint.y - 10),
+                        CanvasPosition(label_point.x, label_point.y - 10),
                         bounds,
                     ),
-                    edge.name,
+                    edge_info.edge.name,
                     fill=self._options.muted_text_fill,
                     font=font,
                 )
@@ -925,23 +1112,28 @@ class _PngRenderer:
         for hyperedge in self._spec.hyperedges:
             hub = self._geometry._hyperedge_hub_position(hyperedge)
             hub_point = self._point_to_pixels(hub, bounds)
+            hyperedge_stroke = _metadata_color(
+                hyperedge.metadata,
+                self._options.hyperedge_stroke,
+            )
             for endpoint in hyperedge.endpoints:
                 tensor_index = self._index_by_id.get(endpoint.index_id)
                 if tensor_index is None:
                     continue
-                endpoint_position = self._geometry.connection_point(*tensor_index)
+                tensor, _ = tensor_index
+                endpoint_position = tensor.position
                 draw.line(
                     [
                         self._point_to_pixels(endpoint_position, bounds),
                         hub_point,
                     ],
-                    fill=self._options.hyperedge_stroke,
+                    fill=hyperedge_stroke,
                     width=self._pixels(2.5),
                 )
             hub_radius = self._pixels(11.0)
             draw.ellipse(
                 _pixel_circle_box(hub_point, hub_radius),
-                fill=self._options.hyperedge_stroke,
+                fill=hyperedge_stroke,
             )
             if self._options.show_edge_labels and hyperedge.name:
                 self._draw_text(
@@ -959,10 +1151,17 @@ class _PngRenderer:
             radius = self._geometry.tensor_radius(tensor)
             pixel_point = self._point_to_pixels(tensor.position, bounds)
             pixel_radius = self._pixels(radius)
+            tensor_custom_color = _metadata_color_or_none(tensor.metadata)
+            tensor_fill = tensor_custom_color or self._options.tensor_fill
+            tensor_stroke = (
+                _shift_hex_color(tensor_fill, 38, self._options.tensor_stroke)
+                if tensor_custom_color
+                else self._options.tensor_stroke
+            )
             draw.ellipse(
                 _pixel_circle_box(pixel_point, pixel_radius),
-                fill=self._options.tensor_fill,
-                outline=self._options.tensor_stroke,
+                fill=tensor_fill,
+                outline=tensor_stroke,
                 width=self._pixels(2.0),
             )
             if self._options.show_tensor_labels:
@@ -986,7 +1185,7 @@ class _PngRenderer:
                         self._point_to_pixels(source, bounds),
                         self._point_to_pixels(target, bounds),
                     ],
-                    fill=self._options.edge_stroke,
+                    fill=_metadata_color(index.metadata, self._options.edge_stroke),
                     width=self._pixels(3.0),
                 )
 
@@ -1017,8 +1216,8 @@ class _PngRenderer:
             draw.rounded_rectangle(
                 self._box_to_pixels(note_bounds, bounds),
                 radius=self._pixels(8.0),
-                fill=self._options.note_fill,
-                outline=self._options.group_stroke,
+                fill=_metadata_color(note.metadata, self._options.note_fill),
+                outline=_metadata_color(note.metadata, self._options.group_stroke),
                 width=self._pixels(1.0),
             )
             for line_index, note_line in enumerate(_wrap_text(note.text, max_chars=32)):
@@ -1144,6 +1343,62 @@ def _average_position(points: Iterable[CanvasPosition]) -> CanvasPosition:
 
 def _midpoint(left: CanvasPosition, right: CanvasPosition) -> CanvasPosition:
     return CanvasPosition(x=(left.x + right.x) / 2, y=(left.y + right.y) / 2)
+
+
+def _quadratic_midpoint(
+    left: CanvasPosition,
+    control: CanvasPosition,
+    right: CanvasPosition,
+) -> CanvasPosition:
+    return CanvasPosition(
+        x=(left.x + 2 * control.x + right.x) / 4,
+        y=(left.y + 2 * control.y + right.y) / 4,
+    )
+
+
+def _parallel_edge_control_point(
+    source: CanvasPosition,
+    target: CanvasPosition,
+    *,
+    edge_position: int,
+    edge_count: int,
+) -> CanvasPosition:
+    midpoint = _midpoint(source, target)
+    dx = target.x - source.x
+    dy = target.y - source.y
+    length = hypot(dx, dy)
+    if length <= 1e-6:
+        angle = (2 * pi * edge_position) / max(1, edge_count)
+        return CanvasPosition(
+            x=midpoint.x + cos(angle) * _PARALLEL_EDGE_SPACING,
+            y=midpoint.y + sin(angle) * _PARALLEL_EDGE_SPACING,
+        )
+    offset = (edge_position - (edge_count - 1) / 2) * _PARALLEL_EDGE_SPACING
+    return CanvasPosition(
+        x=midpoint.x + (-dy / length) * offset,
+        y=midpoint.y + (dx / length) * offset,
+    )
+
+
+def _sample_quadratic_points(
+    source: CanvasPosition,
+    control: CanvasPosition,
+    target: CanvasPosition,
+    *,
+    segment_count: int = 24,
+) -> list[CanvasPosition]:
+    return [
+        CanvasPosition(
+            x=((1 - t) ** 2) * source.x
+            + 2 * (1 - t) * t * control.x
+            + (t**2) * target.x,
+            y=((1 - t) ** 2) * source.y
+            + 2 * (1 - t) * t * control.y
+            + (t**2) * target.y,
+        )
+        for step in range(segment_count + 1)
+        for t in [step / segment_count]
+    ]
 
 
 def _wrap_text(text: str, *, max_chars: int) -> list[str]:
@@ -1272,10 +1527,28 @@ def _dot_hyperedge_endpoint_label(
     return f"{index.name}={index.dimension}"
 
 
-def _dot_attributes(*, label: str) -> str:
-    if not label:
+def _dot_attributes(
+    *,
+    label: str | None = None,
+    shape: str | None = None,
+    style: str | None = None,
+    fillcolor: str | None = None,
+    color: str | None = None,
+) -> str:
+    attributes: list[str] = []
+    if label is not None:
+        attributes.append(f"label={_dot_string(label)}")
+    if shape:
+        attributes.append(f"shape={_dot_string(shape)}")
+    if style:
+        attributes.append(f"style={_dot_string(style)}")
+    if fillcolor:
+        attributes.append(f"fillcolor={_dot_string(fillcolor)}")
+    if color:
+        attributes.append(f"color={_dot_string(color)}")
+    if not attributes:
         return ""
-    return f" [label={_dot_string(label)}]"
+    return f" [{', '.join(attributes)}]"
 
 
 def _connected_index_ids(spec: NetworkSpec) -> set[str]:
@@ -1287,6 +1560,43 @@ def _connected_index_ids(spec: NetworkSpec) -> set[str]:
         for endpoint in hyperedge.endpoints:
             connected_index_ids.add(endpoint.index_id)
     return connected_index_ids
+
+
+def _metadata_color(metadata: dict[str, Any], fallback: str) -> str:
+    return _metadata_color_or_none(metadata) or fallback
+
+
+def _metadata_color_or_none(metadata: dict[str, Any]) -> str | None:
+    candidate = metadata.get("color") if isinstance(metadata, dict) else None
+    if not isinstance(candidate, str):
+        return None
+    normalized = candidate.strip().lower()
+    if (
+        len(normalized) == 7
+        and normalized.startswith("#")
+        and all(character in "0123456789abcdef" for character in normalized[1:])
+    ):
+        return normalized
+    return None
+
+
+def _shift_hex_color(hex_color: str, amount: int, fallback: str) -> str:
+    normalized = _metadata_color({"color": hex_color}, fallback)
+    try:
+        red = int(normalized[1:3], 16)
+        green = int(normalized[3:5], 16)
+        blue = int(normalized[5:7], 16)
+    except ValueError:
+        return fallback
+    return "#" + "".join(
+        f"{max(0, min(255, component + amount)):02x}"
+        for component in (red, green, blue)
+    )
+
+
+def _tikz_color_name(hex_color: str) -> str:
+    normalized = _metadata_color({"color": hex_color}, "#000000")
+    return f"tneColor{normalized.removeprefix('#')}"
 
 
 def _attr(value: object) -> str:

@@ -3333,6 +3333,9 @@ def test_graph_assets_expose_fixed_tensor_edge_port_layers_and_selection_border(
     assert 'from "./graphRenderDrag.js"' in graph_body
     assert "selector: \"node[kind = 'tensor']:selected\"" in graph_body
     assert "selector: \"node[kind = 'tensor']:grabbed\"" in graph_body
+    assert graph_body.index(
+        "selector: \"node[kind = 'tensor']:selected\""
+    ) < graph_body.index('selector: "node.planner-pending-tensor"')
     assert '"background-opacity": 0.34' in graph_body
     assert '"border-width": 4' in graph_body
     assert '"border-color": GRAPH_THEME.selection' in graph_body
