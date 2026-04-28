@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -211,7 +212,6 @@ class EditorServer:
         self.port = port
         self._static_dir = Path(__file__).resolve().parent / "static"
         self._static_asset_cache = _get_static_asset_cache(self._static_dir)
-        self._asset_version = self._static_asset_cache.asset_version
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
 
@@ -250,6 +250,87 @@ class EditorServer:
         session_id = self.session_id
         static_dir = self._static_dir
         static_asset_cache = self._static_asset_cache
+
+        def build_index_response() -> _BinaryResponse:
+            """Return the cached main HTML page for this editor session."""
+            return _BinaryResponse(
+                status=HTTPStatus.OK,
+                body=static_asset_cache.index_body,
+                content_type="text/html; charset=utf-8",
+            )
+
+        def adapt_get_route(
+            route_name: str,
+        ) -> Callable[[], JsonResponse | _BinaryResponse]:
+            """Adapt one session GET route to a zero-argument dispatch callback."""
+
+            def handle_route() -> JsonResponse | _BinaryResponse:
+                route_handler = cast(
+                    Callable[[EditorSession], JsonResponse],
+                    getattr(routes, route_name),
+                )
+                return route_handler(session)
+
+            return handle_route
+
+        def adapt_payload_route(route_name: str) -> Callable[[JsonDict], JsonResponse]:
+            """Adapt one session POST route to a payload dispatch callback."""
+
+            def handle_route(payload: JsonDict) -> JsonResponse:
+                route_handler = cast(
+                    Callable[[EditorSession, JsonDict], JsonResponse],
+                    getattr(routes, route_name),
+                )
+                return route_handler(session, payload)
+
+            return handle_route
+
+        def adapt_session_only_route(
+            route_name: str,
+        ) -> Callable[[JsonDict], JsonResponse]:
+            """Adapt one session-only POST route to the payload handler signature."""
+            return lambda _payload: cast(
+                Callable[[EditorSession], JsonResponse],
+                getattr(routes, route_name),
+            )(session)
+
+        get_route_handlers: dict[str, Callable[[], JsonResponse | _BinaryResponse]] = {
+            "/api/bootstrap": adapt_get_route("handle_bootstrap"),
+            "/api/draft": adapt_get_route("handle_draft_load"),
+            "/": build_index_response,
+        }
+        post_route_handlers: dict[str, Callable[[JsonDict], JsonResponse]] = {
+            "/api/validate": adapt_payload_route("handle_validate"),
+            "/api/draft": adapt_payload_route("handle_draft_save"),
+            "/api/draft/clear": adapt_session_only_route("handle_draft_clear"),
+            "/api/template": adapt_payload_route("handle_template"),
+            "/api/template/promote": adapt_payload_route("handle_template_promote"),
+            "/api/template/rename": adapt_payload_route("handle_template_rename"),
+            "/api/template/delete": adapt_payload_route("handle_template_delete"),
+            "/api/subnetwork/extract": adapt_payload_route("handle_subnetwork_extract"),
+            "/api/subnetwork/prepare-insert": adapt_payload_route(
+                "handle_subnetwork_prepare_insert"
+            ),
+            "/api/subnetwork-library/save": adapt_payload_route(
+                "handle_subnetwork_library_save"
+            ),
+            "/api/subnetwork-library/rename": adapt_payload_route(
+                "handle_subnetwork_library_rename"
+            ),
+            "/api/subnetwork-library/delete": adapt_payload_route(
+                "handle_subnetwork_library_delete"
+            ),
+            "/api/subnetwork-library/prepare-insert": adapt_payload_route(
+                "handle_subnetwork_library_prepare_insert"
+            ),
+            "/api/generate": adapt_payload_route("handle_generate"),
+            "/api/render": adapt_payload_route("handle_render"),
+            "/api/analyze-contraction": adapt_payload_route(
+                "handle_analyze_contraction"
+            ),
+            "/api/complete": adapt_payload_route("handle_complete"),
+            "/api/cancel": adapt_session_only_route("handle_cancel"),
+        }
 
         class RequestHandler(BaseHTTPRequestHandler):
             """Serve static editor assets and JSON routes for one session."""
@@ -316,55 +397,16 @@ class EditorServer:
 
             def _dispatch_get(self, path: str) -> JsonResponse | _BinaryResponse:
                 """Route one GET request to bootstrap, index, or static assets."""
-                if path == "/api/bootstrap":
-                    return routes.handle_bootstrap(session)
-                if path == "/api/draft":
-                    return routes.handle_draft_load(session)
-                if path == "/":
-                    return self._index_response()
+                route_handler = get_route_handlers.get(path)
+                if route_handler is not None:
+                    return route_handler()
                 return self._static_response(path)
 
             def _dispatch_post(self, path: str, payload: JsonDict) -> JsonResponse:
                 """Route one POST request to the matching JSON API handler."""
-                if path == "/api/validate":
-                    return routes.handle_validate(session, payload)
-                if path == "/api/draft":
-                    return routes.handle_draft_save(session, payload)
-                if path == "/api/draft/clear":
-                    return routes.handle_draft_clear(session)
-                if path == "/api/template":
-                    return routes.handle_template(session, payload)
-                if path == "/api/template/promote":
-                    return routes.handle_template_promote(session, payload)
-                if path == "/api/template/rename":
-                    return routes.handle_template_rename(session, payload)
-                if path == "/api/template/delete":
-                    return routes.handle_template_delete(session, payload)
-                if path == "/api/subnetwork/extract":
-                    return routes.handle_subnetwork_extract(session, payload)
-                if path == "/api/subnetwork/prepare-insert":
-                    return routes.handle_subnetwork_prepare_insert(session, payload)
-                if path == "/api/subnetwork-library/save":
-                    return routes.handle_subnetwork_library_save(session, payload)
-                if path == "/api/subnetwork-library/rename":
-                    return routes.handle_subnetwork_library_rename(session, payload)
-                if path == "/api/subnetwork-library/delete":
-                    return routes.handle_subnetwork_library_delete(session, payload)
-                if path == "/api/subnetwork-library/prepare-insert":
-                    return routes.handle_subnetwork_library_prepare_insert(
-                        session,
-                        payload,
-                    )
-                if path == "/api/generate":
-                    return routes.handle_generate(session, payload)
-                if path == "/api/render":
-                    return routes.handle_render(session, payload)
-                if path == "/api/analyze-contraction":
-                    return routes.handle_analyze_contraction(session, payload)
-                if path == "/api/complete":
-                    return routes.handle_complete(session, payload)
-                if path == "/api/cancel":
-                    return routes.handle_cancel(session)
+                route_handler = post_route_handlers.get(path)
+                if route_handler is not None:
+                    return route_handler(payload)
                 LOGGER.debug("[session=%s] Unknown POST path: %s", session_id, path)
                 return not_found_response()
 
@@ -386,14 +428,6 @@ class EditorServer:
                     content_type=static_asset_cache.content_type_by_relative_path[
                         relative_path
                     ],
-                )
-
-            def _index_response(self) -> _BinaryResponse:
-                """Return the cached main HTML page for this editor session."""
-                return _BinaryResponse(
-                    status=HTTPStatus.OK,
-                    body=static_asset_cache.index_body,
-                    content_type="text/html; charset=utf-8",
                 )
 
             def _resolve_static_asset_relative_path(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+from collections.abc import Callable
 from http import HTTPStatus
 from typing import Literal, cast
 
@@ -15,7 +16,7 @@ from ..errors import (
 )
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io import deserialize_spec, serialize_spec
-from ..models import CodegenResult, EditorResult
+from ..models import CodegenResult, EditorResult, NetworkSpec
 from ..rendering import (
     DotRenderOptions,
     SvgRenderOptions,
@@ -47,6 +48,7 @@ from ._protocol import (
     parse_template_promote_request,
     parse_template_rename_request,
     require_boolean,
+    require_non_empty_string,
     require_serialized_spec,
     serialize_codegen_result,
     serialize_editor_result,
@@ -277,62 +279,43 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
 
 def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Build a template spec from the requested template payload."""
-    template_name = payload.get("template")
-    if not isinstance(template_name, str) or not template_name.strip():
-        return bad_request_response("Missing 'template' payload.")
     try:
-        spec = build_template_from_payload(
-            session,
-            template_name,
-            payload.get("parameters"),
+        template_name = require_non_empty_string(payload, "template")
+        parameters = payload.get("parameters")
+        return _handle_spec_response(
+            lambda: build_template_from_payload(
+                session,
+                template_name,
+                parameters,
+            ),
+            handled_exceptions=(ValueError,),
         )
     except ValueError as exc:
         return bad_request_response(str(exc))
-    return ok_response({"spec": serialize_spec(spec)})
 
 
 def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Promote a selected subnetwork fragment to the project template catalog."""
-    try:
-        request = parse_template_promote_request(payload)
-        catalog_payload = promote_serialized_subnetwork_to_template(
-            session,
-            request.serialized_spec,
-            tensor_ids=request.tensor_ids,
-            template_name=request.template_name,
-            overwrite=request.overwrite,
-        )
-    except (PackageIOError, SerializationError, TypeError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_promoted_template_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, SerializationError, TypeError, ValueError),
+    )
 
 
 def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Rename one project-local template entry."""
-    try:
-        request = parse_template_rename_request(payload)
-        catalog_payload = rename_session_project_template(
-            session,
-            template_name=request.template_name,
-            new_template_name=request.new_template_name,
-            overwrite=request.overwrite,
-        )
-    except (PackageIOError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_renamed_template_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, ValueError),
+    )
 
 
 def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Delete one project-local template entry."""
-    try:
-        request = parse_template_delete_request(payload)
-        catalog_payload = delete_session_project_template(
-            session,
-            template_name=request.template_name,
-        )
-    except (PackageIOError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_deleted_template_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, ValueError),
+    )
 
 
 def handle_analyze_contraction(
@@ -369,15 +352,10 @@ def handle_subnetwork_extract(
 ) -> JsonResponse:
     """Extract a reusable subnetwork fragment from the current graph."""
     del session
-    try:
-        request = parse_subnetwork_selection_request(payload)
-        spec = extract_serialized_subnetwork(
-            request.serialized_spec,
-            tensor_ids=request.tensor_ids,
-        )
-    except (SerializationError, TypeError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response({"spec": serialize_spec(spec)})
+    return _handle_spec_response(
+        lambda: _extract_subnetwork_spec(payload),
+        handled_exceptions=(SerializationError, TypeError, ValueError),
+    )
 
 
 def handle_subnetwork_prepare_insert(
@@ -385,15 +363,10 @@ def handle_subnetwork_prepare_insert(
 ) -> JsonResponse:
     """Prepare one saved fragment for insertion into the current design."""
     del session
-    try:
-        request = parse_subnetwork_prepare_insert_request(payload)
-        spec = prepare_serialized_subnetwork_for_insertion(
-            request.serialized_spec,
-            target_center=request.target_center,
-        )
-    except (SerializationError, TypeError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response({"spec": serialize_spec(spec)})
+    return _handle_spec_response(
+        lambda: _prepare_subnetwork_insert_spec(payload),
+        handled_exceptions=(SerializationError, TypeError, ValueError),
+    )
 
 
 def handle_subnetwork_library_save(
@@ -401,19 +374,10 @@ def handle_subnetwork_library_save(
     payload: JsonDict,
 ) -> JsonResponse:
     """Save one selected fragment into the reusable-subnetwork catalog."""
-    try:
-        request = parse_subnetwork_library_save_request(payload)
-        catalog_payload = save_serialized_subnetwork_to_library(
-            session,
-            request.serialized_spec,
-            tensor_ids=request.tensor_ids,
-            subnetwork_name=request.subnetwork_name,
-            tags=request.tags,
-            overwrite=request.overwrite,
-        )
-    except (PackageIOError, SerializationError, TypeError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_saved_subnetwork_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, SerializationError, TypeError, ValueError),
+    )
 
 
 def handle_subnetwork_library_rename(
@@ -421,17 +385,10 @@ def handle_subnetwork_library_rename(
     payload: JsonDict,
 ) -> JsonResponse:
     """Rename one project-local reusable-subnetwork catalog entry."""
-    try:
-        request = parse_subnetwork_library_rename_request(payload)
-        catalog_payload = rename_session_project_subnetwork(
-            session,
-            subnetwork_name=request.subnetwork_name,
-            new_subnetwork_name=request.new_subnetwork_name,
-            overwrite=request.overwrite,
-        )
-    except (PackageIOError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_renamed_subnetwork_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, ValueError),
+    )
 
 
 def handle_subnetwork_library_delete(
@@ -439,15 +396,10 @@ def handle_subnetwork_library_delete(
     payload: JsonDict,
 ) -> JsonResponse:
     """Delete one project-local reusable-subnetwork catalog entry."""
-    try:
-        request = parse_subnetwork_library_delete_request(payload)
-        catalog_payload = delete_session_project_subnetwork(
-            session,
-            subnetwork_name=request.subnetwork_name,
-        )
-    except (PackageIOError, ValueError) as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    return _handle_catalog_response(
+        lambda: _build_deleted_subnetwork_catalog_payload(session, payload),
+        handled_exceptions=(PackageIOError, ValueError),
+    )
 
 
 def handle_subnetwork_library_prepare_insert(
@@ -455,16 +407,150 @@ def handle_subnetwork_library_prepare_insert(
     payload: JsonDict,
 ) -> JsonResponse:
     """Prepare one saved reusable subnetwork for insertion into the graph."""
+    return _handle_spec_response(
+        lambda: _prepare_saved_subnetwork_insert_spec(session, payload),
+        handled_exceptions=(SerializationError, TypeError, ValueError),
+    )
+
+
+def _handle_spec_response(
+    build_spec: Callable[[], NetworkSpec],
+    *,
+    handled_exceptions: tuple[type[Exception], ...],
+) -> JsonResponse:
+    """Return a serialized-spec response for one route callback."""
     try:
-        request = parse_subnetwork_library_prepare_insert_request(payload)
-        spec = prepare_saved_subnetwork_for_insertion(
-            session,
-            subnetwork_name=request.subnetwork_name,
-            target_center=request.target_center,
-        )
-    except (SerializationError, TypeError, ValueError) as exc:
+        spec = build_spec()
+    except handled_exceptions as exc:
         return bad_request_response(str(exc))
     return ok_response({"spec": serialize_spec(spec)})
+
+
+def _handle_catalog_response(
+    build_catalog_payload: Callable[[], JsonDict],
+    *,
+    handled_exceptions: tuple[type[Exception], ...],
+) -> JsonResponse:
+    """Return a catalog payload response for one route callback."""
+    try:
+        catalog_payload = build_catalog_payload()
+    except handled_exceptions as exc:
+        return bad_request_response(str(exc))
+    return ok_response(catalog_payload)
+
+
+def _build_promoted_template_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the promoted project-template catalog payload for one request."""
+    request = parse_template_promote_request(payload)
+    return promote_serialized_subnetwork_to_template(
+        session,
+        request.serialized_spec,
+        tensor_ids=request.tensor_ids,
+        template_name=request.template_name,
+        overwrite=request.overwrite,
+    )
+
+
+def _build_renamed_template_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the renamed project-template catalog payload for one request."""
+    request = parse_template_rename_request(payload)
+    return rename_session_project_template(
+        session,
+        template_name=request.template_name,
+        new_template_name=request.new_template_name,
+        overwrite=request.overwrite,
+    )
+
+
+def _build_deleted_template_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the deleted project-template catalog payload for one request."""
+    request = parse_template_delete_request(payload)
+    return delete_session_project_template(
+        session,
+        template_name=request.template_name,
+    )
+
+
+def _extract_subnetwork_spec(payload: JsonDict) -> NetworkSpec:
+    """Return the extracted reusable subnetwork spec for one request."""
+    request = parse_subnetwork_selection_request(payload)
+    return extract_serialized_subnetwork(
+        request.serialized_spec,
+        tensor_ids=request.tensor_ids,
+    )
+
+
+def _prepare_subnetwork_insert_spec(payload: JsonDict) -> NetworkSpec:
+    """Return the prepared transient subnetwork insertion spec for one request."""
+    request = parse_subnetwork_prepare_insert_request(payload)
+    return prepare_serialized_subnetwork_for_insertion(
+        request.serialized_spec,
+        target_center=request.target_center,
+    )
+
+
+def _build_saved_subnetwork_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the saved reusable-subnetwork catalog payload for one request."""
+    request = parse_subnetwork_library_save_request(payload)
+    return save_serialized_subnetwork_to_library(
+        session,
+        request.serialized_spec,
+        tensor_ids=request.tensor_ids,
+        subnetwork_name=request.subnetwork_name,
+        tags=request.tags,
+        overwrite=request.overwrite,
+    )
+
+
+def _build_renamed_subnetwork_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the renamed reusable-subnetwork catalog payload for one request."""
+    request = parse_subnetwork_library_rename_request(payload)
+    return rename_session_project_subnetwork(
+        session,
+        subnetwork_name=request.subnetwork_name,
+        new_subnetwork_name=request.new_subnetwork_name,
+        overwrite=request.overwrite,
+    )
+
+
+def _build_deleted_subnetwork_catalog_payload(
+    session: EditorSession,
+    payload: JsonDict,
+) -> JsonDict:
+    """Return the deleted reusable-subnetwork catalog payload for one request."""
+    request = parse_subnetwork_library_delete_request(payload)
+    return delete_session_project_subnetwork(
+        session,
+        subnetwork_name=request.subnetwork_name,
+    )
+
+
+def _prepare_saved_subnetwork_insert_spec(
+    session: EditorSession,
+    payload: JsonDict,
+) -> NetworkSpec:
+    """Return the prepared saved-subnetwork insertion spec for one request."""
+    request = parse_subnetwork_library_prepare_insert_request(payload)
+    return prepare_saved_subnetwork_for_insertion(
+        session,
+        subnetwork_name=request.subnetwork_name,
+        target_center=request.target_center,
+    )
 
 
 def _serialize_generate_result(result: CodegenResult) -> JsonDict:
