@@ -264,7 +264,9 @@ def render_spec_mermaid(
         validated_spec = ensure_valid_spec(spec)
         mermaid = _MermaidRenderer(validated_spec, resolved_options).render()
         if output_path is not None:
-            write_utf8_text(output_path, mermaid, description="Mermaid network rendering")
+            write_utf8_text(
+                output_path, mermaid, description="Mermaid network rendering"
+            )
         return mermaid
 
 
@@ -1110,7 +1112,8 @@ class _MermaidRenderer:
                 group_tensor_ids = [
                     tensor_id
                     for tensor_id in group.tensor_ids
-                    if tensor_id in self._tensor_by_id and tensor_id not in grouped_tensor_ids
+                    if tensor_id in self._tensor_by_id
+                    and tensor_id not in grouped_tensor_ids
                 ]
                 if not group_tensor_ids:
                     continue
@@ -1119,7 +1122,9 @@ class _MermaidRenderer:
                 )
                 for tensor_id in group_tensor_ids:
                     grouped_tensor_ids.add(tensor_id)
-                    lines.append(f"        {self._tensor_line(self._tensor_by_id[tensor_id])}")
+                    lines.append(
+                        f"        {self._tensor_line(self._tensor_by_id[tensor_id])}"
+                    )
                 lines.append("    end")
         for tensor in self._spec.tensors:
             if tensor.id in grouped_tensor_ids:
@@ -1137,9 +1142,7 @@ class _MermaidRenderer:
                 lines.append(
                     f'    {open_node_id}["{_mermaid_label(self._open_index_label(index))}"]'
                 )
-                lines.append(
-                    f"    {_mermaid_tensor_id(tensor.id)} --- {open_node_id}"
-                )
+                lines.append(f"    {_mermaid_tensor_id(tensor.id)} --- {open_node_id}")
         return lines
 
     def _render_edges(self) -> list[str]:
@@ -1179,13 +1182,14 @@ class _MermaidRenderer:
 
     def _render_notes(self) -> list[str]:
         return [
-            f"    %% Note: {_mermaid_comment_text(note.text)}" for note in self._spec.notes
+            f"    %% Note: {_mermaid_comment_text(note.text)}"
+            for note in self._spec.notes
         ]
 
     def _tensor_line(self, tensor: TensorSpec) -> str:
         return (
             f'{_mermaid_tensor_id(tensor.id)}["'
-            f'{_mermaid_label(self._tensor_label(tensor))}'
+            f"{_mermaid_label(self._tensor_label(tensor))}"
             '"]'
         )
 
@@ -1804,9 +1808,7 @@ def _mermaid_group_id(group_id: str) -> str:
 
 
 def _mermaid_label(value: str) -> str:
-    return (
-        " ".join(value.splitlines()).replace("\\", "\\\\").replace('"', "&quot;")
-    )
+    return " ".join(value.splitlines()).replace("\\", "\\\\").replace('"', "&quot;")
 
 
 def _mermaid_edge_suffix(label: str) -> str:

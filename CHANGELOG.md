@@ -7,9 +7,15 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - The browser editor's `Info` help panel now mentions the full current export
-  set (`PNG`, `SVG`, `PDF`, `TikZ/LaTeX`, and `Graphviz/DOT`) and clarifies
-  that recommended startup flows can use built-in templates, session templates,
-  and reusable subnetwork fragments.
+  set (`PNG`, `SVG`, `PDF`, `TikZ/LaTeX`, `Graphviz/DOT`, and `Mermaid`) and
+  clarifies that recommended startup flows can use built-in templates, session
+  templates, and reusable subnetwork fragments.
+
+### Added
+
+- Static exports now include a `Mermaid` flowchart renderer for documentation
+  workflows, with matching support in the Python API, CLI `render` subcommand,
+  and browser editor export menu.
 
 ### Fixed
 

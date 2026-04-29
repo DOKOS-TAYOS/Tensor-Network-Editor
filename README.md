@@ -95,7 +95,7 @@ offline use, and generated code you can inspect.
   closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
-- Render designs to static SVG, TikZ/LaTeX, or Graphviz/DOT from Python, the
+- Render designs to static SVG, TikZ/LaTeX, Graphviz/DOT, or Mermaid from Python, the
   CLI, or the editor File menu without needing LaTeX or Graphviz installed.
 - Import supported Python network layouts from generated exports plus simple
   `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
@@ -205,7 +205,7 @@ tensor-network-editor doctor my_network.json
 tensor-network-editor doctor my_network.json --format json
 ```
 
-Render one saved design as SVG, PDF, TikZ/LaTeX, Graphviz/DOT, or with the
+Render one saved design as SVG, PDF, TikZ/LaTeX, Graphviz/DOT, Mermaid, or with the
 optional `png` extra, PNG:
 
 ```bash
@@ -213,6 +213,7 @@ tensor-network-editor render my_network.json --format svg --output figure.svg
 tensor-network-editor render my_network.json --format pdf --output figure.pdf
 tensor-network-editor render my_network.json --format tikz --output figure.tex
 tensor-network-editor render my_network.json --format dot --output graph.dot
+tensor-network-editor render my_network.json --format mermaid --output graph.mmd
 tensor-network-editor render my_network.json --format png --output figure.png
 ```
 
@@ -275,6 +276,7 @@ Render static figures from Python:
 from tensor_network_editor import (
     load_spec,
     render_spec_dot,
+    render_spec_mermaid,
     render_spec_pdf,
     render_spec_png,
     render_spec_svg,
@@ -286,6 +288,7 @@ spec = load_spec("my_network.json")
 svg = render_spec_svg(spec, output_path="figure.svg")
 tikz = render_spec_tikz(spec, output_path="figure.tex")
 dot = render_spec_dot(spec, output_path="graph.dot")
+mermaid = render_spec_mermaid(spec, output_path="graph.mmd")
 png = render_spec_png(spec, output_path="figure.png")
 pdf = render_spec_pdf(spec, output_path="figure.pdf")
 ```
