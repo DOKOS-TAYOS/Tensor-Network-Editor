@@ -247,6 +247,27 @@ def render_spec_dot(
         return dot
 
 
+def render_spec_mermaid(
+    spec: NetworkSpec,
+    *,
+    options: DotRenderOptions | None = None,
+    output_path: StrPath | None = None,
+) -> str:
+    """Render one tensor-network specification as a Mermaid flowchart."""
+    context = {
+        "format": "mermaid",
+        "output_path": output_path,
+        **summarize_spec_counts(spec),
+    }
+    with log_operation(LOGGER, "Render spec", context=context):
+        resolved_options = options or DotRenderOptions()
+        validated_spec = ensure_valid_spec(spec)
+        mermaid = _MermaidRenderer(validated_spec, resolved_options).render()
+        if output_path is not None:
+            write_utf8_text(output_path, mermaid, description="Mermaid network rendering")
+        return mermaid
+
+
 class _SvgRenderer:
     """Shared geometry helper for academic network renderers."""
 
@@ -1054,6 +1075,138 @@ class _DotRenderer:
         ]
 
 
+class _MermaidRenderer:
+    """Small deterministic Mermaid renderer for one validated network spec."""
+
+    def __init__(self, spec: NetworkSpec, options: DotRenderOptions) -> None:
+        self._spec = spec
+        self._options = options
+        self._tensor_by_id = {tensor.id: tensor for tensor in spec.tensors}
+        self._index_by_id = {
+            index.id: (tensor, index)
+            for tensor in spec.tensors
+            for index in tensor.indices
+        }
+        self._connected_index_ids = _connected_index_ids(spec)
+
+    def render(self) -> str:
+        """Return the complete Mermaid flowchart."""
+        lines = ["flowchart LR"]
+        if self._options.include_notes:
+            lines.extend(self._render_notes())
+        lines.extend(self._render_tensors())
+        if self._options.include_open_indices:
+            lines.extend(self._render_open_indices())
+        lines.extend(self._render_edges())
+        if self._options.include_hyperedges:
+            lines.extend(self._render_hyperedges())
+        return "\n".join(lines)
+
+    def _render_tensors(self) -> list[str]:
+        grouped_tensor_ids: set[str] = set()
+        lines: list[str] = []
+        if self._options.include_groups:
+            for group in self._spec.groups:
+                group_tensor_ids = [
+                    tensor_id
+                    for tensor_id in group.tensor_ids
+                    if tensor_id in self._tensor_by_id and tensor_id not in grouped_tensor_ids
+                ]
+                if not group_tensor_ids:
+                    continue
+                lines.append(
+                    f'    subgraph {_mermaid_group_id(group.id)}["{_mermaid_label(group.name)}"]'
+                )
+                for tensor_id in group_tensor_ids:
+                    grouped_tensor_ids.add(tensor_id)
+                    lines.append(f"        {self._tensor_line(self._tensor_by_id[tensor_id])}")
+                lines.append("    end")
+        for tensor in self._spec.tensors:
+            if tensor.id in grouped_tensor_ids:
+                continue
+            lines.append(f"    {self._tensor_line(tensor)}")
+        return lines
+
+    def _render_open_indices(self) -> list[str]:
+        lines: list[str] = []
+        for tensor in self._spec.tensors:
+            for index in tensor.indices:
+                if index.id in self._connected_index_ids:
+                    continue
+                open_node_id = _mermaid_open_index_id(index.id)
+                lines.append(
+                    f'    {open_node_id}["{_mermaid_label(self._open_index_label(index))}"]'
+                )
+                lines.append(
+                    f"    {_mermaid_tensor_id(tensor.id)} --- {open_node_id}"
+                )
+        return lines
+
+    def _render_edges(self) -> list[str]:
+        lines: list[str] = []
+        for edge in self._spec.edges:
+            left_entry = self._index_by_id.get(edge.left.index_id)
+            right_entry = self._index_by_id.get(edge.right.index_id)
+            if left_entry is None or right_entry is None:
+                continue
+            left_tensor, left_index = left_entry
+            right_tensor, _ = right_entry
+            lines.append(
+                f"    {_mermaid_tensor_id(left_tensor.id)}"
+                f"{_mermaid_edge_suffix(_dot_edge_label(edge, left_index, self._options))}"
+                f"{_mermaid_tensor_id(right_tensor.id)}"
+            )
+        return lines
+
+    def _render_hyperedges(self) -> list[str]:
+        lines: list[str] = []
+        for hyperedge in self._spec.hyperedges:
+            hyperedge_node_id = _mermaid_hyperedge_id(hyperedge.id)
+            lines.append(
+                f'    {hyperedge_node_id}["{_mermaid_label(self._hyperedge_label(hyperedge))}"]'
+            )
+            for endpoint in hyperedge.endpoints:
+                endpoint_entry = self._index_by_id.get(endpoint.index_id)
+                if endpoint_entry is None:
+                    continue
+                tensor, index = endpoint_entry
+                lines.append(
+                    f"    {_mermaid_tensor_id(tensor.id)}"
+                    f"{_mermaid_edge_suffix(_dot_hyperedge_endpoint_label(index, self._options))}"
+                    f"{hyperedge_node_id}"
+                )
+        return lines
+
+    def _render_notes(self) -> list[str]:
+        return [
+            f"    %% Note: {_mermaid_comment_text(note.text)}" for note in self._spec.notes
+        ]
+
+    def _tensor_line(self, tensor: TensorSpec) -> str:
+        return (
+            f'{_mermaid_tensor_id(tensor.id)}["'
+            f'{_mermaid_label(self._tensor_label(tensor))}'
+            '"]'
+        )
+
+    def _tensor_label(self, tensor: TensorSpec) -> str:
+        if self._options.show_tensor_labels:
+            return tensor.name
+        return tensor.id
+
+    def _open_index_label(self, index: IndexSpec) -> str:
+        dot_label = _dot_index_label(index, self._options)
+        if dot_label:
+            return dot_label
+        return _dot_open_index_id(index.id)
+
+    def _hyperedge_label(self, hyperedge: HyperedgeSpec) -> str:
+        dot_label = _dot_hyperedge_label(hyperedge, self._options)
+        if dot_label:
+            return dot_label
+        return hyperedge.id
+
+
 class _MatplotlibRenderer:
     """Matplotlib-backed academic renderer for one validated network spec."""
 
@@ -1634,6 +1787,38 @@ def _dot_cluster_id(group_id: str) -> str:
     return f"cluster_{_safe_identifier(group_id)}"
 
 
+def _mermaid_tensor_id(tensor_id: str) -> str:
+    return f"tensor_{_safe_identifier(tensor_id)}"
+
+
+def _mermaid_open_index_id(index_id: str) -> str:
+    return f"open_{_safe_identifier(index_id)}"
+
+
+def _mermaid_hyperedge_id(hyperedge_id: str) -> str:
+    return f"hyperedge_{_safe_identifier(hyperedge_id)}"
+
+
+def _mermaid_group_id(group_id: str) -> str:
+    return f"group_{_safe_identifier(group_id)}"
+
+
+def _mermaid_label(value: str) -> str:
+    return (
+        " ".join(value.splitlines()).replace("\\", "\\\\").replace('"', "&quot;")
+    )
+
+
+def _mermaid_edge_suffix(label: str) -> str:
+    if not label:
+        return " --- "
+    return f" ---|{_mermaid_label(label)}| "
+
+
+def _mermaid_comment_text(value: str) -> str:
+    return " ".join(value.splitlines())
+
+
 def _dot_tensor_label(tensor: TensorSpec, options: DotRenderOptions) -> str:
     return tensor.name if options.show_tensor_labels else ""
 
@@ -1822,6 +2007,7 @@ __all__ = [
     "SvgRenderOptions",
     "TikzRenderOptions",
     "render_spec_dot",
+    "render_spec_mermaid",
     "render_spec_pdf",
     "render_spec_png",
     "render_spec_svg",

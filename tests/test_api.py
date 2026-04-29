@@ -41,6 +41,7 @@ from tensor_network_editor.rendering import (
     SvgRenderOptions,
     TikzRenderOptions,
     render_spec_dot,
+    render_spec_mermaid,
     render_spec_pdf,
     render_spec_svg,
     render_spec_tikz,
@@ -183,6 +184,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "load_spec",
         "open_editor",
         "render_spec_dot",
+        "render_spec_mermaid",
         "render_spec_pdf",
         "render_spec_svg",
         "render_spec_png",
@@ -202,6 +204,7 @@ def test_package_root_exports_supported_public_api() -> None:
     assert tensor_network_editor.render_spec_pdf is render_spec_pdf
     assert tensor_network_editor.render_spec_tikz is render_spec_tikz
     assert tensor_network_editor.render_spec_dot is render_spec_dot
+    assert tensor_network_editor.render_spec_mermaid is render_spec_mermaid
     assert tensor_network_editor.SvgRenderOptions is SvgRenderOptions
     assert tensor_network_editor.TikzRenderOptions is TikzRenderOptions
     assert tensor_network_editor.DotRenderOptions is DotRenderOptions

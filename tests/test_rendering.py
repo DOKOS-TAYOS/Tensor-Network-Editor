@@ -14,6 +14,7 @@ from tensor_network_editor.rendering import (
     TikzRenderOptions,
     _SvgRenderer,
     render_spec_dot,
+    render_spec_mermaid,
     render_spec_pdf,
     render_spec_svg,
     render_spec_tikz,
@@ -209,6 +210,50 @@ def test_academic_exports_use_contrasting_tensor_label_colors_for_custom_tensor_
     ) in tikz
     assert 'fontcolor="#f5f9ff"' in dot
     assert 'fontcolor="#091018"' in dot
+
+
+def test_render_spec_mermaid_returns_flowchart_for_normal_network() -> None:
+    mermaid = render_spec_mermaid(build_sample_spec())
+
+    assert mermaid.startswith("flowchart LR\n")
+    assert 'tensor_tensor_a["A"]' in mermaid
+    assert 'tensor_tensor_b["B"]' in mermaid
+    assert "tensor_tensor_a ---|bond_x / x=3| tensor_tensor_b" in mermaid
+
+
+def test_render_spec_mermaid_can_hide_tensor_index_and_bond_labels() -> None:
+    mermaid = render_spec_mermaid(
+        build_sample_spec(),
+        options=DotRenderOptions(
+            show_tensor_labels=False,
+            show_index_labels=False,
+            show_edge_labels=False,
+        ),
+    )
+
+    assert 'tensor_tensor_a["tensor_a"]' in mermaid
+    assert 'tensor_tensor_b["tensor_b"]' in mermaid
+    assert "bond_x" not in mermaid
+    assert "x=3" not in mermaid
+    assert 'open_tensor_a_i["i (2)"]' not in mermaid
+
+
+def test_render_spec_mermaid_includes_hyperedges_groups_and_notes() -> None:
+    mermaid = render_spec_mermaid(build_sample_spec())
+    hyperedge_mermaid = render_spec_mermaid(build_three_tensor_hyperedge_spec())
+
+    assert 'subgraph group_group_demo["Demo Group"]' in mermaid
+    assert "%% Note: Check the contraction order" in mermaid
+    assert 'hyperedge_hyperedge_h["shared_h"]' in hyperedge_mermaid
+    assert "tensor_tensor_a ---|h=3| hyperedge_hyperedge_h" in hyperedge_mermaid
+
+
+def test_render_spec_mermaid_writes_output_path(tmp_path: Path) -> None:
+    output_path = tmp_path / "network.mmd"
+
+    mermaid = render_spec_mermaid(build_sample_spec(), output_path=output_path)
+
+    assert output_path.read_text(encoding="utf-8") == mermaid
 
 
 def test_academic_parallel_edges_curve_far_enough_to_separate_three_bonds() -> None:
