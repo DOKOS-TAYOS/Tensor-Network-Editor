@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Mermaid export now renders free indices as labeled dangling-edge terminals
+  instead of boxed open-index nodes, so the flowchart output reads more like a
+  tensor-network leg.
 - Windows CI no longer flakes on the browser editor's academic `SVG`/`PNG`/`PDF`
   export route test just because Matplotlib needs extra cold-start time before
   the first render completes.

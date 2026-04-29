@@ -289,6 +289,8 @@ def test_render_route_returns_mermaid_export(
     assert mermaid_payload["content_type"] == "text/plain;charset=utf-8"
     assert mermaid_payload["text"].startswith("flowchart LR\n")
     assert 'tensor_tensor_a["A"]' in mermaid_payload["text"]
+    assert 'open_tensor_a_i((" "))' in mermaid_payload["text"]
+    assert "tensor_tensor_a ---|i (2)| open_tensor_a_i" in mermaid_payload["text"]
 
 
 def test_render_route_applies_academic_label_options(
@@ -355,7 +357,8 @@ def test_render_route_applies_mermaid_label_options(
     )
 
     assert 'tensor_tensor_a["tensor_a"]' in mermaid_payload["text"]
-    assert 'open_tensor_a_i["i (2)"]' not in mermaid_payload["text"]
+    assert 'open_tensor_a_i((" "))' in mermaid_payload["text"]
+    assert "i (2)" not in mermaid_payload["text"]
     assert "bond_x" not in mermaid_payload["text"]
     assert "x=3" not in mermaid_payload["text"]
 

@@ -218,6 +218,8 @@ def test_render_spec_mermaid_returns_flowchart_for_normal_network() -> None:
     assert mermaid.startswith("flowchart LR\n")
     assert 'tensor_tensor_a["A"]' in mermaid
     assert 'tensor_tensor_b["B"]' in mermaid
+    assert 'open_tensor_a_i((" "))' in mermaid
+    assert "tensor_tensor_a ---|i (2)| open_tensor_a_i" in mermaid
     assert "tensor_tensor_a ---|bond_x / x=3| tensor_tensor_b" in mermaid
 
 
@@ -235,7 +237,8 @@ def test_render_spec_mermaid_can_hide_tensor_index_and_bond_labels() -> None:
     assert 'tensor_tensor_b["tensor_b"]' in mermaid
     assert "bond_x" not in mermaid
     assert "x=3" not in mermaid
-    assert 'open_tensor_a_i["i (2)"]' not in mermaid
+    assert 'open_tensor_a_i((" "))' in mermaid
+    assert "i (2)" not in mermaid
 
 
 def test_render_spec_mermaid_includes_hyperedges_groups_and_notes() -> None:

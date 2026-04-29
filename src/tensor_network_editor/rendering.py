@@ -1139,10 +1139,12 @@ class _MermaidRenderer:
                 if index.id in self._connected_index_ids:
                     continue
                 open_node_id = _mermaid_open_index_id(index.id)
+                lines.append(f'    {open_node_id}((" "))')
                 lines.append(
-                    f'    {open_node_id}["{_mermaid_label(self._open_index_label(index))}"]'
+                    f"    {_mermaid_tensor_id(tensor.id)}"
+                    f"{_mermaid_edge_suffix(self._open_index_edge_label(index))}"
+                    f"{open_node_id}"
                 )
-                lines.append(f"    {_mermaid_tensor_id(tensor.id)} --- {open_node_id}")
         return lines
 
     def _render_edges(self) -> list[str]:
@@ -1198,11 +1200,8 @@ class _MermaidRenderer:
             return tensor.name
         return tensor.id
 
-    def _open_index_label(self, index: IndexSpec) -> str:
-        dot_label = _dot_index_label(index, self._options)
-        if dot_label:
-            return dot_label
-        return _dot_open_index_id(index.id)
+    def _open_index_edge_label(self, index: IndexSpec) -> str:
+        return _dot_index_label(index, self._options)
 
     def _hyperedge_label(self, hyperedge: HyperedgeSpec) -> str:
         dot_label = _dot_hyperedge_label(hyperedge, self._options)
