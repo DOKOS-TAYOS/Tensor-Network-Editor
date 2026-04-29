@@ -36,6 +36,7 @@ _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
     "Try again. If the problem continues, check the terminal output for this "
     "session or rerun with debug logging."
 )
+_QUIET_MISSING_STATIC_ASSET_PATHS: frozenset[str] = frozenset({"/favicon.ico"})
 _ScannedStaticAssetFile: TypeAlias = tuple[Path, str, int, int]
 
 
@@ -209,6 +210,11 @@ def _unexpected_internal_error_response(session_id: str) -> JsonResponse:
         guidance=_UNEXPECTED_INTERNAL_ERROR_GUIDANCE,
         reference=session_id,
     )
+
+
+def _should_log_missing_static_asset(request_path: str) -> bool:
+    """Return whether one missing static path should appear in debug logs."""
+    return request_path not in _QUIET_MISSING_STATIC_ASSET_PATHS
 
 
 class EditorServer:
@@ -434,11 +440,12 @@ class EditorServer:
                 """Return one static asset response when the path resolves safely."""
                 relative_path = self._resolve_static_asset_relative_path(request_path)
                 if relative_path is None:
-                    LOGGER.debug(
-                        "[session=%s] Static asset not found for path %s",
-                        session_id,
-                        request_path,
-                    )
+                    if _should_log_missing_static_asset(request_path):
+                        LOGGER.debug(
+                            "[session=%s] Static asset not found for path %s",
+                            session_id,
+                            request_path,
+                        )
                     return not_found_response()
                 return _BinaryResponse(
                     status=HTTPStatus.OK,

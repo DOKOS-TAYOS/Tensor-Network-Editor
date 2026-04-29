@@ -80,6 +80,8 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     html, headers = request_with_headers(f"{editor_server.base_url}/")
 
     assert "Tensor Network Editor" in html
+    assert 'rel="icon"' in html
+    assert "/favicon.ico?v=" in html
     assert 'rel="preload"' in html
     assert "/vendor/cytoscape.min.js?v=" in html
     assert 'rel="modulepreload"' in html
@@ -529,6 +531,15 @@ def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
 
     assert "cytoscape" in body
     assert headers["Content-Type"].startswith("application/javascript")
+
+
+def test_favicon_asset_is_served_locally(editor_server: EditorServer) -> None:
+    with urlopen(f"{editor_server.base_url}/favicon.ico", timeout=5) as response:
+        body = response.read()
+        headers = dict(response.info().items())
+
+    assert body
+    assert headers["Content-Type"].startswith("image/")
 
 
 def test_prism_vendor_assets_are_served_locally(editor_server: EditorServer) -> None:

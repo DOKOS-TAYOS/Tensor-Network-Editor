@@ -94,6 +94,7 @@ tensor_network_editor = [
   "py.typed",
   "app/static/*.html",
   "app/static/*.css",
+  "app/static/*.ico",
   "app/static/js/*.js",
   "app/static/js/actions/*.js",
   "app/static/js/core/*.js",

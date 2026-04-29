@@ -58,6 +58,14 @@ All notable changes to this project will be documented in this file.
   refreshes no longer auto-cancel the session and tear down the local server.
 - Editor sessions now wait with short polling intervals so `Ctrl+C` remains
   responsive on Windows terminals while the browser editor is open.
+
+### Fixed
+
+- The browser editor now serves a real `favicon.ico` from its static assets and
+  advertises it in the HTML shell, so browsers stop requesting a missing icon.
+- The local editor server now treats the browser's automatic `/favicon.ico`
+  request as an expected missing asset, so debug sessions no longer show a
+  misleading static-asset warning for that path.
 - `tensor-network-editor doctor` now adds more actionable suggestions for
   suspicious model structure, available backend choices, incomplete manual
   plans, and manual paths that are clearly more expensive than `auto_full`.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from http import HTTPStatus
 from pathlib import Path
@@ -27,6 +28,12 @@ class _HandlerClass(Protocol):
         handler: _RecordingHandler,
         response: app_server._BinaryResponse,
     ) -> None: ...
+
+
+class _StaticHandler(Protocol):
+    def _static_response(
+        self, request_path: str
+    ) -> app_server.JsonResponse | app_server._BinaryResponse: ...
 
 
 class _ChunkedBodyReader:
@@ -189,3 +196,34 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
     )
     assert scan_calls == [resolved_static_dir, resolved_static_dir]
+
+
+def test_favicon_request_resolves_to_static_asset_without_debug_log(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler_class = cast(type[_StaticHandler], editor_server._build_handler())
+    handler = cast(_StaticHandler, handler_class.__new__(handler_class))
+
+    with caplog.at_level(logging.DEBUG, logger=app_server.LOGGER.name):
+        response = handler._static_response("/favicon.ico")
+
+    favicon_response = cast(app_server._BinaryResponse, response)
+    assert favicon_response.status == HTTPStatus.OK
+    assert favicon_response.body
+    assert favicon_response.content_type.startswith("image/")
+    assert "Static asset not found for path /favicon.ico" not in caplog.text
+
+
+def test_missing_non_favicon_request_keeps_debug_log(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    handler_class = cast(type[_StaticHandler], editor_server._build_handler())
+    handler = cast(_StaticHandler, handler_class.__new__(handler_class))
+
+    with caplog.at_level(logging.DEBUG, logger=app_server.LOGGER.name):
+        response = handler._static_response("/missing-asset.js")
+
+    assert response[0] == HTTPStatus.NOT_FOUND
+    assert "Static asset not found for path /missing-asset.js" in caplog.text
