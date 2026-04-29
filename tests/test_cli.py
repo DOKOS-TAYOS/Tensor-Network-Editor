@@ -1105,6 +1105,34 @@ def test_render_subcommand_writes_dot_output(sample_spec: NetworkSpec) -> None:
     assert render_mock.call_args.kwargs["output_path"] == "graph.dot"
 
 
+def test_render_subcommand_writes_mermaid_output(sample_spec: NetworkSpec) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_mermaid",
+            return_value="flowchart LR\n",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "mermaid",
+                "--output",
+                "graph.mmd",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    render_mock.assert_called_once()
+    assert render_mock.call_args.args == (sample_spec,)
+    assert render_mock.call_args.kwargs["output_path"] == "graph.mmd"
+
+
 def test_render_subcommand_passes_dot_label_options(sample_spec: NetworkSpec) -> None:
     with (
         patch(
@@ -1121,6 +1149,39 @@ def test_render_subcommand_passes_dot_label_options(sample_spec: NetworkSpec) ->
                 "saved-network.json",
                 "--format",
                 "dot",
+                "--hide-tensor-names",
+                "--hide-index-names",
+                "--hide-bond-names",
+            ]
+        )
+
+    assert exit_code == 0
+    load_mock.assert_called_once_with("saved-network.json")
+    options = render_mock.call_args.kwargs["options"]
+    assert isinstance(options, DotRenderOptions)
+    assert options.show_tensor_labels is False
+    assert options.show_index_labels is False
+    assert options.show_edge_labels is False
+
+
+def test_render_subcommand_passes_mermaid_label_options(
+    sample_spec: NetworkSpec,
+) -> None:
+    with (
+        patch(
+            "tensor_network_editor.cli.load_spec", return_value=sample_spec
+        ) as load_mock,
+        patch(
+            "tensor_network_editor.cli.render_spec_mermaid",
+            return_value="flowchart LR\n",
+        ) as render_mock,
+    ):
+        exit_code = main(
+            [
+                "render",
+                "saved-network.json",
+                "--format",
+                "mermaid",
                 "--hide-tensor-names",
                 "--hide-index-names",
                 "--hide-bond-names",
@@ -1190,6 +1251,23 @@ def test_render_subcommand_prints_dot_when_no_output(
 
     assert exit_code == 0
     assert capsys.readouterr().out == 'graph "network_demo" {}\n'
+
+
+def test_render_subcommand_prints_mermaid_when_no_output(
+    sample_spec: NetworkSpec,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with (
+        patch("tensor_network_editor.cli.load_spec", return_value=sample_spec),
+        patch(
+            "tensor_network_editor.cli.render_spec_mermaid",
+            return_value="flowchart LR\n",
+        ),
+    ):
+        exit_code = main(["render", "saved-network.json", "--format", "mermaid"])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "flowchart LR\n\n"
 
 
 def test_render_subcommand_prints_svg_when_no_output(

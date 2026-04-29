@@ -62,6 +62,7 @@ from .io import load_spec, save_spec
 from .linting import lint_spec
 from .rendering import (
     render_spec_dot,
+    render_spec_mermaid,
     render_spec_pdf,
     render_spec_png,
     render_spec_svg,
@@ -296,6 +297,7 @@ def _handle_render(args: argparse.Namespace) -> int:
         args,
         load_spec=load_spec,
         render_spec_dot=render_spec_dot,
+        render_spec_mermaid=render_spec_mermaid,
         render_spec_pdf=render_spec_pdf,
         render_spec_png=render_spec_png,
         render_spec_svg=render_spec_svg,

@@ -258,6 +258,7 @@ def handle_render_command(
     *,
     load_spec: Callable[..., NetworkSpec],
     render_spec_dot: Callable[..., str],
+    render_spec_mermaid: Callable[..., str],
     render_spec_pdf: Callable[..., bytes],
     render_spec_svg: Callable[..., str],
     render_spec_tikz: Callable[..., str],
@@ -282,6 +283,11 @@ def handle_render_command(
         render_spec_pdf(spec, options=svg_options, output_path=args.output)
         print(f"Wrote PDF rendering to {args.output}")
         return 0
+    dot_options = DotRenderOptions(
+        show_tensor_labels=args.show_tensor_names,
+        show_index_labels=args.show_index_names,
+        show_edge_labels=args.show_bond_names,
+    )
     if args.format == "tikz":
         text = render_spec_tikz(
             spec,
@@ -296,14 +302,17 @@ def handle_render_command(
     elif args.format == "dot":
         text = render_spec_dot(
             spec,
-            options=DotRenderOptions(
-                show_tensor_labels=args.show_tensor_names,
-                show_index_labels=args.show_index_names,
-                show_edge_labels=args.show_bond_names,
-            ),
+            options=dot_options,
             output_path=args.output,
         )
         output_label = "Graphviz/DOT"
+    elif args.format == "mermaid":
+        text = render_spec_mermaid(
+            spec,
+            options=dot_options,
+            output_path=args.output,
+        )
+        output_label = "Mermaid"
     else:
         text = render_spec_svg(spec, options=svg_options, output_path=args.output)
         output_label = "SVG"

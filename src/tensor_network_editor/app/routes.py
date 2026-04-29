@@ -31,6 +31,7 @@ from ..rendering import (
     SvgRenderOptions,
     TikzRenderOptions,
     render_spec_dot,
+    render_spec_mermaid,
     render_spec_pdf,
     render_spec_png,
     render_spec_svg,
@@ -382,6 +383,27 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
                     ),
                 )
                 content_type = "text/vnd.graphviz;charset=utf-8"
+                response_payload = {
+                    "format": render_format,
+                    "text": text,
+                    "content_type": content_type,
+                }
+            elif render_format == "mermaid":
+                text = render_spec_mermaid(
+                    spec,
+                    options=DotRenderOptions(
+                        show_tensor_labels=require_boolean(
+                            payload, "show_tensor_names", default=True
+                        ),
+                        show_index_labels=require_boolean(
+                            payload, "show_index_names", default=True
+                        ),
+                        show_edge_labels=require_boolean(
+                            payload, "show_bond_names", default=True
+                        ),
+                    ),
+                )
+                content_type = "text/plain;charset=utf-8"
                 response_payload = {
                     "format": render_format,
                     "text": text,
@@ -768,16 +790,19 @@ def _serialize_generate_result(result: CodegenResult) -> JsonDict:
 
 def _resolve_render_format(
     payload: JsonDict,
-) -> Literal["tikz", "dot", "svg", "png", "pdf"]:
+) -> Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"]:
     raw_format = payload.get("format")
     if not isinstance(raw_format, str) or not raw_format.strip():
         raise ValueError("Missing 'format' payload.")
     normalized_format = raw_format.strip().lower()
-    if normalized_format in {"tikz", "dot", "svg", "png", "pdf"}:
-        return cast(Literal["tikz", "dot", "svg", "png", "pdf"], normalized_format)
+    if normalized_format in {"tikz", "dot", "mermaid", "svg", "png", "pdf"}:
+        return cast(
+            Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"],
+            normalized_format,
+        )
     raise ValueError(
         "Unsupported render format "
-        f"'{raw_format}'. Expected 'tikz', 'dot', 'svg', 'png', or 'pdf'."
+        f"'{raw_format}'. Expected 'tikz', 'dot', 'mermaid', 'svg', 'png', or 'pdf'."
     )
 
 

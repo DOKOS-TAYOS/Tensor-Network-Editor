@@ -189,7 +189,7 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     render_parser.add_argument("path", type=str)
     render_parser.add_argument(
         "--format",
-        choices=["svg", "png", "pdf", "tikz", "dot"],
+        choices=["svg", "png", "pdf", "tikz", "dot", "mermaid"],
         default="svg",
     )
     render_parser.add_argument("--output", type=str)
@@ -197,19 +197,19 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         "--hide-tensor-names",
         dest="show_tensor_names",
         action="store_false",
-        help="Hide tensor names in TikZ and DOT renders.",
+        help="Hide tensor names in TikZ, DOT, and Mermaid renders.",
     )
     render_parser.add_argument(
         "--hide-index-names",
         dest="show_index_names",
         action="store_false",
-        help="Hide index names in TikZ and DOT renders.",
+        help="Hide index names in TikZ, DOT, and Mermaid renders.",
     )
     render_parser.add_argument(
         "--hide-bond-names",
         dest="show_bond_names",
         action="store_false",
-        help="Hide bond names in TikZ and DOT renders.",
+        help="Hide bond names in TikZ, DOT, and Mermaid renders.",
     )
     render_parser.set_defaults(
         show_tensor_names=True,

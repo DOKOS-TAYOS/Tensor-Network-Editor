@@ -270,6 +270,27 @@ def test_render_route_returns_academic_text_exports(
     assert '"tensor_a" -- "tensor_b" [label="bond_x / x=3"]' in dot_payload["text"]
 
 
+def test_render_route_returns_mermaid_export(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    mermaid_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={"format": "mermaid", "spec": serialized_spec},
+    )
+
+    assert mermaid_payload["format"] == "mermaid"
+    assert mermaid_payload["content_type"] == "text/plain;charset=utf-8"
+    assert mermaid_payload["text"].startswith("flowchart LR\n")
+    assert 'tensor_tensor_a["A"]' in mermaid_payload["text"]
+
+
 def test_render_route_applies_academic_label_options(
     editor_server: EditorServer,
 ) -> None:
@@ -310,6 +331,33 @@ def test_render_route_applies_academic_label_options(
     assert '"tensor_a" -- "tensor_b";' in dot_payload["text"]
     assert "bond_x" not in dot_payload["text"]
     assert "x=3" not in dot_payload["text"]
+
+
+def test_render_route_applies_mermaid_label_options(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    mermaid_payload = request_json(
+        f"{editor_server.base_url}/api/render",
+        method="POST",
+        payload={
+            "format": "mermaid",
+            "spec": serialized_spec,
+            "show_tensor_names": False,
+            "show_index_names": False,
+            "show_bond_names": False,
+        },
+    )
+
+    assert 'tensor_tensor_a["tensor_a"]' in mermaid_payload["text"]
+    assert 'open_tensor_a_i["i (2)"]' not in mermaid_payload["text"]
+    assert "bond_x" not in mermaid_payload["text"]
+    assert "x=3" not in mermaid_payload["text"]
 
 
 def test_render_route_returns_svg_png_and_pdf_exports(
