@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from importlib import import_module
 from pathlib import Path
 from queue import Queue
-from typing import cast
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -778,7 +778,7 @@ def test_editor_launch_options_reject_non_positive_log_rotation_settings(
     value: int,
 ) -> None:
     with pytest.raises(ValueError, match="must be > 0"):
-        EditorLaunchOptions(**{field_name: value})
+        cast(Any, EditorLaunchOptions)(**{field_name: value})
 
 
 def test_launch_editor_session_log_file_writes_trace_and_releases_handler(

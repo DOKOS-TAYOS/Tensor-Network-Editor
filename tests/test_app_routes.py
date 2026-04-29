@@ -1102,6 +1102,7 @@ def test_client_log_route_persists_to_rotating_log_file(
     tmp_path: Path,
 ) -> None:
     log_file_path = tmp_path / "client-log-route.log"
+    payload: JsonDict | None = None
 
     with package_logging_scope(
         "debug",
@@ -1132,6 +1133,7 @@ def test_client_log_route_persists_to_rotating_log_file(
                 },
             )
 
+    assert payload is not None
     combined_log_text = "\n".join(
         path.read_text(encoding="utf-8")
         for path in sorted(tmp_path.glob("client-log-route.log*"))

@@ -9,6 +9,7 @@ from typing import Protocol, cast
 import pytest
 
 from tensor_network_editor.app import server as app_server
+from tensor_network_editor.app._protocol import JsonResponse
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tests.factories import build_sample_spec
@@ -326,5 +327,6 @@ def test_missing_non_favicon_request_keeps_debug_log(
     with caplog.at_level(logging.DEBUG, logger=app_server.LOGGER.name):
         response = handler._static_response("/missing-asset.js")
 
-    assert response[0] == HTTPStatus.NOT_FOUND
+    missing_response = cast(JsonResponse, response)
+    assert missing_response[0] == HTTPStatus.NOT_FOUND
     assert "Static asset not found for path /missing-asset.js" in caplog.text
