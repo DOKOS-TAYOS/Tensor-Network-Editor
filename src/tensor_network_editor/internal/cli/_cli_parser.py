@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from ..._themes import DEFAULT_EDITOR_THEME, SUPPORTED_EDITOR_THEMES
 from ...models import EngineName, TensorCollectionFormat
 from ..analysis._memory_dtypes import DEFAULT_MEMORY_DTYPE, SUPPORTED_MEMORY_DTYPES
-from ._logging import LOG_LEVEL_NAMES
+from ._logging import (
+    DEFAULT_LOG_FILE_BACKUP_COUNT,
+    DEFAULT_LOG_FILE_MAX_BYTES,
+    LOG_LEVEL_NAMES,
+)
 
 CommandHandler = Callable[[argparse.Namespace], int]
 
@@ -46,6 +50,24 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         choices=list(LOG_LEVEL_NAMES),
         default=None,
         help="Enable package logs at the requested severity.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Write package logs to the requested file path.",
+    )
+    parser.add_argument(
+        "--log-max-bytes",
+        type=_build_positive_int_parser("--log-max-bytes"),
+        default=DEFAULT_LOG_FILE_MAX_BYTES,
+        help="Maximum size in bytes before --log-file rotates to a backup copy.",
+    )
+    parser.add_argument(
+        "--log-backup-count",
+        type=_build_positive_int_parser("--log-backup-count"),
+        default=DEFAULT_LOG_FILE_BACKUP_COUNT,
+        help="Number of rotated backup copies retained for --log-file.",
     )
     parser.add_argument(
         "--python-import-mode",
@@ -402,3 +424,18 @@ def _add_output_format_argument(parser: argparse.ArgumentParser) -> None:
         choices=["text", "json"],
         default="text",
     )
+
+
+def _build_positive_int_parser(option_name: str) -> Callable[[str], int]:
+    """Return an ``argparse`` parser for positive integer options."""
+
+    def parse(raw_value: str) -> int:
+        try:
+            value = int(raw_value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError(f"{option_name} must be > 0.") from exc
+        if value <= 0:
+            raise argparse.ArgumentTypeError(f"{option_name} must be > 0.")
+        return value
+
+    return parse

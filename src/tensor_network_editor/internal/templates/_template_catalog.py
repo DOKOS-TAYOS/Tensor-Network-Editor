@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, Literal, cast
 
 from ...types import JSONValue
+from .._logging import log_branch, log_operation
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -475,6 +477,7 @@ _REGISTERED_TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {}
 _REGISTERED_TEMPLATE_BUILDERS: dict[
     str, Callable[[TemplateParameters], NetworkSpec]
 ] = {}
+LOGGER = logging.getLogger(__name__)
 
 
 def _ensure_template_registry_seeded() -> None:
@@ -587,17 +590,31 @@ def get_template_builder(
 
 def list_template_names() -> list[str]:
     """Return the public template names in display order."""
-    _ensure_template_registry_seeded()
-    return list(_REGISTERED_TEMPLATE_DEFINITIONS)
+    with log_operation(LOGGER, "Template list", context={"command": "template.list"}):
+        _ensure_template_registry_seeded()
+        names = list(_REGISTERED_TEMPLATE_DEFINITIONS)
+        log_branch(LOGGER, "Resolved template names", context={"status": len(names)})
+        return names
 
 
 def serialize_template_definitions() -> dict[str, dict[str, JSONValue]]:
     """Serialize all template definitions for the browser bootstrap payload."""
-    _ensure_template_registry_seeded()
-    return {
-        template_name: definition.to_dict()
-        for template_name, definition in _REGISTERED_TEMPLATE_DEFINITIONS.items()
-    }
+    with log_operation(
+        LOGGER,
+        "Template definition serialization",
+        context={"command": "template.list"},
+    ):
+        _ensure_template_registry_seeded()
+        definitions = {
+            template_name: definition.to_dict()
+            for template_name, definition in _REGISTERED_TEMPLATE_DEFINITIONS.items()
+        }
+        log_branch(
+            LOGGER,
+            "Serialized template definitions",
+            context={"status": len(definitions)},
+        )
+        return definitions
 
 
 def get_template_definition(template_name: str) -> TemplateDefinition:

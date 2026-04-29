@@ -123,7 +123,9 @@ export function createPlannerActionSupport({
     if (typeof ctx.setActiveSidebarTab === "function") {
       ctx.setActiveSidebarTab("planner");
     } else if (state.plannerMode && state.contractionAnalysisDirty) {
-      analysisSupport.refreshContractionAnalysis();
+      analysisSupport.refreshContractionAnalysis({
+        refreshReason: "planner_mode",
+      });
     }
     renderPlanner();
     ctx.renderOverlayDecorations();

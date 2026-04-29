@@ -7,12 +7,23 @@ import signal
 import threading
 import webbrowser
 from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from types import FrameType
 from typing import Any
 from uuid import uuid4
 
 from .._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
 from ..codegen.registry import engine_name_to_text
+from ..internal._logging import (
+    DEFAULT_LOG_FILE_BACKUP_COUNT,
+    DEFAULT_LOG_FILE_MAX_BYTES,
+    build_frontend_logging_payload,
+    get_active_logging_runtime,
+    log_branch,
+    log_operation,
+    package_logging_scope,
+    summarize_spec_counts,
+)
 from ..internal.templates._templates import TemplateParameters
 from ..models import (
     CodegenResult,
@@ -97,6 +108,7 @@ class EditorSession:
         self.print_code = print_code
         self.code_path = code_path
         self.draft_path = resolve_project_draft_path(draft_path)
+        self.frontend_logging_payload = build_frontend_logging_payload()
         self._catalog_state = SessionCatalogState.load(
             template_catalog_path=template_catalog_path,
             subnetwork_catalog_path=subnetwork_catalog_path,
@@ -105,10 +117,14 @@ class EditorSession:
         self._finished_event = threading.Event()
         self._result: EditorResult | None = None
         self._lock = threading.Lock()
-        LOGGER.debug(
-            "[session=%s] Initialized editor session with engine '%s'",
-            self.session_id,
-            engine_name_to_text(self.default_engine),
+        log_branch(
+            LOGGER,
+            "Initialized editor session",
+            context={
+                "session": self.session_id,
+                "engine": engine_name_to_text(self.default_engine),
+                **summarize_spec_counts(self.initial_spec),
+            },
         )
 
     @property
@@ -276,17 +292,21 @@ class EditorSession:
         collection_format: TensorCollectionFormat | None = None,
     ) -> CodegenResult:
         """Generate preview code without finalizing the session."""
-        LOGGER.debug(
-            "[session=%s] Generating preview code for engine '%s'",
-            self.session_id,
-            engine_name_to_text(engine),
-        )
-        return generate_session_request(
-            self,
-            serialized_spec,
-            engine,
-            collection_format,
-        )
+        with log_operation(
+            LOGGER,
+            "Session preview generation",
+            context={
+                "session": self.session_id,
+                "engine": engine_name_to_text(engine),
+                "format": collection_format,
+            },
+        ):
+            return generate_session_request(
+                self,
+                serialized_spec,
+                engine,
+                collection_format,
+            )
 
     def complete(
         self,
@@ -295,34 +315,37 @@ class EditorSession:
         collection_format: TensorCollectionFormat | None = None,
     ) -> EditorResult:
         """Finalize the session and store the resulting editor output."""
-        with self._lock:
-            if self._finished_event.is_set() and self._result is not None:
-                LOGGER.debug(
-                    "[session=%s] Ignoring duplicate completion request",
-                    self.session_id,
-                )
-                return self._result
-        LOGGER.info(
-            "[session=%s] Completing editor session with engine '%s'",
-            self.session_id,
-            engine_name_to_text(engine),
-        )
-        result = complete_session_request(
-            self,
-            serialized_spec,
-            engine,
-            collection_format,
-        )
-        with self._lock:
-            if self._finished_event.is_set() and self._result is not None:
-                LOGGER.debug(
-                    "[session=%s] Returning existing completed result",
-                    self.session_id,
-                )
-                return self._result
-            self._result = result
-            self._finished_event.set()
-        return result
+        with log_operation(
+            LOGGER,
+            "Session completion",
+            start_level=logging.INFO,
+            success_level=logging.INFO,
+            context={
+                "session": self.session_id,
+                "engine": engine_name_to_text(engine),
+                "format": collection_format,
+            },
+        ):
+            with self._lock:
+                if self._finished_event.is_set() and self._result is not None:
+                    log_branch(LOGGER, "Duplicate completion request ignored")
+                    return self._result
+            result = complete_session_request(
+                self,
+                serialized_spec,
+                engine,
+                collection_format,
+            )
+            with self._lock:
+                if self._finished_event.is_set() and self._result is not None:
+                    log_branch(
+                        LOGGER,
+                        "Duplicate completion request returned existing result",
+                    )
+                    return self._result
+                self._result = result
+                self._finished_event.set()
+            return result
 
     def build_template(
         self,
@@ -334,16 +357,19 @@ class EditorSession:
 
     def cancel(self) -> None:
         """Cancel the session and unblock any waiter."""
-        LOGGER.info("[session=%s] Cancelling editor session", self.session_id)
-        with self._lock:
-            if self._finished_event.is_set():
-                LOGGER.debug(
-                    "[session=%s] Ignoring cancel request for finished session",
-                    self.session_id,
-                )
-                return
-            self._result = None
-            self._finished_event.set()
+        with log_operation(
+            LOGGER,
+            "Session cancel",
+            start_level=logging.DEBUG,
+            success_level=logging.INFO,
+            context={"session": self.session_id},
+        ):
+            with self._lock:
+                if self._finished_event.is_set():
+                    log_branch(LOGGER, "Cancel request ignored for finished session")
+                    return
+                self._result = None
+                self._finished_event.set()
 
     def wait_for_result(self, timeout: float | None = None) -> EditorResult | None:
         """Wait for the session to finish and return its final result."""
@@ -369,6 +395,9 @@ def launch_editor_session(
     port: int = 0,
     print_code: bool = False,
     code_path: StrPath | None = None,
+    log_file_path: StrPath | None = None,
+    log_file_max_bytes: int = DEFAULT_LOG_FILE_MAX_BYTES,
+    log_file_backup_count: int = DEFAULT_LOG_FILE_BACKUP_COUNT,
     template_catalog_path: StrPath | None = None,
     subnetwork_catalog_path: StrPath | None = None,
     shared_subnetwork_catalog_path: StrPath | None = None,
@@ -388,6 +417,9 @@ def launch_editor_session(
         port: Local port to bind. Use ``0`` for an ephemeral port.
         print_code: Whether to print generated code after confirmation.
         code_path: Optional output path for generated code after confirmation.
+        log_file_path: Optional log file path used for this editor session.
+        log_file_max_bytes: Maximum active log-file size before rotation.
+        log_file_backup_count: Number of rotated log backups to retain.
         template_catalog_path: Optional per-project static template catalog
             path.
         subnetwork_catalog_path: Optional per-project reusable subnetwork
@@ -407,77 +439,145 @@ def launch_editor_session(
     """
     from .server import EditorServer
 
-    session = EditorSession(
-        initial_spec=initial_spec,
-        default_engine=default_engine,
-        default_collection_format=default_collection_format,
-        theme=theme,
-        print_code=print_code,
-        code_path=code_path,
-        template_catalog_path=template_catalog_path,
-        subnetwork_catalog_path=subnetwork_catalog_path,
-        shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
-        draft_path=draft_path,
-    )
-    LOGGER.info("[session=%s] Starting editor session", session.session_id)
-    server = EditorServer(session=session, host=host, port=port)
-    previous_sigint_handler: SignalHandler | int | None = None
-    server_started = False
-
-    try:
-        if threading.current_thread() is threading.main_thread():
-            previous_sigint_handler = signal.getsignal(signal.SIGINT)
-
-            def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
-                """Cancel the session before re-raising Ctrl+C as KeyboardInterrupt."""
-                session.cancel()
-                raise KeyboardInterrupt
-
-            signal.signal(signal.SIGINT, _handle_sigint)
-
-        server.start()
-        server_started = True
-        if _on_server_ready is not None:
-            _on_server_ready(server.base_url)
-        should_print_editor_url = not open_browser
-        should_print_browser_fallback_message = False
-        if open_browser:
-            LOGGER.info(
-                "[session=%s] Opening browser at %s",
-                session.session_id,
-                server.base_url,
-            )
-            try:
-                opened = webbrowser.open(server.base_url)
-            except Exception:  # pragma: no cover - platform dependent browser errors
-                LOGGER.exception(
-                    "[session=%s] Failed to open the system browser for the editor.",
-                    session.session_id,
-                )
-                should_print_editor_url = True
-                should_print_browser_fallback_message = True
-            else:
-                if not opened:
-                    LOGGER.warning(
-                        "[session=%s] Browser open request was not acknowledged.",
-                        session.session_id,
-                    )
-                    should_print_editor_url = True
-                    should_print_browser_fallback_message = True
-        if should_print_browser_fallback_message:
-            _print_browser_open_fallback_message(server.base_url)
-        elif should_print_editor_url:
-            _print_editor_url(server.base_url)
-        return wait_for_editor_result(session)
-    except KeyboardInterrupt:
-        LOGGER.info(
-            "[session=%s] Editor session interrupted by keyboard input",
-            session.session_id,
+    active_logging_runtime = get_active_logging_runtime()
+    logging_scope = (
+        package_logging_scope(
+            active_logging_runtime.level_name
+            if active_logging_runtime is not None
+            else None,
+            log_file_path=log_file_path,
+            log_file_max_bytes=log_file_max_bytes,
+            log_file_backup_count=log_file_backup_count,
+            enable_stderr=False,
         )
-        session.cancel()
-        raise
-    finally:
-        if previous_sigint_handler is not None:
-            signal.signal(signal.SIGINT, previous_sigint_handler)
-        if server_started:
-            server.stop()
+        if _should_open_session_logging_scope(log_file_path, active_logging_runtime)
+        else _NullLoggingScope()
+    )
+
+    with logging_scope:
+        session = EditorSession(
+            initial_spec=initial_spec,
+            default_engine=default_engine,
+            default_collection_format=default_collection_format,
+            theme=theme,
+            print_code=print_code,
+            code_path=code_path,
+            template_catalog_path=template_catalog_path,
+            subnetwork_catalog_path=subnetwork_catalog_path,
+            shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
+            draft_path=draft_path,
+        )
+        server = EditorServer(session=session, host=host, port=port)
+        previous_sigint_handler: SignalHandler | int | None = None
+        server_started = False
+
+        try:
+            with log_operation(
+                LOGGER,
+                "Editor session launch",
+                start_level=logging.INFO,
+                success_level=logging.INFO,
+                context={
+                    "session": session.session_id,
+                    "engine": engine_name_to_text(default_engine),
+                    "mode": theme,
+                },
+            ):
+                if threading.current_thread() is threading.main_thread():
+                    previous_sigint_handler = signal.getsignal(signal.SIGINT)
+
+                    def _handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+                        """Cancel the session before re-raising Ctrl+C as KeyboardInterrupt."""
+                        session.cancel()
+                        raise KeyboardInterrupt
+
+                    signal.signal(signal.SIGINT, _handle_sigint)
+
+                server.start()
+                server_started = True
+                if _on_server_ready is not None:
+                    _on_server_ready(server.base_url)
+                should_print_editor_url = not open_browser
+                should_print_browser_fallback_message = False
+                if open_browser:
+                    try:
+                        with log_operation(
+                            LOGGER,
+                            "Browser open attempt",
+                            start_level=logging.INFO,
+                            success_level=logging.INFO,
+                            failure_level=logging.ERROR,
+                            context={
+                                "session": session.session_id,
+                                "url": server.base_url,
+                            },
+                        ):
+                            opened = webbrowser.open(server.base_url)
+                    except (
+                        Exception
+                    ):  # pragma: no cover - platform dependent browser errors
+                        should_print_editor_url = True
+                        should_print_browser_fallback_message = True
+                    else:
+                        if not opened:
+                            log_branch(
+                                LOGGER,
+                                "Browser open attempt was not acknowledged",
+                                level=logging.WARNING,
+                                context={
+                                    "session": session.session_id,
+                                    "url": server.base_url,
+                                },
+                            )
+                            should_print_editor_url = True
+                            should_print_browser_fallback_message = True
+                if should_print_browser_fallback_message:
+                    _print_browser_open_fallback_message(server.base_url)
+                elif should_print_editor_url:
+                    _print_editor_url(server.base_url)
+                return wait_for_editor_result(session)
+        except KeyboardInterrupt:
+            log_branch(
+                LOGGER,
+                "Editor session interrupted by keyboard input",
+                level=logging.INFO,
+                context={"session": session.session_id},
+            )
+            session.cancel()
+            raise
+        finally:
+            if previous_sigint_handler is not None:
+                signal.signal(signal.SIGINT, previous_sigint_handler)
+            if server_started:
+                server.stop()
+
+
+class _NullLoggingScope:
+    """No-op context manager used when session logging is already active."""
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: object | None,
+    ) -> bool:
+        del exc_type, exc, traceback
+        return False
+
+
+def _should_open_session_logging_scope(
+    log_file_path: StrPath | None,
+    active_logging_runtime: object,
+) -> bool:
+    """Return whether ``launch_editor_session`` should attach its own log scope."""
+    if log_file_path is None:
+        return False
+    if active_logging_runtime is None:
+        return True
+    runtime_log_file_path = getattr(active_logging_runtime, "log_file_path", None)
+    if runtime_log_file_path is None:
+        return True
+    return Path(log_file_path).resolve() != Path(runtime_log_file_path).resolve()

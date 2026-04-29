@@ -9,6 +9,7 @@ import { createSessionTemplateManager } from "./sessionTemplateManager.js";
 export function createSessionTemplateFlows({
   dom,
   state,
+  logger = null,
   store,
   selectors,
   services,
@@ -34,6 +35,12 @@ export function createSessionTemplateFlows({
     (templateManagerList && templateManagerList.ownerDocument)
     || (subnetworkLibraryList && subnetworkLibraryList.ownerDocument)
     || globalThis.document;
+
+  function startFlowOperation(name, context = {}) {
+    return logger && typeof logger.startOperation === "function"
+      ? logger.startOperation(name, context)
+      : null;
+  }
 
   function getGroupById(groupId) {
     return actions.findGroupById(groupId);
@@ -258,11 +265,21 @@ export function createSessionTemplateFlows({
   }
 
   async function saveTemplateByTensorIds(tensorIds, baseDisplayName) {
+    const saveTemplateOperation = startFlowOperation(
+      "Save selection as session template",
+      {
+        operation: "template.session_save",
+        tensor_id_count: Array.isArray(tensorIds) ? tensorIds.length : 0,
+      }
+    );
     const serializedSpec = await extractTemplateSpecByTensorIds(
       tensorIds,
       "Select one or more tensors to save as a template."
     );
     if (!serializedSpec) {
+      saveTemplateOperation?.finish({
+        outcome: "skipped",
+      });
       return;
     }
     const resolvedDisplayName = promptForTemplateDisplayName(
@@ -270,9 +287,16 @@ export function createSessionTemplateFlows({
       "Template save cancelled."
     );
     if (!resolvedDisplayName) {
+      saveTemplateOperation?.finish({
+        outcome: "cancelled",
+      });
       return;
     }
     if (actions.hasTemplateDisplayName(resolvedDisplayName)) {
+      saveTemplateOperation?.finish({
+        outcome: "duplicate",
+        template_name: resolvedDisplayName,
+      });
       actions.setStatus(
         `Template name '${resolvedDisplayName}' is already in use.`,
         "error"
@@ -284,10 +308,18 @@ export function createSessionTemplateFlows({
       spec: serializedSpec,
     });
     if (!addResult.ok) {
+      saveTemplateOperation?.finish({
+        outcome: "error",
+        template_name: resolvedDisplayName,
+      });
       actions.setStatus("Could not save the selected template.", "error");
       return;
     }
     actions.setStatus(`Saved ${resolvedDisplayName} for this session.`, "success");
+    saveTemplateOperation?.finish({
+      outcome: "saved",
+      template_name: resolvedDisplayName,
+    });
   }
 
   async function saveSelectionAsSessionTemplate() {
@@ -403,11 +435,21 @@ export function createSessionTemplateFlows({
 
   async function renameSelectedTemplate() {
     const currentTemplateName = getCurrentTemplateName();
+    const renameOperation = startFlowOperation("Rename selected template", {
+      operation: "template.session_rename",
+      template_name: currentTemplateName,
+    });
     if (!currentTemplateName) {
+      renameOperation?.finish({
+        outcome: "skipped",
+      });
       actions.setStatus("Choose a template first.");
       return;
     }
     if (!selectors.isSessionTemplate(currentTemplateName)) {
+      renameOperation?.finish({
+        outcome: "readonly",
+      });
       actions.setStatus(
         "Built-in and project templates are read-only in this editor.",
         "error"
@@ -422,15 +464,25 @@ export function createSessionTemplateFlows({
       currentEntry ? currentEntry.displayName : ""
     );
     if (typeof nextDisplayName !== "string") {
+      renameOperation?.finish({
+        outcome: "cancelled",
+      });
       actions.setStatus("Template rename cancelled.");
       return;
     }
     const trimmedDisplayName = nextDisplayName.trim();
     if (!trimmedDisplayName) {
+      renameOperation?.finish({
+        outcome: "invalid",
+      });
       actions.setStatus("Template names cannot be empty.", "error");
       return;
     }
     if (actions.hasTemplateDisplayName(trimmedDisplayName, currentTemplateName)) {
+      renameOperation?.finish({
+        outcome: "duplicate",
+        selected_template: trimmedDisplayName,
+      });
       actions.setStatus(
         `Template name '${trimmedDisplayName}' is already in use.`,
         "error"
@@ -444,15 +496,30 @@ export function createSessionTemplateFlows({
       },
     ]);
     actions.setStatus(`Renamed the template to ${trimmedDisplayName}.`, "success");
+    renameOperation?.finish({
+      outcome: "renamed",
+      template_name: currentTemplateName,
+      selected_template: trimmedDisplayName,
+    });
   }
 
   async function deleteSelectedTemplate() {
     const currentTemplateName = getCurrentTemplateName();
+    const deleteOperation = startFlowOperation("Delete selected template", {
+      operation: "template.session_delete",
+      template_name: currentTemplateName,
+    });
     if (!currentTemplateName) {
+      deleteOperation?.finish({
+        outcome: "skipped",
+      });
       actions.setStatus("Choose a template first.");
       return;
     }
     if (!selectors.isSessionTemplate(currentTemplateName)) {
+      deleteOperation?.finish({
+        outcome: "readonly",
+      });
       actions.setStatus(
         "Built-in and project templates are read-only in this editor.",
         "error"
@@ -467,11 +534,18 @@ export function createSessionTemplateFlows({
         `Delete '${currentEntry ? currentEntry.displayName : "this template"}' from this session?`
       )
     ) {
+      deleteOperation?.finish({
+        outcome: "cancelled",
+      });
       actions.setStatus("Template deletion cancelled.");
       return;
     }
     actions.removeSessionTemplate(currentTemplateName);
     actions.setStatus("Deleted the session template.", "success");
+    deleteOperation?.finish({
+      outcome: "deleted",
+      template_name: currentTemplateName,
+    });
   }
 
   async function runSubnetworkCatalogMutation(
@@ -527,7 +601,17 @@ export function createSessionTemplateFlows({
   }
 
   async function saveSubnetworkByTensorIdsToLibrary(tensorIds, baseDisplayName) {
+    const saveSubnetworkOperation = startFlowOperation(
+      "Save selection to subnetwork library",
+      {
+        operation: "subnetwork.library_save",
+        tensor_id_count: Array.isArray(tensorIds) ? tensorIds.length : 0,
+      }
+    );
     if (isForModeActive()) {
+      saveSubnetworkOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(
         "The subnetwork library is only available in normal graph mode.",
         "error"
@@ -535,6 +619,9 @@ export function createSessionTemplateFlows({
       return;
     }
     if (isBenchmarkSchemeView()) {
+      saveSubnetworkOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(
         "The subnetwork library is unavailable while viewing a benchmark scheme.",
         "error"
@@ -542,6 +629,9 @@ export function createSessionTemplateFlows({
       return;
     }
     if (!Array.isArray(tensorIds) || !tensorIds.length) {
+      saveSubnetworkOperation?.finish({
+        outcome: "skipped",
+      });
       actions.setStatus("Select one or more tensors first.");
       return;
     }
@@ -550,13 +640,19 @@ export function createSessionTemplateFlows({
       "Subnetwork library save cancelled."
     );
     if (!naming) {
+      saveSubnetworkOperation?.finish({
+        outcome: "cancelled",
+      });
       return;
     }
     const tags = promptForSubnetworkTags([], "Subnetwork library save cancelled.");
     if (tags === null) {
+      saveSubnetworkOperation?.finish({
+        outcome: "cancelled",
+      });
       return;
     }
-    await runSubnetworkCatalogMutation(
+    const mutationSucceeded = await runSubnetworkCatalogMutation(
       (overwrite) =>
         subnetworkService.saveSubnetworkToLibrary({
           serializedSpec: actions.serializeCurrentSpec({
@@ -572,6 +668,11 @@ export function createSessionTemplateFlows({
         duplicateMessage: `A library entry named '${naming.subnetworkName}' already exists. Overwrite it?`,
       }
     );
+    saveSubnetworkOperation?.finish({
+      outcome: mutationSucceeded ? "saved" : "rejected",
+      subnetwork_name: naming.subnetworkName,
+      tag_count: Array.isArray(tags) ? tags.length : 0,
+    });
   }
 
   async function saveSelectionToSubnetworkLibrary() {
@@ -594,7 +695,17 @@ export function createSessionTemplateFlows({
   }
 
   async function insertSubnetworkFromLibrary(subnetworkName = state.selectedSubnetworkName) {
+    const insertSubnetworkOperation = startFlowOperation(
+      "Insert subnetwork from library",
+      {
+        operation: "subnetwork.library_insert",
+        subnetwork_name: subnetworkName,
+      }
+    );
     if (isForModeActive()) {
+      insertSubnetworkOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(
         "Subnetwork insertion is only available in normal graph mode.",
         "error"
@@ -602,6 +713,9 @@ export function createSessionTemplateFlows({
       return;
     }
     if (isBenchmarkSchemeView()) {
+      insertSubnetworkOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(
         "Subnetwork insertion is unavailable while viewing a benchmark scheme.",
         "error"
@@ -610,6 +724,9 @@ export function createSessionTemplateFlows({
     }
     const entry = getSubnetworkEntryByName(subnetworkName);
     if (!entry) {
+      insertSubnetworkOperation?.finish({
+        outcome: "missing",
+      });
       actions.setStatus("Choose a saved subnetwork first.", "error");
       return;
     }
@@ -631,7 +748,14 @@ export function createSessionTemplateFlows({
         entry.displayName || entry.subnetworkName
       );
       renderSubnetworkLibrary();
+      insertSubnetworkOperation?.finish({
+        outcome: "inserted",
+        subnetwork_name: entry.subnetworkName,
+      });
     } catch (error) {
+      insertSubnetworkOperation?.fail(error, {
+        subnetwork_name: entry.subnetworkName,
+      });
       actions.setStatus(`Could not insert the subnetwork: ${error.message}`, "error");
     }
   }
@@ -754,6 +878,12 @@ export function createSessionTemplateFlows({
   }
 
   function addSelectedSubnetworksToSessionTemplates() {
+    const addOperation = startFlowOperation(
+      "Add selected subnetworks to session templates",
+      {
+        operation: "subnetwork.batch_add_templates",
+      }
+    );
     const selectedEntries = (
       Array.isArray(state.selectedSubnetworkLibraryNames)
         ? state.selectedSubnetworkLibraryNames
@@ -762,6 +892,10 @@ export function createSessionTemplateFlows({
       .map((subnetworkName) => getSubnetworkEntryByName(subnetworkName))
       .filter((entry) => entry && entry.serializedSpec);
     if (!selectedEntries.length) {
+      addOperation?.finish({
+        outcome: "skipped",
+        added_count: 0,
+      });
       actions.setStatus("Select one or more subnetworks first.");
       return;
     }
@@ -782,6 +916,10 @@ export function createSessionTemplateFlows({
       }
     });
     if (!addedCount) {
+      addOperation?.finish({
+        outcome: "error",
+        added_count: 0,
+      });
       actions.setStatus("Could not create session templates from the selection.", "error");
       return;
     }
@@ -790,9 +928,17 @@ export function createSessionTemplateFlows({
     actions.updateToolbarState();
     if (addedCount === 1) {
       actions.setStatus(`Added ${lastAddedDisplayName} to the session templates.`, "success");
+      addOperation?.finish({
+        outcome: "added",
+        added_count: 1,
+      });
       return;
     }
     actions.setStatus(`Added ${addedCount} subnetworks to the session templates.`, "success");
+    addOperation?.finish({
+      outcome: "added",
+      added_count: addedCount,
+    });
   }
 
   function openSubnetworkLibrary() {

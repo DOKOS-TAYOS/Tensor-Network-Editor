@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Sequence
 from typing import Protocol, cast
@@ -16,6 +17,12 @@ from .errors import (
     PackageIOError,
     SerializationError,
     SpecValidationError,
+)
+from .internal._logging import (
+    bind_log_context,
+    format_log_message,
+    log_branch,
+    log_operation,
 )
 from .internal.cli._cli_formatters import (
     print_analysis_text,
@@ -68,6 +75,8 @@ from .templates import (
 )
 from .validation import validate_spec
 
+LOGGER = logging.getLogger(__name__)
+
 
 class _CommandHandler(Protocol):
     """Callable stored on parsed subcommands."""
@@ -113,14 +122,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         parsed_args = cast(
             _CommandNamespace, build_command_parser().parse_args(args_list)
         )
-        selected_log_level = configure_package_logging(parsed_args.log_level)
-        emit_runtime_diagnostics(selected_log_level)
-        return _dispatch_command(parsed_args)
+        command_context = _build_cli_command_context(parsed_args)
+        with configure_package_logging(
+            parsed_args.log_level,
+            log_file_path=parsed_args.log_file,
+            log_file_max_bytes=parsed_args.log_max_bytes,
+            log_file_backup_count=parsed_args.log_backup_count,
+        ) as runtime_config:
+            with bind_log_context(**command_context):
+                with log_operation(LOGGER, "CLI command", context=command_context):
+                    emit_runtime_diagnostics(
+                        runtime_config.level_name
+                        if runtime_config is not None
+                        else None
+                    )
+                    log_branch(
+                        LOGGER,
+                        "Resolved CLI command arguments",
+                        context=_build_cli_debug_context(parsed_args),
+                    )
+                    return _dispatch_command(parsed_args)
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else 2
     except KeyboardInterrupt:
         return 130
     except SpecValidationError as exc:
+        _log_handled_cli_failure(exc)
         print_validation_result(exc.issues, output_format="text")
         return 1
     except (
@@ -130,6 +157,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         SerializationError,
         ValueError,
     ) as exc:
+        _log_handled_cli_failure(exc)
         print(str(exc))
         return 2
 
@@ -137,6 +165,50 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _dispatch_command(args: _CommandNamespace) -> int:
     """Run the command handler stored on the parsed namespace."""
     return args.handler(args)
+
+
+def _build_cli_command_context(args: argparse.Namespace) -> dict[str, object]:
+    command = getattr(args, "command", None)
+    template_command = getattr(args, "template_command", None)
+    subnetwork_command = getattr(args, "subnetwork_command", None)
+    command_name = str(command) if isinstance(command, str) else "unknown"
+    if isinstance(template_command, str):
+        command_name = f"{command_name}.{template_command}"
+    if isinstance(subnetwork_command, str):
+        command_name = f"{command_name}.{subnetwork_command}"
+    context: dict[str, object] = {"command": command_name}
+    path_value = getattr(args, "path", None)
+    if isinstance(path_value, str):
+        context["path"] = path_value
+    return context
+
+
+def _build_cli_debug_context(args: argparse.Namespace) -> dict[str, object]:
+    debug_context: dict[str, object] = {}
+    for field_name in (
+        "engine",
+        "format",
+        "dtype",
+        "python_import_mode",
+        "python_reconstruction_level",
+        "python_object",
+        "output",
+        "save_code",
+    ):
+        value = getattr(args, field_name, None)
+        if value is not None:
+            normalized_field_name = (
+                "output_path" if field_name in {"output", "save_code"} else field_name
+            )
+            debug_context[normalized_field_name] = value
+    return debug_context
+
+
+def _log_handled_cli_failure(exc: Exception) -> None:
+    LOGGER.warning(
+        format_log_message(f"CLI command failed: {exc}", context={"outcome": "error"}),
+        exc_info=LOGGER.isEnabledFor(logging.DEBUG),
+    )
 
 
 def _handle_edit(args: argparse.Namespace) -> int:

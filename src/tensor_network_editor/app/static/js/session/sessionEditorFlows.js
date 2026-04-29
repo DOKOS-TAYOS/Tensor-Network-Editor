@@ -1,6 +1,7 @@
 export function createSessionEditorFlows({
   dom,
   state,
+  logger = null,
   store,
   selectors,
   services,
@@ -11,6 +12,12 @@ export function createSessionEditorFlows({
   const { exportFormatSelect, generatedCode, loadInput } = dom;
   const sessionService = services.session;
   const DRAFT_AUTOSAVE_DELAY_MS = 500;
+
+  function startFlowOperation(name, context = {}) {
+    return logger && typeof logger.startOperation === "function"
+      ? logger.startOperation(name, context)
+      : null;
+  }
 
   function syncGeneratedCodePreview(code) {
     if (typeof actions.syncGeneratedCodePreview === "function") {
@@ -69,12 +76,21 @@ export function createSessionEditorFlows({
 
   function scheduleDraftAutosave() {
     if (!canAutosaveDraft()) {
+      logger?.debug?.("Skipped draft autosave scheduling", {
+        operation: "draft.autosave",
+      });
       return;
     }
     state.draftAutosaveDirty = true;
     if (state.draftAutosaveTimer !== null) {
+      logger?.debug?.("Draft autosave already scheduled", {
+        operation: "draft.autosave",
+      });
       return;
     }
+    logger?.debug?.("Scheduled draft autosave", {
+      operation: "draft.autosave",
+    });
     state.draftAutosaveTimer = sessionUi.schedule(async () => {
       state.draftAutosaveTimer = null;
       if (!state.draftAutosaveDirty || !canAutosaveDraft()) {
@@ -89,7 +105,15 @@ export function createSessionEditorFlows({
   }
 
   async function saveCurrentDraft({ silent = false } = {}) {
+    const saveOperation = startFlowOperation("Save current draft", {
+      operation: "draft.save",
+      engine: selectors.getSelectedEngine(),
+      collection_format: selectors.getSelectedCollectionFormat(),
+    });
     if (!canAutosaveDraft() || state.draftAutosaveSaving) {
+      saveOperation?.finish({
+        outcome: "skipped",
+      });
       return false;
     }
     state.draftAutosaveSaving = true;
@@ -102,8 +126,14 @@ export function createSessionEditorFlows({
       if (!payload.ok && !silent) {
         actions.setStatus(payload.message || "Could not save the local draft.", "error");
       }
+      saveOperation?.finish({
+        outcome: payload.ok ? "saved" : "rejected",
+      });
       return Boolean(payload.ok);
     } catch (error) {
+      saveOperation?.fail(error, {
+        outcome: "error",
+      });
       if (!silent) {
         actions.setStatus(`Could not save the local draft: ${error.message}`, "error");
       }
@@ -114,12 +144,18 @@ export function createSessionEditorFlows({
   }
 
   async function clearSavedDraft({ silent = false, resumeAutosave = true } = {}) {
+    const clearOperation = startFlowOperation("Clear saved draft", {
+      operation: "draft.clear",
+    });
     const wasReady = state.draftAutosaveReady;
     state.draftAutosaveReady = false;
     state.draftAutosaveDirty = false;
     state.draftAutosaveTimer = null;
     if (typeof sessionService.clearDraft !== "function") {
       state.draftAutosaveReady = resumeAutosave && wasReady && !state.editorFinished;
+      clearOperation?.finish({
+        outcome: "unavailable",
+      });
       return true;
     }
     try {
@@ -127,8 +163,14 @@ export function createSessionEditorFlows({
       if (!payload.ok && !silent) {
         actions.setStatus(payload.message || "Could not clear the local draft.", "error");
       }
+      clearOperation?.finish({
+        outcome: payload.ok ? "cleared" : "rejected",
+      });
       return Boolean(payload.ok);
     } catch (error) {
+      clearOperation?.fail(error, {
+        outcome: "error",
+      });
       if (!silent) {
         actions.setStatus(`Could not clear the local draft: ${error.message}`, "error");
       }
@@ -139,16 +181,27 @@ export function createSessionEditorFlows({
   }
 
   async function generateCode() {
+    const generateOperation = startFlowOperation("Generate code", {
+      operation: "generate",
+      engine: selectors.getSelectedEngine(),
+      collection_format: selectors.getSelectedCollectionFormat(),
+    });
     actions.ensureCodePanelVisible();
     actions.syncCodeGenerationWarning();
     const tensorKrowchPlanIssue = actions.getTensorKrowchManualPlanIssueMessage();
     if (tensorKrowchPlanIssue) {
+      generateOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(tensorKrowchPlanIssue, "error");
       return;
     }
     try {
       const payload = await requestGeneratedCode();
       if (!payload.ok) {
+        generateOperation?.finish({
+          outcome: "rejected",
+        });
         showCodeGenerationError(
           payload.message || actions.formatIssues(payload.issues)
         );
@@ -157,12 +210,24 @@ export function createSessionEditorFlows({
       store.setGeneratedCode(actions.stripImportLines(payload.code));
       syncGeneratedCodePreview(state.generatedCode);
       actions.setStatus(`Generated ${payload.engine} code.`, "success");
+      generateOperation?.finish({
+        outcome: "generated",
+        engine: payload.engine,
+      });
     } catch (error) {
+      generateOperation?.fail(error, {
+        outcome: "error",
+      });
       showCodeGenerationError(`Code generation failed: ${error.message}`);
     }
   }
 
   async function completeEditor() {
+    const completeOperation = startFlowOperation("Complete editor", {
+      operation: "complete",
+      engine: selectors.getSelectedEngine(),
+      collection_format: selectors.getSelectedCollectionFormat(),
+    });
     try {
       const payload = await sessionService.completeSession({
         engine: selectors.getSelectedEngine(),
@@ -170,6 +235,9 @@ export function createSessionEditorFlows({
         spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
       });
       if (!payload.ok) {
+        completeOperation?.finish({
+          outcome: "rejected",
+        });
         actions.setStatus(
           payload.message || actions.formatIssues(payload.issues),
           "error"
@@ -185,7 +253,13 @@ export function createSessionEditorFlows({
       sessionUi.schedule(() => {
         sessionUi.closeWindow();
       }, 150);
+      completeOperation?.finish({
+        outcome: "completed",
+      });
     } catch (error) {
+      completeOperation?.fail(error, {
+        outcome: "error",
+      });
       actions.setStatus(
         `Could not finish the editor session: ${error.message}`,
         "error"
@@ -194,6 +268,9 @@ export function createSessionEditorFlows({
   }
 
   async function cancelEditor() {
+    const cancelOperation = startFlowOperation("Cancel editor", {
+      operation: "cancel",
+    });
     try {
       await clearSavedDraft({ silent: true, resumeAutosave: false });
       store.setEditorFinished(true);
@@ -202,7 +279,13 @@ export function createSessionEditorFlows({
       sessionUi.schedule(() => {
         sessionUi.closeWindow();
       }, 150);
+      cancelOperation?.finish({
+        outcome: "cancelled",
+      });
     } catch (error) {
+      cancelOperation?.fail(error, {
+        outcome: "error",
+      });
       actions.setStatus(
         `Could not cancel the editor session: ${error.message}`,
         "error"
@@ -211,6 +294,9 @@ export function createSessionEditorFlows({
   }
 
   function saveDesign() {
+    const saveDesignOperation = startFlowOperation("Save design", {
+      operation: "design.save",
+    });
     sessionUi.downloadText(
       `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.json`,
       JSON.stringify(
@@ -222,6 +308,9 @@ export function createSessionEditorFlows({
     );
     void clearSavedDraft({ silent: true, resumeAutosave: true });
     actions.setStatus("Design downloaded as JSON.");
+    saveDesignOperation?.finish({
+      outcome: "downloaded",
+    });
   }
 
   async function loadDesignFromFile(event) {
@@ -229,6 +318,10 @@ export function createSessionEditorFlows({
     if (!file) {
       return;
     }
+    const loadOperation = startFlowOperation("Load design from file", {
+      operation: "design.load",
+      path: file.name,
+    });
 
     try {
       const fileText = await sessionUi.requestFileText(file, "utf-8");
@@ -258,6 +351,10 @@ export function createSessionEditorFlows({
           })
         : await sessionService.validateSerializedSpec(JSON.parse(fileText));
       if (!response.ok) {
+        loadOperation?.finish({
+          outcome: "rejected",
+          warning_count: Array.isArray(response.warnings) ? response.warnings.length : 0,
+        });
         actions.setStatus(
           response.message || actions.formatIssues(response.issues),
           "error"
@@ -273,7 +370,14 @@ export function createSessionEditorFlows({
         response.spec.schema_version
       );
       scheduleDraftAutosave();
+      loadOperation?.finish({
+        outcome: "loaded",
+        warning_count: Array.isArray(response.warnings) ? response.warnings.length : 0,
+      });
     } catch (error) {
+      loadOperation?.fail(error, {
+        outcome: "error",
+      });
       actions.setStatus(`Could not load ${file.name}: ${error.message}`, "error");
     } finally {
       if (loadInput) {
@@ -303,16 +407,26 @@ export function createSessionEditorFlows({
   }
 
   async function downloadPythonExport() {
+    const pythonExportOperation = startFlowOperation("Download Python export", {
+      operation: "export.python",
+      engine: selectors.getSelectedEngine(),
+    });
     actions.ensureCodePanelVisible();
     actions.syncCodeGenerationWarning();
     const tensorKrowchPlanIssue = actions.getTensorKrowchManualPlanIssueMessage();
     if (tensorKrowchPlanIssue) {
+      pythonExportOperation?.finish({
+        outcome: "blocked",
+      });
       actions.setStatus(tensorKrowchPlanIssue, "error");
       return;
     }
     try {
       const payload = await requestGeneratedCode();
       if (!payload.ok) {
+        pythonExportOperation?.finish({
+          outcome: "rejected",
+        });
         showCodeGenerationError(
           payload.message || actions.formatIssues(payload.issues)
         );
@@ -326,7 +440,14 @@ export function createSessionEditorFlows({
         "text/x-python;charset=utf-8"
       );
       actions.setStatus(`Exported ${payload.engine} Python code.`, "success");
+      pythonExportOperation?.finish({
+        outcome: "downloaded",
+        engine: payload.engine,
+      });
     } catch (error) {
+      pythonExportOperation?.fail(error, {
+        outcome: "error",
+      });
       showCodeGenerationError(`Could not export Python code: ${error.message}`);
     }
   }
@@ -362,6 +483,10 @@ export function createSessionEditorFlows({
   }
 
   async function downloadAcademicExport(format) {
+    const exportOperation = startFlowOperation("Download academic export", {
+      operation: "export.academic",
+      format,
+    });
     const exportDetails = {
       svg: {
         extension: "svg",
@@ -395,6 +520,9 @@ export function createSessionEditorFlows({
       },
     }[format];
     if (!exportDetails) {
+      exportOperation?.finish({
+        outcome: "unsupported",
+      });
       actions.setStatus(`Unsupported export format: ${format}`, "error");
       return;
     }
@@ -408,8 +536,16 @@ export function createSessionEditorFlows({
           format === "png" &&
           await tryDownloadPngViaSvgFallback(filename)
         ) {
+          exportOperation?.finish({
+            outcome: "downloaded",
+            format,
+          });
           return;
         }
+        exportOperation?.finish({
+          outcome: "rejected",
+          format,
+        });
         actions.setStatus(
           payload.message || actions.formatIssues(payload.issues),
           "error"
@@ -431,13 +567,25 @@ export function createSessionEditorFlows({
         );
       }
       actions.setStatus(`Exported a ${exportDetails.label} file.`, "success");
+      exportOperation?.finish({
+        outcome: "downloaded",
+        format,
+      });
     } catch (error) {
       if (
         format === "png" &&
         await tryDownloadPngViaSvgFallback(filename).catch(() => false)
       ) {
+        exportOperation?.finish({
+          outcome: "downloaded",
+          format,
+        });
         return;
       }
+      exportOperation?.fail(error, {
+        outcome: "error",
+        format,
+      });
       actions.setStatus(
         `Could not export ${exportDetails.label}: ${error.message}`,
         "error"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Literal, cast
 
@@ -13,6 +14,14 @@ from ..errors import (
     PackageIOError,
     SerializationError,
     SpecValidationError,
+)
+from ..internal._logging import (
+    FRONTEND_LOGGER_NAME,
+    format_log_message,
+    log_branch,
+    log_operation,
+    summarize_contraction_analysis,
+    summarize_spec_counts,
 )
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io import deserialize_spec, serialize_spec
@@ -71,82 +80,171 @@ from ._services import (
 from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
+FRONTEND_LOGGER = logging.getLogger(FRONTEND_LOGGER_NAME)
+_FRONTEND_CLIENT_LOG_LEVELS: dict[str, int] = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+}
+_MAX_FRONTEND_CLIENT_LOG_EVENTS = 200
+_MAX_FRONTEND_CLIENT_LOG_MESSAGE_LENGTH = 400
+_MAX_FRONTEND_CLIENT_LOG_CONTEXT_VALUE_LENGTH = 200
+
+
+@dataclass(slots=True, frozen=True)
+class _FrontendClientLogEvent:
+    """Validated frontend log event ready for persistence."""
+
+    level: str
+    message: str
+    context: dict[str, object]
+
+
+def _route_context(
+    session: EditorSession | None,
+    route: str,
+    **extra: object,
+) -> dict[str, object]:
+    """Build the shared logging context for one editor route."""
+    context: dict[str, object] = {"route": route}
+    if session is not None:
+        context["session"] = session.session_id
+    context.update(extra)
+    return context
 
 
 def handle_bootstrap(session: EditorSession) -> JsonResponse:
     """Return the bootstrap payload used by the browser client."""
-    return HTTPStatus.OK, build_bootstrap_payload(session)
+    with log_operation(
+        LOGGER,
+        "Bootstrap route",
+        context=_route_context(session, "/api/bootstrap"),
+    ) as success_context:
+        payload = build_bootstrap_payload(session)
+        success_context["template_count"] = len(
+            cast(dict[str, object], payload["template_definitions"])
+        )
+        success_context["warning_count"] = len(
+            cast(list[object], payload["template_catalog_warnings"])
+        ) + len(cast(list[object], payload["subnetwork_catalog_warnings"]))
+        return HTTPStatus.OK, payload
 
 
 def handle_draft_load(session: EditorSession) -> JsonResponse:
     """Return the active project draft when one has been saved."""
-    try:
-        draft = load_project_draft(session.draft_path)
-    except ValueError as exc:
-        return bad_request_response(str(exc))
-    return ok_response({"draft": cast(JSONValue, draft)})
+    with log_operation(
+        LOGGER,
+        "Draft load route",
+        context=_route_context(session, "/api/draft", path=session.draft_path),
+    ) as success_context:
+        try:
+            draft = load_project_draft(session.draft_path)
+        except ValueError as exc:
+            log_branch(
+                LOGGER,
+                f"Draft load route rejected payload: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        success_context["status"] = "loaded" if draft is not None else "missing"
+        return ok_response({"draft": cast(JSONValue, draft)})
 
 
 def handle_draft_save(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Persist the active browser editor draft for later recovery."""
-    try:
-        request = parse_codegen_request(
-            payload,
-            default_engine=session.default_engine,
-            default_collection_format=session.default_collection_format,
-        )
-        draft = save_project_draft(
-            session.draft_path,
-            serialized_spec=request.serialized_spec,
-            engine=request.engine,
-            collection_format=request.collection_format,
-        )
-    except ValueError as exc:
-        return bad_request_response(str(exc))
-    return ok_response({"draft": cast(JSONValue, draft)})
+    with log_operation(
+        LOGGER,
+        "Draft save route",
+        context=_route_context(session, "/api/draft", path=session.draft_path),
+    ) as success_context:
+        try:
+            request = parse_codegen_request(
+                payload,
+                default_engine=session.default_engine,
+                default_collection_format=session.default_collection_format,
+            )
+            draft = save_project_draft(
+                session.draft_path,
+                serialized_spec=request.serialized_spec,
+                engine=request.engine,
+                collection_format=request.collection_format,
+            )
+        except ValueError as exc:
+            log_branch(
+                LOGGER,
+                f"Draft save route rejected payload: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        success_context["status"] = "saved"
+        success_context["engine"] = request.engine
+        success_context["format"] = request.collection_format
+        return ok_response({"draft": cast(JSONValue, draft)})
 
 
 def handle_draft_clear(session: EditorSession) -> JsonResponse:
     """Clear the active project draft after an explicit user action."""
-    clear_project_draft(session.draft_path)
-    return ok_response()
+    with log_operation(
+        LOGGER,
+        "Draft clear route",
+        context=_route_context(session, "/api/draft/clear", path=session.draft_path),
+    ):
+        clear_project_draft(session.draft_path)
+        return ok_response()
 
 
 def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Validate a serialized spec or supported Python source payload."""
     session_id = session.session_id
-    try:
-        validation_request = deserialize_validation_request(payload)
-        spec = validation_request.spec
-    except SerializationError as exc:
-        LOGGER.warning(
-            "[session=%s] Validation request contained malformed spec payload: %s",
-            session_id,
-            exc,
+    with log_operation(
+        LOGGER,
+        "Validate route",
+        context={"session": session_id, "route": "/api/validate"},
+    ):
+        try:
+            validation_request = deserialize_validation_request(payload)
+            spec = validation_request.spec
+        except SerializationError as exc:
+            log_branch(
+                LOGGER,
+                f"Validation request contained malformed spec payload: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        except SpecValidationError as exc:
+            return issues_response(exc.issues)
+        except ValueError:
+            log_branch(
+                LOGGER,
+                "Validation request missing 'spec' or 'python_code' payload.",
+                level=logging.WARNING,
+            )
+            return bad_request_response("Missing 'spec' or 'python_code' payload.")
+        issues = validate_spec(spec)
+        if issues:
+            log_branch(
+                LOGGER,
+                "Validation completed with issues",
+                context={"status": len(issues), **summarize_spec_counts(spec)},
+            )
+            status, response = issues_response(issues)
+            response["spec"] = serialize_spec_payload(spec)
+            if validation_request.warnings:
+                response["warnings"] = cast(JSONValue, validation_request.warnings)
+            return status, response
+        log_branch(
+            LOGGER,
+            "Validation completed without issues",
+            context=summarize_spec_counts(spec),
         )
-        return bad_request_response(str(exc))
-    except SpecValidationError as exc:
-        return issues_response(exc.issues)
-    except ValueError:
-        LOGGER.warning(
-            "[session=%s] Validation request missing 'spec' or 'python_code' payload.",
-            session_id,
-        )
-        return bad_request_response("Missing 'spec' or 'python_code' payload.")
-    issues = validate_spec(spec)
-    if issues:
-        status, response = issues_response(issues)
-        response["spec"] = serialize_spec_payload(spec)
+        response_payload: JsonDict = {
+            "issues": [],
+            "spec": serialize_spec_payload(spec),
+        }
         if validation_request.warnings:
-            response["warnings"] = cast(JSONValue, validation_request.warnings)
-        return status, response
-    response_payload: JsonDict = {
-        "issues": [],
-        "spec": serialize_spec_payload(spec),
-    }
-    if validation_request.warnings:
-        response_payload["warnings"] = cast(JSONValue, validation_request.warnings)
-    return ok_response(response_payload)
+            response_payload["warnings"] = cast(JSONValue, validation_request.warnings)
+        return ok_response(response_payload)
 
 
 def handle_generate(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -158,10 +256,11 @@ def handle_generate(session: EditorSession, payload: JsonDict) -> JsonResponse:
     )
     message = response.get("message")
     if response.get("ok") is False and isinstance(message, str):
-        LOGGER.warning(
-            "[session=%s] Generate request rejected: %s",
-            session.session_id,
-            message,
+        log_branch(
+            LOGGER,
+            f"Generate route rejected request: {message}",
+            level=logging.WARNING,
+            context=_route_context(session, "/api/generate"),
         )
     return status, response
 
@@ -175,123 +274,170 @@ def handle_complete(session: EditorSession, payload: JsonDict) -> JsonResponse:
     )
     message = response.get("message")
     if response.get("ok") is False and isinstance(message, str):
-        LOGGER.warning(
-            "[session=%s] Complete request rejected: %s",
-            session.session_id,
-            message,
+        log_branch(
+            LOGGER,
+            f"Complete route rejected request: {message}",
+            level=logging.WARNING,
+            context=_route_context(session, "/api/complete"),
         )
     return status, response
 
 
 def handle_cancel(session: EditorSession) -> JsonResponse:
     """Cancel the current editor session."""
-    session.cancel()
-    return ok_response()
+    with log_operation(
+        LOGGER,
+        "Cancel route",
+        context=_route_context(session, "/api/cancel"),
+    ):
+        session.cancel()
+        return ok_response()
+
+
+def handle_client_log(session: EditorSession, payload: JsonDict) -> JsonResponse:
+    """Persist one batch of frontend log events for the current editor session."""
+    with log_operation(
+        LOGGER,
+        "Frontend client log route",
+        context=_route_context(session, "/api/client-log"),
+    ) as success_context:
+        try:
+            events = _parse_frontend_client_log_events(
+                payload,
+                session_id=session.session_id,
+            )
+        except ValueError as exc:
+            log_branch(
+                LOGGER,
+                f"Frontend client log route rejected payload: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        for event in events:
+            FRONTEND_LOGGER.log(
+                _FRONTEND_CLIENT_LOG_LEVELS[event.level],
+                format_log_message(event.message, context=event.context),
+            )
+        success_context["event_count"] = len(events)
+        return ok_response()
 
 
 def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Render the current editor payload to an academic text format."""
     del session
-    try:
-        render_format = _resolve_render_format(payload)
-        serialized_spec = require_serialized_spec(payload)
-        spec = deserialize_spec(serialized_spec, validate=False)
-        svg_options = SvgRenderOptions(
-            show_tensor_labels=require_boolean(
-                payload, "show_tensor_names", default=True
-            ),
-            show_index_labels=require_boolean(
-                payload, "show_index_names", default=True
-            ),
-            show_edge_labels=require_boolean(payload, "show_bond_names", default=True),
-        )
-        if render_format == "tikz":
-            text = render_spec_tikz(
-                spec,
-                options=TikzRenderOptions(
-                    show_tensor_labels=require_boolean(
-                        payload, "show_tensor_names", default=True
-                    ),
-                    show_index_labels=require_boolean(
-                        payload, "show_index_names", default=True
-                    ),
-                    show_edge_labels=require_boolean(
-                        payload, "show_bond_names", default=True
-                    ),
+    with log_operation(
+        LOGGER, "Render route", context={"route": "/api/render"}
+    ) as success_context:
+        try:
+            render_format = _resolve_render_format(payload)
+            serialized_spec = require_serialized_spec(payload)
+            spec = deserialize_spec(serialized_spec, validate=False)
+            success_context["format"] = render_format
+            success_context.update(summarize_spec_counts(spec))
+            svg_options = SvgRenderOptions(
+                show_tensor_labels=require_boolean(
+                    payload, "show_tensor_names", default=True
+                ),
+                show_index_labels=require_boolean(
+                    payload, "show_index_names", default=True
+                ),
+                show_edge_labels=require_boolean(
+                    payload, "show_bond_names", default=True
                 ),
             )
-            content_type = "text/x-tex;charset=utf-8"
-            response_payload: JsonDict = {
-                "format": render_format,
-                "text": text,
-                "content_type": content_type,
-            }
-        elif render_format == "dot":
-            text = render_spec_dot(
-                spec,
-                options=DotRenderOptions(
-                    show_tensor_labels=require_boolean(
-                        payload, "show_tensor_names", default=True
+            if render_format == "tikz":
+                text = render_spec_tikz(
+                    spec,
+                    options=TikzRenderOptions(
+                        show_tensor_labels=require_boolean(
+                            payload, "show_tensor_names", default=True
+                        ),
+                        show_index_labels=require_boolean(
+                            payload, "show_index_names", default=True
+                        ),
+                        show_edge_labels=require_boolean(
+                            payload, "show_bond_names", default=True
+                        ),
                     ),
-                    show_index_labels=require_boolean(
-                        payload, "show_index_names", default=True
+                )
+                content_type = "text/x-tex;charset=utf-8"
+                response_payload: JsonDict = {
+                    "format": render_format,
+                    "text": text,
+                    "content_type": content_type,
+                }
+            elif render_format == "dot":
+                text = render_spec_dot(
+                    spec,
+                    options=DotRenderOptions(
+                        show_tensor_labels=require_boolean(
+                            payload, "show_tensor_names", default=True
+                        ),
+                        show_index_labels=require_boolean(
+                            payload, "show_index_names", default=True
+                        ),
+                        show_edge_labels=require_boolean(
+                            payload, "show_bond_names", default=True
+                        ),
                     ),
-                    show_edge_labels=require_boolean(
-                        payload, "show_bond_names", default=True
-                    ),
-                ),
-            )
-            content_type = "text/vnd.graphviz;charset=utf-8"
-            response_payload = {
-                "format": render_format,
-                "text": text,
-                "content_type": content_type,
-            }
-        elif render_format == "svg":
-            text = render_spec_svg(spec, options=svg_options)
-            response_payload = {
-                "format": render_format,
-                "text": text,
-                "content_type": "image/svg+xml;charset=utf-8",
-            }
-        elif render_format == "png":
-            binary = render_spec_png(spec, options=svg_options)
-            response_payload = {
-                "format": render_format,
-                "base64": base64.b64encode(binary).decode("ascii"),
-                "content_type": "image/png",
-            }
-        else:
-            binary = render_spec_pdf(spec, options=svg_options)
-            response_payload = {
-                "format": render_format,
-                "base64": base64.b64encode(binary).decode("ascii"),
-                "content_type": "application/pdf",
-            }
-    except ValueError as exc:
-        return bad_request_response(str(exc))
-    except SerializationError as exc:
-        return bad_request_response(str(exc))
-    except SpecValidationError as exc:
-        return issues_response(exc.issues)
-    return ok_response(response_payload)
+                )
+                content_type = "text/vnd.graphviz;charset=utf-8"
+                response_payload = {
+                    "format": render_format,
+                    "text": text,
+                    "content_type": content_type,
+                }
+            elif render_format == "svg":
+                text = render_spec_svg(spec, options=svg_options)
+                response_payload = {
+                    "format": render_format,
+                    "text": text,
+                    "content_type": "image/svg+xml;charset=utf-8",
+                }
+            elif render_format == "png":
+                binary = render_spec_png(spec, options=svg_options)
+                response_payload = {
+                    "format": render_format,
+                    "base64": base64.b64encode(binary).decode("ascii"),
+                    "content_type": "image/png",
+                }
+            else:
+                binary = render_spec_pdf(spec, options=svg_options)
+                response_payload = {
+                    "format": render_format,
+                    "base64": base64.b64encode(binary).decode("ascii"),
+                    "content_type": "application/pdf",
+                }
+        except ValueError as exc:
+            return bad_request_response(str(exc))
+        except SerializationError as exc:
+            return bad_request_response(str(exc))
+        except SpecValidationError as exc:
+            return issues_response(exc.issues)
+        return ok_response(response_payload)
 
 
 def handle_template(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Build a template spec from the requested template payload."""
     try:
         template_name = require_non_empty_string(payload, "template")
-        parameters = payload.get("parameters")
-        return _handle_spec_response(
-            lambda: build_template_from_payload(
-                session,
-                template_name,
-                parameters,
-            ),
-            handled_exceptions=(ValueError,),
-        )
     except ValueError as exc:
         return bad_request_response(str(exc))
+    parameters = payload.get("parameters")
+    return _handle_spec_response(
+        lambda: build_template_from_payload(
+            session,
+            template_name,
+            parameters,
+        ),
+        handled_exceptions=(ValueError,),
+        operation_name="Template route",
+        context=_route_context(
+            session,
+            "/api/template",
+            template_name=template_name,
+        ),
+    )
 
 
 def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonResponse:
@@ -299,6 +445,8 @@ def handle_template_promote(session: EditorSession, payload: JsonDict) -> JsonRe
     return _handle_catalog_response(
         lambda: _build_promoted_template_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, SerializationError, TypeError, ValueError),
+        operation_name="Template promote route",
+        context=_route_context(session, "/api/template/promote"),
     )
 
 
@@ -307,6 +455,8 @@ def handle_template_rename(session: EditorSession, payload: JsonDict) -> JsonRes
     return _handle_catalog_response(
         lambda: _build_renamed_template_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, ValueError),
+        operation_name="Template rename route",
+        context=_route_context(session, "/api/template/rename"),
     )
 
 
@@ -315,6 +465,8 @@ def handle_template_delete(session: EditorSession, payload: JsonDict) -> JsonRes
     return _handle_catalog_response(
         lambda: _build_deleted_template_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, ValueError),
+        operation_name="Template delete route",
+        context=_route_context(session, "/api/template/delete"),
     )
 
 
@@ -323,38 +475,60 @@ def handle_analyze_contraction(
 ) -> JsonResponse:
     """Analyze contraction information for a validated serialized spec."""
     session_id = session.session_id
-    try:
-        serialized_spec = require_serialized_spec(payload)
-    except ValueError:
-        LOGGER.warning(
-            "[session=%s] Contraction analysis request missing 'spec' payload.",
-            session_id,
-        )
-        return bad_request_response("Missing 'spec' payload.")
+    with log_operation(
+        LOGGER,
+        "Analyze contraction route",
+        context={"session": session_id, "route": "/api/analyze-contraction"},
+    ) as success_context:
+        try:
+            serialized_spec = require_serialized_spec(payload)
+        except ValueError:
+            log_branch(
+                LOGGER,
+                "Contraction analysis request missing 'spec' payload.",
+                level=logging.WARNING,
+            )
+            return bad_request_response("Missing 'spec' payload.")
 
-    try:
-        result = analyze_serialized_contraction(serialized_spec)
-    except SerializationError as exc:
-        LOGGER.warning(
-            "[session=%s] Contraction analysis request contained malformed spec: %s",
-            session_id,
-            exc,
-        )
-        return bad_request_response(str(exc))
-    except SpecValidationError as exc:
-        return issues_response(exc.issues)
+        try:
+            result = analyze_serialized_contraction(serialized_spec)
+        except SerializationError as exc:
+            log_branch(
+                LOGGER,
+                f"Contraction analysis request contained malformed spec: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        except SpecValidationError as exc:
+            log_branch(
+                LOGGER,
+                "Contraction analysis completed with validation issues",
+                level=logging.WARNING,
+                context={
+                    "analysis_status": "issues",
+                    "issue_count": len(exc.issues),
+                },
+            )
+            return issues_response(exc.issues)
 
-    return ok_response(_serialize_contraction_analysis_result(result))
+        success_context.update(
+            {
+                "memory_dtype": result.memory_dtype,
+                **summarize_contraction_analysis(result),
+            }
+        )
+        return ok_response(_serialize_contraction_analysis_result(result))
 
 
 def handle_subnetwork_extract(
     session: EditorSession, payload: JsonDict
 ) -> JsonResponse:
     """Extract a reusable subnetwork fragment from the current graph."""
-    del session
     return _handle_spec_response(
         lambda: _extract_subnetwork_spec(payload),
         handled_exceptions=(SerializationError, TypeError, ValueError),
+        operation_name="Subnetwork extract route",
+        context=_route_context(session, "/api/subnetwork/extract"),
     )
 
 
@@ -362,10 +536,11 @@ def handle_subnetwork_prepare_insert(
     session: EditorSession, payload: JsonDict
 ) -> JsonResponse:
     """Prepare one saved fragment for insertion into the current design."""
-    del session
     return _handle_spec_response(
         lambda: _prepare_subnetwork_insert_spec(payload),
         handled_exceptions=(SerializationError, TypeError, ValueError),
+        operation_name="Subnetwork prepare-insert route",
+        context=_route_context(session, "/api/subnetwork/prepare-insert"),
     )
 
 
@@ -377,6 +552,8 @@ def handle_subnetwork_library_save(
     return _handle_catalog_response(
         lambda: _build_saved_subnetwork_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, SerializationError, TypeError, ValueError),
+        operation_name="Subnetwork library save route",
+        context=_route_context(session, "/api/subnetwork-library/save"),
     )
 
 
@@ -388,6 +565,8 @@ def handle_subnetwork_library_rename(
     return _handle_catalog_response(
         lambda: _build_renamed_subnetwork_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, ValueError),
+        operation_name="Subnetwork library rename route",
+        context=_route_context(session, "/api/subnetwork-library/rename"),
     )
 
 
@@ -399,6 +578,8 @@ def handle_subnetwork_library_delete(
     return _handle_catalog_response(
         lambda: _build_deleted_subnetwork_catalog_payload(session, payload),
         handled_exceptions=(PackageIOError, ValueError),
+        operation_name="Subnetwork library delete route",
+        context=_route_context(session, "/api/subnetwork-library/delete"),
     )
 
 
@@ -410,6 +591,8 @@ def handle_subnetwork_library_prepare_insert(
     return _handle_spec_response(
         lambda: _prepare_saved_subnetwork_insert_spec(session, payload),
         handled_exceptions=(SerializationError, TypeError, ValueError),
+        operation_name="Subnetwork library prepare-insert route",
+        context=_route_context(session, "/api/subnetwork-library/prepare-insert"),
     )
 
 
@@ -417,26 +600,51 @@ def _handle_spec_response(
     build_spec: Callable[[], NetworkSpec],
     *,
     handled_exceptions: tuple[type[Exception], ...],
+    operation_name: str,
+    context: dict[str, object] | None = None,
 ) -> JsonResponse:
     """Return a serialized-spec response for one route callback."""
-    try:
-        spec = build_spec()
-    except handled_exceptions as exc:
-        return bad_request_response(str(exc))
-    return ok_response({"spec": serialize_spec(spec)})
+    with log_operation(
+        LOGGER, operation_name, context=context or {}
+    ) as success_context:
+        try:
+            spec = build_spec()
+        except handled_exceptions as exc:
+            log_branch(
+                LOGGER,
+                f"{operation_name} rejected request: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        success_context.update(summarize_spec_counts(spec))
+        return ok_response({"spec": serialize_spec(spec)})
 
 
 def _handle_catalog_response(
     build_catalog_payload: Callable[[], JsonDict],
     *,
     handled_exceptions: tuple[type[Exception], ...],
+    operation_name: str,
+    context: dict[str, object] | None = None,
 ) -> JsonResponse:
     """Return a catalog payload response for one route callback."""
-    try:
-        catalog_payload = build_catalog_payload()
-    except handled_exceptions as exc:
-        return bad_request_response(str(exc))
-    return ok_response(catalog_payload)
+    with log_operation(
+        LOGGER, operation_name, context=context or {}
+    ) as success_context:
+        try:
+            catalog_payload = build_catalog_payload()
+        except handled_exceptions as exc:
+            log_branch(
+                LOGGER,
+                f"{operation_name} rejected request: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        success_context["selected_template"] = catalog_payload.get("selected_template")
+        success_context["selected_subnetwork"] = catalog_payload.get(
+            "selected_subnetwork"
+        )
+        return ok_response(catalog_payload)
 
 
 def _build_promoted_template_catalog_payload(
@@ -625,3 +833,65 @@ def _serialize_contraction_analysis_result(
 ) -> JsonDict:
     """Serialize a contraction analysis result for the API."""
     return result.to_dict()
+
+
+def _parse_frontend_client_log_events(
+    payload: JsonDict,
+    *,
+    session_id: str,
+) -> list[_FrontendClientLogEvent]:
+    """Validate and normalize one frontend log batch payload."""
+    raw_events = payload.get("events")
+    if not isinstance(raw_events, list):
+        raise ValueError("Missing 'events' payload.")
+    if len(raw_events) > _MAX_FRONTEND_CLIENT_LOG_EVENTS:
+        raise ValueError("Frontend log batch exceeds the maximum event count.")
+
+    events: list[_FrontendClientLogEvent] = []
+    for index, raw_event in enumerate(raw_events):
+        if not isinstance(raw_event, dict):
+            raise ValueError(f"Frontend log event {index} must be an object.")
+        raw_level = raw_event.get("level")
+        if not isinstance(raw_level, str) or raw_level.strip().lower() not in (
+            _FRONTEND_CLIENT_LOG_LEVELS
+        ):
+            raise ValueError(
+                f"Frontend log event {index} has an unsupported 'level' value."
+            )
+        raw_message = raw_event.get("message")
+        if not isinstance(raw_message, str) or not raw_message.strip():
+            raise ValueError(f"Frontend log event {index} is missing a 'message'.")
+        raw_context = raw_event.get("context", {})
+        if not isinstance(raw_context, dict):
+            raise ValueError(f"Frontend log event {index} has an invalid 'context'.")
+        context: dict[str, object] = {"session": session_id}
+        for key, value in raw_context.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError(
+                    f"Frontend log event {index} contains an invalid context key."
+                )
+            context[key.strip()] = _truncate_frontend_client_log_value(value)
+        events.append(
+            _FrontendClientLogEvent(
+                level=raw_level.strip().lower(),
+                message=_truncate_frontend_client_log_message(raw_message),
+                context=context,
+            )
+        )
+    return events
+
+
+def _truncate_frontend_client_log_message(message: str) -> str:
+    """Clamp one frontend log message to a readable persistence length."""
+    stripped_message = message.strip()
+    if len(stripped_message) <= _MAX_FRONTEND_CLIENT_LOG_MESSAGE_LENGTH:
+        return stripped_message
+    return f"{stripped_message[: _MAX_FRONTEND_CLIENT_LOG_MESSAGE_LENGTH - 3]}..."
+
+
+def _truncate_frontend_client_log_value(value: object) -> str:
+    """Clamp one frontend log context value before persistence."""
+    value_text = str(value)
+    if len(value_text) <= _MAX_FRONTEND_CLIENT_LOG_CONTEXT_VALUE_LENGTH:
+        return value_text
+    return f"{value_text[: _MAX_FRONTEND_CLIENT_LOG_CONTEXT_VALUE_LENGTH - 3]}..."

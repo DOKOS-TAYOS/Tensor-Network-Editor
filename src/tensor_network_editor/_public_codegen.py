@@ -8,6 +8,7 @@ from pathlib import Path, PureWindowsPath
 
 from .codegen.registry import engine_name_to_text
 from .codegen.registry import generate_code as _generate_code
+from .internal._logging import log_branch, log_operation, summarize_spec_counts
 from .internal.io._io import write_utf8_text
 from .models import (
     CodegenResult,
@@ -31,33 +32,30 @@ def generate_code(
     external_data_base_path: StrPath | None = None,
 ) -> CodegenResult:
     """Generate Python code for one tensor-network specification."""
-    LOGGER.info(
-        "Generating %s code for network '%s'",
-        engine_name_to_text(engine),
-        spec.name,
-    )
-    codegen_spec = _with_resolved_external_data_paths(
-        spec,
-        external_data_base_path=external_data_base_path,
-    )
-    result = _generate_code(codegen_spec, engine, collection_format=collection_format)
-    if print_code:
-        LOGGER.debug(
-            "Printing generated %s code to stdout", engine_name_to_text(engine)
+    context = {
+        "engine": engine_name_to_text(engine),
+        "output_path": output_path,
+        **summarize_spec_counts(spec),
+    }
+    with log_operation(LOGGER, "Code generation", context=context):
+        codegen_spec = _with_resolved_external_data_paths(
+            spec,
+            external_data_base_path=external_data_base_path,
         )
-        print(result.code)
-    if output_path is not None:
-        LOGGER.debug(
-            "Writing generated %s code to %s",
-            engine_name_to_text(engine),
-            output_path,
+        result = _generate_code(
+            codegen_spec, engine, collection_format=collection_format
         )
-        write_utf8_text(
-            output_path,
-            result.code,
-            description="generated Python code",
-        )
-    return result
+        if print_code:
+            log_branch(LOGGER, "Printing generated code to stdout")
+            print(result.code)
+        if output_path is not None:
+            log_branch(LOGGER, "Writing generated code to disk")
+            write_utf8_text(
+                output_path,
+                result.code,
+                description="generated Python code",
+            )
+        return result
 
 
 def _with_resolved_external_data_paths(

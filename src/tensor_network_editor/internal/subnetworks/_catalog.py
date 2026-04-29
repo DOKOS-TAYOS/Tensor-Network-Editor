@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,10 +14,12 @@ from ...errors import PackageIOError, SerializationError
 from ...models import NetworkSpec
 from ...types import JSONValue, StrPath
 from ...validation import ensure_valid_spec
+from .._logging import log_branch, log_operation
 from ..io._io import read_utf8_text, write_utf8_text
 from ..io._serialization import deserialize_spec, serialize_spec
 
 SUBNETWORK_CATALOG_SCHEMA_VERSION = 1
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -93,73 +96,94 @@ def load_project_subnetwork_catalog(
 ) -> SubnetworkCatalog:
     """Load the reusable-subnetwork catalog from disk."""
     catalog_path = resolve_project_subnetwork_catalog_path(subnetwork_catalog_path)
-    if not catalog_path.exists():
-        return SubnetworkCatalog(path=catalog_path, entries={}, warnings=[])
+    with log_operation(
+        LOGGER,
+        "Reusable subnetwork catalog load",
+        context={"path": catalog_path},
+        emit_start=False,
+    ) as success_context:
+        if not catalog_path.exists():
+            success_context["status"] = "missing"
+            log_branch(LOGGER, "Reusable subnetwork catalog not found on disk")
+            return SubnetworkCatalog(path=catalog_path, entries={}, warnings=[])
 
-    try:
-        payload = json.loads(
-            read_utf8_text(
-                catalog_path,
-                description="reusable subnetwork catalog JSON",
-            )
-        )
-    except PackageIOError as exc:
-        return SubnetworkCatalog(path=catalog_path, entries={}, warnings=[str(exc)])
-    except json.JSONDecodeError as exc:
-        return SubnetworkCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Could not parse the reusable subnetwork catalog at '{catalog_path}': {exc.msg}"
-            ],
-        )
-
-    if not isinstance(payload, dict):
-        return SubnetworkCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Reusable subnetwork catalog '{catalog_path}' must contain a JSON object."
-            ],
-        )
-
-    schema_version = payload.get("schema_version")
-    if schema_version != SUBNETWORK_CATALOG_SCHEMA_VERSION:
-        return SubnetworkCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=["Reusable subnetwork catalog schema version is not supported."],
-        )
-
-    raw_entries = payload.get("subnetworks")
-    if not isinstance(raw_entries, list):
-        return SubnetworkCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Reusable subnetwork catalog '{catalog_path}' must contain a 'subnetworks' list."
-            ],
-        )
-
-    entries: dict[str, SubnetworkCatalogEntry] = {}
-    warnings: list[str] = []
-    for index, raw_entry in enumerate(raw_entries):
-        if not isinstance(raw_entry, dict):
-            warnings.append(
-                f"Skipped reusable subnetwork entry #{index + 1}: expected an object."
-            )
-            continue
         try:
-            entry = _parse_project_subnetwork_entry(raw_entry)
-        except (SerializationError, ValueError) as exc:
-            warnings.append(f"Skipped reusable subnetwork entry #{index + 1}: {exc}")
-            continue
-        if entry.name in entries:
-            warnings.append(f"Skipped duplicated reusable subnetwork '{entry.name}'.")
-            continue
-        entries[entry.name] = entry
+            payload = json.loads(
+                read_utf8_text(
+                    catalog_path,
+                    description="reusable subnetwork catalog JSON",
+                )
+            )
+        except PackageIOError as exc:
+            log_branch(
+                LOGGER,
+                f"Reusable subnetwork catalog read failed: {exc}",
+                level=logging.WARNING,
+            )
+            return SubnetworkCatalog(path=catalog_path, entries={}, warnings=[str(exc)])
+        except json.JSONDecodeError as exc:
+            warning = f"Could not parse the reusable subnetwork catalog at '{catalog_path}': {exc.msg}"
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return SubnetworkCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
 
-    return SubnetworkCatalog(path=catalog_path, entries=entries, warnings=warnings)
+        if not isinstance(payload, dict):
+            warning = f"Reusable subnetwork catalog '{catalog_path}' must contain a JSON object."
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return SubnetworkCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        schema_version = payload.get("schema_version")
+        if schema_version != SUBNETWORK_CATALOG_SCHEMA_VERSION:
+            warning = "Reusable subnetwork catalog schema version is not supported."
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return SubnetworkCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        raw_entries = payload.get("subnetworks")
+        if not isinstance(raw_entries, list):
+            warning = f"Reusable subnetwork catalog '{catalog_path}' must contain a 'subnetworks' list."
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return SubnetworkCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        entries: dict[str, SubnetworkCatalogEntry] = {}
+        warnings: list[str] = []
+        for index, raw_entry in enumerate(raw_entries):
+            if not isinstance(raw_entry, dict):
+                warning = f"Skipped reusable subnetwork entry #{index + 1}: expected an object."
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            try:
+                entry = _parse_project_subnetwork_entry(raw_entry)
+            except (SerializationError, ValueError) as exc:
+                warning = f"Skipped reusable subnetwork entry #{index + 1}: {exc}"
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            if entry.name in entries:
+                warning = f"Skipped duplicated reusable subnetwork '{entry.name}'."
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            entries[entry.name] = entry
+
+        success_context["status"] = len(entries)
+        success_context["warning_count"] = len(warnings)
+        return SubnetworkCatalog(path=catalog_path, entries=entries, warnings=warnings)
 
 
 def append_project_subnetwork(
@@ -171,18 +195,23 @@ def append_project_subnetwork(
     overwrite: bool = False,
 ) -> SubnetworkCatalog:
     """Append one reusable subnetwork to the project-local catalog."""
-    catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
-    normalized_name = _validate_subnetwork_name(subnetwork_name)
-    _validate_project_subnetwork_destination(
-        catalog.entries,
-        normalized_name,
-        overwrite=overwrite,
-    )
-    entry = _build_project_subnetwork_entry(normalized_name, spec, tags=tags)
-    next_entries = dict(catalog.entries)
-    next_entries[normalized_name] = entry
-    save_project_subnetwork_catalog(catalog.path, next_entries)
-    return load_project_subnetwork_catalog(catalog.path)
+    with log_operation(
+        LOGGER,
+        "Reusable subnetwork catalog append",
+        context={"subnetwork_name": subnetwork_name, "tag_count": len(tags or ())},
+    ):
+        catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
+        normalized_name = _validate_subnetwork_name(subnetwork_name)
+        _validate_project_subnetwork_destination(
+            catalog.entries,
+            normalized_name,
+            overwrite=overwrite,
+        )
+        entry = _build_project_subnetwork_entry(normalized_name, spec, tags=tags)
+        next_entries = dict(catalog.entries)
+        next_entries[normalized_name] = entry
+        save_project_subnetwork_catalog(catalog.path, next_entries)
+        return load_project_subnetwork_catalog(catalog.path)
 
 
 def rename_project_subnetwork(
@@ -193,38 +222,46 @@ def rename_project_subnetwork(
     overwrite: bool = False,
 ) -> SubnetworkCatalog:
     """Rename one persisted reusable subnetwork and reload the catalog."""
-    catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
-    normalized_name = _validate_subnetwork_name(subnetwork_name)
-    normalized_new_name = _validate_subnetwork_name(new_subnetwork_name)
-    if normalized_name not in catalog.entries:
-        raise ValueError(f"Unknown reusable subnetwork '{normalized_name}'.")
-    if normalized_new_name != normalized_name:
-        _validate_project_subnetwork_destination(
-            catalog.entries,
-            normalized_new_name,
-            overwrite=overwrite,
-        )
+    with log_operation(
+        LOGGER,
+        "Reusable subnetwork catalog rename",
+        context={
+            "subnetwork_name": subnetwork_name,
+            "selected_subnetwork": new_subnetwork_name,
+        },
+    ):
+        catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
+        normalized_name = _validate_subnetwork_name(subnetwork_name)
+        normalized_new_name = _validate_subnetwork_name(new_subnetwork_name)
+        if normalized_name not in catalog.entries:
+            raise ValueError(f"Unknown reusable subnetwork '{normalized_name}'.")
+        if normalized_new_name != normalized_name:
+            _validate_project_subnetwork_destination(
+                catalog.entries,
+                normalized_new_name,
+                overwrite=overwrite,
+            )
 
-    current_entry = catalog.entries[normalized_name]
-    renamed_entry = _build_project_subnetwork_entry(
-        normalized_new_name,
-        current_entry.spec,
-        tags=current_entry.tags,
-    )
-    next_entries: dict[str, SubnetworkCatalogEntry] = {}
-    for entry_name, entry in catalog.entries.items():
-        if (
-            overwrite
-            and normalized_new_name != normalized_name
-            and entry_name == normalized_new_name
-        ):
-            continue
-        if entry_name == normalized_name:
-            next_entries[normalized_new_name] = renamed_entry
-            continue
-        next_entries[entry_name] = entry
-    save_project_subnetwork_catalog(catalog.path, next_entries)
-    return load_project_subnetwork_catalog(catalog.path)
+        current_entry = catalog.entries[normalized_name]
+        renamed_entry = _build_project_subnetwork_entry(
+            normalized_new_name,
+            current_entry.spec,
+            tags=current_entry.tags,
+        )
+        next_entries: dict[str, SubnetworkCatalogEntry] = {}
+        for entry_name, entry in catalog.entries.items():
+            if (
+                overwrite
+                and normalized_new_name != normalized_name
+                and entry_name == normalized_new_name
+            ):
+                continue
+            if entry_name == normalized_name:
+                next_entries[normalized_new_name] = renamed_entry
+                continue
+            next_entries[entry_name] = entry
+        save_project_subnetwork_catalog(catalog.path, next_entries)
+        return load_project_subnetwork_catalog(catalog.path)
 
 
 def delete_project_subnetwork(
@@ -232,17 +269,22 @@ def delete_project_subnetwork(
     subnetwork_name: str,
 ) -> SubnetworkCatalog:
     """Delete one persisted reusable subnetwork and reload the catalog."""
-    catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
-    normalized_name = _validate_subnetwork_name(subnetwork_name)
-    if normalized_name not in catalog.entries:
-        raise ValueError(f"Unknown reusable subnetwork '{normalized_name}'.")
-    next_entries = {
-        entry_name: entry
-        for entry_name, entry in catalog.entries.items()
-        if entry_name != normalized_name
-    }
-    save_project_subnetwork_catalog(catalog.path, next_entries)
-    return load_project_subnetwork_catalog(catalog.path)
+    with log_operation(
+        LOGGER,
+        "Reusable subnetwork catalog delete",
+        context={"subnetwork_name": subnetwork_name},
+    ):
+        catalog = load_project_subnetwork_catalog(subnetwork_catalog_path)
+        normalized_name = _validate_subnetwork_name(subnetwork_name)
+        if normalized_name not in catalog.entries:
+            raise ValueError(f"Unknown reusable subnetwork '{normalized_name}'.")
+        next_entries = {
+            entry_name: entry
+            for entry_name, entry in catalog.entries.items()
+            if entry_name != normalized_name
+        }
+        save_project_subnetwork_catalog(catalog.path, next_entries)
+        return load_project_subnetwork_catalog(catalog.path)
 
 
 def save_project_subnetwork_catalog(
@@ -251,22 +293,31 @@ def save_project_subnetwork_catalog(
 ) -> None:
     """Write the reusable-subnetwork catalog to disk."""
     target_path = Path(catalog_path)
-    try:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise PackageIOError(
-            "Could not create parent directory for reusable subnetwork catalog JSON "
-            f"at '{target_path.parent}': {exc}"
-        ) from exc
-    payload = {
-        "schema_version": SUBNETWORK_CATALOG_SCHEMA_VERSION,
-        "subnetworks": [entry.to_dict() for entry in entries.values()],
-    }
-    write_utf8_text(
-        target_path,
-        json.dumps(payload, indent=2),
-        description="reusable subnetwork catalog JSON",
-    )
+    with log_operation(
+        LOGGER,
+        "Reusable subnetwork catalog save",
+        context={"path": target_path},
+        start_level=logging.DEBUG,
+        success_level=logging.DEBUG,
+        emit_start=False,
+    ) as success_context:
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PackageIOError(
+                "Could not create parent directory for reusable subnetwork catalog JSON "
+                f"at '{target_path.parent}': {exc}"
+            ) from exc
+        payload = {
+            "schema_version": SUBNETWORK_CATALOG_SCHEMA_VERSION,
+            "subnetworks": [entry.to_dict() for entry in entries.values()],
+        }
+        write_utf8_text(
+            target_path,
+            json.dumps(payload, indent=2),
+            description="reusable subnetwork catalog JSON",
+        )
+        success_context["status"] = len(entries)
 
 
 def _validate_subnetwork_name(subnetwork_name: str) -> str:

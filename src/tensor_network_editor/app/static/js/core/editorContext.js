@@ -8,25 +8,46 @@ import { createInitialState } from "../state/state.js";
 import { createEditorSelectors } from "../state/editorSelectors.js";
 import { createEditorStore } from "../state/editorStore.js";
 
-export function createEditorContext({ window, document, cytoscape }) {
+export function createEditorContext({
+  window,
+  document,
+  cytoscape,
+  runtimeConfig = {},
+  logger = null,
+}) {
   const state = createInitialState();
   const store = createEditorStore(state);
+  const requestApiGet = (path, options = {}) =>
+    apiGet(path, {
+      logger,
+      ...options,
+    });
+  const requestApiPost = (path, payload, options = {}) =>
+    apiPost(path, payload, {
+      logger,
+      ...options,
+    });
   const services = {
-    session: createEditorSessionService({ apiGet, apiPost }),
-    templateCatalog: createTemplateCatalogService({ apiPost }),
-    subnetwork: createSubnetworkService({ apiPost }),
+    session: createEditorSessionService({
+      apiGet: requestApiGet,
+      apiPost: requestApiPost,
+    }),
+    templateCatalog: createTemplateCatalogService({ apiPost: requestApiPost }),
+    subnetwork: createSubnetworkService({ apiPost: requestApiPost }),
   };
   return {
-    apiGet,
-    apiPost,
+    apiGet: requestApiGet,
+    apiPost: requestApiPost,
     constants,
     cytoscape,
     document,
     dom: getDomRefs(document),
+    logger,
     selectors: createEditorSelectors({ store }),
     services,
     state,
     store,
+    runtimeConfig,
     window,
   };
 }

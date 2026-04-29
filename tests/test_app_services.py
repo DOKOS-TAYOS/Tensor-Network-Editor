@@ -59,6 +59,21 @@ def test_build_bootstrap_payload_includes_selected_theme() -> None:
     assert payload["theme"] == "colorblind"
 
 
+def test_build_bootstrap_payload_includes_frontend_logging_runtime_config() -> None:
+    session = EditorSession()
+
+    payload = build_bootstrap_payload(session)
+    frontend_logging = cast(JsonDict, payload["frontend_logging"])
+
+    assert payload["session_id"] == session.session_id
+    assert frontend_logging == {
+        "enabled": False,
+        "level": "off",
+        "persist": False,
+        "transport_endpoint": "/api/client-log",
+    }
+
+
 def test_app_services_module_reexports_split_service_helpers() -> None:
     bootstrap_module = import_module("tensor_network_editor.app._bootstrap_payloads")
     session_module = import_module("tensor_network_editor.app._session_requests")

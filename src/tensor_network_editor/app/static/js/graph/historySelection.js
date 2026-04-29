@@ -149,8 +149,8 @@ export function registerHistorySelection(ctx) {
     clearGeneratedCodePreview,
     pruneSelectionToExisting: () => selectionSupport.pruneSelectionToExisting(),
     render: () => ctx.render(),
-    refreshContractionAnalysis: () =>
-      callOptionalContext("refreshContractionAnalysis"),
+    refreshContractionAnalysis: (options) =>
+      callOptionalContext("refreshContractionAnalysis", options),
     scheduleDraftAutosave: () => callOptionalContext("scheduleDraftAutosave"),
     setStatus: (message, level) => ctx.setStatus(message, level),
   });
@@ -211,8 +211,8 @@ export function registerHistorySelection(ctx) {
         ctx.isInspectingPastStage()) ||
       (typeof ctx.isContractionSceneVisible === "function" &&
         ctx.isContractionSceneVisible()),
-    refreshContractionAnalysis: () =>
-      callOptionalContext("refreshContractionAnalysis"),
+    refreshContractionAnalysis: (options) =>
+      callOptionalContext("refreshContractionAnalysis", options),
     scheduleDraftAutosave: () => callOptionalContext("scheduleDraftAutosave"),
     setStatus: (message, level) => ctx.setStatus(message, level),
   });

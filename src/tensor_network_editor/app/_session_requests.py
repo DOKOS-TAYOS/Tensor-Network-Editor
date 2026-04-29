@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..codegen.registry import engine_name_to_text
 from ..codegen.registry import generate_code as generate_code_internal
+from ..internal._logging import log_branch, log_operation, summarize_spec_counts
 from ..internal.io._io import write_utf8_text
 from ..internal.io._serialization import deserialize_spec
 from ..models import (
@@ -31,18 +32,23 @@ def generate_session_request(
     collection_format: TensorCollectionFormat | None = None,
 ) -> CodegenResult:
     """Generate preview code for one editor request."""
-    LOGGER.debug(
-        "[session=%s] Generating preview request for engine '%s'",
-        session.session_id,
-        engine_name_to_text(engine),
-    )
-    spec = deserialize_spec(serialized_spec)
-    return generate_code_internal(
-        spec,
-        engine,
-        collection_format=_resolve_collection_format(session, collection_format),
-        validate=False,
-    )
+    with log_operation(
+        LOGGER,
+        "Preview code generation",
+        context={"engine": engine_name_to_text(engine)},
+    ):
+        spec = deserialize_spec(serialized_spec)
+        log_branch(
+            LOGGER,
+            "Deserialized preview spec",
+            context=summarize_spec_counts(spec),
+        )
+        return generate_code_internal(
+            spec,
+            engine,
+            collection_format=_resolve_collection_format(session, collection_format),
+            validate=False,
+        )
 
 
 def complete_session_request(
@@ -52,37 +58,42 @@ def complete_session_request(
     collection_format: TensorCollectionFormat | None = None,
 ) -> EditorResult:
     """Finalize a session request and optionally print or save generated code."""
-    LOGGER.info(
-        "[session=%s] Completing session request for engine '%s'",
-        session.session_id,
-        engine_name_to_text(engine),
-    )
-    spec = deserialize_spec(serialized_spec)
-    codegen_result = generate_code_internal(
-        spec,
-        engine,
-        collection_format=_resolve_collection_format(session, collection_format),
-        validate=False,
-    )
-    if session.print_code:
-        LOGGER.debug(
-            "[session=%s] Printing generated code to stdout", session.session_id
+    with log_operation(
+        LOGGER,
+        "Session completion request",
+        start_level=logging.INFO,
+        success_level=logging.INFO,
+        context={"engine": engine_name_to_text(engine)},
+    ):
+        spec = deserialize_spec(serialized_spec)
+        log_branch(
+            LOGGER,
+            "Deserialized completion spec",
+            context=summarize_spec_counts(spec),
         )
-        print(codegen_result.code)
-    if session.code_path is not None:
-        LOGGER.debug(
-            "[session=%s] Writing generated code to %s",
-            session.session_id,
-            session.code_path,
+        codegen_result = generate_code_internal(
+            spec,
+            engine,
+            collection_format=_resolve_collection_format(session, collection_format),
+            validate=False,
         )
-        write_utf8_text(
-            session.code_path,
-            codegen_result.code,
-            description="generated Python code",
+        if session.print_code:
+            log_branch(LOGGER, "Printing generated code to stdout")
+            print(codegen_result.code)
+        if session.code_path is not None:
+            log_branch(
+                LOGGER,
+                "Writing generated code to disk",
+                context={"output_path": session.code_path},
+            )
+            write_utf8_text(
+                session.code_path,
+                codegen_result.code,
+                description="generated Python code",
+            )
+        return EditorResult(
+            spec=spec, engine=engine, codegen=codegen_result, confirmed=True
         )
-    return EditorResult(
-        spec=spec, engine=engine, codegen=codegen_result, confirmed=True
-    )
 
 
 def _resolve_collection_format(

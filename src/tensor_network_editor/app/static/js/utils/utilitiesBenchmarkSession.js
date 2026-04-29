@@ -27,6 +27,7 @@ export function createBenchmarkSessionSupport({
   runtime,
 }) {
   const ctx = actions;
+  const logger = ctx.logger || null;
 
   const benchmarkState = createBenchmarkSessionStateSupport({
     state,
@@ -40,6 +41,31 @@ export function createBenchmarkSessionSupport({
     resetBenchmarkCompareState,
     setBenchmarkSession,
   } = benchmarkState;
+
+  function benchmarkLogContext(extraContext = {}) {
+    const session = getBenchmarkSession();
+    return {
+      operation: "benchmark",
+      benchmark_position: Number.isInteger(session?.activePosition)
+        ? session.activePosition
+        : null,
+      scheme_count: Array.isArray(session?.schemes) ? session.schemes.length : 0,
+      ...extraContext,
+    };
+  }
+
+  function emitBenchmarkEvent(level, message, context = {}) {
+    if (!logger || typeof logger[level] !== "function") {
+      return;
+    }
+    logger[level](message, benchmarkLogContext(context));
+  }
+
+  function startBenchmarkOperation(name, context = {}) {
+    return logger && typeof logger.startOperation === "function"
+      ? logger.startOperation(name, benchmarkLogContext(context))
+      : null;
+  }
 
   function isBenchmarkMode() {
     return Boolean(getBenchmarkSession().enabled);
@@ -276,7 +302,11 @@ export function createBenchmarkSessionSupport({
     return repairedScheme;
   }
 
-  function syncBenchmarkProjection(statusMessage = "", statusKind = "success") {
+  function syncBenchmarkProjection(
+    statusMessage = "",
+    statusKind = "success",
+    refreshReason = "explicit"
+  ) {
     clearBenchmarkTransientEditorState();
     if (typeof ctx.bumpSpecRevision === "function") {
       ctx.bumpSpecRevision();
@@ -291,7 +321,10 @@ export function createBenchmarkSessionSupport({
       ctx.renderPlanner();
     }
     if (typeof ctx.refreshContractionAnalysis === "function") {
-      ctx.refreshContractionAnalysis({ immediate: true });
+      ctx.refreshContractionAnalysis({
+        immediate: true,
+        refreshReason,
+      });
     }
     if (typeof runtime.updateToolbarState === "function") {
       runtime.updateToolbarState();
@@ -304,10 +337,15 @@ export function createBenchmarkSessionSupport({
   function setBenchmarkMode(enabled) {
     const shouldEnable = Boolean(enabled);
     const session = getBenchmarkSession();
+    const benchmarkOperation = startBenchmarkOperation("Benchmark mode toggle", {
+      operation: "benchmark.mode",
+    });
     if (shouldEnable === Boolean(session.enabled)) {
+      benchmarkOperation?.finish({ outcome: shouldEnable ? "enabled" : "disabled" });
       return session.enabled;
     }
     if (!state.spec) {
+      benchmarkOperation?.finish({ outcome: "blocked" });
       return false;
     }
     if (
@@ -324,6 +362,7 @@ export function createBenchmarkSessionSupport({
           "error"
         );
       }
+      benchmarkOperation?.finish({ outcome: "blocked" });
       return false;
     }
     if (shouldEnable && hasHyperedges()) {
@@ -333,6 +372,7 @@ export function createBenchmarkSessionSupport({
           "error"
         );
       }
+      benchmarkOperation?.finish({ outcome: "blocked" });
       return false;
     }
 
@@ -351,8 +391,15 @@ export function createBenchmarkSessionSupport({
       state.spec.contraction_plan = null;
       setBenchmarkSession(nextSession);
       syncBenchmarkProjection(
-        "Benchmark mode enabled. Edit the tensor network here, then move right to manage schemes."
+        "Benchmark mode enabled. Edit the tensor network here, then move right to manage schemes.",
+        "success",
+        "explicit"
       );
+      benchmarkOperation?.finish({
+        outcome: "enabled",
+        benchmark_position: 0,
+        scheme_count: nextSession.schemes.length,
+      });
       return true;
     }
 
@@ -372,7 +419,11 @@ export function createBenchmarkSessionSupport({
           : "Benchmark mode disabled. Restored the tensor network without a manual scheme.";
     state.spec.contraction_plan = restoredPlan;
     setBenchmarkSession(createEmptyBenchmarkSession());
-    syncBenchmarkProjection(exitMessage);
+    syncBenchmarkProjection(exitMessage, "success", "explicit");
+    benchmarkOperation?.finish({
+      outcome: "disabled",
+      scheme_count: 0,
+    });
     return false;
   }
 
@@ -382,7 +433,15 @@ export function createBenchmarkSessionSupport({
 
   function switchBenchmarkPosition(direction) {
     const session = getBenchmarkSession();
+    const switchOperation = startBenchmarkOperation("Benchmark position switch", {
+      operation: "benchmark.navigate",
+      before: session.activePosition,
+    });
     if (!session.enabled || !Number.isInteger(direction) || direction === 0) {
+      switchOperation?.finish({
+        outcome: "skipped",
+        after: session.activePosition,
+      });
       return session.activePosition;
     }
 
@@ -396,6 +455,9 @@ export function createBenchmarkSessionSupport({
         const nextSchemeIndex = session.schemes.length;
         session.schemes.push(buildNormalizedBenchmarkScheme(null, nextSchemeIndex));
         nextPosition = session.schemes.length;
+        emitBenchmarkEvent("debug", "Created new benchmark scheme", {
+          benchmark_position: nextPosition,
+        });
       }
     } else {
       nextPosition = Math.max(0, session.activePosition - 1);
@@ -405,6 +467,10 @@ export function createBenchmarkSessionSupport({
       if (typeof runtime.updateToolbarState === "function") {
         runtime.updateToolbarState();
       }
+      switchOperation?.finish({
+        outcome: "skipped",
+        after: session.activePosition,
+      });
       return session.activePosition;
     }
 
@@ -413,17 +479,27 @@ export function createBenchmarkSessionSupport({
       nextPosition === 0
         ? BENCHMARK_BASE_LABEL
         : getBenchmarkSession().schemes[nextPosition - 1].name;
-    syncBenchmarkProjection(`Editing ${activePositionLabel}.`);
+    syncBenchmarkProjection(`Editing ${activePositionLabel}.`, "success", "benchmark_nav");
+    switchOperation?.finish({
+      outcome: "switched",
+      after: nextPosition,
+      scheme_count: getBenchmarkSchemeCount(),
+    });
     return nextPosition;
   }
 
   function renameActiveBenchmarkScheme(name) {
+    const renameOperation = startBenchmarkOperation("Rename benchmark scheme", {
+      operation: "benchmark.rename",
+    });
     if (!isBenchmarkMode() || isBenchmarkBasePosition() || !state.spec) {
+      renameOperation?.finish({ outcome: "blocked" });
       return null;
     }
     const activeSchemeIndex = getBenchmarkActiveSchemeIndex();
     const activeScheme = syncActiveBenchmarkScheme();
     if (!activeScheme) {
+      renameOperation?.finish({ outcome: "blocked" });
       return null;
     }
     const nextName =
@@ -435,6 +511,11 @@ export function createBenchmarkSessionSupport({
     if (typeof runtime.updateToolbarState === "function") {
       runtime.updateToolbarState();
     }
+    renameOperation?.finish({
+      outcome: "renamed",
+      scheme_count: getBenchmarkSchemeCount(),
+      benchmark_position: getBenchmarkSession().activePosition,
+    });
     return nextName;
   }
 
@@ -530,16 +611,28 @@ export function createBenchmarkSessionSupport({
 
   function exportBenchmarkCompareTable(format) {
     const compareModal = getBenchmarkSession().compareModal;
+    const exportOperation = startBenchmarkOperation("Export benchmark comparison", {
+      operation: "benchmark.compare.export",
+      export_format: format === "txt" ? "text" : format,
+    });
     if (!canExportBenchmarkCompare(compareModal)) {
       ctx.setStatus(
         "Open a benchmark comparison with analyzed schemes before exporting.",
         "error"
       );
+      exportOperation?.finish({
+        outcome: "blocked",
+        export_format: format === "txt" ? "text" : format,
+      });
       return false;
     }
     const downloadText = resolveBenchmarkCompareTextDownloader();
     if (typeof downloadText !== "function") {
       ctx.setStatus("This browser cannot export comparison tables yet.", "error");
+      exportOperation?.finish({
+        outcome: "blocked",
+        export_format: format === "txt" ? "text" : format,
+      });
       return false;
     }
     const tableModel = getBenchmarkCompareTableModel(compareModal);
@@ -550,6 +643,10 @@ export function createBenchmarkSessionSupport({
         "text/csv;charset=utf-8"
       );
       ctx.setStatus("Downloaded the benchmark comparison as CSV.", "success");
+      exportOperation?.finish({
+        outcome: "downloaded",
+        export_format: "csv",
+      });
       return true;
     }
     if (format === "txt") {
@@ -559,19 +656,35 @@ export function createBenchmarkSessionSupport({
         "text/plain;charset=utf-8"
       );
       ctx.setStatus("Downloaded the benchmark comparison as text.", "success");
+      exportOperation?.finish({
+        outcome: "downloaded",
+        export_format: "text",
+      });
       return true;
     }
     ctx.setStatus("Unknown benchmark export format.", "error");
+    exportOperation?.finish({
+      outcome: "blocked",
+      export_format: format === "txt" ? "text" : format,
+    });
     return false;
   }
 
   async function copyBenchmarkCompareAsLatex() {
     const compareModal = getBenchmarkSession().compareModal;
+    const copyOperation = startBenchmarkOperation("Copy benchmark comparison", {
+      operation: "benchmark.compare.export",
+      export_format: "latex",
+    });
     if (!canExportBenchmarkCompare(compareModal)) {
       ctx.setStatus(
         "Open a benchmark comparison with analyzed schemes before copying it.",
         "error"
       );
+      copyOperation?.finish({
+        outcome: "blocked",
+        export_format: "latex",
+      });
       return false;
     }
     const copyText =
@@ -589,12 +702,20 @@ export function createBenchmarkSessionSupport({
         serializeBenchmarkCompareTableLatex(getBenchmarkCompareTableModel(compareModal))
       );
       ctx.setStatus("Copied the benchmark comparison as LaTeX.", "success");
+      copyOperation?.finish({
+        outcome: "copied",
+        export_format: "latex",
+      });
       return true;
     } catch (error) {
       ctx.setStatus(
         `Could not copy the LaTeX table: ${error.message}`,
         "error"
       );
+      copyOperation?.fail(error, {
+        outcome: "error",
+        export_format: "latex",
+      });
       return false;
     }
   }
@@ -608,6 +729,9 @@ export function createBenchmarkSessionSupport({
   }
 
   function closeBenchmarkCompareModal() {
+    const closeOperation = startBenchmarkOperation("Close benchmark compare modal", {
+      operation: "benchmark.compare.close",
+    });
     const compareModal = getBenchmarkSession().compareModal;
     compareModal.open = false;
     compareModal.loading = false;
@@ -616,6 +740,7 @@ export function createBenchmarkSessionSupport({
     if (typeof runtime.updateToolbarState === "function") {
       runtime.updateToolbarState();
     }
+    closeOperation?.finish({ outcome: "closed" });
     return false;
   }
 
@@ -642,12 +767,23 @@ export function createBenchmarkSessionSupport({
     const networkSpec = runtime.deepClone(baseSpec || state.spec || {});
     networkSpec.contraction_plan = runtime.deepClone(repairedScheme);
     try {
-      const payload = await ctx.apiPost("/api/analyze-contraction", {
-        spec: {
-          schema_version: state.schemaVersion,
-          network: networkSpec,
+      const payload = await ctx.apiPost(
+        "/api/analyze-contraction",
+        {
+          spec: {
+            schema_version: state.schemaVersion,
+            network: networkSpec,
+          },
         },
-      });
+        {
+          operation: "benchmark.compare.analyze",
+          context: benchmarkLogContext({
+            analysis_source: "compare_batch",
+            refresh_reason: "compare_modal",
+            benchmark_position: schemeIndex + 1,
+          }),
+        }
+      );
       if (!payload || payload.ok !== true) {
         return {
           scheme_id: repairedScheme.id,
@@ -689,14 +825,22 @@ export function createBenchmarkSessionSupport({
 
   async function openBenchmarkCompareModal() {
     const session = getBenchmarkSession();
+    const compareOperation = startBenchmarkOperation("Open benchmark compare modal", {
+      operation: "benchmark.compare",
+    });
     if (hasHyperedges()) {
       ctx.setStatus(
         "Benchmark comparison is unavailable while the design contains hyperedges.",
         "error"
       );
+      compareOperation?.finish({ outcome: "blocked", scheme_count: 0 });
       return null;
     }
     if (!session.enabled || !session.schemes.length) {
+      compareOperation?.finish({
+        outcome: "blocked",
+        scheme_count: session.schemes.length,
+      });
       return null;
     }
     syncActiveBenchmarkScheme();
@@ -722,6 +866,14 @@ export function createBenchmarkSessionSupport({
       !latestSession.enabled ||
       latestCompareModal.activeRequestId !== requestId
     ) {
+      emitBenchmarkEvent("debug", "Discarded stale benchmark comparison batch", {
+        analysis_source: "compare_batch",
+        outcome: "stale",
+      });
+      compareOperation?.finish({
+        outcome: "stale",
+        scheme_count: latestSession.schemes.length,
+      });
       return null;
     }
 
@@ -730,6 +882,25 @@ export function createBenchmarkSessionSupport({
     latestCompareModal.tableModel = buildBenchmarkCompareTableModel(benchmarkEntries);
     latestCompareModal.rows = latestCompareModal.tableModel.rows;
     syncBenchmarkCompareModalState();
+    const completeCount = benchmarkEntries.filter(
+      (entry) => entry.analysis?.status === "complete"
+    ).length;
+    const incompleteCount = benchmarkEntries.filter(
+      (entry) => entry.analysis?.status === "incomplete"
+    ).length;
+    const failedCount = benchmarkEntries.filter(
+      (entry) => entry.analysis?.status === "failed"
+    ).length;
+    emitBenchmarkEvent("debug", "Benchmark comparison batch completed", {
+      analysis_source: "compare_batch",
+      complete_count: completeCount,
+      incomplete_count: incompleteCount,
+      failed_count: failedCount,
+    });
+    compareOperation?.finish({
+      outcome: "loaded",
+      scheme_count: latestSession.schemes.length,
+    });
     return latestCompareModal.tableModel;
   }
 

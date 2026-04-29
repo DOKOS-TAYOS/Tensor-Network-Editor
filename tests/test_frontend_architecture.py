@@ -306,6 +306,54 @@ def test_history_selection_wires_design_mutations_to_draft_autosave() -> None:
     assert '"scheduleDraftAutosave"' in mutation_pipeline_block
 
 
+def test_frontend_console_logging_is_centralized_in_frontend_logger_module() -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    frontend_logger_path = js_root / "core" / "frontendLogger.js"
+    frontend_logger_body = frontend_logger_path.read_text(encoding="utf-8")
+    console_paths = sorted(
+        path
+        for path in js_root.rglob("*.js")
+        if "console." in path.read_text(encoding="utf-8")
+    )
+
+    assert frontend_logger_path.exists()
+    assert "consoleRef" in frontend_logger_body
+    assert console_paths == []
+
+
+def test_frontend_log_transport_is_centralized_in_frontend_logger_module() -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    frontend_logger_path = js_root / "core" / "frontendLogger.js"
+    frontend_logger_body = frontend_logger_path.read_text(encoding="utf-8")
+    send_beacon_paths = sorted(
+        path
+        for path in js_root.rglob("*.js")
+        if "sendBeacon(" in path.read_text(encoding="utf-8")
+    )
+
+    assert frontend_logger_path.exists()
+    assert "sendBeacon" in frontend_logger_body
+    assert send_beacon_paths == [frontend_logger_path]
+
+
+def test_planner_and_benchmark_flows_use_shared_frontend_logger_contract() -> None:
+    js_root = REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js"
+    planner_service_body = (
+        js_root / "services" / "plannerAnalysisService.js"
+    ).read_text(encoding="utf-8")
+    planner_support_body = (
+        js_root / "planner" / "plannerSupportAnalysis.js"
+    ).read_text(encoding="utf-8")
+    benchmark_body = (js_root / "utils" / "utilitiesBenchmarkSession.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "logger" in planner_service_body
+    assert "logger" in planner_support_body
+    assert "logger" in benchmark_body
+    assert "startOperation" in benchmark_body or ".debug(" in benchmark_body
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_editor_store_and_selectors_track_template_catalog_state(
     tmp_path: Path,

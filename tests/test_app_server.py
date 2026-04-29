@@ -36,6 +36,12 @@ class _StaticHandler(Protocol):
     ) -> app_server.JsonResponse | app_server._BinaryResponse: ...
 
 
+class _GetHandler(Protocol):
+    def _dispatch_get(
+        self, path: str
+    ) -> app_server.JsonResponse | app_server._BinaryResponse: ...
+
+
 class _ChunkedBodyReader:
     def __init__(self, chunks: list[bytes]) -> None:
         self._chunks = list(chunks)
@@ -125,6 +131,42 @@ def test_editor_servers_reuse_static_asset_cache_between_instances() -> None:
         second_server._server.server_close()
 
 
+def test_editor_index_response_embeds_session_runtime_config() -> None:
+    first_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+    second_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+
+    try:
+        handler_class = cast(type[_GetHandler], first_server._build_handler())
+        first_handler = cast(_GetHandler, handler_class.__new__(handler_class))
+        second_handler_class = cast(type[_GetHandler], second_server._build_handler())
+        second_handler = cast(
+            _GetHandler, second_handler_class.__new__(second_handler_class)
+        )
+
+        first_response = cast(
+            app_server._BinaryResponse, first_handler._dispatch_get("/")
+        )
+        second_response = cast(
+            app_server._BinaryResponse, second_handler._dispatch_get("/")
+        )
+        first_body = first_response.body.decode("utf-8")
+        second_body = second_response.body.decode("utf-8")
+
+        assert 'id="tne-runtime-config"' in first_body
+        assert first_server.session_id in first_body
+        assert second_server.session_id in second_body
+        assert first_server.session_id != second_server.session_id
+        assert first_body != second_body
+        assert '"frontend_logging"' in first_body
+        assert '"enabled": false' in first_body
+        assert '"persist": false' in first_body
+        assert '"/api/client-log"' in first_body
+        assert "__ASSET_VERSION__" not in first_body
+    finally:
+        first_server._server.server_close()
+        second_server._server.server_close()
+
+
 def test_static_asset_cache_refreshes_when_static_files_change(
     tmp_path: Path,
 ) -> None:
@@ -196,6 +238,65 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
     )
     assert scan_calls == [resolved_static_dir, resolved_static_dir]
+
+
+def test_static_asset_cache_logs_build_and_reuse(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    static_dir = tmp_path / "static"
+    asset_path = static_dir / "js" / "app.js"
+    resolved_static_dir = static_dir.resolve()
+    asset_path.parent.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<script src='js/app.js?v=__ASSET_VERSION__'></script>",
+        encoding="utf-8",
+    )
+    asset_path.write_text("console.log('first');", encoding="utf-8")
+    app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        first_cache = app_server._get_static_asset_cache(static_dir)
+        second_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert first_cache is second_cache
+    assert "Static asset cache build started" in caplog.text
+    assert "Static asset cache build finished" in caplog.text
+    assert "Static asset cache reused" in caplog.text
+    assert f"path={resolved_static_dir}" in caplog.text
+
+
+def test_static_asset_cache_logs_refresh_with_version_context(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    static_dir = tmp_path / "static"
+    asset_path = static_dir / "js" / "app.js"
+    resolved_static_dir = static_dir.resolve()
+    asset_path.parent.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<script src='js/app.js?v=__ASSET_VERSION__'></script>",
+        encoding="utf-8",
+    )
+    asset_path.write_text("console.log('first');", encoding="utf-8")
+    app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    first_cache = app_server._get_static_asset_cache(static_dir)
+
+    asset_path.write_text("console.log('second');", encoding="utf-8")
+    future_timestamp_ns = (
+        max(path.stat().st_mtime_ns for path in static_dir.rglob("*") if path.is_file())
+        + 1_000_000_000
+    )
+    os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        refreshed_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert refreshed_cache.asset_version != first_cache.asset_version
+    assert "Static asset cache refresh started" in caplog.text
+    assert "Static asset cache refresh finished" in caplog.text
+    assert f"before={first_cache.asset_version}" in caplog.text
+    assert f"after={refreshed_cache.asset_version}" in caplog.text
 
 
 def test_favicon_request_resolves_to_static_asset_without_debug_log(

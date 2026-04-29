@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Package logging now has a shared observability layer with operation lifecycle
+  messages, stable `key=value` context fields, timing data, richer CLI debug
+  traces, clearer Python import fallback logs, and end-to-end request logging
+  on the Python side of the browser editor.
+- Editor backend debug logs now cover draft persistence, template and reusable
+  subnetwork catalog operations, session launch/cancel/completion flows, and
+  static asset-cache build/reuse/refresh decisions so browser-editor traces are
+  much easier to reconstruct end to end.
+- Browser-editor debug sessions now also emit correlated frontend console logs
+  for API requests and key flows such as bootstrap, draft recovery, code
+  generation, exports, template actions, and reusable-subnetwork actions, so
+  `--log-level debug` tells the story on both the Python and browser sides.
+- Logging can now persist to one append-only UTF-8 file through CLI
+  `--log-file` or `EditorLaunchOptions(log_file_path=...)`, and editor sessions
+  can forward browser-side events back to the local Python server so one file
+  captures CLI startup, backend routes, frontend actions, and session shutdown
+  without changing the default quiet behavior.
+- Planner, benchmark, and `/api/analyze-contraction` debug logs now add
+  semantic tracing for effective-spec selection, manual-step completeness,
+  automatic variant availability, analysis cache decisions, benchmark position
+  changes, comparison batches, and export actions so planner regressions are
+  much easier to reconstruct from either stderr or a persisted log file.
+- Persistent log capture now rotates by size through CLI
+  `--log-max-bytes` / `--log-backup-count` and matching
+  `EditorLaunchOptions(log_file_max_bytes=..., log_file_backup_count=...)`
+  defaults, so long editor or benchmark sessions keep readable log families
+  instead of one unbounded append-only file.
 - Contributor and citation metadata now live in `CONTRIBUTING.md` and
   `CITATION.cff`.
 - Real-browser editor E2E coverage now goes beyond shell startup: CI runs the
@@ -75,6 +102,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Debug and persisted logs now read as a more compact per-operation story:
+  successful leaf helpers fold their summary into the final `... finished`
+  line, repeated route/service success breadcrumbs are trimmed, and `info`
+  no longer shows routine successful low-level internal I/O.
 - The File > Export submenu now stays reachable across the trigger/panel seam,
   browser PNG export falls back to rasterizing the academic SVG when backend
   PNG rendering is unavailable, and academic multi-bond renders curve parallel

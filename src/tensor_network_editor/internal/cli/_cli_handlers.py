@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, cast
@@ -14,6 +15,7 @@ from ...io import PythonLoadOptions
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
 from ...rendering import DotRenderOptions, SvgRenderOptions, TikzRenderOptions
 from ...types import JSONValue, StrPath
+from .._logging import log_branch, log_operation
 from ..analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..io._serialization import (
     deserialize_spec,
@@ -43,6 +45,8 @@ from ._cli_benchmark import (
 )
 from ._cli_doctor import build_doctor_report, format_doctor_report_text
 
+LOGGER = logging.getLogger(__name__)
+
 
 def handle_edit_command(
     args: argparse.Namespace,
@@ -67,6 +71,9 @@ def handle_edit_command(
             open_browser=not args.no_browser,
             print_code=args.print_code,
             code_path=code_path,
+            log_file_path=args.log_file,
+            log_file_max_bytes=args.log_max_bytes,
+            log_file_backup_count=args.log_backup_count,
         ),
     }
     if loaded_spec_path is not None:
@@ -76,6 +83,9 @@ def handle_edit_command(
             open_browser=not args.no_browser,
             print_code=args.print_code,
             code_path=code_path,
+            log_file_path=args.log_file,
+            log_file_max_bytes=args.log_max_bytes,
+            log_file_backup_count=args.log_backup_count,
             template_catalog_path=(
                 loaded_spec_path.parent / ".tensor-network-editor" / "templates.json"
             ),
@@ -149,21 +159,52 @@ def handle_benchmark_command(
     write_utf8_text: Callable[[str, str], None],
 ) -> int:
     """Analyze and export a stable benchmark comparison table."""
-    spec = load_spec(args.path, **_python_load_kwargs(args))
-    analysis = analyze_contraction(spec, memory_dtype=args.dtype)
-    report = build_benchmark_report(analysis)
-    if args.output is not None:
-        output_text = _serialize_benchmark_report(report, output_format=args.format)
-        write_utf8_text(args.output, output_text)
-        print(f"Wrote benchmark report to {args.output}")
+    with log_operation(
+        LOGGER,
+        "Benchmark command",
+        context={
+            "memory_dtype": args.dtype,
+            "export_format": args.format,
+            "output_path": args.output,
+        },
+    ):
+        spec = load_spec(args.path, **_python_load_kwargs(args))
+        analysis = analyze_contraction(spec, memory_dtype=args.dtype)
+        report = build_benchmark_report(analysis)
+        log_branch(
+            LOGGER,
+            "Built benchmark report",
+            context={
+                "analysis_status": "ready",
+                "scheme_count": len(report.rows),
+                "warning_count": len(report.warnings),
+                "manual_status": analysis.manual.status,
+                "automatic_full_status": analysis.automatic_full.status,
+                "automatic_future_status": analysis.automatic_future.status,
+                "automatic_past_status": analysis.automatic_past.status,
+            },
+        )
+        if args.output is not None:
+            output_text = _serialize_benchmark_report(report, output_format=args.format)
+            write_utf8_text(args.output, output_text)
+            log_branch(
+                LOGGER,
+                "Serialized benchmark report to disk",
+                context={
+                    "export_format": args.format,
+                    "output_path": args.output,
+                    "scheme_count": len(report.rows),
+                },
+            )
+            print(f"Wrote benchmark report to {args.output}")
+            return 0
+        if args.format == "json":
+            print_json(report.to_dict())
+        elif args.format == "text":
+            print_benchmark_report_text(report)
+        else:
+            print(_serialize_benchmark_report(report, output_format=args.format))
         return 0
-    if args.format == "json":
-        print_json(report.to_dict())
-    elif args.format == "text":
-        print_benchmark_report_text(report)
-    else:
-        print(_serialize_benchmark_report(report, output_format=args.format))
-    return 0
 
 
 def handle_doctor_command(

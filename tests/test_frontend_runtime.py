@@ -785,6 +785,779 @@ def test_editor_bootstrap_applies_template_catalog_before_draft_recovery(
     )
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_api_service_logs_request_lifecycle_with_frontend_logger(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "api_frontend_logging.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const apiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "services" / "api.js")!r}).href;
+        const loggerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "core" / "frontendLogger.js")!r}).href;
+        const [apiModule, loggerModule] = await Promise.all([
+          import(apiUrl),
+          import(loggerUrl),
+        ]);
+
+        const entries = [];
+        const consoleRef = {{
+          debug(message) {{
+            entries.push(`debug:${{message}}`);
+          }},
+          info(message) {{
+            entries.push(`info:${{message}}`);
+          }},
+          warn(message) {{
+            entries.push(`warn:${{message}}`);
+          }},
+          error(message) {{
+            entries.push(`error:${{message}}`);
+          }},
+        }};
+        let currentTime = 100;
+        const performanceRef = {{
+          now() {{
+            currentTime += 25;
+            return currentTime;
+          }},
+        }};
+        const logger = loggerModule.createFrontendLogger(
+          {{
+            enabled: true,
+            level: "debug",
+            sessionId: "sess01",
+          }},
+          {{
+            consoleRef,
+            performanceRef,
+          }}
+        );
+
+        globalThis.fetch = async (path, options = {{}}) => {{
+          if (path === "/api/bootstrap") {{
+            return new Response(
+              JSON.stringify({{
+                ok: true,
+                frontend_logging: {{ enabled: true, level: "debug" }},
+              }}),
+              {{
+                status: 200,
+                headers: {{ "Content-Type": "application/json" }},
+              }}
+            );
+          }}
+          if (path === "/api/cancel" && options.method === "POST") {{
+            return new Response(
+              JSON.stringify({{
+                message: "Unexpected internal error.",
+                guidance: "Retry later.",
+                reference: "ref-42",
+              }}),
+              {{
+                status: 500,
+                headers: {{ "Content-Type": "application/json" }},
+              }}
+            );
+          }}
+          throw new Error(`Unexpected fetch path: ${{path}}`);
+        }};
+
+        await apiModule.apiGet("/api/bootstrap", {{
+          logger,
+          operation: "bootstrap",
+        }});
+
+        try {{
+          await apiModule.apiPost("/api/cancel", {{}}, {{
+            logger,
+            operation: "cancel",
+          }});
+          throw new Error("Expected apiPost to throw for /api/cancel.");
+        }} catch (error) {{
+          if (
+            error.message
+            !== "Unexpected internal error. Retry later. Reference: ref-42"
+          ) {{
+            throw new Error(`Unexpected apiPost error message: ${{error.message}}`);
+          }}
+        }}
+
+        if (
+          !entries.some(
+            (entry) =>
+              entry.includes("API request started")
+              && entry.includes("session=sess01")
+              && entry.includes("operation=bootstrap")
+              && entry.includes("method=GET")
+              && entry.includes("route=/api/bootstrap")
+              && entry.includes("request_id=req-1")
+          )
+        ) {{
+          throw new Error(`Missing bootstrap request start log: ${{JSON.stringify(entries)}}`);
+        }}
+        if (
+          !entries.some(
+            (entry) =>
+              entry.includes("API request finished")
+              && entry.includes("method=GET")
+              && entry.includes("route=/api/bootstrap")
+              && entry.includes("request_id=req-1")
+              && entry.includes("status=200")
+              && entry.includes("outcome=success")
+              && entry.includes("elapsed_ms=")
+          )
+        ) {{
+          throw new Error(`Missing bootstrap request success log: ${{JSON.stringify(entries)}}`);
+        }}
+        if (
+          !entries.some(
+            (entry) =>
+              entry.includes("API request failed: Unexpected internal error. Retry later. Reference: ref-42")
+              && entry.includes("operation=cancel")
+              && entry.includes("method=POST")
+              && entry.includes("route=/api/cancel")
+              && entry.includes("request_id=req-2")
+              && entry.includes("status=500")
+              && entry.includes("outcome=error")
+              && entry.includes("elapsed_ms=")
+          )
+        ) {{
+          throw new Error(`Missing cancel request failure log: ${{JSON.stringify(entries)}}`);
+        }}
+
+        const quietEntries = [];
+        const quietLogger = loggerModule.createFrontendLogger(
+          {{
+            enabled: false,
+            level: "off",
+            sessionId: "sess02",
+          }},
+          {{
+            consoleRef: {{
+              debug(message) {{
+                quietEntries.push(`debug:${{message}}`);
+              }},
+              info(message) {{
+                quietEntries.push(`info:${{message}}`);
+              }},
+              warn(message) {{
+                quietEntries.push(`warn:${{message}}`);
+              }},
+              error(message) {{
+                quietEntries.push(`error:${{message}}`);
+              }},
+            }},
+            performanceRef,
+          }}
+        );
+
+        globalThis.fetch = async () =>
+          new Response(JSON.stringify({{ ok: true }}), {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+          }});
+        await apiModule.apiGet("/api/bootstrap", {{
+          logger: quietLogger,
+          operation: "bootstrap",
+        }});
+        if (quietEntries.length !== 0) {{
+          throw new Error(`Disabled frontend logger should stay silent: ${{JSON.stringify(quietEntries)}}`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The frontend api logging runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_frontend_logger_persists_batched_logs_without_api_recursion(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "frontend_logger_transport.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const loggerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "core" / "frontendLogger.js")!r}).href;
+        const loggerModule = await import(loggerUrl);
+
+        const entries = [];
+        const transportCalls = [];
+        const eventListeners = {{}};
+        let currentTime = 0;
+        const performanceRef = {{
+          now() {{
+            currentTime += 25;
+            return currentTime;
+          }},
+        }};
+        const consoleRef = {{
+          debug(message) {{
+            entries.push(`debug:${{message}}`);
+          }},
+          info(message) {{
+            entries.push(`info:${{message}}`);
+          }},
+          warn(message) {{
+            entries.push(`warn:${{message}}`);
+          }},
+          error(message) {{
+            entries.push(`error:${{message}}`);
+          }},
+        }};
+        const navigatorRef = {{
+          sendBeacon(url, body) {{
+            transportCalls.push({{
+              kind: "beacon",
+              url,
+              body: JSON.parse(body),
+            }});
+            return true;
+          }},
+        }};
+        const windowRef = {{
+          addEventListener(name, handler) {{
+            eventListeners[name] = handler;
+          }},
+          removeEventListener(name) {{
+            delete eventListeners[name];
+          }},
+          setTimeout(handler, delay) {{
+            transportCalls.push({{ kind: "timer", delay }});
+            handler();
+            return 1;
+          }},
+          clearTimeout() {{}},
+        }};
+
+        globalThis.fetch = async (...args) => {{
+          transportCalls.push({{ kind: "fetch", args }});
+          return new Response("{{\\"ok\\": true}}", {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+          }});
+        }};
+
+        const logger = loggerModule.createFrontendLogger(
+          {{
+            enabled: true,
+            level: "debug",
+            persist: true,
+            transport_endpoint: "/api/client-log",
+            session_id: "sess01",
+          }},
+          {{
+            consoleRef,
+            performanceRef,
+            navigatorRef,
+            windowRef,
+          }}
+        );
+
+        logger.debug("Bootstrap started", {{ operation: "bootstrap" }});
+        logger.info("Bootstrap finished", {{ operation: "bootstrap" }});
+
+        if (!eventListeners.pagehide) {{
+          throw new Error("Expected the frontend logger to register a pagehide flush listener.");
+        }}
+
+        eventListeners.pagehide();
+
+        const beaconCall = transportCalls.find((entry) => entry.kind === "beacon");
+        if (!beaconCall) {{
+          throw new Error(`Expected sendBeacon persistence, received ${{JSON.stringify(transportCalls)}}`);
+        }}
+        if (beaconCall.url !== "/api/client-log") {{
+          throw new Error(`Unexpected transport endpoint: ${{beaconCall.url}}`);
+        }}
+        const persistedEvents = transportCalls.flatMap((entry) => {{
+          if (entry.kind === "beacon") {{
+            return Array.isArray(entry.body?.events) ? entry.body.events : [];
+          }}
+          if (entry.kind === "fetch") {{
+            const init = entry.args?.[1] || {{}};
+            const parsedBody =
+              typeof init.body === "string" ? JSON.parse(init.body) : init.body || {{}};
+            return Array.isArray(parsedBody.events) ? parsedBody.events : [];
+          }}
+          return [];
+        }});
+        if (persistedEvents.length < 2) {{
+          throw new Error(`Expected persisted frontend log events, received ${{JSON.stringify(transportCalls)}}`);
+        }}
+        if (
+          persistedEvents.some(
+            (event) => event.message && String(event.message).includes("API request started")
+          )
+        ) {{
+          throw new Error(`Frontend log persistence should bypass api.js recursion, received ${{JSON.stringify(persistedEvents)}}`);
+        }}
+        if (
+          !persistedEvents.every(
+            (event) => event.context && event.context.session === "sess01"
+          )
+        ) {{
+          throw new Error(`Expected persisted events to carry the session id, received ${{JSON.stringify(persistedEvents)}}`);
+        }}
+        if (
+          !persistedEvents.some((event) => event.message === "Bootstrap started")
+          || !persistedEvents.some((event) => event.message === "Bootstrap finished")
+        ) {{
+          throw new Error(`Expected both frontend log events to persist, received ${{JSON.stringify(persistedEvents)}}`);
+        }}
+        if (
+          !entries.some((entry) => entry.includes("Bootstrap started session=sess01"))
+          || !entries.some((entry) => entry.includes("Bootstrap finished session=sess01"))
+        ) {{
+          throw new Error(`Expected console logging to remain active, received ${{JSON.stringify(entries)}}`);
+        }}
+      """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The frontend logger transport runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_planner_analysis_service_logs_debounce_and_latest_refresh_reason(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "planner_analysis_logging.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const plannerServiceUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "services" / "plannerAnalysisService.js")!r}).href;
+        const plannerServiceModule = await import(plannerServiceUrl);
+
+        const logEvents = [];
+        const analysisCalls = [];
+        let queuedCallback = null;
+        const logger = {{
+          debug(message, context = {{}}) {{
+            logEvents.push({{ level: "debug", message, context }});
+          }},
+          warn(message, context = {{}}) {{
+            logEvents.push({{ level: "warn", message, context }});
+          }},
+        }};
+
+        const analysisService = plannerServiceModule.createPlannerAnalysisService({{
+          analysisRefreshDelayMs: 25,
+          schedule: (callback, delay) => {{
+            queuedCallback = callback;
+            analysisCalls.push({{ scheduled: delay }});
+            return 99;
+          }},
+          cancel: (timerId) => {{
+            analysisCalls.push({{ cancelled: timerId }});
+          }},
+          analyze: async (payload, requestOptions) => {{
+            analysisCalls.push({{
+              payload,
+              requestOptions,
+            }});
+            return {{
+              ok: true,
+              warnings: ["lowered"],
+              manual: {{ status: "complete", steps: [] }},
+              automatic_full: {{ status: "complete" }},
+              automatic_future: {{ status: "unavailable" }},
+              automatic_past: {{ status: "unavailable" }},
+            }};
+          }},
+          serializeCurrentSpec: () => ({{ network: {{ id: "demo" }} }}),
+          onAnalysisResult: () => analysisCalls.push({{ result: "ready" }}),
+          onRenderRequested: () => analysisCalls.push({{ render: true }}),
+          logger,
+        }});
+
+        analysisService.requestRefresh({{
+          refreshReason: "planner_tab",
+          cacheState: "miss",
+          benchmarkPosition: 1,
+          plannerMode: false,
+        }});
+        analysisService.requestRefresh({{
+          refreshReason: "spec_change",
+          cacheState: "stale",
+          benchmarkPosition: 1,
+          plannerMode: true,
+        }});
+
+        if (typeof queuedCallback !== "function") {{
+          throw new Error("Expected the planner analysis service to queue a callback.");
+        }}
+
+        await queuedCallback();
+
+        const semanticCalls = analysisCalls.filter((entry) => entry.requestOptions);
+        if (semanticCalls.length !== 1) {{
+          throw new Error(`Expected one debounced analysis call, received ${{JSON.stringify(analysisCalls)}}.`);
+        }}
+        if (semanticCalls[0].requestOptions.refreshReason !== "spec_change") {{
+          throw new Error(`Expected the latest refresh reason to win, received ${{JSON.stringify(semanticCalls)}}.`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.message === "Contraction analysis refresh queued"
+              && entry.context.refresh_reason === "planner_tab"
+              && entry.context.cache_state === "miss"
+          )
+        ) {{
+          throw new Error(`Missing planner-tab refresh request log: ${{JSON.stringify(logEvents)}}.`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.message === "Contraction analysis refresh queued"
+              && entry.context.refresh_reason === "spec_change"
+              && entry.context.cache_state === "stale"
+          )
+        ) {{
+          throw new Error(`Missing queued stale refresh log: ${{JSON.stringify(logEvents)}}.`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.message === "Contraction analysis request started"
+              && entry.context.analysis_status === "loading"
+              && entry.context.refresh_reason === "spec_change"
+          )
+        ) {{
+          throw new Error(`Missing request-start log: ${{JSON.stringify(logEvents)}}.`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.message === "Contraction analysis request resolved"
+              && entry.context.analysis_status === "ready"
+              && entry.context.warning_count === 1
+              && entry.context.automatic_future_status === "unavailable"
+          )
+        ) {{
+          throw new Error(`Missing request-resolved summary log: ${{JSON.stringify(logEvents)}}.`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The planner analysis logging runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_bootstrap_flow_emits_frontend_log_narrative(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "bootstrap_flow_logging.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const bootstrapFlowUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "shell" / "editorBootstrapFlow.js")!r}).href;
+        const bootstrapFlowModule = await import(bootstrapFlowUrl);
+
+        const logEvents = [];
+        const refreshedConfigs = [];
+        const logger = {{
+          refreshRuntimeConfig(config) {{
+            refreshedConfigs.push(config);
+          }},
+          startOperation(name, context = {{}}) {{
+            logEvents.push({{ type: "start", name, context }});
+            return {{
+              branch(message, branchContext = {{}}) {{
+                logEvents.push({{
+                  type: "branch",
+                  name,
+                  message,
+                  context: branchContext,
+                }});
+              }},
+              finish(finishContext = {{}}) {{
+                logEvents.push({{
+                  type: "finish",
+                  name,
+                  context: finishContext,
+                }});
+              }},
+              fail(error, failureContext = {{}}) {{
+                logEvents.push({{
+                  type: "fail",
+                  name,
+                  message:
+                    error && typeof error.message === "string"
+                      ? error.message
+                      : String(error),
+                  context: failureContext,
+                }});
+              }},
+            }};
+          }},
+        }};
+
+        const state = {{
+          templateCatalogWarnings: [],
+          subnetworkCatalogWarnings: [],
+          availableCollectionFormats: [],
+        }};
+        const restoredSpec = {{
+          schema_version: 4,
+          network: {{
+            id: "network_restored",
+            tensors: [],
+            edges: [],
+            groups: [],
+            notes: [],
+            metadata: {{}},
+          }},
+        }};
+        const payloadSpec = {{
+          schema_version: 4,
+          network: {{
+            id: "network_bootstrap",
+            tensors: [],
+            edges: [],
+            groups: [],
+            notes: [],
+            metadata: {{}},
+          }},
+        }};
+        const store = {{
+          setSelectedTheme(value) {{
+            state.selectedTheme = value;
+          }},
+          setAppMetadata(value) {{
+            state.appMetadata = value;
+          }},
+          setAvailableCollectionFormats(value) {{
+            state.availableCollectionFormats = value;
+          }},
+          setSubnetworkCatalogData(value) {{
+            state.subnetworkCatalogData = value;
+          }},
+          setAnnotationDefinitions(value) {{
+            state.annotationDefinitions = value;
+          }},
+          setSpec(value) {{
+            state.spec = value;
+          }},
+          setSchemaVersion(value) {{
+            state.schemaVersion = value;
+          }},
+          setSelectedEngine(value) {{
+            state.selectedEngine = value;
+          }},
+          setSelectedCollectionFormat(value) {{
+            state.selectedCollectionFormat = value;
+          }},
+        }};
+        const actions = {{
+          normalizeSpec(spec) {{
+            return spec;
+          }},
+          applyTemplateCatalogPayload(payload) {{
+            state.templateCatalogWarnings = payload.templateCatalogWarnings || [];
+            state.templatePayload = payload;
+          }},
+          reconcileTensorOrder() {{}},
+          populateEngineOptions() {{}},
+          enforceLinearPeriodicEngineSupport() {{}},
+          populateCollectionFormatOptions() {{}},
+          initGraph() {{}},
+          clearHistory() {{}},
+          render() {{}},
+          updateToolbarState() {{}},
+          markContractionAnalysisDirty() {{
+            state.contractionAnalysisDirty = true;
+          }},
+          setStatus(message, level) {{
+            state.status = {{ message, level }};
+          }},
+        }};
+        const sessionService = {{
+          async loadBootstrap() {{
+            return {{
+              session_id: "sess01",
+              frontend_logging: {{
+                enabled: true,
+                level: "debug",
+              }},
+              theme: "contrast",
+              spec: payloadSpec,
+              schema_version: 4,
+              app_metadata: {{}},
+              collection_formats: ["list", "dict"],
+              templates: ["mps"],
+              template_definitions: {{
+                mps: {{
+                  display_name: "MPS",
+                  supports_parameters: true,
+                  source: "global",
+                }},
+              }},
+              template_catalog_warnings: [],
+              subnetworks: [],
+              subnetwork_definitions: {{}},
+              subnetwork_catalog_warnings: [],
+              selected_subnetwork: "",
+              annotation_definitions: {{}},
+              default_engine: "quimb",
+              default_collection_format: "dict",
+              engines: ["quimb", "tensornetwork"],
+            }};
+          }},
+          async loadDraft() {{
+            return {{
+              draft: {{
+                spec: restoredSpec,
+                engine: "einsum_numpy",
+                collection_format: "list",
+                saved_at: "2026-04-29T10:00:00Z",
+              }},
+            }};
+          }},
+          async clearDraft() {{
+            throw new Error("clearDraft should not run when the user restores the draft.");
+          }},
+        }};
+
+        const flow = bootstrapFlowModule.createEditorBootstrapFlow({{
+          state,
+          store,
+          sessionService,
+          actions,
+          logger,
+          documentRef: {{ documentElement: {{ dataset: {{}}, style: {{}} }} }},
+          windowRef: {{
+            localStorage: {{
+              getItem() {{
+                return null;
+              }},
+            }},
+          }},
+          confirmAction() {{
+            return true;
+          }},
+        }});
+
+        const payload = await flow.bootstrap();
+
+        if (payload.session_id !== "sess01") {{
+          throw new Error(`Unexpected bootstrap payload: ${{JSON.stringify(payload)}}`);
+        }}
+        if (refreshedConfigs.length !== 1) {{
+          throw new Error(`Expected one runtime-config refresh, received ${{JSON.stringify(refreshedConfigs)}}`);
+        }}
+        if (refreshedConfigs[0].sessionId !== "sess01") {{
+          throw new Error(`Expected bootstrap refresh to keep the session id, received ${{JSON.stringify(refreshedConfigs[0])}}`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) => entry.type === "start" && entry.name === "Bootstrap"
+          )
+        ) {{
+          throw new Error(`Missing bootstrap start log: ${{JSON.stringify(logEvents)}}`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.type === "branch"
+              && entry.message === "Applied editor theme"
+              && entry.context.theme === "contrast"
+          )
+        ) {{
+          throw new Error(`Missing theme log branch: ${{JSON.stringify(logEvents)}}`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.type === "branch"
+              && entry.message === "Recovered saved draft"
+              && entry.context.restored_draft === true
+          )
+        ) {{
+          throw new Error(`Missing draft recovery log branch: ${{JSON.stringify(logEvents)}}`);
+        }}
+        if (
+          !logEvents.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Bootstrap"
+              && entry.context.engine === "einsum_numpy"
+              && entry.context.collection_format === "list"
+              && entry.context.restored_draft === true
+          )
+        ) {{
+          throw new Error(`Missing bootstrap finish log: ${{JSON.stringify(logEvents)}}`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The bootstrap frontend logging runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
 _INTERACTION_SESSION_BINDING_DEPENDENCY_MODULES: dict[str, str] = _mapped_js_modules(
     (
         "actions/sessionCommands.js",
@@ -1345,10 +2118,51 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
 
         const state = stateModule.createInitialState();
         const statusEvents = [];
+        const flowLog = [];
         const plannerPanel = createPanel();
         let analysisRequestCount = 0;
+        const logger = {{
+          debug(message, context = {{}}) {{
+            flowLog.push({{ type: "debug", message, context }});
+          }},
+          warn(message, context = {{}}) {{
+            flowLog.push({{ type: "warn", message, context }});
+          }},
+          startOperation(name, context = {{}}) {{
+            flowLog.push({{ type: "start", name, context }});
+            return {{
+              branch(message, branchContext = {{}}) {{
+                flowLog.push({{
+                  type: "branch",
+                  name,
+                  message,
+                  context: branchContext,
+                }});
+              }},
+              finish(finishContext = {{}}) {{
+                flowLog.push({{
+                  type: "finish",
+                  name,
+                  context: finishContext,
+                }});
+              }},
+              fail(error, failureContext = {{}}) {{
+                flowLog.push({{
+                  type: "fail",
+                  name,
+                  message:
+                    error && typeof error.message === "string"
+                      ? error.message
+                      : String(error),
+                  context: failureContext,
+                }});
+              }},
+            }};
+          }},
+        }};
         const ctx = {{
           state,
+          logger,
           constants: {{
             TENSOR_WIDTH: 140,
             TENSOR_HEIGHT: 84,
@@ -1595,6 +2409,67 @@ def _write_benchmark_mode_runtime_regression_script(tmp_path: Path) -> Path:
         if (!state.spec.contraction_plan || state.spec.contraction_plan.name !== "Scheme 2") {{
           throw new Error(`Expected the active benchmark scheme to become the normal manual path on exit, received ${{JSON.stringify(state.spec.contraction_plan)}}.`);
         }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Benchmark mode toggle"
+              && entry.context.outcome === "enabled"
+          )
+        ) {{
+          throw new Error(`Expected benchmark-mode enable logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Skipped contraction analysis at benchmark base position"
+              && entry.context.analysis_status === "benchmark_base"
+          )
+        ) {{
+          throw new Error(`Expected benchmark-base planner logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Benchmark position switch"
+              && entry.context.outcome === "switched"
+              && entry.context.after === 1
+          )
+        ) {{
+          throw new Error(`Expected benchmark navigation logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Rename benchmark scheme"
+              && entry.context.outcome === "renamed"
+              && entry.context.selected_subnetwork === undefined
+              && entry.context.scheme_count >= 1
+          )
+        ) {{
+          throw new Error(`Expected benchmark rename logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Created new benchmark scheme"
+              && entry.context.scheme_count === 2
+          )
+        ) {{
+          throw new Error(`Expected benchmark scheme creation logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Benchmark mode toggle"
+              && entry.context.outcome === "disabled"
+          )
+        ) {{
+          throw new Error(`Expected benchmark-mode exit logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
       """
     )
     script_path.write_text(script_body, encoding="utf-8")
@@ -1682,9 +2557,19 @@ def _write_planner_auto_paths_immediate_refresh_runtime_regression_script(
 
         const state = stateModule.createInitialState();
         const plannerPanel = createPanel();
+        const flowLog = [];
         let analysisRequestCount = 0;
+        const logger = {{
+          debug(message, context = {{}}) {{
+            flowLog.push({{ level: "debug", message, context }});
+          }},
+          warn(message, context = {{}}) {{
+            flowLog.push({{ level: "warn", message, context }});
+          }},
+        }};
         const ctx = {{
           state,
+          logger,
           constants: {{
             HISTORY_LIMIT: 100,
             TENSOR_WIDTH: 140,
@@ -1919,6 +2804,40 @@ def _write_planner_auto_paths_immediate_refresh_runtime_regression_script(
             `Expected the refreshed planner analysis to expose Auto past, received ${{plannerPanel.innerHTML}}.`
           );
         }}
+        await ctx.refreshContractionAnalysis({{ refreshReason: "planner_tab" }});
+        if (analysisRequestCount !== 1) {{
+          throw new Error(
+            `Expected cached planner analysis to avoid a second request, received ${{analysisRequestCount}} calls.`
+          );
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Contraction analysis request started"
+              && entry.context.refresh_reason === "spec_change"
+          )
+        ) {{
+          throw new Error(`Missing spec-change refresh log: ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Contraction analysis cache hit"
+              && entry.context.refresh_reason === "planner_tab"
+              && entry.context.cache_state === "hit"
+          )
+        ) {{
+          throw new Error(`Missing cache-hit planner-tab log: ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Contraction analysis request resolved"
+              && entry.context.analysis_status === "ready"
+          )
+        ) {{
+          throw new Error(`Missing planner analysis ready log: ${{JSON.stringify(flowLog)}}.`);
+        }}
         """
     )
     script_path.write_text(script_body, encoding="utf-8")
@@ -1995,8 +2914,49 @@ def _write_benchmark_compare_export_runtime_regression_script(
 
         const state = stateModule.createInitialState();
         const exportEvents = [];
+        const flowLog = [];
+        const logger = {{
+          debug(message, context = {{}}) {{
+            flowLog.push({{ type: "debug", message, context }});
+          }},
+          warn(message, context = {{}}) {{
+            flowLog.push({{ type: "warn", message, context }});
+          }},
+          startOperation(name, context = {{}}) {{
+            flowLog.push({{ type: "start", name, context }});
+            return {{
+              branch(message, branchContext = {{}}) {{
+                flowLog.push({{
+                  type: "branch",
+                  name,
+                  message,
+                  context: branchContext,
+                }});
+              }},
+              finish(finishContext = {{}}) {{
+                flowLog.push({{
+                  type: "finish",
+                  name,
+                  context: finishContext,
+                }});
+              }},
+              fail(error, failureContext = {{}}) {{
+                flowLog.push({{
+                  type: "fail",
+                  name,
+                  message:
+                    error && typeof error.message === "string"
+                      ? error.message
+                      : String(error),
+                  context: failureContext,
+                }});
+              }},
+            }};
+          }},
+        }};
         const ctx = {{
           state,
+          logger,
           constants: {{
             TENSOR_WIDTH: 140,
             TENSOR_HEIGHT: 84,
@@ -2235,6 +3195,59 @@ def _write_benchmark_compare_export_runtime_regression_script(
         }}
         if (!latexExport.text.includes("Gamma & 7 & 9 & 11 & 44 bytes \\\\\\\\")) {{
           throw new Error(`Expected the copied LaTeX to include the partial Gamma row, received ${{latexExport.text}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Open benchmark compare modal"
+              && entry.context.outcome === "loaded"
+              && entry.context.scheme_count === 3
+          )
+        ) {{
+          throw new Error(`Expected benchmark compare load logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.message === "Benchmark comparison batch completed"
+              && entry.context.scheme_count === 3
+          )
+        ) {{
+          throw new Error(`Expected benchmark comparison batch logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Export benchmark comparison"
+              && entry.context.export_format === "csv"
+              && entry.context.outcome === "downloaded"
+          )
+        ) {{
+          throw new Error(`Expected CSV export logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Export benchmark comparison"
+              && entry.context.export_format === "text"
+              && entry.context.outcome === "downloaded"
+          )
+        ) {{
+          throw new Error(`Expected text export logging, received ${{JSON.stringify(flowLog)}}.`);
+        }}
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Copy benchmark comparison"
+              && entry.context.export_format === "latex"
+              && entry.context.outcome === "copied"
+          )
+        ) {{
+          throw new Error(`Expected LaTeX copy logging, received ${{JSON.stringify(flowLog)}}.`);
         }}
         """
     )
@@ -12372,6 +13385,7 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             );
 
             const calls = [];
+            const flowLog = [];
             let scheduledCallback = null;
             const state = {
               spec: { name: "draft demo" },
@@ -12382,6 +13396,39 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               draftAutosaveDirty: false,
               draftAutosaveSaving: false,
             };
+            const logger = {
+              startOperation(name, context = {}) {
+                flowLog.push({ type: "start", name, context });
+                return {
+                  branch(message, branchContext = {}) {
+                    flowLog.push({
+                      type: "branch",
+                      name,
+                      message,
+                      context: branchContext,
+                    });
+                  },
+                  finish(finishContext = {}) {
+                    flowLog.push({
+                      type: "finish",
+                      name,
+                      context: finishContext,
+                    });
+                  },
+                  fail(error, failureContext = {}) {
+                    flowLog.push({
+                      type: "fail",
+                      name,
+                      message:
+                        error && typeof error.message === "string"
+                          ? error.message
+                          : String(error),
+                      context: failureContext,
+                    });
+                  },
+                };
+              },
+            };
             const flows = createSessionEditorFlows({
               dom: {
                 exportFormatSelect: { value: "py" },
@@ -12389,6 +13436,7 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                 loadInput: null,
               },
               state,
+              logger,
               store: {
                 setGeneratedCode(code) {
                   state.generatedCode = code;
@@ -12512,6 +13560,16 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             ) {
               throw new Error(`Unexpected autosave payload: ${JSON.stringify(saveCall.payload)}.`);
             }
+            if (
+              !flowLog.some(
+                (entry) =>
+                  entry.type === "finish"
+                  && entry.name === "Save current draft"
+                  && entry.context.outcome === "saved"
+              )
+            ) {
+              throw new Error(`Expected draft-save flow logging, received ${JSON.stringify(flowLog)}.`);
+            }
 
             flows.saveDesign();
             await Promise.resolve();
@@ -12520,6 +13578,16 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             }
             if (!state.draftAutosaveReady) {
               throw new Error("Explicit JSON save should resume future autosaves.");
+            }
+            if (
+              !flowLog.some(
+                (entry) =>
+                  entry.type === "finish"
+                  && entry.name === "Save design"
+                  && entry.context.outcome === "downloaded"
+              )
+            ) {
+              throw new Error(`Expected save-design flow logging, received ${JSON.stringify(flowLog)}.`);
             }
 
             await flows.downloadExportAs("svg");
@@ -12584,6 +13652,17 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             if (!dotDownloadCall || dotDownloadCall.contentType !== "text/vnd.graphviz;charset=utf-8") {
               throw new Error(`Expected DOT export to download a .dot file, received ${JSON.stringify(calls)}.`);
             }
+            if (
+              !flowLog.some(
+                (entry) =>
+                  entry.type === "finish"
+                  && entry.name === "Download academic export"
+                  && entry.context.format === "dot"
+                  && entry.context.outcome === "downloaded"
+              )
+            ) {
+              throw new Error(`Expected export flow logging, received ${JSON.stringify(flowLog)}.`);
+            }
 
             const callCountBeforeComplete = calls.length;
             await flows.completeEditor();
@@ -12595,6 +13674,16 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             }
             if (state.draftAutosaveReady) {
               throw new Error("Done should stop further draft autosaves.");
+            }
+            if (
+              !flowLog.some(
+                (entry) =>
+                  entry.type === "finish"
+                  && entry.name === "Complete editor"
+                  && entry.context.outcome === "completed"
+              )
+            ) {
+              throw new Error(`Expected complete-editor flow logging, received ${JSON.stringify(flowLog)}.`);
             }
           """
         ),
@@ -14520,6 +15609,40 @@ def _write_template_catalog_management_runtime_regression_script(
         const apiCalls = [];
         const confirmMessages = [];
         let deleteResponseUsed = false;
+        const flowLog = [];
+        const logger = {
+          startOperation(name, context = {}) {
+            flowLog.push({ type: "start", name, context });
+            return {
+              branch(message, branchContext = {}) {
+                flowLog.push({
+                  type: "branch",
+                  name,
+                  message,
+                  context: branchContext,
+                });
+              },
+              finish(finishContext = {}) {
+                flowLog.push({
+                  type: "finish",
+                  name,
+                  context: finishContext,
+                });
+              },
+              fail(error, failureContext = {}) {
+                flowLog.push({
+                  type: "fail",
+                  name,
+                  message:
+                    error && typeof error.message === "string"
+                      ? error.message
+                      : String(error),
+                  context: failureContext,
+                });
+              },
+            };
+          },
+        };
 
         const fakeDocument = createFakeDocument();
         const templateManagerList = createFakeList(fakeDocument);
@@ -14829,6 +15952,7 @@ def _write_template_catalog_management_runtime_regression_script(
           },
           document: fakeDocument,
           cytoscape: null,
+          logger,
           render() {},
           renderOverlayDecorations() {},
           renderMinimap() {},
@@ -15106,6 +16230,16 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!secondSessionEntry) {
           throw new Error("Saving the same selection twice should keep the prompted names.");
         }
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Save selection as session template"
+              && entry.context.template_name === "Session Fragment"
+          )
+        ) {
+          throw new Error(`Expected session-template save logging, received ${JSON.stringify(flowLog)}.`);
+        }
         ctx.toggleTemplateManager(true);
         if (ctx.dom.templateManagerList.children.length !== 2) {
           throw new Error(
@@ -15373,6 +16507,16 @@ def _write_template_catalog_management_runtime_regression_script(
         if (!ctx.dom.subnetworkLibraryAddSelectedButton.disabled) {
           throw new Error("Batch add button should be disabled again after the selection is cleared.");
         }
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Add selected subnetworks to session templates"
+              && entry.context.added_count === 2
+          )
+        ) {
+          throw new Error(`Expected subnetwork batch-add logging, received ${JSON.stringify(flowLog)}.`);
+        }
 
         ctx.dom.templateSelect.value = firstSessionTemplate;
         ctx.handleTemplateSelectionChange({ target: ctx.dom.templateSelect });
@@ -15387,6 +16531,17 @@ def _write_template_catalog_management_runtime_regression_script(
         if (ctx.dom.templateSelect.value !== firstSessionTemplate) {
           throw new Error(`Expected the renamed template to stay selected, received ${ctx.dom.templateSelect.value}.`);
         }
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Rename selected template"
+              && entry.context.template_name === firstSessionTemplate
+              && entry.context.selected_template === "Renamed Session Fragment"
+          )
+        ) {
+          throw new Error(`Expected template-rename logging, received ${JSON.stringify(flowLog)}.`);
+        }
 
         await ctx.deleteSelectedTemplate();
         if (ctx.state.availableTemplates.includes(firstSessionTemplate)) {
@@ -15397,6 +16552,17 @@ def _write_template_catalog_management_runtime_regression_script(
         }
         if (ctx.state.templateDefinitions.project_fragment.source !== "project") {
           throw new Error("Project template metadata should remain read-only and keep source='project'.");
+        }
+        if (
+          !flowLog.some(
+            (entry) =>
+              entry.type === "finish"
+              && entry.name === "Delete selected template"
+              && entry.context.template_name === firstSessionTemplate
+              && entry.context.outcome === "deleted"
+          )
+        ) {
+          throw new Error(`Expected template-delete logging, received ${JSON.stringify(flowLog)}.`);
         }
         """
     )

@@ -152,6 +152,14 @@ Use the CLI flag for one command:
 tensor-network-editor --log-level debug edit --no-browser
 ```
 
+If you want the trace to stay on disk, add `--log-file`:
+
+```bash
+tensor-network-editor --log-file tne.log validate my_network.json
+tensor-network-editor --log-level debug --log-file tne-editor.log edit --no-browser
+tensor-network-editor --log-file tne.log --log-max-bytes 10485760 --log-backup-count 5 edit --no-browser
+```
+
 Or use the environment variable for a short session:
 
 PowerShell:
@@ -169,6 +177,90 @@ TNE_LOG_LEVEL=debug tensor-network-editor validate my_network.json
 ```
 
 The CLI flag takes priority over `TNE_LOG_LEVEL`.
+
+When `--log-file` is present without an explicit level, file capture defaults
+to `debug` while terminal stderr stays quiet. That is the easiest way to keep a
+full trace for later inspection without making the command noisy on screen.
+
+Persistent log capture now rotates by size automatically. If you do not pass
+extra flags, the defaults are:
+
+- `--log-max-bytes 10485760`
+- `--log-backup-count 5`
+
+That means the active file is kept alongside rotated backups like `tne.log.1`
+instead of growing without limit during long editor sessions.
+
+In current versions, `debug` is meant to be useful for actual tracing while
+staying readable. Expect entries such as:
+
+- command lifecycle: `CLI command started` / `CLI command finished`
+- operation context: `command=...`, `path=...`, `engine=...`, `format=...`
+- Python import decisions: `python_import_mode=live`, `source_profile=generated`
+- fallback reasons such as live import switching to the static parser
+- editor backend request traces with `session=...`, `route=...`, and
+  `elapsed_ms=...`
+- editor lifecycle traces such as draft load/save/clear, template and
+  reusable-subnetwork catalog persistence, browser-open fallback, and static
+  asset-cache build/reuse/refresh decisions
+- planner and benchmark semantics such as `refresh_reason=...`,
+  `cache_state=...`, `analysis_status=...`, `analysis_source=...`,
+  `benchmark_position=...`, `scheme_count=...`, and `export_format=...`
+- browser-editor console traces for API requests plus key frontend flows like
+  bootstrap, draft recovery, planner refreshes, benchmark navigation,
+  comparison exports, template actions, and reusable-subnetwork actions when
+  the devtools console is open
+
+The log is intentionally compact: high-level operations keep their
+`... started` / `... finished` lifecycle, branch decisions still appear when
+they explain something non-obvious, and routine leaf-level success breadcrumbs
+are usually folded into the `... finished` summary instead of being printed as
+extra lines.
+
+At `info`, the package still reports meaningful milestones, but it now omits
+most successful low-level internal reads and writes so normal traces are easier
+to scan.
+
+If a command still feels too opaque, rerun it once with `--log-level debug`
+and read from the first `... started` line to the matching `... finished` or
+`... failed` line. That usually shows where the flow diverged.
+
+For editor sessions, open the browser developer tools as well. Current versions
+correlate the frontend console traces with the backend session id, so a single
+debug run can now tell the story from Python startup through browser requests
+and key editor actions.
+
+If the editor runs with `--log-file`, those frontend events are also sent back
+to the local Python server and appended to the same file. That means one log
+file can now capture:
+
+- CLI startup and runtime diagnostics
+- Python-side editor routes and persistence flows
+- browser API requests and key frontend actions
+- session completion or cancellation
+
+Two practical captures that help a lot in real debugging are:
+
+```bash
+tensor-network-editor --log-level debug --log-file planner.log benchmark my_network.json
+tensor-network-editor --log-file editor.log edit --no-browser
+```
+
+From Python, the same persistent capture can be enabled with:
+
+```python
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
+
+
+open_editor(
+    options=EditorLaunchOptions(
+        open_browser=False,
+        log_file_path="tne-editor.log",
+        log_file_max_bytes=10_485_760,
+        log_file_backup_count=5,
+    )
+)
+```
 
 ## Generated Backend Code Does Not Run
 
@@ -282,6 +374,22 @@ unavailable until validation issues are fixed.
 If the design contains hyperedges in normal mode, planner and benchmark analysis
 lower them to internal generated copy tensors and show a warning. The saved
 visual model is not changed.
+
+If you need to understand why planner suggestions or benchmark rows changed,
+run a focused debug capture once:
+
+```bash
+tensor-network-editor --log-level debug benchmark my_network.json
+tensor-network-editor --log-level debug --log-file planner.log benchmark my_network.json --format json
+```
+
+Useful clues in those traces are:
+
+- `refresh_reason=spec_change|planner_tab|planner_mode|benchmark_nav|compare_modal`
+- `cache_state=hit|miss|stale|bypass`
+- `analysis_status=ready|issues|error|unavailable|benchmark_base`
+- `analysis_source=manual|automatic_full|automatic_future|automatic_past|compare_batch`
+- `benchmark_position=...` and `scheme_count=...` while navigating or comparing
 
 ## TensorKrowch Rejects a Manual Plan
 

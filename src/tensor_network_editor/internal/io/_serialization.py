@@ -15,6 +15,7 @@ from ...errors import SerializationError
 from ...models import NetworkSpec
 from ...types import JSONValue, StrPath
 from ...validation import ensure_valid_spec
+from .._logging import log_branch, log_operation, summarize_spec_counts
 from ._io import read_utf8_text, write_utf8_text
 from ._payloads import coerce_int
 from ._python_import_profiles import (
@@ -175,14 +176,19 @@ def save_spec(spec: NetworkSpec, path: StrPath) -> None:
     Raises:
         SerializationError: If the specification cannot be serialized to JSON.
     """
-    payload = serialize_spec(spec)
-    try:
-        body = json.dumps(payload, indent=2)
-    except TypeError as exc:
-        raise SerializationError(
-            "Could not serialize the network specification to JSON."
-        ) from exc
-    write_utf8_text(path, body, description="network specification JSON")
+    with log_operation(
+        LOGGER,
+        "Serialized spec save",
+        context={"path": path, **summarize_spec_counts(spec)},
+    ):
+        payload = serialize_spec(spec)
+        try:
+            body = json.dumps(payload, indent=2)
+        except TypeError as exc:
+            raise SerializationError(
+                "Could not serialize the network specification to JSON."
+            ) from exc
+        write_utf8_text(path, body, description="network specification JSON")
 
 
 def load_spec(
@@ -226,29 +232,45 @@ def load_spec_result(
     python_object_name: str | None = None,
 ) -> PythonSpecLoadResult:
     """Load one specification from disk together with soft import warnings."""
-    source_path = Path(path)
-    if source_path.suffix.lower() == ".py":
-        body = read_utf8_text(path, description="generated Python code")
-        LOGGER.debug("Loaded generated Python code payload from %s", path)
-        return deserialize_spec_from_python_code_result(
-            body,
-            validate=True,
-            source_profile=source_profile,
-            python_import_mode=python_import_mode,
-            python_reconstruction_level=python_reconstruction_level,
-            python_object_name=python_object_name,
-            source_path=source_path,
-        )
+    context = {
+        "path": path,
+        "source_profile": source_profile,
+        "python_import_mode": python_import_mode,
+        "python_reconstruction_level": python_reconstruction_level,
+    }
+    with log_operation(
+        LOGGER,
+        "Serialized spec load",
+        context=context,
+        emit_start=False,
+    ) as success_context:
+        source_path = Path(path)
+        if source_path.suffix.lower() == ".py":
+            body = read_utf8_text(path, description="generated Python code")
+            result = deserialize_spec_from_python_code_result(
+                body,
+                validate=True,
+                source_profile=source_profile,
+                python_import_mode=python_import_mode,
+                python_reconstruction_level=python_reconstruction_level,
+                python_object_name=python_object_name,
+                source_path=source_path,
+            )
+            success_context.update(summarize_spec_counts(result.spec))
+            return result
 
-    body = read_utf8_text(path, description="network specification JSON")
-    LOGGER.debug("Loaded serialized network payload from %s", path)
-    try:
-        payload = json.loads(body)
-    except json.JSONDecodeError as exc:
-        raise SerializationError("Could not parse network specification JSON.") from exc
-    if not isinstance(payload, dict):
-        raise SerializationError("Serialized network must be a JSON object.")
-    return PythonSpecLoadResult(spec=deserialize_spec(payload), warnings=[])
+        body = read_utf8_text(path, description="network specification JSON")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise SerializationError(
+                "Could not parse network specification JSON."
+            ) from exc
+        if not isinstance(payload, dict):
+            raise SerializationError("Serialized network must be a JSON object.")
+        result = PythonSpecLoadResult(spec=deserialize_spec(payload), warnings=[])
+        success_context.update(summarize_spec_counts(result.spec))
+        return result
 
 
 def deserialize_spec_from_python_code(
@@ -296,56 +318,78 @@ def deserialize_spec_from_python_code_result(
     source_path: Path | None = None,
 ) -> PythonSpecLoadResult:
     """Parse Python source into a ``NetworkSpec`` together with warnings."""
-    normalized_import_mode = normalize_python_import_mode(python_import_mode)
-    normalized_reconstruction_level = normalize_python_reconstruction_level(
-        python_reconstruction_level
-    )
-    if normalized_import_mode == "live":
-        resolve_python_reconstruction_level(
-            normalized_reconstruction_level,
-            resolved_source_profile="generated",
-            python_import_mode=normalized_import_mode,
+    context = {
+        "source_profile": source_profile,
+        "python_import_mode": python_import_mode,
+        "python_reconstruction_level": python_reconstruction_level,
+    }
+    with log_operation(
+        LOGGER,
+        "Python source deserialization",
+        context=context,
+        emit_start=False,
+    ) as success_context:
+        normalized_import_mode = normalize_python_import_mode(python_import_mode)
+        normalized_reconstruction_level = normalize_python_reconstruction_level(
+            python_reconstruction_level
         )
-        try:
-            result = import_live_python_source(
-                code,
-                source_profile=source_profile,
-                python_object_name=python_object_name,
-                source_path=source_path,
+        if normalized_import_mode == "live":
+            resolve_python_reconstruction_level(
+                normalized_reconstruction_level,
+                resolved_source_profile="generated",
+                python_import_mode=normalized_import_mode,
             )
-        except SerializationError as exc:
-            if not _should_fallback_live_import_to_static_parser(
-                code,
-                source_profile=source_profile,
-                error=exc,
-            ):
-                raise
             try:
-                fallback_result = _deserialize_static_python_code_result(
+                result = import_live_python_source(
                     code,
-                    validate=validate,
                     source_profile=source_profile,
-                    python_reconstruction_level=normalized_reconstruction_level,
+                    python_object_name=python_object_name,
+                    source_path=source_path,
                 )
-            except SerializationError as fallback_exc:
-                raise exc from fallback_exc
-            return PythonSpecLoadResult(
-                spec=fallback_result.spec,
-                warnings=[
-                    "Live Python import failed "
-                    f"({exc}). Loaded the file with the static parser instead.",
-                    *fallback_result.warnings,
-                ],
-            )
-        spec = ensure_valid_spec(result.spec) if validate else result.spec
-        return PythonSpecLoadResult(spec=spec, warnings=result.warnings)
+            except SerializationError as exc:
+                if not _should_fallback_live_import_to_static_parser(
+                    code,
+                    source_profile=source_profile,
+                    error=exc,
+                ):
+                    raise
+                try:
+                    fallback_result = _deserialize_static_python_code_result(
+                        code,
+                        validate=validate,
+                        source_profile=source_profile,
+                        python_reconstruction_level=normalized_reconstruction_level,
+                    )
+                except SerializationError as fallback_exc:
+                    raise exc from fallback_exc
+                log_branch(
+                    LOGGER,
+                    "Live Python import fell back to the static parser",
+                    context={
+                        "source_profile": "generated",
+                        **summarize_spec_counts(fallback_result.spec),
+                    },
+                )
+                return PythonSpecLoadResult(
+                    spec=fallback_result.spec,
+                    warnings=[
+                        "Live Python import failed "
+                        f"({exc}). Loaded the file with the static parser instead.",
+                        *fallback_result.warnings,
+                    ],
+                )
+            spec = ensure_valid_spec(result.spec) if validate else result.spec
+            success_context.update(summarize_spec_counts(spec))
+            return PythonSpecLoadResult(spec=spec, warnings=result.warnings)
 
-    return _deserialize_static_python_code_result(
-        code,
-        validate=validate,
-        source_profile=source_profile,
-        python_reconstruction_level=normalized_reconstruction_level,
-    )
+        static_result = _deserialize_static_python_code_result(
+            code,
+            validate=validate,
+            source_profile=source_profile,
+            python_reconstruction_level=normalized_reconstruction_level,
+        )
+        success_context.update(summarize_spec_counts(static_result.spec))
+        return static_result
 
 
 def _should_fallback_live_import_to_static_parser(

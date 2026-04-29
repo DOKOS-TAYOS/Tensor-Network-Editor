@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from ...errors import PackageIOError, SerializationError
 from ...models import NetworkSpec
 from ...types import JSONValue, StrPath
 from ...validation import ensure_valid_spec
+from .._logging import log_branch, log_operation
 from ..io._io import read_utf8_text, write_utf8_text
 from ..io._serialization import deserialize_spec, serialize_spec
 from ._template_catalog import (
@@ -23,6 +25,7 @@ from ._template_catalog import (
 )
 
 PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION = 1
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -84,86 +87,111 @@ def load_project_template_catalog(
     """Load the project-local static template catalog from disk."""
     effective_reserved_names = _resolve_reserved_names(reserved_names)
     catalog_path = resolve_project_template_catalog_path(template_catalog_path)
-    if not catalog_path.exists():
-        return ProjectTemplateCatalog(path=catalog_path, entries={}, warnings=[])
+    with log_operation(
+        LOGGER,
+        "Project template catalog load",
+        context={"path": catalog_path},
+        emit_start=False,
+    ) as success_context:
+        if not catalog_path.exists():
+            success_context["status"] = "missing"
+            log_branch(LOGGER, "Project template catalog not found on disk")
+            return ProjectTemplateCatalog(path=catalog_path, entries={}, warnings=[])
 
-    try:
-        payload = json.loads(
-            read_utf8_text(
-                catalog_path,
-                description="project template catalog JSON",
-            )
-        )
-    except PackageIOError as exc:
-        return ProjectTemplateCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[str(exc)],
-        )
-    except json.JSONDecodeError as exc:
-        return ProjectTemplateCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Could not parse the project template catalog at '{catalog_path}': {exc.msg}"
-            ],
-        )
-
-    if not isinstance(payload, dict):
-        return ProjectTemplateCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Project template catalog '{catalog_path}' must contain a JSON object."
-            ],
-        )
-
-    schema_version = payload.get("schema_version")
-    if schema_version != PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION:
-        return ProjectTemplateCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=["Project template catalog schema version is not supported."],
-        )
-
-    raw_entries = payload.get("templates")
-    if not isinstance(raw_entries, list):
-        return ProjectTemplateCatalog(
-            path=catalog_path,
-            entries={},
-            warnings=[
-                f"Project template catalog '{catalog_path}' must contain a 'templates' list."
-            ],
-        )
-
-    entries: dict[str, ProjectTemplateEntry] = {}
-    warnings: list[str] = []
-    for index, raw_entry in enumerate(raw_entries):
-        if not isinstance(raw_entry, dict):
-            warnings.append(
-                f"Skipped project template entry #{index + 1}: expected an object."
-            )
-            continue
         try:
-            entry = _parse_project_template_entry(raw_entry)
-        except (SerializationError, ValueError) as exc:
-            warnings.append(f"Skipped project template entry #{index + 1}: {exc}")
-            continue
-        if entry.name in effective_reserved_names:
-            warnings.append(
-                f"Skipped project template '{entry.name}' because it collides with a global template."
+            payload = json.loads(
+                read_utf8_text(
+                    catalog_path,
+                    description="project template catalog JSON",
+                )
             )
-            continue
-        if entry.name in entries:
-            warnings.append(f"Skipped duplicated project template '{entry.name}'.")
-            continue
-        entries[entry.name] = entry
+        except PackageIOError as exc:
+            log_branch(
+                LOGGER,
+                f"Project template catalog read failed: {exc}",
+                level=logging.WARNING,
+            )
+            return ProjectTemplateCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[str(exc)],
+            )
+        except json.JSONDecodeError as exc:
+            warning = f"Could not parse the project template catalog at '{catalog_path}': {exc.msg}"
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return ProjectTemplateCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
 
-    return ProjectTemplateCatalog(
-        path=catalog_path,
-        entries=entries,
-        warnings=warnings,
-    )
+        if not isinstance(payload, dict):
+            warning = (
+                f"Project template catalog '{catalog_path}' must contain a JSON object."
+            )
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return ProjectTemplateCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        schema_version = payload.get("schema_version")
+        if schema_version != PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION:
+            warning = "Project template catalog schema version is not supported."
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return ProjectTemplateCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        raw_entries = payload.get("templates")
+        if not isinstance(raw_entries, list):
+            warning = f"Project template catalog '{catalog_path}' must contain a 'templates' list."
+            log_branch(LOGGER, warning, level=logging.WARNING)
+            return ProjectTemplateCatalog(
+                path=catalog_path,
+                entries={},
+                warnings=[warning],
+            )
+
+        entries: dict[str, ProjectTemplateEntry] = {}
+        warnings: list[str] = []
+        for index, raw_entry in enumerate(raw_entries):
+            if not isinstance(raw_entry, dict):
+                warning = (
+                    f"Skipped project template entry #{index + 1}: expected an object."
+                )
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            try:
+                entry = _parse_project_template_entry(raw_entry)
+            except (SerializationError, ValueError) as exc:
+                warning = f"Skipped project template entry #{index + 1}: {exc}"
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            if entry.name in effective_reserved_names:
+                warning = f"Skipped project template '{entry.name}' because it collides with a global template."
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            if entry.name in entries:
+                warning = f"Skipped duplicated project template '{entry.name}'."
+                warnings.append(warning)
+                log_branch(LOGGER, warning, level=logging.WARNING)
+                continue
+            entries[entry.name] = entry
+
+        success_context["status"] = len(entries)
+        success_context["warning_count"] = len(warnings)
+        return ProjectTemplateCatalog(
+            path=catalog_path,
+            entries=entries,
+            warnings=warnings,
+        )
 
 
 def append_project_template(
@@ -176,25 +204,30 @@ def append_project_template(
 ) -> ProjectTemplateCatalog:
     """Append one new project-local template and persist the catalog."""
     effective_reserved_names = _resolve_reserved_names(reserved_names)
-    catalog = load_project_template_catalog(
-        template_catalog_path,
-        reserved_names=effective_reserved_names,
-    )
-    normalized_name = _validate_template_name(template_name)
-    _validate_project_template_destination(
-        catalog.entries,
-        normalized_name,
-        reserved_names=effective_reserved_names,
-        overwrite=overwrite,
-    )
-    entry = _build_project_template_entry(normalized_name, spec)
-    next_entries = dict(catalog.entries)
-    next_entries[normalized_name] = entry
-    save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(
-        catalog.path,
-        reserved_names=effective_reserved_names,
-    )
+    with log_operation(
+        LOGGER,
+        "Project template catalog append",
+        context={"template_name": template_name},
+    ):
+        catalog = load_project_template_catalog(
+            template_catalog_path,
+            reserved_names=effective_reserved_names,
+        )
+        normalized_name = _validate_template_name(template_name)
+        _validate_project_template_destination(
+            catalog.entries,
+            normalized_name,
+            reserved_names=effective_reserved_names,
+            overwrite=overwrite,
+        )
+        entry = _build_project_template_entry(normalized_name, spec)
+        next_entries = dict(catalog.entries)
+        next_entries[normalized_name] = entry
+        save_project_template_catalog(catalog.path, next_entries)
+        return load_project_template_catalog(
+            catalog.path,
+            reserved_names=effective_reserved_names,
+        )
 
 
 def rename_project_template(
@@ -207,44 +240,52 @@ def rename_project_template(
 ) -> ProjectTemplateCatalog:
     """Rename one persisted project-local template and reload the catalog."""
     effective_reserved_names = _resolve_reserved_names(reserved_names)
-    catalog = load_project_template_catalog(
-        template_catalog_path,
-        reserved_names=effective_reserved_names,
-    )
-    normalized_name = _validate_template_name(template_name)
-    normalized_new_name = _validate_template_name(new_template_name)
-    if normalized_name not in catalog.entries:
-        raise ValueError(f"Unknown project template '{normalized_name}'.")
-    if normalized_new_name != normalized_name:
-        _validate_project_template_destination(
-            catalog.entries,
-            normalized_new_name,
+    with log_operation(
+        LOGGER,
+        "Project template catalog rename",
+        context={
+            "template_name": template_name,
+            "selected_template": new_template_name,
+        },
+    ):
+        catalog = load_project_template_catalog(
+            template_catalog_path,
             reserved_names=effective_reserved_names,
-            overwrite=overwrite,
         )
+        normalized_name = _validate_template_name(template_name)
+        normalized_new_name = _validate_template_name(new_template_name)
+        if normalized_name not in catalog.entries:
+            raise ValueError(f"Unknown project template '{normalized_name}'.")
+        if normalized_new_name != normalized_name:
+            _validate_project_template_destination(
+                catalog.entries,
+                normalized_new_name,
+                reserved_names=effective_reserved_names,
+                overwrite=overwrite,
+            )
 
-    current_entry = catalog.entries[normalized_name]
-    renamed_entry = _build_project_template_entry(
-        normalized_new_name,
-        current_entry.spec,
-    )
-    next_entries: dict[str, ProjectTemplateEntry] = {}
-    for entry_name, entry in catalog.entries.items():
-        if (
-            overwrite
-            and normalized_new_name != normalized_name
-            and entry_name == normalized_new_name
-        ):
-            continue
-        if entry_name == normalized_name:
-            next_entries[normalized_new_name] = renamed_entry
-            continue
-        next_entries[entry_name] = entry
-    save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(
-        catalog.path,
-        reserved_names=effective_reserved_names,
-    )
+        current_entry = catalog.entries[normalized_name]
+        renamed_entry = _build_project_template_entry(
+            normalized_new_name,
+            current_entry.spec,
+        )
+        next_entries: dict[str, ProjectTemplateEntry] = {}
+        for entry_name, entry in catalog.entries.items():
+            if (
+                overwrite
+                and normalized_new_name != normalized_name
+                and entry_name == normalized_new_name
+            ):
+                continue
+            if entry_name == normalized_name:
+                next_entries[normalized_new_name] = renamed_entry
+                continue
+            next_entries[entry_name] = entry
+        save_project_template_catalog(catalog.path, next_entries)
+        return load_project_template_catalog(
+            catalog.path,
+            reserved_names=effective_reserved_names,
+        )
 
 
 def delete_project_template(
@@ -255,23 +296,28 @@ def delete_project_template(
 ) -> ProjectTemplateCatalog:
     """Delete one persisted project-local template and reload the catalog."""
     effective_reserved_names = _resolve_reserved_names(reserved_names)
-    catalog = load_project_template_catalog(
-        template_catalog_path,
-        reserved_names=effective_reserved_names,
-    )
-    normalized_name = _validate_template_name(template_name)
-    if normalized_name not in catalog.entries:
-        raise ValueError(f"Unknown project template '{normalized_name}'.")
-    next_entries = {
-        entry_name: entry
-        for entry_name, entry in catalog.entries.items()
-        if entry_name != normalized_name
-    }
-    save_project_template_catalog(catalog.path, next_entries)
-    return load_project_template_catalog(
-        catalog.path,
-        reserved_names=effective_reserved_names,
-    )
+    with log_operation(
+        LOGGER,
+        "Project template catalog delete",
+        context={"template_name": template_name},
+    ):
+        catalog = load_project_template_catalog(
+            template_catalog_path,
+            reserved_names=effective_reserved_names,
+        )
+        normalized_name = _validate_template_name(template_name)
+        if normalized_name not in catalog.entries:
+            raise ValueError(f"Unknown project template '{normalized_name}'.")
+        next_entries = {
+            entry_name: entry
+            for entry_name, entry in catalog.entries.items()
+            if entry_name != normalized_name
+        }
+        save_project_template_catalog(catalog.path, next_entries)
+        return load_project_template_catalog(
+            catalog.path,
+            reserved_names=effective_reserved_names,
+        )
 
 
 def save_project_template_catalog(
@@ -280,22 +326,31 @@ def save_project_template_catalog(
 ) -> None:
     """Write the project-local template catalog to disk."""
     target_path = Path(catalog_path)
-    try:
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise PackageIOError(
-            "Could not create parent directory for project template catalog JSON "
-            f"at '{target_path.parent}': {exc}"
-        ) from exc
-    payload = {
-        "schema_version": PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION,
-        "templates": [entry.to_dict() for entry in entries.values()],
-    }
-    write_utf8_text(
-        target_path,
-        json.dumps(payload, indent=2),
-        description="project template catalog JSON",
-    )
+    with log_operation(
+        LOGGER,
+        "Project template catalog save",
+        context={"path": target_path},
+        start_level=logging.DEBUG,
+        success_level=logging.DEBUG,
+        emit_start=False,
+    ) as success_context:
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PackageIOError(
+                "Could not create parent directory for project template catalog JSON "
+                f"at '{target_path.parent}': {exc}"
+            ) from exc
+        payload = {
+            "schema_version": PROJECT_TEMPLATE_CATALOG_SCHEMA_VERSION,
+            "templates": [entry.to_dict() for entry in entries.values()],
+        }
+        write_utf8_text(
+            target_path,
+            json.dumps(payload, indent=2),
+            description="project template catalog JSON",
+        )
+        success_context["status"] = len(entries)
 
 
 def _parse_project_template_entry(

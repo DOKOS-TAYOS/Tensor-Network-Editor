@@ -69,6 +69,28 @@ tensor-network-editor --log-level info edit --no-browser
 tensor-network-editor --log-level debug validate my_network.json
 ```
 
+If you want a persistent trace on disk, add `--log-file`:
+
+```bash
+tensor-network-editor --log-file tne.log validate my_network.json
+tensor-network-editor --log-level info --log-file tne.log template list
+tensor-network-editor --log-level debug --log-file tne-editor.log edit --no-browser
+tensor-network-editor --log-file tne.log --log-max-bytes 10485760 --log-backup-count 5 edit --no-browser
+```
+
+When `--log-file` is provided without `--log-level`, the file capture defaults
+to `debug` while standard error stays quiet. This is useful when you want a
+full trace without filling the terminal.
+
+Persistent log files now rotate by size automatically. If you do not pass
+rotation flags, the defaults are:
+
+- `--log-max-bytes 10485760`
+- `--log-backup-count 5`
+
+That keeps one active file plus up to five rotated backups such as
+`tne.log.1`, `tne.log.2`, and so on.
+
 You can also use the environment variable fallback:
 
 PowerShell:
@@ -89,6 +111,87 @@ The CLI flag takes priority over `TNE_LOG_LEVEL`. When logging is enabled, the
 package prints a short runtime diagnostic summary with the active Python
 executable, current working directory, imported package path, version, and any
 editable-install root that may point to a different checkout or worktree.
+
+In `debug`, the package now logs a fuller but more compact story instead of
+only the runtime summary. Typical entries include:
+
+- CLI command start and finish with `command=...`, `outcome=...`, and
+  `elapsed_ms=...`
+- effective Python import settings such as `python_import_mode=...` and
+  `source_profile=...`
+- important decisions such as periodic normalization, hyperedge lowering, or
+  live-import fallback to the static parser
+- editor request lifecycle events with `session=...`, `route=...`, and timing
+- editor backend persistence flows such as draft load/save/clear, template
+  promotion, reusable subnetwork saves, session launch/cancel, and static
+  asset-cache refreshes
+- planner and benchmark semantics such as `refresh_reason=...`,
+  `cache_state=...`, `analysis_status=...`, `analysis_source=...`,
+  `benchmark_position=...`, `scheme_count=...`, and `export_format=...`
+- browser-editor console traces for API requests and key frontend flows such as
+  bootstrap, draft recovery, code generation, planner refreshes, benchmark
+  navigation, comparison exports, template actions, and reusable-subnetwork
+  actions when you open the browser devtools console
+
+The intent is one readable story per operation: high-level steps keep their
+`... started` / `... finished` lifecycle, important branch decisions stay
+visible, and routine low-level success breadcrumbs are folded into the
+`... finished` line instead of being printed separately.
+
+At `info`, the package still reports meaningful milestones such as runtime
+diagnostics and session start/stop, but it now avoids routine successful
+internal file reads and writes that usually add noise without helping diagnosis.
+
+Example debug flow:
+
+```text
+DEBUG tensor_network_editor.cli: CLI command started command=validate path=my_network.json
+DEBUG tensor_network_editor: Runtime diagnostics: python=... cwd=... package=... version=...
+DEBUG tensor_network_editor.internal.io._serialization: Serialized spec load finished path=my_network.json edge_count=11 mode=normal tensor_count=12 outcome=success elapsed_ms=1
+DEBUG tensor_network_editor.internal.validation._validation_spec: Spec validation finished tensor_count=12 edge_count=11 mode=normal outcome=success elapsed_ms=4
+DEBUG tensor_network_editor.cli: CLI command finished command=validate path=my_network.json outcome=success elapsed_ms=12
+```
+
+When you launch `edit` with `--log-level debug`, the browser console now also
+shows correlated frontend traces under the same session, for example:
+
+```text
+API request started session=3b7f4d2a operation=bootstrap method=GET route=/api/bootstrap request_id=req-1
+Bootstrap finished session=3b7f4d2a operation=bootstrap engine=quimb collection_format=list restored_draft=false outcome=success elapsed_ms=18
+Generate code finished session=3b7f4d2a operation=generate engine=quimb outcome=generated elapsed_ms=11
+```
+
+If the editor is launched with `--log-file`, those frontend traces are also
+forwarded back to the local Python server and appended to the same log file.
+That gives you one chronological capture containing:
+
+- CLI startup and runtime diagnostics
+- editor backend lifecycle and route traces
+- browser API requests and key editor flows
+- session completion or cancellation
+
+Two especially useful capture patterns are:
+
+```bash
+tensor-network-editor --log-level debug --log-file planner.log benchmark my_network.json
+tensor-network-editor --log-file editor.log edit --no-browser
+```
+
+From Python, the equivalent persistent capture is:
+
+```python
+from tensor_network_editor.editor import EditorLaunchOptions, open_editor
+
+
+open_editor(
+    options=EditorLaunchOptions(
+        open_browser=False,
+        log_file_path="tne-editor.log",
+        log_file_max_bytes=10_485_760,
+        log_file_backup_count=5,
+    )
+)
+```
 
 Python import flags are also global and must appear before the subcommand:
 
@@ -257,6 +360,24 @@ tensor-network-editor benchmark my_network.json --format json
 tensor-network-editor benchmark my_network.json --format csv --output benchmark.csv
 tensor-network-editor benchmark my_network.json --format latex --output benchmark.tex
 ```
+
+When you need to diagnose why a planner or benchmark result changed, rerun the
+command with logging enabled:
+
+```bash
+tensor-network-editor --log-level debug benchmark my_network.json
+tensor-network-editor --log-level debug --log-file planner.log benchmark my_network.json --format json
+tensor-network-editor --log-file planner.log --log-max-bytes 10485760 --log-backup-count 5 benchmark my_network.json
+```
+
+In that mode, benchmark logs now tell a fuller story about:
+
+- whether the effective analysis spec stayed `normal`, used the active periodic
+  representative cell, or lowered hyperedges internally
+- whether the manual row is complete plus how many manual steps were analyzed
+- which automatic variants are available or degraded
+- the final `analysis_status`, `warning_count`, `scheme_count`, and chosen
+  `export_format`
 
 The table always uses the same columns:
 

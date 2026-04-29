@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from collections.abc import Callable
 from http.client import HTTPConnection
 from pathlib import Path
@@ -18,6 +19,7 @@ from tensor_network_editor.app.routes import handle_bootstrap
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
 from tensor_network_editor.errors import PackageIOError, SerializationError
+from tensor_network_editor.internal._logging import package_logging_scope
 from tensor_network_editor.io import SCHEMA_VERSION
 from tensor_network_editor.io import deserialize_spec as deserialize_spec_impl
 from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
@@ -53,12 +55,34 @@ def test_bootstrap_returns_session_contract(
     assert list(payload["annotation_definitions"]) == ["tensor", "index"]
     assert payload["annotation_definitions"]["tensor"][0]["key"] == "role"
     assert payload["annotation_definitions"]["index"][0]["key"] == "leg_kind"
+    assert payload["frontend_logging"] == {
+        "enabled": False,
+        "level": "off",
+        "persist": False,
+        "transport_endpoint": "/api/client-log",
+    }
     assert payload["app_metadata"] == {
         "repository_url": "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor",
         "version": "0.4.0",
         "license_name": "MIT",
         "author_name": "Alejandro Mata Ali",
     }
+
+
+def test_bootstrap_route_logs_success_with_session_and_timing(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(f"{editor_server.base_url}/api/bootstrap")
+
+    assert payload["default_engine"] == EngineName.EINSUM_NUMPY.value
+    assert "Bootstrap route started" in caplog.text
+    assert "Bootstrap route finished" in caplog.text
+    assert f"session={editor_server.session_id}" in caplog.text
+    assert "route=/api/bootstrap" in caplog.text
+    assert "outcome=success" in caplog.text
+    assert "elapsed_ms=" in caplog.text
 
 
 def test_bootstrap_accepts_invalid_initial_spec_for_editing() -> None:
@@ -117,6 +141,56 @@ def test_draft_routes_round_trip_project_local_draft(tmp_path: Path) -> None:
     )
     assert cleared_payload["ok"] is True
     assert empty_payload["draft"] is None
+
+
+def test_draft_routes_log_lifecycle_and_persistence_context(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    draft_path = tmp_path / "drafts" / "active.json"
+    session = EditorSession(
+        initial_spec=build_sample_spec(),
+        default_engine=EngineName.EINSUM_NUMPY,
+        draft_path=draft_path,
+    )
+    server = EditorServer(session)
+    server.start()
+    try:
+        spec = build_sample_spec()
+        with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+            saved_payload = request_json(
+                f"{server.base_url}/api/draft",
+                method="POST",
+                payload={
+                    "spec": {
+                        "schema_version": SCHEMA_VERSION,
+                        "network": spec.to_dict(),
+                    },
+                    "engine": EngineName.EINSUM_TORCH.value,
+                    "collection_format": TensorCollectionFormat.DICT.value,
+                },
+            )
+            loaded_payload = request_json(f"{server.base_url}/api/draft")
+            cleared_payload = request_json(
+                f"{server.base_url}/api/draft/clear",
+                method="POST",
+                payload={},
+            )
+            empty_payload = request_json(f"{server.base_url}/api/draft")
+    finally:
+        server.stop()
+
+    assert saved_payload["ok"] is True
+    assert loaded_payload["draft"]["engine"] == EngineName.EINSUM_TORCH.value
+    assert cleared_payload["ok"] is True
+    assert empty_payload["draft"] is None
+    assert "Draft save route started" in caplog.text
+    assert "Draft load route started" in caplog.text
+    assert "Draft clear route started" in caplog.text
+    assert "Draft persistence finished" in caplog.text
+    assert "No project draft found on disk" in caplog.text
+    assert f"path={draft_path}" in caplog.text
+    assert f"session={session.session_id}" in caplog.text
 
 
 def test_validate_route_reports_issues_and_echoes_serialized_spec(
@@ -492,6 +566,48 @@ def test_validate_route_rejects_invalid_json_with_400(
     assert payload == {"ok": False, "message": "Request body contains invalid JSON."}
 
 
+def test_generate_route_logs_success_with_session_and_timing(
+    editor_server: EditorServer,
+    serialized_sample_spec: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/generate",
+            method="POST",
+            payload={
+                "engine": EngineName.TENSORNETWORK.value,
+                "spec": serialized_sample_spec,
+            },
+        )
+
+    assert payload["ok"] is True
+    assert "Route request started" in caplog.text
+    assert "Route request finished" in caplog.text
+    assert f"session={editor_server.session_id}" in caplog.text
+    assert "route=/api/generate" in caplog.text
+    assert "outcome=success" in caplog.text
+    assert "elapsed_ms=" in caplog.text
+
+
+def test_invalid_json_request_logs_warning_with_route_context(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        status, payload = request_json_with_status(
+            f"{editor_server.base_url}/api/validate",
+            method="POST",
+            raw_body=b"{not-json}",
+        )
+
+    assert status == 400
+    assert payload == {"ok": False, "message": "Request body contains invalid JSON."}
+    assert "Rejected malformed JSON request" in caplog.text
+    assert f"session={editor_server.session_id}" in caplog.text
+    assert "route=/api/validate" in caplog.text
+
+
 def test_validate_route_rejects_non_integer_content_length_with_400(
     editor_server: EditorServer,
 ) -> None:
@@ -855,6 +971,133 @@ def test_cancel_route_ends_session_without_result(
     assert editor_session.wait_for_result(timeout=0.1) is None
 
 
+def test_cancel_route_logs_success_with_session_context(
+    editor_server: EditorServer,
+    editor_session: EditorSession,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/cancel",
+            method="POST",
+            payload={},
+        )
+
+    assert payload == {"ok": True}
+    assert editor_session.wait_for_result(timeout=0.1) is None
+    assert "Cancel route started" in caplog.text
+    assert "Cancel route finished" in caplog.text
+    assert "Session cancel started" in caplog.text
+    assert f"session={editor_session.session_id}" in caplog.text
+    assert "route=/api/cancel" in caplog.text
+    assert "outcome=success" in caplog.text
+
+
+def test_client_log_route_accepts_one_valid_batch(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/client-log",
+            method="POST",
+            payload={
+                "events": [
+                    {
+                        "level": "debug",
+                        "message": "Bootstrap finished",
+                        "context": {
+                            "session": editor_server.session_id,
+                            "route": "/api/bootstrap",
+                            "request_id": "req-1",
+                            "outcome": "success",
+                            "elapsed_ms": "25",
+                            "client_ts_ms": "12345",
+                        },
+                    }
+                ]
+            },
+        )
+
+    assert payload["ok"] is True
+    assert "Frontend client log route started" in caplog.text
+    assert "Frontend client log route finished" in caplog.text
+    assert "event_count=1" in caplog.text
+    assert "Bootstrap finished" in caplog.text
+    assert "request_id=req-1" in caplog.text
+    assert "client_ts_ms=12345" in caplog.text
+
+
+def test_client_log_route_rejects_malformed_payload(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/client-log",
+        method="POST",
+        payload={
+            "events": [
+                {
+                    "level": "debug",
+                    "context": {},
+                }
+            ]
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "message" in payload
+
+
+def test_client_log_route_persists_to_rotating_log_file(
+    editor_server: EditorServer,
+    tmp_path: Path,
+) -> None:
+    log_file_path = tmp_path / "client-log-route.log"
+
+    with package_logging_scope(
+        "debug",
+        log_file_path=log_file_path,
+        enable_stderr=False,
+        log_file_max_bytes=1024,
+        log_file_backup_count=3,
+    ):
+        for index in range(5):
+            payload = request_json(
+                f"{editor_server.base_url}/api/client-log",
+                method="POST",
+                payload={
+                    "events": [
+                        {
+                            "level": "warning",
+                            "message": f"Planner refresh resolved {'x' * 220} {index}",
+                            "context": {
+                                "session": editor_server.session_id,
+                                "route": "/api/analyze-contraction",
+                                "request_id": f"req-{index}",
+                                "outcome": "success",
+                                "elapsed_ms": "25",
+                                "client_ts_ms": str(10_000 + index),
+                            },
+                        }
+                    ]
+                },
+            )
+
+    combined_log_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(tmp_path.glob("client-log-route.log*"))
+        if path.is_file()
+    )
+
+    assert payload["ok"] is True
+    assert log_file_path.exists()
+    assert (tmp_path / "client-log-route.log.1").exists()
+    assert "Frontend client log route finished" in combined_log_text
+    assert "event_count=1" in combined_log_text
+    assert "Planner refresh resolved" in combined_log_text
+
+
 def test_autolayout_route_is_not_available(editor_server: EditorServer) -> None:
     status, payload = request_json_with_status(
         f"{editor_server.base_url}/api/autolayout",
@@ -1100,6 +1343,43 @@ def test_template_promote_route_persists_project_template_catalog(
         persisted_payload["templates"][0]["spec"]["network"]["contraction_plan"] is None
     )
     assert bootstrap_payload["templates"][0] == "project_pair"
+
+
+def test_template_promote_route_logs_catalog_trace(
+    tmp_path: Path,
+    serialized_sample_spec: JsonDict,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "templates.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            template_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+            payload = request_json(
+                f"{server.base_url}/api/template/promote",
+                method="POST",
+                payload={
+                    "spec": serialized_sample_spec,
+                    "tensor_ids": ["tensor_a", "tensor_b"],
+                    "template_name": "project_pair",
+                },
+            )
+    finally:
+        server.stop()
+
+    assert payload["selected_template"] == "project_pair"
+    assert "Template promote route started" in caplog.text
+    assert "Template promotion started" in caplog.text
+    assert "Project template catalog save finished" in caplog.text
+    assert "template_name=project_pair" in caplog.text
+    assert f"path={catalog_path}" in caplog.text
+    assert "outcome=success" in caplog.text
 
 
 def test_template_promote_route_rejects_invalid_template_name(
@@ -1800,6 +2080,44 @@ def test_subnetwork_library_save_route_persists_project_entry(
     ]
 
 
+def test_subnetwork_library_save_route_logs_catalog_trace(
+    tmp_path: Path,
+    serialized_sample_spec: JsonDict,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    catalog_path = tmp_path / ".tensor-network-editor" / "subnetworks.json"
+    server = EditorServer(
+        EditorSession(
+            initial_spec=build_sample_spec(),
+            default_engine=EngineName.EINSUM_NUMPY,
+            subnetwork_catalog_path=catalog_path,
+        )
+    )
+    server.start()
+    try:
+        with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+            payload = request_json(
+                f"{server.base_url}/api/subnetwork-library/save",
+                method="POST",
+                payload={
+                    "spec": serialized_sample_spec,
+                    "tensor_ids": ["tensor_a", "tensor_b"],
+                    "subnetwork_name": "project_pair",
+                    "tags": [" alpha ", "project"],
+                },
+            )
+    finally:
+        server.stop()
+
+    assert payload["selected_subnetwork"] == "project_pair"
+    assert "Subnetwork library save route started" in caplog.text
+    assert "Reusable subnetwork save started" in caplog.text
+    assert "Reusable subnetwork catalog save finished" in caplog.text
+    assert "subnetwork_name=project_pair" in caplog.text
+    assert f"path={catalog_path}" in caplog.text
+    assert "outcome=success" in caplog.text
+
+
 def test_subnetwork_library_prepare_insert_route_inserts_saved_entry(
     tmp_path: Path,
 ) -> None:
@@ -1904,6 +2222,30 @@ def test_analyze_contraction_route_returns_manual_summary(
     )
 
 
+def test_analyze_contraction_route_logs_semantic_summary(
+    editor_server: EditorServer,
+    serialized_sample_spec: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={"spec": serialized_sample_spec},
+        )
+
+    assert payload["ok"] is True
+    assert "Analyze contraction route started" in caplog.text
+    assert "Serialized contraction analysis finished" in caplog.text
+    assert "Analyze contraction route finished" in caplog.text
+    assert "analysis_status=ready" in caplog.text
+    assert "warning_count=0" in caplog.text
+    assert "manual_step_count=1" in caplog.text
+    assert "automatic_full_status=complete" in caplog.text
+    assert "automatic_future_status=complete" in caplog.text
+    assert "automatic_past_status=complete" in caplog.text
+
+
 def test_analyze_contraction_route_uses_active_linear_periodic_cell(
     editor_server: EditorServer,
 ) -> None:
@@ -1931,6 +2273,28 @@ def test_analyze_contraction_route_uses_active_linear_periodic_cell(
     )
 
 
+def test_analyze_contraction_route_logs_periodic_analysis_selection(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_linear_periodic_partial_carry_chain_spec().to_dict(),
+                }
+            },
+        )
+
+    assert payload["ok"] is True
+    assert "Using active linear periodic cell" in caplog.text
+    assert "mode=linear_periodic" in caplog.text
+    assert "analysis_status=ready" in caplog.text
+
+
 def test_analyze_contraction_route_accepts_hyperedges(
     editor_server: EditorServer,
 ) -> None:
@@ -1953,6 +2317,28 @@ def test_analyze_contraction_route_accepts_hyperedges(
     assert (
         payload["synthetic_operands"][0]["operand_id"] == "hyperedge_copy_hyperedge_h"
     )
+
+
+def test_analyze_contraction_route_logs_hyperedge_lowering_warning_count(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": build_three_tensor_hyperedge_spec().to_dict(),
+                }
+            },
+        )
+
+    assert payload["ok"] is True
+    assert "Lowering hyperedges to pairwise analysis spec" in caplog.text
+    assert "analysis_status=ready" in caplog.text
+    assert "warning_count=1" in caplog.text
 
 
 def test_analyze_contraction_route_uses_shared_service_helper(
@@ -2007,6 +2393,31 @@ def test_analyze_contraction_route_deserializes_the_spec_once(
 
     assert payload["ok"] is True
     assert deserialize_call_count == 1
+
+
+def test_analyze_contraction_route_logs_validation_issues(
+    editor_server: EditorServer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    invalid_spec = build_sample_spec()
+    invalid_spec.edges.append(invalid_spec.edges[0])
+
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        payload = request_json(
+            f"{editor_server.base_url}/api/analyze-contraction",
+            method="POST",
+            payload={
+                "spec": {
+                    "schema_version": SCHEMA_VERSION,
+                    "network": invalid_spec.to_dict(),
+                }
+            },
+        )
+
+    assert payload["ok"] is False
+    assert "Contraction-analysis payload failed validation" in caplog.text
+    assert "analysis_status=issues" in caplog.text
+    assert "issue_count=" in caplog.text
 
 
 def test_unexpected_server_errors_return_enriched_500_payload(

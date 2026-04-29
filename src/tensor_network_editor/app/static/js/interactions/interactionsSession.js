@@ -12,6 +12,7 @@ export function createInteractionSessionBindings({
   sessionUi,
   sessionActions,
 }) {
+  const logger = ctx.logger || null;
   const commands = createSessionCommands({
     dom,
     state,
@@ -27,6 +28,7 @@ export function createInteractionSessionBindings({
   const editorFlows = createSessionEditorFlows({
     dom,
     state,
+    logger,
     store,
     selectors,
     services,
@@ -37,6 +39,7 @@ export function createInteractionSessionBindings({
   const templateFlows = createSessionTemplateFlows({
     dom,
     state,
+    logger,
     store,
     selectors,
     services,

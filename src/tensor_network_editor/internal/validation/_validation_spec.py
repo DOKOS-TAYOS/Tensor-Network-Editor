@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from ...errors import SpecValidationError
 from ...models import NetworkSpec, ValidationIssue
+from .._logging import log_branch, log_operation, summarize_spec_counts
 from ..analysis._analysis import NetworkAnalysis, analyze_network
 from ..analysis._hyperedge_lowering import lower_hyperedges_to_pairwise_spec
 from ._validation_common import append_issue
@@ -20,11 +23,19 @@ from ._validation_hyperedges import validate_hyperedge
 from ._validation_linear_periodic import validate_linear_periodic_chain
 from ._validation_tree_periodic import validate_tree_periodic_tree
 
+LOGGER = logging.getLogger(__name__)
+
 
 def validate_spec(spec: NetworkSpec) -> list[ValidationIssue]:
     """Collect all validation issues found in ``spec``."""
-    issues, _ = validate_spec_with_analysis(spec)
-    return issues
+    with log_operation(LOGGER, "Spec validation", context=summarize_spec_counts(spec)):
+        issues, _ = validate_spec_with_analysis(spec)
+        log_branch(
+            LOGGER,
+            "Validation completed",
+            context={"status": "passed" if not issues else "failed"},
+        )
+        return issues
 
 
 def validate_spec_with_analysis(
@@ -121,10 +132,17 @@ def _spec_allows_hyperedge_analysis(spec: NetworkSpec) -> bool:
 
 def ensure_valid_spec(spec: NetworkSpec) -> NetworkSpec:
     """Return ``spec`` or raise ``SpecValidationError`` if it is invalid."""
-    issues, _ = validate_spec_with_analysis(spec)
-    if issues:
-        raise SpecValidationError(issues)
-    return spec
+    with log_operation(
+        LOGGER,
+        "Spec validation enforcement",
+        context=summarize_spec_counts(spec),
+    ):
+        issues, _ = validate_spec_with_analysis(spec)
+        if issues:
+            log_branch(LOGGER, "Spec failed validation", level=logging.WARNING)
+            raise SpecValidationError(issues)
+        log_branch(LOGGER, "Spec passed validation")
+        return spec
 
 
 def _validate_periodic_mode_exclusivity(

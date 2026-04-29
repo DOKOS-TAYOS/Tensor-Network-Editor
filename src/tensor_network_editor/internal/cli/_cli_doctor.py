@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import cast
 
 from ...models import NetworkSpec, ValidationIssue
 from ...types import JSONValue
+from .._logging import log_branch, log_operation, summarize_spec_counts
 from ..analysis._memory_dtypes import DEFAULT_MEMORY_DTYPE
 from ..models._headless_models import LintReport, SpecAnalysisReport
 from ._cli_benchmark import build_benchmark_report, serialize_benchmark_report_text
@@ -22,6 +24,7 @@ _BACKEND_IMPORTS: tuple[tuple[str, str], ...] = (
     ("opt_einsum", "opt_einsum"),
     ("matplotlib", "matplotlib"),
 )
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -61,63 +64,90 @@ def build_doctor_report(
     find_spec: Callable[[str], object | None] = importlib.util.find_spec,
 ) -> DoctorReport:
     """Run validation, lint, analysis, benchmark, and backend checks."""
-    validation_issues = validate_spec(spec)
-    validation = _validation_payload(validation_issues)
-    backends = _backend_payload(find_spec=find_spec)
-    warnings: list[str] = []
-    suggestions: list[str] = []
+    with log_operation(
+        LOGGER,
+        "Build doctor report",
+        context={"memory_dtype": memory_dtype, **summarize_spec_counts(spec)},
+    ):
+        validation_issues = validate_spec(spec)
+        validation = _validation_payload(validation_issues)
+        backends = _backend_payload(find_spec=find_spec)
+        warnings: list[str] = []
+        suggestions: list[str] = []
 
-    if validation_issues:
-        suggestions.append(
-            "Fix validation errors before running analysis or benchmark."
-        )
+        if validation_issues:
+            suggestions.append(
+                "Fix validation errors before running analysis or benchmark."
+            )
+            log_branch(
+                LOGGER,
+                "Skipped doctor analysis and benchmark because validation failed",
+                context={
+                    "analysis_status": "issues",
+                    "issue_count": len(validation_issues),
+                },
+            )
+            return DoctorReport(
+                ok=False,
+                validation=validation,
+                lint=_skipped_payload("Validation errors must be fixed first."),
+                analysis=_skipped_payload("Validation errors must be fixed first."),
+                benchmark=_skipped_benchmark_payload(memory_dtype),
+                backends=backends,
+                warnings=warnings,
+                suggestions=suggestions,
+            )
+
+        lint_report = lint_spec(spec)
+        lint = _lint_payload(lint_report)
+        _extend_unique(suggestions, _lint_suggestions(lint_report))
+        _extend_unique(suggestions, _model_suggestions_from_lint(lint_report))
+
+        analysis_report = analyze_spec(spec, memory_dtype=memory_dtype)
+        analysis = {
+            "status": "complete",
+            "report": cast(JSONValue, analysis_report.to_dict()),
+        }
+        if analysis_report.contraction is None:
+            benchmark = _skipped_benchmark_payload(memory_dtype)
+            log_branch(
+                LOGGER,
+                "Skipped doctor benchmark block",
+                context={"analysis_status": "unavailable"},
+            )
+        else:
+            benchmark_report = build_benchmark_report(analysis_report.contraction)
+            benchmark = benchmark_report.to_dict()
+            warnings.extend(benchmark_report.warnings)
+            _extend_unique(
+                suggestions,
+                _contraction_suggestions(analysis_report.contraction),
+            )
+            log_branch(
+                LOGGER,
+                "Built doctor benchmark block",
+                context={
+                    "analysis_status": "ready",
+                    "scheme_count": len(benchmark_report.rows),
+                    "warning_count": len(benchmark_report.warnings),
+                },
+            )
+
+        warnings.extend(_backend_warnings(backends))
+        _extend_unique(suggestions, _backend_suggestions(backends, spec=spec))
+        if not suggestions:
+            suggestions.append("No immediate fixes needed.")
+
         return DoctorReport(
-            ok=False,
+            ok=True,
             validation=validation,
-            lint=_skipped_payload("Validation errors must be fixed first."),
-            analysis=_skipped_payload("Validation errors must be fixed first."),
-            benchmark=_skipped_benchmark_payload(memory_dtype),
+            lint=lint,
+            analysis=analysis,
+            benchmark=benchmark,
             backends=backends,
             warnings=warnings,
             suggestions=suggestions,
         )
-
-    lint_report = lint_spec(spec)
-    lint = _lint_payload(lint_report)
-    _extend_unique(suggestions, _lint_suggestions(lint_report))
-    _extend_unique(suggestions, _model_suggestions_from_lint(lint_report))
-
-    analysis_report = analyze_spec(spec, memory_dtype=memory_dtype)
-    analysis = {
-        "status": "complete",
-        "report": cast(JSONValue, analysis_report.to_dict()),
-    }
-    if analysis_report.contraction is None:
-        benchmark = _skipped_benchmark_payload(memory_dtype)
-    else:
-        benchmark_report = build_benchmark_report(analysis_report.contraction)
-        benchmark = benchmark_report.to_dict()
-        warnings.extend(benchmark_report.warnings)
-        _extend_unique(
-            suggestions,
-            _contraction_suggestions(analysis_report.contraction),
-        )
-
-    warnings.extend(_backend_warnings(backends))
-    _extend_unique(suggestions, _backend_suggestions(backends, spec=spec))
-    if not suggestions:
-        suggestions.append("No immediate fixes needed.")
-
-    return DoctorReport(
-        ok=True,
-        validation=validation,
-        lint=lint,
-        analysis=analysis,
-        benchmark=benchmark,
-        backends=backends,
-        warnings=warnings,
-        suggestions=suggestions,
-    )
 
 
 def format_doctor_report_text(report: DoctorReport, *, path: str) -> str:

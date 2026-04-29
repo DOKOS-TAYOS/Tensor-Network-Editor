@@ -14,6 +14,30 @@ export function createPlannerAnalysisSupport({
     isBenchmarkBasePosition,
   } = guards;
   let pendingContractionAnalysisOptions = null;
+  const logger = ctx.logger || null;
+
+  function getBenchmarkPosition() {
+    if (typeof ctx.getBenchmarkSession !== "function") {
+      return null;
+    }
+    const benchmarkSession = ctx.getBenchmarkSession();
+    return Number.isInteger(benchmarkSession?.activePosition)
+      ? benchmarkSession.activePosition
+      : null;
+  }
+
+  function logPlannerAnalysisEvent(message, context = {}) {
+    if (!logger || typeof logger.debug !== "function") {
+      return;
+    }
+    logger.debug(message, {
+      operation: "planner.analysis",
+      analysis_source: "manual",
+      benchmark_position: getBenchmarkPosition(),
+      planner_mode: Boolean(state.plannerMode),
+      ...context,
+    });
+  }
 
   function getCachedContractionAnalysisPayload() {
     return state.contractionAnalysisCacheRevision === state.specRevision
@@ -27,7 +51,20 @@ export function createPlannerAnalysisSupport({
 
   const analysisService = createPlannerAnalysisService({
     analysisRefreshDelayMs,
-    analyze: (payload) => ctx.apiPost("/api/analyze-contraction", payload),
+    analyze: (payload, requestOptions = {}) =>
+      ctx.apiPost("/api/analyze-contraction", payload, {
+        operation:
+          requestOptions.analysisSource === "compare_batch"
+            ? "benchmark.compare.analyze"
+            : "planner.analysis",
+        context: {
+          analysis_source: requestOptions.analysisSource || "manual",
+          refresh_reason: requestOptions.refreshReason || "explicit",
+          cache_state: requestOptions.cacheState || null,
+          benchmark_position: requestOptions.benchmarkPosition,
+          planner_mode: requestOptions.plannerMode,
+        },
+      }),
     cancel: (timerId) => clearTimer(timerId),
     onAnalysisError: (error) => {
       state.contractionAnalysisCacheRevision = -1;
@@ -66,6 +103,7 @@ export function createPlannerAnalysisSupport({
     },
     schedule: (callback, delay) => setTimer(callback, delay),
     serializeCurrentSpec: (options) => ctx.serializeCurrentSpec(options),
+    logger,
   });
 
   function shouldRefreshContractionAnalysisImmediately(options = {}) {
@@ -81,10 +119,19 @@ export function createPlannerAnalysisSupport({
   }
 
   function refreshContractionAnalysis(options = {}) {
+    const refreshReason =
+      typeof options.refreshReason === "string" && options.refreshReason
+        ? options.refreshReason
+        : "explicit";
     if (isBenchmarkBasePosition()) {
       pendingContractionAnalysisOptions = null;
       state.contractionAnalysisDirty = false;
       state.contractionAnalysis = { status: "benchmarkBase" };
+      logPlannerAnalysisEvent("Skipped contraction analysis at benchmark base position", {
+        analysis_status: "benchmark_base",
+        cache_state: "bypass",
+        refresh_reason: refreshReason,
+      });
       renderPlanner();
       ctx.renderOverlayDecorations();
       return;
@@ -97,10 +144,20 @@ export function createPlannerAnalysisSupport({
         status: "ready",
         payload: cachedPayload,
       };
+      logPlannerAnalysisEvent("Contraction analysis cache hit", {
+        analysis_status: "ready",
+        cache_state: "hit",
+        refresh_reason: refreshReason,
+      });
       renderPlanner();
       ctx.renderOverlayDecorations();
       return Promise.resolve(cachedPayload);
     }
+    const cacheState =
+      state.contractionAnalysisCachePayload &&
+      state.contractionAnalysisCacheRevision !== state.specRevision
+        ? "stale"
+        : "miss";
     pendingContractionAnalysisOptions = {
       focusTab:
         Boolean(options.focusTab) ||
@@ -108,6 +165,10 @@ export function createPlannerAnalysisSupport({
           pendingContractionAnalysisOptions &&
             pendingContractionAnalysisOptions.focusTab
         ),
+      refreshReason,
+      cacheState,
+      benchmarkPosition: getBenchmarkPosition(),
+      plannerMode: Boolean(state.plannerMode),
     };
     return analysisService.requestRefresh(pendingContractionAnalysisOptions, {
       immediate: shouldRefreshContractionAnalysisImmediately(options),

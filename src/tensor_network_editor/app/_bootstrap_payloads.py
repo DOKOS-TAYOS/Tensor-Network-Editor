@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, cast
 
 from .._version import __version__
 from ..codegen.registry import engine_name_to_text, list_generator_names
+from ..internal._logging import (
+    build_frontend_logging_payload as build_frontend_log_config,
+)
 from ..internal.io._serialization import SCHEMA_VERSION
 from ..internal.templates._annotation_catalog import serialize_annotation_definitions
 from ..models import TensorCollectionFormat
@@ -25,6 +28,8 @@ def build_bootstrap_payload(session: EditorSession) -> JsonDict:
     """Build the initial payload used to bootstrap the browser client."""
     return {
         "theme": session.theme,
+        "session_id": session.session_id,
+        "frontend_logging": build_frontend_logging_payload(session),
         "default_engine": engine_name_to_text(session.default_engine),
         "engines": cast(JSONValue, list_generator_names()),
         "default_collection_format": session.default_collection_format.value,
@@ -45,6 +50,13 @@ def build_bootstrap_payload(session: EditorSession) -> JsonDict:
             "network": session.initial_spec.to_dict(),
         },
     }
+
+
+def build_frontend_logging_payload(session: EditorSession | None = None) -> JsonDict:
+    """Build the browser logging configuration for one editor session."""
+    if session is not None and hasattr(session, "frontend_logging_payload"):
+        return cast(JsonDict, session.frontend_logging_payload)
+    return cast(JsonDict, build_frontend_log_config())
 
 
 def build_app_metadata_payload() -> JsonDict:

@@ -167,6 +167,18 @@ def test_global_log_level_is_accepted_before_subcommand() -> None:
     assert parsed_args.no_browser is True
 
 
+def test_global_log_file_is_accepted_before_subcommand() -> None:
+    parser = build_command_parser()
+
+    parsed_args = parser.parse_args(
+        ["--log-file", "session.log", "edit", "--no-browser"]
+    )
+
+    assert parsed_args.log_file == "session.log"
+    assert parsed_args.command == "edit"
+    assert parsed_args.no_browser is True
+
+
 def test_global_python_import_arguments_are_accepted_before_subcommand() -> None:
     parser = build_command_parser()
 
@@ -224,6 +236,47 @@ def test_edit_subcommand_uses_expected_defaults() -> None:
     open_editor_mock.assert_called_once_with(
         spec=None,
         options=EditorLaunchOptions(),
+    )
+
+
+def test_edit_subcommand_passes_explicit_log_file_path() -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["--log-file", "session.log", "edit", "--no-browser"])
+
+    assert exit_code == 0
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(
+            open_browser=False,
+            log_file_path="session.log",
+        ),
+    )
+
+
+def test_edit_subcommand_passes_explicit_log_rotation_settings() -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(
+            [
+                "--log-file",
+                "session.log",
+                "--log-max-bytes",
+                "2048",
+                "--log-backup-count",
+                "7",
+                "edit",
+                "--no-browser",
+            ]
+        )
+
+    assert exit_code == 0
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(
+            open_browser=False,
+            log_file_path="session.log",
+            log_file_max_bytes=2048,
+            log_file_backup_count=7,
+        ),
     )
 
 

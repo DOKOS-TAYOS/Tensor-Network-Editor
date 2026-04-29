@@ -7,31 +7,25 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 from ..._version import __version__
-
-PACKAGE_LOGGER_NAME = "tensor_network_editor"
-ENV_LOG_LEVEL = "TNE_LOG_LEVEL"
-LOG_LEVEL_NAMES: tuple[str, ...] = (
-    "critical",
-    "error",
-    "warning",
-    "info",
-    "debug",
+from .._logging import (
+    DEFAULT_LOG_FILE_BACKUP_COUNT,
+    DEFAULT_LOG_FILE_MAX_BYTES,
+    LOG_LEVEL_NAMES,
+    LOG_LEVEL_VALUES,
+    PACKAGE_LOGGER_NAME,
+    LoggingRuntimeConfig,
+    package_logging_scope,
 )
-_LOG_LEVEL_VALUES: dict[str, int] = {
-    "critical": logging.CRITICAL,
-    "error": logging.ERROR,
-    "warning": logging.WARNING,
-    "info": logging.INFO,
-    "debug": logging.DEBUG,
-}
-_HANDLER_NAME = "tensor_network_editor_stream_handler"
+
+ENV_LOG_LEVEL = "TNE_LOG_LEVEL"
 
 
 @dataclass(slots=True, frozen=True)
@@ -75,22 +69,25 @@ def resolve_log_level_name(
     return _normalize_log_level_name(env_log_level)
 
 
+@contextmanager
 def configure_package_logging(
     cli_log_level: str | None,
     *,
+    log_file_path: str | Path | None = None,
+    log_file_max_bytes: int = DEFAULT_LOG_FILE_MAX_BYTES,
+    log_file_backup_count: int = DEFAULT_LOG_FILE_BACKUP_COUNT,
     env: Mapping[str, str] | None = None,
-) -> str | None:
-    """Configure package logging when the user explicitly requests it."""
+) -> Iterator[LoggingRuntimeConfig | None]:
+    """Configure package logging for one CLI execution scope."""
     resolved_level_name = resolve_log_level_name(cli_log_level, env=env)
-    if resolved_level_name is None:
-        return None
-
-    package_logger = logging.getLogger(PACKAGE_LOGGER_NAME)
-    handler = _get_or_create_stream_handler(package_logger)
-    handler.setLevel(_LOG_LEVEL_VALUES[resolved_level_name])
-    package_logger.setLevel(_LOG_LEVEL_VALUES[resolved_level_name])
-    package_logger.propagate = False
-    return resolved_level_name
+    with package_logging_scope(
+        resolved_level_name,
+        log_file_path=log_file_path,
+        log_file_max_bytes=log_file_max_bytes,
+        log_file_backup_count=log_file_backup_count,
+        enable_stderr=resolved_level_name is not None,
+    ) as runtime_config:
+        yield runtime_config
 
 
 def collect_runtime_diagnostics() -> RuntimeDiagnostics:
@@ -114,7 +111,7 @@ def emit_runtime_diagnostics(log_level_name: str | None) -> None:
     diagnostics = collect_runtime_diagnostics()
     logger = logging.getLogger(PACKAGE_LOGGER_NAME)
     logger.log(
-        _LOG_LEVEL_VALUES[log_level_name],
+        LOG_LEVEL_VALUES[log_level_name],
         (
             "Runtime diagnostics: python=%s cwd=%s package=%s version=%s "
             "current_checkout=%s editable_install=%s"
@@ -178,23 +175,9 @@ def find_editable_install_root() -> Path | None:
 
 def _normalize_log_level_name(raw_value: str) -> str:
     normalized_value = raw_value.strip().lower()
-    if normalized_value not in _LOG_LEVEL_VALUES:
+    if normalized_value not in LOG_LEVEL_VALUES:
         supported_levels = ", ".join(LOG_LEVEL_NAMES)
         raise ValueError(
             f"Unsupported log level '{raw_value}'. Expected one of: {supported_levels}."
         )
     return normalized_value
-
-
-def _get_or_create_stream_handler(package_logger: logging.Logger) -> logging.Handler:
-    for handler in package_logger.handlers:
-        if getattr(handler, "name", "") == _HANDLER_NAME:
-            return handler
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.name = _HANDLER_NAME
-    stream_handler.setFormatter(
-        logging.Formatter("%(levelname)s %(name)s: %(message)s")
-    )
-    package_logger.addHandler(stream_handler)
-    return stream_handler

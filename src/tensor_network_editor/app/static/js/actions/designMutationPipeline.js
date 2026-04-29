@@ -111,7 +111,7 @@ export function createDesignMutationPipeline({
         shouldRefreshImmediately &&
         typeof refreshContractionAnalysis === "function"
       ) {
-        refreshContractionAnalysis();
+        refreshContractionAnalysis({ refreshReason: "spec_change" });
       }
     }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import signal
 import threading
 from importlib import import_module
@@ -107,6 +108,26 @@ def test_generate_returns_preview_without_finishing_session(
     assert editor_session.wait_for_result(timeout=0.01) is None
 
 
+def test_generate_logs_preview_lifecycle_with_session_context(
+    editor_session: EditorSession,
+    serialized_sample_spec: JsonDict,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        result = editor_session.generate(
+            serialized_sample_spec,
+            EngineName.EINSUM_NUMPY,
+            TensorCollectionFormat.DICT,
+        )
+
+    assert result.engine is EngineName.EINSUM_NUMPY
+    assert "Session preview generation started" in caplog.text
+    assert "Session preview generation finished" in caplog.text
+    assert f"session={editor_session.session_id}" in caplog.text
+    assert "outcome=success" in caplog.text
+    assert "elapsed_ms=" in caplog.text
+
+
 def test_complete_records_result_and_can_write_code(
     sample_spec: NetworkSpec,
     serialized_sample_spec: JsonDict,
@@ -164,6 +185,27 @@ def test_complete_returns_existing_result_when_called_after_finish(
     assert second_result is first_result
     assert session.wait_for_result(timeout=0.01) is first_result
     assert first_result.engine is EngineName.EINSUM_NUMPY
+
+
+def test_complete_logs_duplicate_request_branch_with_session_context(
+    sample_spec: NetworkSpec,
+    serialized_sample_spec: JsonDict,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    session = EditorSession(
+        initial_spec=sample_spec,
+        default_engine=EngineName.EINSUM_NUMPY,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
+        first_result = session.complete(serialized_sample_spec, EngineName.EINSUM_NUMPY)
+        second_result = session.complete(serialized_sample_spec, EngineName.QUIMB)
+
+    assert second_result is first_result
+    assert "Session completion started" in caplog.text
+    assert "Session completion finished" in caplog.text
+    assert "Duplicate completion request ignored" in caplog.text
+    assert f"session={session.session_id}" in caplog.text
 
 
 def test_generate_propagates_codegen_errors_from_backend() -> None:
@@ -485,6 +527,60 @@ def test_launch_editor_session_prints_local_url_when_browser_open_fails(
     assert "http://127.0.0.1:43210" in captured
 
 
+def test_launch_editor_session_logs_browser_fallback_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    def fake_wait_for_editor_result(_session: object) -> None:
+        return None
+
+    class FakeThread:
+        name = "worker"
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        fake_wait_for_editor_result,
+    )
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    with (
+        caplog.at_level(logging.DEBUG, logger="tensor_network_editor"),
+        patch.object(
+            session_module.webbrowser,
+            "open",
+            side_effect=OSError("no browser"),
+        ),
+    ):
+        result = session_module.launch_editor_session(open_browser=True)
+
+    assert result is None
+    assert "Editor session launch started" in caplog.text
+    assert "Browser open attempt started" in caplog.text
+    assert "Browser open attempt failed" in caplog.text
+    assert "Editor session launch finished" in caplog.text
+    assert "session=" in caplog.text
+
+
 def test_launch_editor_session_prints_local_url_when_browser_open_is_not_acknowledged(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -594,4 +690,179 @@ def test_open_editor_passes_subnetwork_catalog_paths(
     )
     assert captured_kwargs["shared_subnetwork_catalog_path"] == (
         tmp_path / "shared" / "subnetworks.json"
+    )
+
+
+def test_open_editor_passes_log_file_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_launch_editor_session(*args: object, **kwargs: object) -> None:
+        del args
+        captured_kwargs.update(kwargs)
+        return None
+
+    monkeypatch.setattr(
+        "tensor_network_editor.editor.launch_editor_session",
+        fake_launch_editor_session,
+    )
+
+    result = open_editor(
+        options=EditorLaunchOptions(
+            open_browser=False,
+            log_file_path="session.log",
+            log_file_max_bytes=2048,
+            log_file_backup_count=7,
+        ),
+    )
+
+    assert result is None
+    assert captured_kwargs["log_file_path"] == "session.log"
+    assert captured_kwargs["log_file_max_bytes"] == 2048
+    assert captured_kwargs["log_file_backup_count"] == 7
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("log_file_max_bytes", 0),
+        ("log_file_backup_count", -1),
+    ],
+)
+def test_editor_launch_options_reject_non_positive_log_rotation_settings(
+    field_name: str,
+    value: int,
+) -> None:
+    with pytest.raises(ValueError, match="must be > 0"):
+        EditorLaunchOptions(**{field_name: value})
+
+
+def test_launch_editor_session_log_file_writes_trace_and_releases_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    log_file_path = tmp_path / "editor-session.log"
+    package_logger = logging.getLogger("tensor_network_editor")
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    def fake_wait_for_editor_result(_session: object) -> None:
+        return None
+
+    class FakeThread:
+        name = "worker"
+
+    existing_handler_ids = {id(handler) for handler in package_logger.handlers}
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        fake_wait_for_editor_result,
+    )
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    result = session_module.launch_editor_session(
+        open_browser=False,
+        log_file_path=log_file_path,
+    )
+
+    assert result is None
+    assert log_file_path.exists()
+    assert "Editor session launch started" in log_file_path.read_text(encoding="utf-8")
+    assert all(
+        id(handler) in existing_handler_ids
+        or not isinstance(handler, logging.FileHandler)
+        or Path(handler.baseFilename).resolve() != log_file_path.resolve()
+        for handler in package_logger.handlers
+    )
+
+
+def test_launch_editor_session_log_file_rotates_and_releases_handler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    log_file_path = tmp_path / "rotating-editor-session.log"
+    package_logger = logging.getLogger("tensor_network_editor")
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    def fake_wait_for_editor_result(_session: object) -> None:
+        return None
+
+    class FakeThread:
+        name = "worker"
+
+    existing_handler_ids = {id(handler) for handler in package_logger.handlers}
+
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        fake_wait_for_editor_result,
+    )
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    first_result = session_module.launch_editor_session(
+        open_browser=False,
+        log_file_path=log_file_path,
+        log_file_max_bytes=256,
+        log_file_backup_count=2,
+    )
+    second_result = session_module.launch_editor_session(
+        open_browser=False,
+        log_file_path=log_file_path,
+        log_file_max_bytes=256,
+        log_file_backup_count=2,
+    )
+
+    combined_log_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(tmp_path.glob("rotating-editor-session.log*"))
+        if path.is_file()
+    )
+
+    assert first_result is None
+    assert second_result is None
+    assert log_file_path.exists()
+    assert (tmp_path / "rotating-editor-session.log.1").exists()
+    assert "Editor session launch started" in combined_log_text
+    assert all(
+        id(handler) in existing_handler_ids
+        or not isinstance(handler, logging.FileHandler)
+        or Path(handler.baseFilename).resolve() != log_file_path.resolve()
+        for handler in package_logger.handlers
     )

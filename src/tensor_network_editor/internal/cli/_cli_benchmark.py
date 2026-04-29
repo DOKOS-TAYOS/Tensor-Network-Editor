@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import cast
 
 from ...types import JSONValue
+from .._logging import log_branch, log_operation
 from ..analysis._contraction_analysis_types import (
     AutomaticContractionPlanAnalysis,
     ContractionAnalysisResult,
@@ -19,6 +21,7 @@ _BENCHMARK_HEADERS: tuple[str, ...] = (
     "Peak",
     "Peak Memory",
 )
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -69,20 +72,39 @@ def build_benchmark_report(
     analysis: ContractionAnalysisResult,
 ) -> BenchmarkReport:
     """Build a stable benchmark table from one contraction analysis result."""
-    return BenchmarkReport(
-        memory_dtype=analysis.memory_dtype,
-        warnings=list(analysis.warnings),
-        rows=[
-            _build_manual_row("manual", "Manual", analysis.manual),
-            _build_automatic_row("auto_full", "Auto full", analysis.automatic_full),
-            _build_automatic_row(
-                "auto_future",
-                "Auto future",
-                analysis.automatic_future,
-            ),
-            _build_automatic_row("auto_past", "Auto past", analysis.automatic_past),
-        ],
-    )
+    with log_operation(
+        LOGGER,
+        "Build benchmark report",
+        context={"memory_dtype": analysis.memory_dtype},
+    ):
+        report = BenchmarkReport(
+            memory_dtype=analysis.memory_dtype,
+            warnings=list(analysis.warnings),
+            rows=[
+                _build_manual_row("manual", "Manual", analysis.manual),
+                _build_automatic_row("auto_full", "Auto full", analysis.automatic_full),
+                _build_automatic_row(
+                    "auto_future",
+                    "Auto future",
+                    analysis.automatic_future,
+                ),
+                _build_automatic_row("auto_past", "Auto past", analysis.automatic_past),
+            ],
+        )
+        log_branch(
+            LOGGER,
+            "Built benchmark report",
+            context={
+                "analysis_status": "ready",
+                "scheme_count": len(report.rows),
+                "warning_count": len(report.warnings),
+                "manual_status": analysis.manual.status,
+                "automatic_full_status": analysis.automatic_full.status,
+                "automatic_future_status": analysis.automatic_future.status,
+                "automatic_past_status": analysis.automatic_past.status,
+            },
+        )
+        return report
 
 
 def _build_manual_row(

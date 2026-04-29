@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from ...models import NetworkSpec
 from ...validation import ensure_valid_spec
+from .._logging import (
+    log_branch,
+    log_operation,
+    summarize_contraction_analysis,
+    summarize_spec_counts,
+)
 from ..modes._grid_periodic import grid_periodic_active_cell_as_analysis_network
 from ..modes._linear_periodic import linear_periodic_active_cell_as_analysis_network
 from ..modes._tree_periodic import tree_periodic_active_cell_as_analysis_network
@@ -32,6 +40,7 @@ from ._prepared_network import PreparedNetwork, prepare_analyzed_network
 _HYPEREDGE_ANALYSIS_WARNING = (
     "Hyperedges are analyzed as generated copy tensors; the visual model is unchanged."
 )
+LOGGER = logging.getLogger(__name__)
 
 
 def analyze_contraction(
@@ -40,11 +49,13 @@ def analyze_contraction(
     memory_dtype: str = DEFAULT_MEMORY_DTYPE,
 ) -> ContractionAnalysisResult:
     """Analyze the saved manual plan and available automatic greedy previews."""
-    validated_spec = ensure_valid_spec(spec)
-    return _analyze_validated_contraction(
-        validated_spec,
-        memory_dtype=memory_dtype,
-    )
+    context = {"memory_dtype": memory_dtype, **summarize_spec_counts(spec)}
+    with log_operation(LOGGER, "Analyzing contraction", context=context):
+        validated_spec = ensure_valid_spec(spec)
+        return _analyze_validated_contraction(
+            validated_spec,
+            memory_dtype=memory_dtype,
+        )
 
 
 def _analyze_validated_contraction(
@@ -59,12 +70,21 @@ def _analyze_validated_contraction(
         original_spec=spec,
         normalized_spec=normalized_spec,
     )
-    return _analyze_prepared_contraction(
+    result = _analyze_prepared_contraction(
         prepared,
         memory_dtype=memory_dtype,
         warnings=warnings,
         synthetic_operands=synthetic_operands,
     )
+    log_branch(
+        LOGGER,
+        "Prepared contraction analysis summary",
+        context={
+            "memory_dtype": memory_dtype,
+            **summarize_contraction_analysis(result),
+        },
+    )
+    return result
 
 
 def _normalize_spec_for_contraction_analysis(
@@ -75,22 +95,39 @@ def _normalize_spec_for_contraction_analysis(
     """Return the validated spec variant consumed by contraction analysis."""
     resolved_spec = ensure_valid_spec(spec) if validate else spec
     if resolved_spec.linear_periodic_chain is not None:
+        log_branch(
+            LOGGER,
+            "Using active linear periodic cell",
+            context={"mode": "linear_periodic"},
+        )
         return linear_periodic_active_cell_as_analysis_network(
             resolved_spec.linear_periodic_chain
         )
     if resolved_spec.grid_periodic_grid is not None:
+        log_branch(
+            LOGGER, "Using active grid periodic cell", context={"mode": "grid_periodic"}
+        )
         return grid_periodic_active_cell_as_analysis_network(
             resolved_spec.grid_periodic_grid
         )
     if resolved_spec.tree_periodic_tree is not None:
+        log_branch(
+            LOGGER, "Using active tree periodic cell", context={"mode": "tree_periodic"}
+        )
         return tree_periodic_active_cell_as_analysis_network(
             resolved_spec.tree_periodic_tree
         )
     if resolved_spec.hyperedges:
+        log_branch(LOGGER, "Lowering hyperedges to pairwise analysis spec")
         return lower_hyperedges_to_pairwise_spec(
             resolved_spec,
             preserve_contraction_plan=True,
         )
+    log_branch(
+        LOGGER,
+        "Using normal graph for contraction analysis",
+        context={"mode": "normal"},
+    )
     return resolved_spec
 
 

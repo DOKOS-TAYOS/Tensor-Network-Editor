@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
+from .internal._logging import log_operation
 from .internal.io._python_import_profiles import PythonSourceProfile
 from .internal.io._python_live_import import PythonImportMode
 from .internal.io._serialization import (
@@ -24,6 +26,8 @@ from .internal.io._serialization import (
 from .models import NetworkSpec
 from .types import StrPath
 
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(slots=True, frozen=True)
 class PythonLoadOptions:
@@ -42,13 +46,20 @@ def load_spec(
 ) -> NetworkSpec:
     """Load one saved JSON spec or supported Python source from disk."""
     options = python or PythonLoadOptions()
-    return _load_spec(
-        path,
-        source_profile=options.source_profile,
-        python_import_mode=options.import_mode,
-        python_reconstruction_level=options.reconstruction_level,
-        python_object_name=options.object_name,
-    )
+    context = {
+        "path": path,
+        "python_import_mode": options.import_mode,
+        "source_profile": options.source_profile,
+        "python_reconstruction_level": options.reconstruction_level,
+    }
+    with log_operation(LOGGER, "Spec load", context=context):
+        return _load_spec(
+            path,
+            source_profile=options.source_profile,
+            python_import_mode=options.import_mode,
+            python_reconstruction_level=options.reconstruction_level,
+            python_object_name=options.object_name,
+        )
 
 
 def load_python_spec(
@@ -58,18 +69,25 @@ def load_python_spec(
 ) -> NetworkSpec:
     """Load one network spec from supported Python source already in memory."""
     options = python or PythonLoadOptions()
-    return _load_python_spec(
-        code,
-        source_profile=options.source_profile,
-        python_import_mode=options.import_mode,
-        python_reconstruction_level=options.reconstruction_level,
-        python_object_name=options.object_name,
-    )
+    context = {
+        "python_import_mode": options.import_mode,
+        "source_profile": options.source_profile,
+        "python_reconstruction_level": options.reconstruction_level,
+    }
+    with log_operation(LOGGER, "Python spec load", context=context):
+        return _load_python_spec(
+            code,
+            source_profile=options.source_profile,
+            python_import_mode=options.import_mode,
+            python_reconstruction_level=options.reconstruction_level,
+            python_object_name=options.object_name,
+        )
 
 
 def save_spec(spec: NetworkSpec, *, path: StrPath) -> None:
     """Validate and write one network spec to JSON."""
-    _save_spec(spec, path)
+    with log_operation(LOGGER, "Spec save", context={"path": path}):
+        _save_spec(spec, path)
 
 
 __all__ = [

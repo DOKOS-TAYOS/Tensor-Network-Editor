@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 
+from ..internal._logging import log_branch, log_operation, summarize_spec_counts
 from ..internal.io._serialization import deserialize_spec
 from ..internal.subnetworks._subnetworks import (
     extract_subnetwork_spec,
     prepare_subnetwork_for_insertion,
 )
 from ..models import CanvasPosition, NetworkSpec
+
+LOGGER = logging.getLogger(__name__)
 
 
 def extract_serialized_subnetwork(
@@ -18,8 +22,19 @@ def extract_serialized_subnetwork(
     tensor_ids: list[str],
 ) -> NetworkSpec:
     """Deserialize one payload and extract its selected tensor fragment."""
-    spec = deserialize_spec(serialized_spec, validate=False)
-    return extract_subnetwork_spec(spec, tensor_ids=tensor_ids)
+    with log_operation(
+        LOGGER,
+        "Transient subnetwork extraction",
+        context={"tensor_id_count": len(tensor_ids)},
+    ):
+        spec = deserialize_spec(serialized_spec, validate=False)
+        extracted_spec = extract_subnetwork_spec(spec, tensor_ids=tensor_ids)
+        log_branch(
+            LOGGER,
+            "Extracted transient reusable subnetwork",
+            context=summarize_spec_counts(extracted_spec),
+        )
+        return extracted_spec
 
 
 def prepare_serialized_subnetwork_for_insertion(
@@ -28,5 +43,15 @@ def prepare_serialized_subnetwork_for_insertion(
     target_center: CanvasPosition,
 ) -> NetworkSpec:
     """Deserialize one payload and prepare it for editor insertion."""
-    spec = deserialize_spec(serialized_spec, validate=False)
-    return prepare_subnetwork_for_insertion(spec, target_center=target_center)
+    with log_operation(LOGGER, "Transient subnetwork insertion preparation"):
+        spec = deserialize_spec(serialized_spec, validate=False)
+        prepared_spec = prepare_subnetwork_for_insertion(
+            spec,
+            target_center=target_center,
+        )
+        log_branch(
+            LOGGER,
+            "Prepared transient subnetwork for insertion",
+            context=summarize_spec_counts(prepared_spec),
+        )
+        return prepared_spec

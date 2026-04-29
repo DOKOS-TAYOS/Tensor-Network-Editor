@@ -153,7 +153,7 @@ export function registerSidebarTabs(ctx) {
       state.contractionAnalysisDirty &&
       typeof ctx.refreshContractionAnalysis === "function"
     ) {
-      ctx.refreshContractionAnalysis();
+      ctx.refreshContractionAnalysis({ refreshReason: "planner_tab" });
     }
   }
 

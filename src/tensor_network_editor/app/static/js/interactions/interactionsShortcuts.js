@@ -753,11 +753,15 @@ export function createInteractionShortcutBindings({
   }
 
   function sendCancelBeacon() {
-    if (state.editorFinished || !navigator.sendBeacon) {
+    if (state.editorFinished || typeof fetch !== "function") {
       return;
     }
-    const payload = new Blob([JSON.stringify({})], { type: "application/json" });
-    navigator.sendBeacon("/api/cancel", payload);
+    void fetch("/api/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      keepalive: true,
+    });
   }
 
   function handleWindowResize() {

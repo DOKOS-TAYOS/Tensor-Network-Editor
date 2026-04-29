@@ -15,7 +15,14 @@ from pathlib import Path
 from typing import Protocol, TypeAlias, cast
 from urllib.parse import urlparse
 
+from ..internal._logging import (
+    bind_log_context,
+    format_log_message,
+    log_branch,
+    log_operation,
+)
 from . import routes
+from ._bootstrap_payloads import build_frontend_logging_payload
 from ._protocol import (
     JsonDict,
     JsonResponse,
@@ -38,6 +45,7 @@ _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
 )
 _QUIET_MISSING_STATIC_ASSET_PATHS: frozenset[str] = frozenset({"/favicon.ico"})
 _ScannedStaticAssetFile: TypeAlias = tuple[Path, str, int, int]
+_RUNTIME_CONFIG_PLACEHOLDER = "__TNE_RUNTIME_CONFIG__"
 
 
 class SupportsReadBytes(Protocol):
@@ -194,13 +202,72 @@ def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
     current_signature = _build_static_asset_source_signature(scanned_files)
     with _STATIC_ASSET_CACHE_LOCK:
         cache = _STATIC_ASSET_CACHE_BY_ROOT.get(resolved_static_dir)
-        if cache is None or cache.source_signature != current_signature:
-            cache = _build_static_asset_cache(
-                resolved_static_dir,
-                scanned_files=scanned_files,
-            )
-            _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
+        if cache is None:
+            with log_operation(
+                LOGGER,
+                "Static asset cache build",
+                context={"path": resolved_static_dir},
+            ) as success_context:
+                cache = _build_static_asset_cache(
+                    resolved_static_dir,
+                    scanned_files=scanned_files,
+                )
+                _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
+                success_context["after"] = cache.asset_version
+                success_context["asset_count"] = len(cache.body_by_relative_path)
+                return cache
+        if cache.source_signature != current_signature:
+            with log_operation(
+                LOGGER,
+                "Static asset cache refresh",
+                context={
+                    "path": resolved_static_dir,
+                    "before": cache.asset_version,
+                },
+            ) as success_context:
+                refreshed_cache = _build_static_asset_cache(
+                    resolved_static_dir,
+                    scanned_files=scanned_files,
+                )
+                _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = refreshed_cache
+                success_context["after"] = refreshed_cache.asset_version
+                success_context["asset_count"] = len(
+                    refreshed_cache.body_by_relative_path
+                )
+                return refreshed_cache
+        log_branch(
+            LOGGER,
+            "Static asset cache reused",
+            context={
+                "path": resolved_static_dir,
+                "after": cache.asset_version,
+                "asset_count": len(cache.body_by_relative_path),
+            },
+        )
         return cache
+
+
+def _build_frontend_runtime_config_payload(session: EditorSession) -> JsonDict:
+    """Return the runtime configuration embedded into the editor HTML page."""
+    return {
+        "session_id": session.session_id,
+        "frontend_logging": build_frontend_logging_payload(session),
+    }
+
+
+def _serialize_frontend_runtime_config(session: EditorSession) -> str:
+    """Serialize one session runtime config safely for an inline JSON script."""
+    return json.dumps(_build_frontend_runtime_config_payload(session)).replace(
+        "</", "<\\/"
+    )
+
+
+def _render_session_index_body(index_body: bytes, session: EditorSession) -> bytes:
+    """Return the per-session editor HTML body with embedded runtime config."""
+    return index_body.replace(
+        _RUNTIME_CONFIG_PLACEHOLDER.encode("utf-8"),
+        _serialize_frontend_runtime_config(session).encode("utf-8"),
+    )
 
 
 def _unexpected_internal_error_response(session_id: str) -> JsonResponse:
@@ -236,6 +303,10 @@ class EditorServer:
         self.port = port
         self._static_dir = Path(__file__).resolve().parent / "static"
         self._static_asset_cache = _get_static_asset_cache(self._static_dir)
+        self._index_body = _render_session_index_body(
+            self._static_asset_cache.index_body,
+            session,
+        )
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
 
@@ -251,10 +322,11 @@ class EditorServer:
     def start(self) -> None:
         """Start serving requests in a background thread."""
         self._thread.start()
-        LOGGER.info(
-            "[session=%s] Editor server started at %s",
-            self.session_id,
-            self.base_url,
+        log_branch(
+            LOGGER,
+            f"Editor server started at {self.base_url}",
+            level=logging.INFO,
+            context={"session": self.session_id},
         )
 
     def stop(self) -> None:
@@ -262,7 +334,12 @@ class EditorServer:
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=5)
-        LOGGER.info("[session=%s] Editor server stopped", self.session_id)
+        log_branch(
+            LOGGER,
+            "Editor server stopped",
+            level=logging.INFO,
+            context={"session": self.session_id},
+        )
 
     def _serve_forever(self) -> None:
         """Serve requests with a short shutdown polling interval."""
@@ -274,12 +351,13 @@ class EditorServer:
         session_id = self.session_id
         static_dir = self._static_dir
         static_asset_cache = self._static_asset_cache
+        index_body = self._index_body
 
         def build_index_response() -> _BinaryResponse:
             """Return the cached main HTML page for this editor session."""
             return _BinaryResponse(
                 status=HTTPStatus.OK,
-                body=static_asset_cache.index_body,
+                body=index_body,
                 content_type="text/html; charset=utf-8",
             )
 
@@ -324,6 +402,7 @@ class EditorServer:
             "/": build_index_response,
         }
         post_route_handlers: dict[str, Callable[[JsonDict], JsonResponse]] = {
+            "/api/client-log": adapt_payload_route("handle_client_log"),
             "/api/validate": adapt_payload_route("handle_validate"),
             "/api/draft": adapt_payload_route("handle_draft_save"),
             "/api/draft/clear": adapt_session_only_route("handle_draft_clear"),
@@ -362,56 +441,56 @@ class EditorServer:
             def do_GET(self) -> None:
                 """Handle one HTTP GET request for assets or bootstrap data."""
                 parsed = urlparse(self.path)
-                try:
-                    response = self._dispatch_get(parsed.path)
-                except Exception:  # pragma: no cover - defensive server guard
-                    LOGGER.exception(
-                        "[session=%s] Unhandled exception while processing %s %s",
-                        session_id,
-                        self.command,
-                        parsed.path,
-                    )
-                    response = _unexpected_internal_error_response(session_id)
+                with bind_log_context(session=session_id, route=parsed.path):
+                    try:
+                        with log_operation(LOGGER, "Route request"):
+                            response = self._dispatch_get(parsed.path)
+                    except Exception:  # pragma: no cover - defensive server guard
+                        LOGGER.exception(
+                            format_log_message(
+                                f"Unhandled exception while processing {self.command} {parsed.path}"
+                            ),
+                        )
+                        response = _unexpected_internal_error_response(session_id)
                 self._write_response(response)
 
             def do_POST(self) -> None:
                 """Handle one HTTP POST request for the editor JSON API."""
                 parsed = urlparse(self.path)
-                try:
-                    body = self._read_request_body()
-                except ValueError as exc:
-                    LOGGER.warning(
-                        "[session=%s] Rejected malformed request body for %s: %s",
-                        session_id,
-                        parsed.path,
-                        exc,
-                    )
-                    self._drain_pending_request_body()
-                    self.close_connection = True
-                    self._write_response(bad_request_response(str(exc)))
-                    return
-                try:
-                    payload = read_json(body)
-                except ValueError as exc:
-                    LOGGER.warning(
-                        "[session=%s] Rejected malformed JSON request for %s: %s",
-                        session_id,
-                        parsed.path,
-                        exc,
-                    )
-                    self.close_connection = True
-                    self._write_response(bad_request_response(str(exc)))
-                    return
-                try:
-                    response = self._dispatch_post(parsed.path, payload)
-                except Exception:  # pragma: no cover - defensive server guard
-                    LOGGER.exception(
-                        "[session=%s] Unhandled exception while processing %s %s",
-                        session_id,
-                        self.command,
-                        parsed.path,
-                    )
-                    response = _unexpected_internal_error_response(session_id)
+                with bind_log_context(session=session_id, route=parsed.path):
+                    try:
+                        with log_operation(LOGGER, "Route request"):
+                            try:
+                                body = self._read_request_body()
+                            except ValueError as exc:
+                                LOGGER.warning(
+                                    format_log_message(
+                                        f"Rejected malformed request body for {parsed.path}: {exc}"
+                                    ),
+                                )
+                                self._drain_pending_request_body()
+                                self.close_connection = True
+                                self._write_response(bad_request_response(str(exc)))
+                                return
+                            try:
+                                payload = read_json(body)
+                            except ValueError as exc:
+                                LOGGER.warning(
+                                    format_log_message(
+                                        f"Rejected malformed JSON request for {parsed.path}: {exc}"
+                                    ),
+                                )
+                                self.close_connection = True
+                                self._write_response(bad_request_response(str(exc)))
+                                return
+                            response = self._dispatch_post(parsed.path, payload)
+                    except Exception:  # pragma: no cover - defensive server guard
+                        LOGGER.exception(
+                            format_log_message(
+                                f"Unhandled exception while processing {self.command} {parsed.path}"
+                            ),
+                        )
+                        response = _unexpected_internal_error_response(session_id)
                 self._write_response(response)
 
             def log_message(self, format: str, *args: object) -> None:
@@ -431,7 +510,7 @@ class EditorServer:
                 route_handler = post_route_handlers.get(path)
                 if route_handler is not None:
                     return route_handler(payload)
-                LOGGER.debug("[session=%s] Unknown POST path: %s", session_id, path)
+                LOGGER.debug(format_log_message(f"Unknown POST path: {path}"))
                 return not_found_response()
 
             def _static_response(
@@ -442,9 +521,9 @@ class EditorServer:
                 if relative_path is None:
                     if _should_log_missing_static_asset(request_path):
                         LOGGER.debug(
-                            "[session=%s] Static asset not found for path %s",
-                            session_id,
-                            request_path,
+                            format_log_message(
+                                f"Static asset not found for path {request_path}"
+                            ),
                         )
                     return not_found_response()
                 return _BinaryResponse(

@@ -19,6 +19,7 @@ export function startEditor(ctx) {
     store,
     sessionService,
     actions,
+    logger: ctx.logger,
     documentRef: document,
     windowRef: window,
     confirmAction(message) {

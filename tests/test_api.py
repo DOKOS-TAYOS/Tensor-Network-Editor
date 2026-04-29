@@ -235,6 +235,9 @@ def test_editor_launch_options_defaults_match_public_contract() -> None:
     assert options.port == 0
     assert options.print_code is False
     assert options.code_path is None
+    assert options.log_file_path is None
+    assert options.log_file_max_bytes == 10_485_760
+    assert options.log_file_backup_count == 5
 
 
 def test_editor_launch_options_rejects_unknown_theme() -> None:
@@ -260,6 +263,9 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
                 port=8123,
                 print_code=True,
                 code_path="generated.py",
+                log_file_path="session.log",
+                log_file_max_bytes=2048,
+                log_file_backup_count=7,
                 template_catalog_path="templates.json",
                 subnetwork_catalog_path="subnetworks.json",
                 shared_subnetwork_catalog_path="shared.json",
@@ -277,6 +283,9 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         port=8123,
         print_code=True,
         code_path="generated.py",
+        log_file_path="session.log",
+        log_file_max_bytes=2048,
+        log_file_backup_count=7,
         template_catalog_path="templates.json",
         subnetwork_catalog_path="subnetworks.json",
         shared_subnetwork_catalog_path="shared.json",
