@@ -125,8 +125,8 @@ def test_help_info_section_surfaces_current_editor_workflows(
     )
     assert (
         "Export the current design as <strong>PNG</strong>, <strong>SVG</strong>, "
-        "<strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, or "
-        "<strong>Graphviz/DOT</strong>" in html
+        "<strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, "
+        "<strong>Graphviz/DOT</strong>, or <strong>Mermaid</strong>" in html
     )
     assert (
         "Start from an empty canvas, built-in or session templates, a saved JSON design"
@@ -208,6 +208,7 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert 'id="export-pdf-menu-item"' in html
     assert 'id="export-tikz-menu-item"' in html
     assert 'id="export-dot-menu-item"' in html
+    assert 'id="export-mermaid-menu-item"' in html
     assert 'id="export-show-tensor-names-menu-item"' in html
     assert 'id="export-show-index-names-menu-item"' in html
     assert 'id="export-show-bond-names-menu-item"' in html
@@ -228,6 +229,7 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     assert '<option value="pdf">PDF</option>' in html
     assert '<option value="tikz">TikZ/LaTeX</option>' in html
     assert '<option value="dot">Graphviz/DOT</option>' in html
+    assert '<option value="mermaid">Mermaid</option>' in html
     assert html.index('id="file-menu-button"') < html.index('id="file-menu-panel"')
 
     code_pane_index = html.index('id="sidebar-pane-code"')
@@ -2136,6 +2138,10 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
         'exportDotMenuItem: document.getElementById("export-dot-menu-item")' in dom_body
     )
     assert (
+        'exportMermaidMenuItem: document.getElementById("export-mermaid-menu-item")'
+        in dom_body
+    )
+    assert (
         'closeWithInfoMenuItem: document.getElementById("close-with-info-menu-item")'
         in dom_body
     )
@@ -2155,6 +2161,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert 'bindListener(exportPdfMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportTikzMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(exportDotMenuItem, "click", () => {' in shell_bindings_body
+    assert 'bindListener(exportMermaidMenuItem, "click", () => {' in shell_bindings_body
     assert 'bindListener(closeWithInfoMenuItem, "click", () => {' in shell_bindings_body
     assert (
         'bindListener(closeWithoutInfoMenuItem, "click", () => {' in shell_bindings_body
@@ -2188,6 +2195,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert 'case "pdf":' in interactions_body
     assert 'case "tikz":' in interactions_body
     assert 'case "dot":' in interactions_body
+    assert 'case "mermaid":' in interactions_body
     assert "await downloadAcademicExport(" in interactions_body
     assert "const previousFormat = exportFormatSelect.value;" in interactions_body
     assert "await downloadSelectedExport();" in interactions_body
@@ -2197,6 +2205,7 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
     assert "exportPdfMenuItem.disabled =" in utilities_body
     assert "exportTikzMenuItem.disabled =" in utilities_body
     assert "exportDotMenuItem.disabled =" in utilities_body
+    assert "exportMermaidMenuItem.disabled =" in utilities_body
     assert "syncAcademicExportLabelMenuItem(" in utilities_body
     assert "exportShowTensorNamesMenuItem" in shell_bindings_body
     assert "toggleAcademicExportLabel(" in shell_bindings_body

@@ -42,6 +42,7 @@ export function getDomRefs(document) {
     exportPdfMenuItem: document.getElementById("export-pdf-menu-item"),
     exportTikzMenuItem: document.getElementById("export-tikz-menu-item"),
     exportDotMenuItem: document.getElementById("export-dot-menu-item"),
+    exportMermaidMenuItem: document.getElementById("export-mermaid-menu-item"),
     exportShowTensorNamesMenuItem: document.getElementById(
       "export-show-tensor-names-menu-item"
     ),

@@ -18,6 +18,7 @@ export function createUiToolbarActionStateSupport({
     exportPdfMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
+    exportMermaidMenuItem,
     exportShowTensorNamesMenuItem,
     exportShowIndexNamesMenuItem,
     exportShowBondNamesMenuItem,
@@ -110,6 +111,9 @@ export function createUiToolbarActionStateSupport({
     }
     if (exportDotMenuItem) {
       exportDotMenuItem.disabled = !state.spec;
+    }
+    if (exportMermaidMenuItem) {
+      exportMermaidMenuItem.disabled = !state.spec;
     }
     syncAcademicExportLabelMenuItem(
       exportShowTensorNamesMenuItem,

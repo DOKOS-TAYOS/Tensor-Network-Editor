@@ -38,6 +38,7 @@ export function createEditorShellBindings({
     exportPdfMenuItem,
     exportTikzMenuItem,
     exportDotMenuItem,
+    exportMermaidMenuItem,
     exportShowTensorNamesMenuItem,
     exportShowIndexNamesMenuItem,
     exportShowBondNamesMenuItem,
@@ -340,6 +341,7 @@ export function createEditorShellBindings({
         "export-svg-menu-item",
         "export-tikz-menu-item",
         "export-dot-menu-item",
+        "export-mermaid-menu-item",
         "single-mode-menu-item",
         "grid-periodic-mode-menu-item",
         "tree-mode-menu-item",
@@ -523,6 +525,10 @@ export function createEditorShellBindings({
     bindListener(exportDotMenuItem, "click", () => {
       actions.closeTransientToolbarUi();
       actions.downloadExportAs("dot");
+    });
+    bindListener(exportMermaidMenuItem, "click", () => {
+      actions.closeTransientToolbarUi();
+      actions.downloadExportAs("mermaid");
     });
     const openExportSubmenu = () => {
       if (typeof actions.openToolbarSubmenu === "function") {

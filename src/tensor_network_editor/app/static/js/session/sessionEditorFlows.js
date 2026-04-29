@@ -518,6 +518,12 @@ export function createSessionEditorFlows({
         contentType: "text/vnd.graphviz;charset=utf-8",
         responseKind: "text",
       },
+      mermaid: {
+        extension: "mmd",
+        label: "Mermaid",
+        contentType: "text/plain;charset=utf-8",
+        responseKind: "text",
+      },
     }[format];
     if (!exportDetails) {
       exportOperation?.finish({
@@ -609,6 +615,9 @@ export function createSessionEditorFlows({
         break;
       case "dot":
         await downloadAcademicExport("dot");
+        break;
+      case "mermaid":
+        await downloadAcademicExport("mermaid");
         break;
       case "py":
         await downloadPythonExport();

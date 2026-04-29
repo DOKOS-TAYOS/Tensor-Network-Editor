@@ -3988,6 +3988,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           exportSvgMenuItem: getButton("export-svg-menu-item"),
           exportTikzMenuItem: getButton("export-tikz-menu-item"),
           exportDotMenuItem: getButton("export-dot-menu-item"),
+          exportMermaidMenuItem: getButton("export-mermaid-menu-item"),
           exportFormatSelect: {{ value: "py", addEventListener(type, handler) {{ this[type] = handler; }} }},
           singleModeMenuItem: getButton("single-mode-menu-item"),
           linearPeriodicModeMenuItem: getButton("linear-periodic-mode-menu-item"),
@@ -4219,6 +4220,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.exportPngMenuItem.click();
         dom.exportTikzMenuItem.click();
         dom.exportDotMenuItem.click();
+        dom.exportMermaidMenuItem.click();
         dom.saveSessionTemplateMenuItem.click();
         dom.saveSubnetworkLibraryMenuItem.click();
         dom.loadSessionTemplateMenuItem.click();
@@ -4290,7 +4292,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (
           !flowEvents.includes("downloadExportAs:tikz") ||
-          !flowEvents.includes("downloadExportAs:dot")
+          !flowEvents.includes("downloadExportAs:dot") ||
+          !flowEvents.includes("downloadExportAs:mermaid")
         ) {{
           throw new Error(`Expected the File menu to dispatch academic exports, received ${{JSON.stringify(flowEvents)}}.`);
         }}

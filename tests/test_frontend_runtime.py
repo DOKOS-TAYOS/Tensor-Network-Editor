@@ -13499,10 +13499,14 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
                       text:
                         payload.format === "tikz"
                           ? "\\\\begin{tikzpicture}"
+                          : payload.format === "mermaid"
+                            ? "flowchart LR"
                           : "graph demo {}",
                       content_type:
                         payload.format === "tikz"
                           ? "text/x-tex;charset=utf-8"
+                          : payload.format === "mermaid"
+                            ? "text/plain;charset=utf-8"
                           : "text/vnd.graphviz;charset=utf-8",
                     };
                   },
@@ -13595,6 +13599,7 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             await flows.downloadExportAs("pdf");
             await flows.downloadExportAs("tikz");
             await flows.downloadExportAs("dot");
+            await flows.downloadExportAs("mermaid");
             const svgRenderCall = calls.find(
               (entry) => entry.type === "renderSpec" && entry.payload.format === "svg"
             );
@@ -13609,6 +13614,9 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             );
             const dotRenderCall = calls.find(
               (entry) => entry.type === "renderSpec" && entry.payload.format === "dot"
+            );
+            const mermaidRenderCall = calls.find(
+              (entry) => entry.type === "renderSpec" && entry.payload.format === "mermaid"
             );
             const svgDownloadCall = calls.find(
               (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.svg"
@@ -13625,7 +13633,10 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             const dotDownloadCall = calls.find(
               (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.dot"
             );
-            if (!svgRenderCall || !pngRenderCall || !pdfRenderCall || !tikzRenderCall || !dotRenderCall) {
+            const mermaidDownloadCall = calls.find(
+              (entry) => entry.type === "downloadText" && entry.filename === "draft_demo.mmd"
+            );
+            if (!svgRenderCall || !pngRenderCall || !pdfRenderCall || !tikzRenderCall || !dotRenderCall || !mermaidRenderCall) {
               throw new Error(`Expected academic exports to call renderSpec, received ${JSON.stringify(calls)}.`);
             }
             if (
@@ -13633,7 +13644,8 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               !pngRenderCall.payload.spec.persistViewSnapshots ||
               !pdfRenderCall.payload.spec.persistViewSnapshots ||
               !tikzRenderCall.payload.spec.persistViewSnapshots ||
-              !dotRenderCall.payload.spec.persistViewSnapshots
+              !dotRenderCall.payload.spec.persistViewSnapshots ||
+              !mermaidRenderCall.payload.spec.persistViewSnapshots
             ) {
               throw new Error(`Academic exports should persist view snapshots, received ${JSON.stringify(calls)}.`);
             }
@@ -13652,12 +13664,15 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
             if (!dotDownloadCall || dotDownloadCall.contentType !== "text/vnd.graphviz;charset=utf-8") {
               throw new Error(`Expected DOT export to download a .dot file, received ${JSON.stringify(calls)}.`);
             }
+            if (!mermaidDownloadCall || mermaidDownloadCall.contentType !== "text/plain;charset=utf-8") {
+              throw new Error(`Expected Mermaid export to download a .mmd file, received ${JSON.stringify(calls)}.`);
+            }
             if (
               !flowLog.some(
                 (entry) =>
                   entry.type === "finish"
                   && entry.name === "Download academic export"
-                  && entry.context.format === "dot"
+                  && entry.context.format === "mermaid"
                   && entry.context.outcome === "downloaded"
               )
             ) {

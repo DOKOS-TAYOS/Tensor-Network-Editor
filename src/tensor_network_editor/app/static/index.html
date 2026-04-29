@@ -199,6 +199,22 @@
                           <span class="toolbar-menu-item-description">Save the current design as a Graphviz/DOT graph.</span>
                         </span>
                       </button>
+                      <button
+                        id="export-mermaid-menu-item"
+                        class="toolbar-menu-item"
+                        type="button"
+                        role="menuitem"
+                        title="Export the current design as a Mermaid diagram."
+                      >
+                        <span class="toolbar-menu-item-check" aria-hidden="true"></span>
+                        <span class="toolbar-menu-item-content">
+                          <span class="toolbar-menu-item-header">
+                            <span class="toolbar-menu-item-label">Export to .mmd</span>
+                            <span class="toolbar-menu-item-shortcut"></span>
+                          </span>
+                          <span class="toolbar-menu-item-description">Save the current design as a Mermaid diagram.</span>
+                        </span>
+                      </button>
                       <div class="toolbar-menu-separator" role="separator"></div>
                       <button
                         id="export-show-tensor-names-menu-item"
@@ -206,7 +222,7 @@
                         type="button"
                         role="menuitemcheckbox"
                         aria-checked="true"
-                        title="Include tensor names in TikZ and DOT exports."
+                        title="Include tensor names in TikZ, DOT, and Mermaid exports."
                       >
                         <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                         <span class="toolbar-menu-item-content">
@@ -214,7 +230,7 @@
                             <span class="toolbar-menu-item-label">Show tensor names</span>
                             <span class="toolbar-menu-item-shortcut"></span>
                           </span>
-                          <span class="toolbar-menu-item-description">Include tensor names in TikZ and DOT exports.</span>
+                          <span class="toolbar-menu-item-description">Include tensor names in TikZ, DOT, and Mermaid exports.</span>
                         </span>
                       </button>
                       <button
@@ -223,7 +239,7 @@
                         type="button"
                         role="menuitemcheckbox"
                         aria-checked="true"
-                        title="Include index names in TikZ and DOT exports."
+                        title="Include index names in TikZ, DOT, and Mermaid exports."
                       >
                         <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                         <span class="toolbar-menu-item-content">
@@ -231,7 +247,7 @@
                             <span class="toolbar-menu-item-label">Show index names</span>
                             <span class="toolbar-menu-item-shortcut"></span>
                           </span>
-                          <span class="toolbar-menu-item-description">Include index names in TikZ and DOT exports.</span>
+                          <span class="toolbar-menu-item-description">Include index names in TikZ, DOT, and Mermaid exports.</span>
                         </span>
                       </button>
                       <button
@@ -240,7 +256,7 @@
                         type="button"
                         role="menuitemcheckbox"
                         aria-checked="true"
-                        title="Include bond names in TikZ and DOT exports."
+                        title="Include bond names in TikZ, DOT, and Mermaid exports."
                       >
                         <span class="toolbar-menu-item-check" aria-hidden="true"></span>
                         <span class="toolbar-menu-item-content">
@@ -248,7 +264,7 @@
                             <span class="toolbar-menu-item-label">Show bond names</span>
                             <span class="toolbar-menu-item-shortcut"></span>
                           </span>
-                          <span class="toolbar-menu-item-description">Include bond names in TikZ and DOT exports.</span>
+                          <span class="toolbar-menu-item-description">Include bond names in TikZ, DOT, and Mermaid exports.</span>
                         </span>
                       </button>
                     </div>
@@ -645,6 +661,7 @@
               <option value="pdf">PDF</option>
               <option value="tikz">TikZ/LaTeX</option>
               <option value="dot">Graphviz/DOT</option>
+              <option value="mermaid">Mermaid</option>
             </select>
             <input
               id="load-input"
@@ -1170,7 +1187,7 @@
             <ul>
               <li>Draw tensor networks, save reusable JSON designs, and generate Python for supported backends.</li>
               <li>Keep notes, groups, metadata, colors, tensor values, and reusable subnetworks inside the same saved design.</li>
-              <li>Export the current design as <strong>PNG</strong>, <strong>SVG</strong>, <strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, or <strong>Graphviz/DOT</strong>, or keep working from generated code outside the editor.</li>
+              <li>Export the current design as <strong>PNG</strong>, <strong>SVG</strong>, <strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, <strong>Graphviz/DOT</strong>, or <strong>Mermaid</strong>, or keep working from generated code outside the editor.</li>
             </ul>
           </section>
 
