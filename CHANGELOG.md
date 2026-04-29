@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Windows CI no longer flakes on the browser editor's academic `SVG`/`PNG`/`PDF`
+  export route test just because Matplotlib needs extra cold-start time before
+  the first render completes.
 - Static exports now choose a contrasting tensor-name text color from each
   tensor node fill, so dark custom nodes keep light labels and light custom
   nodes switch to dark labels consistently across `SVG`, `PNG`, `PDF`,

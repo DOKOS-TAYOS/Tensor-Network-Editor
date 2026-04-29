@@ -364,6 +364,7 @@ def test_render_route_returns_svg_png_and_pdf_exports(
     editor_server: EditorServer,
 ) -> None:
     pytest.importorskip("matplotlib")
+    render_timeout = 30.0
     spec = build_sample_spec()
     serialized_spec = {
         "schema_version": SCHEMA_VERSION,
@@ -374,16 +375,19 @@ def test_render_route_returns_svg_png_and_pdf_exports(
         f"{editor_server.base_url}/api/render",
         method="POST",
         payload={"format": "svg", "spec": serialized_spec},
+        timeout=render_timeout,
     )
     png_payload = request_json(
         f"{editor_server.base_url}/api/render",
         method="POST",
         payload={"format": "png", "spec": serialized_spec},
+        timeout=render_timeout,
     )
     pdf_payload = request_json(
         f"{editor_server.base_url}/api/render",
         method="POST",
         payload={"format": "pdf", "spec": serialized_spec},
+        timeout=render_timeout,
     )
 
     assert svg_payload["format"] == "svg"

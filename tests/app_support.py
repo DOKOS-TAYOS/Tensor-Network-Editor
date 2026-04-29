@@ -7,9 +7,17 @@ from urllib.request import Request, urlopen
 
 
 def request_json(
-    url: str, method: str = "GET", payload: dict[str, Any] | None = None
+    url: str,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+    timeout: float = 5.0,
 ) -> dict[str, Any]:
-    status, response = request_json_with_status(url, method=method, payload=payload)
+    status, response = request_json_with_status(
+        url,
+        method=method,
+        payload=payload,
+        timeout=timeout,
+    )
     if status >= 400:
         raise AssertionError(f"Expected success response for {url}, received {status}.")
     return response
@@ -20,6 +28,7 @@ def request_json_with_status(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
     raw_body: bytes | None = None,
+    timeout: float = 5.0,
 ) -> tuple[int, dict[str, Any]]:
     data = None
     headers: dict[str, str] = {}
@@ -33,7 +42,7 @@ def request_json_with_status(
         headers["Content-Type"] = "application/json"
     request = Request(url=url, method=method, data=data, headers=headers)
     try:
-        with urlopen(request, timeout=5) as response:
+        with urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         return exc.code, json.loads(exc.read().decode("utf-8"))
