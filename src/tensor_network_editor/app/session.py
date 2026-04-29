@@ -9,7 +9,7 @@ import webbrowser
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import FrameType
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from .._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
@@ -563,7 +563,7 @@ class _NullLoggingScope:
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: object | None,
-    ) -> bool:
+    ) -> Literal[False]:
         del exc_type, exc, traceback
         return False
 

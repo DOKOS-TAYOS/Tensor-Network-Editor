@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Editor logging now keeps the visual theme in `mode` while recording the
+  network topology separately as `spec_mode`, avoiding ambiguous session logs.
+- Public editor logging paths now accept the same `StrPath` types across the
+  API and internal logging scope helpers, and the no-op logging scopes are
+  typed as never swallowing exceptions.
+
 ### Added
 
 - Package logging now has a shared observability layer with operation lifecycle

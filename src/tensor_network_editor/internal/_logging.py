@@ -11,6 +11,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING
 
+from ..types import StrPath
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
@@ -63,6 +65,7 @@ _CONTEXT_FIELD_ORDER: tuple[str, ...] = (
     "python_reconstruction_level",
     "memory_dtype",
     "mode",
+    "spec_mode",
     "session",
     "route",
     "request_id",
@@ -124,7 +127,7 @@ class ContextFormatter(logging.Formatter):
 def package_logging_scope(
     requested_level_name: str | None,
     *,
-    log_file_path: str | Path | None = None,
+    log_file_path: StrPath | None = None,
     log_file_max_bytes: int = DEFAULT_LOG_FILE_MAX_BYTES,
     log_file_backup_count: int = DEFAULT_LOG_FILE_BACKUP_COUNT,
     enable_stderr: bool = True,
@@ -265,7 +268,7 @@ def bind_log_context(**fields: object) -> Iterator[None]:
     if not normalized_fields:
         yield
         return
-    merged_fields = dict(_LOG_CONTEXT.get())
+    merged_fields: dict[str, str] = dict(_LOG_CONTEXT.get())
     merged_fields.update(normalized_fields)
     token = _LOG_CONTEXT.set(tuple(merged_fields.items()))
     try:
@@ -335,7 +338,7 @@ def format_log_message(
     context: Mapping[str, object] | None = None,
 ) -> str:
     """Return ``message`` with ordered context suffix fields when present."""
-    merged = dict(_LOG_CONTEXT.get())
+    merged: dict[str, str] = dict(_LOG_CONTEXT.get())
     for key, value in dict(context or {}).items():
         normalized = _normalize_context_value(value)
         if normalized is not None:
@@ -343,7 +346,7 @@ def format_log_message(
     ordered: dict[str, str] = {}
     for key in _CONTEXT_FIELD_ORDER:
         value = merged.pop(key, None)
-        if value is not None:
+        if isinstance(value, str):
             ordered[key] = value
     for key in sorted(merged):
         ordered[key] = merged[key]
@@ -399,7 +402,7 @@ def validate_positive_log_setting(value: int, *, name: str) -> int:
 
 
 def _merge_context_fields(record: logging.LogRecord) -> dict[str, str]:
-    merged = dict(_LOG_CONTEXT.get())
+    merged: dict[str, str] = dict(_LOG_CONTEXT.get())
     record_context = getattr(record, "tne_context", None)
     if isinstance(record_context, dict):
         for key, value in record_context.items():
@@ -409,7 +412,7 @@ def _merge_context_fields(record: logging.LogRecord) -> dict[str, str]:
     ordered: dict[str, str] = {}
     for key in _CONTEXT_FIELD_ORDER:
         value = merged.pop(key, None)
-        if value is not None:
+        if isinstance(value, str):
             ordered[key] = value
     for key in sorted(merged):
         ordered[key] = merged[key]

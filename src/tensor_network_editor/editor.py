@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from ._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
 from .app.session import launch_editor_session
@@ -76,12 +77,16 @@ def open_editor(
         normalize_editor_theme(theme) if theme is not None else resolved_options.theme
     )
     active_logging_runtime = get_active_logging_runtime()
-    context = {
+    context: dict[str, object] = {
         "engine": resolved_options.default_engine,
         "mode": resolved_theme,
     }
     if spec is not None:
-        context.update(summarize_spec_counts(spec))
+        spec_context = summarize_spec_counts(spec)
+        spec_mode = spec_context.pop("mode", None)
+        if spec_mode is not None:
+            context["spec_mode"] = spec_mode
+        context.update(spec_context)
     should_open_logging_scope = _should_open_editor_logging_scope(
         resolved_options.log_file_path,
         active_logging_runtime,
@@ -134,7 +139,7 @@ class _NullLoggingScope:
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         traceback: object | None,
-    ) -> bool:
+    ) -> Literal[False]:
         del exc_type, exc, traceback
         return False
 

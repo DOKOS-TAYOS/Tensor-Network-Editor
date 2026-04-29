@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+from collections.abc import Iterator
 from importlib import import_module
 from pathlib import Path
 from queue import Queue
@@ -721,6 +722,48 @@ def test_open_editor_passes_log_file_path(
     assert captured_kwargs["log_file_path"] == "session.log"
     assert captured_kwargs["log_file_max_bytes"] == 2048
     assert captured_kwargs["log_file_backup_count"] == 7
+
+
+def test_open_editor_logs_theme_and_spec_mode_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from contextlib import contextmanager
+
+    from tests.factories import build_tree_periodic_tree_spec
+
+    captured_contexts: list[dict[str, object]] = []
+
+    @contextmanager
+    def fake_log_operation(
+        *_args: object,
+        context: dict[str, object] | None = None,
+        **_kwargs: object,
+    ) -> Iterator[dict[str, object]]:
+        captured_contexts.append(dict(context or {}))
+        yield {}
+
+    monkeypatch.setattr(
+        "tensor_network_editor.editor.log_operation",
+        fake_log_operation,
+    )
+
+    def fake_launch_editor_session(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "tensor_network_editor.editor.launch_editor_session",
+        fake_launch_editor_session,
+    )
+
+    open_editor(
+        build_tree_periodic_tree_spec(),
+        options=EditorLaunchOptions(theme="dark", open_browser=False),
+    )
+
+    assert len(captured_contexts) == 1
+    assert captured_contexts[0]["engine"] is EngineName.TENSORKROWCH
+    assert captured_contexts[0]["mode"] == "dark"
+    assert captured_contexts[0]["spec_mode"] == "tree_periodic"
 
 
 @pytest.mark.parametrize(
