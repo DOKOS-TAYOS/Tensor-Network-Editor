@@ -1170,15 +1170,15 @@
             <ul>
               <li>Draw tensor networks, save reusable JSON designs, and generate Python for supported backends.</li>
               <li>Keep notes, groups, metadata, colors, tensor values, and reusable subnetworks inside the same saved design.</li>
-              <li>Export clean figures as <strong>PNG</strong> or <strong>SVG</strong>, or keep working from generated code outside the editor.</li>
+              <li>Export the current design as <strong>PNG</strong>, <strong>SVG</strong>, <strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, or <strong>Graphviz/DOT</strong>, or keep working from generated code outside the editor.</li>
             </ul>
           </section>
 
           <section class="help-section">
             <h3>Recommended workflow</h3>
             <ul>
-              <li>Start from an empty canvas, a built-in template, a saved JSON design, or imported generated Python.</li>
-              <li>Use <strong>Templates and Template settings</strong> to choose graph size and dimensions before inserting.</li>
+              <li>Start from an empty canvas, built-in or session templates, a saved JSON design, or imported generated Python.</li>
+              <li>Use <strong>Templates and Template settings</strong> to choose graph size, boundary options, and other template parameters before inserting.</li>
               <li>Arrange tensors on the canvas, then add metadata, notes, and tensor initialization only where they help your model.</li>
               <li>Use <strong>Ctrl/Cmd + wheel</strong> to zoom, drag empty canvas space to pan, and use the minimap to re-center quickly.</li>
             </ul>
@@ -1187,7 +1187,7 @@
           <section class="help-section">
             <h3>Useful tools</h3>
             <ul>
-              <li><strong>Subnetwork library</strong> lets you save a selected fragment and reuse it later with fresh ids.</li>
+              <li><strong>Subnetwork library</strong> lets you browse reusable fragments, insert them later with fresh ids, or copy them into the current session templates.</li>
               <li><strong>Auto layout in Reflow</strong> can tidy the current selection or the whole graph after imports and edits.</li>
               <li>Tensor Initialization lets you keep generated zeros, ones, fill values, or explicit JSON values per tensor.</li>
               <li><strong>Metadata filters</strong> highlight matching tensors, indices, groups, notes, or hyperedges without hiding anything.</li>

@@ -4,8 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The browser editor's `Info` help panel now mentions the full current export
+  set (`PNG`, `SVG`, `PDF`, `TikZ/LaTeX`, and `Graphviz/DOT`) and clarifies
+  that recommended startup flows can use built-in templates, session templates,
+  and reusable subnetwork fragments.
+
 ### Fixed
 
+- Static exports now choose a contrasting tensor-name text color from each
+  tensor node fill, so dark custom nodes keep light labels and light custom
+  nodes switch to dark labels consistently across `SVG`, `PNG`, `PDF`,
+  `TikZ/LaTeX`, and `Graphviz/DOT`.
 - Editor logging now keeps the visual theme in `mode` while recording the
   network topology separately as `spec_mode`, avoiding ambiguous session logs.
 - Public editor logging paths now accept the same `StrPath` types across the

@@ -124,8 +124,15 @@ def test_help_info_section_surfaces_current_editor_workflows(
         "Draw tensor networks, save reusable JSON designs, and generate Python" in html
     )
     assert (
-        "Start from an empty canvas, a built-in template, a saved JSON design" in html
+        "Export the current design as <strong>PNG</strong>, <strong>SVG</strong>, "
+        "<strong>PDF</strong>, <strong>TikZ/LaTeX</strong>, or "
+        "<strong>Graphviz/DOT</strong>" in html
     )
+    assert (
+        "Start from an empty canvas, built-in or session templates, a saved JSON design"
+        in html
+    )
+    assert "built-in or session templates" in html
     assert "Templates and Template settings" in html
     assert "Subnetwork library" in html
     assert "Auto layout in Reflow" in html

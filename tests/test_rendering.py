@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -115,6 +116,24 @@ def _svg_text_content(svg: str) -> list[str]:
     ]
 
 
+def _svg_text_fill_by_content(svg: str) -> dict[str, str]:
+    root = ET.fromstring(svg)
+    text_nodes = root.findall(".//{http://www.w3.org/2000/svg}text")
+    fill_by_content: dict[str, str] = {}
+    for text_node in text_nodes:
+        text_content = "".join(text_node.itertext()).strip()
+        if not text_content:
+            continue
+        style = text_node.attrib.get("style", "")
+        fill_match = re.search(r"fill:\s*([^;]+)", style)
+        fill = (
+            fill_match.group(1).strip() if fill_match else text_node.attrib.get("fill")
+        )
+        if fill is not None:
+            fill_by_content[text_content] = fill
+    return fill_by_content
+
+
 def test_render_spec_svg_returns_standalone_svg_for_normal_network() -> None:
     pytest.importorskip("matplotlib")
     svg = render_spec_svg(build_sample_spec())
@@ -163,6 +182,33 @@ def test_academic_svg_tikz_and_dot_preserve_entity_colors_and_parallel_edges() -
     assert ".. controls" in tikz
     assert 'fillcolor="#123456"' in dot
     assert 'color="#ff00aa"' in dot
+
+
+def test_academic_exports_use_contrasting_tensor_label_colors_for_custom_tensor_fills() -> (
+    None
+):
+    spec = _build_colored_parallel_edge_spec()
+
+    pytest.importorskip("matplotlib")
+    svg = render_spec_svg(spec)
+    tikz = render_spec_tikz(spec)
+    dot = render_spec_dot(spec)
+    text_fill_by_content = _svg_text_fill_by_content(svg)
+
+    assert text_fill_by_content["A"] == "#f5f9ff"
+    assert text_fill_by_content["B"] == "#091018"
+    assert r"\definecolor{tneColorf5f9ff}{HTML}{f5f9ff}" in tikz
+    assert r"\definecolor{tneColor091018}{HTML}{091018}" in tikz
+    assert (
+        r"\node[tne tensor, minimum size=120*\tneUnit, fill=tneColor123456, "
+        r"draw=tneColor385a7c, text=tneColorf5f9ff] (tensor_tensor_a)"
+    ) in tikz
+    assert (
+        r"\node[tne tensor, minimum size=108*\tneUnit, fill=tneColorabcdef, "
+        r"draw=tneColord1f3ff, text=tneColor091018] (tensor_tensor_b)"
+    ) in tikz
+    assert 'fontcolor="#f5f9ff"' in dot
+    assert 'fontcolor="#091018"' in dot
 
 
 def test_academic_parallel_edges_curve_far_enough_to_separate_three_bonds() -> None:

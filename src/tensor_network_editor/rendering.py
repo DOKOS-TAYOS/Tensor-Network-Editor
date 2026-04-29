@@ -30,6 +30,9 @@ _GROUP_PADDING = 28.0
 _NOTE_WIDTH = 210.0
 _NOTE_HEIGHT = 82.0
 _PARALLEL_EDGE_SPACING = 22.0
+_LIGHT_TEXT_FILL = "#f5f9ff"
+_DARK_TEXT_FILL = "#091018"
+_READABLE_TEXT_LUMINANCE_THRESHOLD = 0.62
 
 LOGGER = logging.getLogger(__name__)
 
@@ -466,6 +469,7 @@ class _SvgRenderer:
                 if tensor_custom_color
                 else self._options.tensor_stroke
             )
+            tensor_text_fill = _readable_text_color(tensor_fill)
             lines.append(
                 f'<circle class="tensor" cx={_attr(tensor.position.x)} cy={_attr(tensor.position.y)} '
                 f"r={_attr(radius)} fill={_attr(tensor_fill)} "
@@ -475,7 +479,7 @@ class _SvgRenderer:
             if self._options.show_tensor_labels:
                 lines.append(
                     f'<text class="tensor-label" x={_attr(tensor.position.x)} '
-                    f"y={_attr(tensor.position.y + 6)} fill={_attr(self._options.text_fill)} "
+                    f"y={_attr(tensor.position.y + 6)} fill={_attr(tensor_text_fill)} "
                     f'font-size="18" font-family={_attr(self._options.font_family)} '
                     f'text-anchor="middle">{_text(tensor.name)}</text>'
                 )
@@ -820,9 +824,11 @@ class _TikzRenderer:
                 if tensor_custom_color
                 else "#6fb7ca"
             )
+            tensor_text_fill = _readable_text_color(tensor_fill)
             lines.append(
                 rf"\node[tne tensor, minimum size={self._length(tensor_size)}, "
-                rf"fill={_tikz_color_name(tensor_fill)}, draw={_tikz_color_name(tensor_stroke)}] "
+                rf"fill={_tikz_color_name(tensor_fill)}, draw={_tikz_color_name(tensor_stroke)}, "
+                rf"text={_tikz_color_name(tensor_text_fill)}] "
                 rf"({_tikz_node_id('tensor', tensor.id)}) at {self._point(tensor.position, bounds)} "
                 rf"{{{label}}};"
             )
@@ -887,6 +893,7 @@ class _TikzRenderer:
                 if tensor_custom_color
                 else "#6fb7ca"
             )
+            colors.add(_readable_text_color(tensor_fill))
             for index in tensor.indices:
                 if index_color := _metadata_color_or_none(index.metadata):
                     colors.add(index_color)
@@ -952,6 +959,7 @@ class _DotRenderer:
                     if tensor_color
                     else None
                 ),
+                fontcolor=_readable_text_color(tensor_color) if tensor_color else None,
             )
             lines.append(f"  {_dot_string(tensor.id)}{attributes};")
         return lines
@@ -1361,6 +1369,7 @@ class _MatplotlibRenderer:
                 if tensor_custom_color
                 else self._options.tensor_stroke
             )
+            tensor_text_fill = _readable_text_color(tensor_fill)
             axes.add_patch(
                 patches_module.Circle(
                     (tensor.position.x, tensor.position.y),
@@ -1376,7 +1385,7 @@ class _MatplotlibRenderer:
                     tensor.position.x,
                     tensor.position.y,
                     tensor.name,
-                    color=self._options.text_fill,
+                    color=tensor_text_fill,
                     fontsize=18,
                     fontfamily=list(self._font_families),
                     ha="center",
@@ -1673,6 +1682,7 @@ def _dot_attributes(
     style: str | None = None,
     fillcolor: str | None = None,
     color: str | None = None,
+    fontcolor: str | None = None,
 ) -> str:
     attributes: list[str] = []
     if label is not None:
@@ -1685,6 +1695,8 @@ def _dot_attributes(
         attributes.append(f"fillcolor={_dot_string(fillcolor)}")
     if color:
         attributes.append(f"color={_dot_string(color)}")
+    if fontcolor:
+        attributes.append(f"fontcolor={_dot_string(fontcolor)}")
     if not attributes:
         return ""
     return f" [{', '.join(attributes)}]"
@@ -1731,6 +1743,20 @@ def _shift_hex_color(hex_color: str, amount: int, fallback: str) -> str:
         f"{max(0, min(255, component + amount)):02x}"
         for component in (red, green, blue)
     )
+
+
+def _readable_text_color(hex_color: str) -> str:
+    normalized = _metadata_color({"color": hex_color}, "#000000")
+    try:
+        red = int(normalized[1:3], 16)
+        green = int(normalized[3:5], 16)
+        blue = int(normalized[5:7], 16)
+    except ValueError:
+        return _LIGHT_TEXT_FILL
+    luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255
+    if luminance > _READABLE_TEXT_LUMINANCE_THRESHOLD:
+        return _DARK_TEXT_FILL
+    return _LIGHT_TEXT_FILL
 
 
 def _tikz_color_name(hex_color: str) -> str:
