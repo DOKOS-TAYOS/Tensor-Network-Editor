@@ -88,6 +88,7 @@ def test_parse_codegen_request_uses_defaults_when_optional_fields_are_missing(
         serialized_spec=serialized_sample_spec,
         engine=EngineName.EINSUM_TORCH,
         collection_format=TensorCollectionFormat.DICT,
+        include_roundtrip_metadata=True,
     )
 
 
@@ -111,6 +112,7 @@ def test_parse_codegen_request_honors_explicit_engine_and_collection_format(
         serialized_spec=serialized_sample_spec,
         engine=EngineName.QUIMB,
         collection_format=TensorCollectionFormat.MATRIX,
+        include_roundtrip_metadata=True,
     )
 
 

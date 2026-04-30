@@ -381,15 +381,28 @@ class _FakeTensorKrowchNode:
                     edge.axis2 = SimpleNamespace(name=axis_name)
                 self.edges_by_axis_name[axis_name] = edge
             else:
-                self.edges_by_axis_name[axis_name] = (
-                    _FakeTensorKrowchEdge.from_endpoints(
-                        node1=self if owner_is_node1 else other_node,
-                        axis1_name=axis_name if owner_is_node1 else other_axis_name,
-                        node2=other_node if owner_is_node1 else self,
-                        axis2_name=other_axis_name if owner_is_node1 else axis_name,
-                        origin=edge.origin,
+                if owner_is_node1:
+                    self.edges_by_axis_name[axis_name] = (
+                        _FakeTensorKrowchEdge.from_endpoints(
+                            node1=self,
+                            axis1_name=axis_name,
+                            node2=other_node,
+                            axis2_name=other_axis_name,
+                            origin=edge.origin,
+                        )
                     )
-                )
+                else:
+                    assert other_node is not None
+                    assert other_axis_name is not None
+                    self.edges_by_axis_name[axis_name] = (
+                        _FakeTensorKrowchEdge.from_endpoints(
+                            node1=other_node,
+                            axis1_name=other_axis_name,
+                            node2=self,
+                            axis2_name=axis_name,
+                            origin=edge.origin,
+                        )
+                    )
             self.axis_is_node1_by_axis_name[axis_name] = owner_is_node1
         self.pending_edges_by_axis_name = {}
 
@@ -458,6 +471,23 @@ class _FakeTensorKrowchModule(ModuleType):
             result.pending_edge_owner_by_axis_name[axis_name] = owner
             result.axis_is_node1_by_axis_name[axis_name] = edge.node1 is owner
         return result
+
+
+class _FakeTorchModule(ModuleType):
+    """Tiny ``torch`` double for generated-code regression tests."""
+
+    float32: object
+
+    def __init__(self) -> None:
+        super().__init__("torch")
+        self.float32 = object()
+
+    @staticmethod
+    def zeros(
+        shape: tuple[int, ...],
+        dtype: object | None = None,
+    ) -> tuple[tuple[int, ...], object | None]:
+        return (shape, dtype)
 
 
 def _deduplicate_fake_tensorkrowch_axis_names(
@@ -1629,9 +1659,7 @@ def test_linear_periodic_carry_tensorkrowch_codegen_tracks_boundary_edges_withou
         build_linear_periodic_carry_chain_spec(),
         engine=EngineName.TENSORKROWCH,
     )
-    fake_torch = ModuleType("torch")
-    fake_torch.float32 = object()
-    fake_torch.zeros = lambda shape, dtype=None: (shape, dtype)
+    fake_torch = _FakeTorchModule()
     fake_tensorkrowch = _FakeTensorKrowchModule()
 
     with patch.dict(
@@ -1658,6 +1686,8 @@ def test_linear_periodic_carry_tensorkrowch_codegen_executes_when_periodic_cell_
     None
 ):
     spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    assert spec.linear_periodic_chain.periodic_cell.contraction_plan is not None
     spec.linear_periodic_chain.periodic_cell.contraction_plan.steps = [
         ContractionStepSpec(
             id="periodic_contract_internal_first",
@@ -1676,9 +1706,7 @@ def test_linear_periodic_carry_tensorkrowch_codegen_executes_when_periodic_cell_
         ),
     ]
     result = generate_code(spec, engine=EngineName.TENSORKROWCH)
-    fake_torch = ModuleType("torch")
-    fake_torch.float32 = object()
-    fake_torch.zeros = lambda shape, dtype=None: (shape, dtype)
+    fake_torch = _FakeTorchModule()
     fake_tensorkrowch = _FakeTensorKrowchModule()
 
     with patch.dict(
@@ -1698,6 +1726,8 @@ def test_linear_periodic_carry_tensorkrowch_codegen_materializes_result_edges_wi
     None
 ):
     spec = build_linear_periodic_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    assert spec.linear_periodic_chain.periodic_cell.contraction_plan is not None
     spec.linear_periodic_chain.periodic_cell.contraction_plan.steps = [
         ContractionStepSpec(
             id="periodic_contract_internal_first",
@@ -1716,9 +1746,7 @@ def test_linear_periodic_carry_tensorkrowch_codegen_materializes_result_edges_wi
         ),
     ]
     result = generate_code(spec, engine=EngineName.TENSORKROWCH)
-    fake_torch = ModuleType("torch")
-    fake_torch.float32 = object()
-    fake_torch.zeros = lambda shape, dtype=None: (shape, dtype)
+    fake_torch = _FakeTorchModule()
     fake_tensorkrowch = _FakeTensorKrowchModule()
 
     with patch.dict(
