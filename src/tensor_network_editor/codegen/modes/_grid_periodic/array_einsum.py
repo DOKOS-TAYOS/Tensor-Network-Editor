@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from ....internal.modes._grid_periodic import (
-    GridPeriodicInterfacePort,
-    build_internal_grid_periodic_cell_network,
-)
+from ....internal.modes._grid_periodic import GridPeriodicInterfacePort
 from ....models import (
     EngineName,
     GridPeriodicCellName,
@@ -17,21 +14,19 @@ from ...shared._linear_periodic_expressions import _render_python_list_expressio
 from ...shared.common import (
     CodeSection,
     PreparedNetwork,
-    container_name_for_format,
-    prepare_network,
-    render_tensor_collection_assignment,
-    render_tensor_collection_initialization,
     tensor_collection_reference_by_id,
 )
 from .array_helpers import (
     _GRID_CELL_KIND_OFFSET,
     _build_interface_slot_by_label,
     _build_local_label_offsets,
-    _build_ports_by_role,
     _einsum_interface_expression,
     _runtime_cell_coordinate_expressions,
 )
-from .common import _cell_from_grid
+from .array_shared import (
+    build_grid_array_cell_context,
+    render_grid_array_tensor_sections,
+)
 from .shared import _RenderedCellHelper, render_grid_periodic_helper
 
 
@@ -45,22 +40,15 @@ def _render_einsum_cell_helper(
     collection_format: TensorCollectionFormat,
 ) -> _RenderedCellHelper:
     """Render one grid cell helper for an einsum backend."""
-    cell = _cell_from_grid(grid, cell_name)
-    internal_spec = build_internal_grid_periodic_cell_network(
-        cell,
+    context = build_grid_array_cell_context(
+        grid=grid,
         cell_name=cell_name,
-        include_contraction_plan=False,
+        collection_format=collection_format,
     )
-    prepared = prepare_network(internal_spec)
-    collection_name = container_name_for_format(collection_format)
-    ports_by_role = _build_ports_by_role(cell=cell, cell_name=cell_name)
-    interface_index_ids = {
-        port.internal_index_id for ports in ports_by_role.values() for port in ports
-    }
     label_expression_by_label = _build_einsum_label_expression_map(
-        prepared=prepared,
+        prepared=context.prepared,
         cell_name=cell_name,
-        ports_by_role=ports_by_role,
+        ports_by_role=context.ports_by_role,
     )
     module_alias = "np" if engine is EngineName.EINSUM_NUMPY else "torch"
     zero_suffix = (
@@ -68,29 +56,24 @@ def _render_einsum_cell_helper(
         if engine is EngineName.EINSUM_TORCH
         else ", dtype=float)"
     )
-    tensor_collection_lines = render_tensor_collection_initialization(
-        collection_name,
-        collection_format,
-    )
-    tensor_construction_lines = render_tensor_collection_assignment(
-        collection_name=collection_name,
-        collection_format=collection_format,
-        prepared=prepared,
-        tensor_value_by_id={
-            tensor.spec.id: f"{module_alias}.zeros({tensor.spec.shape!r}{zero_suffix}"
-            for tensor in prepared.tensors
-        },
-        include_initialization=False,
+    tensor_collection_lines, tensor_construction_lines = (
+        render_grid_array_tensor_sections(
+            context=context,
+            tensor_value_by_id={
+                tensor.spec.id: f"{module_alias}.zeros({tensor.spec.shape!r}{zero_suffix}"
+                for tensor in context.prepared.tensors
+            },
+        )
     )
     output_lines = ["cell_operands = []", "cell_operand_labels = []"]
-    for tensor in prepared.tensors:
+    for tensor in context.prepared.tensors:
         output_lines.append(
             "cell_operands.append("
             + tensor_collection_reference_by_id(
-                prepared,
+                context.prepared,
                 tensor.spec.id,
                 collection_format,
-                collection_name,
+                context.collection_name,
             )
             + ")"
         )
@@ -107,8 +90,8 @@ def _render_einsum_cell_helper(
             + _render_python_list_expression(
                 [
                     label_expression_by_label[index.label]
-                    for index in prepared.open_indices
-                    if index.spec.id not in interface_index_ids
+                    for index in context.prepared.open_indices
+                    if index.spec.id not in context.interface_index_ids
                 ]
             ),
             "return {",

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from ...errors import CodeGenerationError
-from ...models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
-from ..shared.roundtrip import with_roundtrip_spec_marker
+from ...models import (
+    CodegenResult,
+    EngineName,
+    GridPeriodicGridSpec,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from ._grid_periodic_array_renderers import generate_array_grid_periodic_code
 from ._grid_periodic_graph_renderers import generate_graph_grid_periodic_code
+from ._periodic_codegen import dispatch_periodic_codegen
 
 
 def generate_grid_periodic_code(
@@ -19,38 +24,29 @@ def generate_grid_periodic_code(
 ) -> CodegenResult:
     """Generate helper-based Python code for the bidimensional periodic mode."""
     del validate
-    if spec.grid_periodic_grid is None:
-        raise CodeGenerationError(
-            "Grid periodic code generation requires a grid payload."
-        )
-
     grid = spec.grid_periodic_grid
-    if engine in {
-        EngineName.QUIMB,
-        EngineName.EINSUM_NUMPY,
-        EngineName.EINSUM_TORCH,
-    }:
-        result = generate_array_grid_periodic_code(
-            grid=grid,
+
+    def render_array(resolved_grid: GridPeriodicGridSpec) -> CodegenResult:
+        return generate_array_grid_periodic_code(
+            grid=resolved_grid,
             engine=engine,
             collection_format=collection_format,
         )
-        return (
-            with_roundtrip_spec_marker(result, spec=spec)
-            if include_roundtrip_metadata
-            else result
+
+    def render_graph(resolved_grid: GridPeriodicGridSpec) -> CodegenResult:
+        return generate_graph_grid_periodic_code(
+            grid=resolved_grid,
+            engine=engine,
+            collection_format=collection_format,
         )
-    if engine not in {EngineName.TENSORNETWORK, EngineName.TENSORKROWCH}:
-        raise CodeGenerationError(
-            f"The {engine.value} backend does not support grid periodic code generation."
-        )
-    result = generate_graph_grid_periodic_code(
-        grid=grid,
+
+    return dispatch_periodic_codegen(
+        spec=spec,
+        payload=grid,
+        missing_payload_message="Grid periodic code generation requires a grid payload.",
+        unsupported_backend_label="grid periodic",
         engine=engine,
-        collection_format=collection_format,
-    )
-    return (
-        with_roundtrip_spec_marker(result, spec=spec)
-        if include_roundtrip_metadata
-        else result
+        include_roundtrip_metadata=include_roundtrip_metadata,
+        array_renderer=render_array,
+        graph_renderer=render_graph,
     )

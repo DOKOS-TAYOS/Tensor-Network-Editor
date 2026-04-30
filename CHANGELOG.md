@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
   rendering, and einsum code generation, and deduplicated built-in template
   defaults so the catalog now keeps each template's default parameters in one
   shared definition.
+- Periodic code generation now routes linear, grid, and tree modes through one
+  shared internal dispatcher, and the grid/tree array helpers reuse shared cell
+  preparation utilities instead of repeating the same setup in each backend.
 
 ## [0.5.0] - 2026-04-30
 

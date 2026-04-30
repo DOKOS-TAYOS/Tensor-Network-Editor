@@ -124,3 +124,36 @@ def test_tree_periodic_array_helpers_keep_child_interfaces_and_backend_tensor_bu
     assert "np.zeros(" in numpy_helper_body
     assert "torch.zeros(" in torch_helper_body
     assert "np.zeros(" not in torch_helper_body
+
+
+def test_tree_periodic_array_shared_helpers_build_context_and_sections() -> None:
+    from tensor_network_editor.codegen.modes._tree_periodic.array_shared import (
+        build_tree_array_cell_context,
+        render_tree_array_tensor_sections,
+    )
+
+    tree = build_tree_periodic_tree_spec().tree_periodic_tree
+    assert tree is not None
+
+    context = build_tree_array_cell_context(
+        tree=tree,
+        cell_name=TreePeriodicCellName.ROOT,
+        collection_format=TensorCollectionFormat.LIST,
+    )
+    tensor_collection_lines, tensor_construction_lines = (
+        render_tree_array_tensor_sections(
+            context=context,
+            tensor_value_by_id={
+                tensor.spec.id: f"value_{tensor.variable_name}"
+                for tensor in context.prepared.tensors
+            },
+        )
+    )
+
+    assert context.collection_name == "tensors"
+    assert context.parent_ports == ()
+    assert tuple(context.child_ports_by_index) == tuple(range(tree.branching_factor))
+    assert context.interface_index_ids
+    assert tensor_collection_lines == ["tensors = []"]
+    assert any(line.startswith("# Tensor ") for line in tensor_construction_lines)
+    assert any("tensors.append(value_" in line for line in tensor_construction_lines)

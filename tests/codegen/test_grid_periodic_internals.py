@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from tensor_network_editor.models import GridPeriodicCellName
+from tensor_network_editor.models import (
+    GridPeriodicCellName,
+    TensorCollectionFormat,
+)
 from tests.factories import build_grid_periodic_grid_spec
 
 
@@ -72,3 +75,35 @@ def test_grid_periodic_internal_helpers_keep_shared_labels_and_main_flow() -> No
         "result = network_nodes[0] if len(network_nodes) == 1 else None"
     ]
     assert "output_labels.extend(bottom_right_cell['open_labels'])" in einsum_main_lines
+
+
+def test_grid_periodic_array_shared_helpers_build_context_and_sections() -> None:
+    from tensor_network_editor.codegen.modes._grid_periodic.array_shared import (
+        build_grid_array_cell_context,
+        render_grid_array_tensor_sections,
+    )
+
+    grid = build_grid_periodic_grid_spec().grid_periodic_grid
+    assert grid is not None
+
+    context = build_grid_array_cell_context(
+        grid=grid,
+        cell_name=GridPeriodicCellName.TOP_LEFT,
+        collection_format=TensorCollectionFormat.LIST,
+    )
+    tensor_collection_lines, tensor_construction_lines = (
+        render_grid_array_tensor_sections(
+            context=context,
+            tensor_value_by_id={
+                tensor.spec.id: f"value_{tensor.variable_name}"
+                for tensor in context.prepared.tensors
+            },
+        )
+    )
+
+    assert context.collection_name == "tensors"
+    assert context.prepared.tensors
+    assert context.interface_index_ids
+    assert tensor_collection_lines == ["tensors = []"]
+    assert any(line.startswith("# Tensor ") for line in tensor_construction_lines)
+    assert any("tensors.append(value_" in line for line in tensor_construction_lines)

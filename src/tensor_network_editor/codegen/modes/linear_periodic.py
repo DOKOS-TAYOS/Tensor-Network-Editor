@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from ...errors import CodeGenerationError
 from ...internal.modes._linear_periodic import linear_periodic_chain_uses_carry_mode
-from ...models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
-from ..shared.roundtrip import with_roundtrip_spec_marker
+from ...models import (
+    CodegenResult,
+    EngineName,
+    LinearPeriodicChainSpec,
+    NetworkSpec,
+    TensorCollectionFormat,
+)
 from ._linear_periodic_array_renderers import generate_array_linear_periodic_code
 from ._linear_periodic_graph_renderers import generate_graph_linear_periodic_code
+from ._periodic_codegen import dispatch_periodic_codegen
 
 
 def generate_linear_periodic_code(
@@ -20,41 +25,31 @@ def generate_linear_periodic_code(
 ) -> CodegenResult:
     """Generate helper-based Python code for the linear periodic-chain mode."""
     del validate
-    if spec.linear_periodic_chain is None:
-        raise CodeGenerationError(
-            "Linear periodic code generation requires a chain payload."
-        )
-
     chain = spec.linear_periodic_chain
-    uses_carry_mode = linear_periodic_chain_uses_carry_mode(chain)
-    if engine in {
-        EngineName.QUIMB,
-        EngineName.EINSUM_NUMPY,
-        EngineName.EINSUM_TORCH,
-    }:
-        result = generate_array_linear_periodic_code(
-            chain=chain,
+
+    def render_array(resolved_chain: LinearPeriodicChainSpec) -> CodegenResult:
+        return generate_array_linear_periodic_code(
+            chain=resolved_chain,
             engine=engine,
             collection_format=collection_format,
-            uses_carry_mode=uses_carry_mode,
+            uses_carry_mode=linear_periodic_chain_uses_carry_mode(resolved_chain),
         )
-        return (
-            with_roundtrip_spec_marker(result, spec=spec)
-            if include_roundtrip_metadata
-            else result
+
+    def render_graph(resolved_chain: LinearPeriodicChainSpec) -> CodegenResult:
+        return generate_graph_linear_periodic_code(
+            chain=resolved_chain,
+            engine=engine,
+            collection_format=collection_format,
+            uses_carry_mode=linear_periodic_chain_uses_carry_mode(resolved_chain),
         )
-    if engine not in {EngineName.TENSORNETWORK, EngineName.TENSORKROWCH}:
-        raise CodeGenerationError(
-            f"The {engine.value} backend does not support linear periodic code generation."
-        )
-    result = generate_graph_linear_periodic_code(
-        chain=chain,
+
+    return dispatch_periodic_codegen(
+        spec=spec,
+        payload=chain,
+        missing_payload_message="Linear periodic code generation requires a chain payload.",
+        unsupported_backend_label="linear periodic",
         engine=engine,
-        collection_format=collection_format,
-        uses_carry_mode=uses_carry_mode,
-    )
-    return (
-        with_roundtrip_spec_marker(result, spec=spec)
-        if include_roundtrip_metadata
-        else result
+        include_roundtrip_metadata=include_roundtrip_metadata,
+        array_renderer=render_array,
+        graph_renderer=render_graph,
     )

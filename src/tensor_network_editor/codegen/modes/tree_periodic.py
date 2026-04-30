@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-from ...errors import CodeGenerationError
-from ...models import CodegenResult, EngineName, NetworkSpec, TensorCollectionFormat
-from ..shared.roundtrip import with_roundtrip_spec_marker
+from ...models import (
+    CodegenResult,
+    EngineName,
+    NetworkSpec,
+    TensorCollectionFormat,
+    TreePeriodicTreeSpec,
+)
+from ._periodic_codegen import dispatch_periodic_codegen
 from ._tree_periodic_array_renderers import generate_array_tree_periodic_code
 from ._tree_periodic_graph_renderers import generate_graph_tree_periodic_code
 
@@ -19,38 +24,29 @@ def generate_tree_periodic_code(
 ) -> CodegenResult:
     """Generate helper-based Python code for the tree periodic mode."""
     del validate
-    if spec.tree_periodic_tree is None:
-        raise CodeGenerationError(
-            "Tree periodic code generation requires a tree payload."
-        )
-
     tree = spec.tree_periodic_tree
-    if engine in {
-        EngineName.QUIMB,
-        EngineName.EINSUM_NUMPY,
-        EngineName.EINSUM_TORCH,
-    }:
-        result = generate_array_tree_periodic_code(
-            tree=tree,
+
+    def render_array(resolved_tree: TreePeriodicTreeSpec) -> CodegenResult:
+        return generate_array_tree_periodic_code(
+            tree=resolved_tree,
             engine=engine,
             collection_format=collection_format,
         )
-        return (
-            with_roundtrip_spec_marker(result, spec=spec)
-            if include_roundtrip_metadata
-            else result
+
+    def render_graph(resolved_tree: TreePeriodicTreeSpec) -> CodegenResult:
+        return generate_graph_tree_periodic_code(
+            tree=resolved_tree,
+            engine=engine,
+            collection_format=collection_format,
         )
-    if engine not in {EngineName.TENSORNETWORK, EngineName.TENSORKROWCH}:
-        raise CodeGenerationError(
-            f"The {engine.value} backend does not support tree periodic code generation."
-        )
-    result = generate_graph_tree_periodic_code(
-        tree=tree,
+
+    return dispatch_periodic_codegen(
+        spec=spec,
+        payload=tree,
+        missing_payload_message="Tree periodic code generation requires a tree payload.",
+        unsupported_backend_label="tree periodic",
         engine=engine,
-        collection_format=collection_format,
-    )
-    return (
-        with_roundtrip_spec_marker(result, spec=spec)
-        if include_roundtrip_metadata
-        else result
+        include_roundtrip_metadata=include_roundtrip_metadata,
+        array_renderer=render_array,
+        graph_renderer=render_graph,
     )

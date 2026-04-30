@@ -16,6 +16,8 @@ from tensor_network_editor.codegen.shared.common import (
 )
 from tensor_network_editor.models import (
     CanvasPosition,
+    CodegenResult,
+    EngineName,
     NetworkSpec,
     TensorCollectionFormat,
     TensorSpec,
@@ -158,3 +160,71 @@ def test_render_helper_function_lines_indents_rendered_sections() -> None:
     )
 
     assert helper_lines == ["def build_cell(slot_index: int) -> dict[str, object]:"]
+
+
+def test_dispatch_periodic_codegen_routes_supported_backends_and_roundtrip() -> None:
+    from tensor_network_editor.codegen.modes._periodic_codegen import (
+        dispatch_periodic_codegen,
+    )
+
+    seen_calls: list[tuple[str, str]] = []
+
+    def render_array(payload: str) -> CodegenResult:
+        seen_calls.append(("array", payload))
+        return CodegenResult(engine=EngineName.EINSUM_NUMPY, code="array_result = 1\n")
+
+    def render_graph(payload: str) -> CodegenResult:
+        seen_calls.append(("graph", payload))
+        return CodegenResult(engine=EngineName.TENSORNETWORK, code="graph_result = 1\n")
+
+    spec = build_three_tensor_hyperedge_spec()
+
+    array_result = dispatch_periodic_codegen(
+        spec=spec,
+        payload="array-payload",
+        missing_payload_message="missing payload",
+        unsupported_backend_label="periodic",
+        engine=EngineName.EINSUM_NUMPY,
+        include_roundtrip_metadata=True,
+        array_renderer=render_array,
+        graph_renderer=render_graph,
+    )
+    graph_result = dispatch_periodic_codegen(
+        spec=spec,
+        payload="graph-payload",
+        missing_payload_message="missing payload",
+        unsupported_backend_label="periodic",
+        engine=EngineName.TENSORNETWORK,
+        include_roundtrip_metadata=False,
+        array_renderer=render_array,
+        graph_renderer=render_graph,
+    )
+
+    assert seen_calls == [("array", "array-payload"), ("graph", "graph-payload")]
+    assert "# TNE_SPEC_B64:" in array_result.code
+    assert graph_result.code == "graph_result = 1\n"
+
+
+def test_dispatch_periodic_codegen_rejects_missing_payload() -> None:
+    from tensor_network_editor.codegen.modes._periodic_codegen import (
+        dispatch_periodic_codegen,
+    )
+    from tensor_network_editor.errors import CodeGenerationError
+
+    with pytest.raises(CodeGenerationError, match="grid payload"):
+        dispatch_periodic_codegen(
+            spec=NetworkSpec(name="missing payload"),
+            payload=None,
+            missing_payload_message="Grid periodic code generation requires a grid payload.",
+            unsupported_backend_label="grid periodic",
+            engine=EngineName.EINSUM_NUMPY,
+            include_roundtrip_metadata=False,
+            array_renderer=lambda payload: CodegenResult(
+                engine=EngineName.EINSUM_NUMPY,
+                code=f"{payload}\n",
+            ),
+            graph_renderer=lambda payload: CodegenResult(
+                engine=EngineName.TENSORNETWORK,
+                code=f"{payload}\n",
+            ),
+        )
