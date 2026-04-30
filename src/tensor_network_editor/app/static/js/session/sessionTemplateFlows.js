@@ -68,6 +68,45 @@ export function createSessionTemplateFlows({
     );
   }
 
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          (typeof actions.isForBoundaryTensor === "function" &&
+            actions.isForBoundaryTensor(tensor)) ||
+          (typeof actions.isLinearPeriodicBoundaryTensor === "function" &&
+            actions.isLinearPeriodicBoundaryTensor(tensor)) ||
+          (typeof actions.isTreePeriodicBoundaryTensor === "function" &&
+            actions.isTreePeriodicBoundaryTensor(tensor)) ||
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
+  }
+
+  function getTemplateEligibleTensorIds(tensorIds) {
+    const availableTensors = Array.isArray(state.spec?.tensors) ? state.spec.tensors : [];
+    const tensorById = new Map(
+      availableTensors.map((tensor) => [tensor.id, tensor])
+    );
+    return Array.from(
+      new Set(
+        (Array.isArray(tensorIds) ? tensorIds : []).filter(
+          (tensorId) =>
+            typeof tensorId === "string" &&
+            tensorById.has(tensorId) &&
+            !isStructuralBoundaryTensor(tensorById.get(tensorId))
+        )
+      )
+    );
+  }
+
   function isBenchmarkSchemeView() {
     return Boolean(
       state.benchmarkSession &&
@@ -167,15 +206,16 @@ export function createSessionTemplateFlows({
   }
 
   async function extractTemplateSpecByTensorIds(tensorIds, emptySelectionMessage) {
-    if (isForModeActive()) {
-      actions.setStatus(
-        "Templates are only available in normal graph mode.",
-        "error"
-      );
-      return null;
-    }
     if (!Array.isArray(tensorIds) || !tensorIds.length) {
       actions.setStatus(emptySelectionMessage);
+      return null;
+    }
+    const eligibleTensorIds = getTemplateEligibleTensorIds(tensorIds);
+    if (!eligibleTensorIds.length) {
+      actions.setStatus(
+        "Virtual For-mode boundary tensors cannot be saved as templates.",
+        "error"
+      );
       return null;
     }
     try {
@@ -183,7 +223,7 @@ export function createSessionTemplateFlows({
         serializedSpec: actions.serializeCurrentSpec({
           persistViewSnapshots: false,
         }),
-        tensorIds,
+        tensorIds: eligibleTensorIds,
       });
       if (!payload.ok) {
         actions.setStatus(
@@ -200,15 +240,16 @@ export function createSessionTemplateFlows({
   }
 
   async function exportSubnetworkByTensorIds(tensorIds, label = "subnetwork") {
-    if (isForModeActive()) {
-      actions.setStatus(
-        "Subnetwork export is only available in normal graph mode.",
-        "error"
-      );
-      return;
-    }
     if (!Array.isArray(tensorIds) || !tensorIds.length) {
       actions.setStatus("Select one or more tensors to extract a subnetwork.");
+      return;
+    }
+    const eligibleTensorIds = getTemplateEligibleTensorIds(tensorIds);
+    if (!eligibleTensorIds.length) {
+      actions.setStatus(
+        "Virtual For-mode boundary tensors cannot be extracted as a subnetwork.",
+        "error"
+      );
       return;
     }
     try {
@@ -216,7 +257,7 @@ export function createSessionTemplateFlows({
         serializedSpec: actions.serializeCurrentSpec({
           persistViewSnapshots: false,
         }),
-        tensorIds,
+        tensorIds: eligibleTensorIds,
       });
       if (!payload.ok) {
         actions.setStatus(
@@ -608,16 +649,6 @@ export function createSessionTemplateFlows({
         tensor_id_count: Array.isArray(tensorIds) ? tensorIds.length : 0,
       }
     );
-    if (isForModeActive()) {
-      saveSubnetworkOperation?.finish({
-        outcome: "blocked",
-      });
-      actions.setStatus(
-        "The subnetwork library is only available in normal graph mode.",
-        "error"
-      );
-      return;
-    }
     if (isBenchmarkSchemeView()) {
       saveSubnetworkOperation?.finish({
         outcome: "blocked",
@@ -633,6 +664,17 @@ export function createSessionTemplateFlows({
         outcome: "skipped",
       });
       actions.setStatus("Select one or more tensors first.");
+      return;
+    }
+    const eligibleTensorIds = getTemplateEligibleTensorIds(tensorIds);
+    if (!eligibleTensorIds.length) {
+      saveSubnetworkOperation?.finish({
+        outcome: "blocked",
+      });
+      actions.setStatus(
+        "Virtual For-mode boundary tensors cannot be saved to the subnetwork library.",
+        "error"
+      );
       return;
     }
     const naming = promptForLibrarySubnetworkName(
@@ -658,7 +700,7 @@ export function createSessionTemplateFlows({
           serializedSpec: actions.serializeCurrentSpec({
             persistViewSnapshots: false,
           }),
-          tensorIds,
+          tensorIds: eligibleTensorIds,
           subnetworkName: naming.subnetworkName,
           tags,
           overwrite,

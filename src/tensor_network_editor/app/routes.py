@@ -833,6 +833,7 @@ def _handle_session_codegen_request(
                 request.serialized_spec,
                 request.engine,
                 request.collection_format,
+                request.include_roundtrip_metadata,
             )
             return ok_response(_serialize_generate_result(generate_result))
         if operation == "complete":
@@ -840,6 +841,7 @@ def _handle_session_codegen_request(
                 request.serialized_spec,
                 request.engine,
                 request.collection_format,
+                request.include_roundtrip_metadata,
             )
             return ok_response(_serialize_complete_result(complete_result))
         raise ValueError(f"Unsupported code generation operation '{operation}'.")

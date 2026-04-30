@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 import re
+from math import hypot
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
 
 import pytest
 
-from tensor_network_editor.models import NetworkSpec
+from tensor_network_editor.models import (
+    CanvasPosition,
+    EdgeEndpointRef,
+    EdgeSpec,
+    IndexSpec,
+    NetworkSpec,
+    TensorSpec,
+)
 from tensor_network_editor.rendering import (
     DotRenderOptions,
     SvgRenderOptions,
     TikzRenderOptions,
+    _number,
     _SvgRenderer,
     render_spec_dot,
     render_spec_mermaid,
@@ -19,7 +28,12 @@ from tensor_network_editor.rendering import (
     render_spec_svg,
     render_spec_tikz,
 )
-from tests.factories import build_sample_spec, build_three_tensor_hyperedge_spec
+from tensor_network_editor.templates import TemplateParameters, build_template_spec
+from tests.factories import (
+    build_sample_spec,
+    build_three_tensor_hyperedge_spec,
+    build_three_tensor_spec,
+)
 
 
 def _build_colored_parallel_edge_spec() -> NetworkSpec:
@@ -107,6 +121,309 @@ def _build_three_parallel_edge_spec() -> NetworkSpec:
     return spec
 
 
+def _build_cycle_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="network_cycle",
+        name="cycle",
+        tensors=[
+            TensorSpec(
+                id="tensor_a",
+                name="A",
+                position=CanvasPosition(x=120.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_a_free", name="fa", dimension=2),
+                    IndexSpec(id="tensor_a_ab", name="ab", dimension=3),
+                    IndexSpec(id="tensor_a_da", name="da", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_b",
+                name="B",
+                position=CanvasPosition(x=280.0, y=120.0),
+                indices=[
+                    IndexSpec(id="tensor_b_free", name="fb", dimension=2),
+                    IndexSpec(id="tensor_b_ab", name="ab", dimension=3),
+                    IndexSpec(id="tensor_b_bc", name="bc", dimension=7),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_c",
+                name="C",
+                position=CanvasPosition(x=280.0, y=280.0),
+                indices=[
+                    IndexSpec(id="tensor_c_free", name="fc", dimension=2),
+                    IndexSpec(id="tensor_c_bc", name="bc", dimension=7),
+                    IndexSpec(id="tensor_c_cd", name="cd", dimension=11),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_d",
+                name="D",
+                position=CanvasPosition(x=120.0, y=280.0),
+                indices=[
+                    IndexSpec(id="tensor_d_free", name="fd", dimension=2),
+                    IndexSpec(id="tensor_d_cd", name="cd", dimension=11),
+                    IndexSpec(id="tensor_d_da", name="da", dimension=5),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="edge_ab",
+                name="ab",
+                left=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_ab"),
+                right=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_ab"),
+            ),
+            EdgeSpec(
+                id="edge_bc",
+                name="bc",
+                left=EdgeEndpointRef(tensor_id="tensor_b", index_id="tensor_b_bc"),
+                right=EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_bc"),
+            ),
+            EdgeSpec(
+                id="edge_cd",
+                name="cd",
+                left=EdgeEndpointRef(tensor_id="tensor_c", index_id="tensor_c_cd"),
+                right=EdgeEndpointRef(tensor_id="tensor_d", index_id="tensor_d_cd"),
+            ),
+            EdgeSpec(
+                id="edge_da",
+                name="da",
+                left=EdgeEndpointRef(tensor_id="tensor_d", index_id="tensor_d_da"),
+                right=EdgeEndpointRef(tensor_id="tensor_a", index_id="tensor_a_da"),
+            ),
+        ],
+    )
+
+
+def _build_grid_export_spec() -> NetworkSpec:
+    tensors: list[TensorSpec] = []
+    edges: list[EdgeSpec] = []
+    for row_index in range(3):
+        for column_index in range(3):
+            tensor_id = f"tensor_{row_index}_{column_index}"
+            indices = [
+                IndexSpec(
+                    id=f"{tensor_id}_free",
+                    name=f"f_{row_index}_{column_index}",
+                    dimension=2,
+                )
+            ]
+            if column_index < 2:
+                indices.append(
+                    IndexSpec(
+                        id=f"{tensor_id}_right",
+                        name=f"h_{row_index}_{column_index}",
+                        dimension=3,
+                    )
+                )
+            if column_index > 0:
+                indices.append(
+                    IndexSpec(
+                        id=f"{tensor_id}_left",
+                        name=f"h_{row_index}_{column_index - 1}",
+                        dimension=3,
+                    )
+                )
+            if row_index < 2:
+                indices.append(
+                    IndexSpec(
+                        id=f"{tensor_id}_down",
+                        name=f"v_{row_index}_{column_index}",
+                        dimension=5,
+                    )
+                )
+            if row_index > 0:
+                indices.append(
+                    IndexSpec(
+                        id=f"{tensor_id}_up",
+                        name=f"v_{row_index - 1}_{column_index}",
+                        dimension=5,
+                    )
+                )
+            tensors.append(
+                TensorSpec(
+                    id=tensor_id,
+                    name=f"T{row_index}{column_index}",
+                    position=CanvasPosition(
+                        x=120.0 + 140.0 * column_index,
+                        y=120.0 + 140.0 * row_index,
+                    ),
+                    indices=indices,
+                )
+            )
+    for row_index in range(3):
+        for column_index in range(2):
+            left_tensor_id = f"tensor_{row_index}_{column_index}"
+            right_tensor_id = f"tensor_{row_index}_{column_index + 1}"
+            edge_name = f"h_{row_index}_{column_index}"
+            edges.append(
+                EdgeSpec(
+                    id=f"edge_{edge_name}",
+                    name=edge_name,
+                    left=EdgeEndpointRef(
+                        tensor_id=left_tensor_id,
+                        index_id=f"{left_tensor_id}_right",
+                    ),
+                    right=EdgeEndpointRef(
+                        tensor_id=right_tensor_id,
+                        index_id=f"{right_tensor_id}_left",
+                    ),
+                )
+            )
+    for row_index in range(2):
+        for column_index in range(3):
+            top_tensor_id = f"tensor_{row_index}_{column_index}"
+            bottom_tensor_id = f"tensor_{row_index + 1}_{column_index}"
+            edge_name = f"v_{row_index}_{column_index}"
+            edges.append(
+                EdgeSpec(
+                    id=f"edge_{edge_name}",
+                    name=edge_name,
+                    left=EdgeEndpointRef(
+                        tensor_id=top_tensor_id,
+                        index_id=f"{top_tensor_id}_down",
+                    ),
+                    right=EdgeEndpointRef(
+                        tensor_id=bottom_tensor_id,
+                        index_id=f"{bottom_tensor_id}_up",
+                    ),
+                )
+            )
+    return NetworkSpec(
+        id="network_grid_export",
+        name="grid-export",
+        tensors=tensors,
+        edges=edges,
+    )
+
+
+def _build_vertical_three_tensor_spec() -> NetworkSpec:
+    spec = build_three_tensor_spec()
+    spec.tensors[0].position = CanvasPosition(x=240.0, y=80.0)
+    spec.tensors[1].position = CanvasPosition(x=240.0, y=240.0)
+    spec.tensors[2].position = CanvasPosition(x=240.0, y=400.0)
+    return spec
+
+
+def _build_vertical_three_tensor_named_hint_spec() -> NetworkSpec:
+    spec = _build_vertical_three_tensor_spec()
+    spec.tensors[0].indices[0].name = "up"
+    return spec
+
+
+def _build_diagonal_three_tensor_spec() -> NetworkSpec:
+    spec = build_three_tensor_spec()
+    spec.tensors[0].position = CanvasPosition(x=80.0, y=80.0)
+    spec.tensors[1].position = CanvasPosition(x=240.0, y=240.0)
+    spec.tensors[2].position = CanvasPosition(x=400.0, y=400.0)
+    return spec
+
+
+def _build_rotated_grid_export_spec() -> NetworkSpec:
+    spec = _build_grid_export_spec()
+    center = CanvasPosition(x=240.0, y=240.0)
+    column_step = CanvasPosition(x=100.0, y=100.0)
+    row_step = CanvasPosition(x=-100.0, y=100.0)
+    for tensor in spec.tensors:
+        _, row_text, column_text = tensor.id.split("_")
+        row_index = int(row_text)
+        column_index = int(column_text)
+        tensor.position = CanvasPosition(
+            x=center.x
+            + (column_index - 1) * column_step.x
+            + (row_index - 1) * row_step.x,
+            y=center.y
+            + (column_index - 1) * column_step.y
+            + (row_index - 1) * row_step.y,
+        )
+    return spec
+
+
+def _build_vertical_mpo_export_spec() -> NetworkSpec:
+    spec = build_template_spec(
+        "mpo",
+        TemplateParameters(
+            graph_size=4,
+            bond_dimension=3,
+            physical_dimension=2,
+            boundary_condition="open",
+            j=1.0,
+            h=1.0,
+        ),
+    )
+    for tensor_index, tensor in enumerate(spec.tensors):
+        tensor.position = CanvasPosition(x=240.0, y=80.0 + tensor_index * 160.0)
+    return spec
+
+
+def _build_generic_export_spec() -> NetworkSpec:
+    return NetworkSpec(
+        id="network_generic_export",
+        name="generic-export",
+        tensors=[
+            TensorSpec(
+                id="tensor_center",
+                name="Center",
+                position=CanvasPosition(x=220.0, y=200.0),
+                indices=[
+                    IndexSpec(id="tensor_center_free", name="free", dimension=2),
+                    IndexSpec(id="tensor_center_right", name="r", dimension=3),
+                    IndexSpec(id="tensor_center_down", name="d", dimension=5),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_right",
+                name="Right",
+                position=CanvasPosition(x=360.0, y=180.0),
+                indices=[
+                    IndexSpec(id="tensor_right_left", name="r", dimension=3),
+                ],
+            ),
+            TensorSpec(
+                id="tensor_down",
+                name="Down",
+                position=CanvasPosition(x=260.0, y=340.0),
+                indices=[
+                    IndexSpec(id="tensor_down_up", name="d", dimension=5),
+                ],
+            ),
+        ],
+        edges=[
+            EdgeSpec(
+                id="edge_center_right",
+                name="r",
+                left=EdgeEndpointRef(
+                    tensor_id="tensor_center", index_id="tensor_center_right"
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="tensor_right", index_id="tensor_right_left"
+                ),
+            ),
+            EdgeSpec(
+                id="edge_center_down",
+                name="d",
+                left=EdgeEndpointRef(
+                    tensor_id="tensor_center", index_id="tensor_center_down"
+                ),
+                right=EdgeEndpointRef(
+                    tensor_id="tensor_down", index_id="tensor_down_up"
+                ),
+            ),
+        ],
+    )
+
+
+def _dot(left: CanvasPosition, right: CanvasPosition) -> float:
+    return left.x * right.x + left.y * right.y
+
+
+def _normalize(vector: CanvasPosition) -> CanvasPosition:
+    magnitude = hypot(vector.x, vector.y)
+    assert magnitude > 1e-9
+    return CanvasPosition(x=vector.x / magnitude, y=vector.y / magnitude)
+
+
 def _svg_text_content(svg: str) -> list[str]:
     root = ET.fromstring(svg)
     text_nodes = root.findall(".//{http://www.w3.org/2000/svg}text")
@@ -164,6 +481,146 @@ def test_academic_svg_and_tikz_exports_use_tensor_circles_and_dangling_ports() -
     assert "j 4" in text_content
     assert r"\node[tne index]" not in tikz
     assert r"\draw[tne open index]" in tikz
+
+
+def test_export_geometry_prefers_perpendicular_free_index_directions_for_linear_chain() -> (
+    None
+):
+    spec = build_three_tensor_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+
+    left_tensor = spec.tensors[0]
+    left_index = left_tensor.indices[0]
+    direction = renderer._index_direction(left_tensor, left_index)
+    source = renderer.connection_point(left_tensor, left_index)
+    target = renderer.open_index_endpoint(left_tensor, left_index)
+
+    assert abs(direction.x) < 0.25
+    assert abs(direction.y) > 0.9
+    assert hypot(target.x - source.x, target.y - source.y) == pytest.approx(
+        2.0 * renderer.tensor_radius(left_tensor)
+    )
+
+
+def test_export_geometry_respects_vertical_linear_chain_orientation() -> None:
+    spec = _build_vertical_three_tensor_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+
+    first_tensor = spec.tensors[0]
+    free_index = first_tensor.indices[0]
+    direction = renderer._index_direction(first_tensor, free_index)
+
+    assert abs(direction.x) > 0.9
+    assert abs(direction.y) < 0.25
+
+
+def test_export_geometry_prefers_linear_component_orientation_over_named_hints() -> (
+    None
+):
+    spec = _build_vertical_three_tensor_named_hint_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+
+    first_tensor = spec.tensors[0]
+    free_index = first_tensor.indices[0]
+    direction = renderer._index_direction(first_tensor, free_index)
+
+    assert abs(direction.x) > 0.9
+    assert abs(direction.y) < 0.25
+
+
+def test_export_geometry_respects_diagonal_linear_chain_orientation() -> None:
+    spec = _build_diagonal_three_tensor_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+
+    first_tensor = spec.tensors[0]
+    free_index = first_tensor.indices[0]
+    direction = renderer._index_direction(first_tensor, free_index)
+    chain_axis = _normalize(CanvasPosition(x=1.0, y=1.0))
+    diagonal_perpendicular = _normalize(CanvasPosition(x=-1.0, y=1.0))
+
+    assert abs(_dot(direction, chain_axis)) < 0.25
+    assert abs(_dot(direction, diagonal_perpendicular)) > 0.9
+
+
+def test_export_geometry_prefers_vertical_mpo_component_orientation_over_index_names() -> (
+    None
+):
+    spec = _build_vertical_mpo_export_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    first_tensor = spec.tensors[0]
+    bra_index = next(index for index in first_tensor.indices if index.name == "bra")
+    ket_index = next(index for index in first_tensor.indices if index.name == "ket")
+    bra_direction = renderer._index_direction(first_tensor, bra_index)
+    ket_direction = renderer._index_direction(first_tensor, ket_index)
+
+    assert abs(bra_direction.x) > 0.9
+    assert abs(ket_direction.x) > 0.9
+    assert abs(bra_direction.y) < 0.25
+    assert abs(ket_direction.y) < 0.25
+    assert _dot(bra_direction, ket_direction) < -0.85
+
+
+def test_export_geometry_points_cycle_free_indices_outward() -> None:
+    spec = _build_cycle_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    cycle_center = CanvasPosition(x=200.0, y=200.0)
+
+    for tensor in spec.tensors:
+        free_index = tensor.indices[0]
+        direction = renderer._index_direction(tensor, free_index)
+        radial = _normalize(
+            CanvasPosition(
+                x=tensor.position.x - cycle_center.x,
+                y=tensor.position.y - cycle_center.y,
+            )
+        )
+        assert _dot(direction, radial) > 0.85
+
+
+def test_export_geometry_points_grid_boundary_free_indices_outward() -> None:
+    spec = _build_grid_export_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    expectations = {
+        "tensor_0_1": CanvasPosition(x=0.0, y=-1.0),
+        "tensor_1_0": CanvasPosition(x=-1.0, y=0.0),
+        "tensor_1_2": CanvasPosition(x=1.0, y=0.0),
+        "tensor_2_1": CanvasPosition(x=0.0, y=1.0),
+    }
+
+    for tensor_id, expected_direction in expectations.items():
+        tensor = next(tensor for tensor in spec.tensors if tensor.id == tensor_id)
+        free_index = tensor.indices[0]
+        direction = renderer._index_direction(tensor, free_index)
+        assert _dot(direction, expected_direction) > 0.85
+
+
+def test_export_geometry_points_rotated_grid_boundary_free_indices_outward() -> None:
+    spec = _build_rotated_grid_export_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    expectations = {
+        "tensor_0_1": _normalize(CanvasPosition(x=1.0, y=-1.0)),
+        "tensor_1_0": _normalize(CanvasPosition(x=-1.0, y=-1.0)),
+        "tensor_1_2": _normalize(CanvasPosition(x=1.0, y=1.0)),
+        "tensor_2_1": _normalize(CanvasPosition(x=-1.0, y=1.0)),
+    }
+
+    for tensor_id, expected_direction in expectations.items():
+        tensor = next(tensor for tensor in spec.tensors if tensor.id == tensor_id)
+        free_index = tensor.indices[0]
+        direction = renderer._index_direction(tensor, free_index)
+        assert _dot(direction, expected_direction) > 0.85
+
+
+def test_export_geometry_generic_free_indices_point_away_from_local_neighbors() -> None:
+    spec = _build_generic_export_spec()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    center_tensor = spec.tensors[0]
+    free_index = center_tensor.indices[0]
+
+    direction = renderer._index_direction(center_tensor, free_index)
+    away_from_neighbors = _normalize(CanvasPosition(x=-180.0, y=-120.0))
+
+    assert _dot(direction, away_from_neighbors) > 0.75
 
 
 def test_academic_svg_tikz_and_dot_preserve_entity_colors_and_parallel_edges() -> None:
@@ -283,12 +740,20 @@ def test_academic_parallel_edges_curve_far_enough_to_separate_three_bonds() -> N
 def test_academic_edges_reach_tensor_centers_in_svg_and_tikz() -> None:
     spec = _assign_demo_index_offsets()
 
-    edge_render_infos = _SvgRenderer(spec, SvgRenderOptions())._edge_render_infos()
+    renderer = _SvgRenderer(spec, SvgRenderOptions())
+    edge_render_infos = renderer._edge_render_infos()
+    bounds = renderer._compute_bounds(edge_render_infos)
     tikz = render_spec_tikz(spec)
 
     assert edge_render_infos[0].source == spec.tensors[0].position
     assert edge_render_infos[0].target == spec.tensors[1].position
-    assert "(150, 116) -- (390, 116)" in tikz
+    expected_segment = (
+        f"({_number(edge_render_infos[0].source.x - bounds.x1)}, "
+        f"{_number(bounds.y2 - edge_render_infos[0].source.y)}) -- "
+        f"({_number(edge_render_infos[0].target.x - bounds.x1)}, "
+        f"{_number(bounds.y2 - edge_render_infos[0].target.y)})"
+    )
+    assert expected_segment in tikz
 
 
 def test_academic_svg_renderer_can_hide_tensor_index_and_bond_labels() -> None:

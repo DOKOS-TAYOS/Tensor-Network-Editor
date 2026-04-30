@@ -26,6 +26,28 @@ export function createEntityPropertiesRenderers({
     actions,
   });
 
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          (typeof actions.isForBoundaryTensor === "function" &&
+            actions.isForBoundaryTensor(tensor)) ||
+          (typeof actions.isLinearPeriodicBoundaryTensor === "function" &&
+            actions.isLinearPeriodicBoundaryTensor(tensor)) ||
+          (typeof actions.isTreePeriodicBoundaryTensor === "function" &&
+            actions.isTreePeriodicBoundaryTensor(tensor)) ||
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
+  }
+
   function renderGroupProperties(groupId) {
     const group = actions.findGroupById(groupId);
     if (!group) {
@@ -36,10 +58,20 @@ export function createEntityPropertiesRenderers({
       group.metadata,
       GRAPH_THEME.groupDefault
     );
-    const linearPeriodicMode =
-      (typeof actions.isForMode === "function" && actions.isForMode()) ||
-      (typeof actions.isLinearPeriodicMode === "function" &&
-        actions.isLinearPeriodicMode());
+    const exportableTensorCount = (Array.isArray(group.tensor_ids)
+      ? group.tensor_ids
+      : []
+    )
+      .map((tensorId) =>
+        typeof actions.findTensorById === "function"
+          ? actions.findTensorById(tensorId)
+          : null
+      )
+      .filter((tensor) => tensor && !isStructuralBoundaryTensor(tensor)).length;
+    const disableSubnetworkActions = exportableTensorCount === 0;
+    const subnetworkActionsMessage = disableSubnetworkActions
+      ? "Virtual For-mode boundary tensors cannot be exported or promoted as templates."
+      : "";
     const totalElementCount = getTotalElementCountForTensorIds(
       Array.isArray(group.tensor_ids) ? group.tensor_ids : []
     );
@@ -47,7 +79,8 @@ export function createEntityPropertiesRenderers({
     propertiesPanel.innerHTML = buildGroupPropertiesMarkup({
       group,
       groupColor,
-      linearPeriodicMode,
+      disableSubnetworkActions,
+      subnetworkActionsMessage,
       totalElementCount,
       formatTotalElementCount,
       renderTrashIcon,

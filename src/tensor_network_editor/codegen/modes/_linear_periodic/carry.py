@@ -579,17 +579,29 @@ def _resolve_previous_payload_operand_state(
         for index, operand_id in enumerate(previous_payload_state.interface_operand_ids)
         if operand_id == selected_operand_id
     }
+    renamed_labels = tuple(
+        incoming_label_by_payload_label.get(
+            label,
+            _previous_payload_local_label(
+                operand_id=selected_operand_id,
+                axis_index=axis_index,
+            ),
+        )
+        for axis_index, label in enumerate(selected_state.labels)
+    )
     return (
         _CarryOperandState(
-            labels=tuple(
-                incoming_label_by_payload_label.get(label, label)
-                for label in selected_state.labels
-            ),
+            labels=renamed_labels,
             axis_names=selected_state.axis_names,
             dimensions=selected_state.dimensions,
         ),
         selected_index,
     )
+
+
+def _previous_payload_local_label(*, operand_id: str, axis_index: int) -> str:
+    """Return a collision-free simulation label for one carried local axis."""
+    return f"__previous_payload_{operand_id}_{axis_index}"
 
 
 def _find_remaining_operand_id_for_label(

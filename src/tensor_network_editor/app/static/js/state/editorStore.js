@@ -44,6 +44,11 @@ export function createEditorStore(state) {
     return state.selectedCollectionFormat;
   }
 
+  function setIncludeRoundtripMetadata(includeRoundtripMetadata) {
+    state.includeRoundtripMetadata = Boolean(includeRoundtripMetadata);
+    return state.includeRoundtripMetadata;
+  }
+
   function setSelectedTheme(themeName) {
     state.selectedTheme = typeof themeName === "string" ? themeName : state.selectedTheme;
     return state.selectedTheme;
@@ -153,6 +158,7 @@ export function createEditorStore(state) {
     setAnnotationDefinitions,
     setSelectedEngine,
     setSelectedCollectionFormat,
+    setIncludeRoundtripMetadata,
     setSelectedTheme,
     setGeneratedCode,
     setEditorFinished,

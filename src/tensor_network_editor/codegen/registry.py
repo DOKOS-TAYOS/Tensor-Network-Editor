@@ -104,6 +104,7 @@ def generate_code(
     engine: EngineIdentifier,
     *,
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    include_roundtrip_metadata: bool = True,
     validate: bool = True,
 ) -> CodegenResult:
     """Generate Python code through the registered backend generator."""
@@ -115,6 +116,7 @@ def generate_code(
             spec,
             normalized_engine,
             collection_format=collection_format,
+            include_roundtrip_metadata=include_roundtrip_metadata,
             validate=validate,
         )
     if spec.tree_periodic_tree is not None and isinstance(
@@ -124,6 +126,7 @@ def generate_code(
             spec,
             normalized_engine,
             collection_format=collection_format,
+            include_roundtrip_metadata=include_roundtrip_metadata,
             validate=validate,
         )
     if spec.linear_periodic_chain is not None and isinstance(
@@ -133,6 +136,7 @@ def generate_code(
             spec,
             normalized_engine,
             collection_format=collection_format,
+            include_roundtrip_metadata=include_roundtrip_metadata,
             validate=validate,
         )
     generator = get_generator(normalized_engine)

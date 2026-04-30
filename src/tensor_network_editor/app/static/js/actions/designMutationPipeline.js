@@ -74,9 +74,6 @@ export function createDesignMutationPipeline({
       repairContractionPlan();
     }
     reconcileTensorOrder();
-    if (shouldRefreshLookups && typeof bumpSpecRevision === "function") {
-      bumpSpecRevision();
-    }
     commitHistorySnapshot(beforeSnapshot);
 
     if (Array.isArray(options.selectionIds)) {

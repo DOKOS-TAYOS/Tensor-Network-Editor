@@ -10,15 +10,68 @@ All notable changes to this project will be documented in this file.
   set (`PNG`, `SVG`, `PDF`, `TikZ/LaTeX`, `Graphviz/DOT`, and `Mermaid`) and
   clarifies that recommended startup flows can use built-in templates, session
   templates, and reusable subnetwork fragments.
+- Browser-editor `For`-mode code generation now keeps the commented
+  `TNE_SPEC_B64` round-trip metadata at the end of the generated Python source
+  instead of the beginning, and the editor only includes it when the new
+  `Metadata` checkbox is enabled in the `Code` panel.
+- Browser-editor `For` mode no longer disables template settings or
+  selection-based `Extract`, `To Library`, and `To Template` actions just for
+  being in a periodic editor view; those actions now stay available for normal
+  tensors and only reject virtual boundary cells such as `next`, `previous`,
+  grid side cells, or tree parent/child placeholders.
 
 ### Added
 
 - Static exports now include a `Mermaid` flowchart renderer for documentation
   workflows, with matching support in the Python API, CLI `render` subcommand,
   and browser editor export menu.
+- The editor `Reflow` popover now offers simple horizontal and vertical
+  alignment controls plus a 90° clockwise rotation action that also rotates the
+  selected tensor ports to keep their orientation consistent.
+- Static geometric exports now choose shape-aware directions for free indices in
+  linear, circular, and 2D-grid layouts, use a stable local fallback for
+  irregular layouts, and draw dangling stubs with a length of two tensor radii.
 
 ### Fixed
 
+- Linear-periodic `For`-mode validation now rejects carry plans that the code
+  generator cannot realize, so the editor no longer reports some
+  multi-boundary manual schemes as valid during analysis only to fail later
+  when generating Python code.
+- Linear-periodic `For`-mode carry code generation now keeps non-interface
+  labels from the previous payload distinct from the current cell's local
+  labels, so valid manual schemes with repeated index names across cells no
+  longer collapse accidentally during periodic carry simulation.
+- Linear-periodic `For`-mode `tensorkrowch` carry generation now keeps local
+  open edges on stable current-cell edge objects while exporting repeated
+  carry interfaces from the materialized result node, so periodic helpers no
+  longer hand later loop iterations a stale leaf edge.
+- Linear-periodic `For`-mode `tensorkrowch` carry helpers now reattach
+  intermediate contraction results before later manual steps reuse them, so
+  valid periodic plans no longer lose the shared inter-cell edge during
+  multi-step cell contractions.
+- Linear-periodic `For`-mode `tensorkrowch` carry helpers now materialize
+  shared edges with `reattach_edges(override=True)` instead of relying on
+  `network.reset()`, so repeated periodic iterations keep their inter-cell
+  bond visible to later `contract_between` steps.
+- Normal `tensorkrowch` manual code generation no longer injects
+  `reattach_edges(...)` between ordinary contraction steps, so non-`For`
+  exports keep the simpler node structure that the standard visualizer already
+  handles correctly.
+- Contraction-scene tensor layering now follows the current visible operands
+  instead of only the base spec tensor list, so selecting or dragging derived
+  result tensors in `single`/`contract` keeps their free ports visible above
+  overlapping front tensors.
+- Static exports now keep free-index directions aligned with the network's real
+  on-canvas orientation, so vertical, diagonal, and rotated-grid layouts no
+  longer get reinterpreted as axis-aligned during `SVG`, `PNG`, `PDF`, and
+  `TikZ/LaTeX` rendering.
+- `Ctrl/Cmd+Enter` now closes the editor with info reliably from contraction
+  planner views, preview states, `For` mode, and benchmark mode by registering
+  the global shortcut listener in capture mode.
+- Browser-editor academic exports now invalidate the serialized-spec cache
+  after layout moves and rotations, so exported figures follow the current
+  canvas geometry instead of occasionally reusing stale pre-reflow positions.
 - Mermaid export now renders free indices as labeled dangling-edge terminals
   instead of boxed open-index nodes, so the flowchart output reads more like a
   tensor-network leg.

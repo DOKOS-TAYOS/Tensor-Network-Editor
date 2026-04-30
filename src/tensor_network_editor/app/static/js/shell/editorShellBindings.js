@@ -65,6 +65,8 @@ export function createEditorShellBindings({
     expandGeneratedCodeButton,
     generatedCodeModalBackdrop,
     generatedCodeModalCloseButton,
+    codegenRoundtripMetadataField,
+    codegenRoundtripMetadataCheckbox,
     templateSelectField,
     templateSelect,
     engineSelectField,
@@ -81,11 +83,9 @@ export function createEditorShellBindings({
     editSessionTemplateMenuItem,
     openSubnetworkLibraryMenuItem,
     reflowImportedButton,
-    reflowAlignLeftButton,
-    reflowAlignRightButton,
-    reflowAlignTopButton,
-    reflowAlignMiddleButton,
-    reflowAlignBottomButton,
+    reflowAlignHorizontalButton,
+    reflowAlignVerticalButton,
+    reflowRotateSelectionButton,
     reflowIndicesLeftButton,
     reflowIndicesRightButton,
     reflowIndicesTopButton,
@@ -368,11 +368,9 @@ export function createEditorShellBindings({
         "linear-periodic-next-cell-button",
         "template-settings-button",
         "reflow-imported-button",
-        "reflow-align-left-button",
-        "reflow-align-right-button",
-        "reflow-align-top-button",
-        "reflow-align-middle-button",
-        "reflow-align-bottom-button",
+        "reflow-align-horizontal-button",
+        "reflow-align-vertical-button",
+        "reflow-rotate-selection-button",
         "reflow-arrange-chain-button",
         "reflow-arrange-tree-button",
         "reflow-arrange-grid-button",
@@ -385,6 +383,7 @@ export function createEditorShellBindings({
         "reflow-indices-bottom-button",
         "copy-code-button",
         "expand-generated-code-button",
+        "codegen-roundtrip-metadata-field",
         "template-manager-save-button",
         "template-manager-discard-button",
       ].forEach((controlId) => {
@@ -397,6 +396,12 @@ export function createEditorShellBindings({
       "Output type",
       "",
       "Choose how generated code returns the tensors: list keeps an ordered sequence, matrix arranges row and column structures when the template supports them, and dict returns named entries."
+    );
+    shortcutTooltip.applyShortcutHint(
+      "codegen-roundtrip-metadata-field",
+      "Metadata",
+      "",
+      "Append commented editor metadata at the end of generated For-mode code so it can be reconstructed more faithfully when you import it back later."
     );
     shortcutTooltip.applyShortcutHint(
       "reflow-imported-button",
@@ -644,6 +649,9 @@ export function createEditorShellBindings({
     bindListener(templateSelect, "change", (event) => {
       setSelectChevronExpanded(templateSelectField, false);
       actions.handleTemplateSelectionChange(event);
+      if (typeof templateSelect?.blur === "function") {
+        templateSelect.blur();
+      }
     });
     bindListener(
       templateParameterPanel,
@@ -696,11 +704,9 @@ export function createEditorShellBindings({
     bindListener(reflowImportedButton, "click", () => {
       actions.toggleReflowLayoutPopover();
     });
-    bindReflowAction(reflowAlignLeftButton, "left");
-    bindReflowAction(reflowAlignRightButton, "right");
-    bindReflowAction(reflowAlignTopButton, "top");
-    bindReflowAction(reflowAlignMiddleButton, "middle");
-    bindReflowAction(reflowAlignBottomButton, "bottom");
+    bindReflowAction(reflowAlignHorizontalButton, "align-horizontal");
+    bindReflowAction(reflowAlignVerticalButton, "align-vertical");
+    bindReflowAction(reflowRotateSelectionButton, "rotate-90");
     bindReflowIndicesAction(reflowIndicesLeftButton, "left");
     bindReflowIndicesAction(reflowIndicesRightButton, "right");
     bindReflowIndicesAction(reflowIndicesTopButton, "top");
@@ -795,6 +801,10 @@ export function createEditorShellBindings({
         actions.scheduleDraftAutosave();
       }
     });
+    bindListener(codegenRoundtripMetadataCheckbox, "change", (event) => {
+      store.setIncludeRoundtripMetadata(event.target.checked);
+      actions.updateToolbarState();
+    });
     bindListener(documentRef, "mousedown", (event) => {
       if (!isWithinTransientToolbarUi(event.target)) {
         actions.closeTransientToolbarUi();
@@ -803,7 +813,7 @@ export function createEditorShellBindings({
     bindListener(loadInput, "change", actions.loadDesignFromFile);
     bindListener(subnetworkLoadInput, "change", actions.loadSubnetworkFromFile);
     bindListener(templateLoadInput, "change", actions.loadSessionTemplatesFromFile);
-    bindListener(windowRef, "keydown", actions.handleKeydown);
+    bindListener(windowRef, "keydown", actions.handleKeydown, true);
     bindListener(windowRef, "resize", actions.handleWindowResize);
     bindListener(windowRef, "mousemove", actions.handleGlobalMouseMove);
     bindListener(windowRef, "mouseup", actions.handleGlobalMouseUp);

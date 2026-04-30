@@ -30,6 +30,7 @@ def generate_session_request(
     serialized_spec: Mapping[str, object],
     engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
+    include_roundtrip_metadata: bool = True,
 ) -> CodegenResult:
     """Generate preview code for one editor request."""
     with log_operation(
@@ -47,6 +48,7 @@ def generate_session_request(
             spec,
             engine,
             collection_format=_resolve_collection_format(session, collection_format),
+            include_roundtrip_metadata=include_roundtrip_metadata,
             validate=False,
         )
 
@@ -56,6 +58,7 @@ def complete_session_request(
     serialized_spec: Mapping[str, object],
     engine: EngineIdentifier,
     collection_format: TensorCollectionFormat | None = None,
+    include_roundtrip_metadata: bool = True,
 ) -> EditorResult:
     """Finalize a session request and optionally print or save generated code."""
     with log_operation(
@@ -75,6 +78,7 @@ def complete_session_request(
             spec,
             engine,
             collection_format=_resolve_collection_format(session, collection_format),
+            include_roundtrip_metadata=include_roundtrip_metadata,
             validate=False,
         )
         if session.print_code:

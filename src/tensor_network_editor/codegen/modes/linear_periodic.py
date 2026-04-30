@@ -15,6 +15,7 @@ def generate_linear_periodic_code(
     engine: EngineName,
     *,
     collection_format: TensorCollectionFormat,
+    include_roundtrip_metadata: bool = True,
     validate: bool = True,
 ) -> CodegenResult:
     """Generate helper-based Python code for the linear periodic-chain mode."""
@@ -37,7 +38,11 @@ def generate_linear_periodic_code(
             collection_format=collection_format,
             uses_carry_mode=uses_carry_mode,
         )
-        return with_roundtrip_spec_marker(result, spec=spec)
+        return (
+            with_roundtrip_spec_marker(result, spec=spec)
+            if include_roundtrip_metadata
+            else result
+        )
     if engine not in {EngineName.TENSORNETWORK, EngineName.TENSORKROWCH}:
         raise CodeGenerationError(
             f"The {engine.value} backend does not support linear periodic code generation."
@@ -48,4 +53,8 @@ def generate_linear_periodic_code(
         collection_format=collection_format,
         uses_carry_mode=uses_carry_mode,
     )
-    return with_roundtrip_spec_marker(result, spec=spec)
+    return (
+        with_roundtrip_spec_marker(result, spec=spec)
+        if include_roundtrip_metadata
+        else result
+    )

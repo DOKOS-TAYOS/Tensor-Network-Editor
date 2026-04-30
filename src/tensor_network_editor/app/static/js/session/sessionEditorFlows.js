@@ -61,6 +61,7 @@ export function createSessionEditorFlows({
     return sessionService.generateCode({
       engine: selectors.getSelectedEngine(),
       collectionFormat: selectors.getSelectedCollectionFormat(),
+      includeRoundtripMetadata: state.includeRoundtripMetadata === true,
       spec: actions.serializeCurrentSpec({ persistViewSnapshots: false }),
     });
   }
@@ -232,6 +233,7 @@ export function createSessionEditorFlows({
       const payload = await sessionService.completeSession({
         engine: selectors.getSelectedEngine(),
         collectionFormat: selectors.getSelectedCollectionFormat(),
+        includeRoundtripMetadata: state.includeRoundtripMetadata === true,
         spec: actions.serializeCurrentSpec({ persistViewSnapshots: true }),
       });
       if (!payload.ok) {

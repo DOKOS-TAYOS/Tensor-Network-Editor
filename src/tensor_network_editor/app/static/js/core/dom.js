@@ -119,11 +119,15 @@ export function getDomRefs(document) {
     templateCatalogWarning: document.getElementById("template-catalog-warning"),
     subnetworkCatalogWarning: document.getElementById("subnetwork-catalog-warning"),
     reflowImportedButton: document.getElementById("reflow-imported-button"),
-    reflowAlignLeftButton: document.getElementById("reflow-align-left-button"),
-    reflowAlignRightButton: document.getElementById("reflow-align-right-button"),
-    reflowAlignTopButton: document.getElementById("reflow-align-top-button"),
-    reflowAlignMiddleButton: document.getElementById("reflow-align-middle-button"),
-    reflowAlignBottomButton: document.getElementById("reflow-align-bottom-button"),
+    reflowAlignHorizontalButton: document.getElementById(
+      "reflow-align-horizontal-button"
+    ),
+    reflowAlignVerticalButton: document.getElementById(
+      "reflow-align-vertical-button"
+    ),
+    reflowRotateSelectionButton: document.getElementById(
+      "reflow-rotate-selection-button"
+    ),
     reflowIndicesLeftButton: document.getElementById("reflow-indices-left-button"),
     reflowIndicesRightButton: document.getElementById("reflow-indices-right-button"),
     reflowIndicesTopButton: document.getElementById("reflow-indices-top-button"),
@@ -236,6 +240,12 @@ export function getDomRefs(document) {
     sidebarPaneCode: document.getElementById("sidebar-pane-code"),
     plannerPanel: document.getElementById("planner-panel"),
     generateButton: document.getElementById("generate-button"),
+    codegenRoundtripMetadataField: document.getElementById(
+      "codegen-roundtrip-metadata-field"
+    ),
+    codegenRoundtripMetadataCheckbox: document.getElementById(
+      "codegen-roundtrip-metadata-checkbox"
+    ),
     codeGenerationWarning: document.getElementById("code-generation-warning"),
   };
 }

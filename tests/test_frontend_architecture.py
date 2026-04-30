@@ -1197,6 +1197,7 @@ def test_editor_services_route_session_requests_through_explicit_dependencies(
         await sessionService.generateCode({{
           engine: "quimb",
           collectionFormat: "dict",
+          includeRoundtripMetadata: true,
           spec: {{ schema_version: 4, network: {{ id: "network_demo" }} }},
         }});
         await sessionService.renderSpec({{
@@ -1217,6 +1218,9 @@ def test_editor_services_route_session_requests_through_explicit_dependencies(
         }}
         if (calls[1].payload.collection_format !== "dict") {{
           throw new Error(`Expected collection_format=dict, received ${{calls[1].payload.collection_format}}.`);
+        }}
+        if (calls[1].payload.include_roundtrip_metadata !== true) {{
+          throw new Error(`Expected include_roundtrip_metadata=true, received ${{calls[1].payload.include_roundtrip_metadata}}.`);
         }}
         if (calls[2].path !== "/api/render") {{
           throw new Error(`Unexpected render path: ${{calls[2].path}}`);
@@ -3817,11 +3821,18 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
             state.selectedEngine = engine;
             storeCalls.push({{ step: "setSelectedEngine", engine }});
           }},
-          setSelectedCollectionFormat(collectionFormat) {{
-            state.selectedCollectionFormat = collectionFormat;
-            storeCalls.push({{ step: "setSelectedCollectionFormat", collectionFormat }});
-          }},
-        }};
+              setSelectedCollectionFormat(collectionFormat) {{
+                state.selectedCollectionFormat = collectionFormat;
+                storeCalls.push({{ step: "setSelectedCollectionFormat", collectionFormat }});
+              }},
+              setIncludeRoundtripMetadata(includeRoundtripMetadata) {{
+                state.includeRoundtripMetadata = Boolean(includeRoundtripMetadata);
+                storeCalls.push({{
+                  step: "setIncludeRoundtripMetadata",
+                  includeRoundtripMetadata: state.includeRoundtripMetadata,
+                }});
+              }},
+            }};
         const flowEvents = [];
         const bootstrapFlow = bootstrapFlowModule.createEditorBootstrapFlow({{
           state,
@@ -3921,8 +3932,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           windowRef: {{
             innerWidth: 800,
             innerHeight: 600,
-            addEventListener(type, handler) {{
-              windowListeners.push(type);
+            addEventListener(type, handler, options) {{
+              windowListeners.push({{ type, options }});
             }},
           }},
         }});
@@ -4007,12 +4018,29 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           generatedCodeModal: getButton("generated-code-modal"),
           generatedCodeModalBackdrop: getButton("generated-code-modal-backdrop"),
           generatedCodeModalCloseButton: getButton("generated-code-modal-close-button"),
+          codegenRoundtripMetadataField: getButton("codegen-roundtrip-metadata-field"),
+          codegenRoundtripMetadataCheckbox: {{
+            checked: false,
+            listeners: {{}},
+            addEventListener(type, handler) {{ this.listeners[type] = handler; }},
+            change(event) {{
+              this.checked = Boolean(event?.target?.checked);
+              this.listeners.change?.(event);
+            }},
+          }},
           templateSelectField: getButton("template-select-field"),
           engineSelectField: getButton("engine-select-field"),
           collectionFormatSelectField: getButton("collection-format-select-field"),
           templateSelect: {{
             value: "mps",
-            addEventListener(type, handler) {{ this[type] = handler; }},
+            listeners: {{}},
+            addEventListener(type, handler) {{ this.listeners[type] = handler; }},
+            mousedown(event) {{ this.listeners.mousedown?.(event); }},
+            change(event) {{ this.listeners.change?.(event); }},
+            blur() {{
+              flowEvents.push("templateSelect.blur");
+              this.listeners.blur?.({{ target: this }});
+            }},
           }},
           templateSettingsButton: getButton("template-settings-button"),
           templateSettingsPopover: getButton("template-settings-popover"),
@@ -4026,11 +4054,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           editSessionTemplateMenuItem: getButton("edit-session-template-menu-item"),
           openSubnetworkLibraryMenuItem: getButton("open-subnetwork-library-menu-item"),
           reflowImportedButton: getButton("reflow-imported-button"),
-          reflowAlignLeftButton: getButton("reflow-align-left-button"),
-          reflowAlignRightButton: getButton("reflow-align-right-button"),
-          reflowAlignTopButton: getButton("reflow-align-top-button"),
-          reflowAlignMiddleButton: getButton("reflow-align-middle-button"),
-          reflowAlignBottomButton: getButton("reflow-align-bottom-button"),
+          reflowAlignHorizontalButton: getButton("reflow-align-horizontal-button"),
+          reflowAlignVerticalButton: getButton("reflow-align-vertical-button"),
+          reflowRotateSelectionButton: getButton("reflow-rotate-selection-button"),
           reflowIndicesLeftButton: getButton("reflow-indices-left-button"),
           reflowIndicesRightButton: getButton("reflow-indices-right-button"),
           reflowIndicesTopButton: getButton("reflow-indices-top-button"),
@@ -4198,8 +4224,8 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           dom,
           documentRef: tooltipDocument,
           windowRef: {{
-            addEventListener(type, handler) {{
-              windowListeners.push(type);
+            addEventListener(type, handler, options) {{
+              windowListeners.push({{ type, options }});
             }},
           }},
           actions: shellActions,
@@ -4211,6 +4237,7 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         getButton("expand-generated-code-button").click();
         dom.generatedCodeModalBackdrop.click();
         dom.generatedCodeModalCloseButton.click();
+        dom.codegenRoundtripMetadataCheckbox.change({{ target: {{ checked: true }} }});
         dom.engineSelect.change({{ target: {{ value: "cotengra" }} }});
         dom.fileMenuButton.click();
         dom.exportSubmenuShell.mouseenter();
@@ -4230,6 +4257,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.templateSettingsButton.click();
         dom.reflowImportedButton.click();
         dom.reflowAutoLayoutButton.click();
+        dom.reflowAlignHorizontalButton.click();
+        dom.reflowAlignVerticalButton.click();
+        dom.reflowRotateSelectionButton.click();
         dom.reflowArrangeGridButton.click();
         dom.reflowIndicesResetButton.click();
         dom.templateManagerCloseButton.click();
@@ -4249,6 +4279,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         if (dom.templateSelectField.attributes["data-expanded"] !== "false") {{
           throw new Error("Expected template select change to collapse the disclosure indicator.");
         }}
+        if (!flowEvents.includes("templateSelect.blur")) {{
+          throw new Error("Expected template selection changes to blur the dropdown so keyboard shortcuts do not stay trapped in the select.");
+        }}
         dom.engineSelect.mousedown({{ target: dom.engineSelect }});
         if (dom.engineSelectField.attributes["data-expanded"] !== "true") {{
           throw new Error("Expected engine select mouse down to mark the disclosure as expanded.");
@@ -4264,6 +4297,9 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         dom.collectionFormatSelect.change({{ target: {{ value: "dict" }} }});
         if (dom.collectionFormatSelectField.attributes["data-expanded"] !== "false") {{
           throw new Error("Expected collection format select change to collapse the disclosure indicator.");
+        }}
+        if (state.includeRoundtripMetadata !== true) {{
+          throw new Error(`Expected metadata checkbox changes to update state, received ${{state.includeRoundtripMetadata}}.`);
         }}
         if (!flowEvents.includes("generateCode")) {{
           throw new Error(`Expected toolbar generate binding to invoke the injected action, received ${{JSON.stringify(flowEvents)}}.`);
@@ -4329,6 +4365,15 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
         }}
         if (!flowEvents.includes("applyReflowLayoutAction:auto")) {{
           throw new Error(`Expected the Auto layout action to dispatch through the Reflow popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("applyReflowLayoutAction:align-horizontal")) {{
+          throw new Error(`Expected the horizontal alignment action to dispatch through the Reflow popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("applyReflowLayoutAction:align-vertical")) {{
+          throw new Error(`Expected the vertical alignment action to dispatch through the Reflow popover, received ${{JSON.stringify(flowEvents)}}.`);
+        }}
+        if (!flowEvents.includes("applyReflowLayoutAction:rotate-90")) {{
+          throw new Error(`Expected the rotate action to dispatch through the Reflow popover, received ${{JSON.stringify(flowEvents)}}.`);
         }}
         if (!flowEvents.includes("applyReflowLayoutAction:grid")) {{
           throw new Error(`Expected the Reflow popover actions to dispatch the requested layout, received ${{JSON.stringify(flowEvents)}}.`);
@@ -4414,6 +4459,14 @@ def test_shell_modules_expose_explicit_bootstrap_flow_and_toolbar_bindings(
           !== "Generate and inspect code for the current network with the selected engine."
         ) {{
           throw new Error("Expected the Code tab to expose its tooltip description.");
+        }}
+        const keydownBinding = windowListeners.find(
+          (entry) => entry && entry.type === "keydown"
+        );
+        if (!keydownBinding || keydownBinding.options !== true) {{
+          throw new Error(
+            `Expected the global keydown shortcut listener to register in capture mode, received ${{JSON.stringify(windowListeners)}}.`
+          );
         }}
         """,
     )

@@ -1,9 +1,18 @@
-function buildCodegenPayload({ engine, collectionFormat, spec }) {
-  return {
+function buildCodegenPayload({
+  engine,
+  collectionFormat,
+  includeRoundtripMetadata,
+  spec,
+}) {
+  const payload = {
     engine,
     collection_format: collectionFormat,
     spec,
   };
+  if (typeof includeRoundtripMetadata === "boolean") {
+    payload.include_roundtrip_metadata = includeRoundtripMetadata;
+  }
+  return payload;
 }
 
 function summarizeSerializedSpec(serializedSpec) {
@@ -34,6 +43,7 @@ function summarizeCodegenRequest(request) {
   return {
     engine: request.engine,
     collection_format: request.collectionFormat,
+    include_roundtrip_metadata: request.includeRoundtripMetadata,
     ...summarizeSerializedSpec(request.spec),
   };
 }

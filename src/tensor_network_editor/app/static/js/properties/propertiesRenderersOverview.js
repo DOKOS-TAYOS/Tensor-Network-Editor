@@ -95,10 +95,11 @@ export function createOverviewPropertiesRenderers({
       .map((entry) => entry.tensor || null)
       .filter((tensor) => tensor && !isStructuralBoundaryTensor(tensor))
       .map((tensor) => tensor.id);
-    const linearPeriodicMode =
-      (typeof actions.isForMode === "function" && actions.isForMode()) ||
-      (typeof actions.isLinearPeriodicMode === "function" &&
-        actions.isLinearPeriodicMode());
+    const exportableTensorCount = editableTensorIds.length;
+    const disableSubnetworkActions = hasMultipleTensors && exportableTensorCount === 0;
+    const subnetworkActionsMessage = disableSubnetworkActions
+      ? "Virtual For-mode boundary tensors cannot be exported or promoted as templates."
+      : "";
     const batchColor = actions.getBatchColorValue(selectedEntries);
     const totalElementCount = getSelectionTotalElementCount(selectedEntries);
     const hyperedgeCreationCandidate =
@@ -131,7 +132,8 @@ export function createOverviewPropertiesRenderers({
       multiIndexDimensionCandidate,
       showAddIndexAction: editableTensorIds.length > 0,
       hyperedgeCreationCandidate,
-      linearPeriodicMode,
+      disableSubnetworkActions,
+      subnetworkActionsMessage,
       batchColor,
       totalElementCount,
       formatTotalElementCount,

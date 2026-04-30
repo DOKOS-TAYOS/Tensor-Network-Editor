@@ -789,6 +789,30 @@
                             Auto layout
                           </button>
                           <button
+                            id="reflow-align-horizontal-button"
+                            type="button"
+                            aria-label="Align horizontally"
+                            title="Align horizontal: line up the selected tensors on the same horizontal axis while keeping their left-to-right spacing."
+                          >
+                            &#8596;
+                          </button>
+                          <button
+                            id="reflow-align-vertical-button"
+                            type="button"
+                            aria-label="Align vertically"
+                            title="Align vertical: line up the selected tensors on the same vertical axis while keeping their top-to-bottom spacing."
+                          >
+                            &#8597;
+                          </button>
+                          <button
+                            id="reflow-rotate-selection-button"
+                            type="button"
+                            aria-label="Rotate 90 degrees clockwise"
+                            title="Rotate 90° clockwise: rotate the selected tensors and their ports around the selection center."
+                          >
+                            &#8635;
+                          </button>
+                          <button
                             id="reflow-arrange-chain-button"
                             type="button"
                             title="Chain: place selected tensors in one ordered row, following bonds when present."
@@ -1126,6 +1150,20 @@
                             />
                           </svg>
                         </button>
+                        <label
+                          id="codegen-roundtrip-metadata-field"
+                          class="code-metadata-toggle"
+                          for="codegen-roundtrip-metadata-checkbox"
+                          title="Append commented editor metadata at the end of generated For-mode code so it can be reconstructed more faithfully when you import it back later."
+                          hidden
+                        >
+                          <input
+                            id="codegen-roundtrip-metadata-checkbox"
+                            type="checkbox"
+                            aria-label="Include editor metadata in generated code"
+                          />
+                          <span>Metadata</span>
+                        </label>
                       </div>
                       <p
                         id="code-generation-warning"

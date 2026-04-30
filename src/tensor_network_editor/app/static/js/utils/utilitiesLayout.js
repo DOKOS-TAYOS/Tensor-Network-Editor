@@ -121,6 +121,37 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     }, "Snapped tensors to the grid.");
   }
 
+  function rotateSelectedTensorsClockwise() {
+    const tensors = getSelectedLayoutTensors();
+    if (tensors.length < 2) {
+      ctx.setStatus("Select at least two tensors to rotate.");
+      return false;
+    }
+
+    const bounds = computeTensorBounds(tensors);
+    const centerX = (bounds.left + bounds.right) / 2;
+    const centerY = (bounds.top + bounds.bottom) / 2;
+
+    return applyTensorLayoutChange(() => {
+      tensors.forEach((tensor) => {
+        const deltaX = tensor.position.x - centerX;
+        const deltaY = tensor.position.y - centerY;
+        tensor.position.x = centerX - deltaY;
+        tensor.position.y = centerY + deltaX;
+        tensor.indices.forEach((index) => {
+          const rotatedOffset = {
+            x: -index.offset.y,
+            y: index.offset.x,
+          };
+          index.offset =
+            typeof ctx.clampIndexOffset === "function"
+              ? ctx.clampIndexOffset(rotatedOffset, tensor)
+              : rotatedOffset;
+        });
+      });
+    }, "Rotated the selected tensors and ports 90° clockwise.");
+  }
+
   function arrangeSelectedTensors(mode) {
     const tensorIds = getSelectedLayoutTensorIds();
     if (tensorIds.length < 2) {
@@ -172,8 +203,18 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
 
   function applyReflowLayoutAction(layoutAction) {
     const action = typeof layoutAction === "string" ? layoutAction : "";
+    if (action === "align-horizontal") {
+      return alignSelectedTensors("middle");
+    }
+    if (action === "align-vertical") {
+      return alignSelectedTensors("center");
+    }
+    if (action === "rotate-90") {
+      return rotateSelectedTensorsClockwise();
+    }
     if (
       action === "left" ||
+      action === "center" ||
       action === "right" ||
       action === "top" ||
       action === "middle" ||
@@ -269,6 +310,7 @@ export function createUtilityLayoutBindings({ ctx, state, constants }) {
     arrangeSelectedTensors,
     distributeSelectedTensors,
     reflowLastImportedTensors,
+    rotateSelectedTensorsClockwise,
     snapSelectedTensorsToGrid,
   };
 }

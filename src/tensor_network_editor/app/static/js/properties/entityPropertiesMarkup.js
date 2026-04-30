@@ -27,7 +27,8 @@ function buildTooltipAttributes(label, description = "", shortcut = "") {
 export function buildGroupPropertiesMarkup({
   group,
   groupColor,
-  linearPeriodicMode,
+  disableSubnetworkActions,
+  subnetworkActionsMessage,
   totalElementCount,
   formatTotalElementCount,
   renderTrashIcon,
@@ -91,7 +92,7 @@ export function buildGroupPropertiesMarkup({
           id="extract-group-button"
           type="button"
           class="button-accent-positive"
-          ${linearPeriodicMode ? "disabled" : ""}
+          ${disableSubnetworkActions ? "disabled" : ""}
           ${buildTooltipAttributes(
             "Extract",
             "Extract the tensors inside this group as a reusable subnetwork.",
@@ -104,7 +105,7 @@ export function buildGroupPropertiesMarkup({
           id="save-group-subnetwork-library-button"
           type="button"
           class="button-accent-template"
-          ${linearPeriodicMode ? "disabled" : ""}
+          ${disableSubnetworkActions ? "disabled" : ""}
           ${buildTooltipAttributes(
             "To Library",
             "Save the tensors inside this group to the subnetwork library."
@@ -116,7 +117,7 @@ export function buildGroupPropertiesMarkup({
           id="promote-group-template-button"
           type="button"
           class="button-accent-template"
-          ${linearPeriodicMode ? "disabled" : ""}
+          ${disableSubnetworkActions ? "disabled" : ""}
           ${buildTooltipAttributes(
             "To Template",
             "Promote the tensors inside this group to a reusable template."
@@ -139,8 +140,8 @@ export function buildGroupPropertiesMarkup({
         </button>
       </div>
       ${
-        linearPeriodicMode
-          ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
+        subnetworkActionsMessage
+          ? `<p class="property-meta">${escapeHtml(subnetworkActionsMessage)}</p>`
           : ""
       }
       <p class="property-meta">Drag the group box on the canvas to move all tensors together.</p>

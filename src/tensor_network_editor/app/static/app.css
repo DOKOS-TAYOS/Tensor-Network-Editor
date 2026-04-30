@@ -3369,6 +3369,31 @@ textarea[disabled] {
   align-items: center;
 }
 
+.code-metadata-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: var(--canvas-control-height);
+  padding: 0 0.8rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.code-metadata-toggle input {
+  margin: 0;
+}
+
+.code-metadata-toggle[hidden] {
+  display: none;
+}
+
 .code-format-picker {
   position: relative;
   display: inline-flex;

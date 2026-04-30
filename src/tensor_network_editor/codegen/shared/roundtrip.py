@@ -31,11 +31,12 @@ def with_roundtrip_spec_marker(
     *,
     spec: NetworkSpec,
 ) -> CodegenResult:
-    """Return ``result`` with a leading serialized-spec comment marker."""
+    """Return ``result`` with a trailing serialized-spec comment marker."""
     marker = "\n".join(render_roundtrip_spec_marker_lines(spec))
+    code = result.code.rstrip()
     return CodegenResult(
         engine=result.engine,
-        code=f"{marker}\n{result.code}",
+        code=f"{code}\n\n{marker}\n",
         warnings=list(result.warnings),
         artifacts=dict(result.artifacts),
     )

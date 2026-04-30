@@ -290,6 +290,7 @@ class EditorSession:
         serialized_spec: Mapping[str, object],
         engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
+        include_roundtrip_metadata: bool = True,
     ) -> CodegenResult:
         """Generate preview code without finalizing the session."""
         with log_operation(
@@ -306,6 +307,7 @@ class EditorSession:
                 serialized_spec,
                 engine,
                 collection_format,
+                include_roundtrip_metadata,
             )
 
     def complete(
@@ -313,6 +315,7 @@ class EditorSession:
         serialized_spec: Mapping[str, object],
         engine: EngineIdentifier,
         collection_format: TensorCollectionFormat | None = None,
+        include_roundtrip_metadata: bool = True,
     ) -> EditorResult:
         """Finalize the session and store the resulting editor output."""
         with log_operation(
@@ -335,6 +338,7 @@ class EditorSession:
                 serialized_spec,
                 engine,
                 collection_format,
+                include_roundtrip_metadata,
             )
             with self._lock:
                 if self._finished_event.is_set() and self._result is not None:

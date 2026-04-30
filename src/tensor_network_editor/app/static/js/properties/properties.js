@@ -91,10 +91,22 @@ function createPropertyActions(ctx) {
     saveSelectionToSubnetworkLibrary: () => ctx.saveSelectionToSubnetworkLibrary(),
     promoteSelectedSubnetworkToTemplate: () => ctx.promoteSelectedSubnetworkToTemplate(),
     createGroupFromSelection: () => ctx.createGroupFromSelection(),
+    findTensorById: (tensorId) => ctx.findTensorById(tensorId),
     findGroupById: (groupId) => ctx.findGroupById(groupId),
     findEdgeById: (edgeId) => ctx.findEdgeById(edgeId),
     findHyperedgeById: (hyperedgeId) => ctx.findHyperedgeById(hyperedgeId),
     findNoteById: (noteId) => ctx.findNoteById(noteId),
+    isForBoundaryTensor: resolveContextAction(ctx, "isForBoundaryTensor", () => false),
+    isLinearPeriodicBoundaryTensor: resolveContextAction(
+      ctx,
+      "isLinearPeriodicBoundaryTensor",
+      () => false
+    ),
+    isTreePeriodicBoundaryTensor: resolveContextAction(
+      ctx,
+      "isTreePeriodicBoundaryTensor",
+      () => false
+    ),
     getMetadataColor: (metadata, fallbackColor) =>
       ctx.getMetadataColor(metadata, fallbackColor),
     toggleGroupCollapse: (groupId) => ctx.toggleGroupCollapse(groupId),

@@ -43,6 +43,7 @@ class CodegenRequest:
     serialized_spec: JsonDict
     engine: EngineIdentifier
     collection_format: TensorCollectionFormat
+    include_roundtrip_metadata: bool
 
 
 @dataclass(slots=True, frozen=True)
@@ -269,6 +270,9 @@ def parse_codegen_request(
         serialized_spec=require_serialized_spec(payload),
         engine=resolve_engine(payload, default_engine),
         collection_format=resolve_collection_format(payload, default_collection_format),
+        include_roundtrip_metadata=require_boolean(
+            payload, "include_roundtrip_metadata", default=True
+        ),
     )
 
 

@@ -8,6 +8,7 @@ from ....models import EngineName, LinearPeriodicCellName, TensorCollectionForma
 from ...backends.tensornetwork import TensorNetworkCodeGenerator
 from ...shared._linear_periodic_expressions import (
     _axis_name_for_engine,
+    _axis_names_for_engine,
     _build_remaining_label_expression_map,
     _carry_cell_key_prefix_expression,
     _operand_expression,
@@ -43,6 +44,19 @@ def _render_carry_cell_helper(
         collection_format=collection_format,
         collection_name=collection_name,
     )
+    tracked_export_lines, tracked_export_expressions = (
+        _render_tensorkrowch_export_tracking_lines(
+            simulation=simulation,
+            collection_format=collection_format,
+            collection_name=collection_name,
+        )
+        if engine is EngineName.TENSORKROWCH
+        else ([], {})
+    )
+    if tracked_export_lines:
+        if network_connection_lines:
+            network_connection_lines.append("")
+        network_connection_lines.extend(tracked_export_lines)
     previous_interface_lines = _render_carry_boundary_setup(
         simulation=simulation,
         engine=engine,
@@ -55,6 +69,7 @@ def _render_carry_cell_helper(
         engine=engine,
         collection_format=collection_format,
         collection_name=collection_name,
+        tracked_export_expressions=tracked_export_expressions,
     )
     return render_linear_periodic_helper(
         helper_name=helper_name,
@@ -125,6 +140,49 @@ def _render_carry_boundary_setup(
     return lines
 
 
+def _render_tensorkrowch_export_tracking_lines(
+    *,
+    simulation: _CarryPlanSimulation,
+    collection_format: TensorCollectionFormat,
+    collection_name: str,
+) -> tuple[list[str], dict[str, str]]:
+    """Track only current-cell local-open edges before later contractions rename them."""
+    if not simulation.local_open_labels:
+        return [], {}
+
+    label_expression_by_label: dict[str, str] = {}
+    for tensor in simulation.prepared.tensors:
+        tensor_expression = tensor_collection_reference_by_id(
+            simulation.prepared,
+            tensor.spec.id,
+            collection_format,
+            collection_name,
+        )
+        runtime_axis_names = _axis_names_for_engine(
+            EngineName.TENSORKROWCH,
+            tuple(index.spec.name for index in tensor.indices),
+        )
+        for index, runtime_axis_name in zip(
+            tensor.indices,
+            runtime_axis_names,
+            strict=True,
+        ):
+            label_expression_by_label[index.label] = (
+                f"{tensor_expression}[{runtime_axis_name!r}]"
+            )
+
+    lines = ["# Tracked current-cell edges"]
+    tracked_expressions: dict[str, str] = {}
+    for tracked_index, label in enumerate(simulation.local_open_labels):
+        label_expression = label_expression_by_label.get(label)
+        if label_expression is None:
+            continue
+        variable_name = f"tracked_edge_{tracked_index}"
+        lines.append(f"{variable_name} = {label_expression}")
+        tracked_expressions[label] = variable_name
+    return lines, tracked_expressions
+
+
 def _render_carry_plan_lines(
     *,
     simulation: _CarryPlanSimulation,
@@ -132,6 +190,7 @@ def _render_carry_plan_lines(
     engine: EngineName,
     collection_format: TensorCollectionFormat,
     collection_name: str,
+    tracked_export_expressions: dict[str, str],
 ) -> tuple[list[str], list[str]]:
     """Render all carry-mode contractions and helper epilogue lines."""
     if engine is EngineName.TENSORKROWCH and any(
@@ -197,14 +256,18 @@ def _render_carry_plan_lines(
                 "results_list.append(tk.contract_between("
                 f"{left_expression}, {right_expression}))"
             )
+            if step_index < len(simulation.real_steps) - 1:
+                contraction_lines.append(
+                    "results_list[-1].reattach_edges(override=True)"
+                )
         contraction_lines.append("")
 
     final_result_index = (
         len(simulation.real_steps) - 1 if simulation.real_steps else None
     )
     output_lines: list[str] = []
-    if engine is EngineName.TENSORKROWCH and simulation.outgoing_interface_operand_ids:
-        for operand_id in dict.fromkeys(simulation.outgoing_interface_operand_ids):
+    if engine is EngineName.TENSORKROWCH:
+        for operand_id in dict.fromkeys(simulation.remaining_operand_ids):
             if operand_id not in simulation.result_index_by_step_id:
                 continue
             operand_expression = _operand_expression(
@@ -213,7 +276,7 @@ def _render_carry_plan_lines(
                 step_result_indexes=simulation.result_index_by_step_id,
                 latest_result_index=final_result_index,
             )
-            output_lines.append(f"{operand_expression}.reattach_edges()")
+            output_lines.append(f"{operand_expression}.reattach_edges(override=True)")
 
     label_expression_by_label = _build_remaining_label_expression_map(
         remaining_operand_ids=simulation.remaining_operand_ids,
@@ -222,6 +285,8 @@ def _render_carry_plan_lines(
         step_result_indexes=simulation.result_index_by_step_id,
         latest_result_index=final_result_index,
     )
+    if tracked_export_expressions:
+        label_expression_by_label.update(tracked_export_expressions)
     local_open_expressions = [
         label_expression_by_label[label]
         for label in simulation.local_open_labels

@@ -235,6 +235,7 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
     code_pane_index = html.index('id="sidebar-pane-code"')
     engine_index = html.index('id="engine-select"')
     collection_index = html.index('id="collection-format-select"')
+    metadata_index = html.index('id="codegen-roundtrip-metadata-checkbox"')
     generate_index = html.index('id="generate-button"')
     copy_index = html.index('id="copy-code-button"')
     expand_index = html.index('id="expand-generated-code-button"')
@@ -247,8 +248,12 @@ def test_root_groups_export_actions_and_code_generation_controls_as_requested(
         < generate_index
         < copy_index
         < expand_index
+        < metadata_index
         < warning_index
     )
+    assert 'id="codegen-roundtrip-metadata-field"' in html
+    assert 'id="codegen-roundtrip-metadata-checkbox"' in html
+    assert ">Metadata<" in html
     assert 'id="copy-code-button"' in html
     assert 'id="expand-generated-code-button"' in html
     assert 'id="generated-code-view"' in html
@@ -787,6 +792,8 @@ def test_css_asset_styles_grouped_export_and_code_generation_controls(
     assert "background: #0e639c;" not in body
     assert ".code-header-controls {" in body
     assert ".code-header-controls .code-format-picker {" in body
+    assert ".code-metadata-toggle {" in body
+    assert ".code-metadata-toggle input {" in body
     assert ".code-format-picker.select-chevron-field::after {" in body
     assert ".code-format-picker select {" in body
     assert "appearance: none;" in body
@@ -2103,6 +2110,8 @@ def test_toolbar_assets_route_file_and_template_actions_through_cursor_style_men
         'exportFormatSelect: document.getElementById("export-format-select")'
         in dom_body
     )
+    assert "codegenRoundtripMetadataField: document.getElementById(" in dom_body
+    assert "codegenRoundtripMetadataCheckbox: document.getElementById(" in dom_body
     assert (
         'codeGenerationWarning: document.getElementById("code-generation-warning")'
         in dom_body
@@ -2476,7 +2485,9 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'aria-haspopup="dialog"' in html
     assert 'id="reflow-layout-popover"' in html
     assert 'id="reflow-auto-layout-button"' in html
-    assert 'id="reflow-align-left-button"' not in html
+    assert 'id="reflow-align-horizontal-button"' in html
+    assert 'id="reflow-align-vertical-button"' in html
+    assert 'id="reflow-rotate-selection-button"' in html
     assert 'id="reflow-indices-left-button"' in html
     assert 'id="reflow-indices-reset-button"' in html
     assert 'id="reflow-arrange-chain-button"' in html
@@ -2513,19 +2524,40 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert 'class="help-close-icon"' in html
     assert '<span class="template-parameter-title">Template</span>' not in html
     assert re.search(
-        r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-auto-layout-button"[\s\S]*>\s*Auto layout\s*<[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
+        r'<div class="button-row reflow-action-row">[\s\S]*id="reflow-auto-layout-button"[\s\S]*>\s*Auto layout\s*<[\s\S]*id="reflow-align-horizontal-button"[\s\S]*>\s*(?:&#8596;|↔)\s*<[\s\S]*id="reflow-align-vertical-button"[\s\S]*>\s*(?:&#8597;|↕)\s*<[\s\S]*id="reflow-rotate-selection-button"[\s\S]*>\s*(?:&#8635;|↻)\s*<[\s\S]*id="reflow-arrange-chain-button"[\s\S]*>\s*Chain\s*<[\s\S]*id="reflow-arrange-tree-button"[\s\S]*>\s*Tree\s*<[\s\S]*id="reflow-arrange-grid-button"[\s\S]*>\s*Grid\s*<[\s\S]*id="reflow-snap-grid-button"[\s\S]*>\s*Snap to Grid\s*<',
         html,
     )
     assert re.search(
         r'Indices[\s\S]*<div class="button-row reflow-align-row reflow-indices-row">[\s\S]*id="reflow-indices-left-button"[\s\S]*id="reflow-indices-right-button"[\s\S]*id="reflow-indices-top-button"[\s\S]*id="reflow-indices-bottom-button"[\s\S]*id="reflow-indices-reset-button"',
         html,
     )
-    assert 'aria-label="Align left"' not in html
-    assert 'aria-label="Align middle"' not in html
+    assert 'aria-label="Align horizontally"' in html
+    assert 'aria-label="Align vertically"' in html
+    assert 'aria-label="Rotate 90 degrees clockwise"' in html
     assert 'aria-label="Move indices left"' in html
     assert (
-        'title="Align left: place selected tensors on the same left edge while keeping them separated."'
-        not in html
+        'title="Align horizontal: line up the selected tensors on the same horizontal axis while keeping their left-to-right spacing."'
+        in html
+    )
+    assert (
+        'title="Align vertical: line up the selected tensors on the same vertical axis while keeping their top-to-bottom spacing."'
+        in html
+    )
+    assert (
+        'title="Rotate 90° clockwise: rotate the selected tensors and their ports around the selection center."'
+        in html
+    )
+    assert not re.search(
+        r'id="reflow-align-horizontal-button"[\s\S]*>\s*Align horizontal\s*<',
+        html,
+    )
+    assert not re.search(
+        r'id="reflow-align-vertical-button"[\s\S]*>\s*Align vertical\s*<',
+        html,
+    )
+    assert not re.search(
+        r'id="reflow-rotate-selection-button"[\s\S]*>\s*Rotate 90(?:°|Â°)\s*<',
+        html,
     )
     assert (
         'title="Chain: place selected tensors in one ordered row, following bonds when present."'
@@ -2622,7 +2654,15 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         in dom_body
     )
     assert (
-        'reflowAlignLeftButton: document.getElementById("reflow-align-left-button")'
+        'reflowAlignHorizontalButton: document.getElementById("reflow-align-horizontal-button")'
+        in dom_body
+    )
+    assert (
+        'reflowAlignVerticalButton: document.getElementById("reflow-align-vertical-button")'
+        in dom_body
+    )
+    assert (
+        'reflowRotateSelectionButton: document.getElementById("reflow-rotate-selection-button")'
         in dom_body
     )
     assert (
@@ -2712,10 +2752,33 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
         'bindListener(templateSettingsButton, "click", () => {' in shell_bindings_body
     )
     assert "toggleReflowLayoutPopover" in shell_bindings_body
-    assert "reflowAlignLeftButton" in shell_bindings_body
+    assert "reflowAlignHorizontalButton" in shell_bindings_body
+    assert "reflowAlignVerticalButton" in shell_bindings_body
+    assert "reflowRotateSelectionButton" in shell_bindings_body
     assert "reflowIndicesLeftButton" in shell_bindings_body
     assert "reflowArrangeGridButton" in shell_bindings_body
+    assert "codegenRoundtripMetadataCheckbox" in shell_bindings_body
     assert 'bindReflowAction(reflowAutoLayoutButton, "auto");' in shell_bindings_body
+    assert (
+        'bindReflowAction(reflowAlignHorizontalButton, "align-horizontal");'
+        in shell_bindings_body
+    )
+    assert (
+        'bindReflowAction(reflowAlignVerticalButton, "align-vertical");'
+        in shell_bindings_body
+    )
+    assert (
+        'bindReflowAction(reflowRotateSelectionButton, "rotate-90");'
+        in shell_bindings_body
+    )
+    assert (
+        'bindListener(codegenRoundtripMetadataCheckbox, "change", (event) => {'
+        in shell_bindings_body
+    )
+    assert (
+        "store.setIncludeRoundtripMetadata(event.target.checked);"
+        in shell_bindings_body
+    )
     assert "applyReflowIndicesAction" in shell_bindings_body
     assert (
         'bindListener(loadSessionTemplateMenuItem, "click", () => {'

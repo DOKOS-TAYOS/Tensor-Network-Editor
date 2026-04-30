@@ -27,6 +27,7 @@ def generate_code(
     *,
     engine: EngineIdentifier,
     collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
+    include_roundtrip_metadata: bool = True,
     output_path: StrPath | None = None,
     print_code: bool = False,
     external_data_base_path: StrPath | None = None,
@@ -43,7 +44,10 @@ def generate_code(
             external_data_base_path=external_data_base_path,
         )
         result = _generate_code(
-            codegen_spec, engine, collection_format=collection_format
+            codegen_spec,
+            engine,
+            collection_format=collection_format,
+            include_roundtrip_metadata=include_roundtrip_metadata,
         )
         if print_code:
             log_branch(LOGGER, "Printing generated code to stdout")

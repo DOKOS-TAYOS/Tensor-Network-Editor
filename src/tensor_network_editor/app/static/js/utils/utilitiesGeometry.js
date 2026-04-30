@@ -41,6 +41,22 @@ export function createUtilityGeometryBindings({
     );
   }
 
+  function getVisibleLayeringTensors() {
+    if (typeof ctx.getVisibleTensors === "function") {
+      const visibleTensors = ctx.getVisibleTensors();
+      if (Array.isArray(visibleTensors)) {
+        return visibleTensors;
+      }
+    }
+    if (typeof runtime.getVisibleTensors === "function") {
+      const visibleTensors = runtime.getVisibleTensors();
+      if (Array.isArray(visibleTensors)) {
+        return visibleTensors;
+      }
+    }
+    return Array.isArray(state.spec?.tensors) ? state.spec.tensors : [];
+  }
+
   function isIndexElevated(indexId, tensorId = null) {
     return Boolean(
       isIndexConnected(indexId) ||
@@ -443,7 +459,7 @@ export function createUtilityGeometryBindings({
   }
 
   function reconcileTensorOrder() {
-    const tensorIds = state.spec ? state.spec.tensors.map((tensor) => tensor.id) : [];
+    const tensorIds = getVisibleLayeringTensors().map((tensor) => tensor.id);
     const activeTensorIds = new Set(tensorIds);
     const nextOrder = [];
     const seenTensorIds = new Set();
@@ -488,13 +504,21 @@ export function createUtilityGeometryBindings({
       return;
     }
     reconcileTensorOrder();
+    const visibleTensors = getVisibleLayeringTensors();
+    const visibleTensorById = Object.fromEntries(
+      visibleTensors.map((tensor) => [tensor.id, tensor])
+    );
     state.tensorOrder.forEach((tensorId) => {
       const tensorRank = state.tensorRankById[tensorId] ?? 0;
       const tensorElement = state.cy.getElementById(tensorId);
       if (tensorElement && tensorElement.length) {
         tensorElement.data("zIndex", TENSOR_BASE_Z_INDEX + tensorRank);
       }
-      const tensor = runtime.findTensorById(tensorId);
+      const tensor =
+        visibleTensorById[tensorId] ||
+        (typeof runtime.findTensorById === "function"
+          ? runtime.findTensorById(tensorId)
+          : null);
       if (!tensor) {
         return;
       }

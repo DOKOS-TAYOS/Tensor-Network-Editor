@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ...codegen.modes._linear_periodic.carry import _build_carry_simulation_map
 from ...codegen.shared.common import prepare_network
+from ...errors import CodeGenerationError
 from ...models import (
     ContractionStepSpec,
+    EngineName,
     LinearPeriodicCellName,
     LinearPeriodicCellSpec,
     LinearPeriodicChainSpec,
@@ -381,6 +384,74 @@ def _validate_linear_periodic_carry_mode(
 
     for cell_name, cell in iter_linear_periodic_cells(chain):
         _validate_linear_periodic_carry_cell(cell_name, cell, issues=issues)
+    _validate_linear_periodic_carry_codegen_compatibility(chain, issues=issues)
+
+
+def _validate_linear_periodic_carry_codegen_compatibility(
+    chain: LinearPeriodicChainSpec,
+    *,
+    issues: list[ValidationIssue],
+) -> None:
+    """Reject carry plans that the linear-periodic code generator cannot realize."""
+    try:
+        _build_carry_simulation_map(
+            chain=chain,
+            engine=EngineName.TENSORNETWORK,
+        )
+    except CodeGenerationError as exc:
+        append_issue(
+            issues,
+            code="linear-periodic-carry-codegen",
+            message=str(exc),
+            path=_linear_periodic_codegen_issue_path(chain, str(exc)),
+        )
+
+
+def _linear_periodic_codegen_issue_path(
+    chain: LinearPeriodicChainSpec,
+    message: str,
+) -> str:
+    """Map one carry-codegen validation failure onto the closest spec path."""
+    step_marker = "Carry step '"
+    cell_marker = "' in cell '"
+    if message.startswith(step_marker) and cell_marker in message:
+        step_start = len(step_marker)
+        step_end = message.find("'", step_start)
+        cell_start = message.find(cell_marker, step_end) + len(cell_marker)
+        cell_end = message.find("'", cell_start)
+        if step_end > step_start and cell_end > cell_start:
+            step_id = message[step_start:step_end]
+            cell_name_text = message[cell_start:cell_end]
+            cell_name = _linear_periodic_cell_name_from_text(cell_name_text)
+            if cell_name is not None:
+                return (
+                    f"{_linear_periodic_cell_prefix(cell_name)}"
+                    f".contraction_plan.steps.{step_id}"
+                )
+
+    cell_prefix_marker = "Cell '"
+    if message.startswith(cell_prefix_marker):
+        cell_start = len(cell_prefix_marker)
+        cell_end = message.find("'", cell_start)
+        if cell_end > cell_start:
+            cell_name = _linear_periodic_cell_name_from_text(
+                message[cell_start:cell_end]
+            )
+            if cell_name is not None:
+                return f"{_linear_periodic_cell_prefix(cell_name)}.contraction_plan"
+
+    active_cell = chain.active_cell
+    return f"{_linear_periodic_cell_prefix(active_cell)}.contraction_plan"
+
+
+def _linear_periodic_cell_name_from_text(
+    cell_name_text: str,
+) -> LinearPeriodicCellName | None:
+    """Return the enum value for one serialized linear-periodic cell name."""
+    try:
+        return LinearPeriodicCellName(cell_name_text)
+    except ValueError:
+        return None
 
 
 def _validate_linear_periodic_carry_cell(

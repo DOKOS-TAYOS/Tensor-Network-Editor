@@ -836,6 +836,39 @@ def test_validate_spec_accepts_linear_periodic_partial_carry_chain() -> None:
     assert validate_spec(build_linear_periodic_partial_carry_chain_spec()) == []
 
 
+def test_validate_spec_rejects_linear_periodic_previous_step_that_merges_multiple_payload_operands() -> (
+    None
+):
+    spec = build_linear_periodic_partial_carry_chain_spec()
+    assert spec.linear_periodic_chain is not None
+    periodic_cell = spec.linear_periodic_chain.periodic_cell
+    assert periodic_cell.contraction_plan is not None
+    periodic_cell.contraction_plan.steps = [
+        ContractionStepSpec(
+            id="merge_previous_locals",
+            left_operand_id="periodic_previous_left_tensor",
+            right_operand_id="periodic_previous_right_tensor",
+        ),
+        ContractionStepSpec(
+            id="consume_previous_payload",
+            left_operand_id="__linear_previous__",
+            right_operand_id="merge_previous_locals",
+        ),
+        ContractionStepSpec(
+            id="carry_next_left",
+            left_operand_id="periodic_next_left_tensor",
+            right_operand_id="__linear_next__",
+        ),
+    ]
+
+    issue = find_issue(validate_spec(spec), "linear-periodic-carry-codegen")
+
+    assert issue.path == (
+        "linear_periodic_chain.periodic_cell.contraction_plan.steps.consume_previous_payload"
+    )
+    assert "one previous carry operand per step" in issue.message
+
+
 def test_build_carry_validation_context_internal_helper_collects_interface_state() -> (
     None
 ):

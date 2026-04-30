@@ -33,6 +33,33 @@ _PARALLEL_EDGE_SPACING = 22.0
 _LIGHT_TEXT_FILL = "#f5f9ff"
 _DARK_TEXT_FILL = "#091018"
 _READABLE_TEXT_LUMINANCE_THRESHOLD = 0.62
+_FREE_INDEX_CLEARANCE_MARGIN = 18.0
+_FREE_INDEX_DIAGONAL_DIRECTIONS = (
+    CanvasPosition(x=1.0, y=1.0),
+    CanvasPosition(x=1.0, y=-1.0),
+    CanvasPosition(x=-1.0, y=1.0),
+    CanvasPosition(x=-1.0, y=-1.0),
+)
+_FREE_INDEX_CARDINAL_DIRECTIONS = (
+    CanvasPosition(x=1.0, y=0.0),
+    CanvasPosition(x=-1.0, y=0.0),
+    CanvasPosition(x=0.0, y=1.0),
+    CanvasPosition(x=0.0, y=-1.0),
+)
+_FREE_INDEX_DIRECTION_HINTS = {
+    "left": CanvasPosition(x=-1.0, y=0.0),
+    "right": CanvasPosition(x=1.0, y=0.0),
+    "up": CanvasPosition(x=0.0, y=-1.0),
+    "down": CanvasPosition(x=0.0, y=1.0),
+    "north": CanvasPosition(x=0.0, y=-1.0),
+    "south": CanvasPosition(x=0.0, y=1.0),
+    "east": CanvasPosition(x=1.0, y=0.0),
+    "west": CanvasPosition(x=-1.0, y=0.0),
+    "xp": CanvasPosition(x=1.0, y=0.0),
+    "xm": CanvasPosition(x=-1.0, y=0.0),
+    "yp": CanvasPosition(x=0.0, y=-1.0),
+    "ym": CanvasPosition(x=0.0, y=1.0),
+}
 
 LOGGER = logging.getLogger(__name__)
 
@@ -288,6 +315,9 @@ class _SvgRenderer:
             for index_position, index in enumerate(tensor.indices)
         }
         self._connected_index_ids = _connected_index_ids(spec)
+        self._free_index_direction_by_id: dict[str, CanvasPosition] = {}
+        self._adjacency_by_tensor_id = self._build_tensor_adjacency()
+        self._component_tensor_ids_by_tensor_id = self._build_component_tensor_ids()
 
     def render(self) -> str:
         """Return the complete SVG document."""
@@ -657,19 +687,26 @@ class _SvgRenderer:
         tensor: TensorSpec,
         index: IndexSpec,
         *,
-        port_length: float = 34.0,
+        port_length: float | None = None,
     ) -> CanvasPosition:
         direction = self._index_direction(tensor, index)
         source = self.connection_point(tensor, index)
+        resolved_port_length = (
+            self.open_index_port_length(tensor) if port_length is None else port_length
+        )
         return CanvasPosition(
-            x=source.x + direction.x * port_length,
-            y=source.y + direction.y * port_length,
+            x=source.x + direction.x * resolved_port_length,
+            y=source.y + direction.y * resolved_port_length,
         )
 
     def index_label_point(self, tensor: TensorSpec, index: IndexSpec) -> CanvasPosition:
         direction = self._index_direction(tensor, index)
         source = self.connection_point(tensor, index)
-        label_distance = 18.0 if self.is_index_connected(index.id) else 24.0
+        label_distance = (
+            18.0
+            if self.is_index_connected(index.id)
+            else self.open_index_port_length(tensor) + 14.0
+        )
         return CanvasPosition(
             x=source.x + direction.x * label_distance,
             y=source.y + direction.y * label_distance + 4.0,
@@ -684,6 +721,16 @@ class _SvgRenderer:
         return "middle"
 
     def _index_direction(self, tensor: TensorSpec, index: IndexSpec) -> CanvasPosition:
+        if not self.is_index_connected(index.id):
+            return self._free_index_direction(tensor, index)
+        return self._stored_index_direction(tensor, index)
+
+    def open_index_port_length(self, tensor: TensorSpec) -> float:
+        return 2.0 * self.tensor_radius(tensor)
+
+    def _stored_index_direction(
+        self, tensor: TensorSpec, index: IndexSpec
+    ) -> CanvasPosition:
         magnitude = hypot(index.offset.x, index.offset.y)
         if magnitude > 1e-6:
             return CanvasPosition(
@@ -693,6 +740,568 @@ class _SvgRenderer:
         index_count = max(1, len(tensor.indices))
         angle = -pi / 2 + (2 * pi * index_order / index_count)
         return CanvasPosition(x=cos(angle), y=sin(angle))
+
+    def _free_index_direction(
+        self, tensor: TensorSpec, index: IndexSpec
+    ) -> CanvasPosition:
+        cached_direction = self._free_index_direction_by_id.get(index.id)
+        if cached_direction is not None:
+            return cached_direction
+        self._assign_free_index_directions(tensor)
+        cached_direction = self._free_index_direction_by_id.get(index.id)
+        if cached_direction is not None:
+            return cached_direction
+        return self._stored_index_direction(tensor, index)
+
+    def _assign_free_index_directions(self, tensor: TensorSpec) -> None:
+        free_indices = [
+            index for index in tensor.indices if not self.is_index_connected(index.id)
+        ]
+        if not free_indices:
+            return
+        component_tensors = self._component_tensors_for_tensor(tensor.id)
+        occupied_directions = self._occupied_directions(tensor)
+        assigned_directions: list[CanvasPosition] = []
+        for index in free_indices:
+            candidate_directions = self._candidate_directions_for_free_index(
+                tensor,
+                index,
+                component_tensors,
+            )
+            direction = self._choose_best_free_index_direction(
+                tensor,
+                component_tensors,
+                candidate_directions,
+                [*occupied_directions, *assigned_directions],
+            )
+            self._free_index_direction_by_id[index.id] = direction
+            assigned_directions.append(direction)
+
+    def _occupied_directions(self, tensor: TensorSpec) -> list[CanvasPosition]:
+        directions: list[CanvasPosition] = []
+        for index in tensor.indices:
+            if not self.is_index_connected(index.id):
+                continue
+            direction = self._connected_index_direction(tensor, index)
+            if direction is not None:
+                directions.append(direction)
+        return directions
+
+    def _connected_index_direction(
+        self, tensor: TensorSpec, index: IndexSpec
+    ) -> CanvasPosition | None:
+        for edge in self._spec.edges:
+            if (
+                edge.left.index_id == index.id
+                and edge.right.tensor_id in self._tensor_by_id
+            ):
+                return _normalize_direction(
+                    CanvasPosition(
+                        x=self._tensor_by_id[edge.right.tensor_id].position.x
+                        - tensor.position.x,
+                        y=self._tensor_by_id[edge.right.tensor_id].position.y
+                        - tensor.position.y,
+                    )
+                )
+            if (
+                edge.right.index_id == index.id
+                and edge.left.tensor_id in self._tensor_by_id
+            ):
+                return _normalize_direction(
+                    CanvasPosition(
+                        x=self._tensor_by_id[edge.left.tensor_id].position.x
+                        - tensor.position.x,
+                        y=self._tensor_by_id[edge.left.tensor_id].position.y
+                        - tensor.position.y,
+                    )
+                )
+        for hyperedge in self._spec.hyperedges:
+            endpoint_ids = {endpoint.index_id for endpoint in hyperedge.endpoints}
+            if index.id not in endpoint_ids:
+                continue
+            hub = self._hyperedge_hub_position(hyperedge)
+            return _normalize_direction(
+                CanvasPosition(x=hub.x - tensor.position.x, y=hub.y - tensor.position.y)
+            )
+        return None
+
+    def _candidate_directions_for_free_index(
+        self,
+        tensor: TensorSpec,
+        index: IndexSpec,
+        component_tensors: Sequence[TensorSpec],
+    ) -> list[CanvasPosition]:
+        directional_hint = self._directional_index_hint(index)
+        candidates: list[CanvasPosition] = []
+        component_kind = self._classify_component_shape(component_tensors)
+        if component_kind == "linear":
+            candidates.extend(self._linear_component_candidates(component_tensors))
+        elif component_kind == "circular":
+            candidates.extend(
+                self._circular_component_candidates(tensor, component_tensors)
+            )
+        elif component_kind == "grid2d":
+            candidates.extend(
+                self._grid_component_candidates(tensor, component_tensors)
+            )
+        if directional_hint is not None:
+            if component_kind == "generic":
+                candidates.insert(0, directional_hint)
+            else:
+                candidates.append(directional_hint)
+        candidates.extend(self._generic_component_candidates(tensor, component_tensors))
+        candidates.extend(_FREE_INDEX_CARDINAL_DIRECTIONS)
+        candidates.extend(_FREE_INDEX_DIAGONAL_DIRECTIONS)
+        return _deduplicate_directions(candidates)
+
+    def _choose_best_free_index_direction(
+        self,
+        tensor: TensorSpec,
+        component_tensors: Sequence[TensorSpec],
+        candidate_directions: Sequence[CanvasPosition],
+        occupied_directions: Sequence[CanvasPosition],
+    ) -> CanvasPosition:
+        best_direction: CanvasPosition | None = None
+        best_score = float("-inf")
+        for candidate_index, candidate_direction in enumerate(candidate_directions):
+            score = 1000.0 - candidate_index * 10.0
+            score -= self._occupied_direction_penalty(
+                candidate_direction, occupied_directions
+            )
+            score -= self._tensor_clearance_penalty(
+                tensor, component_tensors, candidate_direction
+            )
+            if score > best_score:
+                best_score = score
+                best_direction = candidate_direction
+        return best_direction or CanvasPosition(x=0.0, y=-1.0)
+
+    def _occupied_direction_penalty(
+        self,
+        candidate_direction: CanvasPosition,
+        occupied_directions: Sequence[CanvasPosition],
+    ) -> float:
+        if not occupied_directions:
+            return 0.0
+        closest_alignment = max(
+            _dot_product(candidate_direction, occupied_direction)
+            for occupied_direction in occupied_directions
+        )
+        if closest_alignment <= 0.2:
+            return 0.0
+        return (closest_alignment - 0.2) * 500.0
+
+    def _tensor_clearance_penalty(
+        self,
+        tensor: TensorSpec,
+        component_tensors: Sequence[TensorSpec],
+        candidate_direction: CanvasPosition,
+    ) -> float:
+        radius = 0.0 if self.is_port_tensor(tensor) else self.tensor_radius(tensor)
+        segment_start = CanvasPosition(
+            x=tensor.position.x + candidate_direction.x * radius,
+            y=tensor.position.y + candidate_direction.y * radius,
+        )
+        segment_end = CanvasPosition(
+            x=segment_start.x
+            + candidate_direction.x * self.open_index_port_length(tensor),
+            y=segment_start.y
+            + candidate_direction.y * self.open_index_port_length(tensor),
+        )
+        penalty = 0.0
+        for other_tensor in component_tensors:
+            if other_tensor.id == tensor.id:
+                continue
+            distance = _point_to_segment_distance(
+                other_tensor.position, segment_start, segment_end
+            )
+            clearance = distance - self.tensor_radius(other_tensor)
+            if clearance < _FREE_INDEX_CLEARANCE_MARGIN:
+                penalty += (_FREE_INDEX_CLEARANCE_MARGIN - clearance) * 8.0
+        return penalty
+
+    def _directional_index_hint(self, index: IndexSpec) -> CanvasPosition | None:
+        normalized_name = index.name.strip().lower()
+        return _FREE_INDEX_DIRECTION_HINTS.get(normalized_name)
+
+    def _linear_component_candidates(
+        self, component_tensors: Sequence[TensorSpec]
+    ) -> list[CanvasPosition]:
+        axis_direction = self._component_primary_axis(component_tensors)
+        perpendicular_direction = CanvasPosition(
+            x=-axis_direction.y, y=axis_direction.x
+        )
+        return [
+            perpendicular_direction,
+            CanvasPosition(x=-perpendicular_direction.x, y=-perpendicular_direction.y),
+            axis_direction,
+            CanvasPosition(x=-axis_direction.x, y=-axis_direction.y),
+        ]
+
+    def _circular_component_candidates(
+        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+    ) -> list[CanvasPosition]:
+        center = _average_position(
+            [component_tensor.position for component_tensor in component_tensors]
+        )
+        radial_direction = _normalize_direction(
+            CanvasPosition(
+                x=tensor.position.x - center.x,
+                y=tensor.position.y - center.y,
+            )
+        )
+        perpendicular_direction = CanvasPosition(
+            x=-radial_direction.y, y=radial_direction.x
+        )
+        return [
+            radial_direction,
+            perpendicular_direction,
+            CanvasPosition(x=-perpendicular_direction.x, y=-perpendicular_direction.y),
+            CanvasPosition(x=-radial_direction.x, y=-radial_direction.y),
+        ]
+
+    def _grid_component_candidates(
+        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+    ) -> list[CanvasPosition]:
+        basis_directions = self._grid_component_basis(component_tensors)
+        if basis_directions is None:
+            return []
+        primary_axis, secondary_axis = basis_directions
+        primary_projections = sorted(
+            {
+                round(
+                    _dot_product(component_tensor.position, primary_axis),
+                    6,
+                )
+                for component_tensor in component_tensors
+            }
+        )
+        secondary_projections = sorted(
+            {
+                round(
+                    _dot_product(component_tensor.position, secondary_axis),
+                    6,
+                )
+                for component_tensor in component_tensors
+            }
+        )
+        primary_projection = round(_dot_product(tensor.position, primary_axis), 6)
+        secondary_projection = round(_dot_product(tensor.position, secondary_axis), 6)
+        candidates: list[CanvasPosition] = []
+        if (
+            secondary_projections
+            and abs(secondary_projection - secondary_projections[0]) < 1e-6
+        ):
+            candidates.append(CanvasPosition(x=-secondary_axis.x, y=-secondary_axis.y))
+        if (
+            secondary_projections
+            and abs(secondary_projection - secondary_projections[-1]) < 1e-6
+        ):
+            candidates.append(secondary_axis)
+        if (
+            primary_projections
+            and abs(primary_projection - primary_projections[0]) < 1e-6
+        ):
+            candidates.append(CanvasPosition(x=-primary_axis.x, y=-primary_axis.y))
+        if (
+            primary_projections
+            and abs(primary_projection - primary_projections[-1]) < 1e-6
+        ):
+            candidates.append(primary_axis)
+        if len(candidates) >= 2:
+            diagonal = _normalize_direction(
+                CanvasPosition(
+                    x=sum(candidate.x for candidate in candidates),
+                    y=sum(candidate.y for candidate in candidates),
+                )
+            )
+            candidates.insert(0, diagonal)
+        return candidates
+
+    def _generic_component_candidates(
+        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+    ) -> list[CanvasPosition]:
+        neighbor_tensor_ids = self._adjacency_by_tensor_id.get(tensor.id, set())
+        neighbor_tensors = [
+            self._tensor_by_id[neighbor_tensor_id]
+            for neighbor_tensor_id in neighbor_tensor_ids
+            if neighbor_tensor_id in self._tensor_by_id
+        ]
+        candidates: list[CanvasPosition] = []
+        if neighbor_tensors:
+            neighbor_center = _average_position(
+                [neighbor_tensor.position for neighbor_tensor in neighbor_tensors]
+            )
+            candidates.append(
+                _normalize_direction(
+                    CanvasPosition(
+                        x=tensor.position.x - neighbor_center.x,
+                        y=tensor.position.y - neighbor_center.y,
+                    )
+                )
+            )
+        component_center = _average_position(
+            [component_tensor.position for component_tensor in component_tensors]
+        )
+        if (
+            abs(component_center.x - tensor.position.x) > 1e-6
+            or abs(component_center.y - tensor.position.y) > 1e-6
+        ):
+            candidates.append(
+                _normalize_direction(
+                    CanvasPosition(
+                        x=tensor.position.x - component_center.x,
+                        y=tensor.position.y - component_center.y,
+                    )
+                )
+            )
+        candidates.extend(
+            sorted(
+                [*_FREE_INDEX_CARDINAL_DIRECTIONS, *_FREE_INDEX_DIAGONAL_DIRECTIONS],
+                key=lambda direction: self._generic_direction_sort_key(
+                    tensor,
+                    component_tensors,
+                    direction,
+                ),
+            )
+        )
+        return candidates
+
+    def _generic_direction_sort_key(
+        self,
+        tensor: TensorSpec,
+        component_tensors: Sequence[TensorSpec],
+        direction: CanvasPosition,
+    ) -> tuple[float, float]:
+        penalty = self._tensor_clearance_penalty(tensor, component_tensors, direction)
+        return (penalty, -abs(direction.x) - abs(direction.y))
+
+    def _classify_component_shape(self, component_tensors: Sequence[TensorSpec]) -> str:
+        tensor_ids = {tensor.id for tensor in component_tensors}
+        if len(tensor_ids) >= 2 and self._is_linear_component(tensor_ids):
+            return "linear"
+        if len(tensor_ids) >= 3 and self._is_circular_component(tensor_ids):
+            return "circular"
+        if len(tensor_ids) >= 4 and self._is_grid_component(component_tensors):
+            return "grid2d"
+        return "generic"
+
+    def _is_linear_component(self, tensor_ids: set[str]) -> bool:
+        component_tensors = [
+            self._tensor_by_id[tensor_id]
+            for tensor_id in tensor_ids
+            if tensor_id in self._tensor_by_id
+        ]
+        degree_by_tensor_id = {
+            tensor_id: len(self._adjacency_by_tensor_id.get(tensor_id, set()))
+            for tensor_id in tensor_ids
+        }
+        edge_count = sum(degree_by_tensor_id.values()) // 2
+        degree_one_count = sum(
+            1 for degree in degree_by_tensor_id.values() if degree == 1
+        )
+        axis_direction = self._component_primary_axis(component_tensors)
+        axis_origin = _average_position(
+            [component_tensor.position for component_tensor in component_tensors]
+        )
+        projections = [
+            _dot_product(
+                CanvasPosition(
+                    x=component_tensor.position.x - axis_origin.x,
+                    y=component_tensor.position.y - axis_origin.y,
+                ),
+                axis_direction,
+            )
+            for component_tensor in component_tensors
+        ]
+        dominant_span = max(projections, default=0.0) - min(projections, default=0.0)
+        minor_span = max(
+            (
+                abs(
+                    _cross_product(
+                        axis_direction,
+                        CanvasPosition(
+                            x=component_tensor.position.x - axis_origin.x,
+                            y=component_tensor.position.y - axis_origin.y,
+                        ),
+                    )
+                )
+                for component_tensor in component_tensors
+            ),
+            default=0.0,
+        )
+        return (
+            edge_count == len(tensor_ids) - 1
+            and max(degree_by_tensor_id.values(), default=0) <= 2
+            and degree_one_count == 2
+            and (dominant_span <= 1e-6 or minor_span <= dominant_span * 0.18)
+        )
+
+    def _is_circular_component(self, tensor_ids: set[str]) -> bool:
+        degree_by_tensor_id = {
+            tensor_id: len(self._adjacency_by_tensor_id.get(tensor_id, set()))
+            for tensor_id in tensor_ids
+        }
+        edge_count = sum(degree_by_tensor_id.values()) // 2
+        return edge_count == len(tensor_ids) and all(
+            degree == 2 for degree in degree_by_tensor_id.values()
+        )
+
+    def _is_grid_component(self, component_tensors: Sequence[TensorSpec]) -> bool:
+        basis_directions = self._grid_component_basis(component_tensors)
+        if basis_directions is None:
+            return False
+        primary_axis, secondary_axis = basis_directions
+        primary_projections = {
+            round(_dot_product(tensor.position, primary_axis), 6)
+            for tensor in component_tensors
+        }
+        secondary_projections = {
+            round(_dot_product(tensor.position, secondary_axis), 6)
+            for tensor in component_tensors
+        }
+        if len(primary_projections) < 2 or len(secondary_projections) < 2:
+            return False
+        tensor_ids = {tensor.id for tensor in component_tensors}
+        for edge in self._spec.edges:
+            if (
+                edge.left.tensor_id not in tensor_ids
+                or edge.right.tensor_id not in tensor_ids
+            ):
+                continue
+            left_tensor = self._tensor_by_id[edge.left.tensor_id]
+            right_tensor = self._tensor_by_id[edge.right.tensor_id]
+            edge_direction = _normalize_direction(
+                CanvasPosition(
+                    x=right_tensor.position.x - left_tensor.position.x,
+                    y=right_tensor.position.y - left_tensor.position.y,
+                )
+            )
+            if (
+                abs(_dot_product(edge_direction, primary_axis)) < 0.94
+                and abs(_dot_product(edge_direction, secondary_axis)) < 0.94
+            ):
+                return False
+        return True
+
+    def _component_primary_axis(
+        self, component_tensors: Sequence[TensorSpec]
+    ) -> CanvasPosition:
+        if len(component_tensors) < 2:
+            return CanvasPosition(x=0.0, y=-1.0)
+        widest_pair: tuple[TensorSpec, TensorSpec] | None = None
+        widest_distance = float("-inf")
+        for left_tensor in component_tensors:
+            for right_tensor in component_tensors:
+                if left_tensor.id == right_tensor.id:
+                    continue
+                distance = hypot(
+                    right_tensor.position.x - left_tensor.position.x,
+                    right_tensor.position.y - left_tensor.position.y,
+                )
+                if distance > widest_distance:
+                    widest_distance = distance
+                    widest_pair = (left_tensor, right_tensor)
+        if widest_pair is None:
+            return CanvasPosition(x=0.0, y=-1.0)
+        return _normalize_direction(
+            CanvasPosition(
+                x=widest_pair[1].position.x - widest_pair[0].position.x,
+                y=widest_pair[1].position.y - widest_pair[0].position.y,
+            )
+        )
+
+    def _grid_component_basis(
+        self, component_tensors: Sequence[TensorSpec]
+    ) -> tuple[CanvasPosition, CanvasPosition] | None:
+        tensor_ids = {tensor.id for tensor in component_tensors}
+        basis_directions: list[CanvasPosition] = []
+        for edge in self._spec.edges:
+            if (
+                edge.left.tensor_id not in tensor_ids
+                or edge.right.tensor_id not in tensor_ids
+            ):
+                continue
+            left_tensor = self._tensor_by_id[edge.left.tensor_id]
+            right_tensor = self._tensor_by_id[edge.right.tensor_id]
+            direction = _canonicalize_undirected_direction(
+                _normalize_direction(
+                    CanvasPosition(
+                        x=right_tensor.position.x - left_tensor.position.x,
+                        y=right_tensor.position.y - left_tensor.position.y,
+                    )
+                )
+            )
+            if all(
+                abs(_dot_product(direction, basis)) < 0.94 for basis in basis_directions
+            ):
+                basis_directions.append(direction)
+        if len(basis_directions) != 2:
+            return None
+        if abs(_dot_product(basis_directions[0], basis_directions[1])) > 0.3:
+            return None
+        return basis_directions[0], basis_directions[1]
+
+    def _build_tensor_adjacency(self) -> dict[str, set[str]]:
+        adjacency_by_tensor_id: dict[str, set[str]] = {
+            tensor.id: set() for tensor in self._spec.tensors
+        }
+        for edge in self._spec.edges:
+            adjacency_by_tensor_id.setdefault(edge.left.tensor_id, set()).add(
+                edge.right.tensor_id
+            )
+            adjacency_by_tensor_id.setdefault(edge.right.tensor_id, set()).add(
+                edge.left.tensor_id
+            )
+        for hyperedge in self._spec.hyperedges:
+            endpoint_tensor_ids = [
+                endpoint.tensor_id
+                for endpoint in hyperedge.endpoints
+                if endpoint.tensor_id in self._tensor_by_id
+            ]
+            for left_tensor_id in endpoint_tensor_ids:
+                for right_tensor_id in endpoint_tensor_ids:
+                    if left_tensor_id == right_tensor_id:
+                        continue
+                    adjacency_by_tensor_id.setdefault(left_tensor_id, set()).add(
+                        right_tensor_id
+                    )
+        return adjacency_by_tensor_id
+
+    def _build_component_tensor_ids(self) -> dict[str, list[str]]:
+        component_tensor_ids_by_tensor_id: dict[str, list[str]] = {}
+        visited_tensor_ids: set[str] = set()
+        for tensor in self._spec.tensors:
+            if tensor.id in visited_tensor_ids:
+                continue
+            queue = [tensor.id]
+            component_tensor_ids: list[str] = []
+            visited_tensor_ids.add(tensor.id)
+            while queue:
+                current_tensor_id = queue.pop(0)
+                component_tensor_ids.append(current_tensor_id)
+                for neighbor_tensor_id in self._adjacency_by_tensor_id.get(
+                    current_tensor_id, set()
+                ):
+                    if neighbor_tensor_id in visited_tensor_ids:
+                        continue
+                    visited_tensor_ids.add(neighbor_tensor_id)
+                    queue.append(neighbor_tensor_id)
+            for component_tensor_id in component_tensor_ids:
+                component_tensor_ids_by_tensor_id[component_tensor_id] = (
+                    component_tensor_ids
+                )
+        return component_tensor_ids_by_tensor_id
+
+    def _component_tensors_for_tensor(self, tensor_id: str) -> list[TensorSpec]:
+        component_tensor_ids = self._component_tensor_ids_by_tensor_id.get(
+            tensor_id, [tensor_id]
+        )
+        return [
+            self._tensor_by_id[component_tensor_id]
+            for component_tensor_id in component_tensor_ids
+            if component_tensor_id in self._tensor_by_id
+        ]
 
 
 class _TikzRenderer:
@@ -1682,6 +2291,69 @@ def _parallel_edge_control_point(
         x=midpoint.x + (-dy / length) * offset,
         y=midpoint.y + (dx / length) * offset,
     )
+
+
+def _normalize_direction(direction: CanvasPosition) -> CanvasPosition:
+    magnitude = hypot(direction.x, direction.y)
+    if magnitude <= 1e-6:
+        return CanvasPosition(x=0.0, y=-1.0)
+    return CanvasPosition(x=direction.x / magnitude, y=direction.y / magnitude)
+
+
+def _dot_product(left: CanvasPosition, right: CanvasPosition) -> float:
+    return left.x * right.x + left.y * right.y
+
+
+def _cross_product(left: CanvasPosition, right: CanvasPosition) -> float:
+    return left.x * right.y - left.y * right.x
+
+
+def _canonicalize_undirected_direction(direction: CanvasPosition) -> CanvasPosition:
+    if direction.x < -1e-6:
+        return CanvasPosition(x=-direction.x, y=-direction.y)
+    if abs(direction.x) <= 1e-6 and direction.y < -1e-6:
+        return CanvasPosition(x=-direction.x, y=-direction.y)
+    return direction
+
+
+def _deduplicate_directions(
+    directions: Iterable[CanvasPosition],
+) -> list[CanvasPosition]:
+    unique_directions: list[CanvasPosition] = []
+    seen_keys: set[tuple[int, int]] = set()
+    for direction in directions:
+        normalized_direction = _normalize_direction(direction)
+        direction_key = (
+            round(normalized_direction.x * 1000),
+            round(normalized_direction.y * 1000),
+        )
+        if direction_key in seen_keys:
+            continue
+        seen_keys.add(direction_key)
+        unique_directions.append(normalized_direction)
+    return unique_directions
+
+
+def _point_to_segment_distance(
+    point: CanvasPosition,
+    segment_start: CanvasPosition,
+    segment_end: CanvasPosition,
+) -> float:
+    segment_dx = segment_end.x - segment_start.x
+    segment_dy = segment_end.y - segment_start.y
+    segment_length_squared = segment_dx * segment_dx + segment_dy * segment_dy
+    if segment_length_squared <= 1e-6:
+        return hypot(point.x - segment_start.x, point.y - segment_start.y)
+    projection = (
+        ((point.x - segment_start.x) * segment_dx)
+        + ((point.y - segment_start.y) * segment_dy)
+    ) / segment_length_squared
+    clamped_projection = min(1.0, max(0.0, projection))
+    closest_point = CanvasPosition(
+        x=segment_start.x + segment_dx * clamped_projection,
+        y=segment_start.y + segment_dy * clamped_projection,
+    )
+    return hypot(point.x - closest_point.x, point.y - closest_point.y)
 
 
 def _sample_quadratic_points(

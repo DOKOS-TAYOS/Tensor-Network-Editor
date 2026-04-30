@@ -78,7 +78,8 @@ export function buildMultiSelectionPropertiesMarkup({
   multiIndexDimensionCandidate,
   showAddIndexAction,
   hyperedgeCreationCandidate,
-  linearPeriodicMode,
+  disableSubnetworkActions,
+  subnetworkActionsMessage,
   batchColor,
   totalElementCount,
   formatTotalElementCount,
@@ -147,7 +148,7 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="extract-selection-button"
                 type="button"
                 class="button-accent-positive"
-                ${linearPeriodicMode ? "disabled" : ""}
+                ${disableSubnetworkActions ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "Extract",
                   "Extract the selected tensors as a reusable subnetwork.",
@@ -160,7 +161,7 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="save-selection-subnetwork-library-button"
                 type="button"
                 class="button-accent-template"
-                ${linearPeriodicMode ? "disabled" : ""}
+                ${disableSubnetworkActions ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "To Library",
                   "Save the selected tensors to the subnetwork library."
@@ -172,7 +173,7 @@ export function buildMultiSelectionPropertiesMarkup({
                 id="promote-selection-template-button"
                 type="button"
                 class="button-accent-template"
-                ${linearPeriodicMode ? "disabled" : ""}
+                ${disableSubnetworkActions ? "disabled" : ""}
                 ${buildTooltipAttributes(
                   "To Template",
                   "Promote the selected tensors to a reusable template."
@@ -194,8 +195,8 @@ export function buildMultiSelectionPropertiesMarkup({
               </button>
             </div>
             ${
-              linearPeriodicMode
-                ? '<p class="property-meta">Subnetwork export and template promotion are not available in For mode yet.</p>'
+              subnetworkActionsMessage
+                ? `<p class="property-meta">${escapeHtml(subnetworkActionsMessage)}</p>`
                 : ""
             }
           `

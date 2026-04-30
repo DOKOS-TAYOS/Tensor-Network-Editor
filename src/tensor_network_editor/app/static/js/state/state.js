@@ -25,6 +25,7 @@ export function createInitialState() {
     availableCollectionFormats: [],
     selectedEngine: null,
     selectedCollectionFormat: null,
+    includeRoundtripMetadata: false,
     selectedTheme: DEFAULT_EDITOR_THEME_NAME,
     academicExportLabels: {
       tensor: true,

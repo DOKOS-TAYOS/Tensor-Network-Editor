@@ -105,6 +105,9 @@ export function createHistorySnapshotSupport({
       state.undoStack.shift();
     }
     state.redoStack = [];
+    if (typeof bumpSpecRevision === "function") {
+      bumpSpecRevision();
+    }
     state.lastMutationClearedCode = clearGeneratedCodePreview();
     updateToolbarState();
     return true;

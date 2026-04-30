@@ -7056,6 +7056,604 @@ def _write_port_layering_runtime_regression_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_contraction_scene_port_layering_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = tmp_path / "contraction_scene_port_layering_runtime_regression.mjs"
+    geometry_module_path = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "utils/utilitiesGeometry.js"
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+            import {{ pathToFileURL }} from "node:url";
+
+            const geometryUrl = pathToFileURL({str(geometry_module_path)!r}).href;
+            const {{ createUtilityGeometryBindings }} = await import(geometryUrl);
+
+            function createFakeElement(id, initialZIndex) {{
+              let zIndex = initialZIndex;
+              return {{
+                length: 1,
+                id() {{
+                  return id;
+                }},
+                data(name, value) {{
+                  if (value === undefined) {{
+                    return name === "zIndex" ? zIndex : undefined;
+                  }}
+                  if (name === "zIndex") {{
+                    zIndex = value;
+                  }}
+                  return undefined;
+                }},
+              }};
+            }}
+
+            const visibleDerivedTensor = {{
+              id: "scene-step-ab",
+              name: "A-B",
+              position: {{ x: 100, y: 100 }},
+              size: {{ width: 160, height: 84 }},
+              indices: [
+                {{
+                  id: "scene-step-ab_open",
+                  name: "open",
+                  dimension: 2,
+                  offset: {{ x: 38, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              isDerived: true,
+              sourceTensorIds: ["tensor_a", "tensor_b"],
+              metadata: {{}},
+            }};
+            const visibleFrontTensor = {{
+              id: "tensor_front",
+              name: "Front",
+              position: {{ x: 130, y: 100 }},
+              size: {{ width: 140, height: 84 }},
+              indices: [
+                {{
+                  id: "front_open",
+                  name: "front",
+                  dimension: 2,
+                  offset: {{ x: -38, y: 0 }},
+                  metadata: {{}},
+                }},
+              ],
+              isDerived: false,
+              sourceTensorIds: ["tensor_front"],
+              metadata: {{}},
+            }};
+
+            const elementMap = new Map([
+              ["scene-step-ab", createFakeElement("scene-step-ab", 10)],
+              ["scene-step-ab_open", createFakeElement("scene-step-ab_open", 10.2)],
+              ["tensor_front", createFakeElement("tensor_front", 11)],
+              ["front_open", createFakeElement("front_open", 11.2)],
+            ]);
+
+            const state = {{
+              activeTensorDrag: null,
+              cy: {{
+                getElementById(id) {{
+                  return elementMap.get(id) || {{ length: 0, data() {{ return undefined; }} }};
+                }},
+                edges() {{
+                  return [];
+                }},
+              }},
+              pendingIndexId: null,
+              selectionIds: ["scene-step-ab"],
+              spec: {{
+                tensors: [
+                  {{
+                    id: "tensor_a",
+                    indices: [],
+                    position: {{ x: 0, y: 0 }},
+                  }},
+                  {{
+                    id: "tensor_b",
+                    indices: [],
+                    position: {{ x: 0, y: 0 }},
+                  }},
+                  {{
+                    id: "tensor_front",
+                    indices: visibleFrontTensor.indices,
+                    position: visibleFrontTensor.position,
+                  }},
+                ],
+              }},
+              tensorOrder: [],
+              tensorRankById: {{}},
+            }};
+            const runtime = {{
+              asFiniteNumber(value, fallbackValue) {{
+                return Number.isFinite(value) ? value : fallbackValue;
+              }},
+              findConnectionByIndexId() {{
+                return null;
+              }},
+              findEdgeByIndexId() {{
+                return null;
+              }},
+              findHyperedgeByIndexId() {{
+                return null;
+              }},
+              findTensorById(tensorId) {{
+                return (
+                  state.spec.tensors.find((tensor) => tensor.id === tensorId) || null
+                );
+              }},
+              getVisibleTensors() {{
+                return [visibleDerivedTensor, visibleFrontTensor];
+              }},
+              indexLabelNodeId(indexId) {{
+                return `${{indexId}}__label`;
+              }},
+            }};
+
+            const geometry = createUtilityGeometryBindings({{
+              ctx: {{ state }},
+              state,
+              constants: {{
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+              }},
+              runtime,
+            }});
+            Object.assign(runtime, geometry);
+
+            geometry.applyTensorLayerData();
+
+            const selectedOpenZIndex = elementMap.get("scene-step-ab_open").data("zIndex");
+            const frontTensorZIndex = elementMap.get("tensor_front").data("zIndex");
+
+            if (!(selectedOpenZIndex > frontTensorZIndex)) {{
+              throw new Error(
+                `A selected derived contraction tensor should keep its open ports visible above front tensors: open=${{selectedOpenZIndex}}, front=${{frontTensorZIndex}}.`
+              );
+            }}
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
+def _write_contraction_scene_base_tensor_port_layering_runtime_regression_script(
+    tmp_path: Path,
+) -> Path:
+    script_path = (
+        tmp_path / "contraction_scene_base_tensor_port_layering_runtime_regression.mjs"
+    )
+    _copy_runtime_bundle(
+        tmp_path,
+        {
+            "state.runtime.mjs": "state/state.js",
+            "utilities.runtime.mjs": "utils/utilities.js",
+            "historySelection.runtime.mjs": "graph/historySelection.js",
+            "contractionScene.runtime.mjs": "graph/contractionScene.js",
+        },
+        _RUNTIME_EDITOR_SUPPORT_MODULES,
+    )
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            import { pathToFileURL } from "node:url";
+
+            function createClassList() {
+              return {
+                add() {},
+                remove() {},
+                toggle() {},
+              };
+            }
+
+            function createButton() {
+              return {
+                disabled: false,
+                classList: createClassList(),
+                addEventListener() {},
+                focus() {},
+              };
+            }
+
+            function createSpec() {
+              return {
+                id: "network_manual_anchor",
+                name: "manual-anchor",
+                tensors: [
+                  {
+                    id: "tensor_a",
+                    name: "A",
+                    position: { x: 120, y: 140 },
+                    size: { width: 140, height: 84 },
+                    metadata: {},
+                    indices: [
+                      {
+                        id: "tensor_a_left",
+                        name: "left",
+                        dimension: 2,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                      {
+                        id: "tensor_a_bond",
+                        name: "bond",
+                        dimension: 3,
+                        offset: { x: 38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                  },
+                  {
+                    id: "tensor_b",
+                    name: "B",
+                    position: { x: 360, y: 220 },
+                    size: { width: 140, height: 84 },
+                    metadata: {},
+                    indices: [
+                      {
+                        id: "tensor_b_bond",
+                        name: "bond",
+                        dimension: 3,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                      {
+                        id: "tensor_b_right",
+                        name: "carry",
+                        dimension: 5,
+                        offset: { x: 38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                  },
+                  {
+                    id: "tensor_c",
+                    name: "C",
+                    position: { x: 620, y: 300 },
+                    size: { width: 140, height: 84 },
+                    metadata: {},
+                    indices: [
+                      {
+                        id: "tensor_c_left",
+                        name: "carry",
+                        dimension: 5,
+                        offset: { x: -38, y: 0 },
+                        metadata: {},
+                      },
+                      {
+                        id: "tensor_c_right",
+                        name: "right",
+                        dimension: 7,
+                        offset: { x: 38, y: 0 },
+                        metadata: {},
+                      },
+                    ],
+                  },
+                ],
+                groups: [],
+                edges: [
+                  {
+                    id: "edge_ab",
+                    name: "bond_ab",
+                    left: { tensor_id: "tensor_a", index_id: "tensor_a_bond" },
+                    right: { tensor_id: "tensor_b", index_id: "tensor_b_bond" },
+                    metadata: {},
+                  },
+                  {
+                    id: "edge_bc",
+                    name: "bond_bc",
+                    left: { tensor_id: "tensor_b", index_id: "tensor_b_right" },
+                    right: { tensor_id: "tensor_c", index_id: "tensor_c_left" },
+                    metadata: {},
+                  },
+                ],
+                notes: [],
+                contraction_plan: {
+                  id: "plan_chain",
+                  name: "Chain path",
+                  steps: [
+                    {
+                      id: "step_ab",
+                      left_operand_id: "tensor_a",
+                      right_operand_id: "tensor_b",
+                    },
+                  ],
+                },
+                metadata: {},
+              };
+            }
+
+            function createFakeElement(id) {
+              let zIndex = null;
+              const classes = new Set();
+              let selected = false;
+              return {
+                length: 1,
+                id() {
+                  return id;
+                },
+                data(name, value) {
+                  if (value === undefined) {
+                    return name === "zIndex" ? zIndex : undefined;
+                  }
+                  if (name === "zIndex") {
+                    zIndex = value;
+                  }
+                  return undefined;
+                },
+                select() {
+                  selected = true;
+                },
+                unselect() {
+                  selected = false;
+                },
+                addClass(className) {
+                  classes.add(className);
+                },
+                removeClass(className) {
+                  classes.delete(className);
+                },
+                hasClass(className) {
+                  return classes.has(className);
+                },
+                isSelected() {
+                  return selected;
+                },
+                position() {},
+                selectable() {},
+                grabbable() {},
+              };
+            }
+
+            const baseUrl = new URL("./", import.meta.url);
+            const [stateModule, utilitiesModule, historyModule, contractionSceneModule] =
+              await Promise.all([
+                import(new URL("./state.runtime.mjs", baseUrl).href),
+                import(new URL("./utilities.runtime.mjs", baseUrl).href),
+                import(new URL("./historySelection.runtime.mjs", baseUrl).href),
+                import(new URL("./contractionScene.runtime.mjs", baseUrl).href),
+              ]);
+
+            const { createInitialState } = stateModule;
+            const { registerUtilities } = utilitiesModule;
+            const { registerHistorySelection } = historyModule;
+            const { registerContractionScene } = contractionSceneModule;
+
+            const ctx = {
+              state: createInitialState(),
+              constants: {
+                TENSOR_WIDTH: 140,
+                TENSOR_HEIGHT: 84,
+                MIN_TENSOR_WIDTH: 96,
+                MIN_TENSOR_HEIGHT: 60,
+                INDEX_RADIUS: 10,
+                INDEX_PADDING: 6,
+                NOTE_WIDTH: 220,
+                NOTE_HEIGHT: 120,
+                NOTE_MIN_WIDTH: 120,
+                NOTE_MIN_HEIGHT: 90,
+                HISTORY_LIMIT: 100,
+                REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z",
+                DEFAULT_INDEX_SLOTS: [
+                  { x: -38, y: 0 },
+                  { x: 38, y: 0 },
+                  { x: 0, y: -24 },
+                  { x: 0, y: 24 },
+                ],
+              },
+              dom: {
+                workspace: {},
+                statusMessage: { textContent: "", classList: createClassList() },
+                propertiesPanel: { innerHTML: "" },
+                generatedCode: { value: "" },
+                engineSelect: { options: [], value: "tensornetwork" },
+                collectionFormatSelect: { options: [], value: "list" },
+                exportFormatSelect: { value: "py" },
+                addNoteButton: createButton(),
+                connectButton: { classList: createClassList() },
+                loadInput: {},
+                undoButton: createButton(),
+                redoButton: createButton(),
+                exportButton: createButton(),
+                toggleLinearPeriodicButton: { classList: createClassList() },
+                linearPeriodicPreviousCellButton: createButton(),
+                linearPeriodicCellLabel: { textContent: "" },
+                linearPeriodicNextCellButton: createButton(),
+                templateSelect: { value: "" },
+                templateParameterPanel: { hidden: true },
+                templateGraphSizeLabel: { textContent: "" },
+                templateGraphSizeInput: { value: "2", min: "1" },
+                templateBondDimensionInput: { value: "3", min: "1" },
+                templatePhysicalDimensionInput: { value: "2", min: "1" },
+                insertTemplateButton: createButton(),
+                createGroupButton: createButton(),
+                helpButton: createButton(),
+                helpModal: { classList: createClassList() },
+                helpBackdrop: createButton(),
+                helpCloseButton: createButton(),
+                canvasShell: {
+                  getBoundingClientRect() {
+                    return { left: 0, top: 0, width: 1000, height: 800 };
+                  },
+                },
+                groupLayer: {},
+                resizeLayer: {},
+                notesLayer: {},
+                selectionBox: {},
+                minimapCanvas: {},
+                sidebar: {},
+                plannerPanel: {
+                  innerHTML: "",
+                  querySelectorAll() {
+                    return [];
+                  },
+                },
+                generateButton: createButton(),
+              },
+              apiGet: async () => null,
+              apiPost: async () => null,
+              window: {
+                structuredClone: globalThis.structuredClone,
+                crypto: globalThis.crypto,
+                setTimeout,
+                clearTimeout,
+                confirm: () => true,
+              },
+              document: {
+                activeElement: null,
+                createElement() {
+                  return {
+                    value: "",
+                    textContent: "",
+                    selected: false,
+                    appendChild() {},
+                    click() {},
+                  };
+                },
+                getElementById() {
+                  return createButton();
+                },
+                querySelectorAll() {
+                  return [];
+                },
+              },
+              cytoscape: null,
+              tensorWidth: (tensor) => tensor?.size?.width ?? 140,
+              tensorHeight: (tensor) => tensor?.size?.height ?? 84,
+              render: () => {},
+              renderOverlayDecorations: () => {},
+              renderMinimap: () => {},
+              renderPlanner: () => {},
+              renderSidebarTabs: () => {},
+              refreshContractionAnalysis: () => {},
+              syncPendingInteractionClasses: () => {},
+              setActiveSidebarTab: () => {},
+              updateToolbarState: () => {},
+              captureEditableFocus: () => null,
+              restoreEditableFocus: () => {},
+            };
+
+            registerUtilities(ctx);
+            registerContractionScene(ctx);
+            registerHistorySelection(ctx);
+
+            ctx.state.selectedEngine = "tensornetwork";
+            ctx.state.selectedCollectionFormat = "list";
+            ctx.state.spec = ctx.normalizeSpec(createSpec());
+
+            const scene = ctx.buildContractionScene();
+            if (!scene) {
+              throw new Error("Expected a contraction scene after the manual step.");
+            }
+            const elementMap = new Map();
+            scene.tensors.forEach((tensor) => {
+              elementMap.set(tensor.id, createFakeElement(tensor.id));
+              tensor.indices.forEach((index) => {
+                elementMap.set(index.id, createFakeElement(index.id));
+                elementMap.set(`${index.id}__label`, createFakeElement(`${index.id}__label`));
+              });
+            });
+
+            ctx.state.cy = {
+              batch(action) {
+                action();
+              },
+              getElementById(id) {
+                return (
+                  elementMap.get(id) || {
+                    length: 0,
+                    data() {
+                      return undefined;
+                    },
+                    select() {},
+                    unselect() {},
+                    addClass() {},
+                    removeClass() {},
+                    position() {},
+                    selectable() {},
+                    grabbable() {},
+                  }
+                );
+              },
+              edges() {
+                return {
+                  forEach() {},
+                };
+              },
+              $(selector) {
+                if (selector === ":selected") {
+                  return {
+                    forEach(callback) {
+                      elementMap.forEach((element) => {
+                        if (element.isSelected()) {
+                          callback(element);
+                        }
+                      });
+                    },
+                  };
+                }
+                if (selector === ".is-selection-highlight") {
+                  return {
+                    forEach(callback) {
+                      elementMap.forEach((element) => {
+                        if (element.hasClass("is-selection-highlight")) {
+                          callback(element);
+                        }
+                      });
+                    },
+                  };
+                }
+                return {
+                  forEach() {},
+                };
+              },
+            };
+
+            ctx.bringTensorToFront("tensor_c");
+            ctx.setSelection(["tensor_c"], { primaryId: "tensor_c" });
+
+            const selectedBaseTensor = scene.operandMap.tensor_c;
+            const selectedOpenPort = selectedBaseTensor.indices.find(
+              (index) => index.name === "right"
+            );
+            const derivedTensor = scene.tensors.find((tensor) => tensor.isDerived);
+
+            if (!ctx.state.tensorOrder.includes(derivedTensor.id)) {
+              throw new Error(
+                `Expected tensor layering order to track visible contraction operands, received ${JSON.stringify(ctx.state.tensorOrder)}.`
+              );
+            }
+            const selectedOpenPortZIndex = elementMap
+              .get(selectedOpenPort.id)
+              .data("zIndex");
+            const derivedTensorZIndex = elementMap.get(derivedTensor.id).data("zIndex");
+            if (!(selectedOpenPortZIndex > derivedTensorZIndex)) {
+              throw new Error(
+                `A selected base tensor in contraction view should keep its free port visible above derived front tensors: open=${selectedOpenPortZIndex}, derived=${derivedTensorZIndex}.`
+              );
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 def _write_planner_auto_shortcut_runtime_regression_script(tmp_path: Path) -> Path:
     script_path = tmp_path / "planner_auto_shortcut_runtime_regression.mjs"
     _copy_js_modules(tmp_path, _SHORTCUT_RUNTIME_DEPENDENCY_MODULES)
@@ -9574,6 +10172,15 @@ def _write_metadata_properties_runtime_regression_script(tmp_path: Path) -> Path
         if (!propertiesPanel.innerHTML.includes('id="add-index-to-selection-button"')) {
           throw new Error("Mixed selections should keep the bulk Add index action when editable tensors remain.");
         }
+        if (/id="extract-selection-button"[^>]*disabled/.test(propertiesPanel.innerHTML)) {
+          throw new Error("Mixed selections with editable tensors should keep Extract enabled.");
+        }
+        if (/id="save-selection-subnetwork-library-button"[^>]*disabled/.test(propertiesPanel.innerHTML)) {
+          throw new Error("Mixed selections with editable tensors should keep To Library enabled.");
+        }
+        if (/id="promote-selection-template-button"[^>]*disabled/.test(propertiesPanel.innerHTML)) {
+          throw new Error("Mixed selections with editable tensors should keep To Template enabled.");
+        }
         document.getElementById("add-index-to-selection-button").click();
         const editableTensorAfter = ctx.state.spec.tensors.find(
           (candidate) => candidate.id === "tensor_a"
@@ -11603,6 +12210,52 @@ def test_graph_model_layers_open_ports_below_front_tensors(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_selection_keeps_derived_open_ports_visible(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_contraction_scene_port_layering_runtime_regression_script(
+        tmp_path
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The contraction-scene port layering runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_contraction_scene_selection_keeps_base_tensor_open_ports_visible(
+    tmp_path: Path,
+) -> None:
+    script_path = (
+        _write_contraction_scene_base_tensor_port_layering_runtime_regression_script(
+            tmp_path
+        )
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The contraction-scene base-tensor port layering runtime regression script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_copy_shortcut_prefers_native_text_selection_over_graph_copy(
     tmp_path: Path,
 ) -> None:
@@ -12120,11 +12773,9 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
                   }),
                   parentElement: reflowLayoutShell,
                 },
-                reflowAlignLeftButton: createButton(),
-                reflowAlignRightButton: createButton(),
-                reflowAlignTopButton: createButton(),
-                reflowAlignMiddleButton: createButton(),
-                reflowAlignBottomButton: createButton(),
+                reflowAlignHorizontalButton: createButton(),
+                reflowAlignVerticalButton: createButton(),
+                reflowRotateSelectionButton: createButton(),
                 reflowIndicesLeftButton: createButton(),
                 reflowIndicesRightButton: createButton(),
                 reflowIndicesTopButton: createButton(),
@@ -12361,6 +13012,12 @@ def _write_utility_runtime_contract_script(tmp_path: Path) -> Path:
             if (ctx.dom.reflowAutoLayoutButton.disabled) {
               throw new Error("Auto layout should stay enabled when the whole graph can be arranged.");
             }
+            runtime.isLinearPeriodicMode = () => true;
+            runtime.updateToolbarState();
+            if (ctx.dom.templateSettingsButton.disabled) {
+              throw new Error("Template settings should stay enabled in For mode because they only affect future insertions.");
+            }
+            runtime.isLinearPeriodicMode = () => false;
             ctx.state.selectionIds = ["tensor_a"];
             runtime.isBenchmarkMode = () => true;
             runtime.getBenchmarkSession = () => ({
@@ -13236,6 +13893,7 @@ def _write_interaction_session_dependency_injection_runtime_script(
               generatedCode: "",
               selectedEngine: "quimb",
               selectedCollectionFormat: "dict",
+              includeRoundtripMetadata: true,
               templateDefinitions: {},
               availableTemplates: [],
               templateCatalogWarnings: [],
@@ -13331,6 +13989,9 @@ def _write_interaction_session_dependency_injection_runtime_script(
             }
             if (generateCall.payload.engine !== "quimb" || generateCall.payload.collectionFormat !== "dict") {
               throw new Error(`Unexpected generate payload: ${JSON.stringify(generateCall.payload)}.`);
+            }
+            if (generateCall.payload.includeRoundtripMetadata !== true) {
+              throw new Error(`Expected includeRoundtripMetadata=true in the injected generate payload, received ${JSON.stringify(generateCall.payload)}.`);
             }
             if (dom.generatedCode.value.trim() !== "result = 1") {
               throw new Error(`Expected injected preview sync to receive stripped code, received ${dom.generatedCode.value}.`);
@@ -15069,6 +15730,93 @@ def _write_layout_subnetwork_runtime_regression_script(tmp_path: Path) -> Path:
               }
             }
 
+            ctx.state.selectionIds = ["tensor_a", "tensor_b"];
+            ctx.state.primarySelectionId = "tensor_b";
+            ctx.state.spec.tensors[0].position = { x: 100, y: 100 };
+            ctx.state.spec.tensors[1].position = { x: 260, y: 220 };
+            ctx.state.spec.tensors[0].indices[0].offset = { x: 20, y: -10 };
+            ctx.state.spec.tensors[1].indices[0].offset = { x: 16, y: -8 };
+            ctx.state.spec.tensors[1].indices[1].offset = { x: 20, y: 10 };
+            ctx.applyReflowLayoutAction("align-horizontal");
+            const horizontalAlignmentYs = ctx.state.spec.tensors
+              .slice(0, 2)
+              .map((tensor) => tensor.position.y);
+            if (!horizontalAlignmentYs.every((value) => value === horizontalAlignmentYs[0])) {
+              throw new Error(
+                `Horizontal alignment should align tensor centers on the y axis, received ${horizontalAlignmentYs.join(", ")}.`
+              );
+            }
+            ctx.applyReflowLayoutAction("align-vertical");
+            const verticalAlignmentXs = ctx.state.spec.tensors
+              .slice(0, 2)
+              .map((tensor) => tensor.position.x);
+            if (!verticalAlignmentXs.every((value) => value === verticalAlignmentXs[0])) {
+              throw new Error(
+                `Vertical alignment should align tensor centers on the x axis, received ${verticalAlignmentXs.join(", ")}.`
+              );
+            }
+
+            ctx.state.spec.tensors[0].position = { x: 100, y: 100 };
+            ctx.state.spec.tensors[1].position = { x: 260, y: 220 };
+            ctx.state.spec.tensors[0].indices[0].offset = { x: 20, y: -10 };
+            ctx.state.spec.tensors[1].indices[0].offset = { x: 16, y: -8 };
+            ctx.state.spec.tensors[1].indices[1].offset = { x: 20, y: 10 };
+            ctx.serializeCurrentSpec();
+            ctx.applyReflowLayoutAction("rotate-90");
+            const tensorARotated = ctx.findTensorById("tensor_a");
+            const tensorBRotated = ctx.findTensorById("tensor_b");
+            if (tensorARotated.position.x !== 240 || tensorARotated.position.y !== 80) {
+              throw new Error(
+                `Rotate 90 should move tensor A clockwise around the selection center, received ${JSON.stringify(tensorARotated.position)}.`
+              );
+            }
+            if (tensorBRotated.position.x !== 120 || tensorBRotated.position.y !== 240) {
+              throw new Error(
+                `Rotate 90 should move tensor B clockwise around the selection center, received ${JSON.stringify(tensorBRotated.position)}.`
+              );
+            }
+            if (JSON.stringify(tensorARotated.indices[0].offset) !== JSON.stringify({ x: 10, y: 20 })) {
+              throw new Error(
+                `Rotate 90 should rotate tensor A ports, received ${JSON.stringify(tensorARotated.indices[0].offset)}.`
+              );
+            }
+            if (JSON.stringify(tensorBRotated.indices[0].offset) !== JSON.stringify({ x: 8, y: 16 })) {
+              throw new Error(
+                `Rotate 90 should rotate tensor B first port, received ${JSON.stringify(tensorBRotated.indices[0].offset)}.`
+              );
+            }
+            if (JSON.stringify(tensorBRotated.indices[1].offset) !== JSON.stringify({ x: -10, y: 20 })) {
+              throw new Error(
+                `Rotate 90 should rotate tensor B second port, received ${JSON.stringify(tensorBRotated.indices[1].offset)}.`
+              );
+            }
+            if (ctx.state.selectionIds.join(",") !== "tensor_a,tensor_b") {
+              throw new Error("Rotate 90 should preserve the selected tensors.");
+            }
+            const serializedAfterRotate = ctx.serializeCurrentSpec();
+            const serializedTensorA = serializedAfterRotate.network.tensors.find(
+              (tensor) => tensor.id === "tensor_a"
+            );
+            const serializedTensorB = serializedAfterRotate.network.tensors.find(
+              (tensor) => tensor.id === "tensor_b"
+            );
+            if (
+              serializedTensorA.position.x !== 240 || serializedTensorA.position.y !== 80
+            ) {
+              throw new Error(
+                `serializeCurrentSpec should invalidate its cache after layout changes for tensor A, received ${JSON.stringify(serializedTensorA.position)}.`
+              );
+            }
+            if (
+              serializedTensorB.position.x !== 120 || serializedTensorB.position.y !== 240
+            ) {
+              throw new Error(
+                `serializeCurrentSpec should invalidate its cache after layout changes for tensor B, received ${JSON.stringify(serializedTensorB.position)}.`
+              );
+            }
+
+            ctx.state.selectionIds = ["tensor_a", "tensor_b", "tensor_c"];
+            ctx.state.primarySelectionId = "tensor_c";
             ctx.state.spec.tensors[0].position.x = 100;
             ctx.state.spec.tensors[1].position.x = 260;
             ctx.state.spec.tensors[2].position.x = 460;

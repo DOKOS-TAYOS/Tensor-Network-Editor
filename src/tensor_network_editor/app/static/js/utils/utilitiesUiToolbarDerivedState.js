@@ -36,7 +36,29 @@ export function createUiToolbarDerivedStateSupport({
               || reflowImportedButton.parentElement
           : insertTemplateButton
             ? insertTemplateButton.parentElement || insertTemplateButton
-            : null;
+          : null;
+  }
+
+  function isStructuralBoundaryTensor(tensor) {
+    return Boolean(
+      tensor &&
+        (
+          (typeof runtime.isForBoundaryTensor === "function" &&
+            runtime.isForBoundaryTensor(tensor)) ||
+          (typeof runtime.isLinearPeriodicBoundaryTensor === "function" &&
+            runtime.isLinearPeriodicBoundaryTensor(tensor)) ||
+          (typeof runtime.isTreePeriodicBoundaryTensor === "function" &&
+            runtime.isTreePeriodicBoundaryTensor(tensor)) ||
+          tensor.linear_periodic_role === "previous" ||
+          tensor.linear_periodic_role === "next" ||
+          tensor.grid_periodic_role === "up" ||
+          tensor.grid_periodic_role === "right" ||
+          tensor.grid_periodic_role === "down" ||
+          tensor.grid_periodic_role === "left" ||
+          tensor.tree_periodic_role === "parent" ||
+          tensor.tree_periodic_role === "child"
+        )
+    );
   }
 
   function getToolbarDerivedState() {
@@ -84,6 +106,9 @@ export function createUiToolbarDerivedStateSupport({
     const selectedTensors = selectedTensorIds
       .map((tensorId) => findTensorById(tensorId))
       .filter(Boolean);
+    const selectedExportableTensorIds = selectedTensors
+      .filter((tensor) => !isStructuralBoundaryTensor(tensor))
+      .map((tensor) => tensor.id);
     const hasSelectedIndices = selectedTensors.some(
       (tensor) => Array.isArray(tensor.indices) && tensor.indices.length > 0
     );
@@ -114,6 +139,7 @@ export function createUiToolbarDerivedStateSupport({
       activeBenchmarkScheme,
       selectedTemplateValue,
       selectedTensorIds,
+      selectedExportableTensorIds,
       graphTensorCount,
       autoLayoutTensorCount,
       hasSelectedIndices,

@@ -37,11 +37,9 @@ export function createUiToolbarActionStateSupport({
     editSessionTemplateMenuItem,
     openSubnetworkLibraryMenuItem,
     reflowImportedButton,
-    reflowAlignLeftButton,
-    reflowAlignRightButton,
-    reflowAlignTopButton,
-    reflowAlignMiddleButton,
-    reflowAlignBottomButton,
+    reflowAlignHorizontalButton,
+    reflowAlignVerticalButton,
+    reflowRotateSelectionButton,
     reflowIndicesLeftButton,
     reflowIndicesRightButton,
     reflowIndicesTopButton,
@@ -56,6 +54,8 @@ export function createUiToolbarActionStateSupport({
     reflowSnapGridButton,
     createGroupButton,
     generateButton,
+    codegenRoundtripMetadataField,
+    codegenRoundtripMetadataCheckbox,
     benchmarkCompareModal,
     benchmarkCompareTableBody,
   } = dom;
@@ -77,10 +77,14 @@ export function createUiToolbarActionStateSupport({
       templateToolbarGroup,
       selectedTemplateValue,
       selectedTensorIds,
+      selectedExportableTensorIds,
       graphTensorCount,
       autoLayoutTensorCount,
       hasSelectedIndices,
     } = derivedState;
+    const exportableTensorIds = Array.isArray(selectedExportableTensorIds)
+      ? selectedExportableTensorIds
+      : [];
 
     if (undoButton) {
       undoButton.disabled = state.undoStack.length === 0;
@@ -91,6 +95,14 @@ export function createUiToolbarActionStateSupport({
     if (generateButton) {
       generateButton.disabled = !state.spec || !state.selectedEngine;
     }
+    if (codegenRoundtripMetadataCheckbox) {
+      codegenRoundtripMetadataCheckbox.checked =
+        state.includeRoundtripMetadata === true;
+    }
+    setElementHidden(
+      codegenRoundtripMetadataField,
+      benchmarkSchemeView || !forMode
+    );
     if (exportMenuItem) {
       exportMenuItem.disabled = false;
     }
@@ -141,18 +153,19 @@ export function createUiToolbarActionStateSupport({
       setMenuItemChecked(themeShinyMenuItem, state.selectedTheme === "shiny");
     }
     if (saveSessionTemplateMenuItem) {
-      saveSessionTemplateMenuItem.disabled = forMode || selectedTensorIds.length === 0;
+      saveSessionTemplateMenuItem.disabled =
+        exportableTensorIds.length === 0;
     }
     if (saveSubnetworkLibraryMenuItem) {
       saveSubnetworkLibraryMenuItem.disabled =
-        forMode || benchmarkSchemeView || selectedTensorIds.length === 0;
+        benchmarkSchemeView || exportableTensorIds.length === 0;
     }
     if (loadSessionTemplateMenuItem) {
       loadSessionTemplateMenuItem.disabled = false;
     }
     if (exportSessionTemplateMenuItem) {
       exportSessionTemplateMenuItem.disabled =
-        forMode || selectedTensorIds.length === 0;
+        exportableTensorIds.length === 0;
     }
     if (editSessionTemplateMenuItem) {
       editSessionTemplateMenuItem.disabled = state.availableTemplates.length === 0;
@@ -190,11 +203,9 @@ export function createUiToolbarActionStateSupport({
     }
     setButtonGroupDisabled(
       [
-        reflowAlignLeftButton,
-        reflowAlignRightButton,
-        reflowAlignTopButton,
-        reflowAlignMiddleButton,
-        reflowAlignBottomButton,
+        reflowAlignHorizontalButton,
+        reflowAlignVerticalButton,
+        reflowRotateSelectionButton,
         reflowArrangeChainButton,
         reflowArrangeTreeButton,
         reflowArrangeGridButton,
@@ -235,7 +246,7 @@ export function createUiToolbarActionStateSupport({
     );
     if (templateSettingsButton) {
       templateSettingsButton.disabled =
-        benchmarkSchemeView || !selectedTemplateValue || forMode;
+        benchmarkSchemeView || !selectedTemplateValue;
       setElementHidden(
         templateSettingsButton.parentElement || templateSettingsButton,
         benchmarkSchemeView
@@ -246,13 +257,11 @@ export function createUiToolbarActionStateSupport({
           ? "Template parameters are unavailable while viewing a benchmark scheme."
           : !selectedTemplateValue
             ? "Choose a template first."
-            : forMode
-              ? "Template parameters are not editable in For mode."
-              : "Edit template parameters."
+            : "Edit template parameters for the next template insertion."
       );
     }
     if (
-      (benchmarkSchemeView || !selectedTemplateValue || forMode) &&
+      (benchmarkSchemeView || !selectedTemplateValue) &&
       state.isTemplateSettingsOpen
     ) {
       state.isTemplateSettingsOpen = false;
