@@ -27,7 +27,6 @@ from ..shared.base import CodeGenerator
 from ..shared.common import (
     CodeSection,
     PreparedNetwork,
-    PreparedTensor,
     container_name_for_format,
     prepare_network,
     render_code_sections,
@@ -704,17 +703,3 @@ class BaseEinsumCodeGenerator(CodeGenerator, ABC):
         if use_string_labels:
             return [symbol_map[label] for label in labels]
         return [f"label_{label_to_int[label]}" for label in labels]
-
-    @staticmethod
-    def _build_equation(
-        tensors: list[PreparedTensor],
-        output_labels: list[str],
-        symbol_map: dict[str, str],
-    ) -> str:
-        """Build a standard einsum equation string for the prepared tensors."""
-        input_terms = [
-            "".join(symbol_map[index.label] for index in tensor.indices)
-            for tensor in tensors
-        ]
-        output_term = "".join(symbol_map[label] for label in output_labels)
-        return ",".join(input_terms) + "->" + output_term

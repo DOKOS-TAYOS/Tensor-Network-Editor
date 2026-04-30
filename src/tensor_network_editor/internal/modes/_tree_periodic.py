@@ -329,14 +329,6 @@ def tree_periodic_reserved_operand_id_for_tensor(tensor: TensorSpec) -> str | No
     return None
 
 
-def is_tree_periodic_reserved_operand_id(operand_id: str) -> bool:
-    """Return ``True`` when ``operand_id`` is a reserved tree boundary operand."""
-    return operand_id == TREE_PERIODIC_PARENT_OPERAND_ID or (
-        operand_id.startswith(TREE_PERIODIC_CHILD_OPERAND_ID_PREFIX)
-        and operand_id.endswith("__")
-    )
-
-
 def _analysis_tensor_id(tensor: TensorSpec) -> str:
     """Return the analysis operand id for a tree-periodic cell tensor."""
     return tree_periodic_reserved_operand_id_for_tensor(tensor) or tensor.id

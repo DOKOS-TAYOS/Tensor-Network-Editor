@@ -330,144 +330,113 @@ def _serialize_template_parameter_payload(
     return defaults, minimums
 
 
+_MPS_DEFAULTS = TemplateParameters(
+    graph_size=4,
+    bond_dimension=3,
+    physical_dimension=2,
+)
+_MPO_DEFAULTS = TemplateParameters(
+    graph_size=4,
+    bond_dimension=3,
+    physical_dimension=2,
+    boundary_condition="open",
+    j=1.0,
+    h=1.0,
+)
+_PEPS_DEFAULTS = TemplateParameters(
+    graph_size=3,
+    bond_dimension=3,
+    physical_dimension=2,
+)
+_MERA_DEFAULTS = TemplateParameters(
+    graph_size=3,
+    bond_dimension=3,
+    physical_dimension=2,
+)
+_TTN_DEFAULTS = TemplateParameters(
+    depth=3,
+    bond_dimension=3,
+    physical_dimension=2,
+    leaf_physical_legs=True,
+    root_open_leg=False,
+    isometric=False,
+)
+_PEPO_DEFAULTS = TemplateParameters(
+    graph_size=3,
+    bond_dimension=3,
+    physical_dimension=2,
+)
+_TEBD_GATE_LAYER_DEFAULTS = TemplateParameters(
+    graph_size=4,
+    bond_dimension=3,
+    physical_dimension=2,
+)
+
+
 TEMPLATE_DEFINITIONS: dict[str, TemplateDefinition] = {
     "mps": TemplateDefinition(
         name="mps",
         display_name="MPS",
         graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
-        parameter_fields=_build_mps_parameter_fields(
-            TemplateParameters(
-                graph_size=4,
-                bond_dimension=3,
-                physical_dimension=2,
-            )
-        ),
+        defaults=_MPS_DEFAULTS,
+        parameter_fields=_build_mps_parameter_fields(_MPS_DEFAULTS),
     ),
     "mpo": TemplateDefinition(
         name="mpo",
         display_name="MPO",
         graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
-            boundary_condition="open",
-            j=1.0,
-            h=1.0,
-        ),
-        parameter_fields=_build_mpo_parameter_fields(
-            TemplateParameters(
-                graph_size=4,
-                bond_dimension=3,
-                physical_dimension=2,
-                boundary_condition="open",
-                j=1.0,
-                h=1.0,
-            )
-        ),
+        defaults=_MPO_DEFAULTS,
+        parameter_fields=_build_mpo_parameter_fields(_MPO_DEFAULTS),
     ),
     "peps_2x2": TemplateDefinition(
         name="peps_2x2",
         display_name="PEPS",
         graph_size_label="Side length",
-        defaults=TemplateParameters(
-            graph_size=3,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
+        defaults=_PEPS_DEFAULTS,
         parameter_fields=_build_standard_parameter_fields(
             size_field_name="graph_size",
             size_field_label="Graph size (Side length)",
-            defaults=TemplateParameters(
-                graph_size=3,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
+            defaults=_PEPS_DEFAULTS,
         ),
     ),
     "mera": TemplateDefinition(
         name="mera",
         display_name="MERA",
         graph_size_label="Depth",
-        defaults=TemplateParameters(
-            graph_size=3,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
+        defaults=_MERA_DEFAULTS,
         parameter_fields=_build_standard_parameter_fields(
             size_field_name="graph_size",
             size_field_label="Graph size (Depth)",
-            defaults=TemplateParameters(
-                graph_size=3,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
+            defaults=_MERA_DEFAULTS,
         ),
     ),
     "ttn": TemplateDefinition(
         name="ttn",
         display_name="TTN",
         graph_size_label="Depth",
-        defaults=TemplateParameters(
-            depth=3,
-            bond_dimension=3,
-            physical_dimension=2,
-            leaf_physical_legs=True,
-            root_open_leg=False,
-            isometric=False,
-        ),
-        parameter_fields=_build_ttn_parameter_fields(
-            TemplateParameters(
-                depth=3,
-                bond_dimension=3,
-                physical_dimension=2,
-                leaf_physical_legs=True,
-                root_open_leg=False,
-                isometric=False,
-            )
-        ),
+        defaults=_TTN_DEFAULTS,
+        parameter_fields=_build_ttn_parameter_fields(_TTN_DEFAULTS),
     ),
     "pepo": TemplateDefinition(
         name="pepo",
         display_name="PEPO",
         graph_size_label="Side length",
-        defaults=TemplateParameters(
-            graph_size=3,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
+        defaults=_PEPO_DEFAULTS,
         parameter_fields=_build_standard_parameter_fields(
             size_field_name="graph_size",
             size_field_label="Graph size (Side length)",
-            defaults=TemplateParameters(
-                graph_size=3,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
+            defaults=_PEPO_DEFAULTS,
         ),
     ),
     "tebd_gate_layer": TemplateDefinition(
         name="tebd_gate_layer",
         display_name="TEBD Gate Layer",
         graph_size_label="Sites",
-        defaults=TemplateParameters(
-            graph_size=4,
-            bond_dimension=3,
-            physical_dimension=2,
-        ),
+        defaults=_TEBD_GATE_LAYER_DEFAULTS,
         parameter_fields=_build_standard_parameter_fields(
             size_field_name="graph_size",
             size_field_label="Graph size (Sites)",
-            defaults=TemplateParameters(
-                graph_size=4,
-                bond_dimension=3,
-                physical_dimension=2,
-            ),
+            defaults=_TEBD_GATE_LAYER_DEFAULTS,
         ),
     ),
 }

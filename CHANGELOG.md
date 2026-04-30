@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Removed a few unused internal helpers from logging, periodic-mode utilities,
+  rendering, and einsum code generation, and deduplicated built-in template
+  defaults so the catalog now keeps each template's default parameters in one
+  shared definition.
+
 ## [0.5.0] - 2026-04-30
 
 ### Changed

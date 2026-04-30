@@ -116,13 +116,6 @@ class LoggingRuntimeConfig:
         }
 
 
-class ContextFormatter(logging.Formatter):
-    """Formatter used by package handlers."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        return super().format(record)
-
-
 @contextmanager
 def package_logging_scope(
     requested_level_name: str | None,
@@ -401,24 +394,6 @@ def validate_positive_log_setting(value: int, *, name: str) -> int:
     return value
 
 
-def _merge_context_fields(record: logging.LogRecord) -> dict[str, str]:
-    merged: dict[str, str] = dict(_LOG_CONTEXT.get())
-    record_context = getattr(record, "tne_context", None)
-    if isinstance(record_context, dict):
-        for key, value in record_context.items():
-            normalized = _normalize_context_value(value)
-            if normalized is not None:
-                merged[key] = normalized
-    ordered: dict[str, str] = {}
-    for key in _CONTEXT_FIELD_ORDER:
-        value = merged.pop(key, None)
-        if isinstance(value, str):
-            ordered[key] = value
-    for key in sorted(merged):
-        ordered[key] = merged[key]
-    return ordered
-
-
 def _resolve_effective_log_level_name(
     requested_level_name: str | None,
     *,
@@ -443,7 +418,7 @@ def _create_stream_handler(level_name: str) -> logging.Handler:
     stream_handler = logging.StreamHandler()
     stream_handler.name = _STREAM_HANDLER_NAME
     stream_handler.setLevel(LOG_LEVEL_VALUES[level_name])
-    stream_handler.setFormatter(ContextFormatter(_STREAM_FORMAT))
+    stream_handler.setFormatter(logging.Formatter(_STREAM_FORMAT))
     return stream_handler
 
 
@@ -462,7 +437,7 @@ def _create_file_handler(
     )
     file_handler.name = f"{_FILE_HANDLER_NAME_PREFIX}{path}"
     file_handler.setLevel(LOG_LEVEL_VALUES[level_name])
-    file_handler.setFormatter(ContextFormatter(_FILE_FORMAT))
+    file_handler.setFormatter(logging.Formatter(_FILE_FORMAT))
     return file_handler
 
 

@@ -25,7 +25,6 @@ from .models import (
 from .types import StrPath
 from .validation import ensure_valid_spec
 
-_INDEX_RADIUS = 10.0
 _GROUP_PADDING = 28.0
 _NOTE_WIDTH = 210.0
 _NOTE_HEIGHT = 82.0
@@ -2354,27 +2353,6 @@ def _point_to_segment_distance(
         y=segment_start.y + segment_dy * clamped_projection,
     )
     return hypot(point.x - closest_point.x, point.y - closest_point.y)
-
-
-def _sample_quadratic_points(
-    source: CanvasPosition,
-    control: CanvasPosition,
-    target: CanvasPosition,
-    *,
-    segment_count: int = 24,
-) -> list[CanvasPosition]:
-    return [
-        CanvasPosition(
-            x=((1 - t) ** 2) * source.x
-            + 2 * (1 - t) * t * control.x
-            + (t**2) * target.x,
-            y=((1 - t) ** 2) * source.y
-            + 2 * (1 - t) * t * control.y
-            + (t**2) * target.y,
-        )
-        for step in range(segment_count + 1)
-        for t in [step / segment_count]
-    ]
 
 
 def _wrap_text(text: str, *, max_chars: int) -> list[str]:

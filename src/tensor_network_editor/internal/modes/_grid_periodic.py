@@ -29,9 +29,6 @@ GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE: dict[GridPeriodicTensorRole, str] = {
     GridPeriodicTensorRole.DOWN: GRID_PERIODIC_DOWN_OPERAND_ID,
     GridPeriodicTensorRole.LEFT: GRID_PERIODIC_LEFT_OPERAND_ID,
 }
-GRID_PERIODIC_RESERVED_OPERAND_IDS = frozenset(
-    GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE.values()
-)
 
 
 @dataclass(slots=True, frozen=True)
@@ -317,11 +314,6 @@ def grid_periodic_reserved_operand_id_for_role(
 ) -> str:
     """Return the planner operand id used for one 2D boundary role."""
     return GRID_PERIODIC_RESERVED_OPERAND_ID_BY_ROLE[role]
-
-
-def is_grid_periodic_reserved_operand_id(operand_id: str) -> bool:
-    """Return ``True`` when ``operand_id`` is a reserved 2D boundary operand."""
-    return operand_id in GRID_PERIODIC_RESERVED_OPERAND_IDS
 
 
 def _analysis_tensor_id(tensor: TensorSpec) -> str:
