@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import pytest
 
-from tensor_network_editor import generate_code
+from tensor_network_editor import __version__, generate_code
 from tensor_network_editor.analysis import analyze_contraction
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.routes import handle_bootstrap
@@ -63,7 +63,7 @@ def test_bootstrap_returns_session_contract(
     }
     assert payload["app_metadata"] == {
         "repository_url": "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor",
-        "version": "0.4.0",
+        "version": __version__,
         "license_name": "MIT",
         "author_name": "Alejandro Mata Ali",
     }
