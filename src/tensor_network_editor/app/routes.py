@@ -91,6 +91,7 @@ _FRONTEND_CLIENT_LOG_LEVELS: dict[str, int] = {
 _MAX_FRONTEND_CLIENT_LOG_EVENTS = 200
 _MAX_FRONTEND_CLIENT_LOG_MESSAGE_LENGTH = 400
 _MAX_FRONTEND_CLIENT_LOG_CONTEXT_VALUE_LENGTH = 200
+_RenderFormat = Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -100,6 +101,15 @@ class _FrontendClientLogEvent:
     level: str
     message: str
     context: dict[str, object]
+
+
+@dataclass(slots=True, frozen=True)
+class _RenderLabelOptions:
+    """Shared label-visibility flags for academic render routes."""
+
+    show_tensor_labels: bool
+    show_index_labels: bool
+    show_edge_labels: bool
 
 
 def _route_context(
@@ -327,109 +337,20 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
     """Render the current editor payload to an academic text format."""
     del session
     with log_operation(
-        LOGGER, "Render route", context={"route": "/api/render"}
+        LOGGER, "Render route", context=_route_context(None, "/api/render")
     ) as success_context:
         try:
             render_format = _resolve_render_format(payload)
             serialized_spec = require_serialized_spec(payload)
             spec = deserialize_spec(serialized_spec, validate=False)
+            label_options = _resolve_render_label_options(payload)
             success_context["format"] = render_format
             success_context.update(summarize_spec_counts(spec))
-            svg_options = SvgRenderOptions(
-                show_tensor_labels=require_boolean(
-                    payload, "show_tensor_names", default=True
-                ),
-                show_index_labels=require_boolean(
-                    payload, "show_index_names", default=True
-                ),
-                show_edge_labels=require_boolean(
-                    payload, "show_bond_names", default=True
-                ),
+            response_payload = _build_render_response(
+                render_format,
+                spec,
+                label_options,
             )
-            if render_format == "tikz":
-                text = render_spec_tikz(
-                    spec,
-                    options=TikzRenderOptions(
-                        show_tensor_labels=require_boolean(
-                            payload, "show_tensor_names", default=True
-                        ),
-                        show_index_labels=require_boolean(
-                            payload, "show_index_names", default=True
-                        ),
-                        show_edge_labels=require_boolean(
-                            payload, "show_bond_names", default=True
-                        ),
-                    ),
-                )
-                content_type = "text/x-tex;charset=utf-8"
-                response_payload: JsonDict = {
-                    "format": render_format,
-                    "text": text,
-                    "content_type": content_type,
-                }
-            elif render_format == "dot":
-                text = render_spec_dot(
-                    spec,
-                    options=DotRenderOptions(
-                        show_tensor_labels=require_boolean(
-                            payload, "show_tensor_names", default=True
-                        ),
-                        show_index_labels=require_boolean(
-                            payload, "show_index_names", default=True
-                        ),
-                        show_edge_labels=require_boolean(
-                            payload, "show_bond_names", default=True
-                        ),
-                    ),
-                )
-                content_type = "text/vnd.graphviz;charset=utf-8"
-                response_payload = {
-                    "format": render_format,
-                    "text": text,
-                    "content_type": content_type,
-                }
-            elif render_format == "mermaid":
-                text = render_spec_mermaid(
-                    spec,
-                    options=DotRenderOptions(
-                        show_tensor_labels=require_boolean(
-                            payload, "show_tensor_names", default=True
-                        ),
-                        show_index_labels=require_boolean(
-                            payload, "show_index_names", default=True
-                        ),
-                        show_edge_labels=require_boolean(
-                            payload, "show_bond_names", default=True
-                        ),
-                    ),
-                )
-                content_type = "text/plain;charset=utf-8"
-                response_payload = {
-                    "format": render_format,
-                    "text": text,
-                    "content_type": content_type,
-                }
-            elif render_format == "svg":
-                text = render_spec_svg(spec, options=svg_options)
-                response_payload = {
-                    "format": render_format,
-                    "text": text,
-                    "content_type": "image/svg+xml;charset=utf-8",
-                }
-            elif render_format == "png":
-                binary = render_spec_png(spec, options=svg_options)
-                response_payload = {
-                    "format": render_format,
-                    "base64": base64.b64encode(binary).decode("ascii"),
-                    "content_type": "image/png",
-                }
-            else:
-                binary = render_spec_pdf(spec, options=svg_options)
-                response_payload = {
-                    "format": render_format,
-                    "base64": base64.b64encode(binary).decode("ascii"),
-                    "content_type": "application/pdf",
-                }
         except ValueError as exc:
             return bad_request_response(str(exc))
         except SerializationError as exc:
@@ -790,19 +711,123 @@ def _serialize_generate_result(result: CodegenResult) -> JsonDict:
 
 def _resolve_render_format(
     payload: JsonDict,
-) -> Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"]:
+) -> _RenderFormat:
     raw_format = payload.get("format")
     if not isinstance(raw_format, str) or not raw_format.strip():
         raise ValueError("Missing 'format' payload.")
     normalized_format = raw_format.strip().lower()
     if normalized_format in {"tikz", "dot", "mermaid", "svg", "png", "pdf"}:
-        return cast(
-            Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"],
-            normalized_format,
-        )
+        return cast(_RenderFormat, normalized_format)
     raise ValueError(
         "Unsupported render format "
         f"'{raw_format}'. Expected 'tikz', 'dot', 'mermaid', 'svg', 'png', or 'pdf'."
+    )
+
+
+def _resolve_render_label_options(payload: JsonDict) -> _RenderLabelOptions:
+    """Return shared render-label visibility flags for one request payload."""
+    return _RenderLabelOptions(
+        show_tensor_labels=require_boolean(payload, "show_tensor_names", default=True),
+        show_index_labels=require_boolean(payload, "show_index_names", default=True),
+        show_edge_labels=require_boolean(payload, "show_bond_names", default=True),
+    )
+
+
+def _svg_render_options(label_options: _RenderLabelOptions) -> SvgRenderOptions:
+    """Return SVG/PNG/PDF render options derived from shared label flags."""
+    return SvgRenderOptions(
+        show_tensor_labels=label_options.show_tensor_labels,
+        show_index_labels=label_options.show_index_labels,
+        show_edge_labels=label_options.show_edge_labels,
+    )
+
+
+def _tikz_render_options(label_options: _RenderLabelOptions) -> TikzRenderOptions:
+    """Return TikZ render options derived from shared label flags."""
+    return TikzRenderOptions(
+        show_tensor_labels=label_options.show_tensor_labels,
+        show_index_labels=label_options.show_index_labels,
+        show_edge_labels=label_options.show_edge_labels,
+    )
+
+
+def _dot_render_options(label_options: _RenderLabelOptions) -> DotRenderOptions:
+    """Return DOT/Mermaid render options derived from shared label flags."""
+    return DotRenderOptions(
+        show_tensor_labels=label_options.show_tensor_labels,
+        show_index_labels=label_options.show_index_labels,
+        show_edge_labels=label_options.show_edge_labels,
+    )
+
+
+def _build_text_render_response(
+    render_format: _RenderFormat,
+    text: str,
+    *,
+    content_type: str,
+) -> JsonDict:
+    """Return one text-based render response payload."""
+    return {
+        "format": render_format,
+        "text": text,
+        "content_type": content_type,
+    }
+
+
+def _build_binary_render_response(
+    render_format: _RenderFormat,
+    binary: bytes,
+    *,
+    content_type: str,
+) -> JsonDict:
+    """Return one binary render response payload encoded for JSON transport."""
+    return {
+        "format": render_format,
+        "base64": base64.b64encode(binary).decode("ascii"),
+        "content_type": content_type,
+    }
+
+
+def _build_render_response(
+    render_format: _RenderFormat,
+    spec: NetworkSpec,
+    label_options: _RenderLabelOptions,
+) -> JsonDict:
+    """Return the serialized academic render payload for one format request."""
+    if render_format == "tikz":
+        return _build_text_render_response(
+            render_format,
+            render_spec_tikz(spec, options=_tikz_render_options(label_options)),
+            content_type="text/x-tex;charset=utf-8",
+        )
+    if render_format == "dot":
+        return _build_text_render_response(
+            render_format,
+            render_spec_dot(spec, options=_dot_render_options(label_options)),
+            content_type="text/vnd.graphviz;charset=utf-8",
+        )
+    if render_format == "mermaid":
+        return _build_text_render_response(
+            render_format,
+            render_spec_mermaid(spec, options=_dot_render_options(label_options)),
+            content_type="text/plain;charset=utf-8",
+        )
+    if render_format == "svg":
+        return _build_text_render_response(
+            render_format,
+            render_spec_svg(spec, options=_svg_render_options(label_options)),
+            content_type="image/svg+xml;charset=utf-8",
+        )
+    if render_format == "png":
+        return _build_binary_render_response(
+            render_format,
+            render_spec_png(spec, options=_svg_render_options(label_options)),
+            content_type="image/png",
+        )
+    return _build_binary_render_response(
+        render_format,
+        render_spec_pdf(spec, options=_svg_render_options(label_options)),
+        content_type="application/pdf",
     )
 
 

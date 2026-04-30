@@ -448,6 +448,77 @@ def test_render_route_applies_label_options_to_svg_png_and_pdf(
         assert options.show_edge_labels is False
 
 
+def test_resolve_render_label_options_reads_shared_payload_flags() -> None:
+    import tensor_network_editor.app.routes as routes_module
+
+    options = routes_module._resolve_render_label_options(
+        {
+            "show_tensor_names": False,
+            "show_index_names": True,
+            "show_bond_names": False,
+        }
+    )
+
+    assert options.show_tensor_labels is False
+    assert options.show_index_labels is True
+    assert options.show_edge_labels is False
+
+
+def test_build_render_response_preserves_text_and_binary_payload_shapes() -> None:
+    import tensor_network_editor.app.routes as routes_module
+
+    spec = build_sample_spec()
+    label_options = routes_module._RenderLabelOptions(
+        show_tensor_labels=False,
+        show_index_labels=False,
+        show_edge_labels=False,
+    )
+
+    with (
+        patch.object(
+            routes_module,
+            "render_spec_tikz",
+            return_value=r"\begin{tikzpicture}",
+        ) as render_tikz_mock,
+        patch.object(
+            routes_module,
+            "render_spec_pdf",
+            return_value=b"%PDF-1.4",
+        ) as render_pdf_mock,
+    ):
+        tikz_payload = routes_module._build_render_response(
+            "tikz",
+            spec,
+            label_options,
+        )
+        pdf_payload = routes_module._build_render_response(
+            "pdf",
+            spec,
+            label_options,
+        )
+
+    tikz_options = render_tikz_mock.call_args.kwargs["options"]
+    pdf_options = render_pdf_mock.call_args.kwargs["options"]
+
+    assert tikz_payload == {
+        "format": "tikz",
+        "text": r"\begin{tikzpicture}",
+        "content_type": "text/x-tex;charset=utf-8",
+    }
+    assert tikz_options.show_tensor_labels is False
+    assert tikz_options.show_index_labels is False
+    assert tikz_options.show_edge_labels is False
+
+    assert pdf_payload == {
+        "format": "pdf",
+        "base64": base64.b64encode(b"%PDF-1.4").decode("ascii"),
+        "content_type": "application/pdf",
+    }
+    assert pdf_options.show_tensor_labels is False
+    assert pdf_options.show_index_labels is False
+    assert pdf_options.show_edge_labels is False
+
+
 def test_render_route_rejects_unsupported_academic_format(
     editor_server: EditorServer,
 ) -> None:

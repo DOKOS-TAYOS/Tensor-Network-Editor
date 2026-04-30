@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from html import escape
 from importlib import import_module
 from io import BytesIO
 from math import ceil, cos, hypot, isfinite, pi, sin
-from typing import Any
+from typing import Any, TypeVar
 from xml.sax.saxutils import quoteattr
 
 from .internal._logging import log_operation, summarize_spec_counts
@@ -61,6 +61,8 @@ _FREE_INDEX_DIRECTION_HINTS = {
 }
 
 LOGGER = logging.getLogger(__name__)
+_RenderOptionsT = TypeVar("_RenderOptionsT")
+_RenderedOutputT = TypeVar("_RenderedOutputT", str, bytes)
 
 
 @dataclass(slots=True, frozen=True)
@@ -143,6 +145,57 @@ class _RenderedEdge:
     stroke: str
 
 
+def _render_context(
+    spec: NetworkSpec,
+    *,
+    format_name: str,
+    output_path: StrPath | None,
+) -> dict[str, object]:
+    """Return shared logging context for one static render operation."""
+    return {
+        "format": format_name,
+        "output_path": output_path,
+        **summarize_spec_counts(spec),
+    }
+
+
+def _validate_positive_render_scale(
+    scale: object,
+    *,
+    description: str,
+) -> float:
+    """Normalize one render scale after validating positivity and finiteness."""
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+        raise ValueError(f"{description} must be a positive finite number.")
+    resolved_scale = float(scale)
+    if not isfinite(resolved_scale) or resolved_scale <= 0:
+        raise ValueError(f"{description} must be a positive finite number.")
+    return resolved_scale
+
+
+def _render_spec_output(
+    spec: NetworkSpec,
+    *,
+    format_name: str,
+    options: _RenderOptionsT,
+    output_path: StrPath | None,
+    description: str,
+    render: Callable[[NetworkSpec, _RenderOptionsT], _RenderedOutputT],
+    writer: Callable[..., None],
+) -> _RenderedOutputT:
+    """Validate, render, and optionally persist one static export."""
+    with log_operation(
+        LOGGER,
+        "Render spec",
+        context=_render_context(spec, format_name=format_name, output_path=output_path),
+    ):
+        validated_spec = ensure_valid_spec(spec)
+        rendered = render(validated_spec, options)
+        if output_path is not None:
+            writer(output_path, rendered, description=description)
+        return rendered
+
+
 def render_spec_svg(
     spec: NetworkSpec,
     *,
@@ -150,18 +203,20 @@ def render_spec_svg(
     output_path: StrPath | None = None,
 ) -> str:
     """Render one tensor-network specification as a standalone SVG string."""
-    context = {
-        "format": "svg",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        resolved_options = options or SvgRenderOptions()
-        validated_spec = ensure_valid_spec(spec)
-        svg = _MatplotlibRenderer(validated_spec, resolved_options).render_svg()
-        if output_path is not None:
-            write_utf8_text(output_path, svg, description="SVG network rendering")
-        return svg
+    resolved_options = options or SvgRenderOptions()
+
+    def _render(validated_spec: NetworkSpec, options: SvgRenderOptions) -> str:
+        return _MatplotlibRenderer(validated_spec, options).render_svg()
+
+    return _render_spec_output(
+        spec,
+        format_name="svg",
+        options=resolved_options,
+        output_path=output_path,
+        description="SVG network rendering",
+        render=_render,
+        writer=write_utf8_text,
+    )
 
 
 def render_spec_png(
@@ -172,26 +227,28 @@ def render_spec_png(
     output_path: StrPath | None = None,
 ) -> bytes:
     """Render one tensor-network specification as PNG bytes using Matplotlib."""
-    context = {
-        "format": "png",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        if isinstance(scale, bool) or not isinstance(scale, (int, float)):
-            raise ValueError("PNG render scale must be a positive finite number.")
-        if not isfinite(float(scale)) or scale <= 0:
-            raise ValueError("PNG render scale must be a positive finite number.")
-        resolved_options = options or SvgRenderOptions()
-        validated_spec = ensure_valid_spec(spec)
-        png = _MatplotlibRenderer(
+    resolved_scale = _validate_positive_render_scale(
+        scale,
+        description="PNG render scale",
+    )
+    resolved_options = options or SvgRenderOptions()
+
+    def _render(validated_spec: NetworkSpec, options: SvgRenderOptions) -> bytes:
+        return _MatplotlibRenderer(
             validated_spec,
-            resolved_options,
-            scale=float(scale),
+            options,
+            scale=resolved_scale,
         ).render_png()
-        if output_path is not None:
-            write_binary(output_path, png, description="PNG network rendering")
-        return png
+
+    return _render_spec_output(
+        spec,
+        format_name="png",
+        options=resolved_options,
+        output_path=output_path,
+        description="PNG network rendering",
+        render=_render,
+        writer=write_binary,
+    )
 
 
 def render_spec_pdf(
@@ -202,24 +259,28 @@ def render_spec_pdf(
     output_path: StrPath | None = None,
 ) -> bytes:
     """Render one tensor-network specification as PDF bytes using Matplotlib."""
-    context = {
-        "format": "pdf",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        if isinstance(scale, bool) or not isinstance(scale, (int, float)):
-            raise ValueError("PDF render scale must be a positive finite number.")
-        if not isfinite(float(scale)) or scale <= 0:
-            raise ValueError("PDF render scale must be a positive finite number.")
-        resolved_options = options or SvgRenderOptions()
-        validated_spec = ensure_valid_spec(spec)
-        pdf = _MatplotlibRenderer(
-            validated_spec, resolved_options, scale=float(scale)
+    resolved_scale = _validate_positive_render_scale(
+        scale,
+        description="PDF render scale",
+    )
+    resolved_options = options or SvgRenderOptions()
+
+    def _render(validated_spec: NetworkSpec, options: SvgRenderOptions) -> bytes:
+        return _MatplotlibRenderer(
+            validated_spec,
+            options,
+            scale=resolved_scale,
         ).render_pdf()
-        if output_path is not None:
-            write_binary(output_path, pdf, description="PDF network rendering")
-        return pdf
+
+    return _render_spec_output(
+        spec,
+        format_name="pdf",
+        options=resolved_options,
+        output_path=output_path,
+        description="PDF network rendering",
+        render=_render,
+        writer=write_binary,
+    )
 
 
 def render_spec_tikz(
@@ -229,25 +290,33 @@ def render_spec_tikz(
     output_path: StrPath | None = None,
 ) -> str:
     """Render one tensor-network specification as a standalone TikZ picture."""
-    context = {
-        "format": "tikz",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        resolved_options = options or TikzRenderOptions()
-        if (
-            isinstance(resolved_options.scale, bool)
-            or not isinstance(resolved_options.scale, (int, float))
-            or not isfinite(float(resolved_options.scale))
-            or resolved_options.scale <= 0
-        ):
-            raise ValueError("TikZ render scale must be a positive finite number.")
-        validated_spec = ensure_valid_spec(spec)
-        tikz = _TikzRenderer(validated_spec, resolved_options).render()
-        if output_path is not None:
-            write_utf8_text(output_path, tikz, description="TikZ network rendering")
-        return tikz
+    resolved_options = options or TikzRenderOptions()
+    validated_scale = _validate_positive_render_scale(
+        resolved_options.scale,
+        description="TikZ render scale",
+    )
+    resolved_options = TikzRenderOptions(
+        scale=validated_scale,
+        global_width=resolved_options.global_width,
+        show_index_labels=resolved_options.show_index_labels,
+        show_edge_labels=resolved_options.show_edge_labels,
+        include_groups=resolved_options.include_groups,
+        include_notes=resolved_options.include_notes,
+        show_tensor_labels=resolved_options.show_tensor_labels,
+    )
+
+    def _render(validated_spec: NetworkSpec, options: TikzRenderOptions) -> str:
+        return _TikzRenderer(validated_spec, options).render()
+
+    return _render_spec_output(
+        spec,
+        format_name="tikz",
+        options=resolved_options,
+        output_path=output_path,
+        description="TikZ network rendering",
+        render=_render,
+        writer=write_utf8_text,
+    )
 
 
 def render_spec_dot(
@@ -257,20 +326,20 @@ def render_spec_dot(
     output_path: StrPath | None = None,
 ) -> str:
     """Render one tensor-network specification as a Graphviz/DOT graph."""
-    context = {
-        "format": "dot",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        resolved_options = options or DotRenderOptions()
-        validated_spec = ensure_valid_spec(spec)
-        dot = _DotRenderer(validated_spec, resolved_options).render()
-        if output_path is not None:
-            write_utf8_text(
-                output_path, dot, description="Graphviz/DOT network rendering"
-            )
-        return dot
+    resolved_options = options or DotRenderOptions()
+
+    def _render(validated_spec: NetworkSpec, options: DotRenderOptions) -> str:
+        return _DotRenderer(validated_spec, options).render()
+
+    return _render_spec_output(
+        spec,
+        format_name="dot",
+        options=resolved_options,
+        output_path=output_path,
+        description="Graphviz/DOT network rendering",
+        render=_render,
+        writer=write_utf8_text,
+    )
 
 
 def render_spec_mermaid(
@@ -280,20 +349,20 @@ def render_spec_mermaid(
     output_path: StrPath | None = None,
 ) -> str:
     """Render one tensor-network specification as a Mermaid flowchart."""
-    context = {
-        "format": "mermaid",
-        "output_path": output_path,
-        **summarize_spec_counts(spec),
-    }
-    with log_operation(LOGGER, "Render spec", context=context):
-        resolved_options = options or DotRenderOptions()
-        validated_spec = ensure_valid_spec(spec)
-        mermaid = _MermaidRenderer(validated_spec, resolved_options).render()
-        if output_path is not None:
-            write_utf8_text(
-                output_path, mermaid, description="Mermaid network rendering"
-            )
-        return mermaid
+    resolved_options = options or DotRenderOptions()
+
+    def _render(validated_spec: NetworkSpec, options: DotRenderOptions) -> str:
+        return _MermaidRenderer(validated_spec, options).render()
+
+    return _render_spec_output(
+        spec,
+        format_name="mermaid",
+        options=resolved_options,
+        output_path=output_path,
+        description="Mermaid network rendering",
+        render=_render,
+        writer=write_utf8_text,
+    )
 
 
 class _SvgRenderer:

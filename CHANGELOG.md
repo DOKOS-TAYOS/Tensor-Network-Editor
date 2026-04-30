@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 - Periodic code generation now routes linear, grid, and tree modes through one
   shared internal dispatcher, and the grid/tree array helpers reuse shared cell
   preparation utilities instead of repeating the same setup in each backend.
+- Static rendering helpers and the `/api/render` route now share more of their
+  internal option parsing, validation, and response assembly logic instead of
+  repeating the same flow per export format.
 
 ## [0.5.0] - 2026-04-30
 

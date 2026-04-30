@@ -1014,6 +1014,78 @@ def test_render_spec_svg_png_and_pdf_report_missing_matplotlib_dependency(
         rendering_module.render_spec_pdf(build_sample_spec())
 
 
+def test_validate_positive_render_scale_normalizes_and_rejects_invalid_values() -> None:
+    import tensor_network_editor.rendering as rendering_module
+
+    assert rendering_module._validate_positive_render_scale(
+        2,
+        description="PNG render scale",
+    ) == pytest.approx(2.0)
+    assert rendering_module._validate_positive_render_scale(
+        1.5,
+        description="TikZ render scale",
+    ) == pytest.approx(1.5)
+
+    for invalid_scale in (True, 0, -1, float("inf"), float("nan"), "2"):
+        with pytest.raises(
+            ValueError,
+            match="PNG render scale must be a positive finite number.",
+        ):
+            rendering_module._validate_positive_render_scale(
+                invalid_scale,
+                description="PNG render scale",
+            )
+
+
+def test_render_spec_output_validates_renders_and_writes_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import tensor_network_editor.rendering as rendering_module
+
+    spec = build_sample_spec()
+    validated_spec = build_three_tensor_spec()
+    output_path = tmp_path / "network.svg"
+    calls: dict[str, Any] = {}
+
+    def fake_validate(received_spec: NetworkSpec) -> NetworkSpec:
+        calls["validate"] = received_spec
+        return validated_spec
+
+    def fake_render(
+        received_spec: NetworkSpec,
+        received_options: SvgRenderOptions,
+    ) -> str:
+        calls["render"] = (received_spec, received_options)
+        return "<svg />"
+
+    def fake_write(
+        path: Path,
+        content: str,
+        *,
+        description: str,
+    ) -> None:
+        calls["write"] = (path, content, description)
+
+    monkeypatch.setattr(rendering_module, "ensure_valid_spec", fake_validate)
+    options = SvgRenderOptions(show_tensor_labels=False)
+
+    rendered = rendering_module._render_spec_output(
+        spec,
+        format_name="svg",
+        options=options,
+        output_path=output_path,
+        description="SVG network rendering",
+        render=fake_render,
+        writer=fake_write,
+    )
+
+    assert rendered == "<svg />"
+    assert calls["validate"] is spec
+    assert calls["render"] == (validated_spec, options)
+    assert calls["write"] == (output_path, "<svg />", "SVG network rendering")
+
+
 def test_render_spec_png_returns_png_bytes_and_writes_output_path(
     tmp_path: Path,
 ) -> None:
