@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from html import escape
 from importlib import import_module
 from io import BytesIO
 from math import ceil, cos, hypot, isfinite, pi, sin
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 from xml.sax.saxutils import quoteattr
 
 from .internal._logging import log_operation, summarize_spec_counts
@@ -143,6 +145,22 @@ class _RenderedEdge:
     target: CanvasPosition
     control: CanvasPosition | None
     stroke: str
+
+
+_ComponentKind = Literal["linear", "circular", "grid2d", "generic"]
+
+
+@dataclass(slots=True, frozen=True)
+class _ComponentGeometryProfile:
+    """Reusable geometry derived once for one connected tensor component."""
+
+    tensors: tuple[TensorSpec, ...]
+    center: CanvasPosition
+    kind: _ComponentKind
+    primary_axis: CanvasPosition
+    grid_basis: tuple[CanvasPosition, CanvasPosition] | None
+    primary_projections: tuple[float, ...] = ()
+    secondary_projections: tuple[float, ...] = ()
 
 
 def _render_context(
@@ -372,6 +390,10 @@ class _SvgRenderer:
         self._spec = spec
         self._options = options
         self._tensor_by_id = {tensor.id: tensor for tensor in spec.tensors}
+        self._tensor_radius_by_id = {
+            tensor.id: max(24.0, min(tensor.size.width, tensor.size.height) / 2.0)
+            for tensor in spec.tensors
+        }
         self._index_by_id = {
             index.id: (tensor, index)
             for tensor in spec.tensors
@@ -386,6 +408,8 @@ class _SvgRenderer:
         self._free_index_direction_by_id: dict[str, CanvasPosition] = {}
         self._adjacency_by_tensor_id = self._build_tensor_adjacency()
         self._component_tensor_ids_by_tensor_id = self._build_component_tensor_ids()
+        self._connected_index_direction_by_id = self._build_connected_index_directions()
+        self._component_profile_by_tensor_id = self._build_component_profiles()
 
     def render(self) -> str:
         """Return the complete SVG document."""
@@ -730,7 +754,10 @@ class _SvgRenderer:
         )
 
     def tensor_radius(self, tensor: TensorSpec) -> float:
-        return max(24.0, min(tensor.size.width, tensor.size.height) / 2.0)
+        return self._tensor_radius_by_id.get(
+            tensor.id,
+            max(24.0, min(tensor.size.width, tensor.size.height) / 2.0),
+        )
 
     def is_port_tensor(self, tensor: TensorSpec) -> bool:
         return (
@@ -856,68 +883,36 @@ class _SvgRenderer:
         return directions
 
     def _connected_index_direction(
-        self, tensor: TensorSpec, index: IndexSpec
+        self, _tensor: TensorSpec, index: IndexSpec
     ) -> CanvasPosition | None:
-        for edge in self._spec.edges:
-            if (
-                edge.left.index_id == index.id
-                and edge.right.tensor_id in self._tensor_by_id
-            ):
-                return _normalize_direction(
-                    CanvasPosition(
-                        x=self._tensor_by_id[edge.right.tensor_id].position.x
-                        - tensor.position.x,
-                        y=self._tensor_by_id[edge.right.tensor_id].position.y
-                        - tensor.position.y,
-                    )
-                )
-            if (
-                edge.right.index_id == index.id
-                and edge.left.tensor_id in self._tensor_by_id
-            ):
-                return _normalize_direction(
-                    CanvasPosition(
-                        x=self._tensor_by_id[edge.left.tensor_id].position.x
-                        - tensor.position.x,
-                        y=self._tensor_by_id[edge.left.tensor_id].position.y
-                        - tensor.position.y,
-                    )
-                )
-        for hyperedge in self._spec.hyperedges:
-            endpoint_ids = {endpoint.index_id for endpoint in hyperedge.endpoints}
-            if index.id not in endpoint_ids:
-                continue
-            hub = self._hyperedge_hub_position(hyperedge)
-            return _normalize_direction(
-                CanvasPosition(x=hub.x - tensor.position.x, y=hub.y - tensor.position.y)
-            )
-        return None
+        return self._connected_index_direction_by_id.get(index.id)
 
     def _candidate_directions_for_free_index(
         self,
         tensor: TensorSpec,
         index: IndexSpec,
-        component_tensors: Sequence[TensorSpec],
+        _component_tensors: Sequence[TensorSpec],
     ) -> list[CanvasPosition]:
         directional_hint = self._directional_index_hint(index)
         candidates: list[CanvasPosition] = []
-        component_kind = self._classify_component_shape(component_tensors)
+        component_profile = self._component_profile_for_tensor(tensor.id)
+        component_kind = component_profile.kind
         if component_kind == "linear":
-            candidates.extend(self._linear_component_candidates(component_tensors))
+            candidates.extend(self._linear_component_candidates(component_profile))
         elif component_kind == "circular":
             candidates.extend(
-                self._circular_component_candidates(tensor, component_tensors)
+                self._circular_component_candidates(tensor, component_profile)
             )
         elif component_kind == "grid2d":
             candidates.extend(
-                self._grid_component_candidates(tensor, component_tensors)
+                self._grid_component_candidates(tensor, component_profile)
             )
         if directional_hint is not None:
             if component_kind == "generic":
                 candidates.insert(0, directional_hint)
             else:
                 candidates.append(directional_hint)
-        candidates.extend(self._generic_component_candidates(tensor, component_tensors))
+        candidates.extend(self._generic_component_candidates(tensor, component_profile))
         candidates.extend(_FREE_INDEX_CARDINAL_DIRECTIONS)
         candidates.extend(_FREE_INDEX_DIAGONAL_DIRECTIONS)
         return _deduplicate_directions(candidates)
@@ -993,9 +988,9 @@ class _SvgRenderer:
         return _FREE_INDEX_DIRECTION_HINTS.get(normalized_name)
 
     def _linear_component_candidates(
-        self, component_tensors: Sequence[TensorSpec]
+        self, component_profile: _ComponentGeometryProfile
     ) -> list[CanvasPosition]:
-        axis_direction = self._component_primary_axis(component_tensors)
+        axis_direction = component_profile.primary_axis
         perpendicular_direction = CanvasPosition(
             x=-axis_direction.y, y=axis_direction.x
         )
@@ -1007,15 +1002,12 @@ class _SvgRenderer:
         ]
 
     def _circular_component_candidates(
-        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+        self, tensor: TensorSpec, component_profile: _ComponentGeometryProfile
     ) -> list[CanvasPosition]:
-        center = _average_position(
-            [component_tensor.position for component_tensor in component_tensors]
-        )
         radial_direction = _normalize_direction(
             CanvasPosition(
-                x=tensor.position.x - center.x,
-                y=tensor.position.y - center.y,
+                x=tensor.position.x - component_profile.center.x,
+                y=tensor.position.y - component_profile.center.y,
             )
         )
         perpendicular_direction = CanvasPosition(
@@ -1029,30 +1021,14 @@ class _SvgRenderer:
         ]
 
     def _grid_component_candidates(
-        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+        self, tensor: TensorSpec, component_profile: _ComponentGeometryProfile
     ) -> list[CanvasPosition]:
-        basis_directions = self._grid_component_basis(component_tensors)
+        basis_directions = component_profile.grid_basis
         if basis_directions is None:
             return []
         primary_axis, secondary_axis = basis_directions
-        primary_projections = sorted(
-            {
-                round(
-                    _dot_product(component_tensor.position, primary_axis),
-                    6,
-                )
-                for component_tensor in component_tensors
-            }
-        )
-        secondary_projections = sorted(
-            {
-                round(
-                    _dot_product(component_tensor.position, secondary_axis),
-                    6,
-                )
-                for component_tensor in component_tensors
-            }
-        )
+        primary_projections = component_profile.primary_projections
+        secondary_projections = component_profile.secondary_projections
         primary_projection = round(_dot_product(tensor.position, primary_axis), 6)
         secondary_projection = round(_dot_product(tensor.position, secondary_axis), 6)
         candidates: list[CanvasPosition] = []
@@ -1087,7 +1063,7 @@ class _SvgRenderer:
         return candidates
 
     def _generic_component_candidates(
-        self, tensor: TensorSpec, component_tensors: Sequence[TensorSpec]
+        self, tensor: TensorSpec, component_profile: _ComponentGeometryProfile
     ) -> list[CanvasPosition]:
         neighbor_tensor_ids = self._adjacency_by_tensor_id.get(tensor.id, set())
         neighbor_tensors = [
@@ -1108,18 +1084,15 @@ class _SvgRenderer:
                     )
                 )
             )
-        component_center = _average_position(
-            [component_tensor.position for component_tensor in component_tensors]
-        )
         if (
-            abs(component_center.x - tensor.position.x) > 1e-6
-            or abs(component_center.y - tensor.position.y) > 1e-6
+            abs(component_profile.center.x - tensor.position.x) > 1e-6
+            or abs(component_profile.center.y - tensor.position.y) > 1e-6
         ):
             candidates.append(
                 _normalize_direction(
                     CanvasPosition(
-                        x=tensor.position.x - component_center.x,
-                        y=tensor.position.y - component_center.y,
+                        x=tensor.position.x - component_profile.center.x,
+                        y=tensor.position.y - component_profile.center.y,
                     )
                 )
             )
@@ -1128,7 +1101,7 @@ class _SvgRenderer:
                 [*_FREE_INDEX_CARDINAL_DIRECTIONS, *_FREE_INDEX_DIAGONAL_DIRECTIONS],
                 key=lambda direction: self._generic_direction_sort_key(
                     tensor,
-                    component_tensors,
+                    component_profile.tensors,
                     direction,
                 ),
             )
@@ -1145,21 +1118,90 @@ class _SvgRenderer:
         return (penalty, -abs(direction.x) - abs(direction.y))
 
     def _classify_component_shape(self, component_tensors: Sequence[TensorSpec]) -> str:
-        tensor_ids = {tensor.id for tensor in component_tensors}
-        if len(tensor_ids) >= 2 and self._is_linear_component(tensor_ids):
-            return "linear"
-        if len(tensor_ids) >= 3 and self._is_circular_component(tensor_ids):
-            return "circular"
-        if len(tensor_ids) >= 4 and self._is_grid_component(component_tensors):
-            return "grid2d"
-        return "generic"
+        if not component_tensors:
+            return "generic"
+        return self._component_profile_for_tensor(component_tensors[0].id).kind
 
-    def _is_linear_component(self, tensor_ids: set[str]) -> bool:
-        component_tensors = [
-            self._tensor_by_id[tensor_id]
-            for tensor_id in tensor_ids
-            if tensor_id in self._tensor_by_id
-        ]
+    def _build_component_profile(
+        self,
+        component_tensors: Sequence[TensorSpec],
+    ) -> _ComponentGeometryProfile:
+        resolved_component_tensors = tuple(component_tensors)
+        center = _average_position(
+            [
+                component_tensor.position
+                for component_tensor in resolved_component_tensors
+            ]
+        )
+        tensor_ids = {tensor.id for tensor in component_tensors}
+        primary_axis = self._component_primary_axis(resolved_component_tensors)
+        kind: _ComponentKind = "generic"
+        grid_basis: tuple[CanvasPosition, CanvasPosition] | None = None
+        primary_projections: tuple[float, ...] = ()
+        secondary_projections: tuple[float, ...] = ()
+
+        if len(tensor_ids) >= 2 and self._is_linear_component(
+            tensor_ids,
+            resolved_component_tensors,
+            axis_direction=primary_axis,
+            axis_origin=center,
+        ):
+            kind = "linear"
+        elif len(tensor_ids) >= 3 and self._is_circular_component(tensor_ids):
+            kind = "circular"
+        elif len(tensor_ids) >= 4:
+            grid_basis = self._grid_component_basis(resolved_component_tensors)
+            if grid_basis is not None and self._is_grid_component(
+                resolved_component_tensors,
+                tensor_ids=tensor_ids,
+                basis_directions=grid_basis,
+            ):
+                kind = "grid2d"
+                primary_axis, secondary_axis = grid_basis
+                primary_projections = tuple(
+                    sorted(
+                        {
+                            round(_dot_product(tensor.position, primary_axis), 6)
+                            for tensor in resolved_component_tensors
+                        }
+                    )
+                )
+                secondary_projections = tuple(
+                    sorted(
+                        {
+                            round(_dot_product(tensor.position, secondary_axis), 6)
+                            for tensor in resolved_component_tensors
+                        }
+                    )
+                )
+
+        return _ComponentGeometryProfile(
+            tensors=resolved_component_tensors,
+            center=center,
+            kind=kind,
+            primary_axis=primary_axis,
+            grid_basis=grid_basis,
+            primary_projections=primary_projections,
+            secondary_projections=secondary_projections,
+        )
+
+    def _is_linear_component(
+        self,
+        tensor_ids: set[str],
+        component_tensors: Sequence[TensorSpec] | None = None,
+        *,
+        axis_direction: CanvasPosition | None = None,
+        axis_origin: CanvasPosition | None = None,
+    ) -> bool:
+        resolved_component_tensors = tuple(
+            component_tensors
+            if component_tensors is not None
+            else [
+                self._tensor_by_id[tensor_id]
+                for tensor_id in tensor_ids
+                if tensor_id in self._tensor_by_id
+            ]
+        )
         degree_by_tensor_id = {
             tensor_id: len(self._adjacency_by_tensor_id.get(tensor_id, set()))
             for tensor_id in tensor_ids
@@ -1168,33 +1210,44 @@ class _SvgRenderer:
         degree_one_count = sum(
             1 for degree in degree_by_tensor_id.values() if degree == 1
         )
-        axis_direction = self._component_primary_axis(component_tensors)
-        axis_origin = _average_position(
-            [component_tensor.position for component_tensor in component_tensors]
+        resolved_axis_direction = (
+            self._component_primary_axis(resolved_component_tensors)
+            if axis_direction is None
+            else axis_direction
+        )
+        resolved_axis_origin = (
+            _average_position(
+                [
+                    component_tensor.position
+                    for component_tensor in resolved_component_tensors
+                ]
+            )
+            if axis_origin is None
+            else axis_origin
         )
         projections = [
             _dot_product(
                 CanvasPosition(
-                    x=component_tensor.position.x - axis_origin.x,
-                    y=component_tensor.position.y - axis_origin.y,
+                    x=component_tensor.position.x - resolved_axis_origin.x,
+                    y=component_tensor.position.y - resolved_axis_origin.y,
                 ),
-                axis_direction,
+                resolved_axis_direction,
             )
-            for component_tensor in component_tensors
+            for component_tensor in resolved_component_tensors
         ]
         dominant_span = max(projections, default=0.0) - min(projections, default=0.0)
         minor_span = max(
             (
                 abs(
                     _cross_product(
-                        axis_direction,
+                        resolved_axis_direction,
                         CanvasPosition(
-                            x=component_tensor.position.x - axis_origin.x,
-                            y=component_tensor.position.y - axis_origin.y,
+                            x=component_tensor.position.x - resolved_axis_origin.x,
+                            y=component_tensor.position.y - resolved_axis_origin.y,
                         ),
                     )
                 )
-                for component_tensor in component_tensors
+                for component_tensor in resolved_component_tensors
             ),
             default=0.0,
         )
@@ -1215,11 +1268,26 @@ class _SvgRenderer:
             degree == 2 for degree in degree_by_tensor_id.values()
         )
 
-    def _is_grid_component(self, component_tensors: Sequence[TensorSpec]) -> bool:
-        basis_directions = self._grid_component_basis(component_tensors)
-        if basis_directions is None:
+    def _is_grid_component(
+        self,
+        component_tensors: Sequence[TensorSpec],
+        *,
+        tensor_ids: set[str] | None = None,
+        basis_directions: tuple[CanvasPosition, CanvasPosition] | None = None,
+    ) -> bool:
+        resolved_basis_directions = (
+            self._grid_component_basis(component_tensors)
+            if basis_directions is None
+            else basis_directions
+        )
+        if resolved_basis_directions is None:
             return False
-        primary_axis, secondary_axis = basis_directions
+        primary_axis, secondary_axis = resolved_basis_directions
+        resolved_tensor_ids = (
+            {tensor.id for tensor in component_tensors}
+            if tensor_ids is None
+            else tensor_ids
+        )
         primary_projections = {
             round(_dot_product(tensor.position, primary_axis), 6)
             for tensor in component_tensors
@@ -1230,11 +1298,10 @@ class _SvgRenderer:
         }
         if len(primary_projections) < 2 or len(secondary_projections) < 2:
             return False
-        tensor_ids = {tensor.id for tensor in component_tensors}
         for edge in self._spec.edges:
             if (
-                edge.left.tensor_id not in tensor_ids
-                or edge.right.tensor_id not in tensor_ids
+                edge.left.tensor_id not in resolved_tensor_ids
+                or edge.right.tensor_id not in resolved_tensor_ids
             ):
                 continue
             left_tensor = self._tensor_by_id[edge.left.tensor_id]
@@ -1310,6 +1377,41 @@ class _SvgRenderer:
             return None
         return basis_directions[0], basis_directions[1]
 
+    def _build_connected_index_directions(self) -> dict[str, CanvasPosition]:
+        connected_index_direction_by_id: dict[str, CanvasPosition] = {}
+        for edge in self._spec.edges:
+            left_index = self._index_by_id.get(edge.left.index_id)
+            right_index = self._index_by_id.get(edge.right.index_id)
+            if left_index is None or right_index is None:
+                continue
+            left_tensor, left_index_spec = left_index
+            right_tensor, right_index_spec = right_index
+            left_to_right = _normalize_direction(
+                CanvasPosition(
+                    x=right_tensor.position.x - left_tensor.position.x,
+                    y=right_tensor.position.y - left_tensor.position.y,
+                )
+            )
+            connected_index_direction_by_id[left_index_spec.id] = left_to_right
+            connected_index_direction_by_id[right_index_spec.id] = CanvasPosition(
+                x=-left_to_right.x,
+                y=-left_to_right.y,
+            )
+        for hyperedge in self._spec.hyperedges:
+            hub = self._hyperedge_hub_position(hyperedge)
+            for endpoint in hyperedge.endpoints:
+                tensor_index = self._index_by_id.get(endpoint.index_id)
+                if tensor_index is None:
+                    continue
+                tensor, index = tensor_index
+                connected_index_direction_by_id[index.id] = _normalize_direction(
+                    CanvasPosition(
+                        x=hub.x - tensor.position.x,
+                        y=hub.y - tensor.position.y,
+                    )
+                )
+        return connected_index_direction_by_id
+
     def _build_tensor_adjacency(self) -> dict[str, set[str]]:
         adjacency_by_tensor_id: dict[str, set[str]] = {
             tensor.id: set() for tensor in self._spec.tensors
@@ -1342,11 +1444,11 @@ class _SvgRenderer:
         for tensor in self._spec.tensors:
             if tensor.id in visited_tensor_ids:
                 continue
-            queue = [tensor.id]
+            queue: deque[str] = deque([tensor.id])
             component_tensor_ids: list[str] = []
             visited_tensor_ids.add(tensor.id)
             while queue:
-                current_tensor_id = queue.pop(0)
+                current_tensor_id = queue.popleft()
                 component_tensor_ids.append(current_tensor_id)
                 for neighbor_tensor_id in self._adjacency_by_tensor_id.get(
                     current_tensor_id, set()
@@ -1361,15 +1463,41 @@ class _SvgRenderer:
                 )
         return component_tensor_ids_by_tensor_id
 
-    def _component_tensors_for_tensor(self, tensor_id: str) -> list[TensorSpec]:
-        component_tensor_ids = self._component_tensor_ids_by_tensor_id.get(
-            tensor_id, [tensor_id]
-        )
-        return [
+    def _build_component_profiles(self) -> dict[str, _ComponentGeometryProfile]:
+        component_profile_by_tensor_id: dict[str, _ComponentGeometryProfile] = {}
+        for tensor in self._spec.tensors:
+            if tensor.id in component_profile_by_tensor_id:
+                continue
+            component_tensors = self._component_tensors_from_ids(
+                self._component_tensor_ids_by_tensor_id.get(tensor.id, [tensor.id])
+            )
+            component_profile = self._build_component_profile(component_tensors)
+            for component_tensor in component_tensors:
+                component_profile_by_tensor_id[component_tensor.id] = component_profile
+        return component_profile_by_tensor_id
+
+    def _component_tensors_from_ids(
+        self,
+        component_tensor_ids: Sequence[str],
+    ) -> tuple[TensorSpec, ...]:
+        return tuple(
             self._tensor_by_id[component_tensor_id]
             for component_tensor_id in component_tensor_ids
             if component_tensor_id in self._tensor_by_id
-        ]
+        )
+
+    def _component_profile_for_tensor(
+        self,
+        tensor_id: str,
+    ) -> _ComponentGeometryProfile:
+        component_profile = self._component_profile_by_tensor_id.get(tensor_id)
+        if component_profile is not None:
+            return component_profile
+        tensor = self._tensor_by_id[tensor_id]
+        return self._build_component_profile((tensor,))
+
+    def _component_tensors_for_tensor(self, tensor_id: str) -> tuple[TensorSpec, ...]:
+        return self._component_profile_for_tensor(tensor_id).tensors
 
 
 class _TikzRenderer:
@@ -2694,6 +2822,7 @@ def _horizontal_alignment(svg_anchor: str) -> str:
     return "center"
 
 
+@lru_cache(maxsize=1)
 def _load_matplotlib_modules() -> tuple[Any, Any, Any, Any]:
     """Import Matplotlib lazily for academic SVG/PNG/PDF exports."""
     try:

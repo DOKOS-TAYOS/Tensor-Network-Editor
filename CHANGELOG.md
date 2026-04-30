@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 - Internal built-in template builders are now split by family with shared
   construction primitives, while the existing template catalog and public
   template APIs keep the same behavior and registration order.
+- Large static renders now reuse connected-component geometry and connected
+  index direction lookups instead of recomputing the same layout heuristics for
+  every free index, which substantially reduces hot-path SVG/PNG/TikZ latency.
 
 ## [0.5.0] - 2026-04-30
 

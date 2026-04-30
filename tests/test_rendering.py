@@ -826,6 +826,46 @@ def test_render_spec_svg_reuses_edge_geometry_within_one_render(
     assert edge_render_info_call_count == 1
 
 
+def test_render_spec_svg_reuses_component_axis_geometry_within_one_render(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tensor_network_editor.rendering as rendering_module
+
+    pytest.importorskip("matplotlib")
+    spec = build_template_spec(
+        "mps",
+        TemplateParameters(
+            graph_size=12,
+            bond_dimension=3,
+            physical_dimension=2,
+            boundary_condition="open",
+            initial_state="zeros",
+        ),
+    )
+    component_primary_axis_call_count = 0
+    original_component_primary_axis = (
+        rendering_module._SvgRenderer._component_primary_axis
+    )
+
+    def counting_component_primary_axis(
+        self: Any,
+        component_tensors: list[TensorSpec],
+    ) -> CanvasPosition:
+        nonlocal component_primary_axis_call_count
+        component_primary_axis_call_count += 1
+        return original_component_primary_axis(self, component_tensors)
+
+    monkeypatch.setattr(
+        rendering_module._SvgRenderer,
+        "_component_primary_axis",
+        counting_component_primary_axis,
+    )
+
+    render_spec_svg(spec)
+
+    assert component_primary_axis_call_count == 1
+
+
 def test_render_spec_svg_keeps_labels_as_svg_text_elements() -> None:
     pytest.importorskip("matplotlib")
 
@@ -1012,6 +1052,38 @@ def test_render_spec_svg_png_and_pdf_report_missing_matplotlib_dependency(
         rendering_module.render_spec_png(build_sample_spec())
     with pytest.raises(RuntimeError, match=r"requires Matplotlib|add Matplotlib"):
         rendering_module.render_spec_pdf(build_sample_spec())
+
+
+def test_load_matplotlib_modules_memoizes_imports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tensor_network_editor.rendering as rendering_module
+
+    if hasattr(rendering_module._load_matplotlib_modules, "cache_clear"):
+        rendering_module._load_matplotlib_modules.cache_clear()
+    import_call_counts: dict[str, int] = {}
+    original_import_module = rendering_module.import_module
+
+    def counting_import_module(name: str) -> Any:
+        import_call_counts[name] = import_call_counts.get(name, 0) + 1
+        return original_import_module(name)
+
+    monkeypatch.setattr(
+        rendering_module,
+        "import_module",
+        counting_import_module,
+    )
+
+    first_modules = rendering_module._load_matplotlib_modules()
+    second_modules = rendering_module._load_matplotlib_modules()
+
+    assert second_modules == first_modules
+    assert import_call_counts == {
+        "matplotlib": 1,
+        "matplotlib.pyplot": 1,
+        "matplotlib.patches": 1,
+        "matplotlib.path": 1,
+    }
 
 
 def test_validate_positive_render_scale_normalizes_and_rejects_invalid_values() -> None:
