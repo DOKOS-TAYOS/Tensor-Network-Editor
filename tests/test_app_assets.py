@@ -2469,6 +2469,7 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     session_template_manager_body = request_text(
         f"{editor_server.base_url}/js/session/sessionTemplateManager.js"
     )
+    dom_body_without_whitespace = "".join(dom_body.split())
 
     assert re.search(
         r'<button id="insert-template-button"[^>]*>\s*\+\s*</button>',
@@ -2635,64 +2636,107 @@ def test_template_management_assets_expose_toolbar_controls_and_routes(
     assert "Support on YouTube" in about_section.group("body")
     assert 'href="https://www.youtube.com/@whenphysics"' in about_section.group("body")
     assert (
-        'templateSettingsButton: document.getElementById("template-settings-button")'
-        in dom_body
+        'templateSettingsButton: document.getElementById("template-settings-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'templateSettingsPopover: document.getElementById("template-settings-popover")'
-        in dom_body
+        'templateSettingsPopover: document.getElementById("template-settings-popover")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'templateParameterPanel: document.getElementById("template-parameter-panel")'
-        in dom_body
+        'templateParameterPanel: document.getElementById("template-parameter-panel")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'templateLoadInput: document.getElementById("template-load-input")' in dom_body
+        'templateLoadInput: document.getElementById("template-load-input")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowLayoutPopover: document.getElementById("reflow-layout-popover")'
-        in dom_body
+        'reflowLayoutPopover: document.getElementById("reflow-layout-popover")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowAlignHorizontalButton: document.getElementById("reflow-align-horizontal-button")'
-        in dom_body
+        'reflowAlignHorizontalButton: document.getElementById("reflow-align-horizontal-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowAlignVerticalButton: document.getElementById("reflow-align-vertical-button")'
-        in dom_body
+        'reflowAlignVerticalButton: document.getElementById("reflow-align-vertical-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowRotateSelectionButton: document.getElementById("reflow-rotate-selection-button")'
-        in dom_body
+        'reflowRotateSelectionButton: document.getElementById("reflow-rotate-selection-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowIndicesLeftButton: document.getElementById("reflow-indices-left-button")'
-        in dom_body
+        'reflowIndicesLeftButton: document.getElementById("reflow-indices-left-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowArrangeChainButton: document.getElementById("reflow-arrange-chain-button")'
-        in dom_body
+        'reflowArrangeChainButton: document.getElementById("reflow-arrange-chain-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'reflowSnapGridButton: document.getElementById("reflow-snap-grid-button")'
-        in dom_body
+        'reflowSnapGridButton: document.getElementById("reflow-snap-grid-button")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'aboutSchemaVersion: document.getElementById("about-schema-version")'
-        in dom_body
+        'aboutSchemaVersion: document.getElementById("about-schema-version")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
     assert (
-        'templateManagerModal: document.getElementById("template-manager-modal")'
-        in dom_body
+        'templateManagerModal: document.getElementById("template-manager-modal")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
     )
-    assert "templateManagerSaveButton: document.getElementById(" in dom_body
-    assert "templateManagerCloseButton: document.getElementById(" in dom_body
-    assert "templateManagerDiscardButton: document.getElementById(" in dom_body
     assert (
-        'templateCatalogWarning: document.getElementById("template-catalog-warning")'
-        in dom_body
+        "templateManagerSaveButton: document.getElementById(".replace(" ", "")
+        in dom_body_without_whitespace
     )
-    assert 'helpSharedHeader: document.getElementById("help-shared-header")' in dom_body
+    assert (
+        "templateManagerCloseButton: document.getElementById(".replace(" ", "")
+        in dom_body_without_whitespace
+    )
+    assert (
+        "templateManagerDiscardButton: document.getElementById(".replace(" ", "")
+        in dom_body_without_whitespace
+    )
+    assert (
+        'templateCatalogWarning: document.getElementById("template-catalog-warning")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
+    )
+    assert (
+        'helpSharedHeader: document.getElementById("help-shared-header")'.replace(
+            " ", ""
+        )
+        in dom_body_without_whitespace
+    )
     assert ".help-about-grid {" in body
     assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in body
     assert ".help-dialog-close {" in body
