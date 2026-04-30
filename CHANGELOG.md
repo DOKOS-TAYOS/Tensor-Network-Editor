@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
 - Static rendering helpers and the `/api/render` route now share more of their
   internal option parsing, validation, and response assembly logic instead of
   repeating the same flow per export format.
+- Internal built-in template builders are now split by family with shared
+  construction primitives, while the existing template catalog and public
+  template APIs keep the same behavior and registration order.
 
 ## [0.5.0] - 2026-04-30
 

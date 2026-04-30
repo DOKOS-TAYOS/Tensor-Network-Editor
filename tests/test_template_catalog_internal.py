@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 from tensor_network_editor.internal.models._model_tensor_data import TensorDataMode
@@ -8,6 +10,8 @@ from tensor_network_editor.internal.templates._template_builders import (
     build_template,
 )
 from tensor_network_editor.internal.templates._template_catalog import (
+    _reset_template_registry_for_tests,
+    get_template_builder,
     get_template_definition,
     list_template_names,
     serialize_template_definitions,
@@ -106,6 +110,66 @@ def test_template_builders_internal_dispatches_to_specific_builder() -> None:
 
     assert spec.name == "MPS (5 sites)"
     assert len(spec.tensors) == 5
+
+
+def test_template_builder_facade_reexports_family_modules() -> None:
+    try:
+        linear_module = importlib.import_module(
+            "tensor_network_editor.internal.templates._template_builders_linear"
+        )
+        grid_module = importlib.import_module(
+            "tensor_network_editor.internal.templates._template_builders_grid"
+        )
+        tree_module = importlib.import_module(
+            "tensor_network_editor.internal.templates._template_builders_tree"
+        )
+    except ModuleNotFoundError as exc:
+        pytest.fail(f"Expected split template-builder modules to exist: {exc}")
+
+    _reset_template_registry_for_tests()
+
+    assert _build_linear_chain_template is linear_module._build_linear_chain_template
+    assert get_template_builder("mps").__module__ == linear_module.__name__
+    assert get_template_builder("peps_2x2").__module__ == grid_module.__name__
+    assert get_template_builder("mera").__module__ == tree_module.__name__
+
+
+def test_template_builder_common_module_exposes_shared_primitives() -> None:
+    try:
+        common_module = importlib.import_module(
+            "tensor_network_editor.internal.templates._template_builders_common"
+        )
+    except ModuleNotFoundError as exc:
+        pytest.fail(f"Expected shared template-builder primitives module: {exc}")
+
+    left_tensor = common_module._make_tensor(
+        "tensor_left",
+        "Left",
+        10.0,
+        20.0,
+        [("right", 3, (58.0, 0.0))],
+    )
+    right_tensor = common_module._make_tensor(
+        "tensor_right",
+        "Right",
+        40.0,
+        20.0,
+        [("left", 3, (-58.0, 0.0))],
+    )
+    edge = common_module._make_edge(
+        "edge_left_right",
+        left_tensor,
+        "right",
+        right_tensor,
+        "left",
+    )
+
+    assert left_tensor.indices[0].id == "tensor_left_right"
+    assert right_tensor.indices[0].id == "tensor_right_left"
+    assert edge.left.tensor_id == "tensor_left"
+    assert edge.left.index_id == "tensor_left_right"
+    assert edge.right.tensor_id == "tensor_right"
+    assert edge.right.index_id == "tensor_right_left"
 
 
 def test_linear_chain_template_helper_reuses_catalog_metadata() -> None:
