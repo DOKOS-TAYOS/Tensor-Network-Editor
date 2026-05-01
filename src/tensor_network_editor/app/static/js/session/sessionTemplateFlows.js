@@ -42,6 +42,10 @@ export function createSessionTemplateFlows({
       : null;
   }
 
+  function wasFileSaved(saveResult) {
+    return saveResult !== false;
+  }
+
   function getGroupById(groupId) {
     return actions.findGroupById(groupId);
   }
@@ -281,11 +285,17 @@ export function createSessionTemplateFlows({
       if (payload.spec && payload.spec.network) {
         payload.spec.network.name = resolvedDisplayName;
       }
-      sessionUi.downloadText(
-        `${actions.sanitizeFilename(resolvedDisplayName || "subnetwork")}.json`,
-        JSON.stringify(payload.spec, null, 2),
-        "application/json;charset=utf-8"
+      const didSave = wasFileSaved(
+        await sessionUi.downloadText(
+          `${actions.sanitizeFilename(resolvedDisplayName || "subnetwork")}.json`,
+          JSON.stringify(payload.spec, null, 2),
+          "application/json;charset=utf-8"
+        )
       );
+      if (!didSave) {
+        actions.setStatus("Subnetwork export cancelled.");
+        return;
+      }
       actions.setStatus(`Saved ${resolvedDisplayName} as JSON.`, "success");
     } catch (error) {
       actions.setStatus(`Could not export the subnetwork: ${error.message}`, "error");
@@ -411,11 +421,17 @@ export function createSessionTemplateFlows({
       serializedSpec,
       actions.sanitizeFilename
     );
-    sessionUi.downloadText(
-      `${actions.sanitizeFilename(displayName || "template")}.json`,
-      JSON.stringify(payload, null, 2),
-      "application/json;charset=utf-8"
+    const didSave = wasFileSaved(
+      await sessionUi.downloadText(
+        `${actions.sanitizeFilename(displayName || "template")}.json`,
+        JSON.stringify(payload, null, 2),
+        "application/json;charset=utf-8"
+      )
     );
+    if (!didSave) {
+      actions.setStatus("Template export cancelled.");
+      return;
+    }
     actions.setStatus(`Exported ${displayName} as a reusable template.`, "success");
   }
 

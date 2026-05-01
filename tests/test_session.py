@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+from base64 import b64encode
 from collections.abc import Iterator
 from importlib import import_module
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 from tensor_network_editor.app._protocol import JsonDict
 from tensor_network_editor.app.session import (
     EditorSession,
+    _PywebviewExportApi,
     build_blank_network_spec,
     wait_for_editor_result,
 )
@@ -719,6 +721,7 @@ def test_launch_editor_session_pywebview_closes_window_after_completion(
         def __init__(self) -> None:
             self.created_urls: list[str] = []
             self.created_maximized: list[bool] = []
+            self.created_js_apis: list[object] = []
             self.window = FakeWindow()
             self.start_calls = 0
 
@@ -728,10 +731,12 @@ def test_launch_editor_session_pywebview_closes_window_after_completion(
             url: str,
             *,
             maximized: bool = False,
+            js_api: object | None = None,
         ) -> FakeWindow:
             assert title == "Tensor Network Editor"
             self.created_urls.append(url)
             self.created_maximized.append(maximized)
+            self.created_js_apis.append(js_api)
             return self.window
 
         def start(self, callback: object, window: FakeWindow) -> None:
@@ -772,6 +777,8 @@ def test_launch_editor_session_pywebview_closes_window_after_completion(
     assert result is completed_result
     assert pywebview.created_urls == ["http://127.0.0.1:43210"]
     assert pywebview.created_maximized == [True]
+    assert len(pywebview.created_js_apis) == 1
+    assert isinstance(pywebview.created_js_apis[0], _PywebviewExportApi)
     assert pywebview.start_calls == 1
     assert pywebview.window.destroy_calls == 1
 
@@ -814,8 +821,9 @@ def test_launch_editor_session_pywebview_window_close_cancels_session(
             url: str,
             *,
             maximized: bool = False,
+            js_api: object | None = None,
         ) -> FakeWindow:
-            del title, url, maximized
+            del title, url, maximized, js_api
             return self.window
 
         def start(self, callback: object, window: FakeWindow) -> None:
@@ -852,6 +860,120 @@ def test_launch_editor_session_pywebview_window_close_cancels_session(
     result = session_module.launch_editor_session(ui_mode="pywebview")
 
     assert result is None
+
+
+def test_pywebview_export_api_writes_text_file_to_selected_path(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "demo.json"
+
+    class FakePywebview:
+        SAVE_DIALOG = object()
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.dialog_calls: list[dict[str, object]] = []
+
+        def create_file_dialog(
+            self,
+            dialog_type: object,
+            *,
+            save_filename: str,
+            file_types: tuple[str, ...],
+        ) -> tuple[str]:
+            self.dialog_calls.append(
+                {
+                    "dialog_type": dialog_type,
+                    "save_filename": save_filename,
+                    "file_types": file_types,
+                }
+            )
+            return (str(output_path),)
+
+    api = _PywebviewExportApi(FakePywebview())
+    window = FakeWindow()
+    api.bind_window(window)
+
+    saved = api.save_text_file(
+        "demo.json",
+        "{\n  \"ok\": true\n}\n",
+        "application/json;charset=utf-8",
+    )
+
+    assert saved is True
+    assert output_path.read_text(encoding="utf-8") == '{\n  "ok": true\n}\n'
+    assert window.dialog_calls == [
+        {
+            "dialog_type": FakePywebview.SAVE_DIALOG,
+            "save_filename": "demo.json",
+            "file_types": ("JSON (*.json)",),
+        }
+    ]
+
+
+def test_pywebview_export_api_returns_false_when_save_dialog_is_cancelled(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "demo.json"
+
+    class FakePywebview:
+        SAVE_DIALOG = object()
+
+    class FakeWindow:
+        def create_file_dialog(
+            self,
+            dialog_type: object,
+            *,
+            save_filename: str,
+            file_types: tuple[str, ...],
+        ) -> tuple[str, ...]:
+            del dialog_type, save_filename, file_types
+            return ()
+
+    api = _PywebviewExportApi(FakePywebview())
+    api.bind_window(FakeWindow())
+
+    saved = api.save_text_file(
+        "demo.json",
+        '{"ok": true}',
+        "application/json;charset=utf-8",
+    )
+
+    assert saved is False
+    assert output_path.exists() is False
+
+
+def test_pywebview_export_api_writes_binary_file_to_selected_path(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "demo.pdf"
+    binary_payload = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
+
+    class FakePywebview:
+        SAVE_DIALOG = object()
+
+    class FakeWindow:
+        def create_file_dialog(
+            self,
+            dialog_type: object,
+            *,
+            save_filename: str,
+            file_types: tuple[str, ...],
+        ) -> tuple[str]:
+            del dialog_type, save_filename, file_types
+            return (str(output_path),)
+
+    api = _PywebviewExportApi(FakePywebview())
+    api.bind_window(FakeWindow())
+
+    saved = api.save_binary_file(
+        "demo.pdf",
+        b64encode(binary_payload).decode("ascii"),
+        "application/pdf",
+    )
+
+    assert saved is True
+    assert output_path.read_bytes() == binary_payload
 
 
 def test_open_editor_passes_template_catalog_path(

@@ -4758,8 +4758,12 @@ def test_editor_shell_helper_modules_expose_explicit_ui_and_invalidation_adapter
           throw new Error("Session UI confirm adapter should forward the injected result.");
         }}
         await sessionUi.copyText("result = 1");
-        sessionUi.downloadText("demo.json", "{{}}", "application/json");
-        sessionUi.downloadBlob("demo.py", {{ type: "text/x-python" }});
+        await Promise.resolve(
+          sessionUi.downloadText("demo.json", "{{}}", "application/json")
+        );
+        await Promise.resolve(
+          sessionUi.downloadBlob("demo.py", {{ type: "text/x-python" }})
+        );
         sessionUi.closeWindow();
         if (!uiEvents.some((event) => event.kind === "copy" && event.text === "result = 1")) {{
           throw new Error(`Expected injected copy adapter to run, received ${{JSON.stringify(uiEvents)}}.`);
@@ -4924,6 +4928,97 @@ def test_editor_shell_helper_modules_expose_explicit_ui_and_invalidation_adapter
 
     assert completed_process.returncode == 0, (
         "The editor-shell helper runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_ui_adapters_use_pywebview_save_api_when_available(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "session_ui_pywebview_save.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const sessionUiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "session" / "sessionUiAdapters.js")!r}).href;
+        const sessionUiModule = await import(sessionUiUrl);
+
+        const calls = [];
+        class FakeBlob {{
+          constructor(parts, options = {{}}) {{
+            this.parts = parts;
+            this.type = options.type || "";
+          }}
+
+          async arrayBuffer() {{
+            const firstPart = this.parts[0];
+            if (!(firstPart instanceof Uint8Array)) {{
+              throw new Error("Expected the test blob to receive Uint8Array content.");
+            }}
+            return firstPart.buffer.slice(
+              firstPart.byteOffset,
+              firstPart.byteOffset + firstPart.byteLength
+            );
+          }}
+        }}
+        const sessionUi = sessionUiModule.createSessionUiAdapters({{
+          windowRef: {{
+            pywebview: {{
+              api: {{
+                async save_text_file(filename, text, contentType) {{
+                  calls.push({{ type: "text", filename, text, contentType }});
+                  return true;
+                }},
+                async save_binary_file(filename, base64Payload, contentType) {{
+                  calls.push({{ type: "binary", filename, base64Payload, contentType }});
+                  return true;
+                }},
+              }},
+            }},
+          }},
+          blobCtor: FakeBlob,
+        }});
+
+        const textSaved = await sessionUi.downloadText(
+          "demo.json",
+          "{{\\"ok\\":true}}",
+          "application/json;charset=utf-8"
+        );
+        const binarySaved = await sessionUi.downloadBlob(
+          "demo.pdf",
+          new FakeBlob([Uint8Array.from([0, 1, 2, 255])], {{ type: "application/pdf" }})
+        );
+
+        if (textSaved !== true || binarySaved !== true) {{
+          throw new Error(`Expected pywebview saves to resolve true, received ${{JSON.stringify({{ textSaved, binarySaved }})}}.`);
+        }}
+        const textCall = calls.find((entry) => entry.type === "text");
+        const binaryCall = calls.find((entry) => entry.type === "binary");
+        if (!textCall || textCall.filename !== "demo.json") {{
+          throw new Error(`Expected text export to use the pywebview API, received ${{JSON.stringify(calls)}}.`);
+        }}
+        if (
+          !binaryCall ||
+          binaryCall.filename !== "demo.pdf" ||
+          binaryCall.base64Payload !== "AAEC/w=="
+        ) {{
+          throw new Error(`Expected binary export to send base64 bytes through the pywebview API, received ${{JSON.stringify(calls)}}.`);
+        }}
+        """,
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The pywebview session-ui adapter runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

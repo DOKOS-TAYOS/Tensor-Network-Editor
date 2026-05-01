@@ -14236,8 +14236,7 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               throw new Error(`Expected draft-save flow logging, received ${JSON.stringify(flowLog)}.`);
             }
 
-            flows.saveDesign();
-            await Promise.resolve();
+            await flows.saveDesign();
             if (!calls.some((entry) => entry.type === "clearDraft")) {
               throw new Error(`Expected explicit JSON save to clear the draft, received ${JSON.stringify(calls)}.`);
             }
@@ -14546,6 +14545,130 @@ def _write_session_editor_png_fallback_runtime_script(tmp_path: Path) -> Path:
     return script_path
 
 
+def _write_session_editor_save_cancelled_runtime_script(tmp_path: Path) -> Path:
+    script_path = tmp_path / "session_editor_save_cancelled.mjs"
+    _copy_js_modules(tmp_path, _SESSION_EDITOR_FLOWS_DEPENDENCY_MODULES)
+
+    script_path.write_text(
+        textwrap.dedent(
+            """
+            const baseUrl = new URL("./", import.meta.url);
+            const { createSessionEditorFlows } = await import(
+              new URL("./session/sessionEditorFlows.js", baseUrl).href
+            );
+
+            const calls = [];
+            const flowLog = [];
+            const state = {
+              spec: { name: "draft demo" },
+              generatedCode: "",
+              editorFinished: false,
+              draftAutosaveReady: true,
+              draftAutosaveTimer: null,
+              draftAutosaveDirty: false,
+              draftAutosaveSaving: false,
+            };
+
+            const flows = createSessionEditorFlows({
+              dom: {
+                exportFormatSelect: { value: "json" },
+                generatedCode: { value: "" },
+                loadInput: { value: "" },
+              },
+              state,
+              logger: {
+                startOperation(name, context = {}) {
+                  flowLog.push({ type: "start", name, context });
+                  return {
+                    finish(nextContext = {}) {
+                      flowLog.push({ type: "finish", name, context: nextContext });
+                    },
+                    fail(error, nextContext = {}) {
+                      flowLog.push({
+                        type: "fail",
+                        name,
+                        message: error.message,
+                        context: nextContext,
+                      });
+                    },
+                  };
+                },
+              },
+              store: {
+                setGeneratedCode() {},
+                setEditorFinished() {},
+              },
+              selectors: {
+                getSelectedEngine: () => "quimb",
+                getSelectedCollectionFormat: () => "dict",
+              },
+              services: {
+                session: {
+                  async clearDraft() {
+                    calls.push({ type: "clearDraft" });
+                    return { ok: true };
+                  },
+                },
+              },
+              commands: {
+                syncGeneratedCodePreview() {},
+              },
+              sessionUi: {
+                async downloadText(filename, text, contentType) {
+                  calls.push({ type: "downloadText", filename, text, contentType });
+                  return false;
+                },
+                closeWindow() {},
+                schedule() {
+                  return 0;
+                },
+              },
+              actions: {
+                serializeCurrentSpec({ persistViewSnapshots }) {
+                  return {
+                    schema_version: 2,
+                    persistViewSnapshots,
+                    network: { id: "network_draft", name: "draft demo" },
+                  };
+                },
+                sanitizeFilename: (value) => value.replace(/\\s+/g, "_"),
+                setStatus(message, level = "info") {
+                  calls.push({ type: "status", message, level });
+                },
+              },
+            });
+
+            await flows.saveDesign();
+
+            if (calls.some((entry) => entry.type === "clearDraft")) {
+              throw new Error(`Cancelling the save dialog should not clear the draft, received ${JSON.stringify(calls)}.`);
+            }
+            const cancelStatus = calls.find(
+              (entry) =>
+                entry.type === "status" &&
+                entry.level === "info" &&
+                entry.message === "Design save cancelled."
+            );
+            if (!cancelStatus) {
+              throw new Error(`Expected a friendly cancellation status, received ${JSON.stringify(calls)}.`);
+            }
+            if (
+              !flowLog.some(
+                (entry) =>
+                  entry.type === "finish" &&
+                  entry.name === "Save design" &&
+                  entry.context.outcome === "cancelled"
+              )
+            ) {
+              throw new Error(`Expected cancelled save-design flow logging, received ${JSON.stringify(flowLog)}.`);
+            }
+            """
+        ),
+        encoding="utf-8",
+    )
+    return script_path
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_session_editor_flows_fall_back_to_svg_when_png_render_fails(
     tmp_path: Path,
@@ -14561,6 +14684,26 @@ def test_session_editor_flows_fall_back_to_svg_when_png_render_fails(
 
     assert completed_process.returncode == 0, (
         "The session-editor PNG fallback runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_editor_flows_report_save_cancelled_without_clearing_draft(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_session_editor_save_cancelled_runtime_script(tmp_path)
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The session-editor save-cancelled runtime script failed.\n"
         f"STDOUT:\n{completed_process.stdout}\n"
         f"STDERR:\n{completed_process.stderr}"
     )

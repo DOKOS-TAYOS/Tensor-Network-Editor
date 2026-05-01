@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - `pywebview` editor launches now open their native window maximized by
   default, so the desktop mode starts with the same roomy workspace users
   usually expect from the browser flow.
+- `pywebview` exports now open a native `Save As` dialog and write the selected
+  file from Python, so desktop-mode JSON, Python, and academic exports no
+  longer disappear into the embedded browser backend's implicit download
+  folder.
 - Test cleanup scripts now remove `session.log*` artifacts, and the repository
   ignores those rotating session logs explicitly.
 - Shared HTTP test helpers now give bundled editor assets more time to load,

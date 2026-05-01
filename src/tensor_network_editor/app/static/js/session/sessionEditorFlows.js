@@ -57,6 +57,20 @@ export function createSessionEditorFlows({
     actions.setStatus(safeMessage, "error");
   }
 
+  function wasFileSaved(saveResult) {
+    return saveResult !== false;
+  }
+
+  async function downloadTextFile(filename, text, contentType) {
+    return wasFileSaved(
+      await sessionUi.downloadText(filename, text, contentType)
+    );
+  }
+
+  async function downloadBlobFile(filename, blobLike) {
+    return wasFileSaved(await sessionUi.downloadBlob(filename, blobLike));
+  }
+
   async function requestGeneratedCode() {
     return sessionService.generateCode({
       engine: selectors.getSelectedEngine(),
@@ -295,11 +309,11 @@ export function createSessionEditorFlows({
     }
   }
 
-  function saveDesign() {
+  async function saveDesign() {
     const saveDesignOperation = startFlowOperation("Save design", {
       operation: "design.save",
     });
-    sessionUi.downloadText(
+    const didSave = await downloadTextFile(
       `${actions.sanitizeFilename(state.spec.name || "tensor-network")}.json`,
       JSON.stringify(
         actions.serializeCurrentSpec({ persistViewSnapshots: true }),
@@ -308,6 +322,13 @@ export function createSessionEditorFlows({
       ),
       "application/json;charset=utf-8"
     );
+    if (!didSave) {
+      actions.setStatus("Design save cancelled.");
+      saveDesignOperation?.finish({
+        outcome: "cancelled",
+      });
+      return;
+    }
     void clearSavedDraft({ silent: true, resumeAutosave: true });
     actions.setStatus("Design downloaded as JSON.");
     saveDesignOperation?.finish({
@@ -436,11 +457,19 @@ export function createSessionEditorFlows({
       }
       store.setGeneratedCode(actions.stripImportLines(payload.code));
       syncGeneratedCodePreview(state.generatedCode);
-      sessionUi.downloadText(
+      const didSave = await downloadTextFile(
         `${actions.sanitizeFilename(state.spec.name || "tensor-network")}-${actions.sanitizeFilename(selectors.getSelectedEngine() || "engine")}.py`,
         payload.code,
         "text/x-python;charset=utf-8"
       );
+      if (!didSave) {
+        actions.setStatus("Python export cancelled.");
+        pythonExportOperation?.finish({
+          outcome: "cancelled",
+          engine: payload.engine,
+        });
+        return;
+      }
       actions.setStatus(`Exported ${payload.engine} Python code.`, "success");
       pythonExportOperation?.finish({
         outcome: "downloaded",
@@ -479,7 +508,11 @@ export function createSessionEditorFlows({
       sourceContentType:
         svgPayload.content_type || "image/svg+xml;charset=utf-8",
     });
-    sessionUi.downloadBlob(filename, pngBlob);
+    const didSave = await downloadBlobFile(filename, pngBlob);
+    if (!didSave) {
+      actions.setStatus("PNG export cancelled.");
+      return false;
+    }
     actions.setStatus("Exported a PNG file.", "success");
     return true;
   }
@@ -561,18 +594,34 @@ export function createSessionEditorFlows({
         return;
       }
       if (exportDetails.responseKind === "binary") {
-        sessionUi.downloadBlob(
+        const didSave = await downloadBlobFile(
           filename,
           new Blob([decodeBase64ToUint8Array(payload.base64 || "")], {
             type: payload.content_type || exportDetails.contentType,
           })
         );
+        if (!didSave) {
+          actions.setStatus(`${exportDetails.label} export cancelled.`);
+          exportOperation?.finish({
+            outcome: "cancelled",
+            format,
+          });
+          return;
+        }
       } else {
-        sessionUi.downloadText(
+        const didSave = await downloadTextFile(
           filename,
           payload.text || "",
           payload.content_type || exportDetails.contentType
         );
+        if (!didSave) {
+          actions.setStatus(`${exportDetails.label} export cancelled.`);
+          exportOperation?.finish({
+            outcome: "cancelled",
+            format,
+          });
+          return;
+        }
       }
       actions.setStatus(`Exported a ${exportDetails.label} file.`, "success");
       exportOperation?.finish({

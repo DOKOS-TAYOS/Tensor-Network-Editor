@@ -6,6 +6,7 @@ import logging
 import signal
 import threading
 import webbrowser
+from base64 import b64decode
 from collections.abc import Callable, Mapping, Sequence
 from importlib import import_module
 from pathlib import Path
@@ -77,6 +78,83 @@ def _import_pywebview() -> Any:
         ) from exc
 
 
+class _PywebviewExportApi:
+    """Expose native save-file helpers to the embedded pywebview frontend."""
+
+    def __init__(self, pywebview_module: Any) -> None:
+        """Store the imported pywebview module for later dialog calls."""
+        self._pywebview_module = pywebview_module
+        self._window: Any | None = None
+
+    def bind_window(self, window: Any) -> None:
+        """Attach the created pywebview window once it exists."""
+        self._window = window
+
+    def save_text_file(
+        self,
+        filename: str,
+        text: str,
+        content_type: str = "text/plain;charset=utf-8",
+    ) -> bool:
+        """Prompt for a path and write one UTF-8 text file."""
+        del content_type
+        output_path = self._select_output_path(filename)
+        if output_path is None:
+            return False
+        output_path.write_text(text, encoding="utf-8")
+        return True
+
+    def save_binary_file(
+        self,
+        filename: str,
+        base64_payload: str,
+        content_type: str = "application/octet-stream",
+    ) -> bool:
+        """Prompt for a path and write one decoded binary export file."""
+        del content_type
+        output_path = self._select_output_path(filename)
+        if output_path is None:
+            return False
+        output_path.write_bytes(b64decode(base64_payload))
+        return True
+
+    def _select_output_path(self, filename: str) -> Path | None:
+        """Ask pywebview for a target save path and normalize the response."""
+        if self._window is None:
+            raise RuntimeError("pywebview export API is not bound to a window.")
+        dialog_result = self._window.create_file_dialog(
+            self._pywebview_module.SAVE_DIALOG,
+            save_filename=filename,
+            file_types=self._build_file_types(filename),
+        )
+        if dialog_result is None:
+            return None
+        if isinstance(dialog_result, str):
+            return Path(dialog_result)
+        if isinstance(dialog_result, Sequence) and dialog_result:
+            first_entry = dialog_result[0]
+            if isinstance(first_entry, str) and first_entry:
+                return Path(first_entry)
+        return None
+
+    def _build_file_types(self, filename: str) -> tuple[str, ...]:
+        """Build a compact pywebview filter tuple from one filename."""
+        suffix = Path(filename).suffix.lower()
+        if not suffix:
+            return ()
+        label = {
+            ".dot": "DOT",
+            ".json": "JSON",
+            ".mmd": "Mermaid",
+            ".pdf": "PDF",
+            ".png": "PNG",
+            ".py": "Python",
+            ".svg": "SVG",
+            ".tex": "LaTeX",
+        }.get(suffix, suffix.removeprefix(".").upper())
+        return (f"{label} (*{suffix})",)
+
+
 def _run_pywebview_session(
     session: EditorSession, base_url: str
 ) -> EditorResult | None:
@@ -91,11 +169,14 @@ def _run_pywebview_session(
             "pywebview mode requires the optional desktop extra. Install it with "
             'python -m pip install "tensor-network-editor[desktop]".'
         ) from exc
+    pywebview_export_api = _PywebviewExportApi(pywebview)
     pywebview_window = pywebview.create_window(
         "Tensor Network Editor",
         base_url,
         maximized=True,
+        js_api=pywebview_export_api,
     )
+    pywebview_export_api.bind_window(pywebview_window)
 
     def _handle_window_closed(*_args: object) -> None:
         """Cancel the editor session when the native window is closed."""

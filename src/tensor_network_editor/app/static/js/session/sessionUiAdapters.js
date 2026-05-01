@@ -45,10 +45,46 @@ export function createSessionUiAdapters({
           }
           await clipboard.writeText(text);
         };
+  const resolvedPywebviewApi =
+    windowRef &&
+    windowRef.pywebview &&
+    windowRef.pywebview.api &&
+    typeof windowRef.pywebview.api.save_text_file === "function" &&
+    typeof windowRef.pywebview.api.save_binary_file === "function"
+      ? windowRef.pywebview.api
+      : null;
+  const encodeBytesToBase64 = (bytes) => {
+    if (
+      typeof Buffer !== "undefined" &&
+      typeof Buffer.from === "function"
+    ) {
+      return Buffer.from(bytes).toString("base64");
+    }
+    if (typeof globalThis.btoa !== "function") {
+      throw new Error("Binary downloads are not available in this browser.");
+    }
+    let binaryText = "";
+    for (const byte of bytes) {
+      binaryText += String.fromCharCode(byte);
+    }
+    return globalThis.btoa(binaryText);
+  };
   const resolvedDownloadBlob =
     typeof downloadBlob === "function"
       ? downloadBlob
-      : (filename, blobLike) => {
+      : async (filename, blobLike) => {
+          if (resolvedPywebviewApi) {
+            if (!blobLike || typeof blobLike.arrayBuffer !== "function") {
+              throw new Error("Binary downloads are not available in this browser.");
+            }
+            const buffer = await blobLike.arrayBuffer();
+            const bytes = new Uint8Array(buffer);
+            return resolvedPywebviewApi.save_binary_file(
+              filename,
+              encodeBytesToBase64(bytes),
+              blobLike.type || "application/octet-stream"
+            );
+          }
           if (!documentRef || !urlRef || typeof urlRef.createObjectURL !== "function") {
             throw new Error("File downloads are not available in this browser.");
           }
@@ -57,15 +93,22 @@ export function createSessionUiAdapters({
           anchor.download = filename;
           anchor.click();
           urlRef.revokeObjectURL(anchor.href);
+          return true;
         };
   const resolvedDownloadText =
     typeof downloadText === "function"
       ? downloadText
-      : (filename, text, contentType = "text/plain;charset=utf-8") => {
+      : async (filename, text, contentType = "text/plain;charset=utf-8") => {
+          if (resolvedPywebviewApi) {
+            return resolvedPywebviewApi.save_text_file(filename, text, contentType);
+          }
           if (typeof blobCtor !== "function") {
             throw new Error("Text downloads are not available in this browser.");
           }
-          resolvedDownloadBlob(filename, new blobCtor([text], { type: contentType }));
+          return resolvedDownloadBlob(
+            filename,
+            new blobCtor([text], { type: contentType })
+          );
         };
   const resolvedRasterizeSvgToPng =
     typeof rasterizeSvgToPng === "function"
