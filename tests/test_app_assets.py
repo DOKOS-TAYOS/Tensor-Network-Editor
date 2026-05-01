@@ -8,7 +8,12 @@ from urllib.request import urlopen
 import pytest
 
 from tensor_network_editor.app.server import EditorServer
-from tests.app_support import request_text, request_with_headers
+from tests.app_support import (
+    request_bytes,
+    request_headers,
+    request_text,
+    request_with_headers,
+)
 
 
 def request_runtime_bundle(editor_server: EditorServer, *relative_paths: str) -> str:
@@ -548,8 +553,8 @@ def test_vendor_asset_is_served_locally(editor_server: EditorServer) -> None:
 
 
 def test_favicon_asset_is_served_locally(editor_server: EditorServer) -> None:
+    body = request_bytes(f"{editor_server.base_url}/favicon.ico")
     with urlopen(f"{editor_server.base_url}/favicon.ico", timeout=5) as response:
-        body = response.read()
         headers = dict(response.info().items())
 
     assert body
@@ -3527,7 +3532,7 @@ def test_static_assets_disable_browser_cache(
     editor_server: EditorServer,
     path: str,
 ) -> None:
-    _, headers = request_with_headers(f"{editor_server.base_url}{path}")
+    headers = request_headers(f"{editor_server.base_url}{path}")
 
     assert "no-store" in headers["Cache-Control"]
     assert headers["Pragma"] == "no-cache"

@@ -52,13 +52,22 @@ What happens:
 - the command waits until you press `Done` or `Cancel`
 - `Done` returns the final design and generated code for the selected engine
 
+If you prefer a native desktop window instead of the browser, install the
+optional desktop extra and run:
+
+```bash
+python -m pip install "tensor-network-editor[desktop]"
+tensor-network-editor edit --ui pywebview
+```
+
 If your environment cannot open a browser automatically, use:
 
 ```bash
-tensor-network-editor edit --no-browser
+tensor-network-editor edit --ui server
 ```
 
-Then open the local URL printed in the terminal.
+Then open the local URL printed in the terminal. `--no-browser` still works as
+a compatibility alias for the same server-only mode.
 
 You can also choose the editor colors when the session starts:
 

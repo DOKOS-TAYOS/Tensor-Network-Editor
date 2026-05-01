@@ -4,8 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The editor now supports an explicit UI launch mode across the CLI and Python
+  API: browser by default, `pywebview` with the optional `desktop` extra, or a
+  server-only mode that prints the local URL without opening a window.
+
 ### Changed
 
+- `pywebview` editor launches now open their native window maximized by
+  default, so the desktop mode starts with the same roomy workspace users
+  usually expect from the browser flow.
+- Test cleanup scripts now remove `session.log*` artifacts, and the repository
+  ignores those rotating session logs explicitly.
+- Shared HTTP test helpers now give bundled editor assets more time to load,
+  which reduces intermittent timeout failures when the local test server is
+  under load.
 - Removed a few unused internal helpers from logging, periodic-mode utilities,
   rendering, and einsum code generation, and deduplicated built-in template
   defaults so the catalog now keeps each template's default parameters in one
@@ -22,6 +36,8 @@ All notable changes to this project will be documented in this file.
 - Large static renders now reuse connected-component geometry and connected
   index direction lookups instead of recomputing the same layout heuristics for
   every free index, which substantially reduces hot-path SVG/PNG/TikZ latency.
+- CLI `edit` now exposes `--ui {browser,pywebview,server}` while keeping
+  `--no-browser` as a compatibility alias for the server-only mode.
 
 ## [0.5.0] - 2026-04-30
 

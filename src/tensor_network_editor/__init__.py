@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .analysis import analyze_contraction, analyze_spec
     from .builder import IndexHandle, NetworkBuilder, TensorHandle
     from .canonicalization import canonicalize_spec
-    from .editor import EditorLaunchOptions, EditorThemeName, open_editor
+    from .editor import EditorLaunchOptions, EditorThemeName, EditorUiMode, open_editor
     from .internal.diffing._diffing import diff_specs, semantic_diff_specs
     from .io import PythonLoadOptions, load_python_spec, load_spec, save_spec
     from .linting import lint_spec
@@ -76,6 +76,7 @@ __all__ = [
     "EdgeSpec",
     "EditorLaunchOptions",
     "EditorThemeName",
+    "EditorUiMode",
     "EditorResult",
     "EngineName",
     "DotRenderOptions",
@@ -130,6 +131,7 @@ _LAZY_EXPORTS: dict[str, str] = {
     "EdgeSpec": ".models",
     "EditorLaunchOptions": ".editor",
     "EditorThemeName": ".editor",
+    "EditorUiMode": ".editor",
     "EditorResult": ".models",
     "EngineName": ".models",
     "DotRenderOptions": ".rendering",

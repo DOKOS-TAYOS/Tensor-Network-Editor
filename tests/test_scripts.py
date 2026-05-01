@@ -68,6 +68,9 @@ def seed_generated_artifacts(root: Path) -> None:
         root / ".coverage",
         root / ".coverage.unit",
         root / "coverage.xml",
+        root / "session.log",
+        root / "session.log.1",
+        root / "session.log.7",
     ]
     for file_path in files_to_create:
         file_path.write_text("temporary", encoding="utf-8")
@@ -91,6 +94,9 @@ def assert_cleanup_removed_artifacts(root: Path) -> None:
         root / ".coverage",
         root / ".coverage.unit",
         root / "coverage.xml",
+        root / "session.log",
+        root / "session.log.1",
+        root / "session.log.7",
     ]
     for path in removed_paths:
         assert not path.exists()

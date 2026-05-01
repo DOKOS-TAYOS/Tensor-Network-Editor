@@ -253,6 +253,45 @@ def test_edit_subcommand_passes_explicit_log_file_path() -> None:
     )
 
 
+def test_edit_subcommand_accepts_explicit_browser_ui_mode() -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["edit", "--ui", "pywebview"])
+
+    assert exit_code == 0
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(
+            ui_mode="pywebview",
+            open_browser=False,
+        ),
+    )
+
+
+def test_edit_subcommand_ui_server_matches_no_browser_alias() -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["edit", "--ui", "server"])
+
+    assert exit_code == 0
+    open_editor_mock.assert_called_once_with(
+        spec=None,
+        options=EditorLaunchOptions(
+            ui_mode="server",
+            open_browser=False,
+        ),
+    )
+
+
+def test_edit_subcommand_rejects_ui_and_no_browser_combination(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
+        exit_code = main(["edit", "--ui", "browser", "--no-browser"])
+
+    assert exit_code == 2
+    open_editor_mock.assert_not_called()
+    assert "cannot combine --ui with --no-browser" in capsys.readouterr().err
+
+
 def test_edit_subcommand_passes_explicit_log_rotation_settings() -> None:
     with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
         exit_code = main(

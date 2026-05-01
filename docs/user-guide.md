@@ -158,11 +158,11 @@ Python:
 ```python
 from tensor_network_editor.editor import EditorLaunchOptions, open_editor
 
-open_editor(options=EditorLaunchOptions(theme="contrast"))
+open_editor(options=EditorLaunchOptions(theme="contrast", ui_mode="browser"))
 ```
 
 Available themes are `dark`, `light`, `contrast`, `colorblind`, and `shiny`.
-The choice only affects the browser editor appearance; saved network JSON and
+The choice only affects the editor appearance; saved network JSON and
 recoverable drafts keep the same model data.
 
 ## Templates

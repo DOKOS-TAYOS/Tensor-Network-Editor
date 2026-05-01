@@ -90,7 +90,8 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     edit_parser = subparsers.add_parser(
-        "edit", help="Launch the local editor in the browser."
+        "edit",
+        help="Launch the local editor in a browser, desktop window, or server-only mode.",
     )
     _add_edit_arguments(edit_parser)
     edit_parser.set_defaults(handler=handlers.handle_edit)
@@ -393,7 +394,12 @@ def _add_edit_arguments(parser: argparse.ArgumentParser) -> None:
         "--theme",
         choices=list(SUPPORTED_EDITOR_THEMES),
         default=DEFAULT_EDITOR_THEME,
-        help="Visual theme used by the browser editor.",
+        help="Visual theme used by the editor UI.",
+    )
+    parser.add_argument(
+        "--ui",
+        choices=["browser", "pywebview", "server"],
+        help="Choose whether to open the editor in the browser, a pywebview window, or server-only mode.",
     )
     parser.add_argument(
         "--load",
@@ -413,7 +419,7 @@ def _add_edit_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="Start the local server without opening the browser automatically.",
+        help="Legacy alias for --ui server: start the local server without opening a UI automatically.",
     )
 
 

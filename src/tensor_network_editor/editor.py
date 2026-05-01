@@ -29,6 +29,12 @@ from .models import (
 from .types import StrPath
 
 LOGGER = logging.getLogger(__name__)
+EditorUiMode = Literal["browser", "pywebview", "server"]
+_SUPPORTED_EDITOR_UI_MODES: tuple[EditorUiMode, ...] = (
+    "browser",
+    "pywebview",
+    "server",
+)
 
 
 @dataclass(slots=True, frozen=True)
@@ -38,6 +44,7 @@ class EditorLaunchOptions:
     default_engine: EngineIdentifier = EngineName.TENSORKROWCH
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST
     theme: EditorThemeName = DEFAULT_EDITOR_THEME
+    ui_mode: EditorUiMode | None = None
     open_browser: bool = True
     host: str = "127.0.0.1"
     port: int = 0
@@ -55,6 +62,12 @@ class EditorLaunchOptions:
     def __post_init__(self) -> None:
         """Normalize and validate theme names passed at runtime."""
         object.__setattr__(self, "theme", normalize_editor_theme(self.theme))
+        validated_ui_mode = _normalize_editor_ui_mode(self.ui_mode)
+        object.__setattr__(self, "ui_mode", validated_ui_mode)
+        _validate_editor_ui_mode_compatibility(
+            ui_mode=validated_ui_mode,
+            open_browser=self.open_browser,
+        )
         validate_positive_log_setting(
             self.log_file_max_bytes,
             name="log_file_max_bytes",
@@ -76,10 +89,15 @@ def open_editor(
     resolved_theme = (
         normalize_editor_theme(theme) if theme is not None else resolved_options.theme
     )
+    effective_ui_mode = resolve_editor_ui_mode(
+        ui_mode=resolved_options.ui_mode,
+        open_browser=resolved_options.open_browser,
+    )
     active_logging_runtime = get_active_logging_runtime()
     context: dict[str, object] = {
         "engine": resolved_options.default_engine,
         "mode": resolved_theme,
+        "ui_mode": effective_ui_mode,
     }
     if spec is not None:
         spec_context = summarize_spec_counts(spec)
@@ -111,6 +129,7 @@ def open_editor(
                 default_engine=resolved_options.default_engine,
                 default_collection_format=resolved_options.default_collection_format,
                 theme=resolved_theme,
+                ui_mode=effective_ui_mode,
                 open_browser=resolved_options.open_browser,
                 host=resolved_options.host,
                 port=resolved_options.port,
@@ -149,6 +168,46 @@ def _null_logging_scope() -> _NullLoggingScope:
     return _NullLoggingScope()
 
 
+def _normalize_editor_ui_mode(ui_mode: EditorUiMode | None) -> EditorUiMode | None:
+    """Validate one optional editor UI mode."""
+    if ui_mode is None:
+        return None
+    if ui_mode not in _SUPPORTED_EDITOR_UI_MODES:
+        supported_modes = ", ".join(_SUPPORTED_EDITOR_UI_MODES)
+        raise ValueError(
+            f"Unsupported editor ui_mode {ui_mode!r}. Expected one of: {supported_modes}."
+        )
+    return ui_mode
+
+
+def _validate_editor_ui_mode_compatibility(
+    *,
+    ui_mode: EditorUiMode | None,
+    open_browser: bool,
+) -> None:
+    """Reject combinations that are incompatible with the legacy browser flag."""
+    if ui_mode == "browser" and not open_browser:
+        raise ValueError("ui_mode='browser' requires open_browser=True.")
+    if ui_mode == "server" and open_browser:
+        raise ValueError("ui_mode='server' requires open_browser=False.")
+
+
+def resolve_editor_ui_mode(
+    *,
+    ui_mode: EditorUiMode | None,
+    open_browser: bool,
+) -> EditorUiMode:
+    """Resolve the effective UI mode for one editor launch."""
+    normalized_ui_mode = _normalize_editor_ui_mode(ui_mode)
+    _validate_editor_ui_mode_compatibility(
+        ui_mode=normalized_ui_mode,
+        open_browser=open_browser,
+    )
+    if normalized_ui_mode is not None:
+        return normalized_ui_mode
+    return "browser" if open_browser else "server"
+
+
 def _should_open_editor_logging_scope(
     log_file_path: StrPath | None,
     active_logging_runtime: object,
@@ -164,4 +223,10 @@ def _should_open_editor_logging_scope(
     return Path(log_file_path).resolve() != Path(runtime_log_file_path).resolve()
 
 
-__all__ = ["EditorLaunchOptions", "EditorThemeName", "open_editor"]
+__all__ = [
+    "EditorLaunchOptions",
+    "EditorThemeName",
+    "EditorUiMode",
+    "open_editor",
+    "resolve_editor_ui_mode",
+]

@@ -628,6 +628,232 @@ def test_launch_editor_session_prints_local_url_when_browser_open_is_not_acknowl
     assert "http://127.0.0.1:43210" in captured
 
 
+def test_launch_editor_session_pywebview_requires_main_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeThread:
+        name = "worker"
+
+    monkeypatch.setattr(
+        session_module.threading, "current_thread", lambda: FakeThread()
+    )
+
+    with pytest.raises(RuntimeError, match="pywebview mode must be launched"):
+        session_module.launch_editor_session(ui_mode="pywebview")
+
+
+def test_launch_editor_session_pywebview_missing_dependency_raises_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    class FakeMainThread:
+        name = "MainThread"
+
+    main_thread = FakeMainThread()
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(session_module.threading, "main_thread", lambda: main_thread)
+    monkeypatch.setattr(session_module.threading, "current_thread", lambda: main_thread)
+    monkeypatch.setattr(
+        session_module,
+        "_import_pywebview",
+        lambda: (_ for _ in ()).throw(ModuleNotFoundError("No module named 'webview'")),
+    )
+
+    with pytest.raises(RuntimeError, match="tensor-network-editor\\[desktop\\]"):
+        session_module.launch_editor_session(ui_mode="pywebview")
+
+
+def test_launch_editor_session_pywebview_closes_window_after_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    completed_result = EditorResult(
+        spec=build_blank_network_spec(),
+        engine=EngineName.EINSUM_NUMPY,
+        confirmed=True,
+    )
+
+    class FakeEventHook:
+        def __init__(self) -> None:
+            self._callbacks: list[object] = []
+
+        def __iadd__(self, callback: object) -> FakeEventHook:
+            self._callbacks.append(callback)
+            return self
+
+        def fire(self) -> None:
+            for callback in list(self._callbacks):
+                cast(Any, callback)()
+
+    class FakeWindowEvents:
+        def __init__(self) -> None:
+            self.closed = FakeEventHook()
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.events = FakeWindowEvents()
+            self.destroy_calls = 0
+
+        def destroy(self) -> None:
+            self.destroy_calls += 1
+
+    class FakePywebview:
+        def __init__(self) -> None:
+            self.created_urls: list[str] = []
+            self.created_maximized: list[bool] = []
+            self.window = FakeWindow()
+            self.start_calls = 0
+
+        def create_window(
+            self,
+            title: str,
+            url: str,
+            *,
+            maximized: bool = False,
+        ) -> FakeWindow:
+            assert title == "Tensor Network Editor"
+            self.created_urls.append(url)
+            self.created_maximized.append(maximized)
+            return self.window
+
+        def start(self, callback: object, window: FakeWindow) -> None:
+            self.start_calls += 1
+            cast(Any, callback)(window)
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    class FakeMainThread:
+        name = "MainThread"
+
+    main_thread = FakeMainThread()
+    pywebview = FakePywebview()
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(session_module.threading, "main_thread", lambda: main_thread)
+    monkeypatch.setattr(session_module.threading, "current_thread", lambda: main_thread)
+    monkeypatch.setattr(session_module, "_import_pywebview", lambda: pywebview)
+    monkeypatch.setattr(
+        session_module,
+        "wait_for_editor_result",
+        lambda _session: completed_result,
+    )
+
+    result = session_module.launch_editor_session(ui_mode="pywebview")
+
+    assert result is completed_result
+    assert pywebview.created_urls == ["http://127.0.0.1:43210"]
+    assert pywebview.created_maximized == [True]
+    assert pywebview.start_calls == 1
+    assert pywebview.window.destroy_calls == 1
+
+
+def test_launch_editor_session_pywebview_window_close_cancels_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tensor_network_editor.app import session as session_module
+
+    class FakeEventHook:
+        def __init__(self) -> None:
+            self._callbacks: list[object] = []
+
+        def __iadd__(self, callback: object) -> FakeEventHook:
+            self._callbacks.append(callback)
+            return self
+
+        def fire(self) -> None:
+            for callback in list(self._callbacks):
+                cast(Any, callback)()
+
+    class FakeWindowEvents:
+        def __init__(self) -> None:
+            self.closed = FakeEventHook()
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.events = FakeWindowEvents()
+
+        def destroy(self) -> None:
+            return None
+
+    class FakePywebview:
+        def __init__(self) -> None:
+            self.window = FakeWindow()
+
+        def create_window(
+            self,
+            title: str,
+            url: str,
+            *,
+            maximized: bool = False,
+        ) -> FakeWindow:
+            del title, url, maximized
+            return self.window
+
+        def start(self, callback: object, window: FakeWindow) -> None:
+            del callback, window
+            self.window.events.closed.fire()
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.base_url = "http://127.0.0.1:43210"
+
+        def start(self) -> None:
+            return None
+
+        def stop(self) -> None:
+            return None
+
+    class FakeMainThread:
+        name = "MainThread"
+
+    main_thread = FakeMainThread()
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
+    monkeypatch.setattr(session_module.threading, "main_thread", lambda: main_thread)
+    monkeypatch.setattr(session_module.threading, "current_thread", lambda: main_thread)
+    monkeypatch.setattr(
+        session_module,
+        "_import_pywebview",
+        lambda: FakePywebview(),
+    )
+
+    result = session_module.launch_editor_session(ui_mode="pywebview")
+
+    assert result is None
+
+
 def test_open_editor_passes_template_catalog_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -7,6 +7,7 @@ import signal
 import threading
 import webbrowser
 from collections.abc import Callable, Mapping, Sequence
+from importlib import import_module
 from pathlib import Path
 from types import FrameType
 from typing import Any, Literal
@@ -47,6 +48,7 @@ from ._session_runtime import build_blank_network_spec, wait_for_editor_result
 
 LOGGER = logging.getLogger(__name__)
 SignalHandler = Callable[[int, FrameType | None], Any]
+SessionUiMode = Literal["browser", "pywebview", "server"]
 
 
 def _print_editor_url(base_url: str) -> None:
@@ -62,6 +64,55 @@ def _print_browser_open_fallback_message(base_url: str) -> None:
         flush=True,
     )
     _print_editor_url(base_url)
+
+
+def _import_pywebview() -> Any:
+    """Import the optional pywebview module on demand."""
+    try:
+        return import_module("webview")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "pywebview mode requires the optional desktop extra. Install it with "
+            'python -m pip install "tensor-network-editor[desktop]".'
+        ) from exc
+
+
+def _run_pywebview_session(
+    session: EditorSession, base_url: str
+) -> EditorResult | None:
+    """Open the local editor in a pywebview window and wait for the result."""
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("pywebview mode must be launched from the main thread.")
+
+    try:
+        pywebview = _import_pywebview()
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "pywebview mode requires the optional desktop extra. Install it with "
+            'python -m pip install "tensor-network-editor[desktop]".'
+        ) from exc
+    pywebview_window = pywebview.create_window(
+        "Tensor Network Editor",
+        base_url,
+        maximized=True,
+    )
+
+    def _handle_window_closed(*_args: object) -> None:
+        """Cancel the editor session when the native window is closed."""
+        if not session.is_finished():
+            session.cancel()
+
+    def _wait_for_session_and_close_window(window: Any) -> None:
+        """Close the native window after the editor session finishes."""
+        wait_for_editor_result(session)
+        try:
+            window.destroy()
+        except Exception:
+            return None
+
+    pywebview_window.events.closed += _handle_window_closed
+    pywebview.start(_wait_for_session_and_close_window, pywebview_window)
+    return wait_for_editor_result(session)
 
 
 class EditorSession:
@@ -394,6 +445,7 @@ def launch_editor_session(
     default_engine: EngineIdentifier = EngineName.TENSORKROWCH,
     default_collection_format: TensorCollectionFormat = TensorCollectionFormat.LIST,
     theme: EditorThemeName = DEFAULT_EDITOR_THEME,
+    ui_mode: SessionUiMode | None = None,
     open_browser: bool = True,
     host: str = "127.0.0.1",
     port: int = 0,
@@ -416,6 +468,7 @@ def launch_editor_session(
         default_collection_format: Initial tensor collection layout for
             generated code.
         theme: Visual theme selected for this editor session.
+        ui_mode: Explicit UI launch mode for the editor session.
         open_browser: Whether to ask the system browser to open the local URL.
         host: Local host interface to bind.
         port: Local port to bind. Use ``0`` for an ephemeral port.
@@ -441,6 +494,7 @@ def launch_editor_session(
     Raises:
         KeyboardInterrupt: If the session is interrupted from the main thread.
     """
+    from ..editor import resolve_editor_ui_mode
     from .server import EditorServer
 
     active_logging_runtime = get_active_logging_runtime()
@@ -472,6 +526,10 @@ def launch_editor_session(
             draft_path=draft_path,
         )
         server = EditorServer(session=session, host=host, port=port)
+        effective_ui_mode = resolve_editor_ui_mode(
+            ui_mode=ui_mode,
+            open_browser=open_browser,
+        )
         previous_sigint_handler: SignalHandler | int | None = None
         server_started = False
 
@@ -485,6 +543,7 @@ def launch_editor_session(
                     "session": session.session_id,
                     "engine": engine_name_to_text(default_engine),
                     "mode": theme,
+                    "ui_mode": effective_ui_mode,
                 },
             ):
                 if threading.current_thread() is threading.main_thread():
@@ -501,9 +560,11 @@ def launch_editor_session(
                 server_started = True
                 if _on_server_ready is not None:
                     _on_server_ready(server.base_url)
-                should_print_editor_url = not open_browser
+                if effective_ui_mode == "pywebview":
+                    return _run_pywebview_session(session, server.base_url)
+                should_print_editor_url = effective_ui_mode == "server"
                 should_print_browser_fallback_message = False
-                if open_browser:
+                if effective_ui_mode == "browser":
                     try:
                         with log_operation(
                             LOGGER,

@@ -22,6 +22,7 @@ call :remove_glob_dirs_warn ".\pytest-cache-files-*"
 call :remove_glob_files ".\.coverage"
 call :remove_glob_files ".\.coverage.*"
 call :remove_glob_files ".\coverage.xml"
+call :remove_glob_files ".\session.log*"
 
 call :remove_dir "__pycache__"
 call :remove_named_dirs ".\src" "__pycache__"

@@ -24,6 +24,7 @@ __pycache__/
 node_modules/
 playwright-report/
 test-results/
+session.log*
 *.log
 .DS_Store
 Thumbs.db

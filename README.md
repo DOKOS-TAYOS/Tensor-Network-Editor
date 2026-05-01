@@ -89,10 +89,10 @@ offline use, and generated code you can inspect.
 
 ## Why This Project
 
-- Draw tensor-network diagrams in a local browser session.
+- Draw tensor-network diagrams in a local browser or `pywebview` desktop session.
 - Save and reload backend-independent JSON designs.
-- Recover the previous local browser session from a project draft if the tab is
-  closed before you save.
+- Recover the previous local editor session from a project draft if the window
+  or tab is closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
 - Render designs to static SVG, TikZ/LaTeX, Graphviz/DOT, or Mermaid from Python, the
@@ -135,9 +135,9 @@ offline use, and generated code you can inspect.
 - Get structural analysis with FLOP and MAC cost summaries.
 - Use the package from the CLI or directly from Python.
 
-The editor opens in your browser, but the server runs locally on your own
-machine. No Node runtime or cloud service is needed for normal use. A future
-desktop wrapper such as `pywebview` may sit on top of this local flow, but the
+The editor server runs locally on your own machine. By default it opens in your
+browser, and you can also ask for a native `pywebview` window with the optional
+`desktop` extra. No Node runtime or cloud service is needed for normal use. The
 browser-served editor remains the core interface and compatibility target.
 
 ## Minimal Installation
@@ -176,7 +176,20 @@ tensor-network-editor edit
 ```
 
 This command starts a local server and waits until you press `Done` or
-`Cancel` in the browser session.
+`Cancel` in the editor session.
+
+Open the same local editor in a native `pywebview` window:
+
+```bash
+python -m pip install "tensor-network-editor[desktop]"
+tensor-network-editor edit --ui pywebview
+```
+
+Start only the local server and open the printed URL yourself:
+
+```bash
+tensor-network-editor edit --ui server
+```
 
 Pick a color theme when you launch the editor:
 

@@ -26,7 +26,7 @@ reusable-subnetwork catalogs.
 
 ## Launch the Editor
 
-Start the local browser editor:
+Start the local editor:
 
 ```bash
 tensor-network-editor edit
@@ -42,6 +42,8 @@ Useful options:
 tensor-network-editor edit --load my_network.json
 tensor-network-editor edit --engine quimb
 tensor-network-editor edit --theme light
+tensor-network-editor edit --ui pywebview
+tensor-network-editor edit --ui server
 tensor-network-editor edit --save-code generated_network.py
 tensor-network-editor edit --print-code
 tensor-network-editor edit --no-browser
@@ -53,8 +55,19 @@ You can combine them:
 tensor-network-editor edit --load my_network.json --engine quimb --save-code generated_network.py
 ```
 
-Use `--no-browser` when you want to start the local server but open the printed
-URL manually.
+By default, `edit` opens the local URL in your browser.
+
+Use `--ui pywebview` when you want the same local editor inside a native
+desktop window and you have installed the optional desktop extra:
+
+```bash
+python -m pip install "tensor-network-editor[desktop]"
+tensor-network-editor edit --ui pywebview
+```
+
+Use `--ui server` when you want to start the local server but open the printed
+URL manually. `--no-browser` remains as a compatibility alias for the same
+server-only mode.
 
 Use `--theme` to choose the editor colors at startup. Available themes are
 `dark`, `light`, `contrast`, `colorblind`, and `shiny`; `dark` is the default.
@@ -185,7 +198,7 @@ from tensor_network_editor.editor import EditorLaunchOptions, open_editor
 
 open_editor(
     options=EditorLaunchOptions(
-        open_browser=False,
+        ui_mode="server",
         log_file_path="tne-editor.log",
         log_file_max_bytes=10_485_760,
         log_file_backup_count=5,

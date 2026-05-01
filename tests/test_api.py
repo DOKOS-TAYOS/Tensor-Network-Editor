@@ -10,7 +10,7 @@ import pytest
 
 import tensor_network_editor
 from tensor_network_editor import generate_code as _generate_code
-from tensor_network_editor.editor import EditorLaunchOptions, open_editor
+from tensor_network_editor.editor import EditorLaunchOptions, EditorUiMode, open_editor
 from tensor_network_editor.errors import (
     CodeGenerationError,
     PackageIOError,
@@ -152,6 +152,7 @@ def test_package_root_exports_supported_public_api() -> None:
         "EdgeSpec",
         "EditorLaunchOptions",
         "EditorThemeName",
+        "EditorUiMode",
         "EditorResult",
         "EngineName",
         "DotRenderOptions",
@@ -233,6 +234,7 @@ def test_editor_launch_options_defaults_match_public_contract() -> None:
     assert options.default_engine is EngineName.TENSORKROWCH
     assert options.default_collection_format is TensorCollectionFormat.LIST
     assert options.theme == "dark"
+    assert options.ui_mode is None
     assert options.open_browser is True
     assert options.host == "127.0.0.1"
     assert options.port == 0
@@ -248,6 +250,26 @@ def test_editor_launch_options_rejects_unknown_theme() -> None:
         EditorLaunchOptions(theme="sepia")  # type: ignore[arg-type]
 
 
+def test_editor_ui_mode_type_alias_matches_public_contract() -> None:
+    assert EditorUiMode == Literal["browser", "pywebview", "server"]
+
+
+@pytest.mark.parametrize(
+    ("ui_mode", "open_browser", "expected_message"),
+    [
+        ("browser", False, "ui_mode='browser' requires open_browser=True"),
+        ("server", True, "ui_mode='server' requires open_browser=False"),
+    ],
+)
+def test_editor_launch_options_rejects_conflicting_browser_flags(
+    ui_mode: EditorUiMode,
+    open_browser: bool,
+    expected_message: str,
+) -> None:
+    with pytest.raises(ValueError, match=expected_message):
+        EditorLaunchOptions(ui_mode=ui_mode, open_browser=open_browser)
+
+
 def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> None:
     launch_result = object()
 
@@ -261,6 +283,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
                 default_engine=EngineName.EINSUM_NUMPY,
                 default_collection_format=TensorCollectionFormat.DICT,
                 theme="colorblind",
+                ui_mode="pywebview",
                 open_browser=False,
                 host="0.0.0.0",
                 port=8123,
@@ -281,6 +304,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         default_engine=EngineName.EINSUM_NUMPY,
         default_collection_format=TensorCollectionFormat.DICT,
         theme="colorblind",
+        ui_mode="pywebview",
         open_browser=False,
         host="0.0.0.0",
         port=8123,

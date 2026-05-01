@@ -53,9 +53,9 @@ the design and target another backend later.
 
 The editor itself runs locally. The package starts a Python HTTP server on your
 machine, opens a browser tab by default, and waits until you press `Done` or
-`Cancel`. Normal use does not require Node.js or a cloud service. A future
-desktop wrapper such as `pywebview` can sit on top of the same local server,
-but the browser-served editor remains the primary supported surface.
+`Cancel`. You can also ask for a native `pywebview` window with the optional
+desktop extra. Normal use does not require Node.js or a cloud service, and the
+browser-served editor remains the primary supported surface.
 
 ## Choosing The Right Tool
 
@@ -178,6 +178,13 @@ Use `--no-browser` when automatic browser opening is blocked, when you work
 over SSH, or when you want to copy the printed local URL into a browser
 manually.
 
+Open the same local editor in a native desktop window:
+
+```bash
+python -m pip install "tensor-network-editor[desktop]"
+tensor-network-editor edit --ui pywebview
+```
+
 From Python:
 
 ```python
@@ -190,7 +197,7 @@ def main() -> None:
         options=EditorLaunchOptions(
             default_engine=EngineName.EINSUM_NUMPY,
             theme="light",
-            open_browser=True,
+            ui_mode="browser",
         )
     )
     if result is None:

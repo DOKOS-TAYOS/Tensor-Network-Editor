@@ -80,8 +80,10 @@ python -m pip install "tensor-network-editor[desktop]"
 ```
 
 The `desktop` extra installs `pywebview` for environments that want a desktop
-webview dependency available. The standard documented workflow is still the
-local browser editor.
+webview dependency available. After installing it, you can launch the editor in
+its own native window with `tensor-network-editor edit --ui pywebview` or
+`EditorLaunchOptions(ui_mode="pywebview")`. The standard default workflow is
+still the local browser editor.
 
 You can combine extras:
 
@@ -226,6 +228,13 @@ tensor-network-editor edit
 
 If the browser does not open, see
 [troubleshooting.md#the-browser-did-not-open-automatically](troubleshooting.md#the-browser-did-not-open-automatically).
+
+If you prefer a native desktop window instead of the browser, install the
+desktop extra and launch:
+
+```bash
+tensor-network-editor edit --ui pywebview
+```
 
 ## Cleanup Scripts
 

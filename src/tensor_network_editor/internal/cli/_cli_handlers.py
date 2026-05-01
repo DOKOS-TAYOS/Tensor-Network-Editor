@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, cast
 
-from ...editor import EditorLaunchOptions
+from ...editor import EditorLaunchOptions, EditorUiMode
 from ...errors import SerializationError
 from ...io import PythonLoadOptions
 from ...models import EngineName, NetworkSpec, TensorCollectionFormat, ValidationIssue
@@ -46,6 +46,11 @@ from ._cli_benchmark import (
 from ._cli_doctor import build_doctor_report, format_doctor_report_text
 
 LOGGER = logging.getLogger(__name__)
+_EDITOR_UI_MODE_TO_OPEN_BROWSER: dict[str, bool] = {
+    "browser": True,
+    "pywebview": False,
+    "server": False,
+}
 
 
 def handle_edit_command(
@@ -55,6 +60,14 @@ def handle_edit_command(
     open_editor: Callable[..., object],
 ) -> int:
     """Launch the browser editor using explicit edit arguments."""
+    ui_mode = cast(EditorUiMode | None, getattr(args, "ui", None))
+    if ui_mode is not None and args.no_browser:
+        raise ValueError("cannot combine --ui with --no-browser; use only one.")
+    effective_open_browser = (
+        not args.no_browser
+        if ui_mode is None
+        else _EDITOR_UI_MODE_TO_OPEN_BROWSER[ui_mode]
+    )
     loaded_spec_path = Path(args.load).resolve() if args.load else None
     load_kwargs = _python_load_kwargs(args)
     initial_spec = load_spec(args.load, **load_kwargs) if args.load else None
@@ -68,7 +81,8 @@ def handle_edit_command(
         "options": EditorLaunchOptions(
             default_engine=EngineName(args.engine),
             theme=args.theme,
-            open_browser=not args.no_browser,
+            ui_mode=ui_mode,
+            open_browser=effective_open_browser,
             print_code=args.print_code,
             code_path=code_path,
             log_file_path=args.log_file,
@@ -80,7 +94,8 @@ def handle_edit_command(
         open_editor_kwargs["options"] = EditorLaunchOptions(
             default_engine=EngineName(args.engine),
             theme=args.theme,
-            open_browser=not args.no_browser,
+            ui_mode=ui_mode,
+            open_browser=effective_open_browser,
             print_code=args.print_code,
             code_path=code_path,
             log_file_path=args.log_file,

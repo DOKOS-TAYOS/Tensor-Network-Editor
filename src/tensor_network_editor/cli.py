@@ -120,9 +120,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process-friendly exit code."""
     args_list = list(argv) if argv is not None else sys.argv[1:]
     try:
-        parsed_args = cast(
-            _CommandNamespace, build_command_parser().parse_args(args_list)
-        )
+        parser = build_command_parser()
+        parsed_args = cast(_CommandNamespace, parser.parse_args(args_list))
+        if (
+            getattr(parsed_args, "command", None) == "edit"
+            and getattr(parsed_args, "ui", None) is not None
+            and getattr(parsed_args, "no_browser", False)
+        ):
+            parser.error("cannot combine --ui with --no-browser; use only one.")
         command_context = _build_cli_command_context(parsed_args)
         with configure_package_logging(
             parsed_args.log_level,
@@ -188,6 +193,7 @@ def _build_cli_debug_context(args: argparse.Namespace) -> dict[str, object]:
     debug_context: dict[str, object] = {}
     for field_name in (
         "engine",
+        "ui",
         "format",
         "dtype",
         "python_import_mode",

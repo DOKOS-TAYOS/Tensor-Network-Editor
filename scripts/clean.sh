@@ -98,6 +98,7 @@ remove_glob_dirs_warn "./pytest-cache-files-*"
 remove_file_pattern "./.coverage"
 remove_file_pattern "./.coverage.*"
 remove_file_pattern "./coverage.xml"
+remove_file_pattern "./session.log*"
 
 remove_dir "__pycache__"
 remove_named_dirs "./src" "__pycache__"
