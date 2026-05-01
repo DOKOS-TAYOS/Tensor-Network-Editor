@@ -78,6 +78,39 @@ def _import_pywebview() -> Any:
         ) from exc
 
 
+def _resolve_pywebview_icon_path() -> Path:
+    """Return the packaged desktop icon used for the native pywebview window."""
+    return Path(__file__).resolve().parent / "static" / "favicon.ico"
+
+
+def _apply_pywebview_native_window_icon(window: Any) -> None:
+    """Apply the packaged icon to the native pywebview window when supported."""
+    icon_path = _resolve_pywebview_icon_path()
+    if not icon_path.is_file():
+        return
+    native_window = getattr(window, "native", None)
+    if native_window is None:
+        return
+    try:
+        from System.Drawing import Icon as DrawingIcon  # type: ignore[import-not-found]
+    except Exception:
+        return
+    try:
+        native_window.Icon = DrawingIcon(str(icon_path))
+        if hasattr(native_window, "ShowIcon"):
+            native_window.ShowIcon = True
+    except Exception as exc:
+        log_branch(
+            LOGGER,
+            "Could not apply the native pywebview window icon",
+            level=logging.WARNING,
+            context={
+                "icon_path": str(icon_path),
+                "error": str(exc),
+            },
+        )
+
+
 class _PywebviewExportApi:
     """Expose native save-file helpers to the embedded pywebview frontend."""
 
@@ -177,6 +210,9 @@ def _run_pywebview_session(
         js_api=pywebview_export_api,
     )
     pywebview_export_api.bind_window(pywebview_window)
+    pywebview_window.events.before_show += lambda: _apply_pywebview_native_window_icon(
+        pywebview_window
+    )
 
     def _handle_window_closed(*_args: object) -> None:
         """Cancel the editor session when the native window is closed."""

@@ -37,10 +37,17 @@ export function startEditor(ctx) {
     redoShortcutLabel: ctx.constants.REDO_SHORTCUT_LABEL,
   });
 
-  document.addEventListener("DOMContentLoaded", () => {
+  function initializeEditor() {
     shellBindings.attachToolbarHandlers();
     bootstrapFlow.bootstrap().catch((error) => {
       actions.setStatus(`Failed to load the editor: ${error.message}`, "error");
     });
-  });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeEditor, { once: true });
+    return;
+  }
+
+  initializeEditor();
 }

@@ -5025,6 +5025,207 @@ def test_session_ui_adapters_use_pywebview_save_api_when_available(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_ui_adapters_detect_pywebview_save_api_added_after_creation(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "session_ui_pywebview_late_save.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const sessionUiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "session" / "sessionUiAdapters.js")!r}).href;
+        const sessionUiModule = await import(sessionUiUrl);
+
+        const windowRef = {{}};
+        const uiCalls = [];
+        const sessionUi = sessionUiModule.createSessionUiAdapters({{
+          windowRef,
+          documentRef: {{
+            createElement() {{
+              uiCalls.push({{ type: "web-download" }});
+              return {{
+                click() {{
+                  uiCalls.push({{ type: "web-download-click" }});
+                }},
+              }};
+            }},
+          }},
+          urlRef: {{
+            createObjectURL() {{
+              return "blob:test";
+            }},
+            revokeObjectURL() {{
+              return undefined;
+            }},
+          }},
+          blobCtor: class FakeBlob {{
+            constructor(parts, options = {{}}) {{
+              this.parts = parts;
+              this.type = options.type || "";
+            }}
+          }},
+        }});
+
+        windowRef.pywebview = {{
+          api: {{
+            async save_text_file(filename, text, contentType) {{
+              uiCalls.push({{ type: "pywebview", filename, text, contentType }});
+              return true;
+            }},
+            async save_binary_file() {{
+              throw new Error("Unexpected binary save in text export test.");
+            }},
+          }},
+        }};
+
+        await sessionUi.downloadText(
+          "late.json",
+          "{{\\"late\\": true}}",
+          "application/json;charset=utf-8"
+        );
+
+        if (!uiCalls.some((entry) => entry.type === "pywebview")) {{
+          throw new Error(`Expected late pywebview injection to be honored, received ${{JSON.stringify(uiCalls)}}.`);
+        }}
+        if (uiCalls.some((entry) => entry.type === "web-download")) {{
+          throw new Error(`Expected pywebview save path instead of web download fallback, received ${{JSON.stringify(uiCalls)}}.`);
+        }}
+        """,
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The late pywebview session-ui adapter runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_start_editor_bootstraps_immediately_when_dom_is_already_ready(
+    tmp_path: Path,
+) -> None:
+    bootstrap_source = (
+        REPO_ROOT
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "static"
+        / "js"
+        / "bootstrap.js"
+    ).read_text(encoding="utf-8")
+    (tmp_path / "shell").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "bootstrap.js").write_text(bootstrap_source, encoding="utf-8")
+    (tmp_path / "shell" / "editorBootstrapFlow.js").write_text(
+        """
+        export function createEditorBootstrapFlow() {
+          return {
+            async bootstrap() {
+              globalThis.__bootstrapCalls.push("bootstrap");
+              return {};
+            },
+          };
+        }
+        """,
+        encoding="utf-8",
+    )
+    (tmp_path / "shell" / "shellActions.js").write_text(
+        """
+        export function createShellActions() {
+          return {
+            setStatus(message, level = "info") {
+              globalThis.__bootstrapCalls.push(`status:${level}:${message}`);
+            },
+          };
+        }
+        """,
+        encoding="utf-8",
+    )
+    (tmp_path / "shell" / "editorShellBindings.js").write_text(
+        """
+        export function createEditorShellBindings() {
+          return {
+            attachToolbarHandlers() {
+              globalThis.__bootstrapCalls.push("attachToolbarHandlers");
+            },
+          };
+        }
+        """,
+        encoding="utf-8",
+    )
+    (tmp_path / "shell" / "shortcutTooltip.js").write_text(
+        """
+        export function createShortcutTooltip() {
+          return {
+            attachShortcutTooltipHandlers() {},
+          };
+        }
+        """,
+        encoding="utf-8",
+    )
+    script_path = _write_runtime_script(
+        tmp_path,
+        "bootstrap_dom_ready.mjs",
+        """
+        globalThis.__bootstrapCalls = [];
+        const bootstrapUrl = new URL("./bootstrap.js", import.meta.url).href;
+        const bootstrapModule = await import(bootstrapUrl);
+
+        const documentRef = {
+          readyState: "complete",
+          addEventListener(type, handler) {
+            globalThis.__bootstrapCalls.push(`listener:${type}`);
+            this.listener = handler;
+          },
+        };
+        const ctx = {
+          state: {},
+          store: {},
+          window: {
+            confirm() {
+              return false;
+            },
+          },
+          document: documentRef,
+          services: { session: {} },
+          logger: null,
+          constants: { REDO_SHORTCUT_LABEL: "Ctrl+Shift+Z" },
+        };
+
+        bootstrapModule.startEditor(ctx);
+        await Promise.resolve();
+
+        if (!globalThis.__bootstrapCalls.includes("attachToolbarHandlers")) {
+          throw new Error(`Expected toolbar handlers to attach immediately, received ${JSON.stringify(globalThis.__bootstrapCalls)}.`);
+        }
+        if (!globalThis.__bootstrapCalls.includes("bootstrap")) {
+          throw new Error(`Expected bootstrap to run immediately for a ready document, received ${JSON.stringify(globalThis.__bootstrapCalls)}.`);
+        }
+        """,
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The bootstrap DOM-ready runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
     tmp_path: Path,
 ) -> None:

@@ -45,7 +45,7 @@ export function createSessionUiAdapters({
           }
           await clipboard.writeText(text);
         };
-  const resolvedPywebviewApi =
+  const resolvePywebviewApi = () =>
     windowRef &&
     windowRef.pywebview &&
     windowRef.pywebview.api &&
@@ -73,6 +73,7 @@ export function createSessionUiAdapters({
     typeof downloadBlob === "function"
       ? downloadBlob
       : async (filename, blobLike) => {
+          const resolvedPywebviewApi = resolvePywebviewApi();
           if (resolvedPywebviewApi) {
             if (!blobLike || typeof blobLike.arrayBuffer !== "function") {
               throw new Error("Binary downloads are not available in this browser.");
@@ -99,6 +100,7 @@ export function createSessionUiAdapters({
     typeof downloadText === "function"
       ? downloadText
       : async (filename, text, contentType = "text/plain;charset=utf-8") => {
+          const resolvedPywebviewApi = resolvePywebviewApi();
           if (resolvedPywebviewApi) {
             return resolvedPywebviewApi.save_text_file(filename, text, contentType);
           }

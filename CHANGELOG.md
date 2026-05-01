@@ -19,6 +19,17 @@ All notable changes to this project will be documented in this file.
   file from Python, so desktop-mode JSON, Python, and academic exports no
   longer disappear into the embedded browser backend's implicit download
   folder.
+- `pywebview` export actions now detect the native save API lazily at export
+  time instead of only during page startup, so the desktop `Save As` dialog
+  still appears even when the webview bridge finishes attaching just after the
+  editor UI initializes.
+- The editor bootstrap now starts immediately when the document is already in
+  `interactive` or `complete`, which fixes `pywebview` windows that could show
+  the shell markup without wiring toolbar actions, canvas interactions, or the
+  template bootstrap if `DOMContentLoaded` had already fired.
+- Windows `pywebview` launches now reuse the packaged
+  [`favicon.ico`](src/tensor_network_editor/app/static/favicon.ico) for the
+  native window icon instead of inheriting the default Python executable icon.
 - Test cleanup scripts now remove `session.log*` artifacts, and the repository
   ignores those rotating session logs explicitly.
 - Shared HTTP test helpers now give bundled editor assets more time to load,
