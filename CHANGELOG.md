@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-02
+
 ### Added
 
 - The editor now supports an explicit UI launch mode across the CLI and Python

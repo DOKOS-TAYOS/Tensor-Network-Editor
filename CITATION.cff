@@ -5,8 +5,8 @@ type: software
 authors:
   - family-names: "Mata Ali"
     given-names: "Alejandro"
-version: "0.5.0"
-date-released: "2026-04-30"
+version: "1.0.0"
+date-released: "2026-05-02"
 repository-code: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 url: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 license: "MIT"
