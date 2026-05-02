@@ -19,25 +19,48 @@ export function createHistorySnapshotSupport({
   refreshContractionAnalysis,
   setStatus,
 }) {
-  function restoreBenchmarkSession(snapshotBenchmarkSession) {
-    const nextBenchmarkSession =
-      snapshotBenchmarkSession && typeof snapshotBenchmarkSession === "object"
-        ? deepClone(snapshotBenchmarkSession)
+  function createHistorySnapshotBenchmarkPlan(plan) {
+    if (!plan || typeof plan !== "object") {
+      return {
+        id: "",
+        name: "",
+        steps: [],
+        view_snapshots: [],
+        metadata: {},
+      };
+    }
+    return {
+      id: typeof plan.id === "string" ? plan.id : "",
+      name: typeof plan.name === "string" ? plan.name : "",
+      steps: Array.isArray(plan.steps) ? deepClone(plan.steps) : [],
+      view_snapshots: [],
+      metadata:
+        plan.metadata && typeof plan.metadata === "object"
+          ? deepClone(plan.metadata)
+          : {},
+    };
+  }
+
+  function createHistorySnapshotBenchmarkSession(benchmarkSession) {
+    const sourceSession =
+      benchmarkSession && typeof benchmarkSession === "object"
+        ? benchmarkSession
         : createEmptyBenchmarkSession();
-    const compareModal =
-      nextBenchmarkSession.compareModal &&
-      typeof nextBenchmarkSession.compareModal === "object"
-        ? nextBenchmarkSession.compareModal
-        : createEmptyBenchmarkCompareState();
-    compareModal.rows = Array.isArray(compareModal.rows)
-      ? compareModal.rows
-      : compareModal.tableModel && Array.isArray(compareModal.tableModel.rows)
-        ? compareModal.tableModel.rows
-        : [];
-    nextBenchmarkSession.compareModal = compareModal;
-    nextBenchmarkSession.schemes = Array.isArray(nextBenchmarkSession.schemes)
-      ? nextBenchmarkSession.schemes
-      : [];
+    const nextBenchmarkSession = {
+      enabled: Boolean(sourceSession.enabled),
+      activePosition: Number.isInteger(sourceSession.activePosition)
+        ? sourceSession.activePosition
+        : 0,
+      originalPlan: sourceSession.originalPlan
+        ? createHistorySnapshotBenchmarkPlan(sourceSession.originalPlan)
+        : null,
+      schemes: Array.isArray(sourceSession.schemes)
+        ? sourceSession.schemes.map((scheme) =>
+            createHistorySnapshotBenchmarkPlan(scheme)
+          )
+        : [],
+      compareModal: createEmptyBenchmarkCompareState(),
+    };
     nextBenchmarkSession.activePosition = Number.isInteger(
       nextBenchmarkSession.activePosition
     )
@@ -51,6 +74,16 @@ export function createHistorySnapshotSupport({
     ) {
       nextBenchmarkSession.activePosition = nextBenchmarkSession.schemes.length;
     }
+    return nextBenchmarkSession;
+  }
+
+  function restoreBenchmarkSession(
+    snapshotBenchmarkSession,
+    restoredContractionPlan = null
+  ) {
+    const nextBenchmarkSession = createHistorySnapshotBenchmarkSession(
+      snapshotBenchmarkSession
+    );
     state.benchmarkSession = nextBenchmarkSession;
     if (!nextBenchmarkSession.enabled) {
       return;
@@ -66,7 +99,13 @@ export function createHistorySnapshotSupport({
       state.spec.contraction_plan = null;
       return;
     }
-    state.spec.contraction_plan = deepClone(activeScheme);
+    const exactActiveScheme =
+      restoredContractionPlan &&
+      typeof restoredContractionPlan === "object" &&
+      (!activeScheme.id || restoredContractionPlan.id === activeScheme.id)
+        ? restoredContractionPlan
+        : null;
+    state.spec.contraction_plan = exactActiveScheme || deepClone(activeScheme);
     nextBenchmarkSession.schemes[nextBenchmarkSession.activePosition - 1] =
       state.spec.contraction_plan;
   }
@@ -84,7 +123,9 @@ export function createHistorySnapshotSupport({
     return {
       spec: snapshotSpec == null ? deepClone(state.spec) : snapshotSpec,
       tensorOrder: Array.isArray(state.tensorOrder) ? [...state.tensorOrder] : [],
-      benchmarkSession: deepClone(state.benchmarkSession || createEmptyBenchmarkSession()),
+      benchmarkSession: createHistorySnapshotBenchmarkSession(
+        state.benchmarkSession
+      ),
     };
   }
 
@@ -118,7 +159,12 @@ export function createHistorySnapshotSupport({
     state.tensorOrder = Array.isArray(snapshot.tensorOrder)
       ? [...snapshot.tensorOrder]
       : [];
-    restoreBenchmarkSession(snapshot.benchmarkSession);
+    restoreBenchmarkSession(
+      snapshot.benchmarkSession,
+      state.spec && typeof state.spec === "object"
+        ? state.spec.contraction_plan || null
+        : null
+    );
     if (typeof bumpSpecRevision === "function") {
       bumpSpecRevision();
     }

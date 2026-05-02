@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+import sys
 from http import HTTPStatus
 from pathlib import Path
 from typing import Protocol, cast
+from urllib.request import urlopen
 
 import pytest
 
@@ -132,6 +135,61 @@ def test_editor_servers_reuse_static_asset_cache_between_instances() -> None:
         second_server._server.server_close()
 
 
+def test_editor_server_stop_returns_cleanly_before_start() -> None:
+    env = os.environ.copy()
+    src_path = str((Path.cwd() / "src").resolve())
+    existing_python_path = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        src_path
+        if not existing_python_path
+        else f"{src_path}{os.pathsep}{existing_python_path}"
+    )
+    script = """
+from tensor_network_editor.app.server import EditorServer
+from tensor_network_editor.app.session import EditorSession
+
+server = EditorServer(EditorSession())
+server.stop()
+print("STOPPED", flush=True)
+""".strip()
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=False,
+        cwd=Path.cwd(),
+        env=env,
+        text=True,
+        timeout=2,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "STOPPED"
+
+
+def test_editor_server_start_makes_shell_and_vendor_assets_immediately_readable_across_rapid_restarts() -> (
+    None
+):
+    for _ in range(5):
+        server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+
+        server.start()
+        try:
+            with urlopen(f"{server.base_url}/", timeout=2) as response:
+                html = response.read().decode("utf-8")
+            with urlopen(
+                f"{server.base_url}/vendor/cytoscape.min.js", timeout=2
+            ) as response:
+                vendor_body = response.read().decode("utf-8")
+                vendor_headers = dict(response.headers.items())
+        finally:
+            server.stop()
+
+        assert "Tensor Network Editor" in html
+        assert "cytoscape" in vendor_body
+        assert vendor_headers["Content-Type"].startswith("application/javascript")
+
+
 def test_editor_index_response_embeds_session_runtime_config() -> None:
     first_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
     second_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
@@ -170,8 +228,10 @@ def test_editor_index_response_embeds_session_runtime_config() -> None:
 
 def test_static_asset_cache_refreshes_when_static_files_change(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     static_dir = tmp_path / "static"
+    resolved_static_dir = static_dir.resolve()
     asset_path = static_dir / "js" / "app.js"
     asset_path.parent.mkdir(parents=True)
     (static_dir / "index.html").write_text(
@@ -179,6 +239,13 @@ def test_static_asset_cache_refreshes_when_static_files_change(
         encoding="utf-8",
     )
     asset_path.write_text("console.log('first');", encoding="utf-8")
+    monotonic_time = 100.0
+
+    monkeypatch.setattr(app_server.time, "monotonic", lambda: monotonic_time)
+    app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    app_server._STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.pop(
+        resolved_static_dir, None
+    )
 
     first_cache = app_server._get_static_asset_cache(static_dir)
 
@@ -188,6 +255,7 @@ def test_static_asset_cache_refreshes_when_static_files_change(
         + 1_000_000_000
     )
     os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+    monotonic_time += 1.0
 
     refreshed_cache = app_server._get_static_asset_cache(static_dir)
 
@@ -210,6 +278,7 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         encoding="utf-8",
     )
     asset_path.write_text("console.log('first');", encoding="utf-8")
+    monotonic_time = 100.0
 
     scan_calls: list[Path] = []
     original_scan = app_server._scan_static_asset_files
@@ -218,8 +287,12 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         scan_calls.append(path.resolve())
         return original_scan(path)
 
+    monkeypatch.setattr(app_server.time, "monotonic", lambda: monotonic_time)
     monkeypatch.setattr(app_server, "_scan_static_asset_files", recording_scan)
     app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    app_server._STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.pop(
+        resolved_static_dir, None
+    )
 
     first_cache = app_server._get_static_asset_cache(static_dir)
 
@@ -232,6 +305,7 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         + 1_000_000_000
     )
     os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+    monotonic_time += 1.0
 
     refreshed_cache = app_server._get_static_asset_cache(static_dir)
 
@@ -239,6 +313,42 @@ def test_static_asset_cache_reuses_one_scan_per_build_or_refresh(
         refreshed_cache.body_by_relative_path["js/app.js"] == b"console.log('second');"
     )
     assert scan_calls == [resolved_static_dir, resolved_static_dir]
+
+
+def test_static_asset_cache_skips_immediate_rescan_for_rapid_reuse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    static_dir = tmp_path / "static"
+    resolved_static_dir = static_dir.resolve()
+    asset_path = static_dir / "js" / "app.js"
+    asset_path.parent.mkdir(parents=True)
+    (static_dir / "index.html").write_text(
+        "<script src='js/app.js?v=__ASSET_VERSION__'></script>",
+        encoding="utf-8",
+    )
+    asset_path.write_text("console.log('first');", encoding="utf-8")
+    monotonic_time = 100.0
+
+    scan_calls: list[Path] = []
+    original_scan = app_server._scan_static_asset_files
+
+    def recording_scan(path: Path) -> list[tuple[Path, str, int, int]]:
+        scan_calls.append(path.resolve())
+        return original_scan(path)
+
+    monkeypatch.setattr(app_server.time, "monotonic", lambda: monotonic_time)
+    monkeypatch.setattr(app_server, "_scan_static_asset_files", recording_scan)
+    app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    app_server._STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.pop(
+        resolved_static_dir, None
+    )
+
+    first_cache = app_server._get_static_asset_cache(static_dir)
+    second_cache = app_server._get_static_asset_cache(static_dir)
+
+    assert first_cache is second_cache
+    assert scan_calls == [resolved_static_dir]
 
 
 def test_static_asset_cache_logs_build_and_reuse(
@@ -255,6 +365,9 @@ def test_static_asset_cache_logs_build_and_reuse(
     )
     asset_path.write_text("console.log('first');", encoding="utf-8")
     app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    app_server._STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.pop(
+        resolved_static_dir, None
+    )
 
     with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
         first_cache = app_server._get_static_asset_cache(static_dir)
@@ -270,6 +383,7 @@ def test_static_asset_cache_logs_build_and_reuse(
 def test_static_asset_cache_logs_refresh_with_version_context(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     static_dir = tmp_path / "static"
     asset_path = static_dir / "js" / "app.js"
@@ -280,7 +394,13 @@ def test_static_asset_cache_logs_refresh_with_version_context(
         encoding="utf-8",
     )
     asset_path.write_text("console.log('first');", encoding="utf-8")
+    monotonic_time = 100.0
+
+    monkeypatch.setattr(app_server.time, "monotonic", lambda: monotonic_time)
     app_server._STATIC_ASSET_CACHE_BY_ROOT.pop(resolved_static_dir, None)
+    app_server._STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.pop(
+        resolved_static_dir, None
+    )
     first_cache = app_server._get_static_asset_cache(static_dir)
 
     asset_path.write_text("console.log('second');", encoding="utf-8")
@@ -289,6 +409,7 @@ def test_static_asset_cache_logs_refresh_with_version_context(
         + 1_000_000_000
     )
     os.utime(asset_path, ns=(future_timestamp_ns, future_timestamp_ns))
+    monotonic_time += 1.0
 
     with caplog.at_level(logging.DEBUG, logger="tensor_network_editor"):
         refreshed_cache = app_server._get_static_asset_cache(static_dir)

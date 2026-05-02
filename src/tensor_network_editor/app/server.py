@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
@@ -14,6 +15,7 @@ from io import BufferedReader
 from pathlib import Path
 from typing import Protocol, TypeAlias, cast
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from ..internal._logging import (
     bind_log_context,
@@ -35,9 +37,15 @@ from .session import EditorSession
 
 LOGGER = logging.getLogger(__name__)
 _SERVE_FOREVER_POLL_INTERVAL_SECONDS: float = 0.05
+_STARTUP_READY_TIMEOUT_SECONDS: float = 5.0
+_STARTUP_READY_POLL_INTERVAL_SECONDS: float = 0.01
+_STARTUP_READY_REQUEST_TIMEOUT_SECONDS: float = 0.2
+_RESPONSE_WRITE_CHUNK_SIZE_BYTES: int = 64 * 1024
+_STATIC_ASSET_CACHE_VALIDATION_INTERVAL_SECONDS: float = 0.5
 _MAX_REQUEST_BODY_BYTES: int = 1_048_576
 _STATIC_ASSET_CACHE_LOCK = threading.Lock()
 _STATIC_ASSET_CACHE_BY_ROOT: dict[Path, _StaticAssetCache] = {}
+_STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT: dict[Path, float] = {}
 _UNEXPECTED_INTERNAL_ERROR_MESSAGE = "Unexpected internal error."
 _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
     "Try again. If the problem continues, check the terminal output for this "
@@ -198,11 +206,14 @@ def _build_static_asset_cache(
 def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
     """Return a shared static asset cache for one editor static directory."""
     resolved_static_dir = static_dir.resolve()
-    scanned_files = _scan_static_asset_files(resolved_static_dir)
-    current_signature = _build_static_asset_source_signature(scanned_files)
     with _STATIC_ASSET_CACHE_LOCK:
+        validation_started_at = time.monotonic()
         cache = _STATIC_ASSET_CACHE_BY_ROOT.get(resolved_static_dir)
+        last_validated_at = _STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT.get(
+            resolved_static_dir
+        )
         if cache is None:
+            scanned_files = _scan_static_asset_files(resolved_static_dir)
             with log_operation(
                 LOGGER,
                 "Static asset cache build",
@@ -213,9 +224,29 @@ def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
                     scanned_files=scanned_files,
                 )
                 _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = cache
+                _STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT[resolved_static_dir] = (
+                    validation_started_at
+                )
                 success_context["after"] = cache.asset_version
                 success_context["asset_count"] = len(cache.body_by_relative_path)
                 return cache
+        if (
+            last_validated_at is not None
+            and validation_started_at - last_validated_at
+            < _STATIC_ASSET_CACHE_VALIDATION_INTERVAL_SECONDS
+        ):
+            log_branch(
+                LOGGER,
+                "Static asset cache reused",
+                context={
+                    "path": resolved_static_dir,
+                    "after": cache.asset_version,
+                    "asset_count": len(cache.body_by_relative_path),
+                },
+            )
+            return cache
+        scanned_files = _scan_static_asset_files(resolved_static_dir)
+        current_signature = _build_static_asset_source_signature(scanned_files)
         if cache.source_signature != current_signature:
             with log_operation(
                 LOGGER,
@@ -230,11 +261,17 @@ def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
                     scanned_files=scanned_files,
                 )
                 _STATIC_ASSET_CACHE_BY_ROOT[resolved_static_dir] = refreshed_cache
+                _STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT[resolved_static_dir] = (
+                    validation_started_at
+                )
                 success_context["after"] = refreshed_cache.asset_version
                 success_context["asset_count"] = len(
                     refreshed_cache.body_by_relative_path
                 )
                 return refreshed_cache
+        _STATIC_ASSET_CACHE_LAST_VALIDATED_AT_BY_ROOT[resolved_static_dir] = (
+            validation_started_at
+        )
         log_branch(
             LOGGER,
             "Static asset cache reused",
@@ -309,6 +346,7 @@ class EditorServer:
         )
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
+        self._serve_forever_ready = threading.Event()
 
     @property
     def base_url(self) -> str:
@@ -322,6 +360,11 @@ class EditorServer:
     def start(self) -> None:
         """Start serving requests in a background thread."""
         self._thread.start()
+        try:
+            self._wait_until_ready()
+        except Exception:
+            self._cleanup_failed_start()
+            raise
         log_branch(
             LOGGER,
             f"Editor server started at {self.base_url}",
@@ -331,9 +374,7 @@ class EditorServer:
 
     def stop(self) -> None:
         """Stop the server and wait for the worker thread to exit."""
-        self._server.shutdown()
-        self._server.server_close()
-        self._thread.join(timeout=5)
+        self._stop_server_worker()
         log_branch(
             LOGGER,
             "Editor server stopped",
@@ -343,7 +384,60 @@ class EditorServer:
 
     def _serve_forever(self) -> None:
         """Serve requests with a short shutdown polling interval."""
+        self._serve_forever_ready.set()
         self._server.serve_forever(poll_interval=_SERVE_FOREVER_POLL_INTERVAL_SECONDS)
+
+    def _wait_until_ready(self) -> None:
+        """Block until loopback requests can read one fully served asset."""
+        deadline = time.monotonic() + _STARTUP_READY_TIMEOUT_SECONDS
+        if not self._serve_forever_ready.wait(timeout=_STARTUP_READY_TIMEOUT_SECONDS):
+            raise RuntimeError(
+                "Editor server did not enter the serving loop before the startup timeout elapsed."
+            )
+
+        last_error: OSError | None = None
+        while True:
+            remaining_seconds = deadline - time.monotonic()
+            if remaining_seconds <= 0:
+                break
+            request_timeout_seconds = min(
+                _STARTUP_READY_REQUEST_TIMEOUT_SECONDS,
+                remaining_seconds,
+            )
+            try:
+                self._probe_loopback_readiness(request_timeout_seconds)
+            except OSError as exc:
+                last_error = exc
+                time.sleep(min(_STARTUP_READY_POLL_INTERVAL_SECONDS, remaining_seconds))
+                continue
+            return
+
+        if last_error is None:
+            raise RuntimeError(
+                "Editor server readiness probe timed out before any loopback request succeeded."
+            )
+        raise RuntimeError(
+            "Editor server did not become ready to serve loopback requests before the startup timeout elapsed."
+        ) from last_error
+
+    def _probe_loopback_readiness(self, timeout_seconds: float) -> None:
+        """Read one small static asset to verify the server serves full responses."""
+        with urlopen(
+            f"{self.base_url}/favicon.ico", timeout=timeout_seconds
+        ) as response:
+            response.read()
+
+    def _stop_server_worker(self) -> None:
+        """Best-effort shutdown that is safe before the serve loop starts."""
+        if self._thread.is_alive() and self._serve_forever_ready.is_set():
+            self._server.shutdown()
+        self._server.server_close()
+        if self._thread.ident is not None:
+            self._thread.join(timeout=5)
+
+    def _cleanup_failed_start(self) -> None:
+        """Best-effort cleanup when startup fails after allocating the server socket."""
+        self._stop_server_worker()
 
     def _build_handler(self) -> type[BaseHTTPRequestHandler]:
         """Build the request-handler class bound to this server instance."""
@@ -598,7 +692,13 @@ class EditorServer:
                     self.send_header("Connection", "close")
                 self._write_no_cache_headers()
                 self.end_headers()
-                self.wfile.write(body)
+                body_view = memoryview(body)
+                for offset in range(
+                    0, len(body_view), _RESPONSE_WRITE_CHUNK_SIZE_BYTES
+                ):
+                    next_offset = offset + _RESPONSE_WRITE_CHUNK_SIZE_BYTES
+                    self.wfile.write(body_view[offset:next_offset])
+                self.wfile.flush()
 
             def _write_no_cache_headers(self) -> None:
                 """Emit headers that disable browser and intermediary caching."""

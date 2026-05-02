@@ -3231,6 +3231,12 @@ def test_editor_assets_use_lookup_caches_and_lighter_history_paths(
     assert "function createHistorySnapshot(" not in history_body
     assert "function getSelectedEntries(" not in history_body
     assert "function createHistorySnapshotSupport(" in history_snapshots_body
+    assert "function createHistorySnapshotBenchmarkSession(" in history_snapshots_body
+    assert "function createHistorySnapshotBenchmarkPlan(" in history_snapshots_body
+    assert (
+        "benchmarkSession: deepClone(state.benchmarkSession || createEmptyBenchmarkSession())"
+        not in history_snapshots_body
+    )
     assert "function createSelectionEntrySupport(" in history_selection_body
     assert "function createDesignMutationPipeline(" in history_pipeline_body
     assert "structuredClone" in utilities_body

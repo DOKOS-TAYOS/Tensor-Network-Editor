@@ -23,6 +23,9 @@ All notable changes to this project will be documented in this file.
   time instead of only during page startup, so the desktop `Save As` dialog
   still appears even when the webview bridge finishes attaching just after the
   editor UI initializes.
+- `pywebview` export actions now detect text and binary save capabilities
+  independently, so desktop exports still use the native `Save As` dialog even
+  when an embedded backend exposes only one of the two save methods at first.
 - The editor bootstrap now starts immediately when the document is already in
   `interactive` or `complete`, which fixes `pywebview` windows that could show
   the shell markup without wiring toolbar actions, canvas interactions, or the
@@ -30,6 +33,25 @@ All notable changes to this project will be documented in this file.
 - Windows `pywebview` launches now reuse the packaged
   [`favicon.ico`](src/tensor_network_editor/app/static/favicon.ico) for the
   native window icon instead of inheriting the default Python executable icon.
+- `pywebview` desktop launches now treat the native window-icon hook as best
+  effort, so backends that do not expose a `before_show` event still open
+  correctly instead of crashing during startup.
+- `pywebview` desktop launches now also tolerate backends with partial window
+  event hooks, so missing `closed` callbacks no longer crash the editor during
+  startup.
+- Local `EditorServer` startup now waits until a real loopback asset request can
+  be served before reporting readiness, which stabilizes rapid restart cycles
+  in tests and makes `_on_server_ready` URLs immediately usable.
+- `EditorServer.stop()` is now safe even if it runs before `start()`, so early
+  cleanup paths no longer risk hanging while waiting for a serve loop that
+  never began.
+- Repeated `EditorServer` startups now reuse the shared static-asset cache
+  without forcing an immediate full rescan of the asset tree every time, which
+  trims bursty local startup overhead while still refreshing changed assets
+  shortly afterward.
+- Editor undo/redo snapshots now keep benchmark-mode session history lighter by
+  stripping inactive scheme view snapshots and ephemeral compare-modal state,
+  while the active scheme still restores its exact contraction layouts.
 - Test cleanup scripts now remove `session.log*` artifacts, and the repository
   ignores those rotating session logs explicitly.
 - Shared HTTP test helpers now give bundled editor assets more time to load,

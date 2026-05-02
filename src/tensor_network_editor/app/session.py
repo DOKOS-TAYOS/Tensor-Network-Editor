@@ -210,9 +210,14 @@ def _run_pywebview_session(
         js_api=pywebview_export_api,
     )
     pywebview_export_api.bind_window(pywebview_window)
-    pywebview_window.events.before_show += lambda: _apply_pywebview_native_window_icon(
-        pywebview_window
-    )
+    window_events = getattr(pywebview_window, "events", None)
+    before_show_event = getattr(window_events, "before_show", None)
+    if before_show_event is not None:
+        before_show_event += lambda: _apply_pywebview_native_window_icon(
+            pywebview_window
+        )
+    else:
+        _apply_pywebview_native_window_icon(pywebview_window)
 
     def _handle_window_closed(*_args: object) -> None:
         """Cancel the editor session when the native window is closed."""
@@ -227,7 +232,9 @@ def _run_pywebview_session(
         except Exception:
             return None
 
-    pywebview_window.events.closed += _handle_window_closed
+    closed_event = getattr(window_events, "closed", None)
+    if closed_event is not None:
+        closed_event += _handle_window_closed
     pywebview.start(_wait_for_session_and_close_window, pywebview_window)
     return wait_for_editor_result(session)
 
@@ -647,6 +654,11 @@ def launch_editor_session(
             ui_mode=ui_mode,
             open_browser=open_browser,
         )
+        if (
+            effective_ui_mode == "pywebview"
+            and threading.current_thread() is not threading.main_thread()
+        ):
+            raise RuntimeError("pywebview mode must be launched from the main thread.")
         previous_sigint_handler: SignalHandler | int | None = None
         server_started = False
 

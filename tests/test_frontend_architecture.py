@@ -5109,6 +5109,186 @@ def test_session_ui_adapters_detect_pywebview_save_api_added_after_creation(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_ui_adapters_use_partial_pywebview_text_api_when_available(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "session_ui_pywebview_partial_text_save.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const sessionUiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "session" / "sessionUiAdapters.js")!r}).href;
+        const sessionUiModule = await import(sessionUiUrl);
+
+        const calls = [];
+        const sessionUi = sessionUiModule.createSessionUiAdapters({{
+          windowRef: {{
+            pywebview: {{
+              api: {{
+                async save_text_file(filename, text, contentType) {{
+                  calls.push({{ type: "text", filename, text, contentType }});
+                  return true;
+                }},
+              }},
+            }},
+          }},
+          documentRef: {{
+            createElement() {{
+              calls.push({{ type: "web-download" }});
+              return {{
+                click() {{
+                  calls.push({{ type: "web-download-click" }});
+                }},
+              }};
+            }},
+          }},
+          urlRef: {{
+            createObjectURL() {{
+              calls.push({{ type: "object-url" }});
+              return "blob:test";
+            }},
+            revokeObjectURL() {{
+              return undefined;
+            }},
+          }},
+          blobCtor: class FakeBlob {{
+            constructor(parts, options = {{}}) {{
+              this.parts = parts;
+              this.type = options.type || "";
+            }}
+          }},
+        }});
+
+        const saved = await sessionUi.downloadText(
+          "partial.json",
+          "{{\\"partial\\": true}}",
+          "application/json;charset=utf-8"
+        );
+
+        if (saved !== true) {{
+          throw new Error(`Expected the partial pywebview text save to resolve true, received ${{saved}}.`);
+        }}
+        if (!calls.some((entry) => entry.type === "text")) {{
+          throw new Error(`Expected downloadText() to use save_text_file(), received ${{JSON.stringify(calls)}}.`);
+        }}
+        if (calls.some((entry) => entry.type === "web-download" || entry.type === "object-url")) {{
+          throw new Error(`Expected no web-download fallback when save_text_file() exists, received ${{JSON.stringify(calls)}}.`);
+        }}
+        """,
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The partial pywebview text-save runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_session_ui_adapters_use_partial_pywebview_binary_api_when_available(
+    tmp_path: Path,
+) -> None:
+    script_path = _write_runtime_script(
+        tmp_path,
+        "session_ui_pywebview_partial_binary_save.mjs",
+        f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const sessionUiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "session" / "sessionUiAdapters.js")!r}).href;
+        const sessionUiModule = await import(sessionUiUrl);
+
+        const calls = [];
+        class FakeBlob {{
+          constructor(parts, options = {{}}) {{
+            this.parts = parts;
+            this.type = options.type || "";
+          }}
+
+          async arrayBuffer() {{
+            const firstPart = this.parts[0];
+            if (!(firstPart instanceof Uint8Array)) {{
+              throw new Error("Expected Uint8Array content in the binary export test blob.");
+            }}
+            return firstPart.buffer.slice(
+              firstPart.byteOffset,
+              firstPart.byteOffset + firstPart.byteLength
+            );
+          }}
+        }}
+        const sessionUi = sessionUiModule.createSessionUiAdapters({{
+          windowRef: {{
+            pywebview: {{
+              api: {{
+                async save_binary_file(filename, base64Payload, contentType) {{
+                  calls.push({{ type: "binary", filename, base64Payload, contentType }});
+                  return true;
+                }},
+              }},
+            }},
+          }},
+          documentRef: {{
+            createElement() {{
+              calls.push({{ type: "web-download" }});
+              return {{
+                click() {{
+                  calls.push({{ type: "web-download-click" }});
+                }},
+              }};
+            }},
+          }},
+          urlRef: {{
+            createObjectURL() {{
+              calls.push({{ type: "object-url" }});
+              return "blob:test";
+            }},
+            revokeObjectURL() {{
+              return undefined;
+            }},
+          }},
+          blobCtor: FakeBlob,
+        }});
+
+        const saved = await sessionUi.downloadBlob(
+          "partial.pdf",
+          new FakeBlob([Uint8Array.from([0, 1, 2, 255])], {{ type: "application/pdf" }})
+        );
+
+        if (saved !== true) {{
+          throw new Error(`Expected the partial pywebview binary save to resolve true, received ${{saved}}.`);
+        }}
+        const binaryCall = calls.find((entry) => entry.type === "binary");
+        if (!binaryCall || binaryCall.base64Payload !== "AAEC/w==") {{
+          throw new Error(`Expected downloadBlob() to use save_binary_file(), received ${{JSON.stringify(calls)}}.`);
+        }}
+        if (calls.some((entry) => entry.type === "web-download" || entry.type === "object-url")) {{
+          throw new Error(`Expected no web-download fallback when save_binary_file() exists, received ${{JSON.stringify(calls)}}.`);
+        }}
+        """,
+    )
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The partial pywebview binary-save runtime script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_start_editor_bootstraps_immediately_when_dom_is_already_ready(
     tmp_path: Path,
 ) -> None:
@@ -5341,7 +5521,21 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
 
         const historyEvents = [];
         const historyState = {{
-          spec: {{ id: "network_demo" }},
+          spec: {{
+            id: "network_demo",
+            contraction_plan: {{
+              id: "scheme_beta",
+              name: "Beta",
+              steps: [],
+              view_snapshots: [
+                {{
+                  applied_step_count: 0,
+                  operand_layouts: [{{ operand_id: "tensor_a" }}],
+                }},
+              ],
+              metadata: {{}},
+            }},
+          }},
           tensorOrder: ["tensor_a"],
           undoStack: [],
           redoStack: [],
@@ -5363,13 +5557,47 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
           benchmarkSession: {{
             enabled: true,
             activePosition: 2,
-            originalPlan: {{ id: "original_plan", name: "Original", steps: [], metadata: {{}} }},
+            originalPlan: {{
+              id: "original_plan",
+              name: "Original",
+              steps: [],
+              view_snapshots: [
+                {{
+                  applied_step_count: 0,
+                  operand_layouts: [{{ operand_id: "original_tensor" }}],
+                }},
+              ],
+              metadata: {{}},
+            }},
             schemes: [
-              {{ id: "scheme_alpha", name: "Alpha", steps: [], metadata: {{}} }},
-              {{ id: "scheme_beta", name: "Beta", steps: [], metadata: {{}} }},
+              {{
+                id: "scheme_alpha",
+                name: "Alpha",
+                steps: [],
+                view_snapshots: [
+                  {{
+                    applied_step_count: 0,
+                    operand_layouts: [{{ operand_id: "alpha_tensor" }}],
+                  }},
+                ],
+                metadata: {{}},
+              }},
+              {{
+                id: "scheme_beta",
+                name: "Beta",
+                steps: [],
+                view_snapshots: [
+                  {{
+                    applied_step_count: 0,
+                    operand_layouts: [{{ operand_id: "beta_tensor" }}],
+                  }},
+                ],
+                metadata: {{}},
+              }},
             ],
             compareModal: {{
               open: true,
+              tableModel: {{ rows: [{{ scheme_id: "scheme_alpha" }}] }},
               rows: [{{ scheme_id: "scheme_alpha" }}],
               activeRequestId: 7,
             }},
@@ -5399,25 +5627,101 @@ def test_benchmark_helper_modules_build_comparison_rows_and_history_state(
         if (!snapshot.benchmarkSession || snapshot.benchmarkSession.activePosition !== 2) {{
           throw new Error(`Expected history snapshots to capture benchmark session state, received ${{JSON.stringify(snapshot)}}.`);
         }}
+        if (snapshot.benchmarkSession.compareModal.open || snapshot.benchmarkSession.compareModal.activeRequestId !== 0) {{
+          throw new Error(`Expected history snapshots to reset ephemeral benchmark compare state, received ${{JSON.stringify(snapshot.benchmarkSession.compareModal)}}.`);
+        }}
+        if (snapshot.benchmarkSession.compareModal.rows.length !== 0 || snapshot.benchmarkSession.compareModal.tableModel !== null) {{
+          throw new Error(`Expected history snapshots to strip compare rows and table models, received ${{JSON.stringify(snapshot.benchmarkSession.compareModal)}}.`);
+        }}
+        if (snapshot.benchmarkSession.originalPlan.view_snapshots.length !== 0) {{
+          throw new Error(`Expected history snapshots to strip original-plan view snapshots, received ${{JSON.stringify(snapshot.benchmarkSession.originalPlan)}}.`);
+        }}
+        if (snapshot.benchmarkSession.schemes.some((scheme) => scheme.view_snapshots.length !== 0)) {{
+          throw new Error(`Expected history snapshots to strip inactive benchmark view snapshots, received ${{JSON.stringify(snapshot.benchmarkSession.schemes)}}.`);
+        }}
+        if (snapshot.spec.contraction_plan.view_snapshots.length !== 1) {{
+          throw new Error(`Expected the active scheme view snapshots to stay in the main spec snapshot, received ${{JSON.stringify(snapshot.spec.contraction_plan)}}.`);
+        }}
 
         historySupport.restoreHistorySnapshot({{
-          spec: {{ id: "restored_network" }},
+          spec: {{
+            id: "restored_network",
+            contraction_plan: {{
+              id: "scheme_restored",
+              name: "Restored",
+              steps: [],
+              view_snapshots: [
+                {{
+                  applied_step_count: 1,
+                  operand_layouts: [{{ operand_id: "restored_tensor" }}],
+                }},
+              ],
+              metadata: {{}},
+            }},
+          }},
           tensorOrder: ["tensor_b"],
           benchmarkSession: {{
             enabled: true,
             activePosition: 1,
-            originalPlan: null,
-            schemes: [{{ id: "scheme_restored", name: "Restored", steps: [], metadata: {{}} }}],
+            originalPlan: {{
+              id: "restored_original",
+              name: "Restored Original",
+              steps: [],
+              view_snapshots: [
+                {{
+                  applied_step_count: 0,
+                  operand_layouts: [{{ operand_id: "restored_original_tensor" }}],
+                }},
+              ],
+              metadata: {{}},
+            }},
+            schemes: [
+              {{
+                id: "scheme_restored",
+                name: "Restored",
+                steps: [],
+                view_snapshots: [],
+                metadata: {{}},
+              }},
+              {{
+                id: "scheme_inactive",
+                name: "Inactive",
+                steps: [],
+                view_snapshots: [
+                  {{
+                    applied_step_count: 0,
+                    operand_layouts: [{{ operand_id: "inactive_tensor" }}],
+                  }},
+                ],
+                metadata: {{}},
+              }},
+            ],
             compareModal: {{
-              open: false,
-              rows: [],
-              activeRequestId: 0,
+              open: true,
+              tableModel: {{ rows: [{{ scheme_id: "scheme_restored" }}] }},
+              rows: [{{ scheme_id: "scheme_restored" }}],
+              activeRequestId: 9,
             }},
           }},
         }});
 
         if (!historyState.benchmarkSession || historyState.benchmarkSession.activePosition !== 1) {{
           throw new Error(`Expected history restore to recover benchmark session state, received ${{JSON.stringify(historyState.benchmarkSession)}}.`);
+        }}
+        if (historyState.benchmarkSession.compareModal.open || historyState.benchmarkSession.compareModal.rows.length !== 0 || historyState.benchmarkSession.compareModal.tableModel !== null) {{
+          throw new Error(`Expected history restore to keep benchmark compare state ephemeral, received ${{JSON.stringify(historyState.benchmarkSession.compareModal)}}.`);
+        }}
+        if (historyState.benchmarkSession.originalPlan.view_snapshots.length !== 0) {{
+          throw new Error(`Expected history restore to keep original-plan snapshots lazy, received ${{JSON.stringify(historyState.benchmarkSession.originalPlan)}}.`);
+        }}
+        if (historyState.benchmarkSession.schemes[1].view_snapshots.length !== 0) {{
+          throw new Error(`Expected inactive benchmark schemes to stay lightweight after restore, received ${{JSON.stringify(historyState.benchmarkSession.schemes)}}.`);
+        }}
+        if (historyState.benchmarkSession.schemes[0] !== historyState.spec.contraction_plan) {{
+          throw new Error("Expected history restore to re-link the active benchmark scheme to the restored contraction plan.");
+        }}
+        if (historyState.spec.contraction_plan.view_snapshots.length !== 1) {{
+          throw new Error(`Expected the restored active scheme to keep its exact view snapshots, received ${{JSON.stringify(historyState.spec.contraction_plan)}}.`);
         }}
       """,
     )
