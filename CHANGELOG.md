@@ -14,6 +14,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Publishing polish: the README no longer advertises a removed `png` extra, and
+  `MANIFEST.in` no longer carries redundant exclusions for non-package
+  directories, which keeps `python -m build` quieter.
 - `pywebview` editor launches now open their native window maximized by
   default, so the desktop mode starts with the same roomy workspace users
   usually expect from the browser flow.

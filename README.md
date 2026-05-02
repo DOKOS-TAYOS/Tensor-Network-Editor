@@ -218,8 +218,7 @@ tensor-network-editor doctor my_network.json
 tensor-network-editor doctor my_network.json --format json
 ```
 
-Render one saved design as SVG, PDF, TikZ/LaTeX, Graphviz/DOT, Mermaid, or with the
-optional `png` extra, PNG:
+Render one saved design as SVG, PDF, TikZ/LaTeX, Graphviz/DOT, Mermaid, or PNG:
 
 ```bash
 tensor-network-editor render my_network.json --format svg --output figure.svg

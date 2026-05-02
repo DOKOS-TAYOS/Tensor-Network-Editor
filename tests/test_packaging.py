@@ -103,6 +103,27 @@ def test_project_metadata_declares_required_matplotlib_dependency_and_backend_ex
     assert "png" not in optional_dependencies
 
 
+def test_docs_do_not_advertise_removed_png_extra() -> None:
+    readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
+    installation_text = (Path.cwd() / "docs" / "installation.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "tensor-network-editor[png]" not in readme_text
+    assert "optional `png` extra" not in readme_text
+    assert "tensor-network-editor[png]" not in installation_text
+
+
+def test_manifest_omits_redundant_non_package_exclusions() -> None:
+    manifest_text = (Path.cwd() / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "docs/images" not in manifest_text
+    assert "prune tests" not in manifest_text
+    assert "tests" not in manifest_text
+    assert "recursive-exclude docs/images *" not in manifest_text
+    assert "recursive-exclude tests *" not in manifest_text
+
+
 def test_third_party_notices_describe_bundled_asset_scope() -> None:
     third_party_text = (Path.cwd() / "THIRD_PARTY_LICENSES").read_text(encoding="utf-8")
     readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")

@@ -3,5 +3,3 @@ include THIRD_PARTY_LICENSES
 include README.md
 recursive-include src/tensor_network_editor/app/static *.css *.html *.ico *.js
 include src/tensor_network_editor/py.typed
-recursive-exclude docs/images *
-recursive-exclude tests *
