@@ -10,7 +10,7 @@ date-released: "2026-05-02"
 repository-code: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 url: "https://github.com/DOKOS-TAYOS/Tensor-Network-Editor"
 license: "MIT"
-abstract: "A local Python package and browser editor for drawing tensor networks, saving versioned JSON designs, and generating readable Python code for tensor-network backends."
+abstract: "A production-ready local Python package and browser editor for drawing tensor networks, saving versioned JSON designs, and generating readable Python code for tensor-network backends."
 keywords:
   - "tensor networks"
   - "scientific computing"

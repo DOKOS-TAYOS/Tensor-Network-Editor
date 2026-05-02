@@ -12,6 +12,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor)
 [![Windows%20%7C%20Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0A7BBB)](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Stability](https://img.shields.io/badge/stability-production--ready-brightgreen)](https://pypi.org/project/tensor-network-editor/)
 
 `tensor-network-editor` is a local Python package for drawing tensor networks,
 saving them as versioned JSON, and generating readable Python code for several

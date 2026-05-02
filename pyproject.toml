@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tensor-network-editor"
 dynamic = ["version"]
-description = "Local visual editor for tensor networks: versioned JSON diagrams and Python code for einsum and optional backends."
+description = "Production-ready local visual editor for tensor networks: versioned JSON diagrams and Python code for einsum and optional backends."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -38,7 +38,7 @@ keywords = [
   "visualization",
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Environment :: Web Environment",
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",

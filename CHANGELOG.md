@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- PyPI trove classifiers and README now state **Production/Stable** readiness
+  (replacing the previous Beta development-status marker).
 - Publishing polish: the README no longer advertises a removed `png` extra, and
   `MANIFEST.in` no longer carries redundant exclusions for non-package
   directories, which keeps `python -m build` quieter.
