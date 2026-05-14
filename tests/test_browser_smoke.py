@@ -6,12 +6,13 @@ import os
 import time
 from pathlib import Path
 from typing import Any
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
 from tensor_network_editor.app.server import EditorServer
 from tensor_network_editor.app.session import EditorSession
+from tests.app_support import _session_token_for_url
 
 pytestmark = pytest.mark.browser
 
@@ -46,8 +47,20 @@ def _import_playwright_sync_api() -> Any:
 
 def _request_json(url: str) -> dict[str, Any]:
     """Read one JSON response from a local editor server URL."""
-    with urlopen(url, timeout=1) as response:
+    request = Request(url)
+    session_token = _session_token_for_url(url)
+    if session_token:
+        request.add_header("X-TNE-Session-Token", session_token)
+    with urlopen(request, timeout=1) as response:
         return json.load(response)
+
+
+def test_browser_smoke_json_helper_sends_session_token(
+    editor_server: EditorServer,
+) -> None:
+    payload = _request_json(f"{editor_server.base_url}/api/bootstrap")
+
+    assert payload["app_metadata"]["version"]
 
 
 def _wait_for_recoverable_draft_name(
