@@ -825,6 +825,10 @@ Generated exports provide the richest round-trip. External static profiles and
 live imports are intentionally conservative and do not recover editor layout,
 groups, notes, or manual contraction plans.
 
+Only use live import with local Python files you trust. Live import executes
+the file in a subprocess with the active Python environment, so trusted code can
+still read or write local files.
+
 If live import is requested for generated source and the backend import fails
 because the backend package is missing, the loader can fall back to the static
 generated-source parser and report a warning.

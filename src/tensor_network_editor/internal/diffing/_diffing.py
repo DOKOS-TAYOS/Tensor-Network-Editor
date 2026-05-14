@@ -162,8 +162,8 @@ def _diff_plan(before: NetworkSpec, after: NetworkSpec) -> DiffEntityChanges:
         return DiffEntityChanges(added=[after.contraction_plan.id])
     if before.contraction_plan is not None and after.contraction_plan is None:
         return DiffEntityChanges(removed=[before.contraction_plan.id])
-    assert before.contraction_plan is not None
-    assert after.contraction_plan is not None
+    if before.contraction_plan is None or after.contraction_plan is None:
+        raise RuntimeError("Contraction plans must be present after diff guards.")
     if before.contraction_plan.id != after.contraction_plan.id:
         return DiffEntityChanges(
             added=[after.contraction_plan.id],
@@ -223,8 +223,10 @@ def _semantic_diff_plan(
             *_plan_step_add_remove_entries(before.steps, change_type="removed"),
         ]
 
-    assert before is not None
-    assert after is not None
+    if before is None or after is None:
+        raise RuntimeError(
+            "Contraction plans must be present after semantic diff guards."
+        )
     entries: list[SemanticDiffEntry] = []
     if before.id != after.id:
         entries.extend(

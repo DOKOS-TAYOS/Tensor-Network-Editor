@@ -15,6 +15,17 @@ All notable changes to this project will be documented in this file.
   contraction analysis, code generation, or subnetwork operations.
 - CI now runs a dependency vulnerability audit with `pip-audit` as part of the
   development dependency set.
+- Bundled PrismJS assets were updated to 1.30.0, and the editor server now
+  emits a nonce-based Content Security Policy plus additional browser defense
+  headers.
+- Live Python import prompts and docs now state that live import should only be
+  used with trusted local Python files, because it executes code in a
+  subprocess with the active Python environment.
+- CI now runs Ruff's Bandit security rules against `src`, and Dependabot tracks
+  Python and GitHub Actions dependency updates.
+- Added `SECURITY.md` with private reporting guidance, a maintainer disclosure
+  checklist, and a PrismJS advisory draft for releases that bundled PrismJS
+  1.29.0.
 
 ### Changed
 

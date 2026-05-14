@@ -382,6 +382,9 @@ whole load immediately.
   scripts or imports already resolvable from the active `.venv`. If a Python
   file depends on sibling modules or path-sensitive imports, prefer the Python
   API or CLI with the real file path.
+- Only use live import with local Python files you trust. Live import executes
+  the file in a subprocess with the active Python environment, so trusted code
+  can still read or write local files.
 - Tensor values in the visual editor support portable built-in initializers,
   dtype choices, JSON-friendly complex scalars, and external `.npy`, `.npz`,
   and `.pt` data references. Symbolic expressions are not supported yet.
@@ -399,6 +402,7 @@ whole load immediately.
 
 - Source code: [github.com/DOKOS-TAYOS/Tensor-Network-Editor](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Security policy: [SECURITY.md](SECURITY.md)
 - Example script: [examples/basic_usage.py](examples/basic_usage.py)
 - Issue tracker: [github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues)
 - License: [LICENSE](LICENSE)

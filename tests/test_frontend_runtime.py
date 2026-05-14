@@ -15180,6 +15180,12 @@ def _write_session_editor_live_python_import_runtime_script(tmp_path: Path) -> P
             if (confirmMessages.length !== 3) {
               throw new Error(`Expected the Python load flow to ask about live execution every time, received ${JSON.stringify(confirmMessages)}.`);
             }
+            if (!confirmMessages.every((message) => message.includes("Only continue for local Python files you trust"))) {
+              throw new Error(`Expected every live-import prompt to warn about trusted local files, received ${JSON.stringify(confirmMessages)}.`);
+            }
+            if (!confirmMessages.every((message) => message.includes("can read and write files"))) {
+              throw new Error(`Expected every live-import prompt to describe local execution risk, received ${JSON.stringify(confirmMessages)}.`);
+            }
             if (promptMessages.length !== 2) {
               throw new Error(`Expected object-name prompts only for live imports, received ${JSON.stringify(promptMessages)}.`);
             }

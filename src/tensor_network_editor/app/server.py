@@ -59,8 +59,13 @@ _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
 _QUIET_MISSING_STATIC_ASSET_PATHS: frozenset[str] = frozenset({"/favicon.ico"})
 _ScannedStaticAssetFile: TypeAlias = tuple[Path, str, int, int]
 _RUNTIME_CONFIG_PLACEHOLDER = "__TNE_RUNTIME_CONFIG__"
-_API_TOKEN_HEADER = "X-TNE-Session-Token"
+_CSP_NONCE_PLACEHOLDER = "__TNE_CSP_NONCE__"
+_API_TOKEN_HEADER = "X-TNE-Session-Token"  # noqa: S105, RUF100 - header name.
 _EXPECTED_JSON_CONTENT_TYPE = "application/json"
+_PERMISSIONS_POLICY_HEADER = (
+    "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+    "magnetometer=(), microphone=(), payment=(), usb=()"
+)
 
 
 class SupportsReadBytes(Protocol):
@@ -381,7 +386,11 @@ def _serialize_frontend_runtime_config(
 
 
 def _render_session_index_body(
-    index_body: bytes, session: EditorSession, *, api_token: str
+    index_body: bytes,
+    session: EditorSession,
+    *,
+    api_token: str,
+    csp_nonce: str,
 ) -> bytes:
     """Return the per-session editor HTML body with embedded runtime config."""
     return index_body.replace(
@@ -389,7 +398,28 @@ def _render_session_index_body(
         _serialize_frontend_runtime_config(session, api_token=api_token).encode(
             "utf-8"
         ),
+    ).replace(
+        _CSP_NONCE_PLACEHOLDER.encode("utf-8"),
+        csp_nonce.encode("utf-8"),
     )
+
+
+def _build_content_security_policy(*, csp_nonce: str) -> str:
+    """Return the editor CSP that permits only trusted local assets."""
+    directives = [
+        "default-src 'self'",
+        "base-uri 'none'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'none'",
+        "connect-src 'self'",
+        "img-src 'self' data: blob:",
+        f"script-src 'self' 'nonce-{csp_nonce}'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
+        "worker-src 'self' blob:",
+    ]
+    return "; ".join(directives)
 
 
 def _unexpected_internal_error_response(session_id: str) -> JsonResponse:
@@ -436,12 +466,17 @@ class EditorServer:
         self.api_token = api_token or secrets.token_urlsafe(32)
         if not self.api_token.strip():
             raise ValueError("Editor API token cannot be empty.")
+        self._csp_nonce = secrets.token_urlsafe(16)
+        self._content_security_policy = _build_content_security_policy(
+            csp_nonce=self._csp_nonce
+        )
         self._static_dir = Path(__file__).resolve().parent / "static"
         self._static_asset_cache = _get_static_asset_cache(self._static_dir)
         self._index_body = _render_session_index_body(
             self._static_asset_cache.index_body,
             session,
             api_token=self.api_token,
+            csp_nonce=self._csp_nonce,
         )
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
@@ -521,7 +556,7 @@ class EditorServer:
 
     def _probe_loopback_readiness(self, timeout_seconds: float) -> None:
         """Read one small static asset to verify the server serves full responses."""
-        with urlopen(
+        with urlopen(  # noqa: S310, RUF100 - probes this loopback server.
             f"{self.base_url}/favicon.ico", timeout=timeout_seconds
         ) as response:
             response.read()
@@ -547,6 +582,7 @@ class EditorServer:
         index_body = self._index_body
         api_token = self.api_token
         allow_remote = self.allow_remote
+        content_security_policy = self._content_security_policy
 
         def build_index_response() -> _BinaryResponse:
             """Return the cached main HTML page for this editor session."""
@@ -883,6 +919,9 @@ class EditorServer:
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Referrer-Policy", "no-referrer")
                 self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Content-Security-Policy", content_security_policy)
+                self.send_header("Permissions-Policy", _PERMISSIONS_POLICY_HEADER)
+                self.send_header("Cross-Origin-Resource-Policy", "same-origin")
                 if self.close_connection:
                     self.send_header("Connection", "close")
                 self._write_no_cache_headers()

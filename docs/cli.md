@@ -228,6 +228,10 @@ If `--python-import-mode live` is used on generated source and the live import
 fails because the backend package is missing, the loader falls back to the
 static generated-source parser and reports the fallback as a warning.
 
+Only use live import with local Python files you trust. Live import executes
+the file in a subprocess with the active Python environment, so trusted code can
+still read or write local files.
+
 ## Headless Commands
 
 Headless commands work without opening the visual editor:

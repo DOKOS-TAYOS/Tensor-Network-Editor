@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -114,6 +115,65 @@ def test_project_metadata_and_ci_enable_dependency_audits() -> None:
     assert "pip-audit>=2.7" in dev_dependencies
     assert "Run dependency security audit" in ci_text
     assert "-m pip_audit" in ci_text
+
+
+def test_ci_runs_source_security_lint_and_dependabot_tracks_updates() -> None:
+    ci_text = (Path.cwd() / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    dependabot_text = (Path.cwd() / ".github" / "dependabot.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Run source security lint" in ci_text
+    assert "-m ruff check src --select S" in ci_text
+    assert 'package-ecosystem: "pip"' in dependabot_text
+    assert 'package-ecosystem: "github-actions"' in dependabot_text
+    assert 'directory: "/"' in dependabot_text
+
+
+def test_bundled_prism_version_stays_patched_for_cve_2024_53382() -> None:
+    third_party_text = (Path.cwd() / "THIRD_PARTY_LICENSES").read_text(encoding="utf-8")
+    version_match = re.search(
+        r"2\. PrismJS[\s\S]*?- Version: (\d+)\.(\d+)\.(\d+)",
+        third_party_text,
+    )
+
+    assert version_match is not None
+    version = tuple(int(part) for part in version_match.groups())
+    assert version >= (1, 30, 0)
+
+
+def test_live_python_import_docs_warn_to_use_only_trusted_files() -> None:
+    expected_warning = "Only use live import with local Python files you trust."
+    docs_paths = [
+        Path.cwd() / "README.md",
+        Path.cwd() / "docs" / "api.md",
+        Path.cwd() / "docs" / "cli.md",
+        Path.cwd() / "docs" / "extended_guide.md",
+    ]
+
+    for docs_path in docs_paths:
+        docs_text = docs_path.read_text(encoding="utf-8")
+        assert expected_warning in docs_text
+
+
+def test_security_policy_documents_private_reporting_and_prism_advisory() -> None:
+    security_text = (Path.cwd() / "SECURITY.md").read_text(encoding="utf-8")
+    readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
+
+    assert "GitHub private vulnerability reporting" in security_text
+    assert "Do not open a public issue with exploit details" in security_text
+    assert "CVE-2024-53382" in security_text
+    assert "GHSA-x7hr-w5r2-h6wg" in security_text
+    assert "Bundled PrismJS before 1.30.0" in security_text
+    assert "browser-based editor" in security_text
+    assert (
+        "Installing or importing the Python package alone does not execute PrismJS"
+        in (security_text)
+    )
+    assert "publish the patched release before publishing the advisory" in security_text
+    assert "Security policy: [SECURITY.md](SECURITY.md)" in readme_text
 
 
 def test_docs_do_not_advertise_removed_png_extra() -> None:

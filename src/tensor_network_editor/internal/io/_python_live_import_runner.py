@@ -88,7 +88,7 @@ def _run_request(request_payload: dict[str, object]) -> dict[str, object]:
         contextlib.redirect_stdout(stdout_buffer),
         contextlib.redirect_stderr(stderr_buffer),
     ):
-        exec(compiled_code, namespace, namespace)
+        exec(compiled_code, namespace, namespace)  # noqa: S102, RUF100 - live import.
     result = build_live_import_result_from_namespace(
         namespace,
         source_profile=normalized_source_profile,

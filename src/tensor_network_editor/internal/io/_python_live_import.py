@@ -131,7 +131,7 @@ def import_live_python_source(
     }
     runner_path = Path(__file__).with_name("_python_live_import_runner.py")
     try:
-        completed_process = subprocess.run(
+        completed_process = subprocess.run(  # noqa: S603, RUF100 - fixed local runner.
             [sys.executable, str(runner_path)],
             input=json.dumps(request_payload),
             capture_output=True,

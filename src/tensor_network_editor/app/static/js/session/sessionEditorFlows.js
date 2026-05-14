@@ -352,7 +352,7 @@ export function createSessionEditorFlows({
       let pythonImportMode = "static";
       let pythonObjectName = null;
       if (isPythonSource && sessionUi.confirmAction(
-        "Run this Python file in a subprocess to import a live tensor network object? Choose Cancel to keep the static parser."
+        "Run this Python file in a subprocess to import a live tensor network object? Only continue for local Python files you trust: live import can read and write files through the active Python environment. Choose Cancel to keep the static parser."
       )) {
         pythonImportMode = "live";
         const promptedObjectName = sessionUi.promptText(

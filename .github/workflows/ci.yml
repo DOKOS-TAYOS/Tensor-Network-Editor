@@ -59,6 +59,10 @@ jobs:
         run: |
           & $env:VENV_PYTHON -m ruff check .
 
+      - name: Run source security lint
+        run: |
+          & $env:VENV_PYTHON -m ruff check src --select S
+
       - name: Check Ruff formatting
         run: |
           & $env:VENV_PYTHON -m ruff format --check .

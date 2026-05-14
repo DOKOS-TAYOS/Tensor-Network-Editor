@@ -62,7 +62,7 @@ for known vulnerabilities.
    - Bundled files:
      `src/tensor_network_editor/app/static/vendor/prism-core.min.js`
      `src/tensor_network_editor/app/static/vendor/prism-python.min.js`
-   - Version: 1.29.0
+   - Version: 1.30.0
    - Project: https://prismjs.com/
    - Upstream repository: https://github.com/PrismJS/prism
    - Copyright:

@@ -2075,7 +2075,8 @@ class _MatplotlibRenderer:
                     canvas_height=canvas_height,
                 )
                 buffer = BytesIO()
-                assert figure is not None
+                if figure is None:
+                    raise RuntimeError("Matplotlib figure was not created.")
                 figure.savefig(buffer, **self._savefig_kwargs(file_format=file_format))
                 return buffer.getvalue()
             finally:

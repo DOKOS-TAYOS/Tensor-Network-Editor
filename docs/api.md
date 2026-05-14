@@ -273,6 +273,9 @@ Important details:
   active Python interpreter, supports live `quimb` and `tensornetwork`
   objects, and accepts `object_name="..."` when several compatible
   globals exist
+- Only use live import with local Python files you trust. Live import executes
+  the file in a subprocess with the active Python environment, so trusted code
+  can still read or write local files.
 - `PythonLoadOptions.reconstruction_level="simple"` rebuilds only the portable network
   structure: tensors, inferable connections, and portable tensor-data payloads
 - `PythonLoadOptions.reconstruction_level="best_available"` is currently only supported

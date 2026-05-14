@@ -114,6 +114,36 @@ def test_root_serves_editor_shell_with_versioned_module_entry(
     assert headers["Content-Type"].startswith("text/html")
 
 
+def test_root_serves_editor_shell_with_csp_nonce_and_defensive_headers(
+    editor_server: EditorServer,
+) -> None:
+    html, headers = request_with_headers(f"{editor_server.base_url}/")
+
+    content_security_policy = headers["Content-Security-Policy"]
+    nonce_match = re.search(
+        r"(?:^|;\s*)script-src 'self' 'nonce-([^']+)';",
+        content_security_policy,
+    )
+
+    assert nonce_match is not None
+    nonce = nonce_match.group(1)
+    assert nonce
+    assert "'unsafe-inline'" not in nonce_match.group(0)
+    assert (
+        f'<script id="tne-runtime-config" type="application/json" nonce="{nonce}">'
+        in html
+    )
+    assert f'<script nonce="{nonce}">' in html
+    assert "default-src 'self'" in content_security_policy
+    assert "object-src 'none'" in content_security_policy
+    assert "frame-ancestors 'none'" in content_security_policy
+    assert headers["Permissions-Policy"] == (
+        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+        "magnetometer=(), microphone=(), payment=(), usb=()"
+    )
+    assert headers["Cross-Origin-Resource-Policy"] == "same-origin"
+
+
 def test_help_info_section_surfaces_current_editor_workflows(
     editor_server: EditorServer,
 ) -> None:
