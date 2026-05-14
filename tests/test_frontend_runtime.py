@@ -14052,6 +14052,7 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               spec: { name: "draft demo" },
               generatedCode: "",
               editorFinished: false,
+              selectedTheme: "light",
               draftAutosaveReady: true,
               draftAutosaveTimer: null,
               draftAutosaveDirty: false,
@@ -14308,6 +14309,13 @@ def _write_session_editor_draft_autosave_runtime_script(tmp_path: Path) -> Path:
               !mermaidRenderCall.payload.spec.persistViewSnapshots
             ) {
               throw new Error(`Academic exports should persist view snapshots, received ${JSON.stringify(calls)}.`);
+            }
+            if (
+              svgRenderCall.payload.theme !== "light" ||
+              pngRenderCall.payload.theme !== "light" ||
+              pdfRenderCall.payload.theme !== "light"
+            ) {
+              throw new Error(`SVG/PNG/PDF exports should include the active theme, received ${JSON.stringify(calls)}.`);
             }
             if (!svgDownloadCall || svgDownloadCall.contentType !== "image/svg+xml;charset=utf-8") {
               throw new Error(`Expected SVG export to download a .svg file, received ${JSON.stringify(calls)}.`);
@@ -15061,6 +15069,7 @@ def _write_editor_session_service_validate_python_runtime_script(
             await service.renderSpec({
               format: "dot",
               spec: { schema_version: 2, network: { id: "network_draft" } },
+              theme: "light",
             });
             await service.clearDraft();
 
@@ -15108,6 +15117,9 @@ def _write_editor_session_service_validate_python_runtime_script(
             }
             if (apiCalls[4].payload.format !== "dot" || apiCalls[4].payload.spec.network.id !== "network_draft") {
               throw new Error(`Expected renderSpec to keep format and spec payloads, received ${JSON.stringify(apiCalls[4])}.`);
+            }
+            if (apiCalls[4].payload.theme !== "light") {
+              throw new Error(`Expected renderSpec to include the current theme, received ${JSON.stringify(apiCalls[4])}.`);
             }
             if (apiCalls[5].path !== "/api/draft/clear" || apiCalls[5].method !== "POST") {
               throw new Error(`Expected clearDraft to POST /api/draft/clear, received ${JSON.stringify(apiCalls[5])}.`);

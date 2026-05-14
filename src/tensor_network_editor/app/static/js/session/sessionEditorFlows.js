@@ -491,6 +491,7 @@ export function createSessionEditorFlows({
       showTensorNames: state.academicExportLabels.tensor,
       showIndexNames: state.academicExportLabels.index,
       showBondNames: state.academicExportLabels.bond,
+      theme: state.selectedTheme,
     };
   }
 

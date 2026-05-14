@@ -88,6 +88,7 @@ class SvgRenderOptions:
     text_fill: str = "#f2f5f8"
     muted_text_fill: str = "#aeb9c7"
     font_family: str = "Arial, sans-serif"
+    transparent_background: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -426,12 +427,13 @@ class _SvgRenderer:
                 f'{_number(width)} {_number(height)}">'
             ),
             f"<title>{_text(self._spec.name)}</title>",
-            (
+        ]
+        if not self._options.transparent_background:
+            lines.append(
                 f"<rect x={_attr(bounds.x1)} y={_attr(bounds.y1)} "
                 f"width={_attr(width)} height={_attr(height)} "
                 f"fill={_attr(self._options.background)} />"
-            ),
-        ]
+            )
         if self._options.include_groups:
             lines.extend(self._render_groups())
         lines.extend(self._render_edges(edge_render_infos))
@@ -2104,10 +2106,10 @@ class _MatplotlibRenderer:
                 canvas_height / self._BASE_DPI,
             ),
             dpi=self._BASE_DPI,
-            facecolor=self._options.background,
+            facecolor=self._figure_facecolor(),
         )
         axes = figure.add_axes((0.0, 0.0, 1.0, 1.0))
-        axes.set_facecolor(self._options.background)
+        axes.set_facecolor(self._figure_facecolor())
         axes.set_xlim(bounds.x1, bounds.x1 + canvas_width)
         axes.set_ylim(bounds.y1 + canvas_height, bounds.y1)
         axes.set_aspect("equal", adjustable="box")
@@ -2121,14 +2123,21 @@ class _MatplotlibRenderer:
             canvas_height,
         )
 
+    def _figure_facecolor(self) -> str:
+        """Return the Matplotlib figure/axes background color."""
+        if self._options.transparent_background:
+            return "none"
+        return self._options.background
+
     def _savefig_kwargs(self, *, file_format: str) -> dict[str, Any]:
+        figure_facecolor = self._figure_facecolor()
         save_kwargs: dict[str, Any] = {
             "format": file_format,
             "bbox_inches": None,
             "pad_inches": 0.0,
-            "facecolor": self._options.background,
-            "edgecolor": self._options.background,
-            "transparent": False,
+            "facecolor": figure_facecolor,
+            "edgecolor": figure_facecolor,
+            "transparent": self._options.transparent_background,
             "metadata": self._render_metadata(file_format=file_format),
         }
         if file_format == "png":
@@ -2160,15 +2169,16 @@ class _MatplotlibRenderer:
         canvas_width: int,
         canvas_height: int,
     ) -> None:
-        background = patches_module.Rectangle(
-            (bounds.x1, bounds.y1),
-            canvas_width,
-            canvas_height,
-            facecolor=self._options.background,
-            edgecolor="none",
-            zorder=-100,
-        )
-        axes.add_patch(background)
+        if not self._options.transparent_background:
+            background = patches_module.Rectangle(
+                (bounds.x1, bounds.y1),
+                canvas_width,
+                canvas_height,
+                facecolor=self._options.background,
+                edgecolor="none",
+                zorder=-100,
+            )
+            axes.add_patch(background)
         if self._options.include_groups:
             self._render_groups(axes, patches_module)
         self._render_edges(axes, patches_module, path_module, edge_render_infos)

@@ -448,6 +448,59 @@ def test_render_route_applies_label_options_to_svg_png_and_pdf(
         assert options.show_edge_labels is False
 
 
+def test_render_route_applies_theme_to_image_export_options(
+    editor_server: EditorServer,
+) -> None:
+    spec = build_sample_spec()
+    serialized_spec = {
+        "schema_version": SCHEMA_VERSION,
+        "network": spec.to_dict(),
+    }
+
+    with (
+        patch(
+            "tensor_network_editor.app.routes.render_spec_svg",
+            return_value="<?xml version='1.0'?><svg />",
+        ) as render_svg_mock,
+        patch(
+            "tensor_network_editor.app.routes.render_spec_pdf",
+            return_value=b"%PDF-1.4",
+        ) as render_pdf_mock,
+    ):
+        svg_payload = request_json(
+            f"{editor_server.base_url}/api/render",
+            method="POST",
+            payload={
+                "format": "svg",
+                "spec": serialized_spec,
+                "theme": "light",
+            },
+        )
+        pdf_payload = request_json(
+            f"{editor_server.base_url}/api/render",
+            method="POST",
+            payload={
+                "format": "pdf",
+                "spec": serialized_spec,
+                "theme": "light",
+            },
+        )
+
+    svg_options = render_svg_mock.call_args.kwargs["options"]
+    pdf_options = render_pdf_mock.call_args.kwargs["options"]
+
+    assert svg_payload["ok"] is True
+    assert pdf_payload["ok"] is True
+    assert svg_options.background == "#ffffff"
+    assert svg_options.text_fill == "#172033"
+    assert svg_options.muted_text_fill == "#475569"
+    assert svg_options.transparent_background is True
+    assert pdf_options.background == "#ffffff"
+    assert pdf_options.text_fill == "#172033"
+    assert pdf_options.muted_text_fill == "#475569"
+    assert pdf_options.transparent_background is False
+
+
 def test_resolve_render_label_options_reads_shared_payload_flags() -> None:
     import tensor_network_editor.app.routes as routes_module
 

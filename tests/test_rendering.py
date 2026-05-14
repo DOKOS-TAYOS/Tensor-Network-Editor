@@ -800,6 +800,20 @@ def test_render_spec_svg_writes_output_path(tmp_path: Path) -> None:
     assert output_path.read_text(encoding="utf-8") == svg
 
 
+def test_render_spec_svg_omits_solid_background_when_transparent() -> None:
+    pytest.importorskip("matplotlib")
+
+    svg = render_spec_svg(
+        build_sample_spec(),
+        options=SvgRenderOptions(
+            background="#abcdef",
+            transparent_background=True,
+        ),
+    )
+
+    assert "#abcdef" not in svg
+
+
 def test_render_spec_svg_reuses_edge_geometry_within_one_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1170,6 +1184,19 @@ def test_render_spec_png_returns_png_bytes_and_writes_output_path(
 
     assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
     assert output_path.read_bytes() == png_bytes
+
+
+def test_render_spec_png_uses_alpha_channel_when_transparent() -> None:
+    pytest.importorskip("matplotlib")
+    from tensor_network_editor.rendering import render_spec_png
+
+    png_bytes = render_spec_png(
+        build_sample_spec(),
+        options=SvgRenderOptions(transparent_background=True),
+    )
+
+    assert png_bytes[12:16] == b"IHDR"
+    assert png_bytes[25] == 6
 
 
 def test_render_spec_pdf_returns_pdf_bytes_and_writes_output_path(

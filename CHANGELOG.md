@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Academic SVG/PNG/PDF exports now inherit the active editor theme for figure
+  text/background colors; light themes use white PDF backgrounds, while SVG and
+  PNG exports can preserve transparent backgrounds.
+
 ## [1.0.0] - 2026-05-02
 
 ### Added

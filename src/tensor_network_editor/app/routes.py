@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from typing import Literal, cast
 
+from .._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
 from ..errors import (
     CodeGenerationError,
     PackageIOError,
@@ -110,6 +111,58 @@ class _RenderLabelOptions:
     show_tensor_labels: bool
     show_index_labels: bool
     show_edge_labels: bool
+
+
+_IMAGE_EXPORT_THEME_OVERRIDES: dict[EditorThemeName, dict[str, str]] = {
+    "dark": {
+        "background": "#0b0d12",
+        "edge_stroke": "#7e8aa3",
+        "index_fill": "#d7ae68",
+        "group_stroke": "#8f7cf7",
+        "note_fill": "#252b34",
+        "text_fill": "#f2f5f8",
+        "muted_text_fill": "#c6d3e6",
+    },
+    "light": {
+        "background": "#ffffff",
+        "edge_stroke": "#64748b",
+        "index_fill": "#b45309",
+        "group_stroke": "#6d28d9",
+        "note_fill": "#ffffff",
+        "text_fill": "#172033",
+        "muted_text_fill": "#475569",
+    },
+    "contrast": {
+        "background": "#000000",
+        "edge_stroke": "#ffffff",
+        "index_fill": "#ffff00",
+        "hyperedge_stroke": "#ff5f5f",
+        "group_stroke": "#ff00ff",
+        "note_fill": "#101010",
+        "text_fill": "#ffffff",
+        "muted_text_fill": "#ffffff",
+    },
+    "colorblind": {
+        "background": "#ffffff",
+        "edge_stroke": "#5b5b5b",
+        "index_fill": "#e69f00",
+        "hyperedge_stroke": "#d55e00",
+        "group_stroke": "#cc79a7",
+        "note_fill": "#ffffff",
+        "text_fill": "#202124",
+        "muted_text_fill": "#5b5b5b",
+    },
+    "shiny": {
+        "background": "#070915",
+        "edge_stroke": "#94a3b8",
+        "index_fill": "#facc15",
+        "hyperedge_stroke": "#fb7185",
+        "group_stroke": "#e879f9",
+        "note_fill": "#11152c",
+        "text_fill": "#f8fafc",
+        "muted_text_fill": "#c4b5fd",
+    },
+}
 
 
 def _route_context(
@@ -344,12 +397,15 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
             serialized_spec = require_serialized_spec(payload)
             spec = deserialize_spec(serialized_spec, validate=False)
             label_options = _resolve_render_label_options(payload)
+            render_theme = _resolve_render_theme(payload)
             success_context["format"] = render_format
+            success_context["theme"] = render_theme
             success_context.update(summarize_spec_counts(spec))
             response_payload = _build_render_response(
                 render_format,
                 spec,
                 label_options,
+                theme=render_theme,
             )
         except ValueError as exc:
             return bad_request_response(str(exc))
@@ -733,12 +789,29 @@ def _resolve_render_label_options(payload: JsonDict) -> _RenderLabelOptions:
     )
 
 
-def _svg_render_options(label_options: _RenderLabelOptions) -> SvgRenderOptions:
+def _resolve_render_theme(payload: JsonDict) -> EditorThemeName:
+    """Return the editor theme requested for one render payload."""
+    raw_theme = payload.get("theme")
+    if raw_theme is None:
+        return DEFAULT_EDITOR_THEME
+    if not isinstance(raw_theme, str):
+        raise ValueError("'theme' must be a string when provided.")
+    return normalize_editor_theme(raw_theme)
+
+
+def _svg_render_options(
+    label_options: _RenderLabelOptions,
+    *,
+    render_format: _RenderFormat,
+    theme: EditorThemeName,
+) -> SvgRenderOptions:
     """Return SVG/PNG/PDF render options derived from shared label flags."""
     return SvgRenderOptions(
         show_tensor_labels=label_options.show_tensor_labels,
         show_index_labels=label_options.show_index_labels,
         show_edge_labels=label_options.show_edge_labels,
+        transparent_background=render_format in {"svg", "png"},
+        **_IMAGE_EXPORT_THEME_OVERRIDES[theme],
     )
 
 
@@ -792,6 +865,8 @@ def _build_render_response(
     render_format: _RenderFormat,
     spec: NetworkSpec,
     label_options: _RenderLabelOptions,
+    *,
+    theme: EditorThemeName = DEFAULT_EDITOR_THEME,
 ) -> JsonDict:
     """Return the serialized academic render payload for one format request."""
     if render_format == "tikz":
@@ -815,18 +890,39 @@ def _build_render_response(
     if render_format == "svg":
         return _build_text_render_response(
             render_format,
-            render_spec_svg(spec, options=_svg_render_options(label_options)),
+            render_spec_svg(
+                spec,
+                options=_svg_render_options(
+                    label_options,
+                    render_format=render_format,
+                    theme=theme,
+                ),
+            ),
             content_type="image/svg+xml;charset=utf-8",
         )
     if render_format == "png":
         return _build_binary_render_response(
             render_format,
-            render_spec_png(spec, options=_svg_render_options(label_options)),
+            render_spec_png(
+                spec,
+                options=_svg_render_options(
+                    label_options,
+                    render_format=render_format,
+                    theme=theme,
+                ),
+            ),
             content_type="image/png",
         )
     return _build_binary_render_response(
         render_format,
-        render_spec_pdf(spec, options=_svg_render_options(label_options)),
+        render_spec_pdf(
+            spec,
+            options=_svg_render_options(
+                label_options,
+                render_format=render_format,
+                theme=theme,
+            ),
+        ),
         content_type="application/pdf",
     )
 

@@ -83,20 +83,26 @@ export function createEditorSessionService({ apiGet, apiPost }) {
       showTensorNames = true,
       showIndexNames = true,
       showBondNames = true,
+      theme = null,
     }) {
+      const payload = {
+        format,
+        spec,
+        show_tensor_names: showTensorNames,
+        show_index_names: showIndexNames,
+        show_bond_names: showBondNames,
+      };
+      if (typeof theme === "string" && theme.trim()) {
+        payload.theme = theme;
+      }
       return apiPost(
         "/api/render",
-        {
-          format,
-          spec,
-          show_tensor_names: showTensorNames,
-          show_index_names: showIndexNames,
-          show_bond_names: showBondNames,
-        },
+        payload,
         {
           operation: "render",
           context: {
             format,
+            theme: payload.theme || null,
             ...summarizeSerializedSpec(spec),
           },
         }
