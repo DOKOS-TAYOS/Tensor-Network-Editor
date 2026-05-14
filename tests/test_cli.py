@@ -148,6 +148,10 @@ def empty_lint_report(_spec: NetworkSpec) -> LintReport:
     return LintReport()
 
 
+def compact_help_text(help_text: str) -> str:
+    return " ".join(help_text.split())
+
+
 def test_main_requires_a_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     with patch("tensor_network_editor.cli.open_editor") as open_editor_mock:
         exit_code = main([])
@@ -199,6 +203,49 @@ def test_global_python_import_arguments_are_accepted_before_subcommand() -> None
     assert parsed_args.python_reconstruction_level == "simple"
     assert parsed_args.python_object == "network"
     assert parsed_args.command == "edit"
+
+
+def test_top_level_help_includes_command_argument_quick_reference() -> None:
+    parser = build_command_parser()
+
+    help_text = compact_help_text(parser.format_help())
+
+    assert "Command argument quick reference:" in help_text
+    assert (
+        "tensor-network-editor export PATH --engine ENGINE [--output FILE]" in help_text
+    )
+    assert "tensor-network-editor template build TEMPLATE_NAME [options]" in help_text
+    assert "Run 'tensor-network-editor <command> --help'" in help_text
+
+
+def test_export_help_describes_required_arguments(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["export", "--help"])
+
+    assert exit_code == 0
+    help_text = capsys.readouterr().out
+    help_text = compact_help_text(help_text)
+    assert (
+        "Saved JSON design or supported generated Python file to export." in help_text
+    )
+    assert "Backend used for generated Python code." in help_text
+    assert "Write generated code to a file instead of stdout." in help_text
+
+
+def test_template_build_help_describes_template_options(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["template", "build", "--help"])
+
+    assert exit_code == 0
+    help_text = capsys.readouterr().out
+    help_text = compact_help_text(help_text)
+    assert "Built-in template name to instantiate." in help_text
+    assert (
+        "Override the graph size parameter when the template supports it." in help_text
+    )
+    assert "Choose text or JSON output." in help_text
 
 
 def test_cli_modules_pass_targeted_mypy_check() -> None:

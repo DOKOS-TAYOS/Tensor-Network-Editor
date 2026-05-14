@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from ..._themes import DEFAULT_EDITOR_THEME, SUPPORTED_EDITOR_THEMES
 from ...models import EngineName, TensorCollectionFormat
@@ -16,6 +17,50 @@ from ._logging import (
 )
 
 CommandHandler = Callable[[argparse.Namespace], int]
+COMMAND_ARGUMENT_QUICK_REFERENCE = """\
+Command argument quick reference:
+  tensor-network-editor edit [--ui browser|pywebview|server] [--load PATH]
+  tensor-network-editor validate PATH [--format text|json]
+  tensor-network-editor lint PATH [--fail-on none|warning] [--format text|json]
+  tensor-network-editor analyze PATH [--dtype DTYPE] [--format text|json]
+  tensor-network-editor benchmark PATH [--format text|json|csv|latex] [--output FILE]
+  tensor-network-editor doctor PATH [--format text|json]
+  tensor-network-editor export PATH --engine ENGINE [--output FILE]
+  tensor-network-editor render PATH [--format svg|png|pdf|tikz|dot|mermaid] [--output FILE]
+  tensor-network-editor diff BEFORE AFTER [--semantic] [--format text|json]
+  tensor-network-editor canonicalize PATH [--deterministic-ids] [--output FILE]
+  tensor-network-editor template list [--format text|json]
+  tensor-network-editor template build TEMPLATE_NAME [options]
+  tensor-network-editor subnetwork list PATH [--format text|json]
+  tensor-network-editor subnetwork save PATH --tensor-ids ID... --name NAME
+  tensor-network-editor subnetwork export PATH SUBNETWORK_NAME [--output FILE]
+
+Global options, such as --log-level and --python-import-mode, go before the
+command. Run 'tensor-network-editor <command> --help' or
+'tensor-network-editor <command> <subcommand> --help' for the full argument list.
+"""
+
+
+class _CliHelpFormatter(
+    argparse.ArgumentDefaultsHelpFormatter,
+    argparse.RawDescriptionHelpFormatter,
+):
+    """Render readable CLI help with defaults and preserved epilog layout."""
+
+    def _get_help_string(self, action: argparse.Action) -> str | None:
+        """Hide unhelpful ``None`` defaults while keeping meaningful defaults."""
+        if action.default is None or action.required:
+            return action.help
+        return super()._get_help_string(action)
+
+
+class _CliArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser variant used for every CLI parser level."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Use the project help formatter unless a caller overrides it."""
+        kwargs.setdefault("formatter_class", _CliHelpFormatter)
+        super().__init__(*args, **kwargs)
 
 
 @dataclass(slots=True, frozen=True)
@@ -41,9 +86,10 @@ class CliHandlerBindings:
 
 def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParser:
     """Build the parser used by headless CLI subcommands."""
-    parser = argparse.ArgumentParser(
+    parser = _CliArgumentParser(
         prog="tensor-network-editor",
         description="Work with tensor-network specs from scripts, terminals, and pipelines.",
+        epilog=COMMAND_ARGUMENT_QUICK_REFERENCE,
     )
     parser.add_argument(
         "--log-level",
@@ -87,7 +133,11 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         default=None,
         help="Optional global object name used by live Python imports.",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        parser_class=_CliArgumentParser,
+    )
 
     edit_parser = subparsers.add_parser(
         "edit",
@@ -99,16 +149,34 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     validate_parser = subparsers.add_parser(
         "validate", help="Validate a saved spec or supported generated Python file."
     )
-    validate_parser.add_argument("path", type=str)
+    validate_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to validate.",
+    )
     _add_output_format_argument(validate_parser)
     validate_parser.set_defaults(handler=handlers.handle_validate)
 
     lint_parser = subparsers.add_parser(
         "lint", help="Run soft diagnostics on a saved spec or generated Python file."
     )
-    lint_parser.add_argument("path", type=str)
-    lint_parser.add_argument("--max-tensor-rank", type=int, default=6)
-    lint_parser.add_argument("--max-tensor-cardinality", type=int, default=4096)
+    lint_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to lint.",
+    )
+    lint_parser.add_argument(
+        "--max-tensor-rank",
+        type=int,
+        default=6,
+        help="Warn when a tensor has more indices than this rank.",
+    )
+    lint_parser.add_argument(
+        "--max-tensor-cardinality",
+        type=int,
+        default=4096,
+        help="Warn when a tensor has more elements than this count.",
+    )
     lint_parser.add_argument(
         "--fail-on",
         choices=["none", "warning"],
@@ -121,11 +189,16 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     analyze_parser = subparsers.add_parser(
         "analyze", help="Analyze structure and contraction metrics for a saved spec."
     )
-    analyze_parser.add_argument("path", type=str)
+    analyze_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to analyze.",
+    )
     analyze_parser.add_argument(
         "--dtype",
         choices=list(SUPPORTED_MEMORY_DTYPES),
         default=DEFAULT_MEMORY_DTYPE,
+        help="Numeric dtype used when estimating memory in bytes.",
     )
     _add_output_format_argument(analyze_parser)
     analyze_parser.set_defaults(handler=handlers.handle_analyze)
@@ -134,45 +207,66 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         "benchmark",
         help="Compare manual and automatic contraction variants for a saved spec.",
     )
-    benchmark_parser.add_argument("path", type=str)
+    benchmark_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to benchmark.",
+    )
     benchmark_parser.add_argument(
         "--dtype",
         choices=list(SUPPORTED_MEMORY_DTYPES),
         default=DEFAULT_MEMORY_DTYPE,
+        help="Numeric dtype used when estimating memory in bytes.",
     )
     benchmark_parser.add_argument(
         "--format",
         choices=["text", "json", "csv", "latex"],
         default="text",
+        help="Output format for the benchmark report.",
     )
-    benchmark_parser.add_argument("--output", type=str)
+    benchmark_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write the benchmark report to a file instead of stdout.",
+    )
     benchmark_parser.set_defaults(handler=handlers.handle_benchmark)
 
     doctor_parser = subparsers.add_parser(
         "doctor",
         help="Run friendly diagnostics for a saved spec and local environment.",
     )
-    doctor_parser.add_argument("path", type=str)
+    doctor_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to inspect.",
+    )
     doctor_parser.add_argument(
         "--dtype",
         choices=list(SUPPORTED_MEMORY_DTYPES),
         default=DEFAULT_MEMORY_DTYPE,
+        help="Numeric dtype used when estimating memory in bytes.",
     )
     doctor_parser.add_argument(
         "--format",
         choices=["text", "json"],
         default="text",
+        help="Output format for the diagnostic report.",
     )
     doctor_parser.set_defaults(handler=handlers.handle_doctor)
 
     export_parser = subparsers.add_parser(
         "export", help="Generate backend Python code from a saved spec."
     )
-    export_parser.add_argument("path", type=str)
+    export_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to export.",
+    )
     export_parser.add_argument(
         "--engine",
         choices=[engine.value for engine in EngineName],
         required=True,
+        help="Backend used for generated Python code.",
     )
     export_parser.add_argument(
         "--collection-format",
@@ -180,20 +274,34 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
             collection_format.value for collection_format in TensorCollectionFormat
         ],
         default=TensorCollectionFormat.LIST.value,
+        help="Container style used for generated tensor collections.",
     )
-    export_parser.add_argument("--output", type=str)
+    export_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write generated code to a file instead of stdout.",
+    )
     export_parser.set_defaults(handler=handlers.handle_export)
 
     render_parser = subparsers.add_parser(
         "render", help="Render a saved spec as a static image."
     )
-    render_parser.add_argument("path", type=str)
+    render_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design or supported generated Python file to render.",
+    )
     render_parser.add_argument(
         "--format",
         choices=["svg", "png", "pdf", "tikz", "dot", "mermaid"],
         default="svg",
+        help="Static render format to produce.",
     )
-    render_parser.add_argument("--output", type=str)
+    render_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write the rendering to a file instead of stdout when supported.",
+    )
     render_parser.add_argument(
         "--hide-tensor-names",
         dest="show_tensor_names",
@@ -222,8 +330,8 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     diff_parser = subparsers.add_parser(
         "diff", help="Compare two specs and summarize entity-level changes."
     )
-    diff_parser.add_argument("before", type=str)
-    diff_parser.add_argument("after", type=str)
+    diff_parser.add_argument("before", type=str, help="Baseline spec path.")
+    diff_parser.add_argument("after", type=str, help="Candidate spec path.")
     diff_parser.add_argument(
         "--semantic",
         action="store_true",
@@ -236,8 +344,16 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         "canonicalize",
         help="Canonicalize a saved spec with stable ordering and optional deterministic ids.",
     )
-    canonicalize_parser.add_argument("path", type=str)
-    canonicalize_parser.add_argument("--output", type=str)
+    canonicalize_parser.add_argument(
+        "path",
+        type=str,
+        help="Saved JSON design to canonicalize.",
+    )
+    canonicalize_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write canonical JSON to a file instead of stdout.",
+    )
     canonicalize_parser.add_argument(
         "--deterministic-ids",
         action="store_true",
@@ -249,7 +365,9 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         "template", help="Inspect or build the built-in template catalog."
     )
     template_subparsers = template_parser.add_subparsers(
-        dest="template_command", required=True
+        dest="template_command",
+        required=True,
+        parser_class=_CliArgumentParser,
     )
 
     template_list_parser = template_subparsers.add_parser(
@@ -261,41 +379,79 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     template_build_parser = template_subparsers.add_parser(
         "build", help="Build a spec from a built-in template."
     )
-    template_build_parser.add_argument("template_name", type=str)
-    template_build_parser.add_argument("--graph-size", type=int)
-    template_build_parser.add_argument("--depth", type=int)
-    template_build_parser.add_argument("--bond-dimension", type=int)
-    template_build_parser.add_argument("--physical-dimension", type=int)
+    template_build_parser.add_argument(
+        "template_name",
+        type=str,
+        help="Built-in template name to instantiate.",
+    )
+    template_build_parser.add_argument(
+        "--graph-size",
+        type=int,
+        help="Override the graph size parameter when the template supports it.",
+    )
+    template_build_parser.add_argument(
+        "--depth",
+        type=int,
+        help="Override the tree or hierarchy depth when the template supports it.",
+    )
+    template_build_parser.add_argument(
+        "--bond-dimension",
+        type=int,
+        help="Override the bond dimension when the template supports it.",
+    )
+    template_build_parser.add_argument(
+        "--physical-dimension",
+        type=int,
+        help="Override the physical dimension when the template supports it.",
+    )
     template_build_parser.add_argument(
         "--boundary-condition",
         choices=("open", "periodic"),
+        help="Choose open or periodic boundaries when supported.",
     )
-    template_build_parser.add_argument("--j", type=float)
-    template_build_parser.add_argument("--h", type=float)
+    template_build_parser.add_argument(
+        "--j",
+        type=float,
+        help="Override the template coupling parameter J when supported.",
+    )
+    template_build_parser.add_argument(
+        "--h",
+        type=float,
+        help="Override the template field parameter h when supported.",
+    )
     template_build_parser.add_argument(
         "--symmetry",
         choices=("none", "u1", "z2"),
+        help="Select the symmetry label when the template supports it.",
     )
     template_build_parser.add_argument(
         "--initial-state",
         choices=("zeros", "random", "all_up", "all_down", "neel"),
+        help="Select the initial-state pattern when the template supports it.",
     )
     template_build_parser.add_argument(
         "--leaf-physical-legs",
         action=argparse.BooleanOptionalAction,
         default=None,
+        help="Enable or disable physical legs on tree leaves when supported.",
     )
     template_build_parser.add_argument(
         "--root-open-leg",
         action=argparse.BooleanOptionalAction,
         default=None,
+        help="Enable or disable an open root leg when supported.",
     )
     template_build_parser.add_argument(
         "--isometric",
         action=argparse.BooleanOptionalAction,
         default=None,
+        help="Enable or disable isometric tensor annotations when supported.",
     )
-    template_build_parser.add_argument("--output", type=str)
+    template_build_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write the built template spec to a file instead of stdout.",
+    )
     _add_output_format_argument(template_build_parser)
     template_build_parser.set_defaults(handler=handlers.handle_template_build)
 
@@ -306,6 +462,7 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
     subnetwork_subparsers = subnetwork_parser.add_subparsers(
         dest="subnetwork_command",
         required=True,
+        parser_class=_CliArgumentParser,
     )
 
     subnetwork_list_parser = subnetwork_subparsers.add_parser(
@@ -377,7 +534,11 @@ def build_command_parser(handlers: CliHandlerBindings) -> argparse.ArgumentParse
         type=str,
         help="Optional shared reusable-subnetwork catalog path.",
     )
-    subnetwork_export_parser.add_argument("--output", type=str)
+    subnetwork_export_parser.add_argument(
+        "--output",
+        type=str,
+        help="Write the reusable subnetwork spec to a file instead of stdout.",
+    )
     subnetwork_export_parser.set_defaults(handler=handlers.handle_subnetwork_export)
     return parser
 
@@ -429,6 +590,7 @@ def _add_output_format_argument(parser: argparse.ArgumentParser) -> None:
         "--format",
         choices=["text", "json"],
         default="text",
+        help="Choose text or JSON output.",
     )
 
 

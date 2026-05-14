@@ -29,6 +29,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- CLI help now includes a top-level command argument quick reference and
+  descriptions for previously unlabeled command options and positionals.
 - Academic SVG/PNG/PDF exports now inherit the active editor theme for figure
   text/background colors; light themes use white PDF backgrounds, while SVG and
   PNG exports can preserve transparent backgrounds.
