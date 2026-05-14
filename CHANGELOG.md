@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-14
+
 ### Security
 
 - The local editor server now requires a per-session API token for `/api/*`
