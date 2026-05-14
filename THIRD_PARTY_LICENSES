@@ -8,6 +8,8 @@ Runtime pip-installed dependencies are not bundled into this source
 distribution or wheel. Required installs (`matplotlib`, `opt_einsum`) and optional
 extras such as `numpy`, `torch`, `quimb`, `tensornetwork`, `tensorkrowch`, or
 `pywebview` remain covered by their own licenses and notices.
+Development tools installed through the `dev` extra are also not bundled and
+remain covered by their own upstream licenses and notices.
 
 Runtime dependency notice
 -------------------------
@@ -27,6 +29,21 @@ Matplotlib is a required runtime dependency for academic SVG/PNG/PDF rendering.
   Matplotlib is installed as an external Python dependency rather than being
   vendored into this repository. Its own distribution carries the authoritative
   license text and notices.
+
+Development dependency notice
+-----------------------------
+
+pip-audit is a development and CI dependency used to scan Python dependencies
+for known vulnerabilities.
+
+- Package: pip-audit
+- Version range used by this project: `>=2.7`
+- Project: https://pypi.org/project/pip-audit/
+- License: Apache Software License
+- Notice handling:
+  pip-audit is installed as an external development dependency rather than
+  being vendored into this repository. Its own distribution carries the
+  authoritative license text and notices.
 
 1. Cytoscape.js
    - Bundled file:

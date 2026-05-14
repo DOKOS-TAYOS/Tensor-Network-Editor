@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any, cast
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 _ASSET_REQUEST_TIMEOUT_SECONDS = 15.0
 _ASSET_REQUEST_RETRY_COUNT = 3
 _ASSET_REQUEST_RETRY_DELAY_SECONDS = 0.1
+_RUNTIME_CONFIG_RE = re.compile(
+    r'<script id="tne-runtime-config" type="application/json">(.*?)</script>',
+    re.DOTALL,
+)
+_SESSION_TOKEN_BY_ORIGIN: dict[str, str | None] = {}
 
 
 def request_json(
@@ -33,6 +40,8 @@ def request_json_with_status(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
     raw_body: bytes | None = None,
+    session_token: str | None = None,
+    include_session_token: bool = True,
     timeout: float = 5.0,
 ) -> tuple[int, dict[str, Any]]:
     data = None
@@ -45,12 +54,53 @@ def request_json_with_status(
     elif raw_body is not None:
         data = raw_body
         headers["Content-Type"] = "application/json"
+    if include_session_token:
+        resolved_session_token = (
+            session_token if session_token is not None else _session_token_for_url(url)
+        )
+        if resolved_session_token:
+            headers["X-TNE-Session-Token"] = resolved_session_token
     request = Request(url=url, method=method, data=data, headers=headers)
     try:
         with urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         return exc.code, json.loads(exc.read().decode("utf-8"))
+
+
+def _session_token_for_url(url: str) -> str | None:
+    """Read the embedded editor API token for a local test server URL."""
+    origin = _origin_for_url(url)
+    if origin is None:
+        return None
+    if origin in _SESSION_TOKEN_BY_ORIGIN:
+        return _SESSION_TOKEN_BY_ORIGIN[origin]
+    try:
+        with urlopen(f"{origin}/", timeout=_ASSET_REQUEST_TIMEOUT_SECONDS) as response:
+            html = response.read().decode("utf-8")
+    except OSError:
+        _SESSION_TOKEN_BY_ORIGIN[origin] = None
+        return None
+    match = _RUNTIME_CONFIG_RE.search(html)
+    if match is None:
+        _SESSION_TOKEN_BY_ORIGIN[origin] = None
+        return None
+    try:
+        payload = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        _SESSION_TOKEN_BY_ORIGIN[origin] = None
+        return None
+    token = payload.get("api_token") if isinstance(payload, dict) else None
+    _SESSION_TOKEN_BY_ORIGIN[origin] = token if isinstance(token, str) else None
+    return _SESSION_TOKEN_BY_ORIGIN[origin]
+
+
+def _origin_for_url(url: str) -> str | None:
+    """Return the scheme/authority origin for an absolute URL."""
+    parsed = urlsplit(url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def _read_asset_response(url: str) -> tuple[bytes, dict[str, str]]:

@@ -103,6 +103,19 @@ def test_project_metadata_declares_required_matplotlib_dependency_and_backend_ex
     assert "png" not in optional_dependencies
 
 
+def test_project_metadata_and_ci_enable_dependency_audits() -> None:
+    pyproject_path = Path.cwd() / "pyproject.toml"
+    ci_path = Path.cwd() / ".github" / "workflows" / "ci.yml"
+
+    payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    dev_dependencies = payload["project"]["optional-dependencies"]["dev"]
+    ci_text = ci_path.read_text(encoding="utf-8")
+
+    assert "pip-audit>=2.7" in dev_dependencies
+    assert "Run dependency security audit" in ci_text
+    assert "-m pip_audit" in ci_text
+
+
 def test_docs_do_not_advertise_removed_png_extra() -> None:
     readme_text = (Path.cwd() / "README.md").read_text(encoding="utf-8")
     installation_text = (Path.cwd() / "docs" / "installation.md").read_text(
@@ -136,6 +149,9 @@ def test_third_party_notices_describe_bundled_asset_scope() -> None:
     assert "Runtime pip-installed dependencies are not bundled" in third_party_text
     assert "Package: Matplotlib" in third_party_text
     assert "License: Matplotlib license" in third_party_text
+    assert "Development dependency notice" in third_party_text
+    assert "Package: pip-audit" in third_party_text
+    assert "License: Apache Software License" in third_party_text
     assert "THIRD_PARTY_LICENSES" in readme_text
 
 

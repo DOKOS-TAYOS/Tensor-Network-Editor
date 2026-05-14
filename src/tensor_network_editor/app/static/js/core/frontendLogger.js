@@ -85,6 +85,16 @@ function normalizeRuntimeConfig(runtimeConfig = {}) {
     typeof rawSessionId === "string" && rawSessionId.trim()
       ? rawSessionId.trim()
       : null;
+  const rawApiToken =
+    typeof candidate.apiToken === "string"
+      ? candidate.apiToken
+      : typeof candidate.api_token === "string"
+        ? candidate.api_token
+        : null;
+  const apiToken =
+    typeof rawApiToken === "string" && rawApiToken.trim()
+      ? rawApiToken.trim()
+      : null;
   const rawEnabled = frontendLogging.enabled === true;
   const level = normalizeLevel(frontendLogging.level, rawEnabled);
   const enabled = rawEnabled || level !== "off";
@@ -100,6 +110,7 @@ function normalizeRuntimeConfig(runtimeConfig = {}) {
       : null;
   const persist = frontendLogging.persist === true && transportEndpoint !== null;
   return {
+    apiToken,
     enabled,
     level,
     persist,
@@ -269,6 +280,7 @@ export function createFrontendLogger(
     const body = JSON.stringify({ events });
     if (
       preferBeacon
+      && !resolvedRuntimeConfig.apiToken
       && navigatorRef
       && typeof navigatorRef.sendBeacon === "function"
       && navigatorRef.sendBeacon(resolvedRuntimeConfig.transportEndpoint, body)
@@ -278,10 +290,14 @@ export function createFrontendLogger(
     if (typeof fetchRef !== "function") {
       return false;
     }
+    const headers = { "Content-Type": "application/json" };
+    if (resolvedRuntimeConfig.apiToken) {
+      headers["X-TNE-Session-Token"] = resolvedRuntimeConfig.apiToken;
+    }
     try {
       await fetchRef(resolvedRuntimeConfig.transportEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body,
         keepalive: true,
       });
@@ -443,6 +459,12 @@ export function createFrontendLogger(
     },
     refreshRuntimeConfig(nextRuntimeConfig = {}) {
       resolvedRuntimeConfig = normalizeRuntimeConfig({
+        apiToken:
+          typeof nextRuntimeConfig.apiToken === "string"
+            ? nextRuntimeConfig.apiToken
+            : typeof nextRuntimeConfig.api_token === "string"
+              ? nextRuntimeConfig.api_token
+              : resolvedRuntimeConfig.apiToken,
         sessionId:
           typeof nextRuntimeConfig.sessionId === "string"
             ? nextRuntimeConfig.sessionId

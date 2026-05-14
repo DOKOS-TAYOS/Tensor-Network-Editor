@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 import logging
 import mimetypes
+import secrets
 import threading
 import time
 from collections.abc import Callable
@@ -29,9 +32,11 @@ from ._protocol import (
     JsonDict,
     JsonResponse,
     bad_request_response,
+    forbidden_response,
     internal_server_error_response,
     not_found_response,
     read_json,
+    unsupported_media_type_response,
 )
 from .session import EditorSession
 
@@ -54,6 +59,8 @@ _UNEXPECTED_INTERNAL_ERROR_GUIDANCE = (
 _QUIET_MISSING_STATIC_ASSET_PATHS: frozenset[str] = frozenset({"/favicon.ico"})
 _ScannedStaticAssetFile: TypeAlias = tuple[Path, str, int, int]
 _RUNTIME_CONFIG_PLACEHOLDER = "__TNE_RUNTIME_CONFIG__"
+_API_TOKEN_HEADER = "X-TNE-Session-Token"
+_EXPECTED_JSON_CONTENT_TYPE = "application/json"
 
 
 class SupportsReadBytes(Protocol):
@@ -92,6 +99,75 @@ def _read_request_body_bytes(reader: SupportsReadBytes, content_length: int) -> 
         chunks.append(chunk)
         remaining -= len(chunk)
     return b"".join(chunks)
+
+
+def _is_loopback_host_name(host_name: str) -> bool:
+    """Return whether a hostname literal is safe for local-only editor serving."""
+    normalized_host = host_name.strip().strip("[]").rstrip(".").lower()
+    if normalized_host in {"localhost"} or normalized_host.endswith(".localhost"):
+        return True
+    if "%" in normalized_host:
+        normalized_host = normalized_host.split("%", 1)[0]
+    try:
+        address = ipaddress.ip_address(normalized_host)
+    except ValueError:
+        return False
+    return address.is_loopback
+
+
+def _validate_bind_host(host: str, *, allow_remote: bool) -> None:
+    """Reject non-loopback bind hosts unless remote serving is explicit."""
+    if allow_remote or _is_loopback_host_name(host):
+        return
+    raise ValueError(
+        "Refusing to bind the editor server to a non-loopback host. "
+        "Use allow_remote=True only when you intentionally expose this local API."
+    )
+
+
+def _host_name_from_header(host_header: str | None) -> str | None:
+    """Extract the hostname portion from one HTTP Host header."""
+    if host_header is None:
+        return None
+    value = host_header.strip()
+    if not value:
+        return None
+    if value.startswith("["):
+        end_index = value.find("]")
+        if end_index <= 1:
+            return None
+        return value[1:end_index]
+    if value.count(":") == 1:
+        host_name, port_text = value.rsplit(":", 1)
+        if port_text.isdigit():
+            return host_name
+    return value
+
+
+def _is_trusted_host_header(host_header: str | None, *, allow_remote: bool) -> bool:
+    """Return whether one Host header is acceptable for this server."""
+    if allow_remote:
+        return bool(host_header and host_header.strip())
+    host_name = _host_name_from_header(host_header)
+    return host_name is not None and _is_loopback_host_name(host_name)
+
+
+def _is_trusted_origin_header(origin_header: str | None, *, allow_remote: bool) -> bool:
+    """Return whether one optional Origin header is acceptable for API writes."""
+    if origin_header is None:
+        return True
+    parsed_origin = urlparse(origin_header)
+    if parsed_origin.scheme not in {"http", "https"}:
+        return False
+    return _is_trusted_host_header(parsed_origin.netloc, allow_remote=allow_remote)
+
+
+def _is_json_content_type(content_type: str | None) -> bool:
+    """Return whether one Content-Type header identifies a JSON request body."""
+    if content_type is None:
+        return False
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type == _EXPECTED_JSON_CONTENT_TYPE
 
 
 @dataclass(slots=True, frozen=True)
@@ -284,26 +360,35 @@ def _get_static_asset_cache(static_dir: Path) -> _StaticAssetCache:
         return cache
 
 
-def _build_frontend_runtime_config_payload(session: EditorSession) -> JsonDict:
+def _build_frontend_runtime_config_payload(
+    session: EditorSession, *, api_token: str
+) -> JsonDict:
     """Return the runtime configuration embedded into the editor HTML page."""
     return {
         "session_id": session.session_id,
+        "api_token": api_token,
         "frontend_logging": build_frontend_logging_payload(session),
     }
 
 
-def _serialize_frontend_runtime_config(session: EditorSession) -> str:
+def _serialize_frontend_runtime_config(
+    session: EditorSession, *, api_token: str
+) -> str:
     """Serialize one session runtime config safely for an inline JSON script."""
-    return json.dumps(_build_frontend_runtime_config_payload(session)).replace(
-        "</", "<\\/"
-    )
+    return json.dumps(
+        _build_frontend_runtime_config_payload(session, api_token=api_token)
+    ).replace("</", "<\\/")
 
 
-def _render_session_index_body(index_body: bytes, session: EditorSession) -> bytes:
+def _render_session_index_body(
+    index_body: bytes, session: EditorSession, *, api_token: str
+) -> bytes:
     """Return the per-session editor HTML body with embedded runtime config."""
     return index_body.replace(
         _RUNTIME_CONFIG_PLACEHOLDER.encode("utf-8"),
-        _serialize_frontend_runtime_config(session).encode("utf-8"),
+        _serialize_frontend_runtime_config(session, api_token=api_token).encode(
+            "utf-8"
+        ),
     )
 
 
@@ -325,7 +410,13 @@ class EditorServer:
     """Serve the browser app and JSON API for one editor session."""
 
     def __init__(
-        self, session: EditorSession, host: str = "127.0.0.1", port: int = 0
+        self,
+        session: EditorSession,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        *,
+        allow_remote: bool = False,
+        api_token: str | None = None,
     ) -> None:
         """Initialize the threaded local editor server.
 
@@ -333,16 +424,24 @@ class EditorServer:
             session: Shared editor session state served by this HTTP server.
             host: Local host interface to bind.
             port: Local port to bind. Use ``0`` for an ephemeral port.
+            allow_remote: Whether non-loopback bind hosts are allowed.
+            api_token: Optional pre-generated API token for tests.
         """
+        _validate_bind_host(host, allow_remote=allow_remote)
         self.session = session
         self.session_id = session.session_id
         self.host = host
         self.port = port
+        self.allow_remote = allow_remote
+        self.api_token = api_token or secrets.token_urlsafe(32)
+        if not self.api_token.strip():
+            raise ValueError("Editor API token cannot be empty.")
         self._static_dir = Path(__file__).resolve().parent / "static"
         self._static_asset_cache = _get_static_asset_cache(self._static_dir)
         self._index_body = _render_session_index_body(
             self._static_asset_cache.index_body,
             session,
+            api_token=self.api_token,
         )
         self._server = ThreadingHTTPServer((host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
@@ -446,6 +545,8 @@ class EditorServer:
         static_dir = self._static_dir
         static_asset_cache = self._static_asset_cache
         index_body = self._index_body
+        api_token = self.api_token
+        allow_remote = self.allow_remote
 
         def build_index_response() -> _BinaryResponse:
             """Return the cached main HTML page for this editor session."""
@@ -536,6 +637,10 @@ class EditorServer:
                 """Handle one HTTP GET request for assets or bootstrap data."""
                 parsed = urlparse(self.path)
                 with bind_log_context(session=session_id, route=parsed.path):
+                    if self._reject_untrusted_host():
+                        return
+                    if self._reject_invalid_api_token(parsed.path):
+                        return
                     try:
                         with log_operation(LOGGER, "Route request"):
                             response = self._dispatch_get(parsed.path)
@@ -552,6 +657,14 @@ class EditorServer:
                 """Handle one HTTP POST request for the editor JSON API."""
                 parsed = urlparse(self.path)
                 with bind_log_context(session=session_id, route=parsed.path):
+                    if self._reject_untrusted_host():
+                        return
+                    if self._reject_untrusted_origin():
+                        return
+                    if self._reject_invalid_api_token(parsed.path):
+                        return
+                    if self._reject_unsupported_content_type():
+                        return
                     try:
                         with log_operation(LOGGER, "Route request"):
                             try:
@@ -606,6 +719,85 @@ class EditorServer:
                     return route_handler(payload)
                 LOGGER.debug(format_log_message(f"Unknown POST path: {path}"))
                 return not_found_response()
+
+            def _reject_untrusted_host(self) -> bool:
+                """Write a forbidden response when the Host header is not local."""
+                if _is_trusted_host_header(
+                    self.headers.get("Host"),
+                    allow_remote=allow_remote,
+                ):
+                    return False
+                LOGGER.warning(
+                    format_log_message(
+                        "Rejected request with untrusted Host header",
+                        context={"host": self.headers.get("Host")},
+                    ),
+                )
+                self._prepare_rejected_request_connection()
+                self._write_response(forbidden_response("Untrusted Host header."))
+                return True
+
+            def _reject_untrusted_origin(self) -> bool:
+                """Write a forbidden response when the Origin header is not local."""
+                if _is_trusted_origin_header(
+                    self.headers.get("Origin"),
+                    allow_remote=allow_remote,
+                ):
+                    return False
+                LOGGER.warning(
+                    format_log_message(
+                        "Rejected request with untrusted Origin header",
+                        context={"origin": self.headers.get("Origin")},
+                    ),
+                )
+                self._prepare_rejected_request_connection()
+                self._write_response(forbidden_response("Untrusted Origin header."))
+                return True
+
+            def _reject_invalid_api_token(self, path: str) -> bool:
+                """Write a forbidden response when an API request lacks the token."""
+                if not path.startswith("/api/"):
+                    return False
+                header_value = self.headers.get(_API_TOKEN_HEADER)
+                if header_value is not None and hmac.compare_digest(
+                    header_value,
+                    api_token,
+                ):
+                    return False
+                LOGGER.warning(
+                    format_log_message(
+                        "Rejected API request with invalid session token"
+                    ),
+                )
+                self._prepare_rejected_request_connection()
+                self._write_response(
+                    forbidden_response("Invalid editor session token.")
+                )
+                return True
+
+            def _reject_unsupported_content_type(self) -> bool:
+                """Write an unsupported-media response for non-JSON API writes."""
+                if _is_json_content_type(self.headers.get("Content-Type")):
+                    return False
+                LOGGER.warning(
+                    format_log_message(
+                        "Rejected API request with unsupported Content-Type",
+                        context={"content_type": self.headers.get("Content-Type")},
+                    ),
+                )
+                self._prepare_rejected_request_connection()
+                self._write_response(
+                    unsupported_media_type_response(
+                        "Expected Content-Type 'application/json'."
+                    )
+                )
+                return True
+
+            def _prepare_rejected_request_connection(self) -> None:
+                """Drain rejected POST bodies before closing the connection."""
+                if self.command == "POST":
+                    self._drain_pending_request_body()
+                self.close_connection = True
 
             def _static_response(
                 self, request_path: str
@@ -688,6 +880,9 @@ class EditorServer:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("X-Frame-Options", "DENY")
                 if self.close_connection:
                     self.send_header("Connection", "close")
                 self._write_no_cache_headers()

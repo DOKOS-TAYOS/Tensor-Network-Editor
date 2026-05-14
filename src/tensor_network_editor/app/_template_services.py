@@ -16,6 +16,7 @@ from ..templates import (
     parse_template_parameters,
 )
 from ._bootstrap_payloads import build_template_catalog_payload
+from ._limits import enforce_spec_api_limits, enforce_template_api_limits
 from ._protocol import JsonDict
 
 if TYPE_CHECKING:
@@ -36,6 +37,7 @@ def build_template_from_payload(
         if session.has_project_template(template_name):
             log_branch(LOGGER, "Loading template from the project catalog")
             spec = session.build_project_template(template_name)
+            enforce_spec_api_limits(spec)
             success_context.update(summarize_spec_counts(spec))
             success_context["status"] = "project"
             return spec
@@ -43,7 +45,9 @@ def build_template_from_payload(
             template_name,
             raw_parameters,
         )
+        enforce_template_api_limits(template_name, parameters)
         spec = build_template_spec(template_name, parameters)
+        enforce_spec_api_limits(spec)
         success_context.update(summarize_spec_counts(spec))
         success_context["status"] = "global"
         return spec
@@ -68,7 +72,9 @@ def promote_serialized_subnetwork_to_template(
         LOGGER, "Template promotion", context=context
     ) as success_context:
         spec = deserialize_spec(serialized_spec, validate=False)
+        enforce_spec_api_limits(spec)
         promoted_spec = extract_subnetwork_spec(spec, tensor_ids=tensor_ids)
+        enforce_spec_api_limits(promoted_spec)
         promoted_spec.name = session.build_project_template_display_name(template_name)
         session.save_project_template(
             template_name,

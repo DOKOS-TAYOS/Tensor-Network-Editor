@@ -71,6 +71,11 @@ jobs:
         run: |
           & $env:VENV_PYTHON -m pyright
 
+      - name: Run dependency security audit
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        run: |
+          & $env:VENV_PYTHON -m pip_audit --skip-editable
+
       - name: Run tests
         run: |
           & $env:VENV_PYTHON -m pytest -q

@@ -987,6 +987,198 @@ def test_api_service_logs_request_lifecycle_with_frontend_logger(
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_api_service_sends_session_token_header(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "api_session_token_header.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const apiUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "services" / "api.js")!r}).href;
+        const apiModule = await import(apiUrl);
+        const calls = [];
+
+        function headerValue(headers, name) {{
+          if (headers && typeof headers.get === "function") {{
+            return headers.get(name);
+          }}
+          return headers?.[name] || headers?.[name.toLowerCase()] || null;
+        }}
+
+        globalThis.fetch = async (path, options = {{}}) => {{
+          calls.push({{ path, options }});
+          return new Response(JSON.stringify({{ ok: true }}), {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+          }});
+        }};
+
+        await apiModule.apiGet("/api/bootstrap", {{
+          apiToken: "secret-token",
+        }});
+        await apiModule.apiPost("/api/cancel", {{}}, {{
+          apiToken: "secret-token",
+        }});
+
+        if (calls.length !== 2) {{
+          throw new Error(`Expected two calls, received ${{calls.length}}.`);
+        }}
+        for (const call of calls) {{
+          const token = headerValue(call.options.headers, "X-TNE-Session-Token");
+          if (token !== "secret-token") {{
+            throw new Error(`Missing session token header: ${{JSON.stringify(call)}}`);
+          }}
+        }}
+        const contentType = headerValue(calls[1].options.headers, "Content-Type");
+        if (contentType !== "application/json") {{
+          throw new Error(`Missing JSON content type: ${{JSON.stringify(calls[1])}}`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The api session token header script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_editor_context_passes_runtime_api_token_to_requests(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "editor_context_api_token.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const contextUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "core" / "editorContext.js")!r}).href;
+        const contextModule = await import(contextUrl);
+        const calls = [];
+        const documentRef = {{
+          getElementById() {{
+            return null;
+          }},
+          querySelector() {{
+            return null;
+          }},
+        }};
+
+        function headerValue(headers, name) {{
+          if (headers && typeof headers.get === "function") {{
+            return headers.get(name);
+          }}
+          return headers?.[name] || headers?.[name.toLowerCase()] || null;
+        }}
+
+        globalThis.fetch = async (path, options = {{}}) => {{
+          calls.push({{ path, options }});
+          return new Response(JSON.stringify({{ ok: true }}), {{
+            status: 200,
+            headers: {{ "Content-Type": "application/json" }},
+          }});
+        }};
+
+        const ctx = contextModule.createEditorContext({{
+          window: {{}},
+          document: documentRef,
+          cytoscape: null,
+          runtimeConfig: {{ apiToken: "runtime-secret" }},
+        }});
+        await ctx.apiPost("/api/cancel", {{}});
+
+        const token = headerValue(calls[0]?.options?.headers, "X-TNE-Session-Token");
+        if (token !== "runtime-secret") {{
+          throw new Error(`Missing context token header: ${{JSON.stringify(calls)}}`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The editor context API token script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
+def test_runtime_config_reader_normalizes_api_token(
+    tmp_path: Path,
+) -> None:
+    script_path = tmp_path / "runtime_config_api_token.mjs"
+    script_path.write_text(
+        textwrap.dedent(
+            f"""
+        import {{ pathToFileURL }} from "node:url";
+
+        const loggerUrl = pathToFileURL({str(REPO_ROOT / "src" / "tensor_network_editor" / "app" / "static" / "js" / "core" / "frontendLogger.js")!r}).href;
+        const loggerModule = await import(loggerUrl);
+        const documentRef = {{
+          getElementById(id) {{
+            if (id !== "tne-runtime-config") {{
+              return null;
+            }}
+            return {{
+              textContent: JSON.stringify({{
+                session_id: "session-1",
+                api_token: "embedded-token",
+                frontend_logging: {{ enabled: false }},
+              }}),
+            }};
+          }},
+        }};
+
+        const config = loggerModule.readFrontendRuntimeConfig({{ documentRef }});
+        if (config.sessionId !== "session-1") {{
+          throw new Error(`Unexpected session id: ${{JSON.stringify(config)}}`);
+        }}
+        if (config.apiToken !== "embedded-token") {{
+          throw new Error(`Unexpected API token: ${{JSON.stringify(config)}}`);
+        }}
+        """
+        ),
+        encoding="utf-8",
+    )
+
+    completed_process = subprocess.run(
+        ["node", str(script_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed_process.returncode == 0, (
+        "The runtime config API token script failed.\n"
+        f"STDOUT:\n{completed_process.stdout}\n"
+        f"STDERR:\n{completed_process.stderr}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required")
 def test_frontend_logger_persists_batched_logs_without_api_recursion(
     tmp_path: Path,
 ) -> None:

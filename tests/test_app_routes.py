@@ -22,7 +22,14 @@ from tensor_network_editor.errors import PackageIOError, SerializationError
 from tensor_network_editor.internal._logging import package_logging_scope
 from tensor_network_editor.io import SCHEMA_VERSION
 from tensor_network_editor.io import deserialize_spec as deserialize_spec_impl
-from tensor_network_editor.models import EngineName, NetworkSpec, TensorCollectionFormat
+from tensor_network_editor.models import (
+    CanvasPosition,
+    EngineName,
+    IndexSpec,
+    NetworkSpec,
+    TensorCollectionFormat,
+    TensorSpec,
+)
 from tests.app_support import request_json, request_json_with_status
 from tests.factories import (
     build_linear_periodic_carry_chain_spec,
@@ -34,6 +41,10 @@ from tests.factories import (
     build_three_tensor_hyperedge_spec,
 )
 from tests.optional_backends import require_light_optional_modules
+
+MAX_EXPECTED_API_TEMPLATE_LINEAR_GRAPH_SIZE = 512
+MAX_EXPECTED_API_TENSOR_RANK = 64
+MAX_EXPECTED_API_TENSORS = 512
 
 
 def test_bootstrap_returns_session_contract(
@@ -745,6 +756,50 @@ def test_validate_route_rejects_invalid_json_with_400(
     assert payload == {"ok": False, "message": "Request body contains invalid JSON."}
 
 
+def test_api_post_rejects_missing_session_token(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/cancel",
+        method="POST",
+        payload={},
+        include_session_token=False,
+    )
+
+    assert status == 403
+    assert payload == {"ok": False, "message": "Invalid editor session token."}
+
+
+def test_api_post_rejects_wrong_session_token(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/cancel",
+        method="POST",
+        payload={},
+        session_token="wrong-token",
+    )
+
+    assert status == 403
+    assert payload == {"ok": False, "message": "Invalid editor session token."}
+
+
+def test_api_post_rejects_non_json_content_type(
+    editor_server: EditorServer,
+) -> None:
+    status, payload = _post_cancel_with_content_type(
+        editor_server,
+        content_type="text/plain",
+        body=b"{}",
+    )
+
+    assert status == 415
+    assert payload == {
+        "ok": False,
+        "message": "Expected Content-Type 'application/json'.",
+    }
+
+
 def test_generate_route_logs_success_with_session_and_timing(
     editor_server: EditorServer,
     serialized_sample_spec: dict[str, object],
@@ -829,6 +884,28 @@ def test_validate_route_rejects_non_object_json_payload_with_400(
     assert payload == {"ok": False, "message": "Expected a JSON object payload."}
 
 
+def test_validate_route_rejects_specs_above_api_tensor_limit(
+    editor_server: EditorServer,
+) -> None:
+    oversized_spec = _build_many_tensor_spec(MAX_EXPECTED_API_TENSORS + 1)
+
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/validate",
+        method="POST",
+        payload={
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": oversized_spec.to_dict(),
+            }
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert f"contains {MAX_EXPECTED_API_TENSORS + 1} tensors" in payload["message"]
+    assert f"API limit of {MAX_EXPECTED_API_TENSORS}" in payload["message"]
+
+
 @pytest.mark.parametrize("legacy_schema_version", [4, 5, 6])
 def test_validate_route_rejects_legacy_schema_versions(
     editor_server: EditorServer,
@@ -862,6 +939,10 @@ def _post_validate_with_raw_content_length(
     try:
         connection.putrequest("POST", "/api/validate")
         connection.putheader("Content-Type", "application/json")
+        connection.putheader(
+            "X-TNE-Session-Token",
+            getattr(editor_server, "api_token", "test-token"),
+        )
         connection.putheader("Content-Length", content_length)
         connection.endheaders()
         if body:
@@ -871,6 +952,125 @@ def _post_validate_with_raw_content_length(
         return response.status, cast(dict[str, object], response_payload)
     finally:
         connection.close()
+
+
+def _post_cancel_with_content_type(
+    editor_server: EditorServer, *, content_type: str, body: bytes
+) -> tuple[int, dict[str, object]]:
+    parsed = urlparse(editor_server.base_url)
+    host = parsed.hostname
+    port = parsed.port
+    if host is None or port is None:
+        raise AssertionError(f"Unexpected editor base URL: {editor_server.base_url}")
+    connection = HTTPConnection(host, port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            "/api/cancel",
+            body=body,
+            headers={
+                "Content-Type": content_type,
+                "X-TNE-Session-Token": getattr(
+                    editor_server,
+                    "api_token",
+                    "test-token",
+                ),
+            },
+        )
+        response = connection.getresponse()
+        response_payload = json.loads(response.read().decode("utf-8"))
+        return response.status, cast(dict[str, object], response_payload)
+    finally:
+        connection.close()
+
+
+def _build_many_tensor_spec(tensor_count: int) -> NetworkSpec:
+    return NetworkSpec(
+        id="network_many_tensors",
+        name="many tensors",
+        tensors=[
+            TensorSpec(
+                id=f"tensor_{index}",
+                name=f"T{index}",
+                position=CanvasPosition(x=float(index), y=0.0),
+                indices=[
+                    IndexSpec(
+                        id=f"tensor_{index}_open",
+                        name="open",
+                        dimension=2,
+                    )
+                ],
+            )
+            for index in range(tensor_count)
+        ],
+    )
+
+
+def test_generate_route_rejects_tensor_rank_above_api_limit(
+    editor_server: EditorServer,
+) -> None:
+    rank = MAX_EXPECTED_API_TENSOR_RANK + 1
+    oversized_spec = NetworkSpec(
+        id="network_high_rank",
+        name="high rank",
+        tensors=[
+            TensorSpec(
+                id="tensor_high_rank",
+                name="High rank",
+                position=CanvasPosition(x=0.0, y=0.0),
+                indices=[
+                    IndexSpec(id=f"idx_{index}", name=f"i{index}", dimension=2)
+                    for index in range(rank)
+                ],
+            )
+        ],
+    )
+
+    status, payload = request_json_with_status(
+        f"{editor_server.base_url}/api/generate",
+        method="POST",
+        payload={
+            "engine": EngineName.EINSUM_NUMPY.value,
+            "spec": {
+                "schema_version": SCHEMA_VERSION,
+                "network": oversized_spec.to_dict(),
+            },
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert f"rank {rank}" in payload["message"]
+    assert f"API limit of {MAX_EXPECTED_API_TENSOR_RANK}" in payload["message"]
+
+
+def test_template_route_rejects_excessive_graph_size_before_building(
+    editor_server: EditorServer,
+) -> None:
+    with patch(
+        "tensor_network_editor.app._template_services.build_template_spec",
+    ) as build_template_mock:
+        status, payload = request_json_with_status(
+            f"{editor_server.base_url}/api/template",
+            method="POST",
+            payload={
+                "template": "mps",
+                "parameters": {
+                    "graph_size": MAX_EXPECTED_API_TEMPLATE_LINEAR_GRAPH_SIZE + 1,
+                    "bond_dimension": 2,
+                    "physical_dimension": 2,
+                },
+            },
+        )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "graph_size" in payload["message"]
+    assert (
+        f"API limit of {MAX_EXPECTED_API_TEMPLATE_LINEAR_GRAPH_SIZE}"
+        in payload["message"]
+    )
+    build_template_mock.assert_not_called()
 
 
 def test_generate_route_uses_default_engine_when_missing(

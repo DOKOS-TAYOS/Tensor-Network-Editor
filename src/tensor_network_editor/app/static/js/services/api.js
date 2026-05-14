@@ -29,6 +29,27 @@ function buildErrorMessage({ text, json }) {
   return typeof text === "string" && text.trim() ? text.trim() : "Request failed.";
 }
 
+function resolveApiToken(options = {}) {
+  const rawToken =
+    typeof options.apiToken === "string"
+      ? options.apiToken
+      : typeof options.api_token === "string"
+        ? options.api_token
+        : typeof options.sessionToken === "string"
+          ? options.sessionToken
+          : null;
+  return typeof rawToken === "string" && rawToken.trim() ? rawToken.trim() : null;
+}
+
+function buildRequestHeaders(options = {}, baseHeaders = {}) {
+  const headers = { ...baseHeaders };
+  const apiToken = resolveApiToken(options);
+  if (apiToken) {
+    headers["X-TNE-Session-Token"] = apiToken;
+  }
+  return headers;
+}
+
 function requireJsonBody({ json }) {
   if (json === null) {
     throw new Error("Expected a JSON response.");
@@ -160,7 +181,14 @@ async function performJsonRequest(method, path, init = {}, options = {}) {
 }
 
 export async function apiGet(path, options = {}) {
-  return performJsonRequest("GET", path, {}, options);
+  return performJsonRequest(
+    "GET",
+    path,
+    {
+      headers: buildRequestHeaders(options),
+    },
+    options
+  );
 }
 
 export async function apiPost(path, payload, options = {}) {
@@ -169,7 +197,7 @@ export async function apiPost(path, payload, options = {}) {
     path,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildRequestHeaders(options, { "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     },
     options

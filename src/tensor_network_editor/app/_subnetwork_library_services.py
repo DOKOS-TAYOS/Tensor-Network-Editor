@@ -14,6 +14,7 @@ from ..internal.subnetworks._subnetworks import (
 )
 from ..models import CanvasPosition, NetworkSpec
 from ._bootstrap_payloads import build_subnetwork_catalog_payload
+from ._limits import enforce_spec_api_limits
 from ._protocol import JsonDict
 
 if TYPE_CHECKING:
@@ -44,7 +45,9 @@ def save_serialized_subnetwork_to_library(
         LOGGER, "Reusable subnetwork save", context=context
     ) as success_context:
         spec = deserialize_spec(serialized_spec, validate=False)
+        enforce_spec_api_limits(spec)
         saved_spec = extract_subnetwork_spec(spec, tensor_ids=tensor_ids)
+        enforce_spec_api_limits(saved_spec)
         session.save_project_subnetwork(
             subnetwork_name,
             saved_spec,
@@ -138,9 +141,11 @@ def prepare_saved_subnetwork_for_insertion(
         context=context,
     ) as success_context:
         spec = session.build_saved_subnetwork(subnetwork_name)
+        enforce_spec_api_limits(spec)
         prepared_spec = prepare_subnetwork_for_insertion(
             spec,
             target_center=target_center,
         )
+        enforce_spec_api_limits(prepared_spec)
         success_context.update(summarize_spec_counts(prepared_spec))
         return prepared_spec

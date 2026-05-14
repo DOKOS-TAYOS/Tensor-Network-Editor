@@ -412,6 +412,16 @@ def bad_request_response(message: str) -> JsonResponse:
     return HTTPStatus.BAD_REQUEST, {"ok": False, "message": message}
 
 
+def forbidden_response(message: str) -> JsonResponse:
+    """Return a standard forbidden JSON response."""
+    return HTTPStatus.FORBIDDEN, {"ok": False, "message": message}
+
+
+def unsupported_media_type_response(message: str) -> JsonResponse:
+    """Return a standard unsupported-media-type JSON response."""
+    return HTTPStatus.UNSUPPORTED_MEDIA_TYPE, {"ok": False, "message": message}
+
+
 def not_found_response() -> JsonResponse:
     """Return a standard not-found JSON response."""
     return HTTPStatus.NOT_FOUND, {"ok": False, "message": "Not found."}

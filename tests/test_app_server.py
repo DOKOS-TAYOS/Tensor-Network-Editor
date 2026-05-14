@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import subprocess
 import sys
 from http import HTTPStatus
+from http.client import HTTPConnection
 from pathlib import Path
 from typing import Protocol, cast
+from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import pytest
@@ -190,6 +193,52 @@ def test_editor_server_start_makes_shell_and_vendor_assets_immediately_readable_
         assert vendor_headers["Content-Type"].startswith("application/javascript")
 
 
+def test_editor_server_rejects_untrusted_host_header() -> None:
+    server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+    server.start()
+    try:
+        parsed = urlparse(server.base_url)
+        if parsed.hostname is None or parsed.port is None:
+            raise AssertionError(f"Unexpected editor base URL: {server.base_url}")
+        connection = HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+        try:
+            connection.putrequest("GET", "/", skip_host=True)
+            connection.putheader("Host", "attacker.example")
+            connection.endheaders()
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+        finally:
+            connection.close()
+    finally:
+        server.stop()
+
+    assert response.status == HTTPStatus.FORBIDDEN
+    assert payload == {"ok": False, "message": "Untrusted Host header."}
+
+
+def test_editor_server_rejects_non_loopback_bind_without_remote_opt_in() -> None:
+    def build_remote_server() -> EditorServer:
+        server = EditorServer(
+            EditorSession(initial_spec=build_sample_spec()),
+            host="0.0.0.0",
+        )
+        server._server.server_close()
+        return server
+
+    with pytest.raises(ValueError, match="non-loopback"):
+        build_remote_server()
+
+
+def test_editor_server_allows_remote_bind_with_explicit_opt_in() -> None:
+    server = EditorServer(
+        EditorSession(initial_spec=build_sample_spec()),
+        host="0.0.0.0",
+        allow_remote=True,
+    )
+
+    server._server.server_close()
+
+
 def test_editor_index_response_embeds_session_runtime_config() -> None:
     first_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
     second_server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
@@ -214,8 +263,12 @@ def test_editor_index_response_embeds_session_runtime_config() -> None:
         assert 'id="tne-runtime-config"' in first_body
         assert first_server.session_id in first_body
         assert second_server.session_id in second_body
+        assert first_server.api_token in first_body
+        assert second_server.api_token in second_body
         assert first_server.session_id != second_server.session_id
+        assert first_server.api_token != second_server.api_token
         assert first_body != second_body
+        assert '"api_token":' in first_body
         assert '"frontend_logging"' in first_body
         assert '"enabled": false' in first_body
         assert '"persist": false' in first_body

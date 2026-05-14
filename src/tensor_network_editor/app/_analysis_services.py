@@ -15,6 +15,7 @@ from ..internal._logging import (
 from ..internal.analysis._contraction_analysis import _analyze_validated_contraction
 from ..internal.analysis._contraction_analysis_types import ContractionAnalysisResult
 from ..models import NetworkSpec, ValidationIssue
+from ._limits import enforce_spec_api_limits
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ def analyze_serialized_contraction(
         emit_start=False,
     ) as success_context:
         spec = deserialize_spec_fn(serialized_spec)
+        enforce_spec_api_limits(spec)
         issues = validate_spec_fn(spec)
         if issues:
             log_branch(

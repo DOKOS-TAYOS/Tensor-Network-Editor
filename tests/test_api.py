@@ -237,6 +237,7 @@ def test_editor_launch_options_defaults_match_public_contract() -> None:
     assert options.ui_mode is None
     assert options.open_browser is True
     assert options.host == "127.0.0.1"
+    assert options.allow_remote is False
     assert options.port == 0
     assert options.print_code is False
     assert options.code_path is None
@@ -248,6 +249,20 @@ def test_editor_launch_options_defaults_match_public_contract() -> None:
 def test_editor_launch_options_rejects_unknown_theme() -> None:
     with pytest.raises(ValueError, match="Unsupported editor theme 'sepia'"):
         EditorLaunchOptions(theme="sepia")  # type: ignore[arg-type]
+
+
+def test_editor_launch_options_rejects_non_loopback_host_without_remote_opt_in() -> (
+    None
+):
+    with pytest.raises(ValueError, match="non-loopback"):
+        EditorLaunchOptions(host="0.0.0.0")
+
+
+def test_editor_launch_options_allows_non_loopback_host_with_remote_opt_in() -> None:
+    options = EditorLaunchOptions(host="0.0.0.0", allow_remote=True)
+
+    assert options.host == "0.0.0.0"
+    assert options.allow_remote is True
 
 
 def test_editor_ui_mode_type_alias_matches_public_contract() -> None:
@@ -286,6 +301,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
                 ui_mode="pywebview",
                 open_browser=False,
                 host="0.0.0.0",
+                allow_remote=True,
                 port=8123,
                 print_code=True,
                 code_path="generated.py",
@@ -307,6 +323,7 @@ def test_open_editor_passes_editor_launch_options(sample_spec: NetworkSpec) -> N
         ui_mode="pywebview",
         open_browser=False,
         host="0.0.0.0",
+        allow_remote=True,
         port=8123,
         print_code=True,
         code_path="generated.py",

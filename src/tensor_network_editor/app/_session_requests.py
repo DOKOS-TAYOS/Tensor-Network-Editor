@@ -17,6 +17,7 @@ from ..models import (
     EngineIdentifier,
     TensorCollectionFormat,
 )
+from ._limits import enforce_spec_api_limits
 
 if TYPE_CHECKING:
     from .session import EditorSession
@@ -39,6 +40,7 @@ def generate_session_request(
         context={"engine": engine_name_to_text(engine)},
     ):
         spec = deserialize_spec(serialized_spec)
+        enforce_spec_api_limits(spec)
         log_branch(
             LOGGER,
             "Deserialized preview spec",
@@ -69,6 +71,7 @@ def complete_session_request(
         context={"engine": engine_name_to_text(engine)},
     ):
         spec = deserialize_spec(serialized_spec)
+        enforce_spec_api_limits(spec)
         log_branch(
             LOGGER,
             "Deserialized completion spec",

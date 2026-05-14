@@ -572,6 +572,7 @@ def launch_editor_session(
     ui_mode: SessionUiMode | None = None,
     open_browser: bool = True,
     host: str = "127.0.0.1",
+    allow_remote: bool = False,
     port: int = 0,
     print_code: bool = False,
     code_path: StrPath | None = None,
@@ -595,6 +596,7 @@ def launch_editor_session(
         ui_mode: Explicit UI launch mode for the editor session.
         open_browser: Whether to ask the system browser to open the local URL.
         host: Local host interface to bind.
+        allow_remote: Whether non-loopback bind hosts are allowed.
         port: Local port to bind. Use ``0`` for an ephemeral port.
         print_code: Whether to print generated code after confirmation.
         code_path: Optional output path for generated code after confirmation.
@@ -649,7 +651,12 @@ def launch_editor_session(
             shared_subnetwork_catalog_path=shared_subnetwork_catalog_path,
             draft_path=draft_path,
         )
-        server = EditorServer(session=session, host=host, port=port)
+        server = EditorServer(
+            session=session,
+            host=host,
+            port=port,
+            allow_remote=allow_remote,
+        )
         effective_ui_mode = resolve_editor_ui_mode(
             ui_mode=ui_mode,
             open_browser=open_browser,

@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Literal, cast
+from typing import Literal, TypedDict, cast
 
 from .._themes import DEFAULT_EDITOR_THEME, EditorThemeName, normalize_editor_theme
 from ..errors import (
@@ -41,6 +41,7 @@ from ..rendering import (
 from ..types import JSONValue
 from ..validation import validate_spec
 from ._drafts import clear_project_draft, load_project_draft, save_project_draft
+from ._limits import enforce_spec_api_limits
 from ._protocol import (
     JsonDict,
     JsonResponse,
@@ -95,6 +96,19 @@ _MAX_FRONTEND_CLIENT_LOG_CONTEXT_VALUE_LENGTH = 200
 _RenderFormat = Literal["tikz", "dot", "mermaid", "svg", "png", "pdf"]
 
 
+class _ImageExportThemeOverride(TypedDict, total=False):
+    """Theme override fields supported by image render options."""
+
+    background: str
+    edge_stroke: str
+    group_stroke: str
+    hyperedge_stroke: str
+    index_fill: str
+    muted_text_fill: str
+    note_fill: str
+    text_fill: str
+
+
 @dataclass(slots=True, frozen=True)
 class _FrontendClientLogEvent:
     """Validated frontend log event ready for persistence."""
@@ -113,7 +127,7 @@ class _RenderLabelOptions:
     show_edge_labels: bool
 
 
-_IMAGE_EXPORT_THEME_OVERRIDES: dict[EditorThemeName, dict[str, str]] = {
+_IMAGE_EXPORT_THEME_OVERRIDES: dict[EditorThemeName, _ImageExportThemeOverride] = {
     "dark": {
         "background": "#0b0d12",
         "edge_stroke": "#7e8aa3",
@@ -285,6 +299,15 @@ def handle_validate(session: EditorSession, payload: JsonDict) -> JsonResponse:
                 level=logging.WARNING,
             )
             return bad_request_response("Missing 'spec' or 'python_code' payload.")
+        try:
+            enforce_spec_api_limits(spec)
+        except ValueError as exc:
+            log_branch(
+                LOGGER,
+                f"Validation request exceeded API limits: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
         issues = validate_spec(spec)
         if issues:
             log_branch(
@@ -396,6 +419,7 @@ def handle_render(session: EditorSession, payload: JsonDict) -> JsonResponse:
             render_format = _resolve_render_format(payload)
             serialized_spec = require_serialized_spec(payload)
             spec = deserialize_spec(serialized_spec, validate=False)
+            enforce_spec_api_limits(spec)
             label_options = _resolve_render_label_options(payload)
             render_theme = _resolve_render_theme(payload)
             success_context["format"] = render_format
@@ -495,6 +519,13 @@ def handle_analyze_contraction(
             log_branch(
                 LOGGER,
                 f"Contraction analysis request contained malformed spec: {exc}",
+                level=logging.WARNING,
+            )
+            return bad_request_response(str(exc))
+        except ValueError as exc:
+            log_branch(
+                LOGGER,
+                f"Contraction analysis request exceeded API limits: {exc}",
                 level=logging.WARNING,
             )
             return bad_request_response(str(exc))
@@ -967,6 +998,8 @@ def _handle_session_codegen_request(
             return ok_response(_serialize_complete_result(complete_result))
         raise ValueError(f"Unsupported code generation operation '{operation}'.")
     except SerializationError as exc:
+        return bad_request_response(str(exc))
+    except ValueError as exc:
         return bad_request_response(str(exc))
     except CodeGenerationError as exc:
         return bad_request_response(str(exc))

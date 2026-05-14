@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- The local editor server now requires a per-session API token for `/api/*`
+  requests, rejects non-JSON POST bodies, blocks untrusted `Host`/`Origin`
+  headers, and refuses non-loopback binds unless `allow_remote=True` is set
+  explicitly.
+- Editor API routes now reject excessive tensor-network payloads and oversized
+  template parameters before running expensive validation, rendering,
+  contraction analysis, code generation, or subnetwork operations.
+- CI now runs a dependency vulnerability audit with `pip-audit` as part of the
+  development dependency set.
+
 ### Changed
 
 - Academic SVG/PNG/PDF exports now inherit the active editor theme for figure

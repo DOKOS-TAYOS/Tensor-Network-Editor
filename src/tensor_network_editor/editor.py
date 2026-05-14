@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ class EditorLaunchOptions:
     ui_mode: EditorUiMode | None = None
     open_browser: bool = True
     host: str = "127.0.0.1"
+    allow_remote: bool = False
     port: int = 0
     print_code: bool = False
     code_path: StrPath | None = None
@@ -67,6 +69,10 @@ class EditorLaunchOptions:
         _validate_editor_ui_mode_compatibility(
             ui_mode=validated_ui_mode,
             open_browser=self.open_browser,
+        )
+        _validate_editor_bind_options(
+            host=self.host,
+            allow_remote=self.allow_remote,
         )
         validate_positive_log_setting(
             self.log_file_max_bytes,
@@ -132,6 +138,7 @@ def open_editor(
                 ui_mode=effective_ui_mode,
                 open_browser=resolved_options.open_browser,
                 host=resolved_options.host,
+                allow_remote=resolved_options.allow_remote,
                 port=resolved_options.port,
                 print_code=resolved_options.print_code,
                 code_path=resolved_options.code_path,
@@ -190,6 +197,30 @@ def _validate_editor_ui_mode_compatibility(
         raise ValueError("ui_mode='browser' requires open_browser=True.")
     if ui_mode == "server" and open_browser:
         raise ValueError("ui_mode='server' requires open_browser=False.")
+
+
+def _is_loopback_host_name(host_name: str) -> bool:
+    """Return whether a host name is safe for local-only editor serving."""
+    normalized_host = host_name.strip().strip("[]").rstrip(".").lower()
+    if normalized_host in {"localhost"} or normalized_host.endswith(".localhost"):
+        return True
+    if "%" in normalized_host:
+        normalized_host = normalized_host.split("%", 1)[0]
+    try:
+        address = ipaddress.ip_address(normalized_host)
+    except ValueError:
+        return False
+    return address.is_loopback
+
+
+def _validate_editor_bind_options(*, host: str, allow_remote: bool) -> None:
+    """Reject non-loopback hosts unless the caller explicitly opts in."""
+    if allow_remote or _is_loopback_host_name(host):
+        return
+    raise ValueError(
+        "Refusing to bind the editor server to a non-loopback host. "
+        "Use allow_remote=True only when you intentionally expose this local API."
+    )
 
 
 def resolve_editor_ui_mode(

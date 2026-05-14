@@ -756,9 +756,17 @@ export function createInteractionShortcutBindings({
     if (state.editorFinished || typeof fetch !== "function") {
       return;
     }
+    const headers = { "Content-Type": "application/json" };
+    const apiToken =
+      ctx.runtimeConfig && typeof ctx.runtimeConfig.apiToken === "string"
+        ? ctx.runtimeConfig.apiToken.trim()
+        : "";
+    if (apiToken) {
+      headers["X-TNE-Session-Token"] = apiToken;
+    }
     void fetch("/api/cancel", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({}),
       keepalive: true,
     });
