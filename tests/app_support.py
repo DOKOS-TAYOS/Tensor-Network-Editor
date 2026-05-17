@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import re
 import time
+from html.parser import HTMLParser
 from typing import Any, cast
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -11,11 +11,51 @@ from urllib.request import Request, urlopen
 _ASSET_REQUEST_TIMEOUT_SECONDS = 15.0
 _ASSET_REQUEST_RETRY_COUNT = 3
 _ASSET_REQUEST_RETRY_DELAY_SECONDS = 0.1
-_RUNTIME_CONFIG_RE = re.compile(
-    r'<script\b(?=[^>]*\bid="tne-runtime-config")[^>]*>(.*?)</script>',
-    re.DOTALL | re.IGNORECASE,
-)
 _SESSION_TOKEN_BY_ORIGIN: dict[str, str | None] = {}
+
+
+class _RuntimeConfigParser(HTMLParser):
+    """Extract the JSON runtime config script from the editor HTML shell."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.runtime_config_text: str | None = None
+        self._capturing_runtime_config = False
+        self._runtime_config_chunks: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        """Start collecting text inside the runtime config script tag."""
+        if self.runtime_config_text is not None or tag.lower() != "script":
+            return
+        attrs_by_name = {name.lower(): value for name, value in attrs}
+        if attrs_by_name.get("id") != "tne-runtime-config":
+            return
+        self._capturing_runtime_config = True
+        self._runtime_config_chunks = []
+
+    def handle_data(self, data: str) -> None:
+        """Collect script text while the runtime config tag is active."""
+        if self._capturing_runtime_config:
+            self._runtime_config_chunks.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        """Finish collecting once the runtime config script closes."""
+        if not self._capturing_runtime_config or tag.lower() != "script":
+            return
+        self.runtime_config_text = "".join(self._runtime_config_chunks)
+        self._capturing_runtime_config = False
+
+
+def _extract_runtime_config_json(html: str) -> str | None:
+    """Return the embedded runtime config JSON text from one HTML document."""
+    parser = _RuntimeConfigParser()
+    parser.feed(html)
+    parser.close()
+    return parser.runtime_config_text
 
 
 def request_json(
@@ -81,12 +121,12 @@ def _session_token_for_url(url: str) -> str | None:
     except OSError:
         _SESSION_TOKEN_BY_ORIGIN[origin] = None
         return None
-    match = _RUNTIME_CONFIG_RE.search(html)
-    if match is None:
+    runtime_config_text = _extract_runtime_config_json(html)
+    if runtime_config_text is None:
         _SESSION_TOKEN_BY_ORIGIN[origin] = None
         return None
     try:
-        payload = json.loads(match.group(1))
+        payload = json.loads(runtime_config_text)
     except json.JSONDecodeError:
         _SESSION_TOKEN_BY_ORIGIN[origin] = None
         return None

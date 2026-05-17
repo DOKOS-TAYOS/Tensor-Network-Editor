@@ -592,7 +592,6 @@ class EditorServer:
         """Build the request-handler class bound to this server instance."""
         session = self.session
         session_id = self.session_id
-        static_dir = self._static_dir
         static_asset_cache = self._static_asset_cache
         index_body = self._index_body
         api_token = self.api_token
@@ -875,21 +874,17 @@ class EditorServer:
                 self, request_path: str
             ) -> str | None:
                 """Resolve one request path to a cached static asset key."""
-                static_root = static_dir.resolve()
                 normalized_request_path = _normalize_static_asset_request_path(
                     request_path
                 )
                 if normalized_request_path is None:
                     return None
-                candidate = (static_root / normalized_request_path).resolve()
-                try:
-                    relative_path = candidate.relative_to(static_root)
-                except ValueError:
+                if (
+                    normalized_request_path
+                    not in static_asset_cache.body_by_relative_path
+                ):
                     return None
-                relative_path_text = relative_path.as_posix()
-                if relative_path_text not in static_asset_cache.body_by_relative_path:
-                    return None
-                return relative_path_text
+                return normalized_request_path
 
             def _read_request_body(self) -> bytes:
                 """Read one request body after validating the Content-Length header."""

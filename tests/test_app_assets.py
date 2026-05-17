@@ -3573,3 +3573,16 @@ def test_static_assets_disable_browser_cache(
     assert "no-store" in headers["Cache-Control"]
     assert headers["Pragma"] == "no-cache"
     assert headers["Expires"] == "0"
+
+
+def test_static_asset_dispatch_uses_cache_allowlist_without_request_path_join() -> None:
+    server_body = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "tensor_network_editor"
+        / "app"
+        / "server.py"
+    ).read_text(encoding="utf-8")
+
+    assert "(static_root / normalized_request_path).resolve()" not in server_body
+    assert "body_by_relative_path[relative_path]" in server_body
