@@ -3603,12 +3603,19 @@ def test_automatic_past_preview_badges_collapse_expand_and_expose_comparison_too
           description: toggleBadge.dataset.shortcutDescription,
           rect: toggleBadge.getBoundingClientRect(),
         }});
-        const tooltipMarkup = ctx.document.body.lastAppended
-          ? ctx.document.body.lastAppended.innerHTML
-          : "";
-        if (!tooltipMarkup.includes("shortcut-tooltip-metric-value-better")) {{
+        function hasTooltipClass(node, className) {{
+          if (!node) {{
+            return false;
+          }}
+          if (String(node.className || "").includes(className)) {{
+            return true;
+          }}
+          return Array.isArray(node.children) &&
+            node.children.some((child) => hasTooltipClass(child, className));
+        }}
+        if (!hasTooltipClass(ctx.document.body.lastAppended, "shortcut-tooltip-metric-value-better")) {{
           throw new Error(
-            `Expected auto-past hover markup to color better comparison deltas, received ${{tooltipMarkup}}.`
+            "Expected auto-past hover markup to color better comparison deltas."
           );
         }}
 

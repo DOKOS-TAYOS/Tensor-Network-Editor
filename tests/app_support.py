@@ -13,7 +13,7 @@ _ASSET_REQUEST_RETRY_COUNT = 3
 _ASSET_REQUEST_RETRY_DELAY_SECONDS = 0.1
 _RUNTIME_CONFIG_RE = re.compile(
     r'<script\b(?=[^>]*\bid="tne-runtime-config")[^>]*>(.*?)</script>',
-    re.DOTALL,
+    re.DOTALL | re.IGNORECASE,
 )
 _SESSION_TOKEN_BY_ORIGIN: dict[str, str | None] = {}
 

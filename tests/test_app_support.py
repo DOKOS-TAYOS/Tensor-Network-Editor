@@ -69,6 +69,19 @@ def test_request_headers_uses_shared_asset_timeout_without_reading_body() -> Non
     assert recorded_timeout == [app_support._ASSET_REQUEST_TIMEOUT_SECONDS]
 
 
+def test_runtime_config_regex_matches_mixed_case_script_tags() -> None:
+    html = (
+        '<SCRIPT ID="tne-runtime-config" type="application/json">'
+        '{"api_token": "token-demo"}'
+        "</ScRiPt>"
+    )
+
+    match = app_support._RUNTIME_CONFIG_RE.search(html)
+
+    assert match is not None
+    assert match.group(1) == '{"api_token": "token-demo"}'
+
+
 def test_read_asset_response_retries_transient_os_errors() -> None:
     attempts = 0
 

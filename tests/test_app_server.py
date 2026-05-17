@@ -504,3 +504,18 @@ def test_missing_non_favicon_request_keeps_debug_log(
     missing_response = cast(JsonResponse, response)
     assert missing_response[0] == HTTPStatus.NOT_FOUND
     assert "Static asset not found for path /missing-asset.js" in caplog.text
+
+
+def test_static_asset_request_paths_are_normalized_before_filesystem_access() -> None:
+    assert (
+        app_server._normalize_static_asset_request_path("/js/main.js") == "js/main.js"
+    )
+    assert app_server._normalize_static_asset_request_path("/favicon.ico") == (
+        "favicon.ico"
+    )
+    assert app_server._normalize_static_asset_request_path("/../LICENSE") is None
+    assert app_server._normalize_static_asset_request_path("/%2e%2e/LICENSE") is None
+    assert (
+        app_server._normalize_static_asset_request_path("/C:/Windows/win.ini") is None
+    )
+    assert app_server._normalize_static_asset_request_path("/js\\main.js") is None

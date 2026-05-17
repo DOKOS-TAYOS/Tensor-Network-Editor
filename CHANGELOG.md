@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Test helpers now extract the embedded runtime configuration from script tags
+  case-insensitively, matching browser HTML behavior and closing a CodeQL
+  coverage warning.
+- Shortcut tooltips now render text with DOM `textContent` nodes instead of
+  writing generated HTML, avoiding DOM text-to-HTML reinterpretation.
+- Static asset requests now normalize and reject unsafe URL path segments
+  before constructing filesystem paths.
+
 ## [1.0.1] - 2026-05-14
 
 ### Security

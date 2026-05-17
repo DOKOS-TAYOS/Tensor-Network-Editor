@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BufferedReader
 from pathlib import Path
 from typing import Protocol, TypeAlias, cast
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
 from ..internal._logging import (
@@ -434,6 +434,21 @@ def _unexpected_internal_error_response(session_id: str) -> JsonResponse:
 def _should_log_missing_static_asset(request_path: str) -> bool:
     """Return whether one missing static path should appear in debug logs."""
     return request_path not in _QUIET_MISSING_STATIC_ASSET_PATHS
+
+
+def _normalize_static_asset_request_path(request_path: str) -> str | None:
+    """Return a safe static asset cache key for one URL path."""
+    decoded_path = unquote(request_path)
+    if "\x00" in decoded_path or "\\" in decoded_path:
+        return None
+    relative_parts: list[str] = []
+    for part in decoded_path.lstrip("/").split("/"):
+        if not part or part in {".", ".."} or ":" in part:
+            return None
+        relative_parts.append(part)
+    if not relative_parts:
+        return None
+    return "/".join(relative_parts)
 
 
 class EditorServer:
@@ -861,7 +876,12 @@ class EditorServer:
             ) -> str | None:
                 """Resolve one request path to a cached static asset key."""
                 static_root = static_dir.resolve()
-                candidate = (static_dir / request_path.lstrip("/")).resolve()
+                normalized_request_path = _normalize_static_asset_request_path(
+                    request_path
+                )
+                if normalized_request_path is None:
+                    return None
+                candidate = (static_root / normalized_request_path).resolve()
                 try:
                     relative_path = candidate.relative_to(static_root)
                 except ValueError:

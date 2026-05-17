@@ -124,16 +124,6 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
     return tooltipNode;
   }
 
-  function escapeTooltipText(value) {
-    return String(value)
-      .replaceAll("\r\n", "\n")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
-
   function getMetricValueToneClass(value) {
     if (typeof value !== "string" || !value) {
       return "";
@@ -147,62 +137,91 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
     return "";
   }
 
-  function buildTooltipDescriptionLineMarkup(line) {
+  function clearTooltipContent(tooltip) {
+    if (typeof tooltip.replaceChildren === "function") {
+      tooltip.replaceChildren();
+      return;
+    }
+    tooltip.textContent = "";
+    if (Array.isArray(tooltip.children)) {
+      tooltip.children = [];
+    }
+  }
+
+  function createTooltipSpan(className, text = "") {
+    const span = documentRef.createElement("span");
+    span.className = className;
+    span.textContent = String(text);
+    return span;
+  }
+
+  function appendTooltipChild(parent, child) {
+    if (typeof parent.appendChild === "function") {
+      parent.appendChild(child);
+      return;
+    }
+    if (!Array.isArray(parent.children)) {
+      parent.children = [];
+    }
+    parent.children.push(child);
+  }
+
+  function appendTooltipDescriptionLine(parent, line) {
     const text = String(line || "");
     const metricMatch = text.match(/^(.*?)([+-]\d[\d,]*(?: bytes)?)$/);
     if (!metricMatch) {
-      return `<span class="shortcut-tooltip-description-line">${escapeTooltipText(
-        text
-      )}</span>`;
+      appendTooltipChild(
+        parent,
+        createTooltipSpan("shortcut-tooltip-description-line", text)
+      );
+      return;
     }
     const label = metricMatch[1].trimEnd();
     const value = metricMatch[2];
-    return `
-      <span class="shortcut-tooltip-description-line">
-        <span class="shortcut-tooltip-description-label">${escapeTooltipText(label)}</span>
-        <span class="shortcut-tooltip-metric-value${getMetricValueToneClass(value)}">${escapeTooltipText(
-          value
-        )}</span>
-      </span>
-    `;
+    const lineNode = createTooltipSpan("shortcut-tooltip-description-line");
+    appendTooltipChild(
+      lineNode,
+      createTooltipSpan("shortcut-tooltip-description-label", label)
+    );
+    appendTooltipChild(
+      lineNode,
+      createTooltipSpan(
+        `shortcut-tooltip-metric-value${getMetricValueToneClass(value)}`,
+        value
+      )
+    );
+    appendTooltipChild(parent, lineNode);
   }
 
-  function buildTooltipDescriptionMarkup(description) {
-    return String(description)
-      .split("\n")
-      .map((line) => buildTooltipDescriptionLineMarkup(line))
-      .join("");
-  }
-
-  function buildTooltipMarkup(button) {
-    const label = button.dataset.shortcutLabel || String(button.textContent || "").trim();
+  function renderTooltipContent(tooltip, button) {
+    clearTooltipContent(tooltip);
+    const label = button.dataset.shortcutLabel || "";
     const shortcut = button.dataset.shortcut || "";
     const description = button.dataset.shortcutDescription || "";
-    const headerParts = [];
-    if (label) {
-      headerParts.push(
-        `<span class="shortcut-tooltip-label">${escapeTooltipText(label)}</span>`
-      );
-    }
-    if (shortcut) {
-      headerParts.push(
-        `<span class="shortcut-tooltip-shortcut">${escapeTooltipText(shortcut)}</span>`
-      );
-    }
-    const sections = [];
-    if (headerParts.length) {
-      sections.push(
-        `<span class="shortcut-tooltip-header">${headerParts.join("")}</span>`
-      );
+
+    if (label || shortcut) {
+      const header = createTooltipSpan("shortcut-tooltip-header");
+      if (label) {
+        appendTooltipChild(
+          header,
+          createTooltipSpan("shortcut-tooltip-label", label)
+        );
+      }
+      if (shortcut) {
+        appendTooltipChild(
+          header,
+          createTooltipSpan("shortcut-tooltip-shortcut", shortcut)
+        );
+      }
+      appendTooltipChild(tooltip, header);
     }
     if (description) {
-      sections.push(
-        `<span class="shortcut-tooltip-description">${buildTooltipDescriptionMarkup(
-          description
-        )}</span>`
-      );
+      const descriptionNode = createTooltipSpan("shortcut-tooltip-description");
+      for (const line of String(description).split("\n")) {
+        appendTooltipDescriptionLine(descriptionNode, line);
+      }
+      appendTooltipChild(tooltip, descriptionNode);
     }
-    return sections.join("");
   }
 
   function positionTooltip(button) {
@@ -288,7 +307,7 @@ export function createShortcutTooltip({ documentRef, windowRef }) {
       return;
     }
     const tooltip = ensureTooltipNode();
-    tooltip.innerHTML = buildTooltipMarkup(button);
+    renderTooltipContent(tooltip, button);
     tooltip.classList.remove("is-hidden");
     activeButton = button;
     positionTooltip(button);

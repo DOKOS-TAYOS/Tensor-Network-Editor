@@ -1543,11 +1543,11 @@ def test_shell_and_properties_assets_delegate_bootstrap_and_panel_mutations_to_i
     assert "function applyTitleHint(" in tooltip_body
     assert "function showVirtualTooltip(" in tooltip_body
     assert "function hideActiveTooltip(" in tooltip_body
-    assert "function escapeTooltipText(" in tooltip_body
-    assert "function buildTooltipMarkup(" in tooltip_body
-    assert 'class="shortcut-tooltip-header"' in tooltip_body
-    assert 'class="shortcut-tooltip-description"' in tooltip_body
-    assert "tooltip.innerHTML = buildTooltipMarkup(button);" in tooltip_body
+    assert "function renderTooltipContent(" in tooltip_body
+    assert '"shortcut-tooltip-header"' in tooltip_body
+    assert '"shortcut-tooltip-description"' in tooltip_body
+    assert "tooltip.innerHTML" not in tooltip_body
+    assert "textContent =" in tooltip_body
     assert "ctx.shortcutTooltip = shortcutTooltip;" in bootstrap_body
     assert "shortcutTooltip.applyTitleHint(" in shell_bindings_body
     assert "ctx.applyDesignChange(" not in overview_body
