@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-23
+
 ### Security
 
 - Test helpers now extract the embedded runtime configuration from script tags
@@ -29,7 +31,6 @@ All notable changes to this project will be documented in this file.
 - `scripts/run_pyright.py` now falls back to the active interpreter when the
   shared `.venv` launcher exists but cannot actually start, which keeps
   targeted type-check tests usable on Windows after Python upgrades.
-
 - Documentation now presents the library primarily as a simple way to generate
   backend code for complex tensor networks across several frameworks, with
   figure rendering described as a secondary export workflow.
