@@ -1,7 +1,8 @@
 # Getting Started
 
 This page gives you the fastest path to a useful first result with
-`tensor-network-editor`.
+`tensor-network-editor`: model a network once and generate runnable backend
+code from it.
 
 ## Contents
 
@@ -101,6 +102,9 @@ everything manually. Templates are explained in [user-guide.md](user-guide.md).
 
 ## 4. Save JSON and Generated Code
 
+The point of the first session is not only the picture on screen. You want two
+outputs: a reusable JSON design and backend-specific generated code.
+
 Open an existing JSON design:
 
 ```bash
@@ -130,6 +134,9 @@ The JSON design and the generated Python code serve different purposes:
 
 - save JSON when you want to reopen or version the abstract network
 - save Python code when you want a concrete backend implementation
+
+Static figure exports can come later if you need them for notes, slides, or a
+paper.
 
 ## 5. Use the Same Flow From Python
 

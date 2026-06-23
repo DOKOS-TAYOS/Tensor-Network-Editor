@@ -1,10 +1,11 @@
 # Extended Guide
 
 This guide is the long practical manual for `tensor-network-editor`. It is
-written for users who want to understand the available workflows in one place:
-the browser editor, saved JSON designs, generated backend code, command-line
-checks, Python recipes, templates, subnetworks, tensor values, metadata,
-planner tools, benchmark mode, and periodic modes.
+written for users who want to understand the full workflow for modeling
+complex tensor networks once and generating backend code for several
+frameworks simply: the browser editor, saved JSON designs, generated backend
+code, command-line checks, Python recipes, templates, subnetworks, tensor
+values, metadata, planner tools, benchmark mode, and periodic modes.
 
 If you only want a quick first run, start with [getting-started.md](getting-started.md).
 If you want the short everyday editor guide, use [user-guide.md](user-guide.md).
@@ -38,8 +39,9 @@ This page intentionally goes deeper.
 
 ## The Big Picture
 
-`tensor-network-editor` separates the model you design from the backend code
-you generate.
+`tensor-network-editor` is primarily a backend-independent modeling and code
+generation tool. It separates the model you design from the backend code you
+generate.
 
 The durable artifact is usually a JSON design. It stores a `NetworkSpec` inside
 a small schema wrapper, including tensors, indices, edges, hyperedges, groups,
@@ -50,6 +52,9 @@ Generated Python code is a backend-specific artifact. It is useful when you
 want to run, inspect, benchmark, or adapt a concrete implementation, but it is
 not the best long-term editing format. Keep the JSON when you want to reopen
 the design and target another backend later.
+
+Static figure rendering exists for communication, notes, or papers, but it is
+not the primary artifact of the workflow.
 
 The editor itself runs locally. The package starts a Python HTTP server on your
 machine, opens a browser tab by default, and waits until you press `Done` or

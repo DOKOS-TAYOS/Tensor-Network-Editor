@@ -1,12 +1,15 @@
 # User Guide
 
 This guide explains how to use `tensor-network-editor` comfortably after the
-first launch. It focuses on practical workflow, choices, examples, and current
-limits.
+first launch. It focuses on the practical workflow for modeling a complex
+network once and generating code for different backends simply.
 
 For a longer manual with deeper CLI recipes, Python recipes, export workflows,
 periodic-mode details, and decision guidance, see
 [extended_guide.md](extended_guide.md).
+
+The editor helps with the modeling step. Static figure rendering is a
+supporting export workflow, not the main goal of the package.
 
 ## Contents
 
@@ -31,7 +34,10 @@ periodic-mode details, and decision guidance, see
 
 ## Core Idea
 
-The package separates two artifacts:
+The package is mainly about keeping one abstract network model and turning it
+into backend code. The editor helps you build that model visually.
+
+It separates two artifacts:
 
 - the abstract tensor-network design, stored as a `NetworkSpec`
 - generated Python code for one target backend

@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Static asset requests now normalize and reject unsafe URL path segments, then
   serve only keys already present in the static asset cache allowlist.
 
+### Changed
+
+- Documentation now presents the library primarily as a simple way to generate
+  backend code for complex tensor networks across several frameworks, with
+  figure rendering described as a secondary export workflow.
+
 ## [1.0.1] - 2026-05-14
 
 ### Security

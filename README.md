@@ -14,13 +14,20 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Stability](https://img.shields.io/badge/stability-production--ready-brightgreen)](https://pypi.org/project/tensor-network-editor/)
 
-`tensor-network-editor` is a local Python package for drawing tensor networks,
-saving them as versioned JSON, and generating readable Python code for several
-backends.
+`tensor-network-editor` is a local Python package for describing complex tensor
+networks once, saving them as versioned JSON, and generating readable Python
+code for several backends.
 
-It is useful when you want a visual editor without losing the things that make
-scientific Python workflows practical: plain data objects, files you can version,
-offline use, and generated code you can inspect.
+The main goal is simple multi-framework code generation for tensor networks
+that would otherwise be tedious to write by hand. The local editor is the
+modeling surface that makes those networks easier to build and revise, while
+static figure export is a secondary convenience when you need documentation or
+paper-ready assets.
+
+It is useful when you want a simple workflow for complex tensor-network code
+without losing the things that make scientific Python workflows practical:
+plain data objects, files you can version, offline use, and generated code you
+can inspect.
 
 ## Screenshots
 
@@ -90,14 +97,16 @@ offline use, and generated code you can inspect.
 
 ## Why This Project
 
-- Draw tensor-network diagrams in a local browser or `pywebview` desktop session.
-- Save and reload backend-independent JSON designs.
-- Recover the previous local editor session from a project draft if the window
-  or tab is closed before you save.
 - Generate code for `tensornetwork`, `quimb`, `tensorkrowch`, `einsum_numpy`,
   and `einsum_torch`.
+- Save and reload backend-independent JSON designs.
+- Use a local browser or `pywebview` desktop session to build complex networks
+  more simply than hand-writing backend code from scratch.
+- Recover the previous local editor session from a project draft if the window
+  or tab is closed before you save.
 - Render designs to static SVG, TikZ/LaTeX, Graphviz/DOT, or Mermaid from Python, the
-  CLI, or the editor File menu without needing LaTeX or Graphviz installed.
+  CLI, or the editor File menu without needing LaTeX or Graphviz installed
+  when you need figures or paper assets.
 - Import supported Python network layouts from generated exports plus simple
   `quimb`, `tensornetwork`, and `einsum` / `opt_einsum` source files, or run
   explicit live imports for `quimb` and `tensornetwork` objects in a

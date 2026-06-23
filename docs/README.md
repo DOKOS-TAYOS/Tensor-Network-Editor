@@ -1,8 +1,9 @@
 # Documentation
 
 This folder contains the practical documentation for `tensor-network-editor`.
-The goal is simple: help you find the right page quickly, use the library, and
-avoid reading one huge document from top to bottom.
+The goal is simple: help you find the right page quickly, model a tensor
+network once, generate code for the backend you want to run, and avoid reading
+one huge document from top to bottom.
 
 ## Start Here
 
@@ -21,10 +22,11 @@ avoid reading one huge document from top to bottom.
 
 `tensor-network-editor` lets you:
 
-- draw tensor-network structures in a local browser editor
-- save those structures as backend-independent JSON
-- reload the same design later
-- generate Python code for several tensor-network backends
+- define one backend-independent tensor-network design
+- generate Python code for several tensor-network backends from that one design
+- use the local browser editor to build or revise complex networks more simply
+- save those designs as backend-independent JSON
+- reload the same design later and target another backend
 - create first-class hyperedges with a saved draggable hub position in normal
   mode
 - keep reusable subnetworks in project or shared catalogs
@@ -41,6 +43,11 @@ avoid reading one huge document from top to bottom.
   opening Reflow, saving subnetworks, and moving between periodic cells
 - inspect validation, linting, diff, benchmark, and analysis results from
   Python or the CLI
+- render static diagrams when you need documentation, slides, or paper figures
+
+The main workflow is usually: describe the network once, keep the JSON as the
+durable model, and generate backend code for the framework you want to run.
+Static figure rendering is supported, but it is a secondary export path.
 
 The browser interface is local to your machine. The package starts a local
 server, opens a browser tab by default, and waits until you confirm or cancel
@@ -154,12 +161,16 @@ the stable user-facing API.
 ## Typical Workflow
 
 1. Install the package in a `.venv`.
-2. Launch the editor from the CLI or Python.
-3. Draw or load a tensor network.
-4. Save the JSON design.
-5. Generate backend Python code when you need a runnable implementation.
-6. Reopen the JSON later if you want to edit the design or target another
+2. Launch the editor from the CLI or Python, or build/load a design directly in
+   Python.
+3. Create or load a backend-independent tensor network.
+4. Save the JSON design as the durable artifact.
+5. Generate backend Python code for the framework you want to run.
+6. Optionally validate, analyze, or benchmark the design.
+7. Optionally render a figure later if you need documentation or paper assets.
+8. Reopen the JSON later if you want to edit the design or target another
    backend.
 
-The JSON design is usually the durable artifact. Generated Python code is useful
-when you want to run, inspect, or adapt a concrete backend implementation.
+The JSON design is usually the durable artifact. Generated Python code is the
+main runnable output. Figures are optional exports built from the same saved
+design.

@@ -1,7 +1,9 @@
 # Python API
 
-This page describes the public Python API you are most likely to use. For the
-data model fields themselves, see [data-models.md](data-models.md).
+This page describes the public Python API you are most likely to use when you
+want to keep a backend-independent tensor-network design and generate backend
+code from it. For the data model fields themselves, see
+[data-models.md](data-models.md).
 
 ## Contents
 

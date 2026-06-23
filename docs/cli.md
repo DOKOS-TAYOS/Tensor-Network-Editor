@@ -1,9 +1,9 @@
 # CLI
 
 This page covers the `tensor-network-editor` command. The CLI can launch the
-visual editor or run headless commands for validation, linting, analysis, code
-generation, benchmark comparisons, diagnostics, diffs, templates, and
-reusable-subnetwork catalogs.
+local editor or run headless multi-backend code-generation workflows, plus
+validation, linting, analysis, benchmark comparisons, diagnostics, diffs,
+templates, and reusable-subnetwork catalogs.
 
 ## Contents
 
