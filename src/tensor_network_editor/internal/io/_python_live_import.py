@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -115,6 +116,7 @@ def import_live_python_source(
     """Execute Python source in a subprocess and import one live object."""
     normalized_profile = normalize_live_source_profile(source_profile)
     resolved_source_path = source_path.resolve() if source_path is not None else None
+    caller_working_directory = Path.cwd().resolve()
     working_directory = (
         resolved_source_path.parent if resolved_source_path is not None else Path.cwd()
     )
@@ -137,6 +139,7 @@ def import_live_python_source(
             capture_output=True,
             check=False,
             cwd=str(working_directory),
+            env=_build_live_import_subprocess_env(caller_working_directory),
             text=True,
             timeout=_LIVE_IMPORT_TIMEOUT_SECONDS,
         )
@@ -161,6 +164,42 @@ def import_live_python_source(
             "Live import returned a malformed network payload."
         ) from exc
     return PythonImportResult(spec=spec, warnings=list(warnings_payload))
+
+
+def _build_live_import_subprocess_env(
+    caller_working_directory: Path,
+) -> dict[str, str]:
+    """Build the live-import subprocess environment with a stable PYTHONPATH."""
+    env = os.environ.copy()
+    python_path = env.get("PYTHONPATH")
+    if not python_path:
+        return env
+    env["PYTHONPATH"] = _normalize_python_path_entries(
+        python_path,
+        caller_working_directory=caller_working_directory,
+    )
+    return env
+
+
+def _normalize_python_path_entries(
+    python_path: str,
+    *,
+    caller_working_directory: Path,
+) -> str:
+    """Resolve relative PYTHONPATH entries before changing subprocess cwd."""
+    normalized_entries: list[str] = []
+    for raw_entry in python_path.split(os.pathsep):
+        if not raw_entry:
+            normalized_entries.append(str(caller_working_directory))
+            continue
+        entry_path = Path(raw_entry)
+        if entry_path.is_absolute():
+            normalized_entries.append(raw_entry)
+            continue
+        normalized_entries.append(
+            str((caller_working_directory / entry_path).resolve())
+        )
+    return os.pathsep.join(normalized_entries)
 
 
 def build_live_import_result_from_namespace(

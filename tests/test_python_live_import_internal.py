@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+from pathlib import Path
 
 import pytest
 
@@ -147,3 +148,70 @@ def test_python_live_import_runtime_helpers_coerce_axis_positions() -> None:
 
     assert runtime_module.coerce_optional_axis_position("3") == 3
     assert runtime_module.coerce_optional_axis_position(-1) is None
+
+
+def test_import_live_python_source_resolves_relative_pythonpath_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    live_import_module = import_module(
+        "tensor_network_editor.internal.io._python_live_import"
+    )
+    project_root = Path.cwd().resolve()
+    helper_dir = tmp_path / "relative_py_path"
+    helper_dir.mkdir()
+    source_dir = tmp_path / "live_import_source"
+    source_dir.mkdir()
+    (helper_dir / "helper_live_import.py").write_text(
+        "\n".join(
+            [
+                "class FakeTensor:",
+                "    __module__ = 'quimb.tensor'",
+                "",
+                "    def __init__(self, name: str, inds: tuple[str, ...], data: list[list[float]]) -> None:",
+                "        self.tags = (name,)",
+                "        self.inds = inds",
+                "        self.shape = (len(data), len(data[0]))",
+                "        self.data = data",
+                "",
+                "class FakeTensorNetwork:",
+                "    __module__ = 'quimb.tensor'",
+                "",
+                "    def __init__(self, tensors: list[FakeTensor]) -> None:",
+                "        self.tensors = tensors",
+                "",
+                "def build_network() -> FakeTensorNetwork:",
+                "    left = FakeTensor('A', ('i', 'bond_x'), [[1.0, 2.0], [3.0, 4.0]])",
+                "    right = FakeTensor('B', ('bond_x', 'j'), [[5.0], [6.0]])",
+                "    return FakeTensorNetwork([left, right])",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    source_path = source_dir / "network_from_helper.py"
+    source_path.write_text(
+        "\n".join(
+            [
+                "from helper_live_import import build_network",
+                "",
+                "network = build_network()",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        str(helper_dir.resolve().relative_to(project_root)),
+    )
+
+    result = live_import_module.import_live_python_source(
+        source_path.read_text(encoding="utf-8"),
+        source_profile="quimb",
+        source_path=source_path,
+    )
+
+    assert [tensor.name for tensor in result.spec.tensors] == ["A", "B"]
+    assert [tensor.shape for tensor in result.spec.tensors] == [(2, 2), (2, 1)]
+    assert [edge.name for edge in result.spec.edges] == ["bond_x"]

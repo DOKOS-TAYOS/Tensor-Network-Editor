@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -85,6 +87,76 @@ def python_executable(shared_root: Path) -> Path:
     )
 
 
+def _python_supports_module(python_path: Path, module_name: str) -> bool:
+    """Return whether one Python executable can import a module successfully."""
+    try:
+        result = subprocess.run(
+            [
+                str(python_path),
+                "-c",
+                (
+                    "import importlib.util, sys; "
+                    "raise SystemExit(0 if importlib.util.find_spec(sys.argv[1]) "
+                    "is not None else 1)"
+                ),
+                module_name,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
+def find_bundled_pyright_entrypoint(shared_root: Path) -> Path | None:
+    """Return the bundled Pyright CLI entrypoint shipped inside the shared venv."""
+    venv_root = shared_root / ".venv"
+    windows_entrypoint = (
+        venv_root / "Lib" / "site-packages" / "pyright" / "dist" / "index.js"
+    )
+    if windows_entrypoint.is_file():
+        return windows_entrypoint
+    for candidate in venv_root.glob("lib/python*/site-packages/pyright/dist/index.js"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def find_node_executable() -> Path | None:
+    """Return the global Node.js executable when it is available."""
+    executable_name = "node.exe" if os.name == "nt" else "node"
+    resolved = shutil.which(executable_name) or shutil.which("node")
+    if resolved is None:
+        return None
+    return Path(resolved).resolve()
+
+
+def resolve_pyright_python(shared_root: Path) -> Path:
+    """Return a working Python executable that can run the ``pyright`` module."""
+    shared_python = python_executable(shared_root)
+    if _python_supports_module(shared_python, "pyright"):
+        return shared_python
+    current_python = Path(sys.executable).resolve()
+    if _python_supports_module(current_python, "pyright"):
+        return current_python
+    raise RuntimeError(
+        "Could not find a working Python interpreter with the 'pyright' module "
+        "available. Repair the shared .venv or install the development "
+        "dependencies in the active interpreter."
+    )
+
+
+def resolve_pyright_command(shared_root: Path) -> list[str]:
+    """Return the command prefix used to invoke Pyright for this checkout."""
+    node_executable = find_node_executable()
+    bundled_entrypoint = find_bundled_pyright_entrypoint(shared_root)
+    if node_executable is not None and bundled_entrypoint is not None:
+        return [str(node_executable), str(bundled_entrypoint)]
+    return [str(resolve_pyright_python(shared_root)), "-m", "pyright"]
+
+
 def build_pyright_config(checkout_root: Path, shared_root: Path) -> dict[str, object]:
     """Build a temporary Pyright config for the current checkout.
 
@@ -137,7 +209,7 @@ def run_pyright(
         Pyright's process exit code.
     """
     config = build_pyright_config(checkout_root, shared_root)
-    pyright_python = python_executable(shared_root)
+    pyright_command = resolve_pyright_command(shared_root)
     temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -153,9 +225,7 @@ def run_pyright(
             temp_path = Path(handle.name)
         result = subprocess.run(
             [
-                str(pyright_python),
-                "-m",
-                "pyright",
+                *pyright_command,
                 "-p",
                 str(temp_path),
                 *resolve_targets(checkout_root, args),

@@ -69,13 +69,13 @@ def _print_browser_open_fallback_message(base_url: str) -> None:
 
 def _import_pywebview() -> Any:
     """Import the optional pywebview module on demand."""
-    try:
-        return import_module("webview")
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "pywebview mode requires the optional desktop extra. Install it with "
-            'python -m pip install "tensor-network-editor[desktop]".'
-        ) from exc
+    return import_module("webview")
+
+
+def _require_main_thread_for_pywebview() -> None:
+    """Reject pywebview launches outside the main thread."""
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("pywebview mode must be launched from the main thread.")
 
 
 def _resolve_pywebview_icon_path() -> Path:
@@ -156,7 +156,7 @@ class _PywebviewExportApi:
         if self._window is None:
             raise RuntimeError("pywebview export API is not bound to a window.")
         dialog_result = self._window.create_file_dialog(
-            self._pywebview_module.SAVE_DIALOG,
+            self._resolve_save_dialog_type(),
             save_filename=filename,
             file_types=self._build_file_types(filename),
         )
@@ -169,6 +169,13 @@ class _PywebviewExportApi:
             if isinstance(first_entry, str) and first_entry:
                 return Path(first_entry)
         return None
+
+    def _resolve_save_dialog_type(self) -> Any:
+        """Return the save-dialog identifier for current and legacy pywebview."""
+        file_dialog = getattr(self._pywebview_module, "FileDialog", None)
+        if file_dialog is not None and hasattr(file_dialog, "SAVE"):
+            return file_dialog.SAVE
+        return self._pywebview_module.SAVE_DIALOG
 
     def _build_file_types(self, filename: str) -> tuple[str, ...]:
         """Build a compact pywebview filter tuple from one filename."""
@@ -192,8 +199,7 @@ def _run_pywebview_session(
     session: EditorSession, base_url: str
 ) -> EditorResult | None:
     """Open the local editor in a pywebview window and wait for the result."""
-    if threading.current_thread() is not threading.main_thread():
-        raise RuntimeError("pywebview mode must be launched from the main thread.")
+    _require_main_thread_for_pywebview()
 
     try:
         pywebview = _import_pywebview()
@@ -639,6 +645,12 @@ def launch_editor_session(
     )
 
     with logging_scope:
+        effective_ui_mode = resolve_editor_ui_mode(
+            ui_mode=ui_mode,
+            open_browser=open_browser,
+        )
+        if effective_ui_mode == "pywebview":
+            _require_main_thread_for_pywebview()
         session = EditorSession(
             initial_spec=initial_spec,
             default_engine=default_engine,
@@ -657,15 +669,6 @@ def launch_editor_session(
             port=port,
             allow_remote=allow_remote,
         )
-        effective_ui_mode = resolve_editor_ui_mode(
-            ui_mode=ui_mode,
-            open_browser=open_browser,
-        )
-        if (
-            effective_ui_mode == "pywebview"
-            and threading.current_thread() is not threading.main_thread()
-        ):
-            raise RuntimeError("pywebview mode must be launched from the main thread.")
         previous_sigint_handler: SignalHandler | int | None = None
         server_started = False
 

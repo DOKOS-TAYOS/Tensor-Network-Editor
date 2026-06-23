@@ -7,6 +7,7 @@ import subprocess
 import sys
 from http import HTTPStatus
 from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Protocol, cast
 from urllib.parse import urlparse
@@ -170,6 +171,33 @@ print("STOPPED", flush=True)
     assert result.stdout.strip() == "STOPPED"
 
 
+def test_editor_server_start_cleans_up_when_readiness_is_interrupted() -> None:
+    server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+    cleanup_calls = 0
+
+    class FakeThread:
+        def start(self) -> None:
+            return None
+
+    def fake_cleanup_failed_start() -> None:
+        nonlocal cleanup_calls
+        cleanup_calls += 1
+
+    try:
+        server.__dict__["_thread"] = FakeThread()
+        server.__dict__["_wait_until_ready"] = lambda: (_ for _ in ()).throw(
+            KeyboardInterrupt()
+        )
+        server.__dict__["_cleanup_failed_start"] = fake_cleanup_failed_start
+
+        with pytest.raises(KeyboardInterrupt):
+            server.start()
+    finally:
+        server._server.server_close()
+
+    assert cleanup_calls == 1
+
+
 def test_editor_server_start_makes_shell_and_vendor_assets_immediately_readable_across_rapid_restarts() -> (
     None
 ):
@@ -237,6 +265,44 @@ def test_editor_server_allows_remote_bind_with_explicit_opt_in() -> None:
     )
 
     server._server.server_close()
+
+
+def test_select_http_server_class_uses_ipv6_for_ipv6_literals() -> None:
+    assert (
+        app_server._select_http_server_class("::1")
+        is app_server._ThreadingHTTPServerIPv6
+    )
+    assert app_server._select_http_server_class("127.0.0.1") is ThreadingHTTPServer
+
+
+@pytest.mark.parametrize(
+    ("bound_host", "expected_base_url"),
+    [
+        ("::1", "http://[::1]:43210"),
+        ("0.0.0.0", "http://127.0.0.1:43210"),
+        ("::", "http://[::1]:43210"),
+    ],
+)
+def test_editor_server_base_url_formats_ipv6_and_wildcards(
+    bound_host: str, expected_base_url: str
+) -> None:
+    server = EditorServer(EditorSession(initial_spec=build_sample_spec()))
+
+    class FakeBoundServer:
+        def __init__(self, server_address: object) -> None:
+            self.server_address = server_address
+
+        def server_close(self) -> None:
+            return None
+
+    try:
+        if ":" in bound_host:
+            server.__dict__["_server"] = FakeBoundServer((bound_host, 43210, 0, 0))
+        else:
+            server.__dict__["_server"] = FakeBoundServer((bound_host, 43210))
+        assert server.base_url == expected_base_url
+    finally:
+        server._server.server_close()
 
 
 def test_editor_index_response_embeds_session_runtime_config() -> None:

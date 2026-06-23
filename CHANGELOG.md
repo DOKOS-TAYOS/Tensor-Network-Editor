@@ -16,6 +16,20 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- The optional `desktop` extra now targets `pywebview` 6.2.1 or newer within
+  the 6.x series, and desktop exports now use the modern `FileDialog.SAVE`
+  API while keeping a compatibility fallback for older local environments.
+- Pywebview launches now reject non-main-thread calls before allocating the
+  local HTTP server, server startup cleanup also covers interrupted readiness
+  probes, and advertised editor URLs now format IPv6 correctly while mapping
+  wildcard binds to loopback URLs for local clients.
+- Live Python imports now normalize inherited relative `PYTHONPATH` entries
+  before switching the subprocess working directory, so helper imports and
+  optional backends keep working when the caller relies on relative paths.
+- `scripts/run_pyright.py` now falls back to the active interpreter when the
+  shared `.venv` launcher exists but cannot actually start, which keeps
+  targeted type-check tests usable on Windows after Python upgrades.
+
 - Documentation now presents the library primarily as a simple way to generate
   backend code for complex tensor networks across several frameworks, with
   figure rendering described as a secondary export workflow.

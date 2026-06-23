@@ -635,15 +635,29 @@ def test_launch_editor_session_pywebview_requires_main_thread(
 ) -> None:
     from tensor_network_editor.app import session as session_module
 
+    constructed_servers = 0
+
     class FakeThread:
         name = "worker"
+
+    class FakeEditorServer:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            nonlocal constructed_servers
+            del args, kwargs
+            constructed_servers += 1
 
     monkeypatch.setattr(
         session_module.threading, "current_thread", lambda: FakeThread()
     )
+    monkeypatch.setattr(
+        "tensor_network_editor.app.server.EditorServer",
+        FakeEditorServer,
+    )
 
     with pytest.raises(RuntimeError, match="pywebview mode must be launched"):
         session_module.launch_editor_session(ui_mode="pywebview")
+
+    assert constructed_servers == 0
 
 
 def test_launch_editor_session_pywebview_missing_dependency_raises_clear_error(
@@ -1159,7 +1173,8 @@ def test_pywebview_export_api_writes_text_file_to_selected_path(
     output_path = tmp_path / "demo.json"
 
     class FakePywebview:
-        SAVE_DIALOG = object()
+        class FileDialog:
+            SAVE = object()
 
     class FakeWindow:
         def __init__(self) -> None:
@@ -1195,7 +1210,7 @@ def test_pywebview_export_api_writes_text_file_to_selected_path(
     assert output_path.read_text(encoding="utf-8") == '{\n  "ok": true\n}\n'
     assert window.dialog_calls == [
         {
-            "dialog_type": FakePywebview.SAVE_DIALOG,
+            "dialog_type": FakePywebview.FileDialog.SAVE,
             "save_filename": "demo.json",
             "file_types": ("JSON (*.json)",),
         }
@@ -1208,7 +1223,8 @@ def test_pywebview_export_api_returns_false_when_save_dialog_is_cancelled(
     output_path = tmp_path / "demo.json"
 
     class FakePywebview:
-        SAVE_DIALOG = object()
+        class FileDialog:
+            SAVE = object()
 
     class FakeWindow:
         def create_file_dialog(
@@ -1241,7 +1257,8 @@ def test_pywebview_export_api_writes_binary_file_to_selected_path(
     binary_payload = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
 
     class FakePywebview:
-        SAVE_DIALOG = object()
+        class FileDialog:
+            SAVE = object()
 
     class FakeWindow:
         def create_file_dialog(
@@ -1265,6 +1282,44 @@ def test_pywebview_export_api_writes_binary_file_to_selected_path(
 
     assert saved is True
     assert output_path.read_bytes() == binary_payload
+
+
+def test_pywebview_export_api_falls_back_to_legacy_save_dialog_constant(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "demo.json"
+
+    class FakePywebview:
+        SAVE_DIALOG = object()
+
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.dialog_type: object | None = None
+
+        def create_file_dialog(
+            self,
+            dialog_type: object,
+            *,
+            save_filename: str,
+            file_types: tuple[str, ...],
+        ) -> tuple[str]:
+            del save_filename, file_types
+            self.dialog_type = dialog_type
+            return (str(output_path),)
+
+    api = _PywebviewExportApi(FakePywebview())
+    window = FakeWindow()
+    api.bind_window(window)
+
+    saved = api.save_text_file(
+        "demo.json",
+        '{\n  "ok": true\n}\n',
+        "application/json;charset=utf-8",
+    )
+
+    assert saved is True
+    assert output_path.read_text(encoding="utf-8") == '{\n  "ok": true\n}\n'
+    assert window.dialog_type is FakePywebview.SAVE_DIALOG
 
 
 def test_open_editor_passes_template_catalog_path(

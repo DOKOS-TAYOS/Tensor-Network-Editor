@@ -4,6 +4,7 @@ import importlib.util
 import os
 import shutil
 import subprocess
+import sys
 import types
 from pathlib import Path
 
@@ -154,6 +155,61 @@ def test_run_pyright_builds_config_for_current_checkout(tmp_path: Path) -> None:
         "extraPaths": ["src", "."],
         "typeCheckingMode": "standard",
     }
+
+
+def test_run_pyright_falls_back_to_current_interpreter_when_shared_venv_is_broken(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    create_checkout_layout(repo_root)
+    python_path = (
+        repo_root / ".venv" / "Scripts" / "python.exe"
+        if os.name == "nt"
+        else repo_root / ".venv" / "bin" / "python"
+    )
+    python_path.parent.mkdir(parents=True, exist_ok=True)
+    python_path.write_text("", encoding="utf-8")
+    module = load_script_module("run_pyright.py")
+    current_python = Path(sys.executable).resolve()
+
+    def fake_python_supports_module(path: Path, module_name: str) -> bool:
+        assert module_name == "pyright"
+        return path.resolve() == current_python
+
+    monkeypatch.setattr(
+        module,
+        "_python_supports_module",
+        fake_python_supports_module,
+    )
+    monkeypatch.setattr(module, "find_node_executable", lambda: None)
+    monkeypatch.setattr(module, "find_bundled_pyright_entrypoint", lambda _root: None)
+
+    assert module.resolve_pyright_python(repo_root).resolve() == current_python
+
+
+def test_run_pyright_prefers_node_with_bundled_entrypoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_root = tmp_path / "repo"
+    create_checkout_layout(repo_root)
+    module = load_script_module("run_pyright.py")
+    node_path = repo_root / "tools" / ("node.exe" if os.name == "nt" else "node")
+    node_path.parent.mkdir(parents=True, exist_ok=True)
+    node_path.write_text("", encoding="utf-8")
+    bundled_entrypoint = (
+        repo_root / ".venv" / "Lib" / "site-packages" / "pyright" / "dist" / "index.js"
+    )
+    bundled_entrypoint.parent.mkdir(parents=True, exist_ok=True)
+    bundled_entrypoint.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(module, "find_node_executable", lambda: node_path)
+
+    assert module.resolve_pyright_command(repo_root) == [
+        str(node_path),
+        str(bundled_entrypoint),
+    ]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="clean.bat is a Windows-only helper")

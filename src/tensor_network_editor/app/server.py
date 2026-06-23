@@ -8,6 +8,7 @@ import json
 import logging
 import mimetypes
 import secrets
+import socket
 import threading
 import time
 from collections.abc import Callable
@@ -76,6 +77,33 @@ class SupportsReadBytes(Protocol):
         ...
 
 
+class _ThreadingHTTPServerIPv6(ThreadingHTTPServer):
+    """Threaded HTTP server variant bound with an IPv6 socket family."""
+
+    address_family = socket.AF_INET6
+
+
+def _normalize_bind_host(host: str) -> str:
+    """Normalize one bind host so socket APIs receive a raw host literal."""
+    normalized_host = host.strip()
+    if normalized_host.startswith("[") and normalized_host.endswith("]"):
+        return normalized_host[1:-1]
+    return normalized_host
+
+
+def _parse_ip_address(
+    host_name: str,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Parse one host literal as an IP address when possible."""
+    normalized_host = host_name.strip().strip("[]").rstrip(".")
+    if "%" in normalized_host:
+        normalized_host = normalized_host.split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(normalized_host)
+    except ValueError:
+        return None
+
+
 def _parse_content_length(content_length_text: str | None) -> int:
     """Return a validated request body length from a Content-Length header."""
     if content_length_text is None:
@@ -111,13 +139,44 @@ def _is_loopback_host_name(host_name: str) -> bool:
     normalized_host = host_name.strip().strip("[]").rstrip(".").lower()
     if normalized_host in {"localhost"} or normalized_host.endswith(".localhost"):
         return True
-    if "%" in normalized_host:
-        normalized_host = normalized_host.split("%", 1)[0]
-    try:
-        address = ipaddress.ip_address(normalized_host)
-    except ValueError:
+    address = _parse_ip_address(normalized_host)
+    if address is None:
         return False
     return address.is_loopback
+
+
+def _is_ipv6_host_name(host_name: str) -> bool:
+    """Return whether one host string is an IPv6 literal."""
+    return isinstance(_parse_ip_address(host_name), ipaddress.IPv6Address)
+
+
+def _is_unspecified_host_name(host_name: str) -> bool:
+    """Return whether one host string is an unspecified wildcard address."""
+    address = _parse_ip_address(host_name)
+    return address is not None and address.is_unspecified
+
+
+def _http_url_host(host_name: str) -> str:
+    """Format one hostname or address literal for inclusion in an HTTP URL."""
+    if _is_ipv6_host_name(host_name):
+        return f"[{host_name.replace('%', '%25')}]"
+    return host_name
+
+
+def _advertised_server_host(bound_host: str) -> str:
+    """Return a client-facing host for one bound server address."""
+    if not _is_unspecified_host_name(bound_host):
+        return bound_host
+    if _is_ipv6_host_name(bound_host):
+        return "::1"
+    return "127.0.0.1"
+
+
+def _select_http_server_class(host: str) -> type[ThreadingHTTPServer]:
+    """Select the threaded HTTP server class for one bind host."""
+    if _is_ipv6_host_name(host):
+        return _ThreadingHTTPServerIPv6
+    return ThreadingHTTPServer
 
 
 def _validate_bind_host(host: str, *, allow_remote: bool) -> None:
@@ -472,10 +531,11 @@ class EditorServer:
             allow_remote: Whether non-loopback bind hosts are allowed.
             api_token: Optional pre-generated API token for tests.
         """
-        _validate_bind_host(host, allow_remote=allow_remote)
+        bind_host = _normalize_bind_host(host)
+        _validate_bind_host(bind_host, allow_remote=allow_remote)
         self.session = session
         self.session_id = session.session_id
-        self.host = host
+        self.host = bind_host
         self.port = port
         self.allow_remote = allow_remote
         self.api_token = api_token or secrets.token_urlsafe(32)
@@ -493,7 +553,8 @@ class EditorServer:
             api_token=self.api_token,
             csp_nonce=self._csp_nonce,
         )
-        self._server = ThreadingHTTPServer((host, port), self._build_handler())
+        server_class = _select_http_server_class(bind_host)
+        self._server = server_class((bind_host, port), self._build_handler())
         self._thread = threading.Thread(target=self._serve_forever, daemon=True)
         self._serve_forever_ready = threading.Event()
 
@@ -504,14 +565,14 @@ class EditorServer:
         host = server_address[0]
         port = server_address[1]
         host_text = host.decode("utf-8") if isinstance(host, bytes) else str(host)
-        return f"http://{host_text}:{port}"
+        return f"http://{_http_url_host(_advertised_server_host(host_text))}:{port}"
 
     def start(self) -> None:
         """Start serving requests in a background thread."""
         self._thread.start()
         try:
             self._wait_until_ready()
-        except Exception:
+        except BaseException:
             self._cleanup_failed_start()
             raise
         log_branch(

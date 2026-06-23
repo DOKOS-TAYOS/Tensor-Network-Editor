@@ -75,7 +75,7 @@ dev = [
 tensornetwork = ["tensornetwork>=0.4"]
 quimb = ["quimb>=1.7"]
 tensorkrowch = ["tensorkrowch>=1.1"]
-desktop = ["pywebview>=5,<6"]
+desktop = ["pywebview>=6.2.1,<7"]
 
 [project.scripts]
 tensor-network-editor = "tensor_network_editor.cli:main"
