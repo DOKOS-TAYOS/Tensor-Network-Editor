@@ -30,6 +30,21 @@ Matplotlib is a required runtime dependency for academic SVG/PNG/PDF rendering.
   vendored into this repository. Its own distribution carries the authoritative
   license text and notices.
 
+opt_einsum is a required runtime dependency for automatic greedy contraction
+path suggestions.
+
+- Package: opt_einsum
+- Version range used by this project: `>=3.3`
+- Project: https://optimized-einsum.readthedocs.io/
+- Package index: https://pypi.org/project/opt-einsum/
+- License: MIT License
+- Copyright:
+  Copyright (c) 2014 Daniel Smith
+- Notice handling:
+  opt_einsum is installed as an external Python dependency rather than being
+  vendored into this repository. Its own distribution carries the authoritative
+  license text and notices.
+
 Development dependency notice
 -----------------------------
 

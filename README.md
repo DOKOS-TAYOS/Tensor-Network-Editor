@@ -411,6 +411,7 @@ whole load immediately.
 
 - Source code: [github.com/DOKOS-TAYOS/Tensor-Network-Editor](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Citation: [CITATION.cff](CITATION.cff)
 - Security policy: [SECURITY.md](SECURITY.md)
 - Example script: [examples/basic_usage.py](examples/basic_usage.py)
 - Issue tracker: [github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues](https://github.com/DOKOS-TAYOS/Tensor-Network-Editor/issues)
