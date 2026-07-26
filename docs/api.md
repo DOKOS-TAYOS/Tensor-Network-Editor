@@ -466,7 +466,10 @@ print(list_template_names())
 Build a template spec:
 
 ```python
-from tensor_network_editor.templates import build_template_spec, parse_template_parameters
+from tensor_network_editor.templates import (
+    build_template_spec,
+    parse_template_parameters,
+)
 
 
 parameters = parse_template_parameters(

@@ -346,7 +346,12 @@ tensor-network-editor export my_network.json --engine einsum_numpy --collection-
 Python example:
 
 ```python
-from tensor_network_editor import EngineName, TensorCollectionFormat, generate_code, load_spec
+from tensor_network_editor import (
+    EngineName,
+    TensorCollectionFormat,
+    generate_code,
+    load_spec,
+)
 
 
 spec = load_spec("my_network.json")
@@ -433,7 +438,10 @@ tensor-network-editor template build mps --graph-size 6 --bond-dimension 4 --phy
 Python example:
 
 ```python
-from tensor_network_editor.templates import build_template_spec, parse_template_parameters
+from tensor_network_editor.templates import (
+    build_template_spec,
+    parse_template_parameters,
+)
 
 
 parameters = parse_template_parameters(
@@ -998,7 +1006,9 @@ from tensor_network_editor import (
 spec = load_spec("my_network.json")
 render_spec_svg(spec, options=SvgRenderOptions(padding=48.0), output_path="figure.svg")
 render_spec_tikz(spec, options=TikzRenderOptions(scale=0.02), output_path="figure.tex")
-render_spec_dot(spec, options=DotRenderOptions(include_open_indices=True), output_path="graph.dot")
+render_spec_dot(
+    spec, options=DotRenderOptions(include_open_indices=True), output_path="graph.dot"
+)
 render_spec_png(spec, output_path="figure.png")
 ```
 
@@ -1029,7 +1039,10 @@ semantic = semantic_diff_specs(spec, canonical)
 
 ```python
 from tensor_network_editor import list_template_names
-from tensor_network_editor.templates import build_template_spec, parse_template_parameters
+from tensor_network_editor.templates import (
+    build_template_spec,
+    parse_template_parameters,
+)
 
 
 print(list_template_names())
