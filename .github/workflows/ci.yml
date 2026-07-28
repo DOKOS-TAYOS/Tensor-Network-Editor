@@ -251,3 +251,48 @@ jobs:
       - name: Run heavy backend tests
         run: |
           & $env:VENV_PYTHON -m pytest -q -m heavy_backend
+
+  required-pr-ci:
+    name: ${{ github.event_name == 'pull_request' && 'required-pr-ci' || 'push-ci-summary' }}
+    if: ${{ always() }}
+    needs:
+      - core
+      - optional-backends
+      - browser-e2e
+      - package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Validate required jobs
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CORE_RESULT: ${{ needs.core.result }}
+          OPTIONAL_BACKENDS_RESULT: ${{ needs['optional-backends'].result }}
+          BROWSER_E2E_RESULT: ${{ needs['browser-e2e'].result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${CORE_RESULT}" != "success" ]]; then
+            echo "Required job core finished with '${CORE_RESULT}', expected success."
+            exit 1
+          fi
+
+          if [[ "${OPTIONAL_BACKENDS_RESULT}" != "success" ]]; then
+            echo "Required job optional-backends finished with '${OPTIONAL_BACKENDS_RESULT}', expected success."
+            exit 1
+          fi
+
+          if [[ "${BROWSER_E2E_RESULT}" != "success" ]]; then
+            echo "Required job browser-e2e finished with '${BROWSER_E2E_RESULT}', expected success."
+            exit 1
+          fi
+
+          if [[ "${PACKAGE_RESULT}" != "success" ]]; then
+            echo "Required job package finished with '${PACKAGE_RESULT}', expected success."
+            exit 1
+          fi
+
+          echo "All required jobs passed."
