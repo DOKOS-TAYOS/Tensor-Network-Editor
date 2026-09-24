@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "18:15"
+      time: "04:05"
       timezone: "Europe/Madrid"
     ignore:
       - dependency-name: "*"
@@ -18,7 +18,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "18:45"
+      time: "04:30"
       timezone: "Europe/Madrid"
     ignore:
       - dependency-name: "*"
