@@ -4,6 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "04:05"
+      timezone: "Europe/Madrid"
     ignore:
       - dependency-name: "*"
         update-types:
@@ -14,6 +17,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "04:30"
+      timezone: "Europe/Madrid"
     ignore:
       - dependency-name: "*"
         update-types:
